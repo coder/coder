@@ -799,8 +799,9 @@ func (p *Server) subagentTools(
 		fantasy.NewAgentTool(
 			"wait_agent",
 			"Wait until a spawned child agent is no longer running or "+
-				"interrupting, then return its latest visible assistant message "+
-				"and status. The tool can return requires_action before the assignment "+
+				"interrupting, then return its status and, in the report field, "+
+				"its latest visible assistant message. The tool can return "+
+				"requires_action before the assignment "+
 				"is complete. The report may answer an earlier instruction; read "+
 				"it before treating it as completion or a handoff. A timeout does "+
 				"not stop the child; it still owns its assignment. Wait again or "+
@@ -949,29 +950,29 @@ func (p *Server) subagentTools(
 		),
 		p.messageAgentTool(
 			currentChat,
-			"Send a prioritized instruction to a descendant agent for a "+
+			"Send a prioritized instruction to a spawned child agent for a "+
 				"correction or scope change, or to resume it after resolving an "+
-				"error. An idle agent starts work on the message. For a busy agent, "+
+				"error. An idle child starts work on the message. For a busy child, "+
 				"the tool requests interruption and moves the message ahead of "+
-				"older queued work; older queued work is preserved. Do not use this "+
-				"for progress requests. A successful result means Coder accepted "+
-				"the message, not that the child has stopped or responded. Use "+
-				"wait_agent for the child's latest report. Queueing and promotion "+
-				"are separate operations: queue processing may deliver the message "+
-				"first, so promotion can fail after delivery. If the agent has "+
-				"stopped with an error and has queued work, sending moves the first "+
-				"queued message into history and marks the chat running before "+
-				"this message can be promoted.",
+				"older queued work without removing that work. Use list_agents "+
+				"for progress checks instead of sending a progress request. A "+
+				"successful result means Coder accepted the message, not that the "+
+				"child has stopped or responded. Use "+
+				"wait_agent for the child's latest report. An error can occur "+
+				"after the child already received the message, so resending may "+
+				"deliver it twice. If the child stopped with an error and has "+
+				"queued work, its oldest queued message starts before this one.",
 		),
 		fantasy.NewAgentTool(
 			"queue_agent_work",
-			"Queue an additional assignment for a descendant agent after its "+
+			"Queue an additional assignment for a spawned child agent after its "+
 				"current assignment and older queued work. Use only for work that "+
 				"remains valid after those assignments finish. It does not interrupt "+
-				"or influence active work. Do not use it for corrections, scope "+
-				"changes, or progress requests. An idle agent starts work on the "+
-				"message immediately. A successful result means Coder accepted the "+
-				"assignment, not that the agent completed it.",
+				"or influence active work, so use message_agent for corrections and "+
+				"scope changes, and list_agents for progress checks. An idle "+
+				"child starts work on the assignment immediately. A successful "+
+				"result means Coder accepted the assignment, not that the child "+
+				"completed it.",
 			func(ctx context.Context, args queueAgentWorkArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				return p.runSubagentMessageTool(ctx, currentChat, args.ChatID, args.Message, false)
 			},
@@ -1389,12 +1390,12 @@ func (p *Server) childMessageAgentTool(child database.Chat) fantasy.AgentTool {
 			"starts work on the message. For a busy parent, the tool requests "+
 			"interruption and moves the message ahead of older queued work "+
 			"without removing that work. Success means Coder accepted the message, "+
-			"not that the parent stopped or responded. Queueing and promotion "+
-			"are separate operations: queue processing may deliver the message "+
-			"first, so promotion can fail after delivery. If the parent has "+
-			"stopped with an error and has queued work, sending moves the first "+
-			"queued message into history and marks the chat running before "+
-			"this message can be promoted.",
+			"not that the parent stopped or responded. A reply from the parent "+
+			"arrives as a new message. If you cannot continue without a decision, "+
+			"end your turn after sending the message. An error can occur "+
+			"after the parent already received the message, so resending may "+
+			"deliver it twice. If the parent stopped with an error and has "+
+			"queued work, its oldest queued message starts before this one.",
 	)
 }
 

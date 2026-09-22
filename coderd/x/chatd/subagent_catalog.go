@@ -329,7 +329,7 @@ func buildSpawnAgentDescription(
 		"when they depend on an unresolved shared contract. You remain responsible " +
 		"for defining assignments, reviewing completed results, and completing the " +
 		"user's task. Use list_agents for progress checks. When your next step " +
-		"depends on a child's latest result, use wait_agent rather than doing " +
+		"depends on a child's latest report, use wait_agent rather than doing " +
 		"that work yourself. Before taking over the child's work, read the returned " +
 		"report to confirm completion or a handoff. The report may answer an " +
 		"earlier instruction. A requires_action status is unfinished: the child is " +

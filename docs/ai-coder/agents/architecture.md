@@ -199,7 +199,7 @@ They can't spawn further sub-agents.
 | `spawn_agent` (`type=general` or `explore`) | Delegates a task to a sub-agent with its own context window. Optionally accepts `model_config_id` and `reasoning_effort` to run the child on a specific enabled model instead of the configured default.                                                             |
 | `list_subagent_models`                      | Lists the enabled model configurations the agent can pass to `spawn_agent` as `model_config_id`.                                                                                                                                                                     |
 | `wait_agent`                                | Returns a sub-agent's latest visible assistant message and status once it is no longer running or interrupting.                                                                                                                                                      |
-| `message_agent`                             | Sends a prioritized message from a root chat to a descendant, or from a child to its direct parent.                                                                                                                                                                  |
+| `message_agent`                             | Sends a prioritized message from the root chat to a sub-agent, or from a sub-agent to its direct parent.                                                                                                                                                             |
 | `queue_agent_work`                          | Schedules additional work after the sub-agent's current assignment and older queued work without interrupting active work.                                                                                                                                           |
 | `interrupt_agent`                           | Requests interruption without adding an instruction. Queued work is preserved and may start automatically.                                                                                                                                                           |
 | `spawn_agent` (`type=computer_use`)         | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Requires an administrator-configured computer-use provider (Anthropic or OpenAI) and the [virtual desktop experiment](./platform-controls/virtual-desktop.md) to be enabled. |
@@ -207,7 +207,8 @@ They can't spawn further sub-agents.
 
 `message_agent` lets a parent correct or redirect a sub-agent's active assignment.
 For a busy recipient, it requests interruption and moves the message ahead of older queued assignments without removing those assignments.
-A child can use it when blocked on a decision or when the parent needs information before the child's final response.
+A sub-agent can use it when blocked on a decision or when the parent needs information before the sub-agent's final response.
+The parent can reply with `message_agent`.
 
 `queue_agent_work` is for additional assignments that remain valid after the current and queued work finish.
 The recipient doesn't read the queued instruction during active work, so this tool can't correct or redirect that work.

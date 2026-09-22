@@ -262,7 +262,7 @@ tasks:
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                                                                                    |
 | `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                                                                                              |
 | `wait_agent`                                | Return the latest visible assistant message when a sub-agent is no longer running or interrupting                                                                     |
-| `message_agent`                             | Send a prioritized message from a root chat to a descendant, or from a child to its direct parent                                                                     |
+| `message_agent`                             | Send a prioritized message from the root chat to a sub-agent, or from a sub-agent to its direct parent                                                                |
 | `queue_agent_work`                          | Schedule additional work after the current assignment and older queued work without interrupting active work                                                          |
 | `interrupt_agent`                           | Request interruption without adding an instruction or removing queued work                                                                                            |
 | `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard)                                                                                              |

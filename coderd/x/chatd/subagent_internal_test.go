@@ -4583,8 +4583,8 @@ func TestAgentToolContracts(t *testing.T) {
 				tool: findToolByName(tools, "message_agent"),
 				contains: []string{
 					"correction or scope change",
-					"older queued work is preserved",
-					"Do not use this for progress requests",
+					"older queued work without removing that work",
+					"Use list_agents for progress checks instead of sending a progress request",
 					"successful result means Coder accepted the message, not that the child has stopped or responded",
 				},
 			},
@@ -4594,8 +4594,8 @@ func TestAgentToolContracts(t *testing.T) {
 				contains: []string{
 					"additional assignment",
 					"does not interrupt or influence active work",
-					"Do not use it for corrections, scope changes, or progress requests",
-					"successful result means Coder accepted the assignment, not that the agent completed it",
+					"use message_agent for corrections and scope changes",
+					"successful result means Coder accepted the assignment, not that the child completed it",
 				},
 			},
 			{

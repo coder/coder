@@ -509,7 +509,7 @@ func TestPlanModeSubagentToolAndPromptPolicy(t *testing.T) {
 	}
 	for _, request := range childRequests {
 		require.True(t, requestHasSystemSubstring(request, "You are in Plan Mode as a delegated sub-agent."))
-		require.True(t, requestHasSystemSubstring(request, "You may also use message_agent to contact the parent when you are blocked and need a decision"))
+		require.True(t, requestHasSystemSubstring(request, "You may also use message_agent to contact the parent."))
 		require.True(t, requestHasSystemSubstring(request, "Do not use it for routine progress updates"))
 		require.False(t, requestHasSystemSubstring(request, "When the plan is ready, call propose_plan"))
 	}
@@ -612,7 +612,7 @@ func TestExploreSubagentToolAndPromptPolicy(t *testing.T) {
 	}
 	for _, request := range childRequests {
 		require.True(t, requestHasSystemSubstring(request, "You are in Explore Mode as a delegated sub-agent."))
-		require.True(t, requestHasSystemSubstring(request, "You may also use message_agent to contact the parent when you are blocked and need a decision"))
+		require.True(t, requestHasSystemSubstring(request, "You may also use message_agent to contact the parent."))
 		require.True(t, requestHasSystemSubstring(request, "Do not use it for routine progress updates"))
 	}
 
