@@ -179,14 +179,16 @@ func (p *Server) resolveQuickgenModel(
 	chat database.Chat,
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, error) {
-	overrideResolved, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
-		ctx,
-		purpose,
-		chat,
-		modelOpts,
-	)
+	override, overrideErr := p.resolveModelOverride(ctx, modelOverrideSpec{
+		context:         titleGenerationOverrideContext,
+		ownerID:         chat.OwnerID,
+		organizationID:  chat.OrganizationID,
+		queryFailure:    modelOverrideFailureModeHard,
+		configFailure:   modelOverrideFailureModeHard,
+		providerFailure: modelOverrideFailureModeHard,
+	})
 	if overrideErr != nil {
-		if overrideSet {
+		if override.Set {
 			return resolvedModelCall{}, xerrors.Errorf(
 				"resolve title generation model override for %s: %w",
 				purpose,
@@ -198,8 +200,23 @@ func (p *Server) resolveQuickgenModel(
 			slog.F("chat_id", chat.ID),
 			slog.Error(overrideErr),
 		)
-	} else if overrideSet {
-		return overrideResolved, nil
+	} else if override.Set {
+		resolved, err := p.resolveModelCall(ctx, modelCallSpec{
+			purpose:          purpose,
+			chat:             chat,
+			explicitConfig:   &override.Config,
+			requestedEffort:  override.ReasoningEffort,
+			chatdScopedRoute: true,
+			buildOptions:     modelOpts,
+		})
+		if err != nil {
+			return resolvedModelCall{}, xerrors.Errorf(
+				"resolve title generation model override for %s: %w",
+				purpose,
+				err,
+			)
+		}
+		return resolved, nil
 	}
 
 	modelCtx, err := p.callerModelConfigContext(ctx, chat.OwnerID)
