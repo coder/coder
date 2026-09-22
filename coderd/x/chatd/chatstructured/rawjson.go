@@ -95,8 +95,8 @@ type parser struct {
 }
 
 func parseJSON(raw []byte, lim limits) (any, error) {
-	// Oversized input costs one comparison. encoding/json would replace
-	// invalid UTF-8 with U+FFFD, which JSONB rejects, so it fails here.
+	// Oversized input costs one comparison. Reject invalid UTF-8 before
+	// encoding/json silently replaces it with U+FFFD.
 	if len(raw) > lim.maxBytes {
 		return nil, ErrTooLarge
 	}
