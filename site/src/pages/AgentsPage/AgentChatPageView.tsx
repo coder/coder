@@ -51,7 +51,10 @@ import {
 	type TerminalChip,
 	TerminalTabPanel,
 } from "./components/RightPanel/TerminalTabPanel";
-import { WorkspaceTabPanel } from "./components/RightPanel/WorkspaceTabPanel";
+import {
+	hasWorkspaceTabContent,
+	WorkspaceTabPanel,
+} from "./components/RightPanel/WorkspaceTabPanel";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
@@ -380,6 +383,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const hasWorkspaceAgent =
 		workspace !== undefined && workspaceAgent !== undefined;
 	const isWorkspaceRunning = workspace?.latest_build.status === "running";
+	const hasWorkspaceTab =
+		hasWorkspaceAgent &&
+		hasWorkspaceTabContent(workspaceAgent, wildcardHostname);
 
 	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
 		userRightPanelTabs,
@@ -463,7 +469,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		...(availableDesktopChatId
 			? [{ id: "desktop" as const, label: "Desktop" }]
 			: []),
-		...(hasWorkspaceAgent
+		...(hasWorkspaceTab
 			? [
 					{
 						id: "workspace" as const,

@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
-import { type FC, useEffect, useId, useRef, useState } from "react";
+import { type FC, useId, useState } from "react";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -14,6 +14,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { TerminalPanel } from "../TerminalPanel";
 import { getSubTabElementId, SubTabStrip } from "./SubTabStrip";
+import { useOverflows } from "./useOverflows";
 
 /** One terminal session shown as a chip inside the Terminal tab. */
 export type TerminalChip = {
@@ -39,31 +40,6 @@ type TerminalTabPanelProps = {
 	onNewTerminal: () => void;
 	onTerminalReady: (terminalId: string) => void;
 };
-
-/**
- * Reports whether the element's content is wider than the element, tracking
- * both container resizes and content changes identified by `contentKey`.
- */
-function useOverflows(contentKey: string) {
-	const ref = useRef<HTMLDivElement>(null);
-	const [overflows, setOverflows] = useState(false);
-
-	useEffect(() => {
-		const element = ref.current;
-		if (!element) {
-			return;
-		}
-		const measure = () => {
-			setOverflows(element.scrollWidth > element.clientWidth + 1);
-		};
-		measure();
-		const resizeObserver = new ResizeObserver(measure);
-		resizeObserver.observe(element);
-		return () => resizeObserver.disconnect();
-	}, [contentKey]);
-
-	return { ref, overflows };
-}
 
 const AddTerminalButton: FC<{
 	onClick: () => void;

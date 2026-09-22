@@ -98,17 +98,7 @@ export const EmptyState: Story = {
 	},
 };
 
-export const SelectorOpen: Story = {
-	// The port preview loads an external iframe, which Pixel cannot capture;
-	// the menu itself is what this story screenshots.
-	parameters: { pixel: { exclude: true } },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: ":3000" }));
-	},
-};
-
-export const EmptyStateSelectorOpen: Story = {
+export const EmptyStateMenuOpen: Story = {
 	args: {
 		previews: [],
 		activePreviewId: null,
@@ -118,6 +108,31 @@ export const EmptyStateSelectorOpen: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Open an app or port" }),
 		);
+	},
+};
+
+export const WithPreviewChips: Story = {
+	// The port preview loads an external iframe, which Pixel cannot capture.
+	parameters: { pixel: { exclude: true } },
+};
+
+/** Enough previews that the chips no longer fit, so the strip collapses into a selector. */
+export const ManyPreviewsSelector: Story = {
+	parameters: { pixel: { exclude: true } },
+	args: {
+		previews: Array.from({ length: 8 }, (_, index) => ({
+			id: `port-${3000 + index}`,
+			kind: "port" as const,
+			label: `:${3000 + index}`,
+			agentId: agent.id,
+			port: 3000 + index,
+			protocol: "http" as const,
+		})),
+		activePreviewId: "port-3002",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(await canvas.findByRole("button", { name: ":3002" }));
 	},
 };
 

@@ -9,7 +9,7 @@ import {
 } from "#/testHelpers/entities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import type { WorkspacePreviewRightPanelTab } from "../../utils/rightPanelTabs";
-import { WorkspaceTabPanel } from "./WorkspaceTabPanel";
+import { hasWorkspaceTabContent, WorkspaceTabPanel } from "./WorkspaceTabPanel";
 
 const embeddableApp: WorkspaceApp = {
 	...MockWorkspaceApp,
@@ -81,12 +81,8 @@ const renderPanel = (
 	return handlers;
 };
 
-const openSelector = async (user: ReturnType<typeof userEvent.setup>) => {
-	await user.click(
-		screen.getByRole("button", {
-			name: /open an app or port|code-server|:3000/i,
-		}),
-	);
+const openMenu = async (user: ReturnType<typeof userEvent.setup>) => {
+	await user.click(screen.getByRole("button", { name: "Open an app or port" }));
 };
 
 describe("WorkspaceTabPanel", () => {
@@ -94,7 +90,7 @@ describe("WorkspaceTabPanel", () => {
 		const user = userEvent.setup();
 		const { onOpenWorkspaceApp } = renderPanel();
 
-		await openSelector(user);
+		await openMenu(user);
 		await user.click(
 			await screen.findByRole("menuitemcheckbox", { name: "code-server" }),
 		);
@@ -106,7 +102,7 @@ describe("WorkspaceTabPanel", () => {
 		const user = userEvent.setup();
 		const { onOpenCommandApp, onOpenWorkspaceApp } = renderPanel();
 
-		await openSelector(user);
+		await openMenu(user);
 		await user.click(
 			await screen.findByRole("menuitem", { name: "Claude Code" }),
 		);
@@ -115,14 +111,28 @@ describe("WorkspaceTabPanel", () => {
 		expect(onOpenWorkspaceApp).not.toHaveBeenCalled();
 	});
 
-	it("switches to an open preview that is not shown", async () => {
+	it("switches and closes previews from their chips", async () => {
+		const user = userEvent.setup();
+		const { onActivePreviewChange, onClosePreview } = renderPanel({
+			previews: [appPreview, portPreview],
+			activePreviewId: portPreview.id,
+		});
+
+		await user.click(screen.getByRole("tab", { name: "code-server" }));
+		expect(onActivePreviewChange).toHaveBeenCalledWith(appPreview.id);
+
+		await user.click(screen.getByRole("button", { name: "Close :3000" }));
+		expect(onClosePreview).toHaveBeenCalledWith(portPreview.id);
+	});
+
+	it("shows an already open app when picked from the add menu", async () => {
 		const user = userEvent.setup();
 		const { onActivePreviewChange, onOpenWorkspaceApp } = renderPanel({
 			previews: [appPreview, portPreview],
 			activePreviewId: portPreview.id,
 		});
 
-		await openSelector(user);
+		await openMenu(user);
 		await user.click(
 			await screen.findByRole("menuitemcheckbox", { name: "code-server" }),
 		);
@@ -130,20 +140,28 @@ describe("WorkspaceTabPanel", () => {
 		expect(onActivePreviewChange).toHaveBeenCalledWith(appPreview.id);
 		expect(onOpenWorkspaceApp).not.toHaveBeenCalled();
 	});
+});
 
-	it("closes the preview that is currently shown", async () => {
-		const user = userEvent.setup();
-		const { onClosePreview, onActivePreviewChange } = renderPanel({
-			previews: [appPreview, portPreview],
-			activePreviewId: portPreview.id,
-		});
+describe("hasWorkspaceTabContent", () => {
+	it("is false when the agent has no visible apps and no port forwarding", () => {
+		expect(
+			hasWorkspaceTabContent({ ...agent, apps: [] }, "*.example.com"),
+		).toBe(false);
+		expect(
+			hasWorkspaceTabContent(
+				{ ...agent, apps: [{ ...embeddableApp, hidden: true }] },
+				"*.example.com",
+			),
+		).toBe(false);
+	});
 
-		await openSelector(user);
-		await user.click(
-			await screen.findByRole("menuitemcheckbox", { name: ":3000" }),
-		);
-
-		expect(onClosePreview).toHaveBeenCalledWith(portPreview.id);
-		expect(onActivePreviewChange).not.toHaveBeenCalled();
+	it("is true with a visible app or with port forwarding", () => {
+		expect(hasWorkspaceTabContent(agent, "*.example.com")).toBe(true);
+		expect(
+			hasWorkspaceTabContent(
+				{ ...agent, apps: [], display_apps: ["port_forwarding_helper"] },
+				"*.example.com",
+			),
+		).toBe(true);
 	});
 });
