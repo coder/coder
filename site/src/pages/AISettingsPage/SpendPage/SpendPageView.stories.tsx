@@ -93,10 +93,6 @@ export const Loading: Story = {
 	},
 };
 
-export const LoadingExplicitRange: Story = {
-	args: { reportQuery: mockPendingReportQuery },
-};
-
 export const Users: Story = {};
 
 export const WithoutDimensionFilters: Story = {

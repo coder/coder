@@ -9,6 +9,7 @@ import {
 	getOrganizationLabel,
 	OrganizationAutocomplete,
 } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	ClientFilter,
 	type ClientFilterMenu,
@@ -79,14 +80,17 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 					<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
 				</>
 			)}
-			{dateRange ? (
+			{isReportLoading ? (
+				// The retention bound arrives with the report, so a picker shown
+				// before it could offer days the server rejects.
+				<Skeleton width={256} height={40} />
+			) : dateRange ? (
 				<DateRangePicker
 					now={now}
 					value={dateRange}
 					onChange={onDateRangeChange}
 					maxDays={MaxAISpendPeriodDays}
 					minDate={minDate}
-					disabled={isReportLoading}
 					size="lg"
 				/>
 			) : (
