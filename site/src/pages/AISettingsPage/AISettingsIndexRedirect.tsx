@@ -1,4 +1,6 @@
+import { useQuery } from "react-query";
 import { Navigate } from "react-router";
+import { aiSpendOrganizations } from "#/api/queries/aiBridge";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -6,18 +8,21 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { canAccessAnyChatModelConfig } from "#/modules/permissions";
 import { useCanShareOrganizationMCPServers } from "./MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "./ModelsPage/organizationModels";
-import { useCanViewAISpend } from "./SpendPage/spendAccess";
+import { canViewAISpend } from "./SpendPage/spendAccess";
 
 export const AISettingsIndexRedirect = () => {
 	const { permissions } = useAuthenticated();
-	const { organizations } = useDashboard();
+	const { entitlements, organizations } = useDashboard();
 	const accessibleOrgsQuery = useAccessibleModelOrganizations(organizations);
 	const organizationMCPSharing = useCanShareOrganizationMCPServers(
 		organizations,
 		{ enabled: !permissions.editDeploymentConfig },
 	);
-	const spendAccess = useCanViewAISpend({
-		enabled: !permissions.editDeploymentConfig,
+	const spendOrganizationsQuery = useQuery({
+		...aiSpendOrganizations(),
+		enabled:
+			entitlements.features.aibridge.enabled &&
+			!permissions.editDeploymentConfig,
 	});
 
 	if (permissions.viewAnyAIProvider) {
@@ -76,15 +81,15 @@ export const AISettingsIndexRedirect = () => {
 		return <Navigate to="/ai/settings/coder-agents" replace />;
 	}
 
-	if (spendAccess.isLoading) {
+	if (spendOrganizationsQuery.isLoading) {
 		return <Loader fullscreen />;
 	}
 
-	if (spendAccess.error !== null) {
-		return <ErrorAlert error={spendAccess.error} />;
+	if (spendOrganizationsQuery.error !== null) {
+		return <ErrorAlert error={spendOrganizationsQuery.error} />;
 	}
 
-	if (spendAccess.canView) {
+	if (canViewAISpend(entitlements, spendOrganizationsQuery.data)) {
 		return <Navigate to="/ai/settings/spend" replace />;
 	}
 

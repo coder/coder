@@ -1,23 +1,11 @@
-import { useQuery } from "react-query";
-import { aiSpendOrganizations } from "#/api/queries/aiBridge";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
-
-type UseCanViewAISpendOptions = {
-	enabled?: boolean;
-};
+import type { Entitlements, Organization } from "#/api/typesGenerated";
 
 // Top-level navigation must admit organization group member readers without
-// site-wide AI settings permissions.
-export const useCanViewAISpend = (options: UseCanViewAISpendOptions = {}) => {
-	const { entitlements } = useDashboard();
-	const isEnabled = entitlements.features.aibridge.enabled;
-	const organizationsQuery = useQuery({
-		...aiSpendOrganizations(),
-		enabled: isEnabled && (options.enabled ?? true),
-	});
-	return {
-		canView: isEnabled && (organizationsQuery.data?.length ?? 0) > 0,
-		isLoading: organizationsQuery.isLoading,
-		error: organizationsQuery.error,
-	};
-};
+// site-wide AI settings permissions, and access follows the entitlement even
+// while a disabled organizations query keeps its cached result.
+export const canViewAISpend = (
+	entitlements: Entitlements,
+	spendOrganizations: readonly Organization[] | undefined,
+): boolean =>
+	entitlements.features.aibridge.enabled &&
+	(spendOrganizations?.length ?? 0) > 0;
