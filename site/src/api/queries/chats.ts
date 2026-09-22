@@ -514,6 +514,12 @@ const diffStatusEqual = (
 	);
 };
 
+const pickTitleFields = ({
+	title,
+	title_source,
+	title_updated_at,
+}: TypesGen.Chat) => ({ title, title_source, title_updated_at });
+
 /**
  * Merges event-scoped chat fields into a cached summary, using updated_at
  * as a stale guard while still adopting the latest DB-backed model config.
@@ -537,20 +543,14 @@ export const mergeWatchedChatSummary = (
 	const nextStatus =
 		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
 	// Title writes do not change updated_at, so title events are ordered
-	// by title_updated_at instead.
-	const applyTitle =
+	// by title_updated_at instead. The three title fields move together.
+	const hasNewerTitle =
 		isTitleEvent &&
 		compareUpdatedAtInstants(
 			cachedChat.title_updated_at,
 			watchedChat.title_updated_at,
 		) < 0;
-	const nextTitle = applyTitle ? watchedChat.title : cachedChat.title;
-	const nextTitleSource = applyTitle
-		? watchedChat.title_source
-		: cachedChat.title_source;
-	const nextTitleUpdatedAt = applyTitle
-		? watchedChat.title_updated_at
-		: cachedChat.title_updated_at;
+	const titleFields = pickTitleFields(hasNewerTitle ? watchedChat : cachedChat);
 	// Diff status freshness is tracked outside chats.updated_at, so apply
 	// diff_status_change payloads even when the chat summary timestamp is older.
 	const nextDiffStatus = isDiffStatusEvent
@@ -602,7 +602,7 @@ export const mergeWatchedChatSummary = (
 	// another event can carry an updated_at newer than a status_change
 	// that has not arrived yet; advancing on it would refuse that status.
 	const nextUpdatedAt =
-		isStatusEvent && updatedAtComparison <= 0
+		isStatusEvent && isFreshEnough
 			? watchedChat.updated_at
 			: cachedChat.updated_at;
 
@@ -610,10 +610,8 @@ export const mergeWatchedChatSummary = (
 	// rerender shortcut so later stale events cannot pass isFreshEnough
 	// against a timestamp that should already have been superseded.
 	if (
+		!hasNewerTitle &&
 		nextStatus === cachedChat.status &&
-		nextTitle === cachedChat.title &&
-		nextTitleSource === cachedChat.title_source &&
-		nextTitleUpdatedAt === cachedChat.title_updated_at &&
 		diffStatusEqual(nextDiffStatus, cachedChat.diff_status) &&
 		nextWorkspaceId === cachedChat.workspace_id &&
 		nextBuildId === cachedChat.build_id &&
@@ -630,10 +628,8 @@ export const mergeWatchedChatSummary = (
 
 	return {
 		...cachedChat,
+		...titleFields,
 		status: nextStatus,
-		title: nextTitle,
-		title_source: nextTitleSource,
-		title_updated_at: nextTitleUpdatedAt,
 		diff_status: nextDiffStatus,
 		workspace_id: nextWorkspaceId,
 		build_id: nextBuildId,

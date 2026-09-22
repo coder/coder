@@ -2271,13 +2271,6 @@ func TestChatTitleSource(t *testing.T) {
 		return dbgen.Chat(t, db, seed)
 	}
 
-	t.Run("InsertDefaultsToFallback", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		chat := newChat(t, db, database.Chat{Title: "first prompt"})
-		require.Equal(t, database.ChatTitleSourceFallback, chat.TitleSource)
-	})
-
 	// Two writes in one transaction share NOW(), so this proves the stamp
 	// advances even when the clock does not.
 	t.Run("TitleUpdatedAtStrictlyIncreasesPerWrite", func(t *testing.T) {
@@ -2285,6 +2278,7 @@ func TestChatTitleSource(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		db, _ := dbtestutil.NewDB(t)
 		chat := newChat(t, db, database.Chat{Title: "before"})
+		require.Equal(t, database.ChatTitleSourceFallback, chat.TitleSource, "insert without a source must default to fallback")
 
 		var first, second database.Chat
 		err := db.InTx(func(tx database.Store) error {

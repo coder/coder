@@ -1010,106 +1010,46 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 // the process-local activeChats mechanism. Archive cleanup is now
 // best-effort; stale finalization handles any orphaned rows.
 
+// A rename is skipped only when the stored title is already this user
+// title; any other source is replaced even when the text is unchanged.
 func TestRenameChatTitle(t *testing.T) {
 	t.Parallel()
 
-	t.Run("WritesAndReturnsWroteTrue", func(t *testing.T) {
-		t.Parallel()
+	const stored = "stored title"
+	sources := []database.ChatTitleSource{
+		database.ChatTitleSourceFallback,
+		database.ChatTitleSourceGenerated,
+		database.ChatTitleSourceUser,
+	}
+	newTitles := map[string]string{"same text": stored, "new text": "renamed"}
+	for _, source := range sources {
+		for name, newTitle := range newTitles {
+			wantWrite := newTitle != stored || source != database.ChatTitleSourceUser
+			t.Run(string(source)+"_"+name, func(t *testing.T) {
+				t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				db, _ := dbtestutil.NewDB(t)
+				_, chat := seedTitleChat(t, db, stored, source)
+				server := &Server{db: db, logger: slogtest.Make(t, nil)}
 
-		chatID := uuid.New()
-		workerID := uuid.New()
-		stored := database.Chat{
-			ID:       chatID,
-			Status:   database.ChatStatusRunning,
-			WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
-			Title:    "original",
+				got, wrote, err := server.RenameChatTitle(ctx, chat, newTitle)
+				require.NoError(t, err)
+				require.Equal(t, wantWrite, wrote)
+				require.Equal(t, newTitle, got.Title)
+				require.Equal(t, database.ChatTitleSourceUser, got.TitleSource)
+
+				fetched, err := db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, got, fetched, "the returned row must be the stored row")
+				if wantWrite {
+					require.True(t, fetched.TitleUpdatedAt.After(chat.TitleUpdatedAt))
+				} else {
+					require.True(t, fetched.TitleUpdatedAt.Equal(chat.TitleUpdatedAt))
+				}
+			})
 		}
-		updated := stored
-		updated.Title = "renamed"
-
-		server := &Server{db: db, logger: logger}
-
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(stored, nil)
-		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
-			ID:          chatID,
-			Title:       "renamed",
-			TitleSource: database.ChatTitleSourceUser,
-		}).Return(updated, nil)
-
-		got, wrote, err := server.RenameChatTitle(ctx, stored, "renamed")
-		require.NoError(t, err)
-		require.True(t, wrote, "fresh rename must report wrote=true")
-		require.Equal(t, updated, got)
-	})
-
-	t.Run("SkipsWriteWhenAlreadyAtNewTitle", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-
-		chatID := uuid.New()
-		workerID := uuid.New()
-		stale := database.Chat{
-			ID:       chatID,
-			Status:   database.ChatStatusRunning,
-			WorkerID: uuid.NullUUID{UUID: workerID, Valid: true},
-			Title:    "pre-race",
-		}
-		landed := stale
-		landed.Title = "landed-concurrently"
-		landed.TitleSource = database.ChatTitleSourceUser
-
-		server := &Server{db: db, logger: logger}
-
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(landed, nil)
-
-		got, wrote, err := server.RenameChatTitle(ctx, stale, "landed-concurrently")
-		require.NoError(t, err)
-		require.False(t, wrote,
-			"must report wrote=false when the stored row already matches newTitle so the handler suppresses a redundant title_change event")
-		require.Equal(t, landed, got)
-	})
-
-	t.Run("WritesWhenSameTitleIsNotYetUserSet", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-
-		chatID := uuid.New()
-		stored := database.Chat{
-			ID:          chatID,
-			Status:      database.ChatStatusRunning,
-			Title:       "keep this",
-			TitleSource: database.ChatTitleSourceFallback,
-		}
-		updated := stored
-		updated.TitleSource = database.ChatTitleSourceUser
-
-		server := &Server{db: db, logger: logger}
-
-		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(stored, nil)
-		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
-			ID:          chatID,
-			Title:       "keep this",
-			TitleSource: database.ChatTitleSourceUser,
-		}).Return(updated, nil)
-
-		got, wrote, err := server.RenameChatTitle(ctx, stored, "keep this")
-		require.NoError(t, err)
-		require.True(t, wrote)
-		require.Equal(t, updated, got)
-	})
+	}
 }
 
 func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
