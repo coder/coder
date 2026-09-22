@@ -208,13 +208,13 @@ func TestConnectInline_ToolResultCap(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		result    string
-		sensitive []string
+		headers   map[string]string
 		asError   bool
 		asImage   bool
 		wantError bool
 	}{
 		{name: "OverCap", result: strings.Repeat("a", maxBytes+1), wantError: true},
-		{name: "ShortSecretInflatesOverCap", result: strings.Repeat("prodkey1", (maxBytes-1024)/8), sensitive: []string{"prodkey1"}, wantError: true},
+		{name: "ShortSecretInflatesOverCap", result: strings.Repeat("prodkey1", (maxBytes-1024)/8), headers: map[string]string{"X-Key": "prodkey1"}, wantError: true},
 		{name: "ServerErrorOverCap", result: strings.Repeat("a", maxBytes+1), asError: true, wantError: true},
 		{name: "Base64InflatesOverCap", result: strings.Repeat("a", maxBytes*3/4+1), asImage: true, wantError: true},
 	} {
@@ -242,8 +242,7 @@ func TestConnectInline_ToolResultCap(t *testing.T) {
 				},
 			}
 			ts := newTestMCPServer(t, huge)
-			cfg := makeInlineConfig("bot", ts.URL, nil)
-			cfg.SensitiveValues = tc.sensitive
+			cfg := makeInlineConfig("bot", ts.URL, tc.headers)
 
 			tools, _, cleanup := mcpclient.ConnectInlineForTest(
 				ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
@@ -270,6 +269,7 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	// The "&" is JSON-escaped when structured content is encoded, so a
 	// redactor that only scans the encoded text would miss it.
 	const secret = "super&secret&token"
+	const bearerToken = "bearer-token-value"
 
 	// The server URL is only known after the listener starts, so the
 	// tool definitions read it from this variable at ListTools time.
@@ -280,7 +280,7 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 			InputSchema: map[string]any{"type": "object"},
 		},
 		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			result := textToolResult("result mentions " + secret + " and " + serverURL)
+			result := textToolResult("result mentions " + secret + " and " + serverURL + " and " + bearerToken)
 			result.StructuredContent = map[string]any{"token": secret, "url": serverURL}
 			return result, nil
 		},
@@ -317,9 +317,13 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	srv.AddTool(failing.tool, failing.handler)
 
 	// "REDACTED" is a substring of the placeholder; the redactor must
-	// drop it so redacted output is not re-redacted.
-	cfg := makeInlineConfig("bot-server", ts.URL, map[string]string{"X-Bot-Key": secret})
-	cfg.SensitiveValues = []string{ts.URL, secret, "REDACTED", "bot-server"}
+	// drop that header value so redacted output is not re-redacted.
+	cfg := makeInlineConfig("bot-server", ts.URL, map[string]string{
+		"X-Bot-Key":     secret,
+		"Authorization": "Bearer " + bearerToken,
+		"X-Placeholder": "REDACTED",
+		"X-Slug":        "bot-server",
+	})
 
 	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
 		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
@@ -350,7 +354,8 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, resp.Content, "secret")
 	require.NotContains(t, resp.Content, ts.URL)
-	require.Contains(t, resp.Content, "result mentions [REDACTED] and [REDACTED]")
+	require.Contains(t, resp.Content, "result mentions [REDACTED] and [REDACTED] and [REDACTED]")
+	require.NotContains(t, resp.Content, bearerToken)
 	require.Contains(t, resp.Content, `"token":"[REDACTED]"`)
 
 	resp, err = failingTool.Run(ctx, fantasy.ToolCall{ID: "call-2", Input: "{}"})
@@ -367,7 +372,6 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	closed.Close()
 	brokenURL := closed.URL + "/t/pathtoken?key=querytoken"
 	brokenCfg := makeInlineConfig("broken", brokenURL, nil)
-	brokenCfg.SensitiveValues = []string{brokenURL}
 	_, summaries, cleanup = mcpclient.ConnectInlineForTest(
 		ctx, logger, []mcpclient.Server{brokenCfg}, nil, testutil.WaitLong,
 	)
@@ -412,8 +416,7 @@ func TestConnectInline_IgnoresShortSensitiveValues(t *testing.T) {
 		},
 	}
 	ts := newTestMCPServer(t, account)
-	cfg := makeInlineConfig("data-bot", ts.URL, nil)
-	cfg.SensitiveValues = []string{"a", secret}
+	cfg := makeInlineConfig("data-bot", ts.URL, map[string]string{"X-Short": "a", "X-Key": secret})
 
 	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
 		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,

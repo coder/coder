@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"charm.land/fantasy"
@@ -136,11 +137,6 @@ type Server struct {
 	ToolAllowList []string
 	ToolDenyList  []string
 	ModelIntent   bool
-	// SensitiveValues are redacted from every model-visible and
-	// viewer-visible string. Inline servers set URL and header
-	// values; org servers leave it empty. Values shorter than
-	// MinSensitiveValueBytes are ignored.
-	SensitiveValues []string
 }
 
 // Transport selects the MCP HTTP transport used to reach a Server.
@@ -248,9 +244,9 @@ func ConnectAll(
 // inline on their own chat. Unlike org-configured servers, these
 // endpoints are chosen by an end user, so the connection is hardened:
 // response bodies, tool counts, tool definitions, and tool results are
-// size-capped after redaction, and each Server's SensitiveValues are
-// redacted from every string a model or a non-owner chat viewer can
-// see. Inline servers have no OAuth tokens or OIDC identity, so those
+// size-capped after redaction, and each server's URL and header values
+// are redacted from every string a model or a non-owner chat viewer
+// can see. Inline servers have no OAuth tokens or OIDC identity, so those
 // inputs are always empty. A nil httpClient falls back to the default
 // guarded client.
 func ConnectInline(
@@ -345,7 +341,7 @@ func connectAllWithHooks(
 	var eg errgroup.Group
 	for _, srv := range servers {
 		eg.Go(func() error {
-			redactor := newSecretRedactor(srv.SensitiveValues)
+			redactor := newServerRedactor(opts.kind, srv)
 			start := time.Now()
 			serverTools, session, connectErr := connectOne(
 				ctx, logger, srv, tokensByConfigID, userID, oidcSrc, coderHeaders,
@@ -998,6 +994,27 @@ func newSecretRedactor(values []string) secretRedactor {
 	})
 	values = slices.Compact(values)
 	return secretRedactor{values: values}
+}
+
+// newServerRedactor hides the values an inline server's operator
+// supplied: the URL and every header value. A scheme-prefixed header
+// value such as "Bearer <token>" also contributes the credential alone,
+// because a server commonly echoes the credential without its scheme.
+// Org servers are configured by admins and are not redacted.
+func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
+	if kind != connectionKindInline {
+		return secretRedactor{}
+	}
+	values := []string{srv.URL}
+	for _, value := range srv.Headers {
+		values = append(values, value)
+		if i := strings.IndexFunc(value, unicode.IsSpace); i > 0 {
+			if credential := strings.TrimSpace(value[i:]); credential != "" {
+				values = append(values, credential)
+			}
+		}
+	}
+	return newSecretRedactor(values)
 }
 
 func (r secretRedactor) redactString(value string) string {

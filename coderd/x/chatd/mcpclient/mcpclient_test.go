@@ -842,7 +842,6 @@ func TestServerFromConfig(t *testing.T) {
 			assert.Equal(t, cfg.ToolAllowList, srv.ToolAllowList)
 			assert.Equal(t, cfg.ToolDenyList, srv.ToolDenyList)
 			assert.True(t, srv.ModelIntent)
-			assert.Nil(t, srv.SensitiveValues)
 		})
 	}
 }
