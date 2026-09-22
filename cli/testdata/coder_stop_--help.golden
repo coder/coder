@@ -6,6 +6,15 @@ USAGE:
   Stop a workspace
 
 OPTIONS:
+      --log-buffer-size int, $CODER_LOG_BUFFER_SIZE (default: 1000)
+          Number of debug log entries to keep in memory and write to the session
+          log file if the command fails. Set to 0 to disable buffering. Ignored
+          with --verbose, which writes debug logs unconditionally.
+
+      --log-dir string, $CODER_LOG_DIR
+          Directory to write session diagnostic log files to. Defaults to the
+          user state directory.
+
   -y, --yes bool
           Bypass confirmation prompts.
 
