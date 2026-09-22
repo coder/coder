@@ -14,7 +14,9 @@ CREATE TABLE chat_projects (
     description text NOT NULL DEFAULT '',
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT chat_projects_name_not_blank CHECK (length(trim(name)) > 0)
+    CONSTRAINT chat_projects_name_not_blank CHECK (length(trim(name)) > 0),
+    CONSTRAINT chat_projects_name_length CHECK (length(name) <= 64),
+    CONSTRAINT chat_projects_description_length CHECK (length(description) <= 1024)
 );
 
 COMMENT ON TABLE chat_projects IS 'Organization-scoped projects that group agent chats.';

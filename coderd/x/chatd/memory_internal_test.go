@@ -11,6 +11,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -65,4 +66,13 @@ func TestResolveMemoryScope(t *testing.T) {
 		_, _, status := server.resolveMemoryScope(t.Context(), database.Chat{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}})
 		require.Equal(t, memoryScopeUnavailable, status)
 	})
+}
+
+func TestPlanModeKeepsMemoryTools(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName} {
+		require.True(t, builtinPlanToolAllowed(name, true), name)
+		require.False(t, builtinPlanToolAllowed(name, false), "%s is a root-chat tool", name)
+	}
 }

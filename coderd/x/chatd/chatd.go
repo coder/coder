@@ -3389,10 +3389,13 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	switch name {
 	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
 		return true
+	// Memory is the agent's own notes, not the user's system, and plan
+	// discussions are where preferences and decisions get stated.
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
 		"spawn_explore_agent", "wait_agent", "list_agents", "list_subagent_models",
-		"ask_user_question", "attach_file":
+		"ask_user_question", "attach_file",
+		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName:
 		return isRootChat
 	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
 		"spawn_computer_use_agent":

@@ -25,8 +25,11 @@ const (
 	// a reminder to prune, so the agent tidies before the cap refuses a save.
 	MemoryNearCapWarning = 180
 
-	MaxMemoryIndexLines       = 200
-	MaxMemoryIndexBytes       = 25 * 1024
+	MaxMemoryIndexLines = 200
+	// MaxMemoryIndexBytes fits MaxMemories entries at the longest name and
+	// description, so a project at the cap always has every name listed;
+	// read_memory takes an exact name and there is no other way to find one.
+	MaxMemoryIndexBytes       = 48 * 1024
 	MaxMemoryBodyBytes        = 8192
 	MaxMemoryDescriptionChars = 150
 

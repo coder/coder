@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -75,6 +76,16 @@ func TestFormatMemoryGuidanceAndIndexForTool(t *testing.T) {
 	require.Contains(t, index, "Available memories (newest first):")
 	require.Contains(t, index, "more memories not shown.")
 	require.LessOrEqual(t, len(index), chattool.MaxMemoryIndexBytes)
+
+	// A project at the cap with the longest allowed names and descriptions
+	// still lists every memory, so nothing becomes unreachable.
+	full := make([]chattool.MemoryIndexEntry, chattool.MaxMemories)
+	for i := range full {
+		full[i] = chattool.MemoryIndexEntry{Name: fmt.Sprintf("%03d-%s", i, strings.Repeat("n", 60)), Description: strings.Repeat("d", chattool.MaxMemoryDescriptionChars)}
+	}
+	fullIndex := chattool.FormatMemoryIndexForTool(full)
+	require.NotContains(t, fullIndex, "not shown")
+	require.Contains(t, fullIndex, full[len(full)-1].Name)
 	require.Contains(t, guidance, "people on this project")
 	require.Equal(t, "No memories saved yet.", chattool.FormatMemoryIndexForTool(nil))
 }
