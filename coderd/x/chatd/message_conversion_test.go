@@ -879,10 +879,8 @@ func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *t
 func TestBufferedPartsToPartialMessages_CoalescesStreamedTextDeltas(t *testing.T) {
 	t.Parallel()
 
-	// A stream delivers text and reasoning one token at a time. When a
-	// turn is interrupted, the persisted assistant message must hold one
-	// part per contiguous run of the same type, as a completed turn does,
-	// not one part per token.
+	// Streams deliver text one token at a time; an interrupted turn must
+	// persist one part per run, as a completed turn does, not one per token.
 	parts := []messagepartbuffer.Part{
 		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageReasoning("think")},
 		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageReasoning("ing")},
@@ -917,10 +915,8 @@ func TestBufferedPartsToPartialMessages_CoalescesStreamedTextDeltas(t *testing.T
 	}, summary, "adjacent deltas of the same type must be persisted as one part")
 }
 
-// BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas persists one
-// interrupted turn delivered as N small text deltas. B/op should grow
-// linearly with N; compare the two sizes. A measured interrupted turn had
-// 3,987 deltas.
+// BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas persists N text
+// deltas; B/op should be linear in N. A measured interrupted turn had 3,987.
 func BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas(b *testing.B) {
 	for _, n := range []int{1000, 4000} {
 		b.Run(strconv.Itoa(n), func(b *testing.B) {

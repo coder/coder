@@ -785,11 +785,9 @@ type partialMessageConversionState struct {
 	// modelStreamedAssistant distinguishes streamed content from tool
 	// attachment parts, which must not carry model runtime.
 	modelStreamedAssistant bool
-	// streamedRun accumulates the text of the open text or reasoning run
-	// at assistantParts[streamedRunIndex]. Appending to a builder makes
-	// persisting N deltas linear in N; appending to the part's Text copied
-	// the whole run on every delta. The run closes when any other part is
-	// appended or the message is flushed.
+	// streamedRun holds the text of the open text or reasoning run at
+	// assistantParts[streamedRunIndex]. Appending to the part's Text instead
+	// copied the whole run on every delta.
 	streamedRun      strings.Builder
 	streamedRunIndex int
 	streamedRunOpen  bool
@@ -877,14 +875,10 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	s.assistantParts[call.index] = durable
 }
 
-// appendStreamedDelta merges a streamed text or reasoning delta into the
-// previous assistant part when both belong to the same contiguous run.
-// Streams deliver these one token at a time; a completed turn stores one
-// part per run (processStepStream accumulates TextStart..TextEnd), and an
-// interrupted turn must persist the same shape rather than one part per
-// token. Like the completed path, the run keeps the latest non-empty
-// provider metadata; a reasoning run keeps its first start time and the
-// latest completion time. Returns false when the delta starts a new part.
+// appendStreamedDelta merges a text or reasoning delta into the open run of
+// the same type, so an interrupted turn persists one part per run like a
+// completed turn (processStepStream) instead of one part per token. Metadata
+// and timestamps merge the way processStepStream merges them.
 func (s *partialMessageConversionState) appendStreamedDelta(part codersdk.ChatMessagePart) bool {
 	if part.Type != codersdk.ChatMessagePartTypeText && part.Type != codersdk.ChatMessagePartTypeReasoning {
 		return false
@@ -909,9 +903,8 @@ func (s *partialMessageConversionState) appendStreamedDelta(part codersdk.ChatMe
 	return true
 }
 
-// appendAssistantPart adds a part that did not merge into the open run.
-// A text or reasoning part opens a new run so later deltas of the same
-// type accumulate onto it.
+// appendAssistantPart closes the open run; a text or reasoning part opens a
+// new one.
 func (s *partialMessageConversionState) appendAssistantPart(part codersdk.ChatMessagePart) {
 	s.closeStreamedRun()
 	s.assistantParts = append(s.assistantParts, part)
