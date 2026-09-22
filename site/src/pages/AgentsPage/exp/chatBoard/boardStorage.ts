@@ -19,7 +19,7 @@ type WindowFrame = Readonly<{
  * an existing chat; unpinned ones are hover previews, which live in the same
  * list so pinning does not remount them, but do not survive a reload. A
  * draft window holds the create form for a chat that does not exist yet; it
- * is always pinned and never stored, because the form keeps its text in one
+ * is always pinned and never restored, because the form keeps its text in one
  * shared localStorage draft, so there is at most one draft window.
  */
 export type ChatWindow = WindowFrame &
