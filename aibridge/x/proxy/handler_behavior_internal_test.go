@@ -364,6 +364,7 @@ func TestForwardingHandlerMetricLabels(t *testing.T) {
 func TestNewForwardingHandlerValidation(t *testing.T) {
 	t.Parallel()
 
+	pool := testutil.SingleKeyPool(config.ProviderOpenAI, "key")
 	for _, tc := range []struct {
 		name        string
 		prov        *forwardingTestProvider
@@ -372,6 +373,25 @@ func TestNewForwardingHandlerValidation(t *testing.T) {
 		{name: "RelativeBaseURL", prov: &forwardingTestProvider{MockProvider: &testutil.MockProvider{NameStr: "test", URL: "/relative"}}, errContains: "absolute HTTP or HTTPS URL"},
 		{name: "MalformedBaseURL", prov: &forwardingTestProvider{MockProvider: &testutil.MockProvider{NameStr: "test", URL: "://bad"}}, errContains: "base URL"},
 		{name: "MissingIsBYOK", prov: providerWithPool(t), errContains: "IsBYOK callback"},
+		{
+			name: "MissingInjectAuthKey",
+			prov: &forwardingTestProvider{
+				MockProvider: &testutil.MockProvider{NameStr: "test", URL: "https://upstream.example.test"},
+				failover:     keypool.KeyFailoverConfig{Pool: pool, IsBYOK: func(*http.Request) bool { return false }},
+			},
+			errContains: "InjectAuthKey callback",
+		},
+		{
+			name: "MissingBuildResponse",
+			prov: &forwardingTestProvider{
+				MockProvider: &testutil.MockProvider{NameStr: "test", URL: "https://upstream.example.test"},
+				failover: keypool.KeyFailoverConfig{
+					Pool: pool, IsBYOK: func(*http.Request) bool { return false },
+					InjectAuthKey: func(*http.Header, string) {},
+				},
+			},
+			errContains: "BuildKeyPoolResponse callback",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
