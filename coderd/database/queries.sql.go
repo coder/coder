@@ -3686,59 +3686,64 @@ func (q *sqlQuerier) IncrementUserAIDailySpend(ctx context.Context, arg Incremen
 }
 
 const listOrganizationAISpendUsers = `-- name: ListOrganizationAISpendUsers :many
+WITH spend AS (
+	SELECT
+		ai.initiator_id AS user_id,
+		COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
+		COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
+		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
+		ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
+		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models
+	FROM aibridge_token_usages tu
+	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+	JOIN groups ON groups.id = tu.effective_group_id
+	WHERE groups.organization_id = $1
+		AND tu.created_at >= $4::timestamptz
+		AND tu.created_at < $5::timestamptz
+		AND CASE
+			WHEN $6::text != '' THEN ai.provider_name = $6::text
+			ELSE true
+		END
+		AND CASE
+			WHEN $7::text != '' THEN ai.model = $7::text
+			ELSE true
+		END
+		AND CASE
+			WHEN $8::text != '' THEN COALESCE(ai.client, 'Unknown') = $8::text
+			ELSE true
+		END
+	GROUP BY ai.initiator_id
+)
 SELECT
-	ai.initiator_id AS user_id,
-	users.username AS username,
-	users.name AS name,
-	users.avatar_url AS avatar_url,
-	groups.organization_id AS organization_id,
-	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
-	COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
-	ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
-	ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
-	ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models,
-	COUNT(*) OVER ()::BIGINT AS count,
-	COALESCE(SUM(SUM(tu.cost_micros)) OVER (), 0)::BIGINT AS total_cost_micros,
-	COALESCE(SUM(COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)) OVER (), 0)::BIGINT AS total_unpriced_usage_count
-FROM aibridge_token_usages tu
-JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
-JOIN users ON users.id = ai.initiator_id
-JOIN groups ON groups.id = tu.effective_group_id
-WHERE groups.organization_id = $1
-	AND tu.created_at >= $2::timestamptz
-	AND tu.created_at < $3::timestamptz
-	AND CASE
-		WHEN $4::text != '' THEN ai.provider_name = $4::text
-		ELSE true
-	END
-	AND CASE
-		WHEN $5::text != '' THEN ai.model = $5::text
-		ELSE true
-	END
-	AND CASE
-		WHEN $6::text != '' THEN COALESCE(ai.client, 'Unknown') = $6::text
-		ELSE true
-	END
-GROUP BY
-	ai.initiator_id,
+	spend.user_id,
 	users.username,
 	users.name,
 	users.avatar_url,
-	groups.organization_id
-ORDER BY cost_micros DESC, LOWER(users.username), ai.initiator_id
-LIMIT NULLIF($8::int, 0)
-OFFSET $7::int
+	$1::uuid AS organization_id,
+	spend.cost_micros,
+	spend.unpriced_usage_count,
+	spend.providers,
+	spend.clients,
+	spend.models,
+	COUNT(*) OVER ()::BIGINT AS count,
+	COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
+	COALESCE(SUM(spend.unpriced_usage_count) OVER (), 0)::BIGINT AS total_unpriced_usage_count
+FROM spend
+JOIN users ON users.id = spend.user_id
+ORDER BY cost_micros DESC, LOWER(users.username), spend.user_id
+LIMIT NULLIF($3::int, 0)
+OFFSET $2::int
 `
 
 type ListOrganizationAISpendUsersParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 	PeriodStart    time.Time `db:"period_start" json:"period_start"`
 	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
 	ProviderName   string    `db:"provider_name" json:"provider_name"`
 	Model          string    `db:"model" json:"model"`
 	Client         string    `db:"client" json:"client"`
-	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
-	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 type ListOrganizationAISpendUsersRow struct {
@@ -3765,13 +3770,13 @@ type ListOrganizationAISpendUsersRow struct {
 func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listOrganizationAISpendUsers,
 		arg.OrganizationID,
+		arg.OffsetOpt,
+		arg.LimitOpt,
 		arg.PeriodStart,
 		arg.PeriodEnd,
 		arg.ProviderName,
 		arg.Model,
 		arg.Client,
-		arg.OffsetOpt,
-		arg.LimitOpt,
 	)
 	if err != nil {
 		return nil, err
