@@ -31,15 +31,15 @@ func TestCommandHeaderProvider(t *testing.T) {
 			clock := quartz.NewMock(t)
 			first := headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(time.Minute)))
 			later := headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(time.Hour)))
-			initial := "Authorization=Bearer " + first + "\nX-Token=" + later + "\nX-Removed=old\n"
-			provider := newTestHeaderProvider(ctx, clock, []string{"X-Static=unchanged"}, fmt.Sprintf("printf %q", initial))
+			// Avoid nested quotes: cmd.exe does not unquote arguments like sh.
+			command := fmt.Sprintf("echo Authorization=Bearer %s&&echo X-Token=%s&&echo X-Removed=old", first, later)
+			provider := newTestHeaderProvider(ctx, clock, []string{"X-Static=unchanged"}, command)
 
 			headers, err := provider.Headers(ctx)
 			require.NoError(t, err)
 			require.Equal(t, "Bearer "+first, headers.Get("Authorization"))
 			require.Equal(t, "unchanged", headers.Get("X-Static"))
-			updated := "Authorization=Bearer " + later + "\nX-Value=updated\n"
-			provider.command = fmt.Sprintf("printf %q", updated)
+			provider.command = fmt.Sprintf("echo Authorization=Bearer %s&&echo X-Value=updated", later)
 
 			clock.Advance(time.Minute - jwtExpirationSkew - time.Second).MustWait(ctx)
 			cached, err := provider.Headers(ctx)
@@ -61,20 +61,20 @@ func TestCommandHeaderProvider(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			clock := quartz.NewMock(t)
 			shortLived := headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(jwtExpirationSkew/2)))
-			provider := newTestHeaderProvider(ctx, clock, nil, fmt.Sprintf("printf %q", "Authorization=Bearer "+shortLived+"\n"))
+			provider := newTestHeaderProvider(ctx, clock, nil, "echo Authorization=Bearer "+shortLived)
 			headers, err := provider.Headers(ctx)
 			require.NoError(t, err)
 			require.Equal(t, "Bearer "+shortLived, headers.Get("Authorization"))
 
 			replacement := headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(time.Hour)))
-			provider.command = fmt.Sprintf("printf %q", "Authorization=Bearer "+replacement+"\n")
+			provider.command = "echo Authorization=Bearer " + replacement
 			// The current token is already within the skew window, so the next call
 			// refreshes without advancing the clock.
 			refreshed, err := provider.Headers(ctx)
 			require.NoError(t, err)
 			require.Equal(t, "Bearer "+replacement, refreshed.Get("Authorization"))
 
-			provider.command = fmt.Sprintf("printf %q", "X-Value=changed\n")
+			provider.command = "echo X-Value=changed"
 			cached, err := provider.Headers(ctx)
 			require.NoError(t, err)
 			require.Equal(t, refreshed, cached)
@@ -85,13 +85,13 @@ func TestCommandHeaderProvider(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		clock := quartz.NewMock(t)
-		initial := "X-Value=static\nX-Token=" + headerTestJWT(t, nil) + "\n"
-		provider := newTestHeaderProvider(ctx, clock, nil, fmt.Sprintf("printf %q", initial))
+		command := "echo X-Value=static&&echo X-Token=" + headerTestJWT(t, nil)
+		provider := newTestHeaderProvider(ctx, clock, nil, command)
 		headers, err := provider.Headers(ctx)
 		require.NoError(t, err)
 		require.Equal(t, "static", headers.Get("X-Value"))
 
-		provider.command = fmt.Sprintf("printf %q", "X-Value=changed\n")
+		provider.command = "echo X-Value=changed"
 		clock.Advance(24 * time.Hour).MustWait(ctx)
 		cached, err := provider.Headers(ctx)
 		require.NoError(t, err)
@@ -102,8 +102,8 @@ func TestCommandHeaderProvider(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		clock := quartz.NewMock(t)
-		initial := "Authorization=Bearer " + headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(time.Minute))) + "\n"
-		provider := newTestHeaderProvider(ctx, clock, nil, fmt.Sprintf("printf %q", initial))
+		command := "echo Authorization=Bearer " + headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(time.Minute)))
+		provider := newTestHeaderProvider(ctx, clock, nil, command)
 		_, err := provider.Headers(ctx)
 		require.NoError(t, err)
 		clock.Advance(time.Minute).MustWait(ctx)
@@ -127,7 +127,7 @@ func TestCommandHeaderProvider(t *testing.T) {
 		require.Nil(t, res)
 		require.False(t, sent, "a failed refresh must not send stale headers")
 
-		provider.command = fmt.Sprintf("printf %q", "X-Value=recovered\n")
+		provider.command = "echo X-Value=recovered"
 		recovered, err := provider.Headers(ctx)
 		require.NoError(t, err)
 		require.Equal(t, "recovered", recovered.Get("X-Value"))
