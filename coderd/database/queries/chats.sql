@@ -2101,6 +2101,15 @@ FROM chats
 WHERE id = @id::uuid
 FOR NO KEY UPDATE;
 
+-- name: GetChatIDByID :one
+-- Returns the chat's id, or sql.ErrNoRows when it does not exist. This is a
+-- bare primary-key lookup that avoids the chats_expanded joins (self-join for
+-- root ACL plus the owner join), so callers that only need to assert existence
+-- and open a read snapshot do not pay for the full expansion.
+SELECT id
+FROM chats
+WHERE id = @id::uuid;
+
 -- name: GetChatByIDForUpdate :one
 WITH locked_chat AS (
     SELECT *

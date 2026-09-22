@@ -3029,6 +3029,21 @@ func (mr *MockStoreMockRecorder) GetChatHeartbeat(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatHeartbeat", reflect.TypeOf((*MockStore)(nil).GetChatHeartbeat), ctx, arg)
 }
 
+// GetChatIDByID mocks base method.
+func (m *MockStore) GetChatIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatIDByID", ctx, id)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatIDByID indicates an expected call of GetChatIDByID.
+func (mr *MockStoreMockRecorder) GetChatIDByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatIDByID", reflect.TypeOf((*MockStore)(nil).GetChatIDByID), ctx, id)
+}
+
 // GetChatIncludeDefaultSystemPrompt mocks base method.
 func (m *MockStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	m.ctrl.T.Helper()

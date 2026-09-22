@@ -302,13 +302,14 @@ func TestStreamLoopInitialSyncRecoversWithoutHint(t *testing.T) {
 	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(tx) },
 	)
-	// ReadLock reads the chat once for the existence check, then
-	// loadDBSnapshot reads it again inside the callback.
+	// ReadLock asserts existence with a bare id lookup, then loadDBSnapshot
+	// reads the expanded chat inside the callback.
+	tx.EXPECT().GetChatIDByID(gomock.Any(), chatID).Return(chatID, nil)
 	tx.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
 		ID:              chatID,
 		Status:          database.ChatStatusWaiting,
 		SnapshotVersion: 2,
-	}, nil).Times(2)
+	}, nil)
 
 	events, _, changed, err := loop.syncDB(ctx)
 	require.NoError(t, err)

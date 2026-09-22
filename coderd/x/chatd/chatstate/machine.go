@@ -260,9 +260,10 @@ func (m *ChatMachine) ReadLock(
 		return xerrors.New("chatstate: ChatMachine has nil store")
 	}
 	return m.store.InTx(func(store database.Store) error {
-		// Establish the snapshot and confirm the chat exists without
-		// locking the row.
-		_, err := store.GetChatByID(ctx, m.chatID)
+		// Assert the chat exists and open the read snapshot with a bare
+		// primary-key lookup, avoiding the chats_expanded joins the caller's
+		// own reads would otherwise pay for twice.
+		_, err := store.GetChatIDByID(ctx, m.chatID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound

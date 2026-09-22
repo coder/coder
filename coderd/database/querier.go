@@ -477,6 +477,11 @@ type sqlcQuerier interface {
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
 	GetChatGatewayAPIKey(ctx context.Context, arg GetChatGatewayAPIKeyParams) (APIKey, error)
 	GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatParams) (ChatHeartbeat, error)
+	// Returns the chat's id, or sql.ErrNoRows when it does not exist. This is a
+	// bare primary-key lookup that avoids the chats_expanded joins (self-join for
+	// root ACL plus the owner join), so callers that only need to assert existence
+	// and open a read snapshot do not pay for the full expansion.
+	GetChatIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// GetChatIncludeDefaultSystemPrompt preserves the legacy default
 	// for deployments created before the explicit include-default toggle.
 	// When the toggle is unset, a non-empty custom prompt implies false;

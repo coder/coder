@@ -8689,6 +8689,23 @@ func (q *sqlQuerier) GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatP
 	return i, err
 }
 
+const getChatIDByID = `-- name: GetChatIDByID :one
+SELECT id
+FROM chats
+WHERE id = $1::uuid
+`
+
+// Returns the chat's id, or sql.ErrNoRows when it does not exist. This is a
+// bare primary-key lookup that avoids the chats_expanded joins (self-join for
+// root ACL plus the owner join), so callers that only need to assert existence
+// and open a read snapshot do not pay for the full expansion.
+func (q *sqlQuerier) GetChatIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, getChatIDByID, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
     id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
