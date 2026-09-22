@@ -476,6 +476,12 @@ describe("ChatsSidebar projects", () => {
 		await user.click(
 			screen.getByRole("button", { name: `Expand ${MockChatProject.name}` }),
 		);
+		expect(
+			screen.getByRole("link", { name: MockChatProject.name }),
+		).toHaveAttribute("aria-current", "page");
+		expect(screen.getByRole("link", { name: "New chat" })).not.toHaveAttribute(
+			"aria-current",
+		);
 	});
 
 	it("keeps a chat in the date sections when its project is not loaded", async () => {

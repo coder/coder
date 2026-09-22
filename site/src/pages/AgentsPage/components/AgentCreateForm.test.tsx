@@ -20,6 +20,7 @@ import themes, { DEFAULT_THEME } from "#/theme";
 import {
 	AgentCreateForm,
 	selectedOrganizationIdStorageKey,
+	selectedWorkspaceIdStorageKey,
 } from "./AgentCreateForm";
 
 const Wrapper: FC<PropsWithChildren> = ({ children }) => {
@@ -53,11 +54,12 @@ afterEach(() => {
 });
 
 describe("AgentCreateForm", () => {
-	it("keeps the remembered organization while a project locks another", async () => {
+	it("keeps the remembered organization and workspace while a project locks another", async () => {
 		localStorage.setItem(
 			selectedOrganizationIdStorageKey,
 			MockDefaultOrganization.id,
 		);
+		localStorage.setItem(selectedWorkspaceIdStorageKey, "ws-default-org");
 		const mcpRequests: string[] = [];
 		server.use(
 			http.get("/api/v2/organizations", () =>
@@ -94,6 +96,16 @@ describe("AgentCreateForm", () => {
 
 		const { rerender } = render(
 			<Wrapper>
+				<AgentCreateForm {...formProps} />
+			</Wrapper>,
+		);
+		await waitFor(() => {
+			expect(mcpRequests).toContain(MockDefaultOrganization.id);
+		});
+		// The same form instance survives navigating between the plain composer
+		// and a cached project page, as it does under the router.
+		rerender(
+			<Wrapper>
 				<AgentCreateForm
 					{...formProps}
 					lockedOrganizationId={MockOrganization2.id}
@@ -104,8 +116,10 @@ describe("AgentCreateForm", () => {
 		await waitFor(() => {
 			expect(mcpRequests).toContain(MockOrganization2.id);
 		});
-		// The same form instance survives navigating from the project page
-		// back to the plain composer, as it does under the router.
+		expect(localStorage.getItem(selectedWorkspaceIdStorageKey)).toBe(
+			"ws-default-org",
+		);
+		mcpRequests.length = 0;
 		rerender(
 			<Wrapper>
 				<AgentCreateForm {...formProps} />
@@ -117,6 +131,9 @@ describe("AgentCreateForm", () => {
 		});
 		expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
 			MockDefaultOrganization.id,
+		);
+		expect(localStorage.getItem(selectedWorkspaceIdStorageKey)).toBe(
+			"ws-default-org",
 		);
 	});
 

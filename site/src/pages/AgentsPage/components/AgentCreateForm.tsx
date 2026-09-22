@@ -50,7 +50,8 @@ export const emptyInputStorageKey = "agents.empty-input";
 /** @internal Exported for testing. */
 export const selectedOrganizationIdStorageKey =
 	"agents.selected-organization-id";
-const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
+/** @internal Exported for testing. */
+export const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 export type CreateChatOptions = {
@@ -280,17 +281,25 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	}
 	// Clear a workspace after a settled org change, before its localStorage value
 	// is cleared post-commit. An empty permission set has no selectable org, so
-	// preserve the workspace until its org is re-permitted.
-	const [lastSettledOrgId, setLastSettledOrgId] = useState<string | null>(null);
+	// preserve the workspace until its org is re-permitted. A project lock only
+	// hides the remembered workspace while active; entering or leaving one must
+	// not discard it, and MCP overrides are already remembered per organization.
+	const [lastSettledOrg, setLastSettledOrg] = useState<{
+		id: string;
+		locked: boolean;
+	} | null>(null);
 	if (
 		orgSelectionSettled &&
 		!noPermittedOrgs &&
-		organizationId !== lastSettledOrgId
+		organizationId !== lastSettledOrg?.id
 	) {
-		setLastSettledOrgId(organizationId);
-		if (lastSettledOrgId !== null) {
-			setSelectedWorkspaceId(null);
+		const locked = Boolean(lockedOrganizationId);
+		setLastSettledOrg({ id: organizationId, locked });
+		if (lastSettledOrg !== null) {
 			setUserMCPServerIds(null);
+			if (!locked && !lastSettledOrg.locked) {
+				setSelectedWorkspaceId(null);
+			}
 		}
 	}
 	useEffect(() => {

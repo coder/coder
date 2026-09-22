@@ -234,7 +234,11 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				onCollapse={onCollapse}
 				activeChatId={activeChatId}
 				isSettingsPanel={isSettingsPanel}
-				isChatsActive={!activeChatId && sidebarView.panel === "chats"}
+				isChatsActive={
+					!activeChatId &&
+					sidebarView.panel === "chats" &&
+					!sidebarView.projectId
+				}
 				location={location}
 				currentUserId={currentUserId}
 			/>
