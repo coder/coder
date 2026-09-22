@@ -4693,6 +4693,12 @@ const docTemplate = `{
                         "description": "Skip snapshot messages with id at or before this cursor",
                         "name": "after_id",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Skip history changed at or before this history_version, as returned by the messages page",
+                        "name": "after_revision",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -22455,6 +22461,10 @@ const docTemplate = `{
                 "has_more": {
                     "type": "boolean"
                 },
+                "history_version": {
+                    "description": "HistoryVersion is the chat history_version this page was read at.\nPass it as after_revision when opening the stream.",
+                    "type": "integer"
+                },
                 "messages": {
                     "type": "array",
                     "items": {
@@ -23587,6 +23597,10 @@ const docTemplate = `{
         "codersdk.ChatStreamStatus": {
             "type": "object",
             "properties": {
+                "history_version": {
+                    "description": "HistoryVersion is the chat history_version after the message events\nsent before this status. Pass it as after_revision when reconnecting.",
+                    "type": "integer"
+                },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStatus"
                 }

@@ -25,7 +25,7 @@ func (p *Server) subscribeStreamLoop(
 	ctx context.Context,
 	chat database.Chat,
 	requestHeader http.Header,
-	afterMessageID int64,
+	cursor StreamCursor,
 ) ([]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), bool) {
 	if p == nil || p.db == nil || p.pubsub == nil {
 		return nil, nil, nil, false
@@ -59,7 +59,7 @@ func (p *Server) subscribeStreamLoop(
 	}
 
 	pollerCh, unregisterPoller := p.streamSyncPoller.Register(chatID)
-	loop := newStreamLoop(chat, p.db, logger, afterMessageID)
+	loop := newStreamLoop(chat, p.db, logger, cursor)
 	// The immediate sync builds the initial snapshot returned to the caller
 	// and the relay target for the forwarder. Hints only fire on state
 	// changes, so without it an idle chat would never deliver a snapshot and
@@ -214,7 +214,7 @@ func (p *Server) Subscribe(
 	ctx context.Context,
 	chatID uuid.UUID,
 	requestHeader http.Header,
-	afterMessageID int64,
+	cursor StreamCursor,
 ) (
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
@@ -236,7 +236,7 @@ func (p *Server) Subscribe(
 		)
 		return subscribeWithInitialError(chatID, "failed to load initial snapshot")
 	}
-	return p.SubscribeAuthorized(ctx, chat, requestHeader, afterMessageID)
+	return p.SubscribeAuthorized(ctx, chat, requestHeader, cursor)
 }
 
 // SubscribeAuthorized subscribes an already-authorized chat to stream updates.
@@ -244,12 +244,12 @@ func (p *Server) SubscribeAuthorized(
 	ctx context.Context,
 	chat database.Chat,
 	requestHeader http.Header,
-	afterMessageID int64,
+	cursor StreamCursor,
 ) (
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
 	func(),
 	bool,
 ) {
-	return p.subscribeStreamLoop(ctx, chat, requestHeader, afterMessageID)
+	return p.subscribeStreamLoop(ctx, chat, requestHeader, cursor)
 }
