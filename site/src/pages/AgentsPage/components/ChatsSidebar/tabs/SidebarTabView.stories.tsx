@@ -12,37 +12,38 @@ const makePanelContent = (label: string) => (
 	</div>
 );
 
-const makeBadge = (additions: number, deletions: number) => (
-	<span className="inline-flex h-full items-center self-stretch overflow-hidden font-mono text-xs font-medium">
-		{additions > 0 && (
-			<span className="flex h-full items-center bg-surface-git-added px-1.5 text-git-added-bright">
-				+{additions}
-			</span>
-		)}
-		{deletions > 0 && (
-			<span className="flex h-full items-center bg-surface-git-deleted px-1.5 text-git-deleted-bright">
-				&minus;{deletions}
-			</span>
-		)}
-	</span>
-);
+const makeTab = (id: string, label: string): SidebarTab => ({
+	id,
+	label,
+	content: makePanelContent(label),
+});
 
-const gitTab: SidebarTab = {
-	id: "git",
-	label: "Git",
-	badge: makeBadge(42, 7),
-	content: makePanelContent("Git"),
-};
+const gitTab = makeTab("git", "Git");
+const summaryTab = makeTab("summary", "Summary");
+
+const addTabControl = (
+	<Button
+		variant="subtle"
+		size="icon"
+		onClick={fn()}
+		aria-label="Add panel"
+		title="Add panel"
+		className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
+	>
+		<PlusIcon className="size-3.5" />
+	</Button>
+);
 
 const meta: Meta<typeof SidebarTabView> = {
 	title: "pages/AgentsPage/SidebarTabView",
 	component: SidebarTabView,
 	args: {
-		tabs: [gitTab],
+		tabs: [summaryTab, gitTab],
 		effectiveTabId: "git",
 		onActiveTabChange: fn(),
 		isExpanded: false,
 		onToggleExpanded: fn(),
+		addTabControl,
 	},
 	decorators: [
 		(Story) => (
@@ -55,19 +56,15 @@ const meta: Meta<typeof SidebarTabView> = {
 export default meta;
 type Story = StoryObj<typeof SidebarTabView>;
 
-export const GitWithBadge: Story = {};
-
-export const GitNoBadge: Story = {
-	args: {
-		tabs: [{ ...gitTab, badge: undefined }],
-	},
-};
+export const Default: Story = {};
 
 export const MultipleTabs: Story = {
 	args: {
 		tabs: [
+			summaryTab,
 			gitTab,
-			{ id: "preview", label: "Preview", content: makePanelContent("Preview") },
+			makeTab("preview", "Preview"),
+			{ ...makeTab("terminal", "Terminal"), onClose: fn() },
 		],
 	},
 };
@@ -75,12 +72,17 @@ export const MultipleTabs: Story = {
 export const EmptyState: Story = {
 	args: {
 		tabs: [],
+		addTabControl: undefined,
 	},
 };
 
 export const ExpandedWithTitle: Story = {
 	args: {
-		tabs: [gitTab],
+		tabs: [
+			summaryTab,
+			gitTab,
+			{ ...makeTab("terminal", "Terminal"), onClose: fn() },
+		],
 		isExpanded: true,
 		chatTitle: "Fix authentication bug",
 	},
@@ -95,7 +97,12 @@ export const ExpandedWithTitle: Story = {
 
 export const NarrowPanel: Story = {
 	args: {
-		tabs: [gitTab],
+		tabs: [
+			summaryTab,
+			gitTab,
+			{ ...makeTab("terminal", "Terminal"), onClose: fn() },
+			{ ...makeTab("terminal-2", "Terminal 2"), onClose: fn() },
+		],
 	},
 	decorators: [
 		(Story) => (
@@ -106,22 +113,54 @@ export const NarrowPanel: Story = {
 	],
 };
 
+/** Hovering a closeable tab reveals its close button over the faded label. */
+export const HoveredCloseableTab: Story = {
+	args: {
+		tabs: [
+			summaryTab,
+			gitTab,
+			{
+				...makeTab("preview", "Debug websocket disconnect in preview app"),
+				onClose: fn(),
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("tab", {
+				name: "Debug websocket disconnect in preview app",
+			}),
+		);
+	},
+};
+
+export const AllTabsMenuOpen: Story = {
+	args: {
+		tabs: [
+			summaryTab,
+			gitTab,
+			{ ...makeTab("terminal", "Terminal"), onClose: fn() },
+			{ ...makeTab("terminal-2", "Terminal 2"), onClose: fn() },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "All tabs" }));
+		await within(document.body).findByRole("menuitemradio", { name: "Git" });
+	},
+};
+
 export const CloseableTabs: Story = {
 	render: function CloseableTabs() {
 		const [activeTabId, setActiveTabId] = useState("terminal-2");
 		const [tabs, setTabs] = useState<SidebarTab[]>([
+			summaryTab,
 			gitTab,
-			{
-				id: "terminal",
-				label: "Terminal",
-				content: makePanelContent("Terminal"),
-			},
-			{ id: "summary", label: "Summary", content: makePanelContent("Summary") },
-			...Array.from({ length: 8 }, (_, index) => ({
-				id: `terminal-${index + 2}`,
-				label: `Terminal ${index + 2}`,
-				content: makePanelContent(`Terminal ${index + 2}`),
-			})),
+			makeTab("terminal", "Terminal"),
+			...Array.from({ length: 8 }, (_, index) =>
+				makeTab(`terminal-${index + 2}`, `Terminal ${index + 2}`),
+			),
 		]);
 
 		const handleCloseTab = (tabId: string) => {
@@ -152,18 +191,7 @@ export const CloseableTabs: Story = {
 				onActiveTabChange={setActiveTabId}
 				isExpanded={false}
 				onToggleExpanded={() => {}}
-				addTabControl={
-					<Button
-						variant="outline"
-						size="icon"
-						onClick={fn()}
-						aria-label="New terminal tab"
-						title="New terminal tab"
-						className="size-6 bg-surface-primary p-0 text-content-secondary hover:text-content-primary"
-					>
-						<PlusIcon className="size-3.5" />
-					</Button>
-				}
+				addTabControl={addTabControl}
 			/>
 		);
 	},
@@ -180,24 +208,5 @@ export const CloseableTabs: Story = {
 		await user.click(
 			canvas.getByRole("button", { name: "Close Terminal 2 tab" }),
 		);
-	},
-};
-
-export const AddTabControlDisabled: Story = {
-	args: {
-		tabs: [gitTab],
-		addTabControl: (
-			<Button
-				variant="outline"
-				size="icon"
-				onClick={fn()}
-				disabled
-				aria-label="New terminal tab"
-				title="New terminal tab"
-				className="size-6 bg-surface-primary p-0 text-content-secondary hover:text-content-primary"
-			>
-				<PlusIcon className="size-3.5" />
-			</Button>
-		),
 	},
 };

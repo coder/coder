@@ -1752,9 +1752,6 @@ export const TogglesSingletonPanelFromDropdown: Story = {
 		await waitFor(() => {
 			expect(browserTab).toHaveAttribute("aria-selected", "true");
 		});
-		expect(
-			canvas.getByRole("button", { name: "Close Browser tab" }),
-		).toBeVisible();
 		expect(localStorage.getItem(singletonTabsStorageKey)).toBe('["browser"]');
 
 		await openAddPanelMenu(canvas);
