@@ -262,8 +262,8 @@ off existing chats as well, disable or delete the server.
 ## Inline MCP servers (experimental)
 
 > [!NOTE]
-> This feature is experimental. Pin a release before broad rollout and review
-> the release notes before upgrading.
+> This feature is experimental.
+> Pin a release before broad rollout and review the release notes before upgrading.
 
 ### Enable the experiment
 
@@ -279,13 +279,9 @@ CODER_EXPERIMENTS=chat-inline-mcp-servers
 
 ### What it does
 
-A chat owner can declare up to five MCP servers inline on a chat through the
-API, by URL and headers, with no administrator registration. Inline servers
-sit next to the organization-registered servers selected with
-`mcp_server_ids`. On every turn, chatd connects to each
-declared server over streamable HTTP, calls `tools/list`, and offers the
-discovered tools to the model next to the built-in and organization-registered
-tools.
+A chat owner can declare up to five MCP servers inline on a chat through the API, by URL and headers, with no administrator registration.
+Inline servers sit next to the organization-registered servers selected with `mcp_server_ids`.
+On every turn, chatd connects to each declared server over streamable HTTP, calls `tools/list`, and offers the discovered tools to the model next to the built-in and organization-registered tools.
 
 Declare servers on `POST /api/experimental/chats`:
 
@@ -307,10 +303,11 @@ Declare servers on `POST /api/experimental/chats`:
 }
 ```
 
-`POST /api/experimental/chats/{chat}/messages` accepts the same field and
-replaces the chat's set before the turn runs. Omit `inline_mcp_servers` to keep the
-current set. Send `[]` to remove every server. A server whose `slug` already
-exists keeps its `id`. Only root chats accept `inline_mcp_servers`.
+`POST /api/experimental/chats/{chat}/messages` accepts the same field and replaces the chat's set before the turn runs.
+Omit `inline_mcp_servers` to keep the current set.
+Send `[]` to remove every server.
+A server whose `slug` already exists keeps its `id`.
+Only root chats accept `inline_mcp_servers`.
 
 ### Fields
 
@@ -345,46 +342,34 @@ exists keeps its `id`. Only root chats accept `inline_mcp_servers`.
 
 ### URL and header requirements
 
-The URL must use `https://`, or `http://` to an IP literal inside
-`CODER_MCP_ALLOWED_PRIVATE_CIDRS`. Headers on an `http://` URL are rejected
-unless the host is such an IP literal. The URL must not contain userinfo, a
-query string, or a fragment. Private and reserved IP literals are rejected at
-declaration time. Hostnames that resolve to a blocked range fail when chatd
-connects.
+The URL must use `https://`, or `http://` to an IP literal inside `CODER_MCP_ALLOWED_PRIVATE_CIDRS`.
+The URL must not contain userinfo, a query string, or a fragment.
+Private and reserved IP literals are rejected at declaration time.
+Hostnames that resolve to a blocked range fail when chatd connects.
 
-Header names that Coder or the MCP transport control are reserved and
-rejected: names starting with `Proxy-` or `X-Coder-`, and `Host`,
-`Content-Length`, `Connection`, `Transfer-Encoding`, `Trailer`, `Upgrade`,
-`TE`, `Keep-Alive`, `Accept`, `Accept-Encoding`, `Content-Type`,
-`Last-Event-ID`, `MCP-Protocol-Version`, and `MCP-Session-ID`.
+Header names that Coder or the MCP transport control are reserved and rejected: names starting with `Proxy-` or `X-Coder-`, and `Host`, `Content-Length`, `Connection`, `Transfer-Encoding`, `Trailer`, `Upgrade`, `TE`, `Keep-Alive`, `Accept`, `Accept-Encoding`, `Content-Type`, `Last-Event-ID`, `MCP-Protocol-Version`, and `MCP-Session-ID`.
 
-Header names are case-insensitive. A declaration that repeats a name with
-different casing is rejected.
+Header names are case-insensitive.
+A declaration that repeats a name with different casing is rejected.
 
 ### Security
 
-Header values are encrypted at rest when
-[database encryption](../../../admin/security/database-encryption.md) is
-configured. The URL and header values are redacted from every string the model
-sees, including tool descriptions and tool results. Header names are not
-secret; the read-back endpoint returns them.
+Header values are encrypted at rest when [database encryption](../../../admin/security/database-encryption.md) is configured.
+The URL and header values are redacted from every string the model sees, including tool descriptions and tool results.
+Header names are not secret; the read-back endpoint returns them.
 
-Tool calls are at-least-once. Every `tools/call` request carries
-`_meta["com.coder/tool_call_id"]`, which stays the same across chatd retries
-of one model tool call. A server can use it to deduplicate side effects.
+Tool calls are at-least-once.
+Every `tools/call` request carries `_meta["com.coder/tool_call_id"]`, which stays the same across chatd retries of one model tool call.
+A server can use it to deduplicate side effects.
 
 ### Kill switch
 
-`--disable-chat-caller-supplied-tools` (`CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS`)
-rejects chat requests that include `unsafe_dynamic_tools` or `inline_mcp_servers`
-with `403`, and runs existing chats without either. The flag takes effect on
-`coder server` restart. Turning off the `chat-inline-mcp-servers` experiment
-has the same effect on existing chats: declared servers stay stored and are not
-connected. `GET /api/experimental/chats/{chat}/inline-mcp-servers` still
-lists declared servers while the flag is set, and a message with
-`"inline_mcp_servers": []` still removes them.
+`--disable-chat-caller-supplied-tools` (`CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS`) rejects chat requests that include `unsafe_dynamic_tools` or `inline_mcp_servers` with `403`, and runs existing chats without either.
+The flag takes effect on `coder server` restart.
+Turning off the `chat-inline-mcp-servers` experiment has the same effect on existing chats: declared servers stay stored and are not connected.
+`GET /api/experimental/chats/{chat}/inline-mcp-servers` still lists declared servers while the flag is set, and a message with `"inline_mcp_servers": []` still removes them.
 
 ### Read back
 
-`GET /api/experimental/chats/{chat}/inline-mcp-servers` returns the declared servers
-to the chat owner. The response includes header names but never header values.
+`GET /api/experimental/chats/{chat}/inline-mcp-servers` returns the declared servers to the chat owner.
+The response includes header names but never header values.
