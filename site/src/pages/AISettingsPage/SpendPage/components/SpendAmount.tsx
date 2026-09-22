@@ -60,16 +60,22 @@ type SpendAmountProps = {
 	scope: SpendScope;
 };
 
-/** Shows spend as a lower bound when model pricing is missing. */
+/**
+ * Shows spend as a lower bound when model pricing is missing. The row icon
+ * sits before the amount so right-aligned figures stay lined up; the total's
+ * badge follows it.
+ */
 export const SpendAmount: FC<SpendAmountProps> = ({
 	costMicros,
 	unpricedUsageCount,
 	scope,
 }) => {
+	const warning = unpricedUsageCount > 0 && <CostSetupWarning scope={scope} />;
 	return (
 		<span className="inline-flex items-center gap-2 tabular-nums">
+			{scope !== "organization" && warning}
 			{formatCostMicros(costMicros)}
-			{unpricedUsageCount > 0 && <CostSetupWarning scope={scope} />}
+			{scope === "organization" && warning}
 		</span>
 	);
 };
