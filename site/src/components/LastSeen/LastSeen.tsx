@@ -5,7 +5,7 @@ import { isAfter, subtractTime, timeFrom } from "#/utils/time";
 
 type LastSeenProps = Omit<ComponentProps<"span">, "children"> & {
 	at: dayjs.ConfigType;
-	isExactDays?: boolean;
+	exactDays?: boolean;
 	// Injectable reference time so the component is deterministic in tests.
 	now?: dayjs.ConfigType;
 	"data-pixel"?: string; // prevents a type error in the stories
@@ -14,9 +14,9 @@ type LastSeenProps = Omit<ComponentProps<"span">, "children"> & {
 const displayFor = (
 	at: dayjs.ConfigType,
 	now: dayjs.ConfigType,
-	isExactDays: boolean,
+	exactDays: boolean,
 ): { message: string; color: string } => {
-	const relativeMessage = isExactDays
+	const relativeMessage = exactDays
 		? exactDaysFrom(at, now)
 		: timeFrom(at, now);
 
@@ -47,12 +47,12 @@ const exactDaysFrom = (at: dayjs.ConfigType, now: dayjs.ConfigType) => {
 
 export const LastSeen: FC<LastSeenProps> = ({
 	at,
-	isExactDays = false,
+	exactDays = false,
 	now = new Date(),
 	className,
 	...attrs
 }) => {
-	const { message, color } = displayFor(at, now, isExactDays);
+	const { message, color } = displayFor(at, now, exactDays);
 
 	return (
 		<span

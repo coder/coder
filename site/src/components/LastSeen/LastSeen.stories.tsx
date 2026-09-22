@@ -44,7 +44,7 @@ export const OneMonthAgo: Story = {
 export const ExactlyFortyFiveDaysAgo: Story = {
 	args: {
 		at: dayjs().subtract(45, "day"),
-		isExactDays: true,
+		exactDays: true,
 	},
 };
 
