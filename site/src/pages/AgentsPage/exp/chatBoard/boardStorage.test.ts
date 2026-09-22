@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { readBoardStorage, saveBoardStorage } from "./boardStorage";
 
-const KEY = "agents.board";
+const USER = "user-a";
+const KEY = `agents.board.${USER}`;
 
 const pinned = {
 	chatId: "a",
@@ -18,7 +19,7 @@ describe("boardStorage", () => {
 	});
 
 	it("starts empty without stored state", () => {
-		expect(readBoardStorage()).toEqual({
+		expect(readBoardStorage(USER)).toEqual({
 			columnOrder: [],
 			emptyColumns: [],
 			windows: [],
@@ -39,7 +40,7 @@ describe("boardStorage", () => {
 				],
 			}),
 		);
-		expect(readBoardStorage()).toEqual({
+		expect(readBoardStorage(USER)).toEqual({
 			columnOrder: ["Inbox", "Done"],
 			emptyColumns: [],
 			windows: [pinned],
@@ -48,7 +49,7 @@ describe("boardStorage", () => {
 
 	it("falls back to defaults on unreadable storage", () => {
 		localStorage.setItem(KEY, "{not json");
-		expect(readBoardStorage().columnOrder).toEqual([]);
+		expect(readBoardStorage(USER).columnOrder).toEqual([]);
 	});
 
 	it("round-trips what was saved", () => {
@@ -57,7 +58,20 @@ describe("boardStorage", () => {
 			emptyColumns: ["Later"],
 			windows: [pinned],
 		};
-		saveBoardStorage(next);
-		expect(readBoardStorage()).toEqual(next);
+		saveBoardStorage(USER, next);
+		expect(readBoardStorage(USER)).toEqual(next);
+	});
+
+	it("keeps each user's board apart", () => {
+		saveBoardStorage(USER, {
+			columnOrder: ["Inbox", "Doing"],
+			emptyColumns: [],
+			windows: [pinned],
+		});
+		expect(readBoardStorage("user-b")).toEqual({
+			columnOrder: [],
+			emptyColumns: [],
+			windows: [],
+		});
 	});
 });

@@ -29,11 +29,7 @@ type NotesSectionProps = {
 	readonly onRemove: (index: number) => void;
 };
 
-/**
- * Notes are the operator's status log for a card, in index order, with a
- * plain composer line at the bottom that appends. Notes drag to reorder
- * within the card or to move to another card.
- */
+/** Card notes keep the operator's context beside the chats instead of inside them. */
 export const NotesSection: FC<NotesSectionProps> = ({
 	card,
 	noteDrop,

@@ -14,6 +14,7 @@ export const ChatStatusLine: FC<ChatStatusLineProps> = ({ chat }) => {
 	const hasLineStats =
 		pr !== undefined && (pr.additions > 0 || pr.deletions > 0);
 	if (!chat.last_turn_summary && !pr?.url) return null;
+	const visible = pr?.pr_number ? `#${pr.pr_number}` : "PR";
 	return (
 		<div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-4 text-content-secondary">
 			{pr?.url && display.prIcon && (
@@ -21,7 +22,7 @@ export const ChatStatusLine: FC<ChatStatusLineProps> = ({ chat }) => {
 					href={pr.url}
 					target="_blank"
 					rel="noreferrer"
-					aria-label={display.prIcon.label}
+					aria-label={`${visible}, ${display.prIcon.label}`}
 					className="relative z-[1] inline-flex h-4 shrink-0 items-center gap-1 rounded bg-content-primary/5 px-1.5 font-mono text-[11px] text-content-secondary no-underline hover:text-content-primary"
 					onPointerDown={(e) => e.stopPropagation()}
 				>
@@ -31,7 +32,7 @@ export const ChatStatusLine: FC<ChatStatusLineProps> = ({ chat }) => {
 							display.prIcon.className,
 						)}
 					/>
-					{pr.pr_number ? `#${pr.pr_number}` : "PR"}
+					{visible}
 				</a>
 			)}
 			{hasLineStats && (

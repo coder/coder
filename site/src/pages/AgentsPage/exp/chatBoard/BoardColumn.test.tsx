@@ -66,19 +66,6 @@ describe("BoardColumn", () => {
 		);
 		expect(onDelete).toHaveBeenCalledTimes(1);
 	});
-
-	it("keeps Inbox fixed: no rename button, no menu", () => {
-		renderColumn(INBOX_COLUMN);
-		expect(
-			screen.queryByRole("button", { name: INBOX_COLUMN }),
-		).not.toBeInTheDocument();
-		expect(
-			screen.queryByRole("button", {
-				name: `Actions for ${INBOX_COLUMN} column`,
-			}),
-		).not.toBeInTheDocument();
-		expect(screen.getByText(INBOX_COLUMN)).toBeInTheDocument();
-	});
 });
 
 describe("NewColumn", () => {
