@@ -493,67 +493,26 @@ export interface AIProviderBedrockSettings {
 export const AIProviderBedrockSettingsVersion = 1;
 
 // From codersdk/aiproviders_claude_platform_aws.go
-export type AIProviderClaudePlatformAWSAuthMode = "api_key" | "iam";
-
-export const AIProviderClaudePlatformAWSAuthModes: AIProviderClaudePlatformAWSAuthMode[] =
-	["api_key", "iam"];
-
-// From codersdk/aiproviders_claude_platform_aws.go
 /**
  * AIProviderClaudePlatformAWSSettings configures providers that authenticate
  * against Claude Platform for AWS: Anthropic's native Messages API hosted on
  * AWS. It speaks the standard Messages wire format with standard Anthropic
  * model IDs, so it is an authentication and routing variant of
  * AIProviderTypeAnthropic rather than a provider type of its own.
- *
- * AccessKey and AccessKeySecret are write-only: servers strip them from GET and
- * list responses. Both use a pointer so a PATCH can distinguish "leave
- * untouched" (omitted) from "explicitly clear" (empty string), e.g. when
- * migrating from static keys to the ambient AWS credential chain.
+ * Requests use a client or provider API key when available, otherwise the
+ * gateway signs with its ambient AWS credentials.
  */
 export interface AIProviderClaudePlatformAWSSettings {
 	/**
-	 * AuthMode selects SigV4 signing or a workspace API key. Required, and
-	 * explicit rather than inferred: the gateway prefers a configured api_keys
-	 * pool over signing, so an IAM provider that also carried keys would
-	 * silently authenticate with the keys instead of the role.
-	 */
-	readonly auth_mode: AIProviderClaudePlatformAWSAuthMode;
-	/**
-	 * Region is the AWS region. It is required in both auth modes: it selects
-	 * the default regional endpoint, and SigV4 signatures are region-scoped, so
-	 * it must stay explicit even when BaseURL points at a proxy.
+	 * Region selects the default regional endpoint and SigV4 signing scope.
+	 * Required even when BaseURL points at a proxy.
 	 */
 	readonly region: string;
 	/**
 	 * WorkspaceID is sent as the anthropic-workspace-id header on every
-	 * request. Required in both auth modes.
+	 * request. Required regardless of the credential used.
 	 */
 	readonly workspace_id: string;
-	/**
-	 * AccessKey is the AWS access key ID used to sign requests. IAM mode only.
-	 * When unset, the ambient AWS credential chain (instance profile,
-	 * AWS_PROFILE, IRSA, etc.) resolves the base identity. Write-only.
-	 */
-	readonly access_key?: string;
-	/**
-	 * AccessKeySecret is the AWS secret access key paired with AccessKey. IAM
-	 * mode only. Write-only.
-	 */
-	readonly access_key_secret?: string;
-	/**
-	 * RoleARN, when set, is the IAM role assumed via STS before signing. IAM
-	 * mode only. The base identity signs the AssumeRole call, and the resulting
-	 * temporary credentials sign Claude Platform requests.
-	 */
-	readonly role_arn?: string;
-	/**
-	 * ExternalID is the STS external ID sent on the AssumeRole call when
-	 * RoleARN is set. The server generates and owns it: create and update
-	 * reject any client-supplied value that differs from the stored one (an
-	 * update may echo the stored value back).
-	 */
-	readonly external_id?: string;
 }
 
 // From codersdk/aiproviders_claude_platform_aws.go

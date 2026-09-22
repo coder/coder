@@ -120,29 +120,18 @@ Every Claude Platform provider requires:
   and strips any value a client sends, so a client cannot choose which
   workspace its traffic is attributed to.
 
-Then choose one of two authentication modes.
+AI Gateway chooses authentication from the credentials available for each request:
 
-**IAM.** AI Gateway signs each request with AWS SigV4 for the
-`aws-external-anthropic` service. Credentials resolve exactly as they do
-for Bedrock: static access keys, the ambient AWS environment (EC2
-instance profile, `AWS_PROFILE`, IRSA, EKS Pod Identity), and an
-optional **Role ARN** assumed via STS with a server-generated
-[external ID](#external-id). Do not attach API keys to a provider in this
-mode; the gateway prefers a configured key over signing, so the keys
-would take effect instead of the AWS identity, and the API rejects the
-combination.
+1. When [Bring Your Own Key](#bring-your-own-key) is enabled, a client key takes precedence over stored provider keys and IAM signing.
+2. Otherwise, AI Gateway uses the provider's stored API-key collection, with key pooling, rotation, masking, and [key failover](#key-failover).
+3. When no client or stored provider key is available, AI Gateway signs the request with AWS SigV4 for the `aws-external-anthropic` service using its ambient AWS credentials.
 
-**Workspace API key.** AI Gateway sends a workspace API key in the
-`x-api-key` header. The key lives in the provider's API keys, exactly
-like a standard Anthropic provider, so key pooling, rotation, masking,
-and [key failover](#key-failover) all apply. This mode requires at least
-one API key and rejects AWS credentials and a Role ARN.
+Configure the AWS identity on the gateway process through the default AWS credential chain, such as an instance profile, container identity, or `AWS_PROFILE`.
+Individual Claude Platform provider settings do not select an AWS identity or authentication mode.
+Adding a stored key selects API-key authentication; removing the last stored key allows requests without a client key to use IAM.
 
-When [Bring Your Own Key](#bring-your-own-key) is enabled, a client key
-takes precedence over IAM signing in both modes: the request is forwarded
-with the client's `x-api-key` and is not signed. A client sending an
-ordinary Anthropic key to a Claude Platform provider receives an upstream
-authentication error.
+A supplied key that fails authentication does not trigger a fallback to IAM.
+A client sending an ordinary Anthropic key to a Claude Platform provider receives an upstream authentication error.
 
 ### Amazon Bedrock
 
