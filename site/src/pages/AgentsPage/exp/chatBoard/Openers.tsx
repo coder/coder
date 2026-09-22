@@ -6,11 +6,11 @@ import { isActiveChatStatus } from "../../components/ChatConversation/chatStore"
 import { IconButton } from "./IconButton";
 
 /** Inside a card or row the anchor is fixed, so its openers pass only the chat. */
-interface ChatOpeners {
+type ChatOpeners = {
 	readonly onOpen: (chat: Chat) => void;
 	readonly onPreview: (chat: Chat) => void;
 	readonly onPreviewEnd: () => void;
-}
+};
 
 /**
  * Unread rides an opener's top-right corner as a positioned dot, so it costs
@@ -29,9 +29,9 @@ const UnreadBadge: FC<{ readonly chat: Chat }> = ({ chat }) => {
 	);
 };
 
-interface ChatOpenerProps extends ChatOpeners {
+type ChatOpenerProps = {
 	readonly chat: Chat;
-}
+} & ChatOpeners;
 
 /** The chat icon: resting on it previews the chat, clicking it pins the window. */
 export const ChatOpener: FC<ChatOpenerProps> = ({
@@ -52,9 +52,9 @@ export const ChatOpener: FC<ChatOpenerProps> = ({
 	</IconButton>
 );
 
-interface AssistantOpenerProps extends ChatOpeners {
+type AssistantOpenerProps = {
 	readonly assistant: Chat;
-}
+} & ChatOpeners;
 
 /**
  * The card's assistant chat, which the board list hides: this icon is the

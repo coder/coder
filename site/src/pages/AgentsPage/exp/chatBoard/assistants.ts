@@ -44,7 +44,7 @@ export const assistantIds = (
 		}),
 	);
 
-interface OpenAssistant {
+type OpenAssistant = {
 	/** Built once the chat's tools are known, since the prompt differs by them. */
 	readonly spec: (tools: AssistantTools) => AssistantSpec;
 	/** Id only: passing the chat object would let the compiler treat the list as mutated. */
@@ -55,7 +55,7 @@ interface OpenAssistant {
 		title: string;
 	}) => Promise<unknown>;
 	readonly queryClient: QueryClient;
-}
+};
 
 // Creations in flight, by `board/assistant` key, per client.
 const opening = new WeakMap<

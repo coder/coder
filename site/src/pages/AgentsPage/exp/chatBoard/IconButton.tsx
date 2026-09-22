@@ -1,7 +1,7 @@
 import { cn } from "cn";
-import type { ComponentPropsWithRef, FC } from "react";
+import type { ComponentProps, FC } from "react";
 
-type IconButtonProps = ComponentPropsWithRef<"button"> & {
+type IconButtonProps = ComponentProps<"button"> & {
 	readonly "aria-label": string;
 };
 
