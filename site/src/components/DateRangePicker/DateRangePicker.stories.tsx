@@ -29,6 +29,15 @@ export const Closed: Story = {
 	},
 };
 
+// A midnight end is the exclusive boundary the picker emits, so the label
+// shows the day before it.
+export const ClosedExclusiveEnd: Story = {
+	args: {
+		value: { startDate: new Date(2025, 2, 1), endDate: new Date(2025, 2, 8) },
+		onChange: () => {},
+	},
+};
+
 export const Open: Story = {
 	args: {
 		value: defaultValue,
@@ -58,6 +67,21 @@ export const Open: Story = {
 		// Cancel and Apply buttons should be visible.
 		expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
+	},
+};
+
+export const RetentionLimited: Story = {
+	args: {
+		value: {
+			startDate: fixedNow.subtract(3, "day").toDate(),
+			endDate: fixedNow.toDate(),
+		},
+		minDate: fixedNow.subtract(10, "day").toDate(),
+		onChange: () => {},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("button"));
+		await screen.findByRole("button", { name: "Apply" });
 	},
 };
 

@@ -161,7 +161,7 @@ describe("OAuth2AppForm", () => {
 
 	it.each([
 		{ name: "é".repeat(32), valid: true },
-		{ name: "a" + "é".repeat(32), valid: false },
+		{ name: `a${"é".repeat(32)}`, valid: false },
 		{ name: "é".repeat(33), valid: false },
 		{ name: "界".repeat(21), valid: true },
 		{ name: "界".repeat(22), valid: false },

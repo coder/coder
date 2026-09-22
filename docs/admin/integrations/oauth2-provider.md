@@ -738,16 +738,16 @@ The current implementation has these limitations:
 - No device authorization grant support (RFC 8628)
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
-- An application may register at most 32 redirect URIs of at most 2048 bytes each. An application that stored a longer list before this limit existed keeps working, but it cannot be saved again until the list fits. To fix it, send a `PUT` with a `redirect_uris` list that fits, as shown under [Management API](#method-2-management-api). The web UI cannot edit the list.
+- An application may register at most 32 redirect URIs of at most 2048 bytes each. An application that stored a longer list before this limit existed keeps working, but it cannot be saved again until the list fits. To fix it, send a `PUT` with a `redirect_uris` list that fits, as shown under [Management API](#method-2-management-api). The web UI cannot edit the list: editing **Callback URL** replaces the primary redirect URI and preserves the other registered URIs, and the application page displays only the primary.
 - A cleartext `http://` redirect URI to a host that is not local is rejected. Earlier versions accepted one through the management API for a confidential application, although Dynamic Client Registration always refused it. An application that stored one keeps working, but it cannot be saved again until its list uses `https://` or a local host, as described under [Callback URL schemes](#callback-url-schemes).
 - A redirect URI with a private-use scheme must name a path or an authority, as in `com.example.app:/callback` or `com.example.app://auth/callback`. The bare form `com.example.app:callback` is rejected. Dynamic Client Registration accepted it in earlier versions. A client that registered one can re-register with one of the other two forms, or an administrator can correct it with the same `PUT`.
 
 The `redirect_uris` list is now the source of truth for an application's callbacks, and its first entry is the primary:
 
 - Earlier versions stored the primary in a separate `callback_url` field. The upgrade migration rewrites every application so the list starts with that value.
-- During a rolling upgrade, a replica running an earlier version still writes only the old field when an administrator edits a callback URL.
-- Replicas running the new version read the list and ignore the old field, so that edit is silently discarded. The application keeps accepting its previous redirect URIs, including any the administrator meant to remove, until it is saved again on the new version.
-- Drain replicas running the earlier version before you upgrade, or save the application again after the upgrade.
+- During a rolling upgrade, a replica running an earlier version still writes only the old field when an administrator edits the callback URL. Replicas running the new version read the list instead, so the edit is silently lost: the application keeps its old callback URL and keeps accepting every previous redirect URI, including any the administrator meant to remove.
+- Replicas running the new version also show the old callback URL in the form, so saving the application unchanged does not restore the edit.
+- Drain replicas running the earlier version before you upgrade. If a callback URL was edited during the upgrade, enter the intended value again and save the application once every replica runs the new version.
 
 A `scope` on a refresh request was parsed and discarded in earlier versions, so a
 client sending one wider than its grant refreshed successfully. It is now
