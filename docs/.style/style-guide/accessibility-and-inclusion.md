@@ -83,7 +83,7 @@ Avoid `he or she`, `(s)he`, and similar constructions.
 
 > When a user opens a workspace, he or she connects to the agent over a Tailscale tunnel.
 
-*Enforced by `Google.Gender` and `Google.GenderBias`.*
+*Enforced by `Google.Gender` and `Google.GenderBias` (planned; third-party rules aren't loaded by default).*
 
 ## Inclusive-language substitutions
 
@@ -99,7 +99,7 @@ Use the industry-standard inclusive substitutions for terms that have transition
 | placeholder, sample, mock                             | dummy                                         |
 | smoke testing, confidence testing, acceptance testing | sanity check, sanity test                     |
 
-*Enforced by `Coder.InclusiveLanguage` (planned), with additional coverage from the curated `alex.*` lexicon.*
+*Enforced by `Coder.InclusiveLanguage` (planned), with additional coverage from the curated `alex.*` lexicon (also planned; `.vale.ini` loads no third-party style).*
 
 ## Descriptive link text
 
