@@ -168,6 +168,7 @@ func TestAIProviderRequest_ValidateAPIKeys(t *testing.T) {
 		keys            []string
 		wantCreateField string
 		wantUpdateField string
+		wantDetail      string
 	}{
 		{name: "Omitted"},
 		{name: "Empty", keys: []string{}},
@@ -178,12 +179,21 @@ func TestAIProviderRequest_ValidateAPIKeys(t *testing.T) {
 			keys:            []string{"key-1", "key-2", "key-3", "key-4", "key-5", "key-6"},
 			wantCreateField: "api_keys",
 			wantUpdateField: "api_keys",
+			wantDetail:      "api_keys must contain at most 5 keys",
 		},
 		{
 			name:            "Duplicate",
 			keys:            []string{"key-1", "key-2", "key-1"},
 			wantCreateField: "api_keys[2]",
 			wantUpdateField: "api_keys[2].api_key",
+			wantDetail:      "duplicate key already provided at api_keys[0]",
+		},
+		{
+			name:            "DuplicateAfterDifferentKey",
+			keys:            []string{"key-1", "key-2", "key-2"},
+			wantCreateField: "api_keys[2]",
+			wantUpdateField: "api_keys[2].api_key",
+			wantDetail:      "duplicate key already provided at api_keys[1]",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -201,6 +211,7 @@ func TestAIProviderRequest_ValidateAPIKeys(t *testing.T) {
 			} else {
 				require.Len(t, createValidations, 1)
 				require.Equal(t, tc.wantCreateField, createValidations[0].Field)
+				require.Equal(t, tc.wantDetail, createValidations[0].Detail)
 				for _, key := range tc.keys {
 					require.NotContains(t, createValidations[0].Detail, key)
 				}
@@ -217,12 +228,27 @@ func TestAIProviderRequest_ValidateAPIKeys(t *testing.T) {
 			} else {
 				require.Len(t, updateValidations, 1)
 				require.Equal(t, tc.wantUpdateField, updateValidations[0].Field)
+				require.Equal(t, tc.wantDetail, updateValidations[0].Detail)
 				for _, key := range tc.keys {
 					require.NotContains(t, updateValidations[0].Detail, key)
 				}
 			}
 		})
 	}
+}
+
+func TestValidateAIProviderKeyUniqueness(t *testing.T) {
+	t.Parallel()
+
+	seen := map[string]int{"key-1": 1}
+	require.Empty(t, codersdk.ValidateAIProviderKeyUniqueness("key-2", "api_keys[2]", seen))
+	require.Equal(t, map[string]int{"key-1": 1}, seen)
+
+	require.Equal(t, []codersdk.ValidationError{{
+		Field:  "api_keys[3]",
+		Detail: "duplicate key already provided at api_keys[1]",
+	}}, codersdk.ValidateAIProviderKeyUniqueness("key-1", "api_keys[3]", seen))
+	require.Equal(t, map[string]int{"key-1": 1}, seen)
 }
 
 func TestAIProviderRequest_ValidateBedrockCredentials(t *testing.T) {

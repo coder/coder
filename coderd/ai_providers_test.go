@@ -1204,7 +1204,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 				name:       "Duplicate",
 				keys:       []string{duplicateKey, duplicateKey},
 				field:      "api_keys[1]",
-				detail:     "duplicate",
+				detail:     "duplicate key already provided at api_keys[0]",
 				notContain: duplicateKey,
 			},
 			{
@@ -1474,14 +1474,27 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 				message:   "api_keys references an unknown id for this provider",
 			},
 			{
-				name: "NewNewDuplicate",
+				name: "DuplicateKey",
 				mutations: []codersdk.AIProviderKeyMutation{
 					{APIKey: new(duplicate)},
 					{APIKey: new(duplicate)},
 				},
 				message:    "Invalid AI provider request.",
 				field:      "api_keys[1].api_key",
-				detail:     "duplicate",
+				detail:     "duplicate key already provided at api_keys[0]",
+				notContain: duplicate,
+			},
+			{
+				name: "DuplicateKeyWithRetainedIDs",
+				mutations: []codersdk.AIProviderKeyMutation{
+					{ID: &retainedID},
+					{APIKey: new(duplicate)},
+					{ID: &provider.APIKeys[1].ID},
+					{APIKey: new(duplicate)},
+				},
+				message:    "Invalid AI provider request.",
+				field:      "api_keys[3].api_key",
+				detail:     "duplicate key already provided at api_keys[1]",
 				notContain: duplicate,
 			},
 			{
@@ -1492,7 +1505,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 				},
 				message:    "Invalid AI provider request.",
 				field:      "api_keys",
-				detail:     "duplicate",
+				detail:     "duplicate key already provided at api_keys[0]",
 				notContain: retainedKey,
 			},
 			{
@@ -1503,7 +1516,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 				},
 				message:    "Invalid AI provider request.",
 				field:      "api_keys",
-				detail:     "duplicate",
+				detail:     "duplicate key already provided at api_keys[0]",
 				notContain: retainedKey,
 			},
 			{

@@ -16,6 +16,9 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// MaxAIProviderAPIKeys is the maximum number of API keys per AI provider.
+const MaxAIProviderAPIKeys = 5
+
 // AIProviderNameRegex mirrors the CHECK constraint on ai_providers.name.
 // Provider names are lowercase alphanumeric with hyphen separators so
 // they are safe in URLs.
@@ -480,10 +483,22 @@ func validateAIProviderBaseURL(raw string) []ValidationError {
 }
 
 func validateAIProviderKeyCount(count int) []ValidationError {
-	if count > 5 {
+	if count > MaxAIProviderAPIKeys {
 		return []ValidationError{{
 			Field:  "api_keys",
-			Detail: "api_keys must contain at most 5 keys",
+			Detail: fmt.Sprintf("api_keys must contain at most %d keys", MaxAIProviderAPIKeys),
+		}}
+	}
+	return nil
+}
+
+// ValidateAIProviderKeyUniqueness checks whether key is already in seen.
+// The field argument is used for error formatting.
+func ValidateAIProviderKeyUniqueness(key, field string, seen map[string]int) []ValidationError {
+	if prev, ok := seen[key]; ok {
+		return []ValidationError{{
+			Field:  field,
+			Detail: fmt.Sprintf("duplicate key already provided at api_keys[%d]", prev),
 		}}
 	}
 	return nil
@@ -497,7 +512,7 @@ func validateAIProviderKeyCount(count int) []ValidationError {
 // sending.
 func validateAIProviderAPIKeys(keys []string) []ValidationError {
 	validations := validateAIProviderKeyCount(len(keys))
-	seen := make(map[string]int, len(keys))
+	seenKeys := make(map[string]int, len(keys))
 	for i, key := range keys {
 		switch {
 		case key == "":
@@ -511,13 +526,10 @@ func validateAIProviderAPIKeys(keys []string) []ValidationError {
 				Detail: "api_keys entries must not contain leading or trailing whitespace",
 			})
 		}
-		if prev, ok := seen[key]; ok {
-			validations = append(validations, ValidationError{
-				Field:  fmt.Sprintf("api_keys[%d]", i),
-				Detail: fmt.Sprintf("duplicate key already provided at api_keys[%d]", prev),
-			})
+		if duplicate := ValidateAIProviderKeyUniqueness(key, fmt.Sprintf("api_keys[%d]", i), seenKeys); len(duplicate) > 0 {
+			validations = append(validations, duplicate...)
 		} else {
-			seen[key] = i
+			seenKeys[key] = i
 		}
 	}
 	return validations
@@ -552,11 +564,8 @@ func validateAIProviderKeyMutations(muts []AIProviderKeyMutation) []ValidationEr
 			})
 		}
 		if hasKey && !hasID {
-			if prev, ok := seenKeys[*m.APIKey]; ok {
-				validations = append(validations, ValidationError{
-					Field:  fmt.Sprintf("api_keys[%d].api_key", i),
-					Detail: fmt.Sprintf("duplicate key already provided at api_keys[%d]", prev),
-				})
+			if duplicate := ValidateAIProviderKeyUniqueness(*m.APIKey, fmt.Sprintf("api_keys[%d].api_key", i), seenKeys); len(duplicate) > 0 {
+				validations = append(validations, duplicate...)
 			} else {
 				seenKeys[*m.APIKey] = i
 			}

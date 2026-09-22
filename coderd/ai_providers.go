@@ -832,9 +832,9 @@ func applyAIProviderKeyOps(ctx context.Context, tx database.Store, providerID uu
 	}
 
 	keep := make(map[uuid.UUID]struct{}, len(muts))
-	seenKeys := make(map[string]struct{}, len(muts))
+	seenKeys := make(map[string]int, len(muts))
 	var inserts []string
-	for _, m := range muts {
+	for i, m := range muts {
 		var key string
 		switch {
 		case m.ID != nil:
@@ -849,13 +849,10 @@ func applyAIProviderKeyOps(ctx context.Context, tx database.Store, providerID uu
 			inserts = append(inserts, key)
 		}
 		// Compare the final key set, not keys being removed by this patch.
-		if _, ok := seenKeys[key]; ok {
-			return nil, ops, changes, &aiProviderValidationError{Validations: []codersdk.ValidationError{{
-				Field:  "api_keys",
-				Detail: "api_keys must not contain duplicate keys",
-			}}}
+		if validations := codersdk.ValidateAIProviderKeyUniqueness(key, "api_keys", seenKeys); len(validations) > 0 {
+			return nil, ops, changes, &aiProviderValidationError{Validations: validations}
 		}
-		seenKeys[key] = struct{}{}
+		seenKeys[key] = i
 	}
 
 	for _, k := range existing {
