@@ -823,9 +823,9 @@ export const SubagentMessageLinkCard: Story = {
 	},
 };
 
-export const SubagentFollowupLinkCard: Story = {
+export const SubagentQueueWorkLinkCard: Story = {
 	args: {
-		name: "followup_agent",
+		name: "queue_agent_work",
 		args: { title: "Sub-agent", message: "Check the remaining tests." },
 		result: { chat_id: "child-chat-id", status: "running" },
 	},
@@ -1005,13 +1005,13 @@ export const MessageAgentExploreStreamingFromResult: Story = {
 	},
 };
 
-export const FollowupAgentExploreCompleted: Story = {
+export const QueueAgentWorkExploreCompleted: Story = {
 	args: {
-		name: "followup_agent",
+		name: "queue_agent_work",
 		status: "completed",
-		args: { chat_id: "followup-child", message: "check the remaining tests" },
+		args: { chat_id: "queue-work-child", message: "check the remaining tests" },
 		result: {
-			chat_id: "followup-child",
+			chat_id: "queue-work-child",
 			type: "explore",
 			status: "running",
 		},

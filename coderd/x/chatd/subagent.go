@@ -112,7 +112,7 @@ type messageAgentArgs struct {
 	Message string `json:"message"`
 }
 
-type followupAgentArgs struct {
+type queueAgentWorkArgs struct {
 	ChatID  string `json:"chat_id"`
 	Message string `json:"message"`
 }
@@ -952,8 +952,8 @@ func (p *Server) subagentTools(
 			"Send a prioritized instruction to a previously spawned child "+
 				"agent for a correction or scope change that must affect active "+
 				"work. If the agent is idle, it starts work on the message. If it "+
-				"is busy, the message is promoted ahead of queued follow-up work "+
-				"and its current work is interrupted; older queued follow-ups are "+
+				"is busy, the message is promoted ahead of older queued work "+
+				"and its current work is interrupted; older queued work is "+
 				"preserved. Do not use this for progress requests. An errored agent "+
 				"with queued work starts its existing queue head before this message "+
 				"can be promoted. Queueing and promotion are separate operations, "+
@@ -963,24 +963,23 @@ func (p *Server) subagentTools(
 				"responded. Use wait_agent to collect the child's response.",
 		),
 		fantasy.NewAgentTool(
-			"followup_agent",
-			"Schedule additional work for a previously spawned child agent "+
-				"after its current assignment and earlier follow-ups. Use this only "+
-				"for work that remains valid after all of them. It does not "+
-				"interrupt or influence active work. Do not use it for corrections, "+
-				"scope changes, or progress requests. If the agent is idle, it "+
-				"starts work on the message. A successful result confirms "+
-				"acceptance, not completion.",
-			func(ctx context.Context, args followupAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			"queue_agent_work",
+			"Queue additive work for a previously spawned child agent after its "+
+				"current assignment and older queued work. Use this only for work "+
+				"that remains valid after all of them. It does not interrupt or "+
+				"influence active work. Do not use it for corrections, scope changes, "+
+				"or progress requests. If the agent is idle, it starts work on the "+
+				"message. A successful result confirms acceptance, not completion.",
+			func(ctx context.Context, args queueAgentWorkArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				return p.runSubagentMessageTool(ctx, currentChat, args.ChatID, args.Message, false)
 			},
 		),
 		fantasy.NewAgentTool(
 			"interrupt_agent",
 			"Request interruption of a spawned child agent's current work "+
-				"without adding an instruction. Existing queued follow-ups are "+
-				"preserved and may resume automatically. A waiting child is left "+
-				"unchanged and returns interrupted=false. For active work, "+
+				"without adding an instruction. Existing queued work is preserved "+
+				"and may resume automatically. A waiting child is left unchanged "+
+				"and returns interrupted=false. For active work, "+
 				"interrupted=true confirms that the interruption request committed, "+
 				"not that execution has stopped. The status may briefly read "+
 				"interrupting before transitioning to waiting, or running if there "+

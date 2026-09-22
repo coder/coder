@@ -2653,9 +2653,9 @@ func TestSpawnAgent_DescriptionSteersGeneralForSubstantialResearch(t *testing.T)
 	require.Contains(t, description, "Delegating assigns the child responsibility for executing the scoped assignment")
 	require.Contains(t, description, "You remain responsible for defining assignments, reviewing completed results, and completing the user's task")
 	require.Contains(t, description, "Use list_agents for progress checks")
-	require.Contains(t, description, "Use followup_agent only to schedule additional work that remains valid")
+	require.Contains(t, description, "Use queue_agent_work only to schedule additive work that remains valid")
 	require.Contains(t, description, "Use message_agent when the active assignment is wrong or its scope has changed")
-	require.Contains(t, description, "preserves older queued follow-ups")
+	require.Contains(t, description, "preserves older queued work")
 	require.Contains(t, description, "request interruption with interrupt_agent")
 	require.NotContains(t, description, "stop them with interrupt_agent")
 }
@@ -3120,16 +3120,16 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 			require.Equal(t, tt.variant, messageResult["type"])
 
 			setChatStatus(ctx, t, db, childID, database.ChatStatusWaiting, "")
-			followupResult := requireToolResponseMap(t, runSubagentTool(
+			queuedWorkResult := requireToolResponseMap(t, runSubagentTool(
 				ctx,
 				t,
 				server,
 				parentChat,
 				parentChat.LastModelConfigID,
-				"followup_agent",
-				followupAgentArgs{ChatID: childID.String(), Message: "follow up"},
+				"queue_agent_work",
+				queueAgentWorkArgs{ChatID: childID.String(), Message: "queued work"},
 			), false)
-			require.Equal(t, tt.variant, followupResult["type"])
+			require.Equal(t, tt.variant, queuedWorkResult["type"])
 
 			setChatStatus(ctx, t, db, childID, database.ChatStatusRunning, "")
 			interruptResult := requireToolResponseMap(t, runSubagentTool(
@@ -3181,13 +3181,13 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 		{
 			name:      "MessageAgent",
 			toolName:  "message_agent",
-			args:      messageAgentArgs{ChatID: child.ID.String(), Message: "follow up"},
+			args:      messageAgentArgs{ChatID: child.ID.String(), Message: "redirect"},
 			wantError: ErrSubagentNotDescendant.Error(),
 		},
 		{
-			name:      "FollowupAgent",
-			toolName:  "followup_agent",
-			args:      followupAgentArgs{ChatID: child.ID.String(), Message: "follow up"},
+			name:      "QueueAgentWork",
+			toolName:  "queue_agent_work",
+			args:      queueAgentWorkArgs{ChatID: child.ID.String(), Message: "queued work"},
 			wantError: ErrSubagentNotDescendant.Error(),
 		},
 		{
@@ -3221,7 +3221,7 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 func TestSubagentMessageDelivery(t *testing.T) {
 	t.Parallel()
 
-	t.Run("FollowupPreservesFIFOAndSender", func(t *testing.T) {
+	t.Run("QueueWorkPreservesFIFOAndSender", func(t *testing.T) {
 		t.Parallel()
 
 		db, ps := dbtestutil.NewDB(t)
@@ -3241,8 +3241,8 @@ func TestSubagentMessageDelivery(t *testing.T) {
 
 		resp := runSubagentTool(
 			ctx, t, server, parent, parent.LastModelConfigID,
-			"followup_agent",
-			followupAgentArgs{ChatID: child.ID.String(), Message: "later work"},
+			"queue_agent_work",
+			queueAgentWorkArgs{ChatID: child.ID.String(), Message: "later work"},
 		)
 		require.False(t, resp.IsError, resp.Content)
 
@@ -3253,7 +3253,7 @@ func TestSubagentMessageDelivery(t *testing.T) {
 		requireQueuedMessageText(t, queued[1], subagentMessageEnvelope(parent, "later work"))
 	})
 
-	t.Run("DirectPromotesAheadOfFollowups", func(t *testing.T) {
+	t.Run("DirectPromotesAheadOfQueuedWork", func(t *testing.T) {
 		t.Parallel()
 
 		db, ps := dbtestutil.NewDB(t)
@@ -3263,11 +3263,11 @@ func TestSubagentMessageDelivery(t *testing.T) {
 		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
-		for _, message := range []string{"first follow-up", "second follow-up"} {
+		for _, message := range []string{"first queued work", "second queued work"} {
 			resp := runSubagentTool(
 				ctx, t, server, parent, parent.LastModelConfigID,
-				"followup_agent",
-				followupAgentArgs{ChatID: child.ID.String(), Message: message},
+				"queue_agent_work",
+				queueAgentWorkArgs{ChatID: child.ID.String(), Message: message},
 			)
 			require.False(t, resp.IsError, resp.Content)
 		}
@@ -3287,8 +3287,8 @@ func TestSubagentMessageDelivery(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, queued, 3)
 		requireQueuedMessageText(t, queued[0], subagentMessageEnvelope(parent, "redirect now"))
-		requireQueuedMessageText(t, queued[1], subagentMessageEnvelope(parent, "first follow-up"))
-		requireQueuedMessageText(t, queued[2], subagentMessageEnvelope(parent, "second follow-up"))
+		requireQueuedMessageText(t, queued[1], subagentMessageEnvelope(parent, "first queued work"))
+		requireQueuedMessageText(t, queued[2], subagentMessageEnvelope(parent, "second queued work"))
 	})
 
 	t.Run("ErrorWithQueueStartsExistingHeadBeforeDirectMessage", func(t *testing.T) {
@@ -4514,17 +4514,17 @@ func TestSubagentToolDescriptionsMatchCommunicationContract(t *testing.T) {
 	require.NotNil(t, messageTool)
 	messageDescription := messageTool.Info().Description
 	require.Contains(t, messageDescription, "correction or scope change")
-	require.Contains(t, messageDescription, "older queued follow-ups are preserved")
+	require.Contains(t, messageDescription, "older queued work is preserved")
 	require.Contains(t, messageDescription, "Do not use this for progress requests")
 	require.Contains(t, messageDescription, "successful result confirms acceptance, not that the child has stopped or responded")
 
-	followupTool := findToolByName(tools, "followup_agent")
-	require.NotNil(t, followupTool)
-	followupDescription := followupTool.Info().Description
-	require.Contains(t, followupDescription, "additional work")
-	require.Contains(t, followupDescription, "does not interrupt or influence active work")
-	require.Contains(t, followupDescription, "Do not use it for corrections, scope changes, or progress requests")
-	require.Contains(t, followupDescription, "successful result confirms acceptance, not completion")
+	queueWorkTool := findToolByName(tools, "queue_agent_work")
+	require.NotNil(t, queueWorkTool)
+	queueWorkDescription := queueWorkTool.Info().Description
+	require.Contains(t, queueWorkDescription, "additive work")
+	require.Contains(t, queueWorkDescription, "does not interrupt or influence active work")
+	require.Contains(t, queueWorkDescription, "Do not use it for corrections, scope changes, or progress requests")
+	require.Contains(t, queueWorkDescription, "successful result confirms acceptance, not completion")
 
 	waitTool := findToolByName(tools, "wait_agent")
 	require.NotNil(t, waitTool)
@@ -4536,7 +4536,7 @@ func TestSubagentToolDescriptionsMatchCommunicationContract(t *testing.T) {
 	require.NotNil(t, interruptTool)
 	interruptDescription := interruptTool.Info().Description
 	require.Contains(t, interruptDescription, "without adding an instruction")
-	require.Contains(t, interruptDescription, "Existing queued follow-ups are preserved")
+	require.Contains(t, interruptDescription, "Existing queued work is preserved")
 	require.Contains(t, interruptDescription, "A waiting child is left unchanged and returns interrupted=false")
 	require.Contains(t, interruptDescription, "interrupted=true confirms that the interruption request committed, not that execution has stopped")
 
@@ -4575,7 +4575,7 @@ func TestAgentMessageToolSchemas(t *testing.T) {
 	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 	tools := server.subagentTools(ctx, func() database.Chat { return parent }, parent.LastModelConfigID)
 
-	for _, toolName := range []string{"message_agent", "followup_agent"} {
+	for _, toolName := range []string{"message_agent", "queue_agent_work"} {
 		tool := findToolByName(tools, toolName)
 		require.NotNil(t, tool)
 		require.Contains(t, tool.Info().Parameters, "chat_id")

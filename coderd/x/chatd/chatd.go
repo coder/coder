@@ -3394,7 +3394,7 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		return isRootChat
 	case "message_agent":
 		return !isRootChat
-	case "process_list", "process_signal", "followup_agent", "interrupt_agent", "close_agent",
+	case "process_list", "process_signal", "queue_agent_work", "interrupt_agent", "close_agent",
 		"spawn_computer_use_agent":
 		return false
 	default:
@@ -3476,7 +3476,7 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool, allowParentMessage bo
 		"spawn_agent":          false,
 		"wait_agent":           false,
 		"message_agent":        allowParentMessage,
-		"followup_agent":       false,
+		"queue_agent_work":     false,
 		"interrupt_agent":      false,
 		"close_agent":          false,
 		"list_agents":          false,

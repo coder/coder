@@ -1654,7 +1654,7 @@ func TestStructuredToolErrorWritePreservesJSONObject(t *testing.T) {
 	t.Parallel()
 
 	resultJSON := `{"error":"target chat is not a descendant of current chat","type":"explore"}`
-	for _, toolName := range []string{"wait_agent", "followup_agent"} {
+	for _, toolName := range []string{"wait_agent", "queue_agent_work"} {
 		sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
 			ToolCallID: "call-1",
 			ToolName:   toolName,

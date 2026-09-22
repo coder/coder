@@ -47,11 +47,11 @@ const SUBAGENT_VERBS: Record<
 		error: "Failed to message ",
 		timeout: "Timed out messaging ",
 	},
-	followup: {
-		completed: "Sent follow-up to ",
-		running: "Sending follow-up to ",
-		error: "Failed to send follow-up to ",
-		timeout: "Timed out sending follow-up to ",
+	queue: {
+		completed: "Queued work for ",
+		running: "Queueing work for ",
+		error: "Failed to queue work for ",
+		timeout: "Timed out queueing work for ",
 	},
 	interrupt: {
 		completed: "Interrupted ",

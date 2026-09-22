@@ -33,7 +33,7 @@ var unbilledSubagentToolNames = map[string]bool{
 	spawnAgentToolName:         true,
 	"wait_agent":               true,
 	"message_agent":            true,
-	"followup_agent":           true,
+	"queue_agent_work":         true,
 	"interrupt_agent":          true,
 	"close_agent":              true,
 	"list_agents":              true,
@@ -335,12 +335,12 @@ func buildSpawnAgentDescription(
 		"instead of the configured default, and reasoning_effort to pin the " +
 		"child's reasoning effort; both apply only to type \"" +
 		subagentTypeGeneral + "\" and type \"" + subagentTypeExplore + "\". " +
-		"Use followup_agent only to schedule additional work that remains valid " +
-		"after the current assignment and existing follow-ups. It cannot correct " +
+		"Use queue_agent_work only to schedule additive work that remains valid " +
+		"after the current assignment and existing queued work. It cannot correct " +
 		"or influence active work; do not use it for progress requests. Use " +
 		"message_agent when the active assignment is wrong or its scope has " +
 		"changed; it interrupts active work and requests priority for the new " +
-		"instruction, but preserves older queued follow-ups. A successful send " +
+		"instruction, but preserves older queued work. A successful send " +
 		"result confirms acceptance, not that the child has stopped or responded. " +
 		"Agents persist after completion. Spawned agents are your responsibility: " +
 		"retrieve their results, send further instructions with the appropriate " +
@@ -381,7 +381,7 @@ func planningOverlaySubagentGuidance() string {
 
 	return "Use read_file, execute, process_output, list_templates, read_template, " +
 		spawnAgentToolName + ", and approved external MCP tools when available to gather context. " +
-		"Workspace MCP tools are not available in root plan mode, and side-effecting built-in tools such as process_list, process_signal, message_agent, followup_agent, interrupt_agent, and computer-use actions remain unavailable. In Plan Mode, " +
+		"Workspace MCP tools are not available in root plan mode, and side-effecting built-in tools such as process_list, process_signal, message_agent, queue_agent_work, interrupt_agent, and computer-use actions remain unavailable. In Plan Mode, " +
 		spawnAgentToolName + " delegation is for investigation and planning " +
 		"support, not code writing or implementation. Use type=\"" + subagentTypeGeneral +
 		"\" for substantial investigation, reasoning, and planning support. " +
