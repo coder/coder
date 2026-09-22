@@ -202,7 +202,7 @@ describe("ChatsSidebar filters", () => {
 	// item closes the submenu before the click lands.
 	const setupSubmenuUser = () => userEvent.setup({ skipHover: true });
 
-	it("applies visibility changes immediately", async () => {
+	it("applies state changes immediately", async () => {
 		const user = setupSubmenuUser();
 		const onSidebarFiltersChange = vi.fn();
 
@@ -217,7 +217,7 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("menuitem", { name: /Visibility/ }));
+		await user.click(screen.getByRole("menuitem", { name: /State/ }));
 		await user.click(
 			await screen.findByRole("menuitemradio", { name: "Archived" }),
 		);
@@ -285,7 +285,7 @@ describe("ChatsSidebar filters", () => {
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
 		await user.click(screen.getByRole("menuitem", { name: /Owner/ }));
 		await user.click(
-			await screen.findByRole("menuitemradio", { name: "Myself" }),
+			await screen.findByRole("menuitemradio", { name: "Mine" }),
 		);
 
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
@@ -307,7 +307,7 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		await user.click(
-			await screen.findByRole("menuitemradio", { name: "Someone else" }),
+			await screen.findByRole("menuitemradio", { name: "Shared with me" }),
 		);
 
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
@@ -316,7 +316,7 @@ describe("ChatsSidebar filters", () => {
 		});
 	});
 
-	it("toggles advanced filters from the submenu and their badges", async () => {
+	it("toggles filter by options from the submenu and their badges", async () => {
 		const user = setupSubmenuUser();
 		const onSidebarFiltersChange = vi.fn();
 
@@ -331,9 +331,7 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(
-			screen.getByRole("menuitem", { name: /Advanced filters/ }),
-		);
+		await user.click(screen.getByRole("menuitem", { name: /Filter by/ }));
 		await user.click(
 			await screen.findByRole("menuitemcheckbox", { name: "PR: open" }),
 		);
@@ -352,6 +350,13 @@ describe("ChatsSidebar filters", () => {
 			attributes: ["has_error"],
 		});
 
+		await user.click(screen.getByRole("menuitemcheckbox", { name: "Unread" }));
+
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			chatStatuses: ["unread"],
+		});
+
 		rerender(
 			<Wrapper>
 				<ChatsSidebar
@@ -359,6 +364,7 @@ describe("ChatsSidebar filters", () => {
 					sidebarFilters={{
 						...defaultSidebarFilters,
 						prStatuses: ["open"],
+						chatStatuses: ["unread"],
 						attributes: ["has_error"],
 					}}
 					onSidebarFiltersChange={onSidebarFiltersChange}
@@ -373,6 +379,17 @@ describe("ChatsSidebar filters", () => {
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
 			...defaultSidebarFilters,
 			prStatuses: [],
+			chatStatuses: ["unread"],
+			attributes: ["has_error"],
+		});
+
+		await user.click(
+			screen.getByRole("button", { name: "Remove Unread filter" }),
+		);
+
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			prStatuses: ["open"],
 			attributes: ["has_error"],
 		});
 	});

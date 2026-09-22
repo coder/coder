@@ -9,7 +9,6 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuLabel,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
 	DropdownMenuSub,
@@ -22,6 +21,7 @@ import { SearchField } from "#/components/SearchField/SearchField";
 import {
 	AGENT_ARCHIVE_STATUS_ORDER,
 	AGENT_CHAT_ATTRIBUTE_ORDER,
+	AGENT_CHAT_STATUS_ORDER,
 	AGENT_PR_STATUS_ORDER,
 	AGENT_TIME_RANGE_ORDER,
 	type AgentArchiveStatusFilter,
@@ -43,7 +43,7 @@ const MOBILE_MENU_CLASS =
 
 const GROUP_BY_LABELS: Record<AgentSidebarGroupBy, string> = {
 	date: "Date",
-	chat_status: "Chat status",
+	chat_status: "Status",
 };
 
 const ARCHIVE_STATUS_LABELS: Record<AgentArchiveStatusFilter, string> = {
@@ -51,19 +51,19 @@ const ARCHIVE_STATUS_LABELS: Record<AgentArchiveStatusFilter, string> = {
 	archived: "Archived",
 };
 
-type OwnerFilter = "myself" | "someone_else" | "all";
+type OwnerFilter = "mine" | "shared_with_me" | "all";
 
-const OWNER_ORDER: readonly OwnerFilter[] = ["myself", "someone_else", "all"];
+const OWNER_ORDER: readonly OwnerFilter[] = ["mine", "shared_with_me", "all"];
 
 const OWNER_LABELS: Record<OwnerFilter, string> = {
-	myself: "Myself",
-	someone_else: "Someone else",
+	mine: "Mine",
+	shared_with_me: "Shared with me",
 	all: "All",
 };
 
 const OWNER_SOURCES: Record<OwnerFilter, readonly AgentSourceFilter[]> = {
-	myself: ["created_by_me"],
-	someone_else: ["shared_with_me"],
+	mine: ["created_by_me"],
+	shared_with_me: ["shared_with_me"],
 	all: ["created_by_me", "shared_with_me"],
 };
 
@@ -96,7 +96,7 @@ const ownerFromSources = (
 	if (ownsChats && sharedChats) {
 		return "all";
 	}
-	return sharedChats ? "someone_else" : "myself";
+	return sharedChats ? "shared_with_me" : "mine";
 };
 
 const isGroupBy = (value: string): value is AgentSidebarGroupBy =>
@@ -262,6 +262,13 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 		});
 	};
 
+	const setUnreadOnly = (checked: boolean) => {
+		onFiltersChange({
+			...filters,
+			chatStatuses: checked ? ["unread"] : AGENT_CHAT_STATUS_ORDER,
+		});
+	};
+
 	const advancedOptions: readonly AdvancedFilterOption[] = [
 		...AGENT_CHAT_ATTRIBUTE_ORDER.map((attribute) => ({
 			key: `attribute-${attribute}`,
@@ -269,6 +276,14 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 			checked: filters.attributes.includes(attribute),
 			setChecked: (checked: boolean) => setAttribute(attribute, checked),
 		})),
+		{
+			key: "unread",
+			label: "Unread",
+			checked:
+				filters.chatStatuses.length === 1 &&
+				filters.chatStatuses[0] === "unread",
+			setChecked: setUnreadOnly,
+		},
 		...AGENT_PR_STATUS_ORDER.map((status) => ({
 			key: `pr-${status}`,
 			label: PR_STATUS_LABELS[status],
@@ -308,7 +323,7 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 					<DropdownMenuSub>
 						<DropdownMenuSubTrigger>
 							<FilterRow
-								label="Sort by"
+								label="Grouped by"
 								value={GROUP_BY_LABELS[filters.groupBy]}
 							/>
 						</DropdownMenuSubTrigger>
@@ -332,14 +347,10 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 				</div>
 
 				<div className="border-0 border-b border-solid border-border p-1">
-					<DropdownMenuLabel className="font-normal">
-						Filter by
-					</DropdownMenuLabel>
-
 					<DropdownMenuSub>
 						<DropdownMenuSubTrigger>
 							<FilterRow
-								label="Visibility"
+								label="State"
 								value={ARCHIVE_STATUS_LABELS[filters.archiveStatus]}
 							/>
 						</DropdownMenuSubTrigger>
@@ -414,7 +425,7 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 					<DropdownMenuSub>
 						<DropdownMenuSubTrigger>
 							<FilterRow
-								label="Advanced filters"
+								label="Filter by"
 								value={
 									selectedAdvancedOptions.length > 0
 										? selectedAdvancedOptions.length
@@ -430,7 +441,7 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 									value={optionSearch}
 									onChange={setOptionSearch}
 									placeholder="Search..."
-									aria-label="Search advanced filters"
+									aria-label="Search filters"
 									className="h-8 [&_input]:h-8 [&_input]:text-sm [&_svg]:size-4"
 								/>
 							</div>

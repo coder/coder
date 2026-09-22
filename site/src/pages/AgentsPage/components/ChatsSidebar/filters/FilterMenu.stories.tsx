@@ -52,6 +52,7 @@ const activeFilters: AgentSidebarFilters = {
 	sources: ["created_by_me"],
 	timeRange: "30d",
 	prStatuses: ["draft", "open"],
+	chatStatuses: ["unread"],
 	attributes: ["shared_with_me", "shared_with_others"],
 };
 
@@ -70,10 +71,10 @@ export const WithActiveFilters: Story = {
 	},
 };
 
-export const SortBySubmenu: Story = {
+export const GroupedBySubmenu: Story = {
 	play: async ({ canvasElement }) => {
 		const menu = await openMenu(canvasElement);
-		await userEvent.click(menu.getByRole("menuitem", { name: /Sort by/ }));
+		await userEvent.click(menu.getByRole("menuitem", { name: /Grouped by/ }));
 	},
 };
 
@@ -87,30 +88,26 @@ export const TimeRangeSubmenu: Story = {
 	},
 };
 
-export const AdvancedFiltersSubmenu: Story = {
+export const FilterBySubmenu: Story = {
 	args: {
 		filters: activeFilters,
 	},
 	play: async ({ canvasElement }) => {
 		const menu = await openMenu(canvasElement);
-		await userEvent.click(
-			menu.getByRole("menuitem", { name: /Advanced filters/ }),
-		);
+		await userEvent.click(menu.getByRole("menuitem", { name: /Filter by/ }));
 	},
 };
 
-export const AdvancedFiltersSearch: Story = {
+export const FilterBySearch: Story = {
 	args: {
 		filters: activeFilters,
 	},
 	play: async ({ canvasElement }) => {
 		const menu = await openMenu(canvasElement);
-		await userEvent.click(
-			menu.getByRole("menuitem", { name: /Advanced filters/ }),
-		);
+		await userEvent.click(menu.getByRole("menuitem", { name: /Filter by/ }));
 		await userEvent.type(
 			await within(document.body).findByRole("textbox", {
-				name: "Search advanced filters",
+				name: "Search filters",
 			}),
 			"pr",
 		);
