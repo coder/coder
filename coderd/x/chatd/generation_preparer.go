@@ -69,7 +69,7 @@ func (server *Server) effectiveMCPServerConfigs(
 func (server *Server) prepareGeneration(
 	ctx context.Context,
 	input generationPrepareInput,
-) (generationPrepared, error) {
+) (prepared generationPrepared, err error) {
 	chat := input.Chat
 	logger := server.logger.With(
 		slog.F("chat_id", chat.ID),
@@ -241,9 +241,17 @@ func (server *Server) prepareGeneration(
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
 	}
-	cleanup := func() {
-		workspaceCtx.close()
-	}
+	// Each acquired resource registers its release here as soon as it
+	// exists, from whichever goroutine acquired it. An error return
+	// releases everything; a successful return hands the stack to the
+	// caller as Cleanup.
+	var cleanup cleanupStack
+	cleanup.add(workspaceCtx.close)
+	defer func() {
+		if err != nil {
+			cleanup.run()
+		}
+	}()
 
 	planPathFn := func(ctx context.Context) (string, string, error) {
 		conn, err := workspaceCtx.getWorkspaceConn(ctx)
@@ -293,10 +301,8 @@ func (server *Server) prepareGeneration(
 		instruction        string
 		mcpTools           []fantasy.AgentTool
 		mcpSummaries       []mcpclient.ConnectSummary
-		mcpCleanup         func()
 		inlineMCPTools     []fantasy.AgentTool
 		inlineMCPSummaries []mcpclient.ConnectSummary
-		inlineMCPCleanup   func()
 		workspaceMCPTools  []fantasy.AgentTool
 		workspaceSkills    []chattool.SkillMeta
 		personalSkills     []skillspkg.Skill
@@ -346,7 +352,6 @@ func (server *Server) prepareGeneration(
 		var resolveErr error
 		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
 		if resolveErr != nil {
-			cleanup()
 			return generationPrepared{}, resolveErr
 		}
 	}
@@ -359,7 +364,6 @@ func (server *Server) prepareGeneration(
 	var debug *generationDebug
 	if resolved.debugEnabled {
 		if debugSvc == nil {
-			cleanup()
 			return generationPrepared{}, xerrors.New("chat debug service missing after enablement check")
 		}
 		debug = &generationDebug{
@@ -434,6 +438,7 @@ func (server *Server) prepareGeneration(
 				}
 				mcpServers = append(mcpServers, srv)
 			}
+			var mcpCleanup func()
 			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
 				ctx,
 				logger,
@@ -444,6 +449,7 @@ func (server *Server) prepareGeneration(
 				chatprovider.CoderHeaders(chat),
 				server.mcpHTTPClient,
 			)
+			cleanup.add(mcpCleanup)
 			mcpSummaries = append(mcpSummaries, invalidConfigs...)
 			return nil
 		})
@@ -454,6 +460,7 @@ func (server *Server) prepareGeneration(
 			for _, srv := range inlineMCPConnectServers {
 				servers = append(servers, srv.Server)
 			}
+			var inlineMCPCleanup func()
 			inlineMCPTools, inlineMCPSummaries, inlineMCPCleanup = mcpclient.ConnectInline(
 				ctx,
 				logger,
@@ -461,6 +468,7 @@ func (server *Server) prepareGeneration(
 				chatprovider.CoderHeaders(chat),
 				server.mcpHTTPClient,
 			)
+			cleanup.add(inlineMCPCleanup)
 			return nil
 		})
 	}
@@ -491,23 +499,7 @@ func (server *Server) prepareGeneration(
 		input.RecordMCPConnectSummaries(ctx, chat, debug, mcpSummaries)
 	}
 	if g2Err != nil {
-		cleanup()
 		return generationPrepared{}, g2Err
-	}
-
-	if mcpCleanup != nil {
-		previousCleanup := cleanup
-		cleanup = func() {
-			mcpCleanup()
-			previousCleanup()
-		}
-	}
-	if inlineMCPCleanup != nil {
-		previousCleanup := cleanup
-		cleanup = func() {
-			inlineMCPCleanup()
-			previousCleanup()
-		}
 	}
 
 	prompt, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(model.Provider(), prompt)
@@ -688,7 +680,6 @@ func (server *Server) prepareGeneration(
 	} else {
 		tools, dynamicToolNames, err = appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode)
 		if err != nil {
-			cleanup()
 			return generationPrepared{}, err
 		}
 	}
@@ -718,7 +709,6 @@ func (server *Server) prepareGeneration(
 			logger:           server.logger.Named("computer_use"),
 		})
 		if err != nil {
-			cleanup()
 			return generationPrepared{}, xerrors.Errorf("register computer use provider tool for provider %q: %w", computerUseProvider, err)
 		}
 	} else {
@@ -727,7 +717,6 @@ func (server *Server) prepareGeneration(
 			isComputerUse:  false,
 		})
 		if err != nil {
-			cleanup()
 			return generationPrepared{}, err
 		}
 	}
@@ -808,7 +797,6 @@ func (server *Server) prepareGeneration(
 		providerFailure: modelOverrideFailureModeSoft,
 	})
 	if err != nil {
-		cleanup()
 		return generationPrepared{}, err
 	}
 	var compactionOverride *resolvedModelOverride
@@ -878,7 +866,7 @@ func (server *Server) prepareGeneration(
 			Options:         compactionOptions,
 			PendingUserRows: pendingUserRows,
 		},
-		Cleanup: cleanup,
+		Cleanup: cleanup.run,
 		Debug:   debug,
 	}, nil
 }
@@ -1044,4 +1032,30 @@ func enabledMCPServerConfigsForChatOrg(
 		return nil, xerrors.Errorf("get enabled MCP server configs for organization: %w", err)
 	}
 	return configs, nil
+}
+
+// cleanupStack collects the release functions of resources a turn
+// acquires, from any goroutine, and runs them in reverse order.
+type cleanupStack struct {
+	mu  sync.Mutex
+	fns []func()
+}
+
+func (s *cleanupStack) add(fn func()) {
+	if fn == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fns = append(s.fns, fn)
+}
+
+func (s *cleanupStack) run() {
+	s.mu.Lock()
+	fns := s.fns
+	s.fns = nil
+	s.mu.Unlock()
+	for i := len(fns) - 1; i >= 0; i-- {
+		fns[i]()
+	}
 }
