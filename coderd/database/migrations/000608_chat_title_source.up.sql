@@ -4,16 +4,16 @@ CREATE TYPE chat_title_source AS ENUM (
     'user'
 );
 
-COMMENT ON TYPE chat_title_source IS 'Where a chat title came from. fallback: derived from the first prompt. generated: written by automatic title generation. user: supplied by the caller at creation or by rename. Rows that existed before this column was added are fallback regardless of who set their title.';
+COMMENT ON TYPE chat_title_source IS 'Where a chat title came from. fallback: derived from the first prompt. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.';
 
 ALTER TABLE chats
     ADD COLUMN title_source chat_title_source NOT NULL DEFAULT 'fallback',
     ADD COLUMN title_updated_at timestamptz NOT NULL DEFAULT NOW();
 
-COMMENT ON COLUMN chats.title_source IS 'Only a user title may replace a generated or user title.';
+COMMENT ON COLUMN chats.title_source IS 'Only a user title may replace a generated or user title. Rows from before this column existed are fallback regardless of who set their title.';
 COMMENT ON COLUMN chats.title_updated_at IS 'When title was last written. Orders title events; updated_at is not changed by title writes.';
 
--- Refresh chats_expanded to include the new chat column. The gentest
+-- Refresh chats_expanded to include the new chat columns. The gentest
 -- TestViewSubsetChat requires every chats column to appear in the view.
 DROP VIEW IF EXISTS chats_expanded;
 CREATE VIEW chats_expanded AS

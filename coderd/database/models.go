@@ -1931,7 +1931,7 @@ func AllChatStatusValues() []ChatStatus {
 	}
 }
 
-// Where a chat title came from. fallback: derived from the first prompt. generated: written by automatic title generation. user: supplied by the caller at creation or by rename. Rows that existed before this column was added are fallback regardless of who set their title.
+// Where a chat title came from. fallback: derived from the first prompt. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.
 type ChatTitleSource string
 
 const (
@@ -5435,7 +5435,7 @@ type ChatTable struct {
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
 	// Optional project that groups a root chat with related chats.
 	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
-	// Only a user title may replace a generated or user title.
+	// Only a user title may replace a generated or user title. Rows from before this column existed are fallback regardless of who set their title.
 	TitleSource ChatTitleSource `db:"title_source" json:"title_source"`
 	// When title was last written. Orders title events; updated_at is not changed by title writes.
 	TitleUpdatedAt time.Time `db:"title_updated_at" json:"title_updated_at"`

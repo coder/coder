@@ -6686,8 +6686,6 @@ func TestPatchChat(t *testing.T) {
 			}
 		})
 
-		// Both writes must keep updated_at so list ordering is unchanged;
-		// the same-text write exists to record the title as the user's.
 		t.Run("RecordsUserSourceWithoutChangingUpdatedAt", func(t *testing.T) {
 			t.Parallel()
 
@@ -10992,7 +10990,7 @@ func TestPostChats_UserTitle(t *testing.T) {
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 
-	// The same text the fallback would produce.
+	// Same text as the fallback, so only the source distinguishes them.
 	userTitle := chatprompt.FallbackTitle(prompt)
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
