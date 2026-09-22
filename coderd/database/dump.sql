@@ -2113,6 +2113,8 @@ CREATE TABLE chat_projects (
     description text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
+    CONSTRAINT chat_projects_name_length CHECK ((length(name) <= 64)),
     CONSTRAINT chat_projects_name_not_blank CHECK ((length(btrim(name)) > 0))
 );
 

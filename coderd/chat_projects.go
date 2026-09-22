@@ -3,8 +3,10 @@ package coderd
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -70,6 +72,10 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 	}
 	if req.OrganizationID == uuid.Nil || strings.TrimSpace(req.Name) == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "organization_id and name are required."})
+		return
+	}
+	if resp := validateChatProjectFields(strings.TrimSpace(req.Name), req.Description); resp != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
 		return
 	}
 	if !api.Authorize(r, policy.ActionCreate, database.ChatProject{
@@ -177,6 +183,10 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	if req.Description != nil {
 		description = *req.Description
 	}
+	if resp := validateChatProjectFields(name, description); resp != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
+		return
+	}
 
 	updated, err := api.Database.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
 		ID:          project.ID,
@@ -237,4 +247,21 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+const (
+	// The project name is embedded in every generation's system prompt and
+	// memory tool descriptions, so it is kept short.
+	chatProjectNameMaxChars        = 64
+	chatProjectDescriptionMaxChars = 1024
+)
+
+func validateChatProjectFields(name, description string) *codersdk.Response {
+	if utf8.RuneCountInString(name) > chatProjectNameMaxChars {
+		return &codersdk.Response{Message: fmt.Sprintf("name must be at most %d characters.", chatProjectNameMaxChars)}
+	}
+	if utf8.RuneCountInString(description) > chatProjectDescriptionMaxChars {
+		return &codersdk.Response{Message: fmt.Sprintf("description must be at most %d characters.", chatProjectDescriptionMaxChars)}
+	}
+	return nil
 }
