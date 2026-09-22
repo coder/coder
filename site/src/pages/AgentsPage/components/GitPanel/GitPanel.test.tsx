@@ -127,8 +127,6 @@ describe("GitPanel per-ref views", () => {
 			],
 		});
 
-		// The branch has no PR URL, but its ref selector must still
-		// drive a diff fetch.
 		await waitFor(() =>
 			expect(getDiff).toHaveBeenCalledWith(
 				"test-chat",
@@ -212,5 +210,46 @@ describe("GitPanel per-ref views", () => {
 				}),
 			),
 		);
+	});
+
+	it("names the repository when refs span multiple origins", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
+			mockDiffContents,
+		);
+
+		renderPanel({
+			remoteDiffStats: [
+				{
+					...MockChatDiffStatus,
+					pull_request_title: "shared branch",
+					git_branch: "feature/shared",
+					remote_origin: "https://github.com/coder/coder.git",
+					url: undefined,
+					pr_number: undefined,
+					pull_request_state: undefined,
+				},
+				{
+					...MockChatDiffStatus,
+					pull_request_title: "same branch, other repo",
+					git_branch: "feature/shared",
+					remote_origin: "https://github.com/coder/other-project.git",
+					url: undefined,
+					pr_number: undefined,
+					pull_request_state: undefined,
+				},
+			],
+		});
+
+		await user.click(screen.getByRole("button", { name: "Switch git view" }));
+		const menu = await screen.findByRole("menu");
+
+		// Both branches share a name, so the repositories must tell
+		// the entries apart.
+		const items = within(menu).getAllByRole("menuitem");
+		const itemNames = items.map((item) => item.textContent ?? "");
+		expect(itemNames).toContain("Branchcoder/coder · feature/shared");
+		expect(itemNames).toContain("Branchcoder/other-project · feature/shared");
+		expect(new Set(itemNames).size).toBe(itemNames.length);
 	});
 });

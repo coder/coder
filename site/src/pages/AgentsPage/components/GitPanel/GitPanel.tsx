@@ -148,6 +148,41 @@ function repoLabel(repoRoot: string): string {
 	return segments[segments.length - 1] ?? repoRoot;
 }
 
+// The repository an origin names, such as "coder/coder" from
+// "https://github.com/coder/coder.git". Falls back to the raw
+// origin when the URL carries no owner/repo path.
+function originRepoLabel(remoteOrigin: string | undefined): string {
+	if (!remoteOrigin) {
+		return "";
+	}
+
+	let path: string;
+	try {
+		path = new URL(remoteOrigin).pathname;
+	} catch {
+		// Not a URL. An scp-style remote such as
+		// "git@github.com:coder/coder.git" separates the host from
+		// the path with a colon, so treat it like a slash.
+		path = remoteOrigin.replaceAll(":", "/");
+	}
+
+	const segments = path
+		.split("/")
+		.filter(Boolean)
+		.map((segment) =>
+			segment.endsWith(".git") ? segment.slice(0, -4) : segment,
+		);
+
+	const owner = segments.at(-2);
+	const repo = segments.at(-1);
+
+	if (owner && repo) {
+		return `${owner}/${repo}`;
+	}
+
+	return remoteOrigin;
+}
+
 type ViewItemBase = {
 	id: string;
 	/** Left-pill label on the trigger (e.g. "Open", "Merged", "Working"). */
@@ -216,21 +251,30 @@ const fallbackView = (view: GitView, input: ViewFallbackInput): GitView => {
 };
 
 // One switcher entry for a tracked ref: PR rows show their number
-// and state, branch-only rows show the branch name.
-const buildRemoteItem = (status: ChatDiffStatus): ViewItem => {
+// and state, branch-only rows show the branch name. When the chat
+// tracks more than one origin, every row also names its repository,
+// because branch names and PR numbers repeat across repositories.
+const buildRemoteItem = (
+	status: ChatDiffStatus,
+	hasMultipleOrigins: boolean,
+): ViewItem => {
 	const prNumber =
 		status.pr_number ?? parsePullRequestUrl(status.url ?? "")?.number;
 	const state = status.pull_request_state;
 	const draft = status.pull_request_draft;
 	// head_branch falls back for legacy rows that predate git_branch.
 	const branchName = status.git_branch || status.head_branch;
+	const originLabel = hasMultipleOrigins
+		? originRepoLabel(status.remote_origin)
+		: undefined;
+	const originPrefix = originLabel ? `${originLabel} · ` : "";
 	if (prNumber) {
 		return {
 			kind: "remote",
 			id: viewIdFor(status),
 			stateLabel: prStateLabel(state, draft),
-			triggerIdentifier: `PR #${prNumber}`,
-			itemPrimary: `PR #${prNumber}`,
+			triggerIdentifier: `${originPrefix}PR #${prNumber}`,
+			itemPrimary: `${originPrefix}PR #${prNumber}`,
 			itemSecondary: status.pull_request_title || undefined,
 			stateClasses: prStateClasses(state, draft),
 			icon: (
@@ -246,9 +290,9 @@ const buildRemoteItem = (status: ChatDiffStatus): ViewItem => {
 		kind: "remote",
 		id: viewIdFor(status),
 		stateLabel: "Branch",
-		triggerIdentifier: branchName || "Branch",
+		triggerIdentifier: `${originPrefix}${branchName || "Branch"}`,
 		itemPrimary: "Branch",
-		itemSecondary: branchName || undefined,
+		itemSecondary: `${originPrefix}${branchName || "Branch"}`,
 		stateClasses: "text-content-secondary",
 		icon: <GitBranchIcon className="size-3.5 shrink-0" />,
 	};
@@ -369,9 +413,15 @@ export const GitPanel: FC<GitPanelProps> = ({
 		return () => observer.disconnect();
 	};
 
+	const remoteOrigins = new Set(
+		remoteDiffStats?.map((status) => status.remote_origin).filter(Boolean),
+	);
+	const hasMultipleOrigins = remoteOrigins.size > 1;
 	const remoteItems: ViewItem[] =
 		showRemoteTab && remoteDiffStats
-			? remoteDiffStats.filter(isSelectableRef).map(buildRemoteItem)
+			? remoteDiffStats
+					.filter(isSelectableRef)
+					.map((status) => buildRemoteItem(status, hasMultipleOrigins))
 			: [];
 
 	const localItems: ViewItem[] = localRepos.map((repoRoot) => ({
