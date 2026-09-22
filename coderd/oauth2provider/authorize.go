@@ -305,6 +305,11 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
+	if r.Method == http.MethodGet && clientSecretInQuery(vals) {
+		logger.Warn(r.Context(), "oauth2 authorization request carried client_secret in the URL query string",
+			append(requestSource(r), slog.F("app_id", app.ID))...)
+	}
+
 	// response_type and client_id are always required.
 	p.RequiredNotEmpty("response_type", "client_id")
 
