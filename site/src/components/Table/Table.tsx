@@ -53,8 +53,9 @@ export const TableBody: React.FC<TableBodyProps> = ({
 	return (
 		<tbody
 			className={cn(
-				// Body rows may start with a scope="row" header cell, so the outer
-				// edges follow child position rather than the td tag.
+				// Select the outline by child position: a body row can start with a
+				// scope="row" th, and td:first-of-type would skip it and treat the
+				// second cell as the first.
 				"[&>tr:first-of-type>*]:border-t [&>tr>*:first-child]:border-l",
 				"[&>tr:last-child>*]:border-b [&>tr>*:last-child]:border-r",
 				"[&>tr:first-of-type>*:first-child]:rounded-tl-md [&>tr:first-of-type>*:last-child]:rounded-tr-md",
