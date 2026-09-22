@@ -219,6 +219,7 @@ export const PublicClient: Story = {
 export const MultipleRedirectURIs: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{
 				key: oauth2ProviderAppKey(appId),
 				data: {
@@ -242,6 +243,7 @@ export const MultipleRedirectURIs: Story = {
 export const InvalidRowState: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{ key: oauth2ProviderAppKey(appId), data: mockApp },
 			{
 				key: oauth2ProviderAppSecretsKey(appId),
