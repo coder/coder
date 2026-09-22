@@ -47,8 +47,8 @@ export const SpendAmount: FC<SpendAmountProps> = ({
 }) => {
 	return (
 		<span className="inline-flex items-center gap-1 tabular-nums">
-			{formatCostMicros(costMicros)}
 			{unpricedUsageCount > 0 && <UnpricedWarning scope={scope} />}
+			{formatCostMicros(costMicros)}
 		</span>
 	);
 };
