@@ -1,9 +1,7 @@
 import { cn } from "cn";
 import {
 	CheckIcon,
-	ChevronDownIcon,
 	CircleDotIcon,
-	ColumnsIcon,
 	ExternalLinkIcon,
 	GitBranchIcon,
 	GitCompareArrowsIcon,
@@ -12,7 +10,6 @@ import {
 	GitPullRequestDraftIcon,
 	GitPullRequestIcon,
 	RefreshCwIcon,
-	RowsIcon,
 } from "lucide-react";
 import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -21,11 +18,14 @@ import type {
 	ChatDiffStatus,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
-	DropdownMenuItem,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import {
@@ -38,6 +38,7 @@ import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import {
 	type DiffStyle,
+	DiffStyleToggle,
 	loadDiffStyle,
 	saveDiffStyle,
 } from "../DiffViewer/DiffViewer";
@@ -414,81 +415,28 @@ export const GitPanel: FC<GitPanelProps> = ({
 
 	return (
 		<div className="flex h-full flex-col">
-			{/* Toolbar */}
-			<div className="flex shrink-0 items-center gap-2 px-3 pt-1.5 pb-1">
-				<div className="min-w-0 flex-1">
+			{/* Toolbar. The 16px text gutter matches the summary tab's
+			   p-4, and a 24px control under pt-4 centers on the same
+			   line as a leading-6 paragraph. The switcher's border and
+			   inner padding hang outside the gutter so its text lands
+			   on it. */}
+			<div className="flex shrink-0 items-center gap-2 pl-2.5 pr-4 pt-4 pb-1">
+				<div className="flex min-w-0 flex-1 items-center gap-1.5">
 					<GitViewSwitcher
 						items={items}
 						activeItem={activeItem}
-						hasRemoteItem={remoteItems.length > 0}
 						onSelect={handleSelectItem}
 					/>
-				</div>
-				{/* Controls */}
-				<div className="flex shrink-0 items-center gap-1">
-					{/* The primary action follows the view: a PR opens on
-					   its host, a working repo commits. */}
-					{viewPrUrl && (
-						<a
-							href={viewPrUrl}
-							target="_blank"
-							rel="noreferrer"
-							className="inline-flex h-6 items-center gap-1 px-1.5 text-xs font-medium text-content-link no-underline hover:underline"
-						>
-							View PR
-							<ExternalLinkIcon className="size-3" />
-						</a>
-					)}
-					{activeRepoRoot !== undefined && activeRepo && (
-						<button
-							type="button"
-							onClick={() => onCommit(activeRepoRoot)}
-							disabled={!activeRepo.unified_diff}
-							className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-solid border-border-default bg-surface-primary px-2 text-xs font-medium text-content-primary transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
-						>
-							<CheckIcon className="size-3" />
-							Commit
-						</button>
-					)}
-					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
-						<button
-							type="button"
-							onClick={() => handleDiffStyleChange("unified")}
-							aria-label="Unified diff"
-							disabled={!hasGitContext}
-							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
-							className={cn(
-								"flex cursor-pointer items-center border-none px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
-								diffStyle === "unified"
-									? "bg-surface-quaternary/25 text-content-primary"
-									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-							)}
-						>
-							<RowsIcon className="size-3.5" />
-						</button>
-						<button
-							type="button"
-							onClick={() => handleDiffStyleChange("split")}
-							aria-label="Split diff"
-							disabled={!hasGitContext}
-							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
-							className={cn(
-								"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
-								diffStyle === "split"
-									? "bg-surface-quaternary/25 text-content-primary"
-									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-							)}
-						>
-							<ColumnsIcon className="size-3.5" />
-						</button>
-					</div>
 					{/*
 					 * The shared Button applies `disabled:pointer-events-none`,
 					 * which would suppress the native `title` tooltip when the
 					 * control is disabled. Wrap it in a span so the tooltip is
 					 * still reachable on hover in the disabled state.
 					 */}
-					<span title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}>
+					<span
+						className="shrink-0"
+						title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
+					>
 						<Button
 							variant="subtle"
 							size="icon"
@@ -506,11 +454,35 @@ export const GitPanel: FC<GitPanelProps> = ({
 						</Button>
 					</span>
 				</div>
+				{/* The primary action follows the view: a PR opens on its
+				   host, a working repo commits. */}
+				{viewPrUrl && (
+					<a
+						href={viewPrUrl}
+						target="_blank"
+						rel="noreferrer"
+						className="inline-flex h-6 shrink-0 items-center gap-1 text-xs font-medium text-content-link no-underline hover:underline"
+					>
+						View PR
+						<ExternalLinkIcon className="size-3" />
+					</a>
+				)}
+				{activeRepoRoot !== undefined && activeRepo && (
+					<button
+						type="button"
+						onClick={() => onCommit(activeRepoRoot)}
+						disabled={!activeRepo.unified_diff}
+						className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-solid border-border-default bg-surface-primary px-2 text-xs font-medium text-content-primary transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
+					>
+						<CheckIcon className="size-3" />
+						Commit
+					</button>
+				)}
 			</div>
 			{/* PR title row: truncates with a hover tooltip only when the
 			   visible text is cut off. */}
 			{showPrTitleRow && (
-				<div className="flex shrink-0 items-center px-3">
+				<div className="flex shrink-0 items-center px-4">
 					<Tooltip open={isPrTitleTruncated ? undefined : false}>
 						<TooltipTrigger asChild>
 							<span
@@ -542,6 +514,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
 						diffStyle={diffStyle}
+						onDiffStyleChange={handleDiffStyleChange}
 						diffStatus={selectedRemote}
 						remoteRef={refSelectorFor(selectedRemote)}
 					/>
@@ -557,6 +530,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						}
 						isExpanded={isExpanded}
 						diffStyle={diffStyle}
+						onDiffStyleChange={handleDiffStyleChange}
 						chatInputRef={chatInputRef}
 					/>
 				)}
@@ -572,24 +546,19 @@ export const GitPanel: FC<GitPanelProps> = ({
 interface GitViewSwitcherProps {
 	items: ReadonlyArray<ViewItem>;
 	activeItem?: ViewItem;
-	/**
-	 * Whether a remote (PR or Branch) item exists in `items`. Controls
-	 * whether local entries are visually nested (indented) under it.
-	 */
-	hasRemoteItem: boolean;
 	onSelect: (item: ViewItem) => void;
 }
 
 const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	items,
 	activeItem,
-	hasRemoteItem,
 	onSelect,
 }) => {
+	const [open, setOpen] = useState(false);
 	if (!activeItem) {
 		return (
 			<div
-				className="inline-flex h-6 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 text-xs text-content-secondary"
+				className="inline-flex h-6 items-center gap-1.5 border border-solid border-transparent px-1.5 text-xs text-content-secondary"
 				data-testid="git-panel-view-switcher"
 			>
 				<GitBranchIcon className="size-3.5! shrink-0" />
@@ -599,11 +568,13 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	}
 
 	// With nothing to switch to, the view is a plain label rather
-	// than a menu trigger.
+	// than a menu trigger. It keeps the trigger's border box and
+	// inner padding so the text does not shift when a second view
+	// appears.
 	if (items.length <= 1) {
 		return (
 			<div
-				className="inline-flex h-6 min-w-0 max-w-full items-center gap-1.5 text-xs"
+				className="inline-flex h-6 min-w-0 max-w-full items-center gap-1.5 border border-solid border-transparent px-1.5 text-xs"
 				data-testid="git-panel-view-switcher"
 			>
 				<span
@@ -621,8 +592,24 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 		);
 	}
 
+	const remoteItems = items.filter((item) => item.kind === "remote");
+	const localItems = items.filter((item) => item.kind === "local");
+	const renderItem = (item: ViewItem) => (
+		<DropdownMenuRadioItem key={item.id} value={item.id} className="gap-2">
+			<span className="inline-flex size-3.5 shrink-0 items-center justify-center">
+				{item.icon}
+			</span>
+			<span className="whitespace-nowrap">{item.itemPrimary}</span>
+			{item.itemSecondary && (
+				<span className="min-w-0 flex-1 truncate font-normal text-content-secondary">
+					{item.itemSecondary}
+				</span>
+			)}
+		</DropdownMenuRadioItem>
+	);
+
 	return (
-		<DropdownMenu>
+		<DropdownMenu open={open} onOpenChange={setOpen}>
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
@@ -643,45 +630,32 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 					</span>
 					<span className="inline-flex min-w-0 items-center gap-1 pl-1.5 pr-1 text-content-primary">
 						<span className="truncate">{activeItem.triggerIdentifier}</span>
-						<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
+						<ChevronDownIcon
+							open={open}
+							className="size-3 shrink-0 text-content-secondary"
+						/>
 					</span>
 				</button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				className="w-(--radix-dropdown-menu-trigger-width) min-w-[240px] p-1"
+				className="w-64 p-1 [&_[role^=menuitem]]:py-1 [&_[role^=menuitem]]:text-xs [&_svg]:size-3.5!"
 			>
-				{items.map((item) => {
-					const isActive = item.id === activeItem.id;
-					return (
-						<DropdownMenuItem
-							key={item.id}
-							onSelect={() => onSelect(item)}
-							className={cn(
-								"flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs",
-								// Nest local entries under the remote/PR entry
-								// when one exists. Without a parent above them,
-								// nesting reads as an orphan indent.
-								item.kind === "local" && hasRemoteItem
-									? "ml-4 mt-0.5"
-									: "w-full",
-								isActive && "bg-surface-secondary text-content-primary",
-							)}
-						>
-							<span className="inline-flex size-3.5 shrink-0 items-center justify-center">
-								{item.icon}
-							</span>
-							<span className="whitespace-nowrap font-medium">
-								{item.itemPrimary}
-							</span>
-							{item.itemSecondary && (
-								<span className="min-w-0 flex-1 truncate text-content-secondary">
-									{item.itemSecondary}
-								</span>
-							)}
-						</DropdownMenuItem>
-					);
-				})}
+				<DropdownMenuRadioGroup
+					value={activeItem.id}
+					onValueChange={(id) => {
+						const item = items.find((candidate) => candidate.id === id);
+						if (item) {
+							onSelect(item);
+						}
+					}}
+				>
+					{remoteItems.map(renderItem)}
+					{remoteItems.length > 0 && localItems.length > 0 && (
+						<DropdownMenuSeparator className="my-1" />
+					)}
+					{localItems.map(renderItem)}
+				</DropdownMenuRadioGroup>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
@@ -698,6 +672,7 @@ const RemoteContent: FC<{
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
+	onDiffStyleChange: (style: DiffStyle) => void;
 	diffStatus?: ChatDiffStatus;
 	remoteRef?: TypesGen.DiffStatusRef;
 }> = ({
@@ -707,6 +682,7 @@ const RemoteContent: FC<{
 	isExpanded,
 	chatInputRef,
 	diffStyle,
+	onDiffStyleChange,
 	diffStatus,
 	remoteRef,
 }) => {
@@ -743,6 +719,7 @@ const RemoteContent: FC<{
 			isExpanded={isExpanded}
 			chatInputRef={chatInputRef}
 			diffStyle={diffStyle}
+			onDiffStyleChange={onDiffStyleChange}
 			diffStatus={diffStatus}
 			remoteRef={remoteRef}
 		/>
@@ -759,15 +736,30 @@ const LocalRepoContent: FC<{
 	diffStats: DiffStats;
 	isExpanded?: boolean;
 	diffStyle: DiffStyle;
+	onDiffStyleChange: (style: DiffStyle) => void;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
-}> = ({ repoRoot, repo, diffStats, isExpanded, diffStyle, chatInputRef }) => {
+}> = ({
+	repoRoot,
+	repo,
+	diffStats,
+	isExpanded,
+	diffStyle,
+	onDiffStyleChange,
+	chatInputRef,
+}) => {
 	if (!repo) {
 		return null;
 	}
 
 	return (
 		<div className="flex h-full flex-col">
-			<RepoHeader repoRoot={repoRoot} repo={repo} diffStats={diffStats} />
+			<RepoHeader
+				repoRoot={repoRoot}
+				repo={repo}
+				diffStats={diffStats}
+				diffStyle={diffStyle}
+				onDiffStyleChange={onDiffStyleChange}
+			/>
 			<LocalDiffPanel
 				repo={repo}
 				isExpanded={isExpanded}
@@ -786,9 +778,11 @@ const RepoHeader: FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges;
 	diffStats: DiffStats;
-}> = ({ repoRoot, repo, diffStats }) => {
+	diffStyle: DiffStyle;
+	onDiffStyleChange: (style: DiffStyle) => void;
+}> = ({ repoRoot, repo, diffStats, diffStyle, onDiffStyleChange }) => {
 	return (
-		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
+		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5">
 			<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 				<GitBranchIcon className="size-3.5 shrink-0" />
 				<span className="truncate">
@@ -796,11 +790,12 @@ const RepoHeader: FC<{
 				</span>
 				<span className="truncate opacity-50">{repoRoot}</span>
 			</div>
-			<div className="ml-auto flex shrink-0 items-center gap-1.5">
+			<div className="ml-auto flex shrink-0 items-center gap-2">
 				<DiffStatBadge
 					additions={diffStats.additions}
 					deletions={diffStats.deletions}
 				/>
+				<DiffStyleToggle value={diffStyle} onChange={onDiffStyleChange} />
 			</div>
 		</div>
 	);

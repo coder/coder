@@ -14,7 +14,7 @@ import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
-import type { DiffStyle } from "../DiffViewer/DiffViewer";
+import { type DiffStyle, DiffStyleToggle } from "../DiffViewer/DiffViewer";
 import { parseDiffString } from "../DiffViewer/parseDiff";
 
 export { InlinePromptInput } from "../DiffViewer/CommentableDiffViewer";
@@ -57,6 +57,7 @@ interface RemoteDiffPanelProps {
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
+	onDiffStyleChange: (style: DiffStyle) => void;
 	diffStatus?: TypesGen.ChatDiffStatus;
 	remoteRef?: TypesGen.DiffStatusRef;
 }
@@ -66,6 +67,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	isExpanded,
 	chatInputRef,
 	diffStyle,
+	onDiffStyleChange,
 	diffStatus,
 	remoteRef,
 }) => {
@@ -119,7 +121,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 		<div className="flex h-full flex-col">
 			{/* Compact PR/branch sub-header */}
 			{(pullRequestUrl || baseBranch || headBranch) && (
-				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
+				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5">
 					<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 						{baseBranch || headBranch ? (
 							<>
@@ -143,13 +145,14 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 							<span className="truncate">{pullRequestUrl}</span>
 						)}
 					</div>
-					<div className="ml-auto flex shrink-0 items-center gap-1.5">
+					<div className="ml-auto flex shrink-0 items-center gap-2">
 						{diffStatus?.additions || diffStatus?.deletions ? (
 							<DiffStatBadge
 								additions={diffStatus.additions}
 								deletions={diffStatus.deletions}
 							/>
 						) : null}
+						<DiffStyleToggle value={diffStyle} onChange={onDiffStyleChange} />
 					</div>
 				</div>
 			)}
