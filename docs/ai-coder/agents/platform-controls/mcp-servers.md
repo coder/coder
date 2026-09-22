@@ -324,21 +324,21 @@ Only root chats accept `inline_mcp_servers`.
 
 ### Limits
 
-| Limit                         | Value        |
-|-------------------------------|--------------|
-| Servers per chat              | 5            |
-| Total size of one declaration | 24 KiB       |
-| Slug                          | 32 B         |
-| URL                           | 2 KiB        |
-| Headers per server            | 16           |
-| Header name                   | 128 B        |
-| Header value                  | 8 B to 8 KiB |
-| Tool names per filter list    | 64           |
-| Tool name                     | 128 B        |
-| Tools per server              | 64           |
-| HTTP response body            | 1 MiB        |
-| Tool result                   | 256 KiB      |
-| Time per tool call            | 60 s         |
+| Limit                         | Value                  |
+|-------------------------------|------------------------|
+| Servers per chat              | 5                      |
+| Total size of one declaration | 24&nbsp;KiB            |
+| Slug                          | 32&nbsp;B              |
+| URL                           | 2&nbsp;KiB             |
+| Headers per server            | 16                     |
+| Header name                   | 128&nbsp;B             |
+| Header value                  | 8&nbsp;B to 8&nbsp;KiB |
+| Tool names per filter list    | 64                     |
+| Tool name                     | 128&nbsp;B             |
+| Tools per server              | 64                     |
+| HTTP response body            | 1&nbsp;MiB             |
+| Tool result                   | 256&nbsp;KiB           |
+| Time per tool call            | 60&nbsp;s              |
 
 ### URL and header requirements
 
