@@ -6,9 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -22,132 +19,130 @@ import (
 	"github.com/coder/quartz"
 )
 
-func TestCommandHeaderProviderJWTRefresh(t *testing.T) {
+func TestCommandHeaderProvider(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	clock := quartz.NewMock(t)
-	provider, outputPath := newTestHeaderProvider(ctx, t, clock)
-	first := headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(time.Minute)))
-	later := headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(time.Hour)))
-	initial := "Authorization=Bearer " + first + "\nX-Token=" + later + "\nX-Removed=old\n"
-	require.NoError(t, os.WriteFile(outputPath, []byte(initial), 0o600))
 
-	headers, err := provider.Headers(ctx)
-	require.NoError(t, err)
-	require.Equal(t, "Bearer "+first, headers.Get("Authorization"))
-	require.Equal(t, "unchanged", headers.Get("X-Static"))
-	updated := "Authorization=Bearer " + later + "\nX-Value=updated\n"
-	require.NoError(t, os.WriteFile(outputPath, []byte(updated), 0o600))
+	t.Run("JWTRefresh", func(t *testing.T) {
+		t.Parallel()
 
-	clock.Advance(time.Minute - jwtExpirationSkew - time.Second).MustWait(ctx)
-	cached, err := provider.Headers(ctx)
-	require.NoError(t, err)
-	require.Equal(t, headers, cached)
+		t.Run("CacheExpiry", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+			first := headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(time.Minute)))
+			later := headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(time.Hour)))
+			initial := "Authorization=Bearer " + first + "\nX-Token=" + later + "\nX-Removed=old\n"
+			provider := newTestHeaderProvider(ctx, clock, []string{"X-Static=unchanged"}, fmt.Sprintf("printf %q", initial))
 
-	clock.Advance(time.Second).MustWait(ctx)
-	refreshed, err := provider.Headers(ctx)
-	require.NoError(t, err)
-	require.Equal(t, []string{"Bearer " + later}, refreshed.Values("Authorization"))
-	require.Equal(t, "unchanged", refreshed.Get("X-Static"))
-	require.Equal(t, "updated", refreshed.Get("X-Value"))
-	require.Empty(t, refreshed.Get("X-Removed"))
-	require.Empty(t, refreshed.Get("X-Token"))
+			headers, err := provider.Headers(ctx)
+			require.NoError(t, err)
+			require.Equal(t, "Bearer "+first, headers.Get("Authorization"))
+			require.Equal(t, "unchanged", headers.Get("X-Static"))
+			updated := "Authorization=Bearer " + later + "\nX-Value=updated\n"
+			provider.command = fmt.Sprintf("printf %q", updated)
+
+			clock.Advance(time.Minute - jwtExpirationSkew - time.Second).MustWait(ctx)
+			cached, err := provider.Headers(ctx)
+			require.NoError(t, err)
+			require.Equal(t, headers, cached)
+
+			clock.Advance(time.Second).MustWait(ctx)
+			refreshed, err := provider.Headers(ctx)
+			require.NoError(t, err)
+			require.Equal(t, []string{"Bearer " + later}, refreshed.Values("Authorization"))
+			require.Equal(t, "unchanged", refreshed.Get("X-Static"))
+			require.Equal(t, "updated", refreshed.Get("X-Value"))
+			require.Empty(t, refreshed.Get("X-Removed"))
+			require.Empty(t, refreshed.Get("X-Token"))
+		})
+
+		t.Run("WithinClockSkew", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+			shortLived := headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(jwtExpirationSkew/2)))
+			provider := newTestHeaderProvider(ctx, clock, nil, fmt.Sprintf("printf %q", "Authorization=Bearer "+shortLived+"\n"))
+			headers, err := provider.Headers(ctx)
+			require.NoError(t, err)
+			require.Equal(t, "Bearer "+shortLived, headers.Get("Authorization"))
+
+			replacement := headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(time.Hour)))
+			provider.command = fmt.Sprintf("printf %q", "Authorization=Bearer "+replacement+"\n")
+			// The current token is already within the skew window, so the next call
+			// refreshes without advancing the clock.
+			refreshed, err := provider.Headers(ctx)
+			require.NoError(t, err)
+			require.Equal(t, "Bearer "+replacement, refreshed.Get("Authorization"))
+
+			provider.command = fmt.Sprintf("printf %q", "X-Value=changed\n")
+			cached, err := provider.Headers(ctx)
+			require.NoError(t, err)
+			require.Equal(t, refreshed, cached)
+		})
+	})
+
+	t.Run("StaticOutput", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		clock := quartz.NewMock(t)
+		initial := "X-Value=static\nX-Token=" + headerTestJWT(t, nil) + "\n"
+		provider := newTestHeaderProvider(ctx, clock, nil, fmt.Sprintf("printf %q", initial))
+		headers, err := provider.Headers(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "static", headers.Get("X-Value"))
+
+		provider.command = fmt.Sprintf("printf %q", "X-Value=changed\n")
+		clock.Advance(24 * time.Hour).MustWait(ctx)
+		cached, err := provider.Headers(ctx)
+		require.NoError(t, err)
+		require.Equal(t, headers, cached)
+	})
+
+	t.Run("CommandFailure", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		clock := quartz.NewMock(t)
+		initial := "Authorization=Bearer " + headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(time.Minute))) + "\n"
+		provider := newTestHeaderProvider(ctx, clock, nil, fmt.Sprintf("printf %q", initial))
+		_, err := provider.Headers(ctx)
+		require.NoError(t, err)
+		clock.Advance(time.Minute).MustWait(ctx)
+		provider.command = "exit 1"
+
+		sent := false
+		transport := &codersdk.HeaderTransport{
+			Provider: provider,
+			Transport: roundTripper(func(*http.Request) (*http.Response, error) {
+				sent = true
+				return httptest.NewRecorder().Result(), nil
+			}),
+		}
+		req := httptest.NewRequest(http.MethodGet, provider.serverURL.String(), nil).WithContext(ctx)
+		res, err := transport.RoundTrip(req)
+		if res != nil {
+			require.NoError(t, res.Body.Close())
+		}
+		require.ErrorContains(t, err, "run header command")
+		require.NotContains(t, err.Error(), provider.command)
+		require.Nil(t, res)
+		require.False(t, sent, "a failed refresh must not send stale headers")
+
+		provider.command = fmt.Sprintf("printf %q", "X-Value=recovered\n")
+		recovered, err := provider.Headers(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "recovered", recovered.Get("X-Value"))
+		require.Empty(t, recovered.Get("Authorization"))
+	})
 }
 
-func TestCommandHeaderProviderStaticOutput(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	clock := quartz.NewMock(t)
-	provider, outputPath := newTestHeaderProvider(ctx, t, clock)
-	initial := "X-Value=static\nX-Token=" + headerTestJWT(t, nil) + "\n"
-	require.NoError(t, os.WriteFile(outputPath, []byte(initial), 0o600))
-	headers, err := provider.Headers(ctx)
-	require.NoError(t, err)
-	require.Equal(t, "static", headers.Get("X-Value"))
-
-	require.NoError(t, os.WriteFile(outputPath, []byte("X-Value=changed\n"), 0o600))
-	clock.Advance(24 * time.Hour).MustWait(ctx)
-	cached, err := provider.Headers(ctx)
-	require.NoError(t, err)
-	require.Equal(t, headers, cached)
-}
-
-func TestCommandHeaderProviderCommandFailure(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	clock := quartz.NewMock(t)
-	provider, outputPath := newTestHeaderProvider(ctx, t, clock)
-	initial := "Authorization=Bearer " + headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(time.Minute))) + "\n"
-	require.NoError(t, os.WriteFile(outputPath, []byte(initial), 0o600))
-	_, err := provider.Headers(ctx)
-	require.NoError(t, err)
-	clock.Advance(time.Minute).MustWait(ctx)
-	require.NoError(t, os.Remove(outputPath))
-
-	sent := false
-	transport := &codersdk.HeaderTransport{
-		Provider: provider,
-		Transport: roundTripper(func(*http.Request) (*http.Response, error) {
-			sent = true
-			return httptest.NewRecorder().Result(), nil
-		}),
-	}
-	req := httptest.NewRequest(http.MethodGet, provider.serverURL.String(), nil).WithContext(ctx)
-	res, err := transport.RoundTrip(req)
-	if res != nil {
-		require.NoError(t, res.Body.Close())
-	}
-	require.ErrorContains(t, err, "run header command")
-	require.NotContains(t, err.Error(), provider.command)
-	require.Nil(t, res)
-	require.False(t, sent, "a failed refresh must not send stale headers")
-
-	require.NoError(t, os.WriteFile(outputPath, []byte("X-Value=recovered\n"), 0o600))
-	recovered, err := provider.Headers(ctx)
-	require.NoError(t, err)
-	require.Equal(t, "recovered", recovered.Get("X-Value"))
-	require.Empty(t, recovered.Get("Authorization"))
-}
-
-func TestCommandHeaderProviderWithinClockSkew(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	clock := quartz.NewMock(t)
-	provider, outputPath := newTestHeaderProvider(ctx, t, clock)
-	shortLived := headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(jwtExpirationSkew/2)))
-	require.NoError(t, os.WriteFile(outputPath, []byte("Authorization=Bearer "+shortLived+"\n"), 0o600))
-	headers, err := provider.Headers(ctx)
-	require.NoError(t, err)
-	require.Equal(t, "Bearer "+shortLived, headers.Get("Authorization"))
-
-	replacement := headerTestJWT(t, jwt.NewNumericDate(clock.Now().Add(time.Hour)))
-	require.NoError(t, os.WriteFile(outputPath, []byte("Authorization=Bearer "+replacement+"\n"), 0o600))
-	// The current token is already within the skew window, so the next call
-	// refreshes without advancing the clock.
-	refreshed, err := provider.Headers(ctx)
-	require.NoError(t, err)
-	require.Equal(t, "Bearer "+replacement, refreshed.Get("Authorization"))
-
-	require.NoError(t, os.WriteFile(outputPath, []byte("X-Value=changed\n"), 0o600))
-	cached, err := provider.Headers(ctx)
-	require.NoError(t, err)
-	require.Equal(t, refreshed, cached)
-}
-
-func newTestHeaderProvider(ctx context.Context, t *testing.T, clock quartz.Clock) (*commandHeaderProvider, string) {
-	t.Helper()
-	outputPath := filepath.Join(t.TempDir(), "headers")
-	command := fmt.Sprintf("cat %q", outputPath)
-	if runtime.GOOS == "windows" {
-		command = `type "` + outputPath + `"`
-	}
+func newTestHeaderProvider(ctx context.Context, clock quartz.Clock, static []string, command string) *commandHeaderProvider {
 	return &commandHeaderProvider{
 		ctx:       ctx,
 		serverURL: &url.URL{Scheme: "https", Host: "coder.example.com"},
-		static:    []string{"X-Static=unchanged"},
+		static:    static,
 		command:   command,
 		clock:     clock,
-	}, outputPath
+	}
 }
 
 func headerTestJWT(t *testing.T, expiry *jwt.NumericDate) string {
