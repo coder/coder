@@ -235,17 +235,18 @@ func (m *ChatMachine) Lock(
 	}, nil)
 }
 
-// ReadLock takes a shared lock on the chat row with FOR SHARE and runs
-// fn in a transaction without advancing snapshot_version. It uses the
-// store captured by [NewChatMachine]. Use it when the caller needs a
-// consistent chat snapshot plus related rows such as messages or queued
-// messages but is NOT applying a transition and does NOT need to block
-// concurrent readers.
+// ReadLock runs fn in a read-only REPEATABLE READ transaction without
+// advancing snapshot_version. It uses the store captured by
+// [NewChatMachine]. Use it when the caller needs a consistent chat
+// snapshot plus related rows such as messages or queued messages but is
+// NOT applying a transition.
 //
-// Unlike [ChatMachine.Lock], the FOR SHARE lock permits other shared
-// lockers to proceed concurrently while still blocking writers that take
-// FOR UPDATE (such as [ChatMachine.Update] and [ChatMachine.Lock]) until
-// the transaction commits.
+// Snapshot isolation gives fn a consistent multi-statement view without
+// taking any row lock, so it never blocks (or is blocked by) the FOR
+// UPDATE writers in [ChatMachine.Update] and [ChatMachine.Lock]. A
+// transition committing mid-read is simply not visible to this snapshot;
+// callers reconcile ordering via snapshot_version, so an older snapshot
+// triggers a later refetch rather than an inconsistent read.
 //
 // Callers must not pass a store here; it belongs on the machine.
 //
@@ -259,17 +260,20 @@ func (m *ChatMachine) ReadLock(
 		return xerrors.New("chatstate: ChatMachine has nil store")
 	}
 	return m.store.InTx(func(store database.Store) error {
-		// GetChatByIDForShare takes a shared lock on the row WITHOUT
-		// bumping snapshot.
-		_, err := store.GetChatByIDForShare(ctx, m.chatID)
+		// Establish the snapshot and confirm the chat exists without
+		// locking the row.
+		_, err := store.GetChatByID(ctx, m.chatID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
 			}
-			return xerrors.Errorf("read lock chat: %w", err)
+			return xerrors.Errorf("read chat: %w", err)
 		}
 		return fn(store)
-	}, nil)
+	}, &database.TxOptions{
+		Isolation: sql.LevelRepeatableRead,
+		ReadOnly:  true,
+	})
 }
 
 // ownershipStaleOrMissing reports whether the chat's current

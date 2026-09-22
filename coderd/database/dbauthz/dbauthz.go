@@ -3202,10 +3202,6 @@ func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat,
 	return fetch(q.log, q.auth, q.db.GetChatByID)(ctx, id)
 }
 
-func (q *querier) GetChatByIDForShare(ctx context.Context, id uuid.UUID) (database.Chat, error) {
-	return fetch(q.log, q.auth, q.db.GetChatByIDForShare)(ctx, id)
-}
-
 func (q *querier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	return fetch(q.log, q.auth, q.db.GetChatByIDForUpdate)(ctx, id)
 }
