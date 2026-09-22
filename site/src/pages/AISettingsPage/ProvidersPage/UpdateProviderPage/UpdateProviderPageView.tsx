@@ -23,10 +23,9 @@ import { pageTitle } from "#/utils/page";
 import { ProviderForm } from "../components/ProviderForm";
 import {
 	aiProviderToFormValues,
-	awsExternalId,
-	claudePlatformAuthMode,
+	bedrockExternalId,
 	getProviderDisplayType,
-	hasAwsStoredCredentials,
+	hasBedrockStoredCredentials,
 	isBedrockProvider,
 	providerFormValuesToUpdate,
 } from "../components/providerFormApiMap";
@@ -46,14 +45,11 @@ const UpdateProviderPageView: React.FC = () => {
 	});
 
 	const provider = providerQuery.data;
-	// Copilot has no stored credential, and the AWS-signed providers keep their
-	// secrets in settings, so only the remaining ones surface the api_keys UI.
-	// Claude Platform is the exception that depends on its mode: api_key mode
-	// stores a workspace key, iam mode signs instead.
+	// Claude Platform has no stored AWS credential fields. Its API key pool
+	// is the only optional persisted credential and is detected directly.
 	const providerUsesApiKeys =
 		provider !== undefined &&
 		!isBedrockProvider(provider) &&
-		claudePlatformAuthMode(provider) !== "iam" &&
 		provider.type !== "copilot";
 
 	const updateMutation = useMutation(
@@ -119,7 +115,7 @@ const UpdateProviderPageView: React.FC = () => {
 	}
 
 	const hasSavedApiKey = providerUsesApiKeys && provider.api_keys.length > 0;
-	const savedApiKeyMask = providerUsesApiKeys
+	const savedApiKeyMask = hasSavedApiKey
 		? provider.api_keys[0]?.masked
 		: undefined;
 
@@ -199,8 +195,8 @@ const UpdateProviderPageView: React.FC = () => {
 					<ProviderForm
 						editing
 						key={provider.id}
-						awsSavedAccessCredentials={hasAwsStoredCredentials(provider)}
-						awsExternalId={awsExternalId(provider)}
+						awsSavedAccessCredentials={hasBedrockStoredCredentials(provider)}
+						awsExternalId={bedrockExternalId(provider)}
 						hasSavedApiKey={hasSavedApiKey}
 						savedApiKeyMask={savedApiKeyMask}
 						initialValues={aiProviderToFormValues(provider)}

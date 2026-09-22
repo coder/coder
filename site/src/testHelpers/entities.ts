@@ -5625,8 +5625,8 @@ export const MockAIProviderBedrock: TypesGen.AIProvider = {
 /**
  * Claude Platform for AWS is an authentication method on the `anthropic`
  * provider type, identified by the `claude_platform_aws` settings
- * discriminator. In `iam` mode requests are SigV4 signed and no key is
- * stored.
+ * discriminator. Authentication is inferred from the provider key pool,
+ * falling back to ambient AWS credentials when the pool is empty.
  */
 export const MockAIProviderClaudePlatformAWS: TypesGen.AIProvider = {
 	id: "5b8c1d92-4e7a-4f38-9b21-6d3c0a7e5f42",
@@ -5640,15 +5640,14 @@ export const MockAIProviderClaudePlatformAWS: TypesGen.AIProvider = {
 	settings: {
 		_type: "claude_platform_aws",
 		_version: 1,
-		auth_mode: "iam",
 		region: "us-east-1",
 		workspace_id: "wrkspc_123",
-	} as unknown as TypesGen.AIProviderSettings,
+	},
 	created_at: "2026-05-14T10:00:00Z",
 	updated_at: "2026-05-14T10:00:00Z",
 };
 
-/** The same provider authenticating with a workspace key instead of IAM. */
+/** The same provider with a workspace key in its provider key pool. */
 export const MockAIProviderClaudePlatformAWSAPIKey: TypesGen.AIProvider = {
 	...MockAIProviderClaudePlatformAWS,
 	id: "6c9d2e03-5f8b-4a49-8c32-7e4d1b8f6a53",
@@ -5661,13 +5660,6 @@ export const MockAIProviderClaudePlatformAWSAPIKey: TypesGen.AIProvider = {
 			created_at: "2026-05-14T10:00:00Z",
 		},
 	],
-	settings: {
-		_type: "claude_platform_aws",
-		_version: 1,
-		auth_mode: "api_key",
-		region: "us-east-1",
-		workspace_id: "wrkspc_123",
-	} as unknown as TypesGen.AIProviderSettings,
 };
 
 export const MockAIProviderCopilot: TypesGen.AIProvider = {

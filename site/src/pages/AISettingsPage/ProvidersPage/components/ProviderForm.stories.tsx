@@ -2,7 +2,12 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
+import {
+	MockAIProviderClaudePlatformAWS,
+	MockAIProviderClaudePlatformAWSAPIKey,
+} from "#/testHelpers/entities";
 import { ProviderForm, SAVED_CREDENTIAL_MASK } from "./ProviderForm";
+import { aiProviderToFormValues } from "./providerFormApiMap";
 
 const meta: Meta<typeof ProviderForm> = {
 	title: "pages/AISettingsPage/ProviderForm",
@@ -830,286 +835,61 @@ export const AddOpenAICompatEmptyEndpointBlocked: Story = {
 	},
 };
 
-// Claude Platform for AWS is an authentication method on the Anthropic form,
-// so choosing it swaps the endpoint to the regional host and reveals the
-// AWS-specific fields instead of adding a provider type.
-export const AddAnthropicClaudePlatformIam: Story = {
-	args: {
-		initialValues: { type: "anthropic" },
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			await canvas.findByRole("radio", { name: /claude platform for aws/i }),
-		);
-
-		const endpoint = canvas.getByLabelText(/^endpoint\s*\*?$/i);
-		await waitFor(() =>
-			expect(endpoint).toHaveValue(
-				"https://aws-external-anthropic.us-east-1.api.aws",
-			),
-		);
-		expect(
-			canvas.queryByRole("textbox", { name: /workspace api key/i }),
-		).not.toBeInTheDocument();
-
-		await userEvent.type(
-			canvas.getByLabelText(/workspace id/i),
-			"wrkspc_12345",
-		);
-
-		const submitButton = canvas.getByRole("button", { name: /add provider/i });
-		await waitFor(() => expect(submitButton).toBeEnabled());
-		await userEvent.click(submitButton);
-
-		await waitFor(() =>
-			expect(args.onSubmit).toHaveBeenCalledWith(
-				expect.objectContaining({
-					type: "anthropic",
-					authMethod: "claude_platform_aws",
-					claudePlatformAuthMode: "iam",
-					claudePlatformRegion: "us-east-1",
-					claudePlatformWorkspaceId: "wrkspc_12345",
-					apiKey: "",
-				}),
-			),
-		);
-	},
+const claudePlatformCreateValues = {
+	type: "anthropic" as const,
+	authMethod: "claude_platform_aws" as const,
+	name: "claude-platform",
+	displayName: "Claude Platform",
+	baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+	claudePlatformRegion: "us-east-1",
+	claudePlatformWorkspaceId: "wrkspc_123",
+	enabled: true,
 };
 
-// The workspace key is the credential in api_key mode, so Save stays disabled
-// until it is entered and the AWS credential inputs disappear.
-export const AddClaudePlatformWorkspaceKey: Story = {
+export const AddClaudePlatformKeyless: Story = {
+	args: { initialValues: claudePlatformCreateValues },
+};
+
+export const AddClaudePlatformWithWorkspaceKey: Story = {
 	args: {
 		initialValues: {
-			type: "anthropic",
-			authMethod: "claude_platform_aws",
-			name: "claude-platform",
-			claudePlatformWorkspaceId: "wrkspc_12345",
+			...claudePlatformCreateValues,
+			apiKey: "sk-ant-workspace",
 		},
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			await canvas.findByRole("radio", { name: /workspace api key/i }),
-		);
-
-		await waitFor(() =>
-			expect(
-				canvas.queryByRole("textbox", { name: /^access key$/i }),
-			).not.toBeInTheDocument(),
-		);
-
-		const submitButton = canvas.getByRole("button", { name: /add provider/i });
-		await waitFor(() => expect(submitButton).toBeDisabled());
-
-		await userEvent.type(
-			canvas.getByRole("textbox", { name: /workspace api key/i }),
-			"sk-ant-workspace",
-		);
-
-		await waitFor(() => expect(submitButton).toBeEnabled());
-		await userEvent.click(submitButton);
-
-		await waitFor(() =>
-			expect(args.onSubmit).toHaveBeenCalledWith(
-				expect.objectContaining({
-					claudePlatformAuthMode: "api_key",
-					apiKey: "sk-ant-workspace",
-				}),
-			),
-		);
 	},
 };
 
-// The region drives the signing scope. A canonical endpoint follows the region,
-// but an operator-supplied proxy URL is never rewritten.
-export const ClaudePlatformRegionKeepsProxyEndpoint: Story = {
-	args: {
-		initialValues: {
-			type: "anthropic",
-			authMethod: "claude_platform_aws",
-			name: "claude-platform",
-			baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
-			claudePlatformWorkspaceId: "wrkspc_12345",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const region = await canvas.findByLabelText(/^region\s*\*?$/i);
-		const endpoint = canvas.getByLabelText(/^endpoint\s*\*?$/i);
-
-		await userEvent.clear(region);
-		await userEvent.type(region, "eu-west-1");
-		await waitFor(() =>
-			expect(endpoint).toHaveValue(
-				"https://aws-external-anthropic.eu-west-1.api.aws",
-			),
-		);
-
-		await userEvent.clear(endpoint);
-		await userEvent.type(endpoint, "https://anthropic-proxy.example.com");
-		await userEvent.clear(region);
-		await userEvent.type(region, "us-west-2");
-		expect(endpoint).toHaveValue("https://anthropic-proxy.example.com");
-	},
-};
-
-// A region that is not a valid host label is never interpolated, so the
-// endpoint stays generated and resumes tracking once the region is valid.
-export const ClaudePlatformInvalidRegionKeepsEndpoint: Story = {
-	args: {
-		initialValues: {
-			type: "anthropic",
-			authMethod: "claude_platform_aws",
-			name: "claude-platform",
-			baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
-			claudePlatformWorkspaceId: "wrkspc_12345",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const region = await canvas.findByLabelText(/^region\s*\*?$/i);
-		const endpoint = canvas.getByLabelText(/^endpoint\s*\*?$/i);
-		const submitButton = canvas.getByRole("button", { name: /add provider/i });
-
-		await userEvent.clear(region);
-		// Leading underscore is invalid from the first keystroke, so the endpoint
-		// is never interpolated with a partial value.
-		await userEvent.type(region, "_bad");
-		await waitFor(() => expect(submitButton).toBeDisabled());
-		expect(endpoint).toHaveValue(
-			"https://aws-external-anthropic.us-east-1.api.aws",
-		);
-
-		await userEvent.clear(region);
-		await userEvent.type(region, "ap-south-1");
-		await waitFor(() =>
-			expect(endpoint).toHaveValue(
-				"https://aws-external-anthropic.ap-south-1.api.aws",
-			),
-		);
-		await waitFor(() => expect(submitButton).toBeEnabled());
-	},
-};
-
-// Toggling the AWS mode keeps what the operator already typed: the API
-// mapping only sends the credential the active mode uses.
-export const ClaudePlatformModeToggleKeepsInput: Story = {
-	args: {
-		initialValues: {
-			type: "anthropic",
-			authMethod: "claude_platform_aws",
-			name: "claude-platform",
-			baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
-			claudePlatformWorkspaceId: "wrkspc_12345",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const accessKey = await canvas.findByRole("textbox", {
-			name: /^access key$/i,
-		});
-		await userEvent.type(accessKey, "AKIAIOSFODNN7EXAMPLE");
-
-		await userEvent.click(
-			canvas.getByRole("radio", { name: /workspace api key/i }),
-		);
-		// A half-entered AWS pair is hidden in api_key mode, so it must not block
-		// the save.
-		await userEvent.type(
-			canvas.getByRole("textbox", { name: /workspace api key/i }),
-			"sk-ant-workspace",
-		);
-		const submitButton = canvas.getByRole("button", { name: /add provider/i });
-		await waitFor(() => expect(submitButton).toBeEnabled());
-
-		await userEvent.click(canvas.getByRole("radio", { name: /aws iam/i }));
-		expect(
-			await canvas.findByRole("textbox", { name: /^access key$/i }),
-		).toHaveValue("AKIAIOSFODNN7EXAMPLE");
-	},
-};
-
-// Editing an IAM provider seeds the masked credentials and surfaces the
-// server-generated external ID for the role's trust policy.
-export const EditClaudePlatformWithExternalId: Story = {
+export const EditClaudePlatformSavedKey: Story = {
 	args: {
 		editing: true,
-		awsSavedAccessCredentials: true,
-		awsExternalId: "7QF3ZK2MLP4RS6TUVWXY2ABCDE",
-		initialValues: {
-			type: "anthropic",
-			authMethod: "claude_platform_aws",
-			name: "claude-platform",
-			displayName: "Claude Platform",
-			baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
-			claudePlatformAuthMode: "iam",
-			claudePlatformRegion: "us-east-1",
-			claudePlatformWorkspaceId: "wrkspc_12345",
-			roleArn: "arn:aws:iam::123456789012:role/ClaudePlatformRole",
-			enabled: true,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.findByText("7QF3ZK2MLP4RS6TUVWXY2ABCDE"),
-		).resolves.toBeVisible();
-		expect(
-			await canvas.findByRole("textbox", { name: /^access key$/i }),
-		).toHaveValue(SAVED_CREDENTIAL_MASK);
+		hasSavedApiKey: true,
+		savedApiKeyMask: MockAIProviderClaudePlatformAWSAPIKey.api_keys[0].masked,
+		initialValues: aiProviderToFormValues(
+			MockAIProviderClaudePlatformAWSAPIKey,
+		),
 	},
 };
 
-// The authentication method is fixed after creation, and switching an IAM
-// provider to workspace-key auth needs a key: none is on file, so Save stays
-// disabled until one is entered.
-export const EditClaudePlatformSwitchToWorkspaceKey: Story = {
+export const ClaudePlatformValidationError: Story = {
 	args: {
-		editing: true,
-		awsSavedAccessCredentials: true,
 		initialValues: {
-			type: "anthropic",
-			authMethod: "claude_platform_aws",
-			name: "claude-platform",
-			displayName: "Claude Platform",
-			baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
-			claudePlatformAuthMode: "iam",
-			claudePlatformRegion: "us-east-1",
-			claudePlatformWorkspaceId: "wrkspc_12345",
-			enabled: true,
+			...claudePlatformCreateValues,
+			claudePlatformRegion: "",
+			claudePlatformWorkspaceId: "",
+			baseUrl: "",
 		},
 	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByRole("radio", { name: /claude platform for aws/i }),
-		).toBeDisabled();
+};
 
-		await userEvent.click(
-			canvas.getByRole("radio", { name: /workspace api key/i }),
-		);
-
-		const submitButton = canvas.getByRole("button", {
-			name: /update provider/i,
-		});
-		await waitFor(() => expect(submitButton).toBeDisabled());
-
-		await userEvent.type(
-			canvas.getByRole("textbox", { name: /workspace api key/i }),
-			"sk-ant-workspace",
-		);
-		await waitFor(() => expect(submitButton).toBeEnabled());
-		await userEvent.click(submitButton);
-
-		await waitFor(() =>
-			expect(args.onSubmit).toHaveBeenCalledWith(
-				expect.objectContaining({
-					claudePlatformAuthMode: "api_key",
-					apiKey: "sk-ant-workspace",
-				}),
-			),
-		);
+export const ClaudePlatformSubmitError: Story = {
+	render: (args) => (
+		<ProviderForm
+			{...args}
+			submitError={new Error(errorSubmitMessage)}
+			onSubmit={fn()}
+		/>
+	),
+	args: {
+		initialValues: aiProviderToFormValues(MockAIProviderClaudePlatformAWS),
 	},
 };

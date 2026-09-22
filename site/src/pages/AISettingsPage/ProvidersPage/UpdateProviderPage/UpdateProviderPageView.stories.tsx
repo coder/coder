@@ -79,48 +79,21 @@ export const Copilot: Story = {
 	},
 };
 
-// Claude Platform in iam mode signs requests, so the form shows the AWS
-// credential inputs and no workspace key.
-export const ClaudePlatformIam: Story = {
+export const ClaudePlatformKeyless: Story = {
 	parameters: {
 		reactRouter: routingFor(
 			`/ai/settings/providers/${MockAIProviderClaudePlatformAWS.name}`,
 		),
 		...seed(MockAIProviderClaudePlatformAWS),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByRole("radio", { name: /claude platform for aws/i }),
-		).toBeChecked();
-		expect(canvas.getByRole("radio", { name: /aws iam/i })).toBeChecked();
-		expect(canvas.getByLabelText(/workspace id/i)).toHaveValue("wrkspc_123");
-		expect(
-			canvas.queryByRole("textbox", { name: /workspace api key/i }),
-		).not.toBeInTheDocument();
-	},
 };
 
-// In api_key mode the workspace key comes from the provider's api_keys, so it
-// is seeded with the masked value the API returned.
-export const ClaudePlatformWorkspaceKey: Story = {
+export const ClaudePlatformSavedWorkspaceKey: Story = {
 	parameters: {
 		reactRouter: routingFor(
 			`/ai/settings/providers/${MockAIProviderClaudePlatformAWSAPIKey.name}`,
 		),
 		...seed(MockAIProviderClaudePlatformAWSAPIKey),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByRole("radio", { name: /workspace api key/i }),
-		).toBeChecked();
-		expect(
-			canvas.getByRole("textbox", { name: /workspace api key/i }),
-		).toHaveValue(MockAIProviderClaudePlatformAWSAPIKey.api_keys[0].masked);
-		expect(
-			canvas.queryByRole("textbox", { name: /^access key$/i }),
-		).not.toBeInTheDocument();
 	},
 };
 

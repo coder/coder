@@ -5,7 +5,6 @@ import { Link } from "react-router";
 import * as Yup from "yup";
 import type {
 	AIProviderBedrockProtocol,
-	AIProviderClaudePlatformAWSAuthMode,
 	AIProviderType,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -52,7 +51,7 @@ export type ProviderFormValues = {
 	protocol: AIProviderBedrockProtocol;
 	model: string;
 	smallFastModel: string;
-	claudePlatformAuthMode: AIProviderClaudePlatformAWSAuthMode;
+
 	claudePlatformRegion: string;
 	claudePlatformWorkspaceId: string;
 	accessKey: string;
@@ -109,7 +108,7 @@ const defaultInitialValues: ProviderFormValues = {
 	protocol: "invoke-model",
 	model: "",
 	smallFastModel: "",
-	claudePlatformAuthMode: "iam",
+
 	claudePlatformRegion: CLAUDE_PLATFORM_DEFAULT_REGION,
 	claudePlatformWorkspaceId: "",
 	accessKey: "",
@@ -190,9 +189,11 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 		icon: Yup.string(),
 		// URL shape is validated by the backend; the form only checks presence.
 		baseUrl: Yup.string().required("Endpoint is required"),
-		apiKey: editing
-			? Yup.string()
-			: Yup.string().required("API key is required"),
+		apiKey: Yup.string().when("type", {
+			is: (type: string) => type === "anthropic" || editing,
+			then: (schema) => schema,
+			otherwise: (schema) => schema.required("API key is required"),
+		}),
 		enabled: Yup.boolean(),
 	});
 
@@ -268,11 +269,7 @@ const makeBedrockSchema = (editing: boolean) =>
 		enabled: Yup.boolean(),
 	});
 
-// `hasSavedApiKey` reports whether a workspace key is already on file. In
-// api_key mode a key must exist after the save, so the input is required
-// unless the server already holds one, including when an existing IAM
-// provider is switched to api_key mode.
-const makeClaudePlatformSchema = (editing: boolean, hasSavedApiKey: boolean) =>
+const makeClaudePlatformSchema = (editing: boolean) =>
 	Yup.object({
 		type: Yup.string()
 			.oneOf(["anthropic"] as const)
@@ -286,9 +283,7 @@ const makeClaudePlatformSchema = (editing: boolean, hasSavedApiKey: boolean) =>
 		// The endpoint may be overridden for a proxy, so only presence is
 		// checked; the region below, not the host, decides the signing scope.
 		baseUrl: Yup.string().required("Endpoint is required"),
-		claudePlatformAuthMode: Yup.string()
-			.oneOf(["iam", "api_key"] as const)
-			.required(),
+
 		claudePlatformRegion: Yup.string()
 			.matches(
 				CLAUDE_PLATFORM_REGION_REGEX,
@@ -298,48 +293,7 @@ const makeClaudePlatformSchema = (editing: boolean, hasSavedApiKey: boolean) =>
 		claudePlatformWorkspaceId: Yup.string().required(
 			"Workspace ID is required",
 		),
-		// The workspace key is the credential in api_key mode, so it is required
-		// there and unused in iam mode, where requests are signed.
-		apiKey: Yup.string().when("claudePlatformAuthMode", {
-			is: (mode: string) => mode === "api_key" && !hasSavedApiKey,
-			then: (schema) => schema.required("Workspace API key is required"),
-			otherwise: (schema) => schema,
-		}),
-		// The AWS pair only applies in iam mode. Testing it in api_key mode would
-		// let a half-typed value the form no longer shows block the save.
-		accessKey: Yup.string().test(
-			"access-key-paired",
-			AWS_ACCESS_KEY_PAIRED_MESSAGE,
-			function (value) {
-				const parent = this.parent as {
-					accessKeySecret?: string;
-					claudePlatformAuthMode?: string;
-				};
-				if (parent.claudePlatformAuthMode !== "iam") {
-					return true;
-				}
-				return !(
-					credentialFilled(parent.accessKeySecret) && !credentialFilled(value)
-				);
-			},
-		),
-		accessKeySecret: Yup.string().test(
-			"access-key-secret-paired",
-			AWS_ACCESS_KEY_PAIRED_MESSAGE,
-			function (value) {
-				const parent = this.parent as {
-					accessKey?: string;
-					claudePlatformAuthMode?: string;
-				};
-				if (parent.claudePlatformAuthMode !== "iam") {
-					return true;
-				}
-				return !(
-					credentialFilled(parent.accessKey) && !credentialFilled(value)
-				);
-			},
-		),
-		roleArn: Yup.string(),
+		apiKey: Yup.string(),
 		enabled: Yup.boolean(),
 	});
 
@@ -355,7 +309,7 @@ const makeCopilotSchema = (editing: boolean) =>
 		enabled: Yup.boolean(),
 	});
 
-const getProviderFormSchema = (editing: boolean, hasSavedApiKey: boolean) =>
+const getProviderFormSchema = (editing: boolean) =>
 	Yup.lazy(
 		(
 			value:
@@ -366,7 +320,7 @@ const getProviderFormSchema = (editing: boolean, hasSavedApiKey: boolean) =>
 				value?.type === "anthropic" &&
 				value.authMethod === "claude_platform_aws"
 			) {
-				return makeClaudePlatformSchema(editing, hasSavedApiKey);
+				return makeClaudePlatformSchema(editing);
 			}
 			switch (value?.type) {
 				case "openai":
@@ -477,7 +431,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			accessKeySecret: maskedAccessKeySecret,
 			apiKey: maskedApiKey,
 		},
-		validationSchema: getProviderFormSchema(editing, hasSavedApiKey),
+		validationSchema: getProviderFormSchema(editing),
 		validateOnMount: true,
 		onSubmit: (values) => {
 			didSubmit.current = true;
@@ -580,15 +534,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		});
 	};
 
-	// The unused inputs keep their values: the API mapping only emits the
-	// credential the active mode uses, and the schema skips the AWS pairing
-	// check outside iam mode, so nothing hidden can leak or block the save.
-	const handleClaudePlatformAuthModeChange = (
-		mode: AIProviderClaudePlatformAWSAuthMode,
-	) => {
-		void form.setFieldValue("claudePlatformAuthMode", mode);
-	};
-
 	// The region sets the SigV4 signing scope, so it stays explicit. The
 	// endpoint follows the region only while it is the canonical regional host;
 	// an operator-supplied proxy URL is left untouched. A region that is not yet
@@ -673,11 +618,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						)}
 						{isClaudePlatform ? (
 							<ClaudePlatformFields
-								editing={editing}
-								authMode={form.values.claudePlatformAuthMode}
-								awsExternalId={awsExternalId}
 								getFieldHelpers={getFieldHelpers}
-								onAuthModeChange={handleClaudePlatformAuthModeChange}
 								onRegionChange={handleClaudePlatformRegionChange}
 								onCredentialBlur={handleCredentialBlur}
 								onCredentialFocus={handleCredentialFocus}
@@ -714,7 +655,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 									</p>
 								) : (
 									<CredentialField
-										required
+										required={typeSelectValue !== "anthropic"}
 										label="API key"
 										helpers={getFieldHelpers("apiKey")}
 										onBlur={() => handleCredentialBlur("apiKey")}
