@@ -1,4 +1,3 @@
-import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { expect, fn, spyOn, userEvent, within } from "storybook/test";
@@ -26,6 +25,7 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import { MessageScroller } from "#/vendor/message-scroller";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { useChatContext } from "../hooks/useChatContext";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";

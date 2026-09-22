@@ -1,4 +1,3 @@
-import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, type FC, useState } from "react";
 import { Outlet } from "react-router";
@@ -49,6 +48,7 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
+import { MessageScroller } from "#/vendor/message-scroller";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,

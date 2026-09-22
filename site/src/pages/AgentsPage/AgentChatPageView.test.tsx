@@ -1,4 +1,3 @@
-import { MessageScroller } from "@shadcn/react/message-scroller";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -7,6 +6,7 @@ import { API } from "#/api/api";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { MockUserOwner } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import { MessageScroller } from "#/vendor/message-scroller";
 import { AgentChatPageView } from "./AgentChatPageView";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";

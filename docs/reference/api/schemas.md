@@ -6194,6 +6194,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "plan_mode": "plan",
   "reasoning_effort": "string",
   "system_prompt": "string",
@@ -6212,20 +6213,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                |
-|------------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                            |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                            |
-| `labels`               | object                                                    | false    |              |                                                                                                                                            |
-| » `[any property]`     | string                                                    | false    |              |                                                                                                                                            |
-| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                            |
-| `model_config_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `organization_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                            |
-| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                            |
-| `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
-| `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
+| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                                                   |
+|------------------------|-----------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                                                               |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                               |
+| `labels`               | object                                                    | false    |              |                                                                                                                                                                               |
+| » `[any property]`     | string                                                    | false    |              |                                                                                                                                                                               |
+| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                                                               |
+| `model_config_id`      | string                                                    | false    |              |                                                                                                                                                                               |
+| `organization_id`      | string                                                    | false    |              |                                                                                                                                                                               |
+| `owner_id`             | string                                                    | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user. |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                                                               |
+| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                                                               |
+| `system_prompt`        | string                                                    | false    |              |                                                                                                                                                                               |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                    |
+| `workspace_id`         | string                                                    | false    |              |                                                                                                                                                                               |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -6367,6 +6369,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
   "oauth2_token_url": "string",
+  "signing_secret": "string",
   "slug": "string",
   "tool_allow_list": [
     "string"
@@ -6381,32 +6384,33 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description                                                                                                            |
-|-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
-| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                        |
-| `api_key_header`        | string          | false    |              |                                                                                                                        |
-| `api_key_value`         | string          | false    |              |                                                                                                                        |
-| `auth_type`             | string          | true     |              |                                                                                                                        |
-| `availability`          | string          | true     |              |                                                                                                                        |
-| `custom_headers`        | object          | false    |              |                                                                                                                        |
-| » `[any property]`      | string          | false    |              |                                                                                                                        |
-| `description`           | string          | false    |              |                                                                                                                        |
-| `display_name`          | string          | true     |              |                                                                                                                        |
-| `enabled`               | boolean         | false    |              |                                                                                                                        |
-| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.   |
-| `icon_url`              | string          | false    |              |                                                                                                                        |
-| `model_intent`          | boolean         | false    |              |                                                                                                                        |
-| `oauth2_auth_url`       | string          | false    |              |                                                                                                                        |
-| `oauth2_client_id`      | string          | false    |              |                                                                                                                        |
-| `oauth2_client_secret`  | string          | false    |              |                                                                                                                        |
-| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted. |
-| `oauth2_scopes`         | string          | false    |              |                                                                                                                        |
-| `oauth2_token_url`      | string          | false    |              |                                                                                                                        |
-| `slug`                  | string          | true     |              |                                                                                                                        |
-| `tool_allow_list`       | array of string | false    |              |                                                                                                                        |
-| `tool_deny_list`        | array of string | false    |              |                                                                                                                        |
-| `transport`             | string          | true     |              |                                                                                                                        |
-| `url`                   | string          | true     |              |                                                                                                                        |
+| Name                    | Type            | Required | Restrictions | Description                                                                                                                            |
+|-------------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                                        |
+| `api_key_header`        | string          | false    |              |                                                                                                                                        |
+| `api_key_value`         | string          | false    |              |                                                                                                                                        |
+| `auth_type`             | string          | true     |              |                                                                                                                                        |
+| `availability`          | string          | true     |              |                                                                                                                                        |
+| `custom_headers`        | object          | false    |              |                                                                                                                                        |
+| » `[any property]`      | string          | false    |              |                                                                                                                                        |
+| `description`           | string          | false    |              |                                                                                                                                        |
+| `display_name`          | string          | true     |              |                                                                                                                                        |
+| `enabled`               | boolean         | false    |              |                                                                                                                                        |
+| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.                   |
+| `icon_url`              | string          | false    |              |                                                                                                                                        |
+| `model_intent`          | boolean         | false    |              |                                                                                                                                        |
+| `oauth2_auth_url`       | string          | false    |              |                                                                                                                                        |
+| `oauth2_client_id`      | string          | false    |              |                                                                                                                                        |
+| `oauth2_client_secret`  | string          | false    |              |                                                                                                                                        |
+| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted.                 |
+| `oauth2_scopes`         | string          | false    |              |                                                                                                                                        |
+| `oauth2_token_url`      | string          | false    |              |                                                                                                                                        |
+| `signing_secret`        | string          | false    |              | Signing secret signs forwarded identity headers and request bodies. Configure the same secret on the MCP server. It is never returned. |
+| `slug`                  | string          | true     |              |                                                                                                                                        |
+| `tool_allow_list`       | array of string | false    |              |                                                                                                                                        |
+| `tool_deny_list`        | array of string | false    |              |                                                                                                                                        |
+| `transport`             | string          | true     |              |                                                                                                                                        |
+| `url`                   | string          | true     |              |                                                                                                                                        |
 
 #### Enumerated Values
 
@@ -10036,6 +10040,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "has_api_key": true,
   "has_custom_headers": true,
   "has_oauth2_secret": true,
+  "has_signing_secret": true,
   "icon_url": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model_intent": true,
@@ -10075,6 +10080,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `has_api_key`           | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `has_custom_headers`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `has_oauth2_secret`     | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `has_signing_secret`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `icon_url`              | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `id`                    | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `model_intent`          | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
@@ -15843,6 +15849,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
   "oauth2_token_url": "string",
+  "signing_secret": "string",
   "slug": "string",
   "tool_allow_list": [
     "string"
@@ -15878,6 +15885,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is validated in the handler because a validate tag would reject the pointer to "" that clears it. |
 | `oauth2_scopes`         | string          | false    |              |                                                                                                                         |
 | `oauth2_token_url`      | string          | false    |              |                                                                                                                         |
+| `signing_secret`        | string          | false    |              | Signing secret replaces the shared signing key. Omit to preserve it; an empty string clears it. It is never returned.   |
 | `slug`                  | string          | false    |              |                                                                                                                         |
 | `tool_allow_list`       | array of string | false    |              |                                                                                                                         |
 | `tool_deny_list`        | array of string | false    |              |                                                                                                                         |
