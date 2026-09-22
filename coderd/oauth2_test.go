@@ -321,7 +321,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			app:  apps.Default,
 			preAuth: func(valid *oauth2.Config) {
 				newURL := must(url.Parse(valid.RedirectURL))
-				newURL.Scheme = "https"
+				newURL.Scheme = "http"
 				valid.RedirectURL = newURL.String()
 			},
 			authError: "Invalid query params:",
@@ -591,7 +591,7 @@ func TestOAuth2ProviderTokenExchangeCodeBelongsToDifferentApp(t *testing.T) {
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	const sharedCallback = "http://localhost1:8080/foo/bar"
+	const sharedCallback = "https://localhost1:8080/foo/bar"
 	createApp := func(name string) (codersdk.OAuth2ProviderApp, codersdk.OAuth2ProviderAppSecretFull) {
 		//nolint:gocritic // OAauth2 app management requires owner permission.
 		app, err := ownerClient.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
@@ -1689,8 +1689,8 @@ func generateApps(ctx context.Context, t *testing.T, client *codersdk.Client, su
 	}
 
 	return provisionedApps{
-		Default:   create("app-a", "http://localhost1:8080/foo/bar"),
-		NoPort:    create("app-b", "http://localhost2"),
+		Default:   create("app-a", "https://localhost1:8080/foo/bar"),
+		NoPort:    create("app-b", "https://localhost2"),
 		Subdomain: create("app-z", "http://30.localhost:3000"),
 		Extra: []codersdk.OAuth2ProviderApp{
 			create("app-x", "http://20.localhost:3000"),

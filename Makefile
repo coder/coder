@@ -738,11 +738,11 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/style-claims lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
-lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash lint/mise-versions
+lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash lint/style-claims lint/mise-versions
 .PHONY: lint-light
 
 lint/site-icons:
@@ -790,6 +790,17 @@ lint/docs-html:
 	echo "--- check for invalid inline HTML in docs"
 	go run ./scripts/docshtmlcheck
 .PHONY: lint/docs-html
+
+# Fails when the style guide claims a prose rule is enforced by tooling that is
+# not enabled, when an enabled rule has no style guide section, or when the
+# coverage tables on the style guide landing page drift from the annotations.
+# Vale checks a subset of the guide and runs advisory, so the guide's own claims
+# about what is enforced are the only signal an author has; this keeps them
+# true. See scripts/styleclaims/README.md.
+lint/style-claims:
+	echo "--- check docs style guide enforcement claims"
+	go run ./scripts/styleclaims
+.PHONY: lint/style-claims
 
 lint/architecture:
 	./scripts/check_architecture.sh
@@ -875,6 +886,8 @@ docs/.style/.vale-synced: .vale.ini
 lint/prose: docs/.style/.vale-synced
 	@echo "$(GREEN)==>$(RESET) $(BOLD)lint/prose$(RESET)"
 	mise exec "aqua:errata-ai/vale" -- vale --no-exit docs/
+	@echo "$(GREEN)==>$(RESET) Vale checks a subset of the style guide and never fails this target."
+	@echo "    Coverage: docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt"
 .PHONY: lint/prose
 
 # pre-commit and pre-push mirror CI checks locally.

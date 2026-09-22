@@ -66,6 +66,7 @@ describe("OAuth2AppForm", () => {
 			...MockOAuth2ProviderApps[0],
 			name: "VS Code Coder Extension",
 			callback_url: "vscode://coder.coder-remote/oauth/callback",
+			redirect_uris: ["vscode://coder.coder-remote/oauth/callback"],
 		};
 
 		render(
@@ -205,6 +206,7 @@ describe("OAuth2AppForm", () => {
 		{ callback: "http://localhost:3000/callback", valid: true },
 		{ callback: "http://127.0.0.1:3000/callback", valid: true },
 		{ callback: "http://[::1]:3000/callback", valid: true },
+		{ callback: "http://app.localhost/callback", valid: false },
 		{ callback: "https://example.com/callback", valid: true },
 		{ callback: "vscode://coder.coder-remote/oauth/callback", valid: true },
 		{ callback: "com.example.app:/oauth2redirect", valid: true },
@@ -244,6 +246,119 @@ describe("OAuth2AppForm", () => {
 			}
 		},
 	);
+
+	it.each([
+		{ callback: "http://example.com/callback", valid: false },
+		{ callback: "http://10.0.0.5:8080/callback", valid: false },
+		{ callback: "http://localhost:3000/callback", valid: true },
+		{ callback: "http://127.0.0.1:3000/callback", valid: true },
+		{ callback: "http://[::1]:3000/callback", valid: true },
+		{ callback: "http://app.localhost/callback", valid: true },
+		{ callback: "https://example.com/callback", valid: true },
+		{ callback: "vscode://coder.coder-remote/oauth/callback", valid: true },
+	])(
+		"validates confidential client callback $callback",
+		async ({ callback, valid }) => {
+			const user = userEvent.setup();
+			const onSubmit = vi.fn();
+			render(
+				<OAuth2AppForm
+					onSubmit={onSubmit}
+					isUpdating={false}
+					disabled={false}
+				/>,
+			);
+			await user.type(screen.getByLabelText(/^name/i), "confidential-app");
+			await user.type(
+				screen.getByLabelText(/callback url/i),
+				callback.replaceAll("[", "[["),
+			);
+			await user.click(
+				screen.getByRole("button", { name: /create application/i }),
+			);
+			await act(async () => {});
+			if (valid) {
+				await waitFor(() =>
+					expect(onSubmit).toHaveBeenCalledWith({
+						name: "confidential-app",
+						callback_url: callback,
+						icon: "",
+						scope: "",
+					}),
+				);
+			} else {
+				expect(onSubmit).not.toHaveBeenCalled();
+			}
+		},
+	);
+
+	// Confidential apps could store a non-local http callback before the form
+	// checked for it. The stored value fails validation on load, so the error
+	// must show without the field being touched.
+	it("shows the error for a stored callback that fails validation", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		render(
+			<OAuth2AppForm
+				app={{
+					...MockOAuth2ProviderApps[0],
+					callback_url: "http://intranet.example.com/callback",
+				}}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		expect(
+			await screen.findByText("Please enter a valid callback URL."),
+		).toBeInTheDocument();
+		await user.type(screen.getByLabelText(/^name/i), " updated");
+		expect(
+			screen.getByRole("button", { name: /update application/i }),
+		).toBeDisabled();
+
+		await user.clear(screen.getByLabelText(/callback url/i));
+		await user.type(
+			screen.getByLabelText(/callback url/i),
+			"https://intranet.example.com/callback",
+		);
+		await waitFor(() =>
+			expect(
+				screen.queryByText("Please enter a valid callback URL."),
+			).not.toBeInTheDocument(),
+		);
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith({
+				name: `${MockOAuth2ProviderApps[0].name} updated`,
+				callback_url: "https://intranet.example.com/callback",
+				icon: MockOAuth2ProviderApps[0].icon,
+			}),
+		);
+	});
+
+	it("keeps the callback error hidden when the stored callback is valid", async () => {
+		const user = userEvent.setup();
+		render(
+			<OAuth2AppForm
+				app={MockOAuth2ProviderApps[0]}
+				onSubmit={vi.fn()}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.type(screen.getByLabelText(/^name/i), " updated");
+		expect(
+			screen.queryByText("Please enter a valid callback URL."),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /update application/i }),
+		).toBeEnabled();
+	});
 
 	it("submits the selected scopes as a space separated list", async () => {
 		const onSubmit = vi.fn();
