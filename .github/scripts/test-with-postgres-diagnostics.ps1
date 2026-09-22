@@ -9,6 +9,7 @@ $PSNativeCommandUseErrorActionPreference = $false
 $testExit = 1
 $sampler = $null
 $errorFile = Join-Path $OutputDirectory 'sampler-errors.jsonl'
+$stopFile = Join-Path $OutputDirectory ([Guid]::NewGuid().ToString() + '.stop')
 function Write-SamplerError {
     param($Exception)
     # Do not persist exception messages, which may include runner secrets.
@@ -27,12 +28,12 @@ try {
         $parent = Get-Process -Id $PID -ErrorAction Stop
         # EncodedCommand avoids Start-Process joining paths containing
         # spaces into ambiguous arguments. All values are literal strings.
-        $arguments = @((Join-Path $PSScriptRoot 'postgres-diagnostics.ps1'), (Join-Path $OutputDirectory 'samples.jsonl'), $DatabasePath, $errorFile) |
+        $arguments = @((Join-Path $PSScriptRoot 'postgres-diagnostics.ps1'), (Join-Path $OutputDirectory 'samples.jsonl'), $DatabasePath, $errorFile, $stopFile) |
             ForEach-Object { "'" + $_.Replace("'", "''") + "'" }
         $command = @"
 `$ErrorActionPreference = 'Stop'
 try {
-    & $($arguments[0]) -OutputFile $($arguments[1]) -ParentId $PID -ParentStartTicks $($parent.StartTime.ToUniversalTime().Ticks) -DatabasePath $($arguments[2])
+    & $($arguments[0]) -OutputFile $($arguments[1]) -ParentId $PID -ParentStartTicks $($parent.StartTime.ToUniversalTime().Ticks) -DatabasePath $($arguments[2]) -StopFile $($arguments[4])
 } catch {
     @{ timestamp = [DateTime]::UtcNow.ToString('o'); type = `$_.Exception.GetType().FullName; hresult = `$_.Exception.HResult } | ConvertTo-Json -Compress | Add-Content -LiteralPath $($arguments[3])
     exit 1
@@ -61,16 +62,25 @@ try {
 } finally {
     if ($null -ne $sampler) {
         try {
-            # Keep the original process handle, never look up a PID or kill
-            # a process tree. A blocked collector must not delay test exit.
-            if (-not $sampler.HasExited) { $sampler.Kill() }
-            if (-not $sampler.WaitForExit(2000)) {
-                Write-SamplerError ([TimeoutException]::new())
+            # Allow a final sample and flush, bounded even if CIM gets stuck.
+            # Keep the owned handle, never look up a PID or kill a process tree.
+            if (-not $sampler.HasExited) {
+                [IO.File]::WriteAllText($stopFile, '')
+                if (-not $sampler.WaitForExit(15000)) {
+                    Write-SamplerError ([TimeoutException]::new())
+                    $sampler.Kill()
+                    $null = $sampler.WaitForExit(2000)
+                }
             }
         } catch {
             Write-SamplerError $_.Exception
         } finally {
-            $sampler.Dispose()
+            # A failed shutdown signal must still release the owned process.
+            try {
+                if (-not $sampler.HasExited) { $sampler.Kill(); $null = $sampler.WaitForExit(2000) }
+                $sampler.Dispose()
+            } catch { Write-SamplerError $_.Exception }
+            Remove-Item -LiteralPath $stopFile -Force -ErrorAction SilentlyContinue
         }
     }
 }

@@ -50,41 +50,33 @@ $null = New-Item -ItemType Directory -Path $directory
 try {
     if ($Native) {
         Assert-True $IsWindows 'Native CIM validation requires Windows.'
-        # Run the real collector before defining any CIM fixtures. A separate
-        # owned process bounds the check even if a Windows provider gets stuck.
-        $null = New-Item -ItemType Directory -Path $NativeOutputDirectory -Force
-        $nativeOutput = Join-Path $NativeOutputDirectory 'native.jsonl'
-        $paths = @((Join-Path $PSScriptRoot 'postgres-diagnostics.ps1'), $nativeOutput, $NativeDatabasePath) |
-            ForEach-Object { "'" + $_.Replace("'", "''") + "'" }
-        $ticks = (Get-Process -Id $PID).StartTime.ToUniversalTime().Ticks
-        $command = "`$ErrorActionPreference = 'Stop'; . $($paths[0]); Invoke-PostgresSampler -OutputFile $($paths[1]) -ParentId $PID -ParentStartTicks $ticks -DatabasePath $($paths[2]) -MaxSamples 1 -IntervalMilliseconds 0"
-        $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
-        $nativeSampler = Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList @(
-            '-NoProfile', '-NonInteractive', '-EncodedCommand', $encoded
-        ) -PassThru -NoNewWindow
-        try {
-            Assert-True ($nativeSampler.WaitForExit(20000)) 'Native sampler did not complete within 20 seconds.'
-            Assert-True ($nativeSampler.ExitCode -eq 0) 'Native sampler process failed.'
-            $lines = @(Get-Content -LiteralPath $nativeOutput)
-            Assert-True ($lines.Count -eq 1) 'Native sampler did not write one completed sample.'
-            $nativeSample = $lines[0] | ConvertFrom-Json -AsHashtable
-            Assert-NativeSample $nativeSample
-            Assert-True ($nativeSample.sampler_pid -eq $nativeSampler.Id) 'Sample came from an unexpected process.'
-            # Only these selected fields reach the success log, not a process
-            # list or raw errors. This evidence also appears on green cached runs.
-            $evidence = @{
-                timestamp = $nativeSample.timestamp
-                sampler_pid = $nativeSample.sampler_pid
-                memory = $nativeSample.memory
-                disk = $nativeSample.disk
-                connect = $nativeSample.connect
-                listener_pids = @($nativeSample.tcp.listeners.pid)
-            }
-            Write-Host "PASS: native Windows PostgreSQL sample $($evidence | ConvertTo-Json -Compress -Depth 4)"
-        } finally {
-            if (-not $nativeSampler.HasExited) { $nativeSampler.Kill(); $null = $nativeSampler.WaitForExit(2000) }
-            $nativeSampler.Dispose()
+        # Use the production launcher with a completed make command so shutdown
+        # must produce a final native sample, even when tests finish immediately.
+        & {
+            function make { $global:LASTEXITCODE = 0 }
+            & "$PSScriptRoot/test-with-postgres-diagnostics.ps1" -OutputDirectory $NativeOutputDirectory -DatabasePath $NativeDatabasePath
+            Assert-True ($LASTEXITCODE -eq 0) 'Native wrapper lost make exit status.'
         }
+        $nativeOutput = Join-Path $NativeOutputDirectory 'samples.jsonl'
+        Assert-True (-not (Test-Path (Join-Path $NativeOutputDirectory 'sampler-errors.jsonl'))) 'Native production launcher reported sampler errors.'
+        $lines = @(Get-Content -LiteralPath $nativeOutput)
+        Assert-True ($lines.Count -gt 0) 'Native production launcher did not write samples.'
+        foreach ($line in $lines) { Assert-NativeSample ($line | ConvertFrom-Json -AsHashtable) }
+        $nativeSample = $lines[-1] | ConvertFrom-Json -AsHashtable
+        Assert-True $nativeSample.final 'Native wrapper did not flush a final sample.'
+        Assert-True ($null -eq (Get-Process -Id $nativeSample.sampler_pid -ErrorAction SilentlyContinue)) 'Native sampler survived wrapper exit.'
+        Copy-Item -LiteralPath $nativeOutput -Destination (Join-Path $NativeOutputDirectory 'native.jsonl')
+        # Only these selected fields reach the success log, not a process list
+        # or raw errors. This evidence also appears on green cached runs.
+        $evidence = @{
+            timestamp = $nativeSample.timestamp
+            sampler_pid = $nativeSample.sampler_pid
+            memory = $nativeSample.memory
+            disk = $nativeSample.disk
+            connect = $nativeSample.connect
+            listener_pids = @($nativeSample.tcp.listeners.pid)
+        }
+        Write-Host "PASS: native Windows PostgreSQL sample $($evidence | ConvertTo-Json -Compress -Depth 4)"
     }
 
     $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
@@ -129,6 +121,35 @@ public static class DiagnosticFailures {
         ${function:Get-WindowsMemoryInfo} = $originalMemory
     }
 
+    & {
+        $null = New-Item -ItemType Directory -Path (Join-Path $directory 'data')
+        $pidFile = Join-Path $directory 'data/postmaster.pid'
+        '100' | Set-Content -LiteralPath $pidFile
+        $created = [DateTime]::UtcNow
+        $state = @{}
+        $fixture = @{
+            processes = @(1..40 | ForEach-Object {
+                [pscustomobject]@{ ProcessId = $_; ParentProcessId = 999; CreationDate = $created; Name = 'postgres.exe'; WorkingSetSize = 900; PrivatePageCount = 900 }
+            }) + @(100..140 | ForEach-Object {
+                [pscustomobject]@{ ProcessId = $_; ParentProcessId = $(if ($_ -eq 100) { 99 } else { 100 }); CreationDate = $created; Name = 'postgres.exe'; WorkingSetSize = 10; PrivatePageCount = 20 }
+            })
+        }
+        # There is no listener. Unrelated clusters must not displace the target.
+        function Get-CimInstance {
+            param($ClassName)
+            if ($ClassName -eq 'Win32_Process') { $fixture.processes }
+        }
+        $sample = Get-PostgresDiagnosticSample $directory $state
+        Assert-True ($sample.processes.count -eq 41 -and $sample.processes.details.Count -eq 32 -and $sample.processes.details[0].pid -eq 100 -and $sample.processes.working_set_bytes -eq 410 -and $sample.processes.private_bytes -eq 820) 'Target cluster was displaced or mixed with unrelated processes.'
+        Remove-Item -LiteralPath $pidFile
+        $fixture.processes = @($fixture.processes | Where-Object { $_.ProcessId -ne 100 })
+        $sample = Get-PostgresDiagnosticSample $directory $state
+        Assert-True ($sample.processes.count -eq 40 -and $sample.processes.postmaster_pid -eq 100) 'Postmaster exit lost surviving target processes.'
+        $fixture.processes += [pscustomobject]@{ ProcessId = 100; ParentProcessId = 99; CreationDate = $created.AddSeconds(1); Name = 'postgres.exe' }
+        $sample = Get-PostgresDiagnosticSample $directory $state
+        Assert-True ($sample.processes.count -eq 0) 'A reused postmaster PID was attributed to the target.'
+    }
+
     $ticks = (Get-Process -Id $PID).StartTime.ToUniversalTime().Ticks
     $collector = ${function:Get-PostgresDiagnosticSample}
     try {
@@ -142,15 +163,39 @@ public static class DiagnosticFailures {
         Assert-True ((Get-Item $output).Length -eq 0) 'Parent identity check failed.'
         Invoke-PostgresSampler $output $PID $ticks $directory -MaxSeconds 0
         Assert-True ((Get-Item $output).Length -eq 0) 'Duration limit failed.'
+        foreach ($phase in @('before', 'collection', 'interval')) {
+            & {
+                $stopFile = Join-Path $directory "$phase.stop"
+                if ($phase -eq 'before') { [IO.File]::WriteAllText($stopFile, '') }
+                function Get-PostgresDiagnosticSample {
+                    if ($phase -eq 'collection') { [IO.File]::WriteAllText($stopFile, '') }
+                    @{ sampler_pid = $PID }
+                }
+                function Start-Sleep { [IO.File]::WriteAllText($stopFile, '') }
+                Invoke-PostgresSampler $output $PID $ticks $directory -StopFile $stopFile -MaxSamples 3
+                $samples = @(Get-Content $output | ForEach-Object { $_ | ConvertFrom-Json -AsHashtable })
+                $expected = if ($phase -eq 'before') { 1 } else { 2 }
+                Assert-True ($samples.Count -eq $expected -and $samples[-1].final) "Shutdown during $phase did not flush a final sample."
+                Remove-Item -LiteralPath $stopFile
+            }
+        }
     } finally { ${function:Get-PostgresDiagnosticSample} = $collector }
 
     # Substitute only launch and make commands to check owned cleanup on failure.
     & {
-        $state = @{ killed = $false; disposed = $false }
+        $state = @{ killed = $false; disposed = $false; cooperative = $false; waits = @() }
         function Start-Process {
             $child = [pscustomobject]@{ HasExited = $false }
-            $child | Add-Member ScriptMethod Kill { $state.killed = $true }
-            $child | Add-Member ScriptMethod WaitForExit { param($milliseconds) return $state.killed -and $milliseconds -le 2000 }
+            $child | Add-Member ScriptMethod Kill { $state.killed = $true; $this.HasExited = $true }
+            $child | Add-Member ScriptMethod WaitForExit {
+                param($milliseconds)
+                $state.waits += $milliseconds
+                if ($state.cooperative) {
+                    Assert-True (@(Get-ChildItem -LiteralPath $directory -Filter '*.stop').Count -eq 1) 'Shutdown was not signaled before waiting.'
+                    $this.HasExited = $true
+                }
+                return $this.HasExited
+            }
             $child | Add-Member ScriptMethod Dispose { $state.disposed = $true }
             return $child
         }
@@ -163,11 +208,40 @@ public static class DiagnosticFailures {
         }
         & "$PSScriptRoot/test-with-postgres-diagnostics.ps1" -OutputDirectory $directory -DatabasePath $directory
         Assert-True ($LASTEXITCODE -eq 2 -and $state.killed -and $state.disposed) 'Runner lost make failure or owned cleanup.'
-        function Start-Process { throw 'SECRET_STARTUP_FAILURE' }
+        Assert-True (($state.waits -join ',') -eq '15000,2000') 'Fallback shutdown exceeded its wait bounds.'
+        $state.cooperative = $true
+        $state.killed = $false
+        $state.disposed = $false
         & "$PSScriptRoot/test-with-postgres-diagnostics.ps1" -OutputDirectory $directory -DatabasePath $directory
+        Assert-True ($LASTEXITCODE -eq 2 -and -not $state.killed -and $state.disposed) 'Cooperative shutdown killed the sampler or lost make status.'
+        function Start-Process { throw 'SECRET_STARTUP_FAILURE' }
+        $warnings = & "$PSScriptRoot/test-with-postgres-diagnostics.ps1" -OutputDirectory $directory -DatabasePath $directory 3>&1
+        Assert-True ("$warnings" -match 'PostgreSQL sampler did not start') 'Expected startup warning missing.'
         $errors = Get-Content (Join-Path $directory 'sampler-errors.jsonl') -Raw
         Assert-True ($LASTEXITCODE -eq 2 -and $errors -match 'hresult' -and $errors -notmatch 'SECRET_STARTUP_FAILURE') 'Startup failure blocked make or leaked its message.'
         $env:CODER_TEST_PSMODULEPATH_PRESENT = $transport
+    }
+
+    # Exercise the action's default-path resolution, including quoted paths.
+    & {
+        $action = Get-Content "$PSScriptRoot/../actions/test-go-pg/action.yaml" -Raw
+        $resolve = [regex]::Match($action, '(?ms)- name: Resolve PostgreSQL path \(Windows\).*?      run: \|\r?\n(?<script>(?:        [^\r\n]*\r?\n)+)').Groups['script'].Value
+        Assert-True ($resolve.Length -gt 0) 'Windows database path resolution missing.'
+        $savedPath = $env:EMBEDDED_PG_PATH
+        $savedOutput = $env:GITHUB_OUTPUT
+        try {
+            foreach ($path in @('', $directory)) {
+                $env:EMBEDDED_PG_PATH = $path
+                $env:GITHUB_OUTPUT = Join-Path $directory 'action-output'
+                Remove-Item -LiteralPath $env:GITHUB_OUTPUT -Force -ErrorAction SilentlyContinue
+                & ([scriptblock]::Create($resolve))
+                $expected = if ($path) { $path } else { Join-Path ([IO.Path]::GetTempPath()) 'coder-test-postgres' }
+                Assert-True ((Get-Content -LiteralPath $env:GITHUB_OUTPUT) -ceq "path=$expected") 'Action changed the configured or default PostgreSQL path.'
+            }
+        } finally {
+            $env:EMBEDDED_PG_PATH = $savedPath
+            $env:GITHUB_OUTPUT = $savedOutput
+        }
     }
 
     # Run the concrete entry point with a real make process. No callback runner.
@@ -197,9 +271,14 @@ test-race:
             $present = $target -eq 'test'
             $env:PSModulePath = if ($present) { 'caller module path;second-path' } else { $null }
             $env:EXPECTED_MODULE_ORIGIN = if ($present) { 'environment' } else { 'undefined' }
-            $output = & bash -c ($capture + "`n" + 'exec "$@"') -- ((Get-Process -Id $PID).Path.Replace('\', '/')) -NoProfile -File "$PSScriptRoot/test-with-postgres-diagnostics.ps1" -OutputDirectory $directory -DatabasePath $directory -Target $target 2>&1
+            $runDirectory = Join-Path $directory "run-$target"
+            $output = & bash -c ($capture + "`n" + 'exec "$@"') -- ((Get-Process -Id $PID).Path.Replace('\', '/')) -NoProfile -File "$PSScriptRoot/test-with-postgres-diagnostics.ps1" -OutputDirectory $runDirectory -DatabasePath $directory -Target $target 2>&1
             $expected = if ($target -eq 'test') { 2 } else { 0 }
-            Assert-True ($LASTEXITCODE -eq $expected -and "$output" -match $(if ($target -eq 'test') { 'test-output' } else { 'race-output' })) 'Runner changed make exit/output.'
+            Assert-True ($LASTEXITCODE -eq $expected -and "$output" -match $(if ($target -eq 'test') { 'test-output' } else { 'race-output' })) "Runner changed make exit/output: $LASTEXITCODE $output"
+            Assert-True (-not (Test-Path (Join-Path $runDirectory 'sampler-errors.jsonl'))) 'Production launcher reported sampler errors.'
+            $samples = @(Get-Content -LiteralPath (Join-Path $runDirectory 'samples.jsonl') | ForEach-Object { $_ | ConvertFrom-Json -AsHashtable })
+            Assert-True ($samples.Count -gt 0 -and $samples[-1].final -and $samples[-1].sampler_pid -gt 0 -and $null -ne $samples[-1].timestamp -and $null -eq $samples[-1].error) 'Production launcher did not flush a valid final sample.'
+            Assert-True ($null -eq (Get-Process -Id $samples[-1].sampler_pid -ErrorAction SilentlyContinue)) 'Production sampler survived wrapper exit.'
         }
     } finally {
         Pop-Location

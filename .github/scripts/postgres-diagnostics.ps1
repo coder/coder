@@ -2,7 +2,8 @@ param(
     [string] $OutputFile,
     [int] $ParentId,
     [long] $ParentStartTicks,
-    [string] $DatabasePath
+    [string] $DatabasePath,
+    [string] $StopFile
 )
 
 # Only selected numeric fields and process identities leave the runner. In
@@ -88,7 +89,7 @@ namespace PostgresDiagnostics {
 }
 
 function Get-PostgresDiagnosticSample {
-    param([string] $DatabasePath)
+    param([string] $DatabasePath, [hashtable] $TargetState = @{})
     $sample = [ordered]@{
         timestamp = [DateTime]::UtcNow.ToString('o')
         sampler_pid = $PID
@@ -116,18 +117,30 @@ function Get-PostgresDiagnosticSample {
     }
     $sample.connect = Test-PostgresConnection
     $sample.processes = Invoke-DiagnosticQuery {
-        $owners = @($sample.tcp.listeners | ForEach-Object { [int]$_.pid })
-        $filter = "Name = 'postgres.exe'"
-        foreach ($owner in ($owners | Select-Object -Unique)) {
-            $filter += " OR ProcessId = $owner"
+        # Keep the cluster identity after its listener or PID file disappears.
+        # Other tests start unrelated PostgreSQL instances on this runner.
+        if (-not $TargetState.ContainsKey('pid')) {
+            $TargetState.pid = [int](Get-Content -LiteralPath (Join-Path $DatabasePath 'data/postmaster.pid') -TotalCount 1 -ErrorAction Stop)
         }
-        $processes = @(Get-CimInstance -ClassName Win32_Process -Filter $filter `
+        $candidates = @(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'postgres.exe'" `
             -Property ProcessId, ParentProcessId, CreationDate, Name, WorkingSetSize, PrivatePageCount `
             -OperationTimeoutSec 2 -ErrorAction Stop)
+        $postmaster = $candidates | Where-Object { $_.ProcessId -eq $TargetState.pid } | Select-Object -First 1
+        if ($null -ne $postmaster -and -not $TargetState.ContainsKey('created')) {
+            $TargetState.created = $postmaster.CreationDate
+        }
+        # PostgreSQL backends are direct children of the postmaster. Reject a
+        # reused PID, but retain surviving children if the postmaster exits.
+        $samePostmaster = $null -eq $postmaster -or $postmaster.CreationDate -eq $TargetState.created
+        $processes = @($candidates | Where-Object {
+            $samePostmaster -and $null -ne $TargetState.created -and
+            (($_.ProcessId -eq $TargetState.pid -and $_.CreationDate -eq $TargetState.created) -or
+             ($_.ParentProcessId -eq $TargetState.pid -and $_.CreationDate -ge $TargetState.created))
+        })
         $working = ($processes | Measure-Object WorkingSetSize -Sum).Sum
         $private = ($processes | Measure-Object PrivatePageCount -Sum).Sum
-        # Bound per-backend output, but retain totals and prioritize listeners.
-        $details = @($processes | Sort-Object { $_.ProcessId -notin $owners } |
+        # Bound per-backend output, but retain totals and the postmaster.
+        $details = @($processes | Sort-Object { $_.ProcessId -ne $TargetState.pid } |
             Select-Object -First 32 | ForEach-Object {
                 @{
                     pid = [int]$_.ProcessId
@@ -138,7 +151,7 @@ function Get-PostgresDiagnosticSample {
                     private_bytes = [long]$_.PrivatePageCount
                 }
             })
-        @{ count = $processes.Count; working_set_bytes = $working; private_bytes = $private; details = $details }
+        @{ postmaster_pid = $TargetState.pid; count = $processes.Count; working_set_bytes = $working; private_bytes = $private; details = $details }
     }
     $sample.memory = Invoke-DiagnosticQuery {
         $memory = Get-WindowsMemoryInfo
@@ -172,7 +185,8 @@ function Invoke-PostgresSampler {
     param(
         [string] $OutputFile, [int] $ParentId, [long] $ParentStartTicks, [string] $DatabasePath,
         [int] $IntervalMilliseconds = 5000, [int] $MaxSamples = 360,
-        [int] $MaxBytes = 8388608, [int] $MaxSeconds = 1800
+        [int] $MaxBytes = 8388608, [int] $MaxSeconds = 1800,
+        [string] $StopFile
     )
     $writer = [IO.StreamWriter]::new($OutputFile, $false, [Text.UTF8Encoding]::new($false))
     $writer.AutoFlush = $true
@@ -180,20 +194,28 @@ function Invoke-PostgresSampler {
     $writer.NewLine = "`n"
     $timer = [Diagnostics.Stopwatch]::StartNew()
     $bytes = 0
+    $targetState = @{}
     try {
         for ($i = 0; $i -lt $MaxSamples -and $timer.Elapsed.TotalSeconds -lt $MaxSeconds; $i++) {
             if (-not (Test-DiagnosticParent $ParentId $ParentStartTicks)) { break }
+            $stopping = $StopFile -and [IO.File]::Exists($StopFile)
             try {
-                $record = Get-PostgresDiagnosticSample $DatabasePath
+                $record = Get-PostgresDiagnosticSample $DatabasePath $targetState
             } catch {
                 $record = @{ timestamp = [DateTime]::UtcNow.ToString('o'); error = Get-DiagnosticError $_.Exception }
             }
+            $record.final = [bool]$stopping
             $line = ConvertTo-Json -InputObject $record -Compress -Depth 8
             $bytes += [Text.Encoding]::UTF8.GetByteCount($line) + 1
             if ($bytes -gt $MaxBytes) { break }
             $writer.WriteLine($line)
+            if ($stopping) { break }
             # This is the sampling cadence, not a connection or test retry.
-            Start-Sleep -Milliseconds $IntervalMilliseconds
+            $interval = [Diagnostics.Stopwatch]::StartNew()
+            while ($interval.ElapsedMilliseconds -lt $IntervalMilliseconds) {
+                if ($StopFile -and [IO.File]::Exists($StopFile)) { break }
+                Start-Sleep -Milliseconds ([Math]::Max(0, [Math]::Min(100, $IntervalMilliseconds - $interval.ElapsedMilliseconds)))
+            }
         }
     } finally {
         $writer.Dispose()
@@ -202,5 +224,5 @@ function Invoke-PostgresSampler {
 
 if ($MyInvocation.InvocationName -ne '.') {
     Invoke-PostgresSampler -OutputFile $OutputFile -ParentId $ParentId `
-        -ParentStartTicks $ParentStartTicks -DatabasePath $DatabasePath
+        -ParentStartTicks $ParentStartTicks -DatabasePath $DatabasePath -StopFile $StopFile
 }
