@@ -23,7 +23,7 @@ import { MultiSelectCombobox } from "#/components/MultiSelectCombobox/MultiSelec
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { getFormHelpers, iconValidator } from "#/utils/formUtils";
-import { RedirectURIsField } from "./RedirectURIsField";
+import { RedirectURIsField } from "./components/RedirectURIsField";
 
 type OAuth2AppFormValues = {
 	name: string;
