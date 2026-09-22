@@ -263,7 +263,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					)}
 					<TabsList
 						ref={tabScrollRef}
-						className="w-full flex-nowrap gap-3 overflow-x-auto border-b-0 scrollbar-none [&::-webkit-scrollbar]:hidden"
+						className="w-full flex-nowrap gap-3 overflow-x-auto border-b-0 scrollbar-none [&::-webkit-scrollbar]:hidden [&_[data-slot=tabs-trigger]]:border-b-2"
 					>
 						{tabs.map((tab) => (
 							<TabsTrigger
