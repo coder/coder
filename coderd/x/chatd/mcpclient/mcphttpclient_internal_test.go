@@ -270,7 +270,7 @@ func TestMaxResponseBodyRoundTripper(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		got, err := io.ReadAll(resp.Body)
-		require.ErrorIs(t, err, errChatAttachedResponseTooLarge)
+		require.ErrorIs(t, err, errInlineResponseTooLarge)
 		require.LessOrEqual(t, len(got), 16)
 	})
 
@@ -281,11 +281,11 @@ func TestMaxResponseBodyRoundTripper(t *testing.T) {
 			maxBytes: 16,
 		}
 		resp, err := rt.RoundTrip(newReq(t)) //nolint:bodyclose // resp is nil on error
-		require.ErrorIs(t, err, errChatAttachedResponseTooLarge)
+		require.ErrorIs(t, err, errInlineResponseTooLarge)
 		require.Nil(t, resp)
 	})
 
-	t.Run("ChatAttachedClientPreservesGuard", func(t *testing.T) {
+	t.Run("InlineClientPreservesGuard", func(t *testing.T) {
 		t.Parallel()
 		var hits atomic.Int64
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -297,7 +297,7 @@ func TestMaxResponseBodyRoundTripper(t *testing.T) {
 		for _, base := range []*http.Client{nil, NewHTTPClient(nil)} {
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
 			require.NoError(t, err)
-			resp, err := chatAttachedHTTPClient(base).Do(req)
+			resp, err := inlineHTTPClient(base).Do(req)
 			if resp != nil {
 				_ = resp.Body.Close()
 			}

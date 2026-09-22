@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -114,6 +115,108 @@ type UserOIDCTokenSource interface {
 	OIDCAccessToken(ctx context.Context, userID uuid.UUID) (string, error)
 }
 
+// Server describes one MCP server to connect to. Org-configured servers
+// and inline servers (declared by value on one chat) both convert into
+// this type at the boundary; mcpclient never reads a database row.
+type Server struct {
+	ID        uuid.UUID
+	Slug      string
+	URL       string
+	Transport Transport
+	// Headers are static request headers. Org api_key and custom_headers
+	// auth and inline server headers all arrive here, already parsed.
+	Headers map[string]string
+	// UserAuth selects per-user token auth. Org-only; inline
+	// servers leave it UserAuthNone.
+	UserAuth            UserAuth
+	ForwardCoderHeaders bool
+	// SigningSecret signs forwarded Coder identity headers. Org-only;
+	// inline servers leave it empty.
+	SigningSecret string
+	ToolAllowList []string
+	ToolDenyList  []string
+	ModelIntent   bool
+	// SensitiveValues are redacted from every model-visible and
+	// viewer-visible string. Inline servers set URL and header
+	// values; org servers leave it empty. Values shorter than
+	// MinSensitiveValueBytes are ignored.
+	SensitiveValues []string
+}
+
+// Transport selects the MCP HTTP transport used to reach a Server.
+type Transport string
+
+const (
+	TransportStreamableHTTP Transport = "streamable_http"
+	TransportSSE            Transport = "sse"
+)
+
+// UserAuth selects how a per-user credential is attached to requests.
+type UserAuth uint8
+
+const (
+	// UserAuthNone attaches no per-user credential. Static headers on
+	// the Server still apply.
+	UserAuthNone UserAuth = iota
+	// UserAuthOAuth2 sends the calling user's stored OAuth2 token for
+	// this server as an Authorization header.
+	UserAuthOAuth2
+	// UserAuthOIDC forwards the calling user's OIDC access token as an
+	// Authorization bearer header.
+	UserAuthOIDC
+)
+
+// ServerFromConfig converts an org-configured row. It returns an error
+// for an unknown transport or auth type and for custom_headers that
+// are not a JSON object.
+func ServerFromConfig(cfg database.MCPServerConfig) (Server, error) {
+	srv := Server{
+		ID:                  cfg.ID,
+		Slug:                cfg.Slug,
+		URL:                 cfg.Url,
+		ForwardCoderHeaders: cfg.ForwardCoderHeaders,
+		SigningSecret:       cfg.SigningSecret,
+		ToolAllowList:       cfg.ToolAllowList,
+		ToolDenyList:        cfg.ToolDenyList,
+		ModelIntent:         cfg.ModelIntent,
+	}
+
+	switch cfg.Transport {
+	case "", string(TransportStreamableHTTP):
+		// Default to streamable HTTP, the newer transport.
+		srv.Transport = TransportStreamableHTTP
+	case string(TransportSSE):
+		srv.Transport = TransportSSE
+	default:
+		return Server{}, xerrors.Errorf("unsupported transport %q", cfg.Transport)
+	}
+
+	switch cfg.AuthType {
+	case "none", "":
+		srv.UserAuth = UserAuthNone
+	case "oauth2":
+		srv.UserAuth = UserAuthOAuth2
+	case "user_oidc":
+		srv.UserAuth = UserAuthOIDC
+	case "api_key":
+		if cfg.APIKeyHeader != "" && cfg.APIKeyValue != "" {
+			srv.Headers = map[string]string{cfg.APIKeyHeader: cfg.APIKeyValue}
+		}
+	case "custom_headers":
+		if cfg.CustomHeaders != "" {
+			var custom map[string]string
+			if err := json.Unmarshal([]byte(cfg.CustomHeaders), &custom); err != nil {
+				return Server{}, xerrors.Errorf("parse custom headers JSON: %w", err)
+			}
+			srv.Headers = custom
+		}
+	default:
+		return Server{}, xerrors.Errorf("unsupported auth type %q", cfg.AuthType)
+	}
+
+	return srv, nil
+}
+
 // ConnectAll connects to all configured MCP servers, discovers
 // their tools, and returns them as fantasy.AgentTool values.
 // Tools are sorted by their prefixed name so callers
@@ -124,7 +227,7 @@ type UserOIDCTokenSource interface {
 func ConnectAll(
 	ctx context.Context,
 	logger slog.Logger,
-	configs []database.MCPServerConfig,
+	servers []Server,
 	tokens []database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
@@ -132,7 +235,7 @@ func ConnectAll(
 	httpClient *http.Client,
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	return connectAllWithHooks(
-		ctx, logger, configs, tokens, userID, oidcSrc, coderHeaders,
+		ctx, logger, servers, tokens, userID, oidcSrc, coderHeaders,
 		connectOptions{
 			httpClient: httpClient,
 			timeout:    connectTimeout,
@@ -141,29 +244,28 @@ func ConnectAll(
 	)
 }
 
-// ConnectChatAttached connects to MCP servers that a chat owner attached
-// to their own chat. Unlike org-configured servers, these endpoints are
-// chosen by an end user, so the connection is hardened: response bodies,
-// tool counts, tool definitions, and tool results are size-capped after
-// redaction, and sensitiveValues (keyed by config ID) are redacted from
-// every string a model or a non-owner chat viewer can see. Chat-attached
-// servers have no OAuth tokens or OIDC identity, so those inputs are
-// always empty. A nil httpClient falls back to the default guarded client.
-func ConnectChatAttached(
+// ConnectInline connects to MCP servers that a chat owner declared
+// inline on their own chat. Unlike org-configured servers, these
+// endpoints are chosen by an end user, so the connection is hardened:
+// response bodies, tool counts, tool definitions, and tool results are
+// size-capped after redaction, and each Server's SensitiveValues are
+// redacted from every string a model or a non-owner chat viewer can
+// see. Inline servers have no OAuth tokens or OIDC identity, so those
+// inputs are always empty. A nil httpClient falls back to the default
+// guarded client.
+func ConnectInline(
 	ctx context.Context,
 	logger slog.Logger,
-	configs []database.MCPServerConfig,
+	servers []Server,
 	coderHeaders map[string]string,
 	httpClient *http.Client,
-	sensitiveValues map[uuid.UUID][]string,
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	return connectAllWithHooks(
-		ctx, logger, configs, nil, uuid.Nil, nil, coderHeaders,
+		ctx, logger, servers, nil, uuid.Nil, nil, coderHeaders,
 		connectOptions{
-			httpClient:      chatAttachedHTTPClient(httpClient),
-			timeout:         connectTimeout,
-			kind:            connectionKindChatAttached,
-			sensitiveValues: sensitiveValues,
+			httpClient: inlineHTTPClient(httpClient),
+			timeout:    connectTimeout,
+			kind:       connectionKindInline,
 		},
 	)
 }
@@ -183,27 +285,24 @@ type connectionKind uint8
 const (
 	// connectionKindOrg is a server configured by an org admin.
 	connectionKindOrg connectionKind = iota
-	// connectionKindChatAttached is a server attached to a chat by the
+	// connectionKindInline is a server declared inline on a chat by the
 	// chat owner. It is untrusted and subject to caps and redaction.
-	connectionKindChatAttached
+	connectionKindInline
 )
 
 // connectOptions carries the per-connect settings shared by every
-// server in one ConnectAll or ConnectChatAttached call.
+// server in one ConnectAll or ConnectInline call.
 type connectOptions struct {
 	httpClient *http.Client
 	timeout    time.Duration
 	hooks      connectHooks
 	kind       connectionKind
-	// sensitiveValues lists, per config ID, the strings to redact from
-	// model-visible and viewer-visible text. Chat-attached only.
-	sensitiveValues map[uuid.UUID][]string
 }
 
 func connectAllWithHooks(
 	ctx context.Context,
 	logger slog.Logger,
-	configs []database.MCPServerConfig,
+	servers []Server,
 	tokens []database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
@@ -244,22 +343,18 @@ func connectAllWithHooks(
 	}
 
 	var eg errgroup.Group
-	for _, cfg := range configs {
-		if !cfg.Enabled {
-			continue
-		}
-
+	for _, srv := range servers {
 		eg.Go(func() error {
-			redactor := newSecretRedactor(opts.sensitiveValues[cfg.ID])
+			redactor := newSecretRedactor(srv.SensitiveValues)
 			start := time.Now()
 			serverTools, session, connectErr := connectOne(
-				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
+				ctx, logger, srv, tokensByConfigID, userID, oidcSrc, coderHeaders,
 				opts, redactor,
 			)
 			duration := time.Since(start)
 			summary := ConnectSummary{
-				ConfigID:   cfg.ID,
-				Slug:       redactor.redactString(cfg.Slug),
+				ConfigID:   srv.ID,
+				Slug:       redactor.redactString(srv.Slug),
 				DurationMS: duration.Milliseconds(),
 				ToolCount:  len(serverTools),
 			}
@@ -285,16 +380,16 @@ func connectAllWithHooks(
 			if connectErr != nil {
 				logger.Warn(ctx,
 					"skipping MCP server due to connection failure",
-					slog.F("server_slug", cfg.Slug),
-					slog.F("server_url", redactServerURL(opts.kind, cfg.Url)),
+					slog.F("server_slug", srv.Slug),
+					slog.F("server_url", redactServerURL(opts.kind, srv.URL)),
 					slog.F("duration", duration),
 					slog.F("error", summary.Error),
 				)
 			} else if duration >= slowConnectThreshold {
 				logger.Warn(ctx,
 					"slow MCP server connect",
-					slog.F("server_slug", cfg.Slug),
-					slog.F("server_url", redactServerURL(opts.kind, cfg.Url)),
+					slog.F("server_slug", srv.Slug),
+					slog.F("server_url", redactServerURL(opts.kind, srv.URL)),
 					slog.F("duration", duration),
 				)
 			}
@@ -386,7 +481,7 @@ func connectAllWithHooks(
 func connectOne(
 	ctx context.Context,
 	logger slog.Logger,
-	cfg database.MCPServerConfig,
+	srv Server,
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
@@ -394,7 +489,7 @@ func connectOne(
 	opts connectOptions,
 	redactor secretRedactor,
 ) ([]fantasy.AgentTool, *mcp.ClientSession, error) {
-	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
+	headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc)
 
 	// When opted-in, merge Coder identity headers BEFORE the
 	// transport is created so any auth header already set above
@@ -404,7 +499,7 @@ func connectOne(
 	// admin-configured header that differs only in case from a Coder
 	// identity header would land in the request map twice and the
 	// surviving value would be non-deterministic.
-	if cfg.ForwardCoderHeaders {
+	if srv.ForwardCoderHeaders {
 		canonicalAuth := make(map[string]struct{}, len(headers))
 		for k := range headers {
 			canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
@@ -418,11 +513,11 @@ func connectOne(
 	}
 
 	maxResultBytes, maxEventSize := 0, 0
-	if opts.kind == connectionKindChatAttached {
-		maxResultBytes = maxChatAttachedToolResultBytes
-		maxEventSize = maxChatAttachedHTTPResponseBytes
+	if opts.kind == connectionKindInline {
+		maxResultBytes = maxInlineToolResultBytes
+		maxEventSize = maxInlineHTTPResponseBytes
 	}
-	tr, err := createTransport(cfg, headers, opts.httpClient, maxEventSize)
+	tr, err := createTransport(srv, headers, opts.httpClient, maxEventSize)
 	if err != nil {
 		return nil, nil, xerrors.Errorf(
 			"create transport: %w", err,
@@ -504,23 +599,23 @@ func connectOne(
 		}
 		if !isToolAllowed(
 			mcpTool.Name,
-			cfg.ToolAllowList,
-			cfg.ToolDenyList,
+			srv.ToolAllowList,
+			srv.ToolDenyList,
 		) {
 			logger.Debug(ctx, "skipping denied MCP tool",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 				slog.F("tool_name", redactor.redactString(mcpTool.Name)),
 			)
 			continue
 		}
 
 		tools = append(
-			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, session, cfg.ModelIntent, redactor, maxResultBytes),
+			tools, newMCPTool(srv.ID, srv.Slug, mcpTool, session, srv.ModelIntent, redactor, maxResultBytes),
 		)
 	}
 
-	if opts.kind == connectionKindChatAttached {
-		if err := validateChatAttachedToolDefinitions(tools); err != nil {
+	if opts.kind == connectionKindInline {
+		if err := validateInlineToolDefinitions(tools); err != nil {
 			go func() { _ = session.Close() }()
 			return nil, nil, err
 		}
@@ -538,25 +633,25 @@ func connectOne(
 	return tools, session, nil
 }
 
-// Caps for chat-attached servers. Tool definitions are sent to the model
+// Caps for inline servers. Tool definitions are sent to the model
 // on every turn and tool results are persisted into chat messages, so an
 // end-user-chosen server must not be able to inflate either unboundedly.
 const (
-	maxChatAttachedTools                = 64
-	maxChatAttachedToolDefinitionBytes  = 64 << 10
-	maxChatAttachedToolDefinitionsBytes = 256 << 10
-	maxChatAttachedToolResultBytes      = 256 << 10
+	maxInlineTools                = 64
+	maxInlineToolDefinitionBytes  = 64 << 10
+	maxInlineToolDefinitionsBytes = 256 << 10
+	maxInlineToolResultBytes      = 256 << 10
 )
 
-// validateChatAttachedToolDefinitions rejects a tool list that exceeds
-// the chat-attached count or size caps. Sizes are measured on the
+// validateInlineToolDefinitions rejects a tool list that exceeds
+// the inline server count or size caps. Sizes are measured on the
 // redacted definitions the model sees. The whole server is skipped
 // rather than truncated so the model never sees a partial tool set.
-func validateChatAttachedToolDefinitions(tools []fantasy.AgentTool) error {
-	if len(tools) > maxChatAttachedTools {
+func validateInlineToolDefinitions(tools []fantasy.AgentTool) error {
+	if len(tools) > maxInlineTools {
 		return xerrors.Errorf(
-			"chat-attached MCP server returned %d tools, maximum is %d",
-			len(tools), maxChatAttachedTools,
+			"inline MCP server returned %d tools, maximum is %d",
+			len(tools), maxInlineTools,
 		)
 	}
 
@@ -564,19 +659,19 @@ func validateChatAttachedToolDefinitions(tools []fantasy.AgentTool) error {
 	for _, tool := range tools {
 		definition, err := json.Marshal(tool.Info())
 		if err != nil {
-			return xerrors.Errorf("marshal chat-attached MCP tool definition: %w", err)
+			return xerrors.Errorf("marshal inline MCP tool definition: %w", err)
 		}
-		if len(definition) > maxChatAttachedToolDefinitionBytes {
+		if len(definition) > maxInlineToolDefinitionBytes {
 			return xerrors.Errorf(
-				"chat-attached MCP tool definition exceeds maximum size of %d bytes",
-				maxChatAttachedToolDefinitionBytes,
+				"inline MCP tool definition exceeds maximum size of %d bytes",
+				maxInlineToolDefinitionBytes,
 			)
 		}
 		totalBytes += len(definition)
-		if totalBytes > maxChatAttachedToolDefinitionsBytes {
+		if totalBytes > maxInlineToolDefinitionsBytes {
 			return xerrors.Errorf(
-				"chat-attached MCP tool definitions exceed maximum total size of %d bytes",
-				maxChatAttachedToolDefinitionsBytes,
+				"inline MCP tool definitions exceed maximum total size of %d bytes",
+				maxInlineToolDefinitionsBytes,
 			)
 		}
 	}
@@ -584,57 +679,60 @@ func validateChatAttachedToolDefinitions(tools []fantasy.AgentTool) error {
 }
 
 func createTransport(
-	cfg database.MCPServerConfig,
+	srv Server,
 	headers map[string]string,
 	baseHTTPClient *http.Client,
 	maxEventSize int,
 ) (mcp.Transport, error) {
 	signingSecret := ""
-	if cfg.ForwardCoderHeaders {
-		signingSecret = cfg.SigningSecret
+	if srv.ForwardCoderHeaders {
+		signingSecret = srv.SigningSecret
 	}
 	httpClient := httpClientWithHeaders(baseHTTPClient, headers, signingSecret)
 
-	switch cfg.Transport {
-	case "sse":
+	switch srv.Transport {
+	case TransportSSE:
 		return &mcp.SSEClientTransport{
-			Endpoint:     cfg.Url,
+			Endpoint:     srv.URL,
 			HTTPClient:   httpClient,
 			MaxEventSize: maxEventSize,
 		}, nil
-	case "", "streamable_http":
-		// Default to streamable HTTP, the newer transport.
+	case TransportStreamableHTTP:
 		return &mcp.StreamableClientTransport{
-			Endpoint:     cfg.Url,
+			Endpoint:     srv.URL,
 			HTTPClient:   httpClient,
 			MaxEventSize: maxEventSize,
 		}, nil
 	default:
 		return nil, xerrors.Errorf(
-			"unsupported transport %q", cfg.Transport,
+			"unsupported transport %q", srv.Transport,
 		)
 	}
 }
 
-// buildAuthHeaders constructs HTTP headers for authenticating
-// with the MCP server based on the configured auth type.
+// buildAuthHeaders constructs HTTP headers for authenticating with the
+// MCP server: the static headers on the Server plus any per-user
+// credential selected by UserAuth.
 func buildAuthHeaders(
 	ctx context.Context,
 	logger slog.Logger,
-	cfg database.MCPServerConfig,
+	srv Server,
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 ) map[string]string {
-	headers := make(map[string]string)
+	headers := maps.Clone(srv.Headers)
+	if headers == nil {
+		headers = make(map[string]string)
+	}
 
-	switch cfg.AuthType {
-	case "oauth2":
-		tok, ok := tokensByConfigID[cfg.ID]
+	switch srv.UserAuth {
+	case UserAuthOAuth2:
+		tok, ok := tokensByConfigID[srv.ID]
 		if !ok {
 			logger.Warn(ctx,
 				"no oauth2 token found for MCP server",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 			)
 			break
 		}
@@ -644,21 +742,21 @@ func buildAuthHeaders(
 			// any leftover token material.
 			logger.Warn(ctx,
 				"oauth2 token for MCP server requires reconnect, skipping auth header",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 			)
 			break
 		}
 		if tok.Expiry.Valid && tok.Expiry.Time.Before(time.Now()) {
 			logger.Warn(ctx,
 				"oauth2 token for MCP server is expired",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 				slog.F("expired_at", tok.Expiry.Time),
 			)
 		}
 		if tok.AccessToken == "" {
 			logger.Warn(ctx,
 				"oauth2 token record has empty access token",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 			)
 			break
 		}
@@ -673,28 +771,7 @@ func buildAuthHeaders(
 			tokenType = "Bearer"
 		}
 		headers["Authorization"] = tokenType + " " + tok.AccessToken
-	case "api_key":
-		if cfg.APIKeyHeader != "" && cfg.APIKeyValue != "" {
-			headers[cfg.APIKeyHeader] = cfg.APIKeyValue
-		}
-	case "custom_headers":
-		if cfg.CustomHeaders != "" {
-			var custom map[string]string
-			if err := json.Unmarshal(
-				[]byte(cfg.CustomHeaders), &custom,
-			); err != nil {
-				logger.Warn(ctx,
-					"failed to parse custom headers JSON",
-					slog.F("server_slug", cfg.Slug),
-					slog.Error(err),
-				)
-			} else {
-				for k, v := range custom {
-					headers[k] = v
-				}
-			}
-		}
-	case "user_oidc":
+	case UserAuthOIDC:
 		// Forward the calling user's OIDC access token from
 		// user_links as Authorization: Bearer <token>. The token
 		// source is responsible for refreshing tokens that are
@@ -702,7 +779,7 @@ func buildAuthHeaders(
 		if oidcSrc == nil || userID == uuid.Nil {
 			logger.Warn(ctx,
 				"user_oidc auth requested but no token source available",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 			)
 			break
 		}
@@ -710,7 +787,7 @@ func buildAuthHeaders(
 		if err != nil {
 			logger.Warn(ctx,
 				"failed to obtain user OIDC token for MCP server",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 				slog.Error(err),
 			)
 			break
@@ -723,13 +800,13 @@ func buildAuthHeaders(
 			// GitHub users don't generate noise for every chat turn.
 			logger.Debug(ctx,
 				"no user OIDC token available for MCP server",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 			)
 			break
 		}
 		headers["Authorization"] = "Bearer " + token
-	case "none", "":
-		// No auth headers needed.
+	case UserAuthNone:
+		// Only the static headers apply.
 	}
 
 	return headers
@@ -781,10 +858,10 @@ func RedactURL(rawURL string) string {
 }
 
 // redactServerURL renders a server URL for logs and persisted connect
-// errors. Chat-attached URLs are chosen by an end user and commonly
+// errors. Inline server URLs are chosen by an end user and commonly
 // carry the credential in the path, so only their origin is kept.
 func redactServerURL(kind connectionKind, rawURL string) string {
-	if kind != connectionKindChatAttached {
+	if kind != connectionKindInline {
 		return RedactURL(rawURL)
 	}
 	u, err := url.Parse(rawURL)
@@ -842,18 +919,18 @@ type MCPToolIdentifier interface {
 	MCPServerConfigID() uuid.UUID
 }
 
-// AppendChatAttached appends chat-attached tools to an existing tool
-// list. When a chat-attached tool has the same name as an existing
-// tool, the existing tool wins and the chat-attached one is dropped
+// AppendInline appends inline tools to an existing tool
+// list. When an inline tool has the same name as an existing
+// tool, the existing tool wins and the inline one is dropped
 // with a warning: org-configured and built-in tools must never be
 // shadowed by an end-user-chosen server.
-func AppendChatAttached(
+func AppendInline(
 	ctx context.Context,
 	logger slog.Logger,
 	tools []fantasy.AgentTool,
-	chatAttached []fantasy.AgentTool,
+	inline []fantasy.AgentTool,
 ) []fantasy.AgentTool {
-	if len(chatAttached) == 0 {
+	if len(inline) == 0 {
 		return tools
 	}
 	existing := make(map[string]struct{}, len(tools))
@@ -861,7 +938,7 @@ func AppendChatAttached(
 		existing[tool.Info().Name] = struct{}{}
 	}
 	out := slices.Clone(tools)
-	for _, tool := range chatAttached {
+	for _, tool := range inline {
 		name := tool.Info().Name
 		if _, ok := existing[name]; ok {
 			var configID uuid.UUID
@@ -869,7 +946,7 @@ func AppendChatAttached(
 				configID = ident.MCPServerConfigID()
 			}
 			logger.Warn(ctx,
-				"chat-attached MCP tool name collides with an existing tool; chat-attached tool dropped",
+				"inline MCP tool name collides with an existing tool; inline tool dropped",
 				slog.F("tool_name", name),
 				slog.F("config_id", configID),
 			)
@@ -891,12 +968,19 @@ const toolCallIDMetaKey = "com.coder/tool_call_id"
 // redactedPlaceholder replaces each sensitive value in redacted text.
 const redactedPlaceholder = "[REDACTED]"
 
+// MinSensitiveValueBytes is the shortest value the redactor will
+// replace. Shorter values cannot be secrets, and replacing them would
+// rewrite ordinary text, tool names, and schema property names.
+const MinSensitiveValueBytes = 8
+
 // secretRedactor replaces a fixed set of sensitive strings with
 // redactedPlaceholder. The zero value redacts nothing. Longer values
 // are replaced first so a value that contains another value is
-// redacted whole. Empty values and substrings of the placeholder are
-// dropped: the first would insert the placeholder between every byte,
-// the second would mangle placeholders and cannot hide anything.
+// redacted whole. Empty values, substrings of the placeholder, and
+// values shorter than MinSensitiveValueBytes are dropped: the first
+// would insert the placeholder between every byte, the second would
+// mangle placeholders and cannot hide anything, and the third would
+// rewrite ordinary text without hiding a plausible secret.
 // Redaction can lengthen its input, so size caps are checked after it.
 type secretRedactor struct {
 	values []string
@@ -905,7 +989,9 @@ type secretRedactor struct {
 func newSecretRedactor(values []string) secretRedactor {
 	values = slices.Clone(values)
 	values = slices.DeleteFunc(values, func(value string) bool {
-		return value == "" || strings.Contains(redactedPlaceholder, value)
+		return value == "" ||
+			strings.Contains(redactedPlaceholder, value) ||
+			len(value) < MinSensitiveValueBytes
 	})
 	slices.SortFunc(values, func(a, b string) int {
 		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a, b))

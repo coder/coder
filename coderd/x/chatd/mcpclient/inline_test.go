@@ -17,17 +17,15 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/testutil"
 )
 
-func makeChatAttachedConfig(slug, url, headersJSON string) database.MCPServerConfig {
+func makeInlineConfig(slug, url string, headers map[string]string) mcpclient.Server {
 	cfg := makeConfig(slug, url)
-	if headersJSON != "" && headersJSON != "{}" {
-		cfg.AuthType = "custom_headers"
-		cfg.CustomHeaders = headersJSON
+	if len(headers) > 0 {
+		cfg.Headers = headers
 	}
 	return cfg
 }
@@ -49,16 +47,16 @@ func manyTools(n int) []testTool {
 	return tools
 }
 
-func TestConnectChatAttached_Connects(t *testing.T) {
+func TestConnectInline_Connects(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	ts, mu, recorded := newHeaderRecordingServer(t)
-	cfg := makeChatAttachedConfig("bot", ts.URL, `{"X-Bot-Key":"secret"}`)
+	cfg := makeInlineConfig("bot", ts.URL, map[string]string{"X-Bot-Key": "secret"})
 
-	tools, summaries, cleanup := mcpclient.ConnectChatAttachedForTest(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, nil, testutil.WaitLong,
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
 	)
 	t.Cleanup(cleanup)
 
@@ -68,7 +66,7 @@ func TestConnectChatAttached_Connects(t *testing.T) {
 	require.Len(t, tools, 1)
 
 	ident, ok := tools[0].(mcpclient.MCPToolIdentifier)
-	require.True(t, ok, "chat-attached tool must expose its config ID")
+	require.True(t, ok, "inline tool must expose its config ID")
 	require.Equal(t, cfg.ID, ident.MCPServerConfigID())
 
 	resp, err := tools[0].Run(ctx, fantasy.ToolCall{ID: "call-1", Name: tools[0].Info().Name, Input: "{}"})
@@ -83,7 +81,7 @@ func TestConnectChatAttached_Connects(t *testing.T) {
 	}
 }
 
-func TestConnectChatAttached_ForwardsCoderHeadersWhenOptedIn(t *testing.T) {
+func TestConnectInline_ForwardsCoderHeadersWhenOptedIn(t *testing.T) {
 	t.Parallel()
 
 	for _, forward := range []bool{true, false} {
@@ -93,13 +91,13 @@ func TestConnectChatAttached_ForwardsCoderHeadersWhenOptedIn(t *testing.T) {
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 			ts, mu, recorded := newHeaderRecordingServer(t)
-			cfg := makeChatAttachedConfig("bot", ts.URL, "")
+			cfg := makeInlineConfig("bot", ts.URL, nil)
 			cfg.ForwardCoderHeaders = forward
 			ownerID := uuid.NewString()
 			coderHeaders := map[string]string{chatprovider.HeaderCoderOwnerID: ownerID}
 
-			tools, _, cleanup := mcpclient.ConnectChatAttachedForTest(
-				ctx, logger, []database.MCPServerConfig{cfg}, coderHeaders, nil, testutil.WaitLong,
+			tools, _, cleanup := mcpclient.ConnectInlineForTest(
+				ctx, logger, []mcpclient.Server{cfg}, coderHeaders, testutil.WaitLong,
 			)
 			t.Cleanup(cleanup)
 			require.Len(t, tools, 1)
@@ -121,16 +119,16 @@ func TestConnectChatAttached_ForwardsCoderHeadersWhenOptedIn(t *testing.T) {
 	}
 }
 
-func TestConnectChatAttached_RejectsTooManyTools(t *testing.T) {
+func TestConnectInline_RejectsTooManyTools(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	ts := newTestMCPServer(t, manyTools(65)...)
-	cfg := makeChatAttachedConfig("bot", ts.URL, "")
+	cfg := makeInlineConfig("bot", ts.URL, nil)
 
-	tools, summaries, cleanup := mcpclient.ConnectChatAttachedForTest(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, nil, testutil.WaitLong,
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
 	)
 	t.Cleanup(cleanup)
 
@@ -140,7 +138,7 @@ func TestConnectChatAttached_RejectsTooManyTools(t *testing.T) {
 	require.Contains(t, summaries[0].Error, "maximum is 64")
 }
 
-func TestConnectChatAttached_RejectsOversizedToolDefinition(t *testing.T) {
+func TestConnectInline_RejectsOversizedToolDefinition(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -156,10 +154,10 @@ func TestConnectChatAttached_RejectsOversizedToolDefinition(t *testing.T) {
 		},
 	}
 	ts := newTestMCPServer(t, big)
-	cfg := makeChatAttachedConfig("bot", ts.URL, "")
+	cfg := makeInlineConfig("bot", ts.URL, nil)
 
-	tools, summaries, cleanup := mcpclient.ConnectChatAttachedForTest(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, nil, testutil.WaitLong,
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
 	)
 	t.Cleanup(cleanup)
 
@@ -169,7 +167,7 @@ func TestConnectChatAttached_RejectsOversizedToolDefinition(t *testing.T) {
 	require.Contains(t, summaries[0].Error, "tool definition exceeds maximum size")
 }
 
-func TestConnectChatAttached_RejectsOversizedAggregateToolDefinitions(t *testing.T) {
+func TestConnectInline_RejectsOversizedAggregateToolDefinitions(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -190,10 +188,10 @@ func TestConnectChatAttached_RejectsOversizedAggregateToolDefinitions(t *testing
 		})
 	}
 	ts := newTestMCPServer(t, tools...)
-	cfg := makeChatAttachedConfig("bot", ts.URL, "")
+	cfg := makeInlineConfig("bot", ts.URL, nil)
 
-	got, summaries, cleanup := mcpclient.ConnectChatAttachedForTest(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, nil, testutil.WaitLong,
+	got, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
 	)
 	t.Cleanup(cleanup)
 
@@ -203,10 +201,10 @@ func TestConnectChatAttached_RejectsOversizedAggregateToolDefinitions(t *testing
 	require.Contains(t, summaries[0].Error, "maximum total size")
 }
 
-func TestConnectChatAttached_ToolResultCap(t *testing.T) {
+func TestConnectInline_ToolResultCap(t *testing.T) {
 	t.Parallel()
 
-	const maxBytes = mcpclient.MaxChatAttachedToolResultBytesForTest
+	const maxBytes = mcpclient.MaxInlineToolResultBytesForTest
 	for _, tc := range []struct {
 		name      string
 		result    string
@@ -216,7 +214,7 @@ func TestConnectChatAttached_ToolResultCap(t *testing.T) {
 		wantError bool
 	}{
 		{name: "OverCap", result: strings.Repeat("a", maxBytes+1), wantError: true},
-		{name: "ShortSecretInflatesOverCap", result: strings.Repeat("prod", (maxBytes-1024)/4), sensitive: []string{"prod"}, wantError: true},
+		{name: "ShortSecretInflatesOverCap", result: strings.Repeat("prodkey1", (maxBytes-1024)/8), sensitive: []string{"prodkey1"}, wantError: true},
 		{name: "ServerErrorOverCap", result: strings.Repeat("a", maxBytes+1), asError: true, wantError: true},
 		{name: "Base64InflatesOverCap", result: strings.Repeat("a", maxBytes*3/4+1), asImage: true, wantError: true},
 	} {
@@ -244,11 +242,11 @@ func TestConnectChatAttached_ToolResultCap(t *testing.T) {
 				},
 			}
 			ts := newTestMCPServer(t, huge)
-			cfg := makeChatAttachedConfig("bot", ts.URL, "")
+			cfg := makeInlineConfig("bot", ts.URL, nil)
+			cfg.SensitiveValues = tc.sensitive
 
-			tools, _, cleanup := mcpclient.ConnectChatAttachedForTest(
-				ctx, logger, []database.MCPServerConfig{cfg}, nil,
-				map[uuid.UUID][]string{cfg.ID: tc.sensitive}, testutil.WaitLong,
+			tools, _, cleanup := mcpclient.ConnectInlineForTest(
+				ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
 			)
 			t.Cleanup(cleanup)
 			require.Len(t, tools, 1)
@@ -264,7 +262,7 @@ func TestConnectChatAttached_ToolResultCap(t *testing.T) {
 	}
 }
 
-func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
+func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -318,11 +316,13 @@ func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
 	srv.AddTool(leaky.tool, leaky.handler)
 	srv.AddTool(failing.tool, failing.handler)
 
-	cfg := makeChatAttachedConfig("bot", ts.URL, `{"X-Bot-Key":"`+secret+`"}`)
-	sensitive := map[uuid.UUID][]string{cfg.ID: {ts.URL, secret, "D", "bot"}}
+	// "REDACTED" is a substring of the placeholder; the redactor must
+	// drop it so redacted output is not re-redacted.
+	cfg := makeInlineConfig("bot-server", ts.URL, map[string]string{"X-Bot-Key": secret})
+	cfg.SensitiveValues = []string{ts.URL, secret, "REDACTED", "bot-server"}
 
-	tools, summaries, cleanup := mcpclient.ConnectChatAttachedForTest(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, sensitive, testutil.WaitLong,
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
 	)
 	t.Cleanup(cleanup)
 	require.Len(t, summaries, 1)
@@ -366,10 +366,10 @@ func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
 	closed := httptest.NewServer(http.NotFoundHandler())
 	closed.Close()
 	brokenURL := closed.URL + "/t/pathtoken?key=querytoken"
-	brokenCfg := makeChatAttachedConfig("broken", brokenURL, "")
-	_, summaries, cleanup = mcpclient.ConnectChatAttachedForTest(
-		ctx, logger, []database.MCPServerConfig{brokenCfg}, nil,
-		map[uuid.UUID][]string{brokenCfg.ID: {brokenURL}}, testutil.WaitLong,
+	brokenCfg := makeInlineConfig("broken", brokenURL, nil)
+	brokenCfg.SensitiveValues = []string{brokenURL}
+	_, summaries, cleanup = mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{brokenCfg}, nil, testutil.WaitLong,
 	)
 	t.Cleanup(cleanup)
 	require.Len(t, summaries, 1)
@@ -379,7 +379,66 @@ func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
 	require.NotContains(t, summaries[0].Error, "querytoken")
 }
 
-func TestConnectChatAttached_BodyCap(t *testing.T) {
+// TestConnectInline_IgnoresShortSensitiveValues verifies that a
+// sensitive value shorter than MinSensitiveValueBytes is dropped rather
+// than redacted, so a one-letter value cannot mangle tool names,
+// descriptions, or schema keys the model relies on, while a real
+// secret alongside it is still redacted.
+func TestConnectInline_IgnoresShortSensitiveValues(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	const secret = "long-enough-secret"
+	require.GreaterOrEqual(t, len(secret), mcpclient.MinSensitiveValueBytes)
+
+	account := testTool{
+		tool: &mcp.Tool{
+			Name:        "lookup_account",
+			Description: "Looks up an account by name using " + secret + ".",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"name": map[string]any{
+						"type":        "string",
+						"description": "Account name",
+					},
+				},
+				"required": []string{"name"},
+			},
+		},
+		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("account alice via " + secret), nil
+		},
+	}
+	ts := newTestMCPServer(t, account)
+	cfg := makeInlineConfig("data-bot", ts.URL, nil)
+	cfg.SensitiveValues = []string{"a", secret}
+
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	)
+	t.Cleanup(cleanup)
+	require.Len(t, summaries, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[0].Outcome)
+	require.Equal(t, "data-bot", summaries[0].Slug)
+	require.Len(t, tools, 1)
+
+	info := tools[0].Info()
+	require.Equal(t, "data-bot__lookup_account", info.Name)
+	require.Equal(t, "Looks up an account by name using [REDACTED].", info.Description)
+	require.Equal(t, []string{"name"}, info.Required)
+	prop, ok := info.Parameters["name"].(map[string]any)
+	require.True(t, ok, "parameters: %#v", info.Parameters)
+	require.Equal(t, "Account name", prop["description"])
+
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{ID: "call-1", Input: `{"name":"alice"}`})
+	require.NoError(t, err)
+	require.False(t, resp.IsError, resp.Content)
+	require.Equal(t, "account alice via [REDACTED]", resp.Content)
+}
+
+func TestConnectInline_BodyCap(t *testing.T) {
 	t.Parallel()
 
 	t.Run("UnknownLength", func(t *testing.T) {
@@ -390,13 +449,13 @@ func TestConnectChatAttached_BodyCap(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(bytes.Repeat([]byte("a"), mcpclient.MaxChatAttachedHTTPResponseBytesForTest+1))
+			_, _ = w.Write(bytes.Repeat([]byte("a"), mcpclient.MaxInlineHTTPResponseBytesForTest+1))
 		}))
 		t.Cleanup(ts.Close)
-		cfg := makeChatAttachedConfig("bot", ts.URL, "")
+		cfg := makeInlineConfig("bot", ts.URL, nil)
 
-		tools, summaries, cleanup := mcpclient.ConnectChatAttachedForTest(
-			ctx, logger, []database.MCPServerConfig{cfg}, nil, nil, testutil.WaitLong,
+		tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+			ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
 		)
 		t.Cleanup(cleanup)
 		require.Empty(t, tools)
@@ -410,7 +469,7 @@ func TestConnectChatAttached_BodyCap(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-		size := mcpclient.MaxChatAttachedHTTPResponseBytesForTest + 1
+		size := mcpclient.MaxInlineHTTPResponseBytesForTest + 1
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Content-Length", strconv.Itoa(size))
@@ -418,10 +477,10 @@ func TestConnectChatAttached_BodyCap(t *testing.T) {
 			_, _ = w.Write(bytes.Repeat([]byte("a"), size))
 		}))
 		t.Cleanup(ts.Close)
-		cfg := makeChatAttachedConfig("bot", ts.URL, "")
+		cfg := makeInlineConfig("bot", ts.URL, nil)
 
-		tools, summaries, cleanup := mcpclient.ConnectChatAttachedForTest(
-			ctx, logger, []database.MCPServerConfig{cfg}, nil, nil, testutil.WaitLong,
+		tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+			ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
 		)
 		t.Cleanup(cleanup)
 		require.Empty(t, tools)
@@ -443,7 +502,7 @@ func TestConnectChatAttached_BodyCap(t *testing.T) {
 				for i := 0; i < 5; i++ {
 					_ = req.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
 						ProgressToken: "t",
-						Message:       strings.Repeat("a", mcpclient.MaxChatAttachedHTTPResponseBytesForTest/4),
+						Message:       strings.Repeat("a", mcpclient.MaxInlineHTTPResponseBytesForTest/4),
 						Progress:      float64(i),
 					})
 				}
@@ -451,10 +510,10 @@ func TestConnectChatAttached_BodyCap(t *testing.T) {
 			},
 		}
 		ts := newTestMCPServer(t, chatty)
-		cfg := makeChatAttachedConfig("bot", ts.URL, "")
+		cfg := makeInlineConfig("bot", ts.URL, nil)
 
-		tools, _, cleanup := mcpclient.ConnectChatAttachedForTest(
-			ctx, logger, []database.MCPServerConfig{cfg}, nil, nil, testutil.WaitLong,
+		tools, _, cleanup := mcpclient.ConnectInlineForTest(
+			ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
 		)
 		t.Cleanup(cleanup)
 		require.Len(t, tools, 1)
@@ -479,7 +538,7 @@ func (*stubTool) ProviderOptions() fantasy.ProviderOptions   { return nil }
 func (*stubTool) SetProviderOptions(fantasy.ProviderOptions) {}
 func (s *stubTool) MCPServerConfigID() uuid.UUID             { return s.configID }
 
-func TestAppendChatAttached_ExistingToolsWin(t *testing.T) {
+func TestAppendInline_ExistingToolsWin(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -489,7 +548,7 @@ func TestAppendChatAttached_ExistingToolsWin(t *testing.T) {
 	bPrime := &stubTool{name: "b", configID: uuid.New()}
 	c := &stubTool{name: "c", configID: uuid.New()}
 
-	got := mcpclient.AppendChatAttached(ctx, logger,
+	got := mcpclient.AppendInline(ctx, logger,
 		[]fantasy.AgentTool{a, b},
 		[]fantasy.AgentTool{bPrime, c},
 	)
@@ -499,7 +558,7 @@ func TestAppendChatAttached_ExistingToolsWin(t *testing.T) {
 	require.Same(t, c, got[2])
 
 	orig := []fantasy.AgentTool{a}
-	require.Equal(t, orig, mcpclient.AppendChatAttached(ctx, logger, orig, nil))
+	require.Equal(t, orig, mcpclient.AppendInline(ctx, logger, orig, nil))
 }
 
 func TestOrgConnectHasNoCaps(t *testing.T) {
@@ -511,11 +570,11 @@ func TestOrgConnectHasNoCaps(t *testing.T) {
 	cfg := makeConfig("org", ts.URL)
 
 	tools, summaries, cleanup := mcpclient.ConnectAllForTest(
-		ctx, logger, []database.MCPServerConfig{cfg}, testutil.WaitLong, nil,
+		ctx, logger, []mcpclient.Server{cfg}, testutil.WaitLong, nil,
 	)
 	t.Cleanup(cleanup)
 
 	require.Len(t, summaries, 1)
 	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[0].Outcome)
-	require.Len(t, tools, 65, "org servers must not be subject to the chat-attached tool cap")
+	require.Len(t, tools, 65, "org servers must not be subject to the inline tool cap")
 }

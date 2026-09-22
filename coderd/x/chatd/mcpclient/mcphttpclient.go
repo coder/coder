@@ -66,25 +66,25 @@ const (
 	headerCoderWorkspaceID = "X-Coder-Workspace-Id"
 )
 
-// maxChatAttachedHTTPResponseBytes caps one HTTP response body, or one
-// server-sent event, from a chat-attached MCP server. Chat owners, not
+// maxInlineHTTPResponseBytes caps one HTTP response body, or one
+// server-sent event, from an inline MCP server. Chat owners, not
 // org admins, choose these servers, so a hostile server must not be
 // able to exhaust memory with an unbounded tool list or tool result.
-const maxChatAttachedHTTPResponseBytes = 1 << 20
+const maxInlineHTTPResponseBytes = 1 << 20
 
-var errChatAttachedResponseTooLarge = xerrors.New("chat-attached MCP response body exceeds maximum size")
+var errInlineResponseTooLarge = xerrors.New("inline MCP response body exceeds maximum size")
 
-// chatAttachedHTTPClient wraps base so every response body is capped at
-// maxChatAttachedHTTPResponseBytes. A nil or transport-less base falls
+// inlineHTTPClient wraps base so every response body is capped at
+// maxInlineHTTPResponseBytes. A nil or transport-less base falls
 // back to the default guarded client, matching httpClientWithHeaders.
-func chatAttachedHTTPClient(base *http.Client) *http.Client {
+func inlineHTTPClient(base *http.Client) *http.Client {
 	if base == nil || base.Transport == nil {
 		base = NewHTTPClient(base)
 	}
 	client := *base
 	client.Transport = &maxResponseBodyRoundTripper{
 		base:     base.Transport,
-		maxBytes: maxChatAttachedHTTPResponseBytes,
+		maxBytes: maxInlineHTTPResponseBytes,
 	}
 	return &client
 }
@@ -107,7 +107,7 @@ func (t *maxResponseBodyRoundTripper) RoundTrip(req *http.Request) (*http.Respon
 	}
 	if resp.ContentLength > t.maxBytes {
 		_ = resp.Body.Close()
-		return nil, errChatAttachedResponseTooLarge
+		return nil, errInlineResponseTooLarge
 	}
 	resp.Body = &maxResponseReadCloser{
 		body:      resp.Body,
@@ -135,7 +135,7 @@ func (r *maxResponseReadCloser) Read(p []byte) (int, error) {
 	if int64(n) > r.remaining {
 		n = int(r.remaining)
 		r.remaining = 0
-		return n, errChatAttachedResponseTooLarge
+		return n, errInlineResponseTooLarge
 	}
 	r.remaining -= int64(n)
 	return n, err

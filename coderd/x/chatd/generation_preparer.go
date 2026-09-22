@@ -391,10 +391,23 @@ func (server *Server) prepareGeneration(
 				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
 			}
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
+			mcpServers := make([]mcpclient.Server, 0, len(mcpConnectConfigs))
+			for _, cfg := range mcpConnectConfigs {
+				if !cfg.Enabled {
+					continue
+				}
+				srv, err := mcpclient.ServerFromConfig(cfg)
+				if err != nil {
+					logger.Warn(ctx, "skipping MCP server with invalid config",
+						slog.F("server_slug", cfg.Slug), slog.Error(err))
+					continue
+				}
+				mcpServers = append(mcpServers, srv)
+			}
 			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
 				ctx,
 				logger,
-				mcpConnectConfigs,
+				mcpServers,
 				mcpTokens,
 				chat.OwnerID,
 				server.oidcTokenSource,

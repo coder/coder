@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/safedial"
 )
 
@@ -23,7 +22,7 @@ var ConvertCallResultForTest = convertCallResult
 func ConnectAllForTest(
 	ctx context.Context,
 	logger slog.Logger,
-	configs []database.MCPServerConfig,
+	servers []Server,
 	timeout time.Duration,
 	reaperDone func(),
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
@@ -34,7 +33,7 @@ func ConnectAllForTest(
 		netip.MustParsePrefix("::1/128"),
 	))
 	return connectAllWithHooks(
-		ctx, logger, configs, nil, uuid.Nil, nil, nil,
+		ctx, logger, servers, nil, uuid.Nil, nil, nil,
 		connectOptions{
 			httpClient: httpClient,
 			timeout:    timeout,
@@ -44,14 +43,13 @@ func ConnectAllForTest(
 	)
 }
 
-// ConnectChatAttachedForTest exposes the chat-attached connect path
+// ConnectInlineForTest exposes the inline connect path
 // with an injectable connect timeout and a loopback-permitting client.
-func ConnectChatAttachedForTest(
+func ConnectInlineForTest(
 	ctx context.Context,
 	logger slog.Logger,
-	configs []database.MCPServerConfig,
+	servers []Server,
 	coderHeaders map[string]string,
-	sensitiveValues map[uuid.UUID][]string,
 	timeout time.Duration,
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	httpClient := NewHTTPClient(nil, safedial.WithAllowedPrefixes(
@@ -59,12 +57,11 @@ func ConnectChatAttachedForTest(
 		netip.MustParsePrefix("::1/128"),
 	))
 	return connectAllWithHooks(
-		ctx, logger, configs, nil, uuid.Nil, nil, coderHeaders,
+		ctx, logger, servers, nil, uuid.Nil, nil, coderHeaders,
 		connectOptions{
-			httpClient:      chatAttachedHTTPClient(httpClient),
-			timeout:         timeout,
-			kind:            connectionKindChatAttached,
-			sensitiveValues: sensitiveValues,
+			httpClient: inlineHTTPClient(httpClient),
+			timeout:    timeout,
+			kind:       connectionKindInline,
 		},
 	)
 }
@@ -72,11 +69,11 @@ func ConnectChatAttachedForTest(
 // ToolCallIDMetaKeyForTest exposes the _meta key for external tests.
 const ToolCallIDMetaKeyForTest = toolCallIDMetaKey
 
-// MaxChatAttachedToolResultBytesForTest exposes the result cap.
-const MaxChatAttachedToolResultBytesForTest = maxChatAttachedToolResultBytes
+// MaxInlineToolResultBytesForTest exposes the result cap.
+const MaxInlineToolResultBytesForTest = maxInlineToolResultBytes
 
-// MaxChatAttachedHTTPResponseBytesForTest exposes the body cap.
-const MaxChatAttachedHTTPResponseBytesForTest = maxChatAttachedHTTPResponseBytes
+// MaxInlineHTTPResponseBytesForTest exposes the body cap.
+const MaxInlineHTTPResponseBytesForTest = maxInlineHTTPResponseBytes
 
 // BuildAuthHeadersForTest exposes buildAuthHeaders for external
 // tests.
