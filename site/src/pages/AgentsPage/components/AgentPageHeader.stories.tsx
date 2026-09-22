@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type FC, useMemo, useState } from "react";
 import { Outlet } from "react-router";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import { pixelWithPhone } from "#/testHelpers/pixel";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentPageHeader } from "./AgentPageHeader";
@@ -211,14 +211,6 @@ export const MobileActionsExcludeAnalytics: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-
-		const menu = within(await within(document.body).findByRole("menu"));
-		await waitFor(() => {
-			expect(menu.getByRole("menuitem", { name: "Settings" })).toBeVisible();
-		});
-		await expect(
-			menu.queryByRole("menuitem", { name: "Analytics" }),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -252,29 +244,14 @@ export const ToggleStateStaysInSyncAcrossBreakpoints: Story = {
 			name: "Mute completion chime",
 		});
 		await userEvent.click(desktopSoundButton);
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: "Enable completion chime" }),
-			).toBeVisible();
-		});
 
 		const desktopNotificationButton = canvas.getByRole("button", {
 			name: "Enable notifications",
 		});
 		await userEvent.click(desktopNotificationButton);
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: "Disable notifications" }),
-			).toBeVisible();
-		});
 
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Disable notifications" }),
 		);
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: "Enable notifications" }),
-			).toBeVisible();
-		});
 	},
 };

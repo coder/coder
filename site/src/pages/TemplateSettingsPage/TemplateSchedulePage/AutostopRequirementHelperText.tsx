@@ -31,9 +31,9 @@ export const convertAutostopRequirementDaysValue = (
 	return "off";
 };
 
-interface AutostopRequirementDaysHelperTextProps {
+type AutostopRequirementDaysHelperTextProps = {
 	days: TemplateAutostopRequirementDaysValue;
-}
+};
 
 export const AutostopRequirementDaysHelperText: FC<
 	AutostopRequirementDaysHelperTextProps
@@ -41,10 +41,10 @@ export const AutostopRequirementDaysHelperText: FC<
 	return <span>{autostopRequirementDescriptions[days]}</span>;
 };
 
-interface AutostopRequirementWeeksHelperTextProps {
+type AutostopRequirementWeeksHelperTextProps = {
 	days: TemplateAutostopRequirementDaysValue;
 	weeks: number;
-}
+};
 
 export const AutostopRequirementWeeksHelperText: FC<
 	AutostopRequirementWeeksHelperTextProps

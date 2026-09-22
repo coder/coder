@@ -8,9 +8,9 @@ const isBoolean = (variable: TemplateVersionVariable) => {
 	return variable.type === "bool";
 };
 
-interface VariableLabelProps {
+type VariableLabelProps = {
 	variable: TemplateVersionVariable;
-}
+};
 
 const VariableLabel: FC<VariableLabelProps> = ({ variable }) => {
 	return (
@@ -26,12 +26,12 @@ const VariableLabel: FC<VariableLabelProps> = ({ variable }) => {
 	);
 };
 
-interface VariableInputProps {
+type VariableInputProps = {
 	disabled?: boolean;
 	variable: TemplateVersionVariable;
 	onChange: (value: string) => void;
 	defaultValue?: string;
-}
+};
 
 export const VariableInput: FC<VariableInputProps> = ({
 	disabled,

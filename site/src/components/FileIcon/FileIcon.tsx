@@ -1,15 +1,15 @@
 import { type FC, useMemo } from "react";
 import setiIconTheme from "./seti-icon-theme.json";
 
-interface SetiIconDefinition {
+type SetiIconDefinition = {
 	fontCharacter?: string;
 	fontColor?: string;
-}
+};
 
-interface FileIconGlyph {
+type FileIconGlyph = {
 	character: string;
 	color?: string;
-}
+};
 
 const setiIconDefinitions: Record<string, SetiIconDefinition> =
 	setiIconTheme.iconDefinitions;
@@ -249,12 +249,12 @@ const BASE_ICON_STYLE: React.CSSProperties = {
 	letterSpacing: "normal",
 };
 
-interface FileIconProps {
+type FileIconProps = {
 	fileName?: string | null;
 	filePath?: string | null;
 	className?: string;
 	style?: React.CSSProperties;
-}
+};
 
 export const FileIcon: FC<FileIconProps> = ({
 	fileName,

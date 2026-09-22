@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 // baselineTemplate returns a database.Template populated with non-default
@@ -451,7 +452,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 				tc.expected.base(&tpl)
 			}
 			schedOpts := baselineScheduleOpts()
-			got, validErrs := resolveTemplateMetaUpdate(tpl, schedOpts, tc.req)
+			got, validErrs := resolveTemplateMetaUpdate(tpl, schedOpts, tc.req, nil)
 
 			want := baselineResolved()
 			tc.expected.override(&want)
@@ -485,7 +486,7 @@ func TestResolveTemplateMetaUpdate_NameClearedFallsBackToTemplateName(t *testing
 
 	got, _ := resolveTemplateMetaUpdate(tpl, schedOpts, codersdk.UpdateTemplateMeta{
 		Name: new(""),
-	})
+	}, nil)
 	if got.name != tpl.Name {
 		t.Fatalf("got name = %q, want %q (preserved)", got.name, tpl.Name)
 	}
@@ -508,7 +509,7 @@ func TestResolveTemplateMetaUpdate_NilRequestUsesScheduleOptsForRequirements(t *
 		},
 	}
 
-	got, validErrs := resolveTemplateMetaUpdate(tpl, schedOpts, codersdk.UpdateTemplateMeta{})
+	got, validErrs := resolveTemplateMetaUpdate(tpl, schedOpts, codersdk.UpdateTemplateMeta{}, nil)
 	if len(validErrs) != 0 {
 		t.Fatalf("unexpected validation errors: %+v", validErrs)
 	}
@@ -525,5 +526,42 @@ func TestResolveTemplateMetaUpdate_NilRequestUsesScheduleOptsForRequirements(t *
 	if got.autostopRequirementWeeks != schedOpts.AutostopRequirement.Weeks {
 		t.Errorf("autostop weeks = %d, want %d",
 			got.autostopRequirementWeeks, schedOpts.AutostopRequirement.Weeks)
+	}
+}
+
+// TestResolveTemplateMetaUpdate_ModuleCacheDisabledByDeployment verifies that the
+// per-template toggle is read-only while the deployment disables the module
+// cache: the request value is discarded in both directions.
+func TestResolveTemplateMetaUpdate_ModuleCacheDisabledByDeployment(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		stored   bool
+		request  *bool
+		expected bool
+	}{
+		{name: "IgnoresOptIn", stored: true, request: new(false), expected: true},
+		{name: "IgnoresOptOut", stored: false, request: new(true), expected: false},
+		{name: "PreservesStored", stored: true, request: nil, expected: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tpl := baselineTemplate()
+			tpl.DisableModuleCache = tc.stored
+			dv := &codersdk.DeploymentValues{}
+			dv.Provisioner.DisableModuleCache = serpent.Bool(true)
+			got, validErrs := resolveTemplateMetaUpdate(tpl, baselineScheduleOpts(), codersdk.UpdateTemplateMeta{
+				DisableModuleCache: tc.request,
+			}, dv)
+			if len(validErrs) != 0 {
+				t.Fatalf("unexpected validation errors: %+v", validErrs)
+			}
+			if got.disableModuleCache != tc.expected {
+				t.Errorf("disableModuleCache = %t, want %t", got.disableModuleCache, tc.expected)
+			}
+		})
 	}
 }

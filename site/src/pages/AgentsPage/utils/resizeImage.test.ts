@@ -61,8 +61,8 @@ describe("resizeImageToMaxBytes", () => {
 		// Unsupported MIME + over budget: refuse rather than
 		// silently produce garbage.
 		const bytes = new Uint8Array(2 * 1024 * 1024);
-		const file = new File([bytes], "diagram.svg", {
-			type: "image/svg+xml",
+		const file = new File([bytes], "scan.bmp", {
+			type: "image/bmp",
 		});
 		const result = await resizeImageToMaxBytes(file, 1024 * 1024);
 		expect(result).toBeNull();
@@ -96,14 +96,14 @@ describe("resizeImageToMaxBytes", () => {
 describe("resizeImageToMaxBytes with stubbed decoders", () => {
 	// Each test installs its own fakes; track per-test state on a
 	// shared object so the stubs can read the active configuration.
-	interface StubState {
+	type StubState = {
 		srcWidth: number;
 		srcHeight: number;
 		decodeThrows: boolean;
 		convertBlobType: string;
 		decodeCalls: number;
 		encodeCalls: Array<{ width: number; height: number; quality: number }>;
-	}
+	};
 
 	let state: StubState;
 

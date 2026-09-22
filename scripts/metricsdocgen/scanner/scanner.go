@@ -28,6 +28,7 @@ import (
 // Add or remove directories here to control the scanner's scope.
 var scanDirs = []string{
 	"agent",
+	"aibridge",
 	"coderd",
 	"enterprise",
 	"provisionerd",
@@ -36,14 +37,21 @@ var scanDirs = []string{
 
 // skipPaths lists files that should be excluded from scanning. Their metrics
 // must be maintained in the static metrics file instead.
-// TODO(ssncferreira): Add support for resolving WrapRegistererWithPrefix to
-//
-//	eliminate the need for this skip list.
 var skipPaths = []string{
-	"coderd/aibridged/metrics.go",
-	"coderd/aibridgedserver/metrics.go",
-	"enterprise/aibridgeproxyd/metrics.go",
 	"enterprise/scaletest/agentfake/metrics.go",
+}
+
+// metricPrefixes supplies prefixes added by registerer wrappers such as
+// WrapRegistererWithPrefix or NewMetricAliasRegisterer, which this scanner does
+// not trace. Add a directory when its metrics share such a prefix, but not for
+// names already declared in Name, Namespace, or Subsystem. Rules also apply to
+// subdirectories. Update them when prefixes change or definitions move elsewhere.
+// TODO: Automatically resolve prefixes from registration code.
+var metricPrefixes = map[string]string{
+	"aibridge/":                  "coder_ai_gateway_",
+	"coderd/aibridged/":          "coder_ai_gateway_",
+	"coderd/aibridgedserver/":    "coder_ai_gateway_",
+	"enterprise/aibridgeproxyd/": "coder_ai_gateway_proxy_",
 }
 
 // MetricType represents the type of Prometheus metric.
@@ -189,8 +197,23 @@ func scanDirectory(root string) ([]Metric, error) {
 	return metrics, err
 }
 
+// metricPrefix returns the prefix for the longest matching directory.
+func metricPrefix(path string) string {
+	path = filepath.ToSlash(filepath.Clean(path))
+	var prefix string
+	var matchedLength int
+	for directory, candidate := range metricPrefixes {
+		if len(directory) > matchedLength && strings.HasPrefix(path, directory) {
+			prefix = candidate
+			matchedLength = len(directory)
+		}
+	}
+	return prefix
+}
+
 // scanFile parses a single Go file and extracts all Prometheus metric definitions.
 func scanFile(path string) ([]Metric, error) {
+	prefix := metricPrefix(path)
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
 	if err != nil {
@@ -220,6 +243,7 @@ func scanFile(path string) ([]Metric, error) {
 				// or added to the static metrics file with a manual description.
 				return true
 			}
+			metric.Name = prefix + metric.Name
 			metrics = append(metrics, metric)
 		}
 
@@ -376,6 +400,20 @@ func collectDecls(file *ast.File) declarations {
 //   - myLabels: resolved value of myLabels variable (variable reference)
 func extractLabels(expr ast.Expr, decls declarations) []string {
 	switch e := expr.(type) {
+	case *ast.CallExpr:
+		fn, ok := e.Fun.(*ast.Ident)
+		if !ok || fn.Name != "append" || len(e.Args) == 0 {
+			return nil
+		}
+		labels := append([]string(nil), extractLabels(e.Args[0], decls)...)
+		for _, arg := range e.Args[1:] {
+			if e.Ellipsis.IsValid() {
+				labels = append(labels, extractLabels(arg, decls)...)
+			} else if label := resolveStringExpr(arg, decls); label != "" {
+				labels = append(labels, label)
+			}
+		}
+		return labels
 	case *ast.CompositeLit:
 		// []string{"label1", "label2"}
 		return extractStringSlice(e, decls)

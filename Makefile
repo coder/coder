@@ -218,6 +218,8 @@ VERSION      := $(shell ./scripts/version.sh)
 
 POSTGRES_VERSION ?= 17
 POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
+# CI test jobs set this to "none": nothing reads the statement log there.
+TEST_POSTGRES_LOG_STATEMENT ?= all
 
 # Limit parallel Make jobs in pre-commit/pre-push. Defaults to
 # nproc/4 (min 2) since test, lint, and build targets have internal
@@ -883,6 +885,11 @@ lint/prose: docs/.style/.vale-synced
 # all commits.
 #
 # pre-push adds heavier checks: Go tests, JS tests, and site build.
+# Storybook tests are deliberately excluded: the vitest browser run
+# has repeatedly stalled or failed for developers running pre-push,
+# and PR #24703's serialization did not fix it. Storybook stays
+# covered by the storybook job in CI (storybook:build plus Pixel
+# snapshots) on every PR.
 # The pre-push hook is allowlisted, see scripts/githooks/pre-push.
 #
 # pre-commit uses two phases: gen+fmt first, then lint+build. This
@@ -954,20 +961,11 @@ pre-push:
 	start=$$(date +%s)
 	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-push.XXXXXX")
 	echo "$(BOLD)pre-push$(RESET) ($$logdir)"
-	test -d site/node_modules/.cache/storybook || (cd site/ && pnpm exec node scripts/warmup-storybook-cache.mjs)
 	echo "test + build site:"
 	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		test \
 		test-js \
 		site/out/index.html
-	# Storybook tests run after Go tests and the site build to avoid
-	# CPU starvation. Rolldown's tokio workers in Vite's transform
-	# pipeline stall when competing with Go compilation and the
-	# production build, causing browser import() calls to hang
-	# indefinitely (vitest has no import-phase timeout).
-	echo "test storybook:"
-	$(MAKE) --no-print-directory MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
-		test-storybook
 	rm -rf $$logdir
 	echo "$(GREEN)✓ pre-push passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
 .PHONY: pre-push
@@ -1017,11 +1015,10 @@ GEN_FILES := \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
-	docs/install/releases/feature-stages.md \
 	docs/admin/setup/configuration-reference.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
-	provisioner/terraform/testdata/version \
+	provisioner/terraform/testdata/generation.sha1 \
 	scripts/metricsdocgen/generated_metrics \
 	site/e2e/provisionerGenerated.ts \
 	examples/examples.gen.json \
@@ -1063,13 +1060,13 @@ coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen _gen/models-
 # snapshot joined with the editorial curation in
 # scripts/aibridgepricesgen/curation.json. Kept out of `make gen` for the
 # same live-upstream-data reason as prices.json.
-site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
+site/src/modules/aiModels/knownModels/knownModelsGenerated.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
 	$(call atomic_write,_gen/bin/aibridgepricesgen -format=catalog -upstream _gen/models-dev.json,./scripts/biome_format.sh)
-.PHONY: site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json
+.PHONY: site/src/modules/aiModels/knownModels/knownModelsGenerated.json
 
 gen/aibridge-prices: \
 	coderd/aibridge/prices/data/prices.json \
-	site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json
+	site/src/modules/aiModels/knownModels/knownModelsGenerated.json
 .PHONY: gen/aibridge-prices
 
 gen/golden-files: \
@@ -1116,7 +1113,6 @@ gen/mark-fresh:
 		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
-		docs/install/releases/feature-stages.md \
 		docs/admin/setup/configuration-reference.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
@@ -1353,17 +1349,6 @@ docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/queri
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
-docs/install/releases/feature-stages.md: \
-	node_modules/.installed \
-	scripts/release/docs_update_feature_stages.sh \
-	codersdk/deployment.go \
-	docs/manifest.json | _gen
-	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
-		./scripts/release/docs_update_feature_stages.sh "$$tmpfile" && \
-		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
-		pnpm exec markdown-table-formatter "$$tmpfile" && \
-		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
-
 docs/admin/setup/configuration-reference.md: node_modules/.installed $(wildcard scripts/configdocgen/*.go) $(wildcard codersdk/*.go) _gen/bin/configdocgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
 		_gen/bin/configdocgen --out="$$tmpfile" && \
@@ -1480,21 +1465,24 @@ coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.g
 	TZ=UTC go test ./coderd/notifications -run="Test.*Golden$$" -update
 	touch "$@"
 
-provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/testdata/*/*.golden) $(wildcard provisioner/terraform/testdata/*/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
+# Wait for fixture generation before reading its outputs under make -j.
+provisioner/terraform/testdata/.gen-golden: provisioner/terraform/testdata/generation.sha1 $(wildcard provisioner/terraform/testdata/resources/*/*.tfplan.* provisioner/terraform/testdata/resources/*/*.tfstate.*) $(wildcard provisioner/terraform/testdata/*/*.golden) $(wildcard provisioner/terraform/testdata/*/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
 	TZ=UTC go test ./provisioner/terraform -run="Test.*Golden$$" -update
 	touch "$@"
 
-provisioner/terraform/testdata/version:
-	@tf_match=true; \
-	if [[ "$$(cat provisioner/terraform/testdata/version.txt)" != \
-	       "$$(terraform version -json | jq -r '.terraform_version')" ]]; then \
-		tf_match=false; \
-	fi; \
-	if ! $$tf_match || \
-	   ! ./provisioner/terraform/testdata/generate.sh --check; then \
-		./provisioner/terraform/testdata/generate.sh; \
-	fi
-.PHONY: provisioner/terraform/testdata/version
+# Terraform reads ~/.terraformrc unless TF_CLI_CONFIG_FILE selects another file.
+# After rebuilding a local provider or changing its override, regenerate with:
+# ./provisioner/terraform/testdata/generate.sh
+provisioner/terraform/testdata/generation.sha1: FORCE
+	@./provisioner/terraform/testdata/generate.sh --if-needed
+
+FORCE:
+.PHONY: FORCE
+
+# pre-commit runs gen and fmt concurrently; formatting must finish before hashing.
+ifneq ($(filter fmt,$(MAKECMDGOALS)),)
+provisioner/terraform/testdata/generation.sha1: | fmt/terraform fmt/shfmt
+endif
 
 update-terraform-testdata:
 	./provisioner/terraform/testdata/generate.sh --upgrade
@@ -1687,7 +1675,7 @@ test-postgres-docker:
 		-c fsync=off \
 		-c synchronous_commit=off \
 		-c full_page_writes=off \
-		-c log_statement=all
+		-c log_statement=$(TEST_POSTGRES_LOG_STATEMENT)
 	while ! pg_isready -h 127.0.0.1
 	do
 		echo "$$(date) - waiting for database to start"

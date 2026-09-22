@@ -15,7 +15,7 @@ set -euo pipefail
 # 12 hex chars matches docker/OCI short-digest displays.
 HASH_LEN=12
 
-distro="${1:?usage: $0 <22.04|26.04>}"
+distro="${1:?usage: $0 <26.04>}"
 
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
@@ -24,9 +24,6 @@ paths=(
 	"dogfood/coder/ubuntu-${distro}/Dockerfile.base"
 	"dogfood/coder/ubuntu-${distro}/files"
 )
-if [ "$distro" = "22.04" ]; then
-	paths+=("dogfood/coder/ubuntu-${distro}/configure-chrome-flags.sh")
-fi
 
 # Skip editor turds; .swp / ~-files / dotfiles are noise for a build
 # hash. Include symlinks too: `COPY dogfood/coder/ubuntu-*/files /`

@@ -5,12 +5,10 @@ import {
 	LicenseAgentRuntimeUsageUnavailableErrorText,
 	LicenseAIGovernance90PercentWarningText,
 	LicenseAIGovernanceOverLimitWarningText,
-	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
 	LicenseUsagePublishingFailingWarningText,
 } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { docs } from "#/utils/docs";
 import {
 	type LicenseBannerLink,
 	type LicenseBannerMessage,
@@ -138,14 +136,6 @@ const normalizeAIGovernanceWarning = (
 };
 
 const messageLink = (message: string): LicenseBannerLink | undefined => {
-	if (message === LicenseManagedAgentLimitExceededWarningText) {
-		return {
-			href: docs("/ai-coder/ai-governance"),
-			label: "View AI Governance",
-			showExternalIcon: true,
-			target: "_blank",
-		};
-	}
 	if (message === LicenseTelemetryRequiredErrorText) {
 		return {
 			href: "mailto:sales@coder.com",

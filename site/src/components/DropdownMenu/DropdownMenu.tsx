@@ -22,7 +22,7 @@ export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
 export const DropdownMenuContent: React.FC<
-	React.ComponentPropsWithRef<typeof DropdownMenuPrimitive.Content>
+	React.ComponentProps<typeof DropdownMenuPrimitive.Content>
 > = ({ className, sideOffset = 4, ...props }) => {
 	return (
 		<DropdownMenuPrimitive.Portal>
@@ -35,7 +35,7 @@ export const DropdownMenuContent: React.FC<
 	);
 };
 
-type DropdownMenuItemProps = React.ComponentPropsWithRef<
+type DropdownMenuItemProps = React.ComponentProps<
 	typeof DropdownMenuPrimitive.Item
 > & {
 	inset?: boolean;
@@ -54,8 +54,26 @@ export const DropdownMenuItem: React.FC<DropdownMenuItemProps> = ({
 	);
 };
 
+export const DropdownMenuCheckboxItem: React.FC<
+	React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>
+> = ({ className, children, ...props }) => {
+	return (
+		<DropdownMenuPrimitive.CheckboxItem
+			className={cn(menuItemClass, "relative pr-8", className)}
+			{...props}
+		>
+			{children}
+			<span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
+				<DropdownMenuPrimitive.ItemIndicator>
+					<CheckIcon className="size-4" />
+				</DropdownMenuPrimitive.ItemIndicator>
+			</span>
+		</DropdownMenuPrimitive.CheckboxItem>
+	);
+};
+
 export const DropdownMenuRadioItem: React.FC<
-	React.ComponentPropsWithRef<typeof DropdownMenuPrimitive.RadioItem>
+	React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem>
 > = ({ className, children, ...props }) => {
 	return (
 		<DropdownMenuPrimitive.RadioItem
@@ -81,7 +99,7 @@ export const DropdownMenuRadioItem: React.FC<
 export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 
 export const DropdownMenuSubTrigger: React.FC<
-	React.ComponentPropsWithRef<typeof DropdownMenuPrimitive.SubTrigger> & {
+	React.ComponentProps<typeof DropdownMenuPrimitive.SubTrigger> & {
 		inset?: boolean;
 	}
 > = ({ className, inset, children, ...props }) => {
@@ -97,7 +115,7 @@ export const DropdownMenuSubTrigger: React.FC<
 };
 
 export const DropdownMenuSubContent: React.FC<
-	React.ComponentPropsWithRef<typeof DropdownMenuPrimitive.SubContent>
+	React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>
 > = ({ className, ...props }) => {
 	return (
 		<DropdownMenuPrimitive.Portal>
@@ -110,7 +128,7 @@ export const DropdownMenuSubContent: React.FC<
 };
 
 export const DropdownMenuSeparator: React.FC<
-	React.ComponentPropsWithRef<typeof DropdownMenuPrimitive.Separator>
+	React.ComponentProps<typeof DropdownMenuPrimitive.Separator>
 > = ({ className, ...props }) => {
 	return (
 		<DropdownMenuPrimitive.Separator

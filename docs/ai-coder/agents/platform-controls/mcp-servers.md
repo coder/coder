@@ -60,8 +60,8 @@ read-only field when only one organization is available.
 Each MCP server uses one of five authentication modes. When you change the
 auth type, fields from the previous type are automatically cleared.
 
-Secrets are never returned in API responses — boolean flags indicate whether
-a value is set.
+OAuth2 client secrets, API keys, and custom headers are never returned in API responses.
+Boolean flags indicate whether each value is set.
 
 ### None
 
@@ -151,25 +151,72 @@ Control which tools from a server are available in chat:
 
 ## Coder identity headers
 
-MCP servers configured with `forward_coder_headers = true` receive the
-following identity headers on every outgoing request, alongside the
-auth header for the configured `auth_type`:
+MCP servers configured with `forward_coder_headers = true` receive Coder identity headers on every outgoing request.
+When the server config has a signing secret, Coder also signs the request body and the effective identity header values.
 
-| Header                 | Description                                                                                                  |
-|------------------------|--------------------------------------------------------------------------------------------------------------|
-| `X-Coder-Owner-Id`     | Coder user who owns the chat that issued the tool call.                                                      |
-| `X-Coder-Chat-Id`      | Top-level (parent) chat ID. For root chats this is the chat's own ID; for subchats it is the parent chat ID. |
-| `X-Coder-Subchat-Id`   | Subchat ID. Only present when the request originates from a child chat.                                      |
-| `X-Coder-Workspace-Id` | Workspace associated with the chat, if any.                                                                  |
+| Header                        | Description                                                                               |
+|-------------------------------|-------------------------------------------------------------------------------------------|
+| `X-Coder-Owner-Id`            | Coder user who owns the chat that issued the tool call.                                   |
+| `X-Coder-Chat-Id`             | Top-level parent chat ID. For root chats, this is the chat's own ID.                      |
+| `X-Coder-Subchat-Id`          | Subchat ID. This header is absent for root chats.                                         |
+| `X-Coder-Workspace-Id`        | Workspace associated with the chat. This header is absent when the chat has no workspace. |
+| `X-Coder-Signature-Timestamp` | Unix timestamp in seconds used to limit replay.                                           |
+| `X-Coder-Signature`           | Request signature in the form `v1=<lowercase hexadecimal HMAC-SHA256>`.                   |
 
-Coder sends the same identity headers to LLM providers, so a first-party
-MCP server can correlate a tool call back to the originating chat.
+Coder sends the same identity headers to LLM providers, so a first-party MCP server can correlate a tool call with the originating chat.
 
-Because the headers leak chat identity, the option is **off by
-default** and should only be enabled for first-party or trusted
-internal MCP servers. If the auth header for the configured
-`auth_type` collides with one of these headers, the auth header
-wins.
+### Configure request signing
+
+Enable **Forward Coder identity headers** and enter a **Signing secret** under **Behavior**.
+Generate a strong random secret, for example with `openssl rand -hex 32`, and configure the same secret on the MCP server.
+Use the hexadecimal text as the HMAC key, not the decoded bytes.
+Without a secret, forwarding remains unsigned.
+
+The existing create and update APIs accept `signing_secret`.
+Coder never returns it; responses expose only `has_signing_secret`.
+Omitting it in an update preserves the stored value; an explicit empty string clears it.
+In the UI, leaving the secret field unchanged or blank preserves the existing secret.
+
+> [!WARNING]
+> Coordinate secret changes with the MCP server.
+> Requests fail verification when Coder and the MCP server use different secrets.
+
+### Signature format
+
+Coder builds this canonical string from the outgoing request.
+The lines use `\n` separators with no trailing newline:
+
+```txt
+v1
+<timestamp from X-Coder-Signature-Timestamp>
+<HTTP method, uppercase>
+<request path including query, for example /api/mcp?x=1>
+<lowercase hexadecimal SHA-256 of the exact request body bytes>
+owner=<value of X-Coder-Owner-Id>
+chat=<value of X-Coder-Chat-Id>
+subchat=<value of X-Coder-Subchat-Id>
+workspace=<value of X-Coder-Workspace-Id>
+```
+
+An absent identity header contributes an empty value after the equals sign.
+A request without a body uses the SHA-256 hash of the empty byte string.
+Coder sets `X-Coder-Signature` to `v1=` followed by the lowercase hexadecimal HMAC-SHA256 of the canonical string, keyed with the server's signing secret.
+The `v1=` prefix identifies the signing algorithm version.
+
+If an auth header for the configured `auth_type` collides with an identity header, the auth header wins.
+Coder signs the effective header value that the request sends.
+
+### Verify signatures
+
+The receiver must hash the raw request body before JSON parsing or other transformations.
+Use the raw request target, including its leading slash and query string, in the canonical string.
+Receivers MUST use constant-time comparison for the signature.
+Receivers MUST treat the identity headers as trustworthy only after signature verification succeeds.
+Reject requests when the timestamp differs from the receiver's current time by more than 300 seconds.
+This timestamp window is the `v1` replay bound because `v1` has no nonce or replay cache.
+
+Because the identity headers disclose chat identity, **Forward Coder identity headers** is off by default.
+Enable it only for first-party or trusted internal MCP servers.
 
 ## Permissions
 

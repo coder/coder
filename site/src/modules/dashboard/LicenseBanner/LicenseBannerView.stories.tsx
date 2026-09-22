@@ -18,7 +18,6 @@ import {
 	LicenseAgentRuntimeHoursSoftLimitWarningText,
 	LicenseAgentRuntimeUsageUnavailableErrorText,
 	LicenseAIGovernance90PercentWarningText,
-	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
 	LicenseUsagePublishingFailingWarningText,
 } from "#/api/typesGenerated";
@@ -32,7 +31,6 @@ import {
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { withAuthProvider } from "#/testHelpers/storybook";
-import { docs } from "#/utils/docs";
 import {
 	DashboardContext,
 	DashboardProvider,
@@ -177,38 +175,6 @@ export const TelemetryRequiredError: Story = {
 				name: /Contact sales@coder\.com if you need an exception\./i,
 			}),
 		).toHaveAttribute("href", "mailto:sales@coder.com");
-	},
-};
-
-export const ManagedAgentLimitExceeded: Story = {
-	args: {
-		messages: [
-			{
-				message: LicenseManagedAgentLimitExceededWarningText,
-				variant: "warningProminent",
-				link: {
-					href: docs("/ai-coder/ai-governance"),
-					label: "View AI Governance",
-					showExternalIcon: true,
-					target: "_blank",
-				},
-			},
-		],
-	},
-};
-
-export const ManagedAgentLimitExceededWithOtherWarnings: Story = {
-	args: {
-		messages: [
-			{
-				message: LicenseManagedAgentLimitExceededWarningText,
-				variant: "warningProminent",
-			},
-			{
-				message: "You have exceeded the number of seats in your license.",
-				variant: "warningProminent",
-			},
-		],
 	},
 };
 

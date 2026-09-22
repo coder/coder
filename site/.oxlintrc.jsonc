@@ -1,11 +1,8 @@
 {
-	// oxlint config for the Coder frontend. Biome (see biome.jsonc) remains the
-	// authoritative JS/TS linter; oxlint runs alongside it and enforces only the
-	// rules that already match Biome's behavior. See the migration backlog below.
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "vitest"],
 	// Turn every default-on category off so nothing runs unless explicitly
-	// enabled below. This keeps oxlint to "nothing more" than Biome.
+	// enabled below.
 	"categories": { "correctness": "off" },
 	"rules": {
 		// --- a11y (jsx-a11y) ---
@@ -20,8 +17,12 @@
 		"tabindex-no-positive": "error",
 		"img-redundant-alt": "error",
 		"no-redundant-roles": "error",
+		"role-has-required-aria-props": "error",
+		"role-supports-aria-props": "error",
 		"alt-text": "error",
 		"anchor-has-content": "error",
+		"anchor-ambiguous-text": "error",
+		"heading-has-content": "error",
 		"aria-activedescendant-has-tabindex": "error",
 		"mouse-events-have-key-events": "error",
 		"anchor-is-valid": "error",
@@ -31,6 +32,7 @@
 		"autocomplete-valid": "error",
 		"html-has-lang": "error",
 		"lang": "error",
+		"media-has-caption": "error",
 
 		// --- complexity ---
 		"no-regex-spaces": "error",
@@ -58,6 +60,7 @@
 		"prefer-numeric-literals": "error",
 		"prefer-optional-chain": "error",
 		"prefer-regex-literals": "error",
+		"no-extraneous-class": "error",
 
 		// --- correctness ---
 		"no-children-prop": "error",
@@ -103,6 +106,7 @@
 		"valid-typeof": "error",
 		"require-yield": "error",
 		"rules-of-hooks": "error",
+		"refs": "error",
 
 		// --- security ---
 		"jsx-no-target-blank": "error",
@@ -115,10 +119,12 @@
 		// --- style (recommended) ---
 		"no-array-constructor": "error",
 		"prefer-exponentiation-operator": "error",
+		"consistent-type-imports": "error",
 		"consistent-type-exports": "error",
 		"prefer-literal-enum-member": "error",
 		"prefer-node-protocol": "error",
 		"prefer-const": ["error", { "destructuring": "all" }],
+		"consistent-type-definitions": ["error", "type"],
 
 		// --- style (coder-enabled as error) ---
 		"prefer-as-const": "error",
@@ -126,6 +132,8 @@
 		"one-var": ["error", "never"],
 		"prefer-number-properties": ["error", { "checkInfinity": true }],
 		"no-else-return": ["error", { "allowElseIf": false }],
+		"jsx-curly-brace-presence": "error",
+		"no-inferrable-types": "error",
 
 		// --- suspicious ---
 		"no-cond-assign": "error",
@@ -176,6 +184,8 @@
 		"no-export": "error",
 		"new-for-builtins": "error",
 		"no-explicit-any": "error",
+		"no-irregular-whitespace": "error",
+		"no-redeclare": "error",
 		"no-use-before-define": [
 			"error",
 			{ "functions": false, "classes": false, "variables": false }
@@ -196,23 +206,12 @@
 		// ==========================================================
 		"no-autofocus": "off", // a11y/noAutofocus (large)
 		"no-invalid-void-type": "off", // suspicious/noConfusingVoidType (large)
-		"no-redeclare": "off", // suspicious/noRedeclare (medium: TS declaration merging)
-		"role-has-required-aria-props": "off", // a11y/useAriaPropsForRole (medium)
-		"no-irregular-whitespace": "off", // suspicious/noIrregularWhitespace (medium)
-		"no-inferrable-types": "off", // style/noInferrableTypes (medium, coder error rule)
-		"consistent-type-imports": "off", // style/useImportType (medium)
-		"jsx-curly-brace-presence": "off", // style/useConsistentCurlyBraces (medium, coder error rule)
-		"heading-has-content": "off", // a11y/useHeadingContent (medium)
-		"anchor-ambiguous-text": "off", // a11y/noAmbiguousAnchorText (medium)
 		"no-fallthrough": "off", // suspicious/noFallthroughSwitchClause (medium)
-		"role-supports-aria-props": "off", // a11y/useAriaPropsSupportedByRole (small)
 		"click-events-have-key-events": "off", // a11y/useKeyWithClickEvents (small)
 		"prefer-function-type": "off", // style/useShorthandFunctionType (small)
-		"no-extraneous-class": "off", // complexity/noStaticOnlyClass (small)
 		"no-empty-interface": "off", // suspicious/noEmptyInterface (small)
 		"no-danger": "off", // security/noDangerouslySetInnerHtml (small: Biome suppression to migrate)
 		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
-		"media-has-caption": "off", // a11y/useMediaCaption (small)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
 		"iframe-has-title": "off", // a11y/useIframeTitle (small)
 		"prefer-template": "off", // style/useTemplate (small)
@@ -235,14 +234,44 @@
 					}
 				]
 			}
+		],
+
+		"no-restricted-types": [
+			"error",
+			{
+				"types": {
+					"ComponentPropsWithRef": {
+						"message": "Use ComponentProps instead. Under React 19 it already includes ref."
+					},
+					"React.ComponentPropsWithRef": {
+						"message": "Use React.ComponentProps instead. Under React 19 it already includes ref."
+					},
+					"ComponentPropsWithoutRef": {
+						"message": "Use ComponentProps instead. Under React 19 it already includes ref."
+					},
+					"React.ComponentPropsWithoutRef": {
+						"message": "Use React.ComponentProps instead. Under React 19 it already includes ref."
+					},
+					"HTMLAttributes": {
+						"message": "Use ComponentProps<\"tag\"> instead, naming the tag the component renders."
+					},
+					"React.HTMLAttributes": {
+						"message": "Use React.ComponentProps<\"tag\"> instead, naming the tag the component renders."
+					}
+				}
+			}
 		]
 	},
 	// typesGenerated.ts is generated, so ignore it entirely rather than
-	// tracking per-rule exceptions for it.
+	// tracking per-rule exceptions for it. src/vendor/ is third-party source
+	// vendored verbatim (minus marked local changes) and must not drift from
+	// upstream to satisfy in-repo lint rules; Biome excludes it for the same
+	// reason (see biome.jsonc).
 	"ignorePatterns": [
 		"e2e/**/*Generated.ts",
 		"scripts/*.mjs",
-		"**/typesGenerated.ts"
+		"**/typesGenerated.ts",
+		"src/vendor/**"
 	],
 	"overrides": [
 		{
@@ -251,6 +280,12 @@
 				"**/DiffViewer/parseDiff.test.ts"
 			],
 			"rules": { "no-restricted-imports": "off" }
+		},
+		{
+			// Ambient declarations (global and module augmentation) must stay
+			// interfaces; type aliases cannot merge with the upstream declaration.
+			"files": ["src/@types/*.d.ts"],
+			"rules": { "consistent-type-definitions": "off" }
 		},
 		{
 			"files": ["src/components/**/*.ts", "src/components/**/*.tsx"],

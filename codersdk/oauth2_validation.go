@@ -10,6 +10,32 @@ import (
 
 // RFC 7591 validation functions for Dynamic Client Registration
 
+const (
+	// OAuth2ScopeListMaxBytes bounds the length of an app's stored scope list.
+	// The full public catalog fits in well under this.
+	OAuth2ScopeListMaxBytes = 4096
+	// OAuth2ScopeListMaxNames bounds how many space-separated names an app's
+	// scope list may hold. The public catalog is about half this size.
+	OAuth2ScopeListMaxNames = 100
+)
+
+// ValidateOAuth2ScopeList bounds the size of a scope list before it is stored
+// as an app's allowlist. Names are not checked against the catalog: an
+// unknown name is rejected at authorization, where the client learns which
+// name to drop. Dynamic client registration is unauthenticated, so without a
+// cap the stored list is bounded only by the request body limit and is read on
+// every app response. The length check runs first so an oversized list is
+// never split.
+func ValidateOAuth2ScopeList(raw string) error {
+	if len(raw) > OAuth2ScopeListMaxBytes {
+		return xerrors.Errorf("must be at most %d bytes", OAuth2ScopeListMaxBytes)
+	}
+	if names := len(strings.Fields(raw)); names > OAuth2ScopeListMaxNames {
+		return xerrors.Errorf("must list at most %d names", OAuth2ScopeListMaxNames)
+	}
+	return nil
+}
+
 func (req *OAuth2ClientRegistrationRequest) Validate() error {
 	// Validate redirect URIs - required for authorization code flow
 	if len(req.RedirectURIs) == 0 {
@@ -18,7 +44,7 @@ func (req *OAuth2ClientRegistrationRequest) Validate() error {
 
 	// The client type is derived once, by DetermineClientType, so which RFC 8252
 	// rules apply here cannot drift from what gets stored in client_type.
-	if err := validateRedirectURIs(req.RedirectURIs, req.DetermineClientType()); err != nil {
+	if err := ValidateRedirectURIs(req.RedirectURIs, req.DetermineClientType()); err != nil {
 		return xerrors.Errorf("invalid redirect_uris: %w", err)
 	}
 
@@ -95,6 +121,26 @@ func ValidateRedirectURIScheme(u *url.URL) error {
 	return validateScheme(u)
 }
 
+// RedirectURIMatches reports whether a redirect_uri a client presented may be
+// used in place of one the app registered. The rule is exact string equality
+// (OAuth 2.1 §2.3.1). The one exception is a registered http URI to a loopback
+// host, where the port is ignored (RFC 8252 §7.3). The exception depends on the
+// registered URI alone, not on the client type.
+func RedirectURIMatches(presented, registered *url.URL) bool {
+	if presented.String() == registered.String() {
+		return true
+	}
+	if registered.Scheme != "http" || !isLoopbackAddress(registered.Hostname()) {
+		return false
+	}
+	// Drop the port from both sides. Every other component must still match.
+	// Hostname() also strips IPv6 brackets, so both strings are built the same
+	// way and stay comparable.
+	p, r := *presented, *registered
+	p.Host, r.Host = p.Hostname(), r.Hostname()
+	return p.String() == r.String()
+}
+
 func validateScheme(u *url.URL) error {
 	if u.Scheme == "" {
 		return xerrors.New("redirect URI must have a scheme")
@@ -120,11 +166,11 @@ func validateScheme(u *url.URL) error {
 	return nil
 }
 
-// validateRedirectURIs validates redirect URIs according to RFC 7591, 8252.
+// ValidateRedirectURIs validates redirect URIs according to RFC 7591, 8252.
 // clientType selects which rules apply and is derived by DetermineClientType,
 // the single owner of that mapping, so this cannot disagree with the type the
 // app is stored as.
-func validateRedirectURIs(uris []string, clientType OAuth2ClientType) error {
+func ValidateRedirectURIs(uris []string, clientType OAuth2ClientType) error {
 	if len(uris) == 0 {
 		return xerrors.New("at least one redirect URI is required")
 	}
@@ -307,7 +353,8 @@ func isLocalhost(hostname string) bool {
 		strings.HasSuffix(hostname, ".localhost")
 }
 
-// isLoopbackAddress checks if hostname is a strict loopback address (RFC 8252)
+// isLoopbackAddress reports whether hostname is a loopback host. RFC 8252 §7.3
+// names 127.0.0.1 and ::1. Coder also accepts localhost as its own policy.
 func isLoopbackAddress(hostname string) bool {
 	return hostname == "localhost" ||
 		hostname == "127.0.0.1" ||

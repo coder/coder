@@ -8,7 +8,7 @@ air-gapped with Kubernetes or Docker.
 
 |                       | Public deployments                                                                                                                                                                                                                                                 | Air-gapped deployments                                                                                                                                                                                                                                                                               |
 |-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Terraform binary      | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](../../provisioner/terraform/install.go#L23-L24)                                                                                                                                                      |
+| Terraform binary      | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](../../provisioner/terraform/install.go#L27-L28)                                                                                                                                                      |
 | Terraform registry    | Coder templates will attempt to download providers from [registry.terraform.io](https://registry.terraform.io) or [custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) specified in each template | [Custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) can be specified in each Coder template, or a custom registry/mirror can be used. More details below                                                                           |
 | STUN                  | By default, Coder uses Google's public STUN server for direct workspace connections                                                                                                                                                                                | STUN can be safely [disabled](../reference/cli/server.md#--derp-server-stun-addresses) users can still connect via [relayed connections](../admin/networking/index.md#-geo-distribution). Alternatively, you can set a [custom DERP server](../reference/cli/server.md#--derp-server-stun-addresses) |
 | DERP                  | By default, Coder's built-in DERP relay can be used, or [Tailscale's public relays](../admin/networking/index.md#relayed-connections).                                                                                                                             | By default, Coder's built-in DERP relay can be used, or [custom relays](../admin/networking/index.md#custom-relays).                                                                                                                                                                                 |
@@ -16,7 +16,7 @@ air-gapped with Kubernetes or Docker.
 | Telemetry             | Telemetry is on by default, and [can be disabled](../reference/cli/server.md#--telemetry)                                                                                                                                                                          | Telemetry [can be disabled](../reference/cli/server.md#--telemetry)                                                                                                                                                                                                                                  |
 | Update check          | By default, Coder checks for updates from [GitHub releases](https://github.com/coder/coder/releases)                                                                                                                                                               | Update checks [can be disabled](../reference/cli/server.md#--update-check)                                                                                                                                                                                                                           |
 | License validation    | License keys are validated locally using cryptographic signatures. No outbound connection to Coder is required                                                                                                                                                     | No changes needed. See [offline license validation](../admin/licensing/index.md#offline-license-validation)                                                                                                                                                                                          |
-| Usage data publishing | Some licenses enable publishing usage data to Coder's servers. See [usage data publishing](../admin/licensing/index.md#usage-data-publishing).                                                                                                                     | [Contact us](https://coder.com/contact) to request a license with usage publishing disabled. Disabled publishing reports null status timestamps and does not show the sustained failure warning.                                                                                                     |
+| Usage data publishing | Some licenses, including [AI Governance](../ai-coder/ai-governance.md), enable publishing usage data to Coder's servers. Refer to [usage data publishing](../admin/licensing/index.md#usage-data-publishing).                                                      | [Contact us](https://coder.com/contact) to request a license with usage publishing turned off. When publishing is off, status timestamps are null and Coder doesn't show the sustained failure warning.                                                                                              |
 
 ## Air-gapped container images
 
@@ -35,7 +35,7 @@ following:
 
 > [!NOTE]
 > Coder includes the latest
-> [supported version](../../provisioner/terraform/install.go#L23-L24)
+> [supported version](../../provisioner/terraform/install.go#L27-L28)
 > of Terraform in the official Docker images. If you need to bundle a different
 > version of terraform, you can do so by customizing the image.
 
@@ -52,12 +52,12 @@ RUN apk add curl unzip
 RUN mkdir -p /opt/terraform
 
 # Terraform is already included in the official Coder image.
-# See ../../scripts/Dockerfile.base#L15
+# See ../../scripts/Dockerfile.base#L30
 # If you need to install a different version of Terraform, you can do so here.
 # The below step is optional if you wish to keep the existing version.
-# See ../../provisioner/terraform/install.go#L23-L24
+# See ../../provisioner/terraform/install.go#L27-L28
 # for supported Terraform versions.
-ARG TERRAFORM_VERSION=1.11.0
+ARG TERRAFORM_VERSION=1.16.2
 RUN apk update && \
     curl -LOs https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
     && unzip -o terraform_${TERRAFORM_VERSION}_linux_amd64.zip \

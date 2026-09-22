@@ -8,7 +8,7 @@ import type {
 import * as Yup from "yup";
 import { isApiValidationError, mapApiErrorToFieldErrors } from "#/api/errors";
 
-interface GetFormHelperOptions {
+type GetFormHelperOptions = {
 	helperText?: ReactNode;
 	/**
 	 * backendFieldName remaps the name in the form, for when it doesn't match the
@@ -21,9 +21,9 @@ interface GetFormHelperOptions {
 	 * over the limit. Zero and negative values will be ignored.
 	 */
 	maxLength?: number;
-}
+};
 
-export interface FormHelpers {
+export type FormHelpers = {
 	name: string;
 	onBlur: FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
 	onChange: ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement>;
@@ -31,7 +31,7 @@ export interface FormHelpers {
 	value?: string | number;
 	error: boolean;
 	helperText?: ReactNode;
-}
+};
 
 export const getFormHelpers =
 	<TFormValues>(form: FormikContextType<TFormValues>, error?: unknown) =>
@@ -120,3 +120,11 @@ export const displayNameValidator = (displayName: string): Yup.StringSchema =>
 		.optional();
 
 export const iconValidator = Yup.string().label("Icon").max(256);
+
+export const passwordManagerIgnoreProps = {
+	autoComplete: "off",
+	"data-1p-ignore": true,
+	"data-lpignore": "true",
+	"data-form-type": "other",
+	"data-bwignore": true,
+} as const;

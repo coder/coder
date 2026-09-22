@@ -10,13 +10,17 @@ import {
 } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
+import {
+	getDefaultMCPSelection,
+	getSavedMCPSelection,
+	saveMCPSelection,
+} from "../utils/mcpSelection";
 import {
 	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
@@ -38,12 +42,7 @@ import {
 	isChatHookDispatchFailedResponse,
 } from "./ChatConversation/chatError";
 import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
-import { CompactOrgSelector } from "./ChatElements";
-import {
-	getDefaultMCPSelection,
-	getSavedMCPSelection,
-	saveMCPSelection,
-} from "./MCPServerPicker";
+import { CompactOrgSelector } from "./ChatElements/CompactOrgSelector";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
 /** @internal Exported for testing. */
@@ -130,9 +129,8 @@ export function useEmptyStateDraft() {
 	};
 }
 
-interface AgentCreateFormProps {
+type AgentCreateFormProps = {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
-	sendShortcut: AgentChatSendShortcut;
 	isCreating: boolean;
 	createError: unknown;
 	canCreateChat: boolean;
@@ -142,11 +140,10 @@ interface AgentCreateFormProps {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
-}
+};
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
-	sendShortcut,
 	isCreating,
 	createError,
 	canCreateChat,
@@ -636,7 +633,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						)}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
-						sendShortcut={sendShortcut}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
 						isDisabled={
 							isCreating ||
@@ -650,6 +646,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)
 						}
+						isReadOnly={isForbidden}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
 						initialEditorState={initialEditorState}

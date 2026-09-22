@@ -23,9 +23,9 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { getLatencyColor } from "#/utils/latency";
 import { sortProxiesByLatency } from "./proxyUtils";
 
-interface ProxyMenuProps {
+type ProxyMenuProps = {
 	proxyContextValue: ProxyContextValue;
-}
+};
 
 export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 	const [open, setOpen] = useState(false);

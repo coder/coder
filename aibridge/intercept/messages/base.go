@@ -27,7 +27,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
-	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
+	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -74,6 +74,40 @@ type BedrockRuntime struct {
 	Creds aws.CredentialsProvider
 }
 
+// NewBedrockRuntime bundles the Bedrock config and credentials.
+func NewBedrockRuntime(cfg aibconfig.AWSBedrock, creds aws.CredentialsProvider) *BedrockRuntime {
+	return &BedrockRuntime{
+		Cfg:   cfg,
+		Creds: creds,
+	}
+}
+
+// ConfiguredModel returns the identifier the operator configured, which may be
+// an application inference profile ARN. Requests carry it as the model because
+// AWS attributes spend to a profile only when the profile itself is invoked.
+func (b *BedrockRuntime) ConfiguredModel() string {
+	return b.Cfg.Model
+}
+
+// ConfiguredSmallFastModel is [BedrockRuntime.ConfiguredModel] for the
+// small/fast model.
+func (b *BedrockRuntime) ConfiguredSmallFastModel() string {
+	return b.Cfg.SmallFastModel
+}
+
+// ResolvedModel returns the Bedrock model ID behind the configured identifier.
+// Model capabilities, usage records, pricing, and metrics all key off this
+// rather than the configured identifier.
+func (b *BedrockRuntime) ResolvedModel() string {
+	return b.Cfg.ResolvedModelWithFallback()
+}
+
+// ResolvedSmallFastModel is [BedrockRuntime.ResolvedModel] for the small/fast
+// model.
+func (b *BedrockRuntime) ResolvedSmallFastModel() string {
+	return b.Cfg.ResolvedSmallFastModelWithFallback()
+}
+
 type interceptionBase struct {
 	id         uuid.UUID
 	reqPayload RequestPayload
@@ -85,6 +119,14 @@ type interceptionBase struct {
 
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
+
+	// isSmallFastModel reports whether the client requested a small/fast model
+	// (Haiku 3.5), which is optimized for tasks like code autocomplete and other
+	// small, quick operations. It is captured at construction because the Bedrock
+	// InvokeModel remap overwrites the model in the request payload.
+	// See `ANTHROPIC_SMALL_FAST_MODEL`: https://docs.anthropic.com/en/docs/claude-code/settings#environment-variables
+	// https://docs.claude.com/en/docs/claude-code/costs#background-token-usage
+	isSmallFastModel bool
 
 	logger slog.Logger
 	tracer trace.Tracer
@@ -169,14 +211,24 @@ func (i *interceptionBase) Model() string {
 	// passthrough, non-Bedrock providers) returns the model the client sent in
 	// the body.
 	if i.isBedrockInvokeModel() {
-		model := i.bedrock.Cfg.Model
-		if i.isSmallFastModel() {
-			model = i.bedrock.Cfg.SmallFastModel
+		model := i.bedrock.ResolvedModel()
+		if i.isSmallFastModel {
+			model = i.bedrock.ResolvedSmallFastModel()
 		}
 		return model
 	}
 
 	return i.reqPayload.model()
+}
+
+// upstreamModel returns the identifier sent to Bedrock as the invocation
+// target, which may be an application inference profile ARN.
+func (i *interceptionBase) upstreamModel() string {
+	model := i.bedrock.ConfiguredModel()
+	if i.isSmallFastModel {
+		model = i.bedrock.ConfiguredSmallFastModel()
+	}
+	return model
 }
 
 func (i *interceptionBase) baseTraceAttributes(r *http.Request, streaming bool) []attribute.KeyValue {
@@ -261,12 +313,9 @@ func (*interceptionBase) extractModelThoughts(msg *anthropic.Message) []*recorde
 	return thoughtRecords
 }
 
-// IsSmallFastModel checks if the model is a small/fast model (Haiku 3.5).
-// These models are optimized for tasks like code autocomplete and other small, quick operations.
-// See `ANTHROPIC_SMALL_FAST_MODEL`: https://docs.anthropic.com/en/docs/claude-code/settings#environment-variables
-// https://docs.claude.com/en/docs/claude-code/costs#background-token-usage
-func (i *interceptionBase) isSmallFastModel() bool {
-	return strings.Contains(i.reqPayload.model(), "haiku")
+// isSmallFastModel reports whether the client requested a small/fast model.
+func isSmallFastModel(model string) bool {
+	return strings.Contains(model, "haiku")
 }
 
 // newMessagesService builds the SDK service used for upstream calls.
@@ -367,7 +416,7 @@ func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([
 
 	var out []option.RequestOption
 	out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-		bedrocksig.AppendPRMUserAgent(req)
+		awssig.AppendPRMUserAgent(req)
 		return next(req)
 	}))
 	out = append(out, bedrock.WithConfig(awsCfg))
@@ -380,11 +429,48 @@ func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([
 	return out, nil
 }
 
+// withAWSSignedMessagesOptions returns request options for an AWS-signed
+// endpoint that speaks the native Messages wire format: the upstream base URL,
+// any endpoint-specific headers, and SigV4 signing for the named service.
+//
+// Credentials come from creds, a shared credentials cache, so the per-request
+// Retrieve is served from that cache and does not re-resolve or re-assume on
+// every request. It is called once here to fail fast before signing.
+//
+// Callers own any service-specific attribution such as the Bedrock PRM
+// user-agent; this helper only routes and signs.
+func withAWSSignedMessagesOptions(ctx context.Context, creds aws.CredentialsProvider, baseURL, region, service string, headers map[string]string) ([]option.RequestOption, error) {
+	// Fail fast: ensure credentials can be resolved before signing. Served from
+	// the shared cache on most requests (no network); on the cold or refresh
+	// path this performs the actual STS/IMDS call.
+	if _, err := creds.Retrieve(ctx); err != nil {
+		return nil, xerrors.Errorf("resolve AWS credentials: %w", err)
+	}
+
+	var out []option.RequestOption
+	out = append(out, option.WithBaseURL(baseURL))
+	if len(headers) > 0 {
+		// Set after the client-header rebuild and before signing, so the values
+		// are ours rather than the client's and are covered by the signature.
+		out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+			for name, value := range headers {
+				req.Header.Set(name, value)
+			}
+			return next(req)
+		}))
+	}
+	// Appended last so it runs innermost (right before the HTTP send) and signs
+	// the request after all other headers are set.
+	//nolint:bodyclose // awssig.SignMiddleware reads and closes the request body in order to sign it.
+	out = append(out, option.WithMiddleware(awssig.SignMiddleware(creds, region, service)))
+
+	return out, nil
+}
+
 // withBedrockMantleOptions returns request options for the AWS Bedrock mantle
 // endpoint (bedrock-mantle.{region}.api.aws/anthropic/v1/messages). It speaks
-// the native Messages wire format, so this middleware only SigV4-signs the
-// request (service "bedrock-mantle") and forwards it; the response is plain
-// SSE.
+// the native Messages wire format, so this only SigV4-signs the request
+// (service "bedrock-mantle") and forwards it; the response is plain SSE.
 func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]option.RequestOption, error) {
 	if i.bedrock == nil {
 		return nil, xerrors.New("nil bedrock runtime")
@@ -394,34 +480,38 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 		return nil, xerrors.Errorf("bedrock mantle config: %w", err)
 	}
 
-	// Fail fast: ensure credentials can be resolved before signing. Served from
-	// the shared cache on most requests (no network); on the cold or refresh
-	// path this performs the actual STS/IMDS call.
-	if _, err := i.bedrock.Creds.Retrieve(ctx); err != nil {
-		return nil, xerrors.Errorf("resolve AWS credentials: %w", err)
+	// Bedrock traffic carries Coder's PRM attribution marker. Appended before
+	// the signing options so it runs outside them and sets the header before
+	// the request is signed and sent.
+	out := []option.RequestOption{
+		option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+			awssig.AppendPRMUserAgent(req)
+			return next(req)
+		}),
 	}
 
-	var out []option.RequestOption
-	out = append(out, option.WithBaseURL(cfg.BaseURL))
-	// Appended last so it runs innermost (right before the HTTP send) and signs
-	// the request after all other headers are set.
-	//nolint:bodyclose // bedrocksig.SignMiddleware reads and closes the request body in order to sign it.
-	out = append(out, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrock.Creds, cfg.Region)))
+	signed, err := withAWSSignedMessagesOptions(ctx, i.bedrock.Creds, cfg.BaseURL, cfg.Region, awssig.ServiceBedrockMantle, nil)
+	if err != nil {
+		return nil, err
+	}
 
-	return out, nil
+	return append(out, signed...), nil
 }
 
 // augmentRequestForBedrockInvokeModel changes the model used for the request since AWS Bedrock doesn't support
 // Anthropics' model names. It also converts adaptive thinking to enabled with a budget for models that
 // don't support adaptive thinking natively, or enabled thinking to adaptive for models that only support
 // adaptive.
+//
+// The request carries the configured identifier, which may be an application
+// inference profile ARN, while capability decisions use the model ID behind it.
 func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 	if i.bedrock == nil {
 		return
 	}
 
 	model := i.Model()
-	updated, err := i.reqPayload.withModel(model)
+	updated, err := i.reqPayload.withModel(i.upstreamModel())
 	if err != nil {
 		i.logger.Warn(context.Background(), "failed to set model in request payload for Bedrock", slog.Error(err))
 		return

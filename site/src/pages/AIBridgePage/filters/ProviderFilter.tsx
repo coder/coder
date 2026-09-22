@@ -1,6 +1,7 @@
 import type { FC } from "react";
 import { API } from "#/api/api";
-import type { AIProvider } from "#/api/typesGenerated";
+import type { AIBridgeProvider } from "#/api/typesGenerated";
+import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
@@ -9,14 +10,12 @@ import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "#/components/Filter/SelectFilter";
-import { AIBridgeProviderIcon } from "../icons/AIBridgeProviderIcon";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 
-const toFilterOption = (provider: AIProvider): SelectFilterOption => ({
+const toFilterOption = (provider: AIBridgeProvider): SelectFilterOption => ({
 	value: provider.name,
 	label: provider.display_name || provider.name,
-	startIcon: (
-		<AIBridgeProviderIcon provider={provider.type} className="size-icon-sm" />
-	),
+	startIcon: <ProviderIcon provider={provider.type} icon={provider.icon} />,
 });
 
 export const useProviderFilterMenu = ({
@@ -30,12 +29,14 @@ export const useProviderFilterMenu = ({
 			if (!value) {
 				return null;
 			}
-			const providers = await API.experimental.listAIProviders();
+			const providers = await API.getAIBridgeProviders();
 			const match = providers.find((p) => p.name === value);
 			return match ? toFilterOption(match) : null;
 		},
+		// The provider list is small and useFilterMenu filters options
+		// client-side by label and value, so the query is not sent upstream.
 		getOptions: async () => {
-			const providers = await API.experimental.listAIProviders();
+			const providers = await API.getAIBridgeProviders();
 			return providers.map(toFilterOption);
 		},
 		value,
@@ -46,10 +47,10 @@ export const useProviderFilterMenu = ({
 
 export type ProviderFilterMenu = ReturnType<typeof useProviderFilterMenu>;
 
-interface ProviderFilterProps {
+type ProviderFilterProps = {
 	menu: ProviderFilterMenu;
 	width?: number;
-}
+};
 
 export const ProviderFilter: FC<ProviderFilterProps> = ({ menu, width }) => {
 	return (
@@ -61,6 +62,13 @@ export const ProviderFilter: FC<ProviderFilterProps> = ({ menu, width }) => {
 			onSelect={(option) => menu.selectOption(option)}
 			selectedOption={menu.selectedOption ?? undefined}
 			width={width}
+			selectFilterSearch={
+				<ComboboxInput
+					placeholder="Search provider..."
+					value={menu.query}
+					onValueChange={menu.setQuery}
+				/>
+			}
 		/>
 	);
 };

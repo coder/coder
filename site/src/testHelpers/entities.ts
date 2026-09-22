@@ -248,6 +248,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	deployment_id: "510d407f-e521-4180-b559-eab4a6d802b8",
 	webpush_public_key: "fake-public-key",
 	telemetry: true,
+	oauth2_provider: true,
 };
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [
@@ -505,6 +506,18 @@ export const MockSiteRoles = [
 	MockWorkspaceCreationBanRole,
 ];
 
+export const MockUserPreferenceSettings: TypesGen.UserPreferenceSettings = {
+	thinking_display_mode: "auto",
+	shell_tool_display_mode: "auto",
+	code_diff_display_mode: "auto",
+	agent_chat_send_shortcut: "enter",
+};
+
+export const MockUserChatCompactionThresholds: TypesGen.UserChatCompactionThresholds =
+	{
+		thresholds: [],
+	};
+
 export const MockUserOwner: TypesGen.User = {
 	id: "test-user",
 	username: "TestUser",
@@ -617,6 +630,18 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
+// Legacy file-only secret: not enableable while a deployment blocks file paths.
+export const MockDisabledFileOnlyUserSecret: TypesGen.UserSecret = {
+	id: "secret-file-only-disabled",
+	name: "legacy-kubeconfig",
+	description: "Written to a workspace file before file paths were disabled.",
+	env_name: "",
+	file_path: "~/.kube/config",
+	enabled: false,
+	created_at: "2026-04-27T16:30:00Z",
+	updated_at: "2026-05-03T20:30:00Z",
+};
+
 export const MockImportedUserSecret: TypesGen.UserSecret = {
 	id: "imported-database-url",
 	name: "DATABASE_URL",
@@ -638,7 +663,7 @@ export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
-export const MockAIGatewayEnabled: boolean = true;
+export const MockAIGatewayEnabled = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
@@ -952,6 +977,7 @@ export const MockTemplate: TypesGen.Template = {
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
 	disable_module_cache: false,
+	module_cache_disabled_by_deployment: false,
 	allow_workspace_renames: false,
 };
 
@@ -1404,10 +1430,11 @@ export const MockWorkspaceResourceMultipleAgents: TypesGen.WorkspaceResource = {
 	],
 };
 
-const _MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
+export const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
 	...MockWorkspaceResource,
 	id: "test-workspace-resource-hidden",
 	name: "workspace-resource-hidden",
+	agents: [],
 	hide: true,
 };
 
@@ -2717,10 +2744,6 @@ export const MockEntitlements: TypesGen.Entitlements = {
 	has_license: false,
 	features: withDefaultFeatures({
 		workspace_batch_actions: {
-			enabled: true,
-			entitlement: "entitled",
-		},
-		task_batch_actions: {
 			enabled: true,
 			entitlement: "entitled",
 		},
@@ -4965,6 +4988,8 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 		name: "foo",
 		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
+		scope: "",
+		client_type: "confidential",
 		endpoints: {
 			authorization: "http://127.0.0.1:3001/oauth2/authorize",
 			token: "http://127.0.0.1:3001/oauth2/token",
@@ -4974,8 +4999,37 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	},
 ];
 
+export const MockOAuth2ProviderAppPublic: TypesGen.OAuth2ProviderApp = {
+	id: "2",
+	name: "bar (public)",
+	callback_url: "http://127.0.0.1:3002",
+	icon: "/icon/github.svg",
+	scope: "",
+	client_type: "public",
+	endpoints: {
+		authorization: "http://127.0.0.1:3002/oauth2/authorize",
+		token: "http://127.0.0.1:3002/oauth2/token",
+		device_authorization: "",
+		token_revoke: "http://127.0.0.1:3002/oauth2/revoke",
+	},
+};
+
 export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
 	dynamic_client_registration_enabled: false,
+};
+
+// Sorted, matching the endpoint's order.
+export const MockExternalAPIKeyScopes: TypesGen.ExternalAPIKeyScopes = {
+	external: [
+		"api_key:read",
+		"coder:all",
+		"coder:application_connect",
+		"coder:workspaces.access",
+		"coder:workspaces.create",
+		"template:read",
+		"workspace:read",
+		"workspace:ssh",
+	],
 };
 
 export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
@@ -5379,6 +5433,57 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	},
 	last_prompt: "But *can* I really fix it?",
 	last_active_at: "2026-03-09T10:28:15.03152Z",
+};
+
+export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
+	id: "thread-1",
+	prompt: "Summarize the project structure",
+	model: "claude-opus-4-6",
+	provider: "anthropic",
+	credential_kind: "centralized",
+	credential_hint: "sk-a...efgh",
+	started_at: "2026-03-09T09:28:15.000Z",
+	ended_at: "2026-03-09T09:28:47.000Z",
+	token_usage: {
+		input_tokens: 1240,
+		output_tokens: 320,
+		cache_read_input_tokens: 900,
+		cache_write_input_tokens: 140,
+		metadata: {},
+	},
+	attribution: {
+		workspace_id: "workspace-1",
+	},
+	agentic_actions: [
+		{
+			interception_id: "interception-1",
+			model: "claude-opus-4-6",
+			attribution: {
+				workspace_id: "workspace-1",
+			},
+			token_usage: {
+				input_tokens: 620,
+				output_tokens: 160,
+				cache_read_input_tokens: 450,
+				cache_write_input_tokens: 70,
+				metadata: {},
+			},
+			thinking: [],
+			tool_calls: [
+				{
+					id: "tool-1",
+					interception_id: "interception-1",
+					provider_response_id: "resp-1",
+					server_url: "http://localhost:3000/mcp",
+					tool: "list_directory",
+					injected: false,
+					input: JSON.stringify({ path: "." }),
+					metadata: {},
+					created_at: "2026-03-09T09:28:20.000Z",
+				},
+			],
+		},
+	],
 };
 
 export const MockAIBridgeSessionNetworkCalls: readonly TypesGen.AgentFirewallLog[] =

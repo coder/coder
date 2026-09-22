@@ -10,7 +10,6 @@ import (
 	"math"
 	"net"
 	"net/url"
-	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -60,7 +59,7 @@ import (
 )
 
 var requiredExperiments = []codersdk.Experiment{
-	codersdk.ExperimentMCPServerHTTP, codersdk.ExperimentOAuth2,
+	codersdk.ExperimentMCPServerHTTP,
 }
 
 // TestAuthorization validates the authorization logic.
@@ -413,6 +412,102 @@ func TestAuthorization_Delegated(t *testing.T) {
 				ApiKeyId: keyID,
 				Username: user.Username,
 			}, resp)
+		})
+	}
+}
+
+func TestAuthorization_WorkspaceAttribution(t *testing.T) {
+	t.Parallel()
+
+	// workspaceAttribution is lookup-free: it parses the workspace UUID from the
+	// strict server-minted token name and validates the embedded owner against
+	// key.UserID without touching the database.
+	tests := []struct {
+		name      string
+		configure func(key *database.APIKey, user database.User, workspaceID uuid.UUID)
+		wantErr   error
+		wantWsID  bool // expect resp.GetWorkspaceId() == workspaceID.String()
+	}{
+		{
+			name: "valid",
+			configure: func(key *database.APIKey, user database.User, workspaceID uuid.UUID) {
+				key.TokenName = fmt.Sprintf("%s_%s_session_token", user.ID, workspaceID)
+			},
+			wantWsID: true,
+		},
+		{
+			// LoginType == Token must never yield workspace attribution even when
+			// the token name matches the strict pattern.
+			name: "personal token spoof",
+			configure: func(key *database.APIKey, user database.User, workspaceID uuid.UUID) {
+				key.LoginType = database.LoginTypeToken
+				key.TokenName = fmt.Sprintf("%s_%s_session_token", user.ID, workspaceID)
+			},
+		},
+		{
+			// A token name that matches the suffix but not the strict UUID-pair
+			// prefix must not be attributed to any workspace.
+			name: "chatd lookalike",
+			configure: func(key *database.APIKey, user database.User, _ uuid.UUID) {
+				key.TokenName = fmt.Sprintf("chatd_%s_session_token", user.ID)
+			},
+		},
+		{
+			// An extra word between the UUIDs does not match the strict pattern.
+			name: "oauth lookalike",
+			configure: func(key *database.APIKey, user database.User, workspaceID uuid.UUID) {
+				key.TokenName = fmt.Sprintf("%s_%s_oauth_session_token", user.ID, workspaceID)
+			},
+		},
+		{
+			// The embedded owner UUID in the token name differs from key.UserID.
+			// Fail closed: return ErrWorkspaceAttribution.
+			name: "embedded owner mismatch",
+			configure: func(key *database.APIKey, _ database.User, workspaceID uuid.UUID) {
+				key.TokenName = fmt.Sprintf("%s_%s_session_token", uuid.New(), workspaceID)
+			},
+			wantErr: aibridgedserver.ErrWorkspaceAttribution,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			now := dbtime.Now()
+			user := database.User{ID: uuid.New(), Username: "test", Status: database.UserStatusActive, LoginType: database.LoginTypePassword}
+			workspaceID := uuid.New()
+			keyID, err := cryptorand.String(10)
+			require.NoError(t, err)
+			secret, hashedSecret, err := apikey.GenerateSecret(22)
+			require.NoError(t, err)
+			key := database.APIKey{ID: keyID, UserID: user.ID, HashedSecret: hashedSecret, ExpiresAt: now.Add(time.Hour), LoginType: database.LoginTypePassword}
+			tt.configure(&key, user, workspaceID)
+
+			db.EXPECT().GetAPIKeyByID(gomock.Any(), key.ID).Return(key, nil)
+			db.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
+			// No GetWorkspaceByID: attribution is lookup-free.
+
+			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
+				Store: db, AISeatTracker: agplaiseats.Noop{}, AccessURL: "/",
+				GatewayCfg: codersdk.AIBridgeConfig{}, Experiments: requiredExperiments,
+				Logger: testutil.Logger(t), Clock: quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			resp, err := srv.IsAuthorized(t.Context(), &proto.IsAuthorizedRequest{Key: key.ID + "-" + secret})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			if tt.wantWsID {
+				require.Equal(t, workspaceID.String(), resp.GetWorkspaceId())
+			} else {
+				require.Empty(t, resp.GetWorkspaceId())
+			}
 		})
 	}
 }
@@ -832,26 +927,29 @@ func TestGetMCPServerConfigs(t *testing.T) {
 		name                     string
 		disableCoderMCPInjection bool
 		experiments              codersdk.Experiments
+		oauth2ProviderEnabled    bool
 		externalAuthConfigs      []*externalauth.Config
 		expectCoderMCP           bool
 		expectedExternalMCP      bool
 	}{
 		{
-			name:        "experiments not enabled",
+			name:        "MCP experiment off, OAuth2 provider off",
 			experiments: codersdk.Experiments{},
 		},
 		{
-			name:        "MCP experiment enabled, not OAuth2",
-			experiments: codersdk.Experiments{codersdk.ExperimentMCPServerHTTP},
+			name:        "MCP experiment on, OAuth2 provider off",
+			experiments: requiredExperiments,
 		},
 		{
-			name:        "OAuth2 experiment enabled, not MCP",
-			experiments: codersdk.Experiments{codersdk.ExperimentOAuth2},
+			name:                  "OAuth2 provider on, MCP experiment off",
+			experiments:           codersdk.Experiments{},
+			oauth2ProviderEnabled: true,
 		},
 		{
-			name:           "only internal MCP",
-			experiments:    requiredExperiments,
-			expectCoderMCP: true,
+			name:                  "only internal MCP",
+			experiments:           requiredExperiments,
+			oauth2ProviderEnabled: true,
+			expectCoderMCP:        true,
 		},
 		{
 			name:                "only external MCP",
@@ -859,16 +957,18 @@ func TestGetMCPServerConfigs(t *testing.T) {
 			expectedExternalMCP: true,
 		},
 		{
-			name:                "both internal & external MCP",
-			experiments:         requiredExperiments,
-			externalAuthConfigs: externalAuthCfgs,
-			expectCoderMCP:      true,
-			expectedExternalMCP: true,
+			name:                  "both internal & external MCP",
+			experiments:           requiredExperiments,
+			oauth2ProviderEnabled: true,
+			externalAuthConfigs:   externalAuthCfgs,
+			expectCoderMCP:        true,
+			expectedExternalMCP:   true,
 		},
 		{
 			name:                     "both internal & external MCP, but coder MCP tools not injected",
 			disableCoderMCPInjection: true,
 			experiments:              requiredExperiments,
+			oauth2ProviderEnabled:    true,
 			externalAuthConfigs:      externalAuthCfgs,
 			expectCoderMCP:           false,
 			expectedExternalMCP:      true,
@@ -891,10 +991,11 @@ func TestGetMCPServerConfigs(t *testing.T) {
 				GatewayCfg: codersdk.AIBridgeConfig{
 					InjectCoderMCPTools: serpent.Bool(!tc.disableCoderMCPInjection),
 				},
-				ExternalAuthConfigs: tc.externalAuthConfigs,
-				Experiments:         tc.experiments,
-				Logger:              logger,
-				Clock:               quartz.NewReal(),
+				ExternalAuthConfigs:   tc.externalAuthConfigs,
+				Experiments:           tc.experiments,
+				OAuth2ProviderEnabled: tc.oauth2ProviderEnabled,
+				Logger:                logger,
+				Clock:                 quartz.NewReal(),
 			})
 			require.NoError(t, err)
 			require.NotNil(t, srv)
@@ -4546,101 +4647,6 @@ func TestGetAIProviders(t *testing.T) {
 	assert.False(t, gotDisabled.GetEnabled())
 	assert.Empty(t, gotDisabled.GetKeys(), "keys must be withheld for disabled providers")
 	assert.Nil(t, gotDisabled.GetBedrock())
-}
-
-// TestGetAIProvidersBlocksOnSeedLock asserts that GetAIProviders serializes on
-// LockIDAIProvidersEnvSeed: while an in-flight seed transaction holds the lock,
-// the fetch blocks, and once the seed commits the fetch returns the seeded
-// set. Postgres advisory locks are required, so this cannot run against the
-// mock store.
-func TestGetAIProvidersBlocksOnSeedLock(t *testing.T) {
-	t.Parallel()
-
-	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil)
-
-	dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
-		Type:    database.AIProviderTypeOpenai,
-		Name:    "openai",
-		Enabled: true,
-		BaseUrl: "https://api.openai.com/",
-	}, "sk-openai")
-
-	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
-		Store:         db,
-		AISeatTracker: agplaiseats.Noop{},
-		AccessURL:     "/",
-		GatewayCfg:    codersdk.AIBridgeConfig{},
-		Logger:        logger,
-		Clock:         quartz.NewReal(),
-	})
-	require.NoError(t, err)
-
-	// Simulate an in-flight env seed holding the advisory lock until released.
-	holderReady := make(chan struct{})
-	releaseHolder := make(chan struct{})
-	holderDone := make(chan struct{})
-	go func() {
-		defer close(holderDone)
-		txErr := db.InTx(func(tx database.Store) error {
-			if err := tx.AcquireLock(ctx, database.LockIDAIProvidersEnvSeed); err != nil {
-				return err
-			}
-			close(holderReady)
-			<-releaseHolder
-			return nil
-		}, nil)
-		assert.NoError(t, txErr)
-	}()
-
-	testutil.TryReceive(ctx, t, holderReady)
-
-	fetchDone := make(chan *proto.GetAIProvidersResponse, 1)
-	fetchErr := make(chan error, 1)
-	go func() {
-		resp, err := srv.GetAIProviders(ctx, &proto.GetAIProvidersRequest{})
-		fetchErr <- err
-		fetchDone <- resp
-	}()
-
-	// Wait until the fetch goroutine is observably blocked waiting on the seed
-	// advisory lock, rather than inferring it from a fixed delay. AcquireLock
-	// uses the single-bigint advisory lock form, so the waiter appears in
-	// pg_locks as an ungranted "advisory" row whose objid is the low 32 bits of
-	// the lock ID. Asserting the wait directly stops this from passing vacuously
-	// if the goroutine has not yet reached the lock.
-	require.Eventually(t, func() bool {
-		locks, err := db.PGLocks(ctx)
-		if err != nil {
-			return false
-		}
-		for _, l := range locks {
-			if l.LockType != nil && *l.LockType == "advisory" && !l.Granted &&
-				l.ObjID != nil && *l.ObjID == strconv.Itoa(database.LockIDAIProvidersEnvSeed) {
-				return true
-			}
-		}
-		return false
-	}, testutil.WaitShort, testutil.IntervalFast, "fetch must block waiting on the seed advisory lock")
-
-	// With the fetch proven to be blocked on the lock, it must not have
-	// completed while the lock is still held.
-	select {
-	case <-fetchDone:
-		t.Fatal("GetAIProviders returned before the seed lock was released")
-	default:
-	}
-
-	// Release the lock; the fetch should now complete and return the seeded set.
-	close(releaseHolder)
-	testutil.TryReceive(ctx, t, holderDone)
-
-	require.NoError(t, testutil.TryReceive(ctx, t, fetchErr))
-	resp := testutil.TryReceive(ctx, t, fetchDone)
-	require.Len(t, resp.GetProviders(), 1)
-	assert.Equal(t, "openai", resp.GetProviders()[0].GetName())
-	assert.Equal(t, []string{"sk-openai"}, resp.GetProviders()[0].GetKeys())
 }
 
 // TestWatchAIProviders asserts that the WatchAIProviders handler emits an

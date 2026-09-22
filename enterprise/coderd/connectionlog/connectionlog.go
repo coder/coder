@@ -100,14 +100,6 @@ func WithBatchSize(size int) DBBatcherOption {
 	}
 }
 
-// WithFlushInterval sets how frequently the batcher flushes to the
-// database.
-func WithFlushInterval(d time.Duration) DBBatcherOption {
-	return func(b *DBBatcher) {
-		b.interval = d
-	}
-}
-
 // WithClock sets the clock, useful for testing.
 func WithClock(clock quartz.Clock) DBBatcherOption {
 	return func(b *DBBatcher) {

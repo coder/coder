@@ -1,5 +1,5 @@
 import { ChevronDownIcon, PlusIcon, SearchIcon } from "lucide-react";
-import { type FC, useMemo, useState } from "react";
+import { type FC, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import type { ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -27,6 +27,7 @@ import {
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -38,11 +39,12 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import {
 	canManageProviderModels,
 	type ProviderState,
 } from "#/modules/aiModels/providerStates";
-import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
+import { docs } from "#/utils/docs";
 import { paginateItems } from "#/utils/paginateItems";
 import { ModelRow } from "./components/ModelRow";
 import {
@@ -54,6 +56,9 @@ import {
 
 const MODELS_PAGE_SIZE = 10;
 const ALL_PROVIDERS_VALUE = "all";
+const PROVIDER_PARAM = "provider";
+const SEARCH_PARAM = "search";
+const PAGE_PARAM = "page";
 
 const AddModelDropdown: FC<{
 	providerStates: readonly ProviderState[];
@@ -101,7 +106,7 @@ const AddModelDropdown: FC<{
 	);
 };
 
-interface ModelsPageViewProps {
+type ModelsPageViewProps = {
 	isLoading: boolean;
 	loadError: unknown;
 	refetchError: unknown;
@@ -109,7 +114,7 @@ interface ModelsPageViewProps {
 	providerStates: readonly ProviderState[];
 	providerTypeByID: ReadonlyMap<string, string>;
 	canCreateModel: boolean;
-}
+};
 
 const ModelsPageView: FC<ModelsPageViewProps> = ({
 	isLoading,
@@ -121,12 +126,26 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 	canCreateModel,
 }) => {
 	const navigate = useNavigate();
-	const [searchParams] = useSearchParams();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const { organization, accessibleOrganizations } = useOrganizationModels();
-	const [page, setPage] = useState(1);
-	const [searchQuery, setSearchQuery] = useState("");
-	const [providerFilter, setProviderFilter] =
-		useState<string>(ALL_PROVIDERS_VALUE);
+
+	// Keep filter state in the URL so it persists across navigation.
+	const providerFilter =
+		searchParams.get(PROVIDER_PARAM) ?? ALL_PROVIDERS_VALUE;
+	const searchQuery = searchParams.get(SEARCH_PARAM) ?? "";
+	const rawPage = Number.parseInt(searchParams.get(PAGE_PARAM) ?? "1", 10);
+	const page = Number.isNaN(rawPage) || rawPage <= 0 ? 1 : rawPage;
+
+	const updateSearchParams = (mutate: (params: URLSearchParams) => void) => {
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				mutate(next);
+				return next;
+			},
+			{ replace: true },
+		);
+	};
 
 	const providerKeyByModelId = useMemo(() => {
 		const map = new Map<string, string>();
@@ -205,13 +224,35 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 		searchQuery.trim().length > 0 || providerFilter !== ALL_PROVIDERS_VALUE;
 
 	const handleSearchChange = (value: string) => {
-		setSearchQuery(value);
-		setPage(1);
+		updateSearchParams((params) => {
+			if (value) {
+				params.set(SEARCH_PARAM, value);
+			} else {
+				params.delete(SEARCH_PARAM);
+			}
+			params.delete(PAGE_PARAM);
+		});
 	};
 
 	const handleProviderChange = (value: string) => {
-		setProviderFilter(value);
-		setPage(1);
+		updateSearchParams((params) => {
+			if (value && value !== ALL_PROVIDERS_VALUE) {
+				params.set(PROVIDER_PARAM, value);
+			} else {
+				params.delete(PROVIDER_PARAM);
+			}
+			params.delete(PAGE_PARAM);
+		});
+	};
+
+	const handlePageChange = (newPage: number) => {
+		updateSearchParams((params) => {
+			if (newPage <= 1) {
+				params.delete(PAGE_PARAM);
+			} else {
+				params.set(PAGE_PARAM, String(newPage));
+			}
+		});
 	};
 
 	return (
@@ -226,7 +267,10 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 				<SettingsHeaderTitle>Models</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Choose which models from your configured providers are available for
-					users to select. You can set a default and adjust context limits.
+					users to select. You can set a default and adjust context limits.{" "}
+					<SettingsHeaderDocsLink
+						href={docs("/ai-coder/agents/models#models")}
+					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			{(loadError ?? refetchError) != null && (
@@ -349,7 +393,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 							currentPage={clampedPage}
 							pageSize={MODELS_PAGE_SIZE}
 							totalRecords={filteredModels.length}
-							onPageChange={setPage}
+							onPageChange={handlePageChange}
 							hasPreviousPage={hasPreviousPage}
 							hasNextPage={hasNextPage}
 						/>

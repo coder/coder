@@ -26,7 +26,7 @@ import {
 } from "#/components/Popover/Popover";
 import { Spinner } from "#/components/Spinner/Spinner";
 
-interface AutocompleteProps<TOption> {
+type AutocompleteProps<TOption> = {
 	value: TOption | null;
 	onChange: (value: TOption | null) => void;
 	options: readonly TOption[];
@@ -52,7 +52,7 @@ interface AutocompleteProps<TOption> {
 	triggerAriaDescribedBy?: string;
 	id?: string;
 	"data-testid"?: string;
-}
+};
 
 export function Autocomplete<TOption>({
 	value,
@@ -344,6 +344,7 @@ export function Autocomplete<TOption>({
 											return (
 												<CommandItem
 													role="option"
+													aria-selected={index === highlightedIndex}
 													id={`${listboxId}-option-${index}`}
 													key={optionValue}
 													value={optionValue}
@@ -373,7 +374,6 @@ export function Autocomplete<TOption>({
 					data-testid={testId}
 					aria-expanded={isOpen}
 					aria-haspopup="listbox"
-					aria-invalid={triggerAriaInvalid}
 					aria-describedby={triggerAriaDescribedBy}
 					disabled={disabled}
 					className={cn(

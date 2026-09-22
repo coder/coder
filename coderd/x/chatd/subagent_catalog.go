@@ -21,21 +21,10 @@ const (
 	subagentTypeExplore     = "explore"
 	subagentTypeComputerUse = "computer_use"
 
-	defaultSystemPromptPlanningGuidance = "1. Use " + spawnAgentToolName +
-		" and wait_agent when delegation helps gather context. Prefer type=\"" +
-		subagentTypeGeneral +
-		"\" for substantial delegated research, analysis, reasoning, review, " +
-		"planning support, or implementation. Use type=\"" + subagentTypeGeneral +
-		"\" even for read-only work when the task is open-ended, multi-step, " +
-		"parallel, requires synthesis, or may later need edits. When planning, " +
-		"type=\"" + subagentTypeGeneral +
-		"\" remains non-mutating until implementation is approved. Use type=\"" +
-		subagentTypeExplore +
-		"\" only for narrow repository-local read-only code discovery or code " +
-		"tracing, such as locating files, callsites, or a bounded existing flow. " +
-		"Do not use type=\"" + subagentTypeExplore +
-		"\" for generic research, broad architecture analysis, planning synthesis, " +
-		"external or web research, parallel research, or tasks that may need edits."
+	defaultSystemPromptPlanningGuidance = "1. Delegate context gathering with " +
+		spawnAgentToolName + " when it helps, only after defining the question or " +
+		"deliverable, scope, available inputs, and completion criteria. Follow the " +
+		spawnAgentToolName + " description for agent selection and ownership."
 )
 
 // unbilledSubagentToolNames excludes parent-side orchestration because
@@ -308,10 +297,12 @@ func buildSpawnAgentDescription(
 	currentChat database.Chat,
 ) string {
 	availableDefs := availableSubagentDefinitions(ctx, p, currentChat)
-	description := "Spawn a delegated child subagent to work on a clearly scoped, " +
-		"independent task in parallel. Use the type field to choose " +
+	description := "Assign a clearly scoped, independent task to a child agent, " +
+		"including the criteria that complete it. Spawn only once you can define " +
+		"the assignment; gather missing context first rather than investigating " +
+		"alongside the child. Use the type field to choose " +
 		"the right specialist. Available type values: " +
-		formatSubagentDefinitions(availableDefs) + ". Do not use this for " +
+		formatSubagentDefinitionsWithDescriptionOverrides(availableDefs, nil) + ". Do not use this for " +
 		"simple or quick operations you can handle directly with execute, " +
 		"read_file, or write_file. Prefer type=\"" + subagentTypeGeneral +
 		"\" for substantial delegated research, analysis, reasoning, review, " +
@@ -324,19 +315,26 @@ func buildSpawnAgentDescription(
 		"Do not use type=\"" + subagentTypeExplore +
 		"\" for generic research, broad architecture analysis, planning " +
 		"synthesis, external or web research, parallel research, or tasks that " +
-		"may need edits. Be careful when running parallel subagents: if two " +
-		"subagents modify the same files they will conflict with each other, " +
-		"so ensure parallel subagent tasks are independent. The child agent " +
-		"receives the same workspace tools but cannot spawn its own subagents. " +
+		"may need edits. Each delegated task has one owner until its result " +
+		"is returned or a handoff is acknowledged. While a child owns a task, do " +
+		"only work independent of it; do not investigate, implement, or edit that " +
+		"task yourself. Separate files do not make tasks independent when they " +
+		"depend on an unresolved shared contract. Independent work that itself " +
+		"qualifies for delegation is another assignment, not your own. When your " +
+		"next step depends on a child's result, or its report will answer the " +
+		"question, use wait_agent rather than doing that work yourself. Treat a " +
+		"report's findings and cited locations as read context; re-check only a " +
+		"specific gap, contradiction, suspected change, or the exact content an " +
+		"edit needs. The child cannot spawn its own subagents; its tools depend " +
+		"on its type and mode. " +
 		"You may optionally set model_config_id (a model config UUID from " +
 		listSubagentModelsToolName + ") to run the child on a specific model " +
 		"instead of the configured default, and reasoning_effort to pin the " +
 		"child's reasoning effort; both apply only to type \"" +
 		subagentTypeGeneral + "\" and type \"" + subagentTypeExplore + "\". " +
-		"After spawning, use wait_agent to retrieve the result. Agents persist " +
-		"after completion; reuse an agent via message_agent for follow-up work " +
-		"when it already has relevant context. Spawned agents are your " +
-		"responsibility: do not abandon one in a working state (running); " +
+		"Agents persist after completion; reuse an agent via message_agent for " +
+		"follow-up work when it already has relevant context. Spawned agents are " +
+		"your responsibility: do not abandon one in a working state (running); " +
 		"retrieve its result, redirect it with message_agent, or stop " +
 		"it with interrupt_agent."
 	if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
@@ -350,10 +348,6 @@ func buildSpawnAgentDescription(
 			"They must not implement changes or intentionally modify workspace files."
 	}
 	return description
-}
-
-func formatSubagentDefinitions(defs []subagentDefinition) string {
-	return formatSubagentDefinitionsWithDescriptionOverrides(defs, nil)
 }
 
 func formatSubagentDefinitionsWithDescriptionOverrides(

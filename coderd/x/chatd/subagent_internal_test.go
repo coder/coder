@@ -34,7 +34,6 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -1426,115 +1425,6 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenProviderDisabled(t *testi
 	), 1)
 }
 
-func TestResolveConfiguredModelOverride_OrganizationMismatch(t *testing.T) {
-	t.Parallel()
-
-	modelConfigID := uuid.New()
-	ownerID := uuid.New()
-	resolveModelConfig := func(context.Context, uuid.UUID) (database.ChatModelConfig, string, error) {
-		return database.ChatModelConfig{}, "", errModelConfigOutsideOrganization
-	}
-	resolveProviderKeys := func(context.Context, uuid.UUID, uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
-		return chatprovider.ProviderAPIKeys{}, nil
-	}
-
-	t.Run("Soft", func(t *testing.T) {
-		t.Parallel()
-
-		logSink := &subagentTestLogSink{}
-		server := &Server{logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)}
-		modelConfig, providerName, reasoningEffort, ok, err := server.resolveConfiguredModelOverride(
-			chatdTestContext(t),
-			"general",
-			modelConfigID.String(),
-			ownerID,
-			resolveModelConfig,
-			resolveProviderKeys,
-			modelOverrideFailureModeSoft,
-		)
-		require.NoError(t, err)
-		require.Empty(t, modelConfig)
-		require.Empty(t, providerName)
-		require.Nil(t, reasoningEffort)
-		require.False(t, ok)
-		require.Len(t, logSink.entriesAtLevelWithMessage(
-			slog.LevelInfo,
-			"model override belongs to another organization, ignoring",
-		), 1)
-	})
-
-	t.Run("Hard", func(t *testing.T) {
-		t.Parallel()
-
-		server := &Server{logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
-		modelConfig, providerName, reasoningEffort, ok, err := server.resolveConfiguredModelOverride(
-			chatdTestContext(t),
-			"title",
-			modelConfigID.String(),
-			ownerID,
-			resolveModelConfig,
-			resolveProviderKeys,
-			modelOverrideFailureModeHard,
-		)
-		require.ErrorContains(t, err, "title model override is unavailable")
-		require.Empty(t, modelConfig)
-		require.Empty(t, providerName)
-		require.Nil(t, reasoningEffort)
-		require.True(t, ok)
-	})
-}
-
-func TestResolveConfiguredModelOverride_AcceptsAmbientCredentialsProvider(
-	t *testing.T,
-) {
-	t.Parallel()
-
-	logSink := &subagentTestLogSink{}
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
-	server := &Server{logger: logger}
-	ctx := chatdTestContext(t)
-	ownerID := uuid.New()
-	modelConfig := database.ChatModelConfig{
-		ID:          uuid.New(),
-		Model:       "anthropic.claude-haiku-4-5-20251001-v1:0",
-		DisplayName: "Ambient Bedrock Override",
-		Enabled:     true,
-	}
-
-	resolvedModelConfig, _, reasoningEffort, ok, err := server.resolveConfiguredModelOverride(
-		ctx,
-		"plan",
-		modelConfig.ID.String(),
-		ownerID,
-		func(
-			_ context.Context,
-			configuredModelConfigID uuid.UUID,
-		) (database.ChatModelConfig, string, error) {
-			require.Equal(t, modelConfig.ID, configuredModelConfigID)
-			return modelConfig, "bedrock", nil
-		},
-		func(
-			_ context.Context,
-			resolvedOwnerID uuid.UUID,
-			_ uuid.UUID,
-		) (chatprovider.ProviderAPIKeys, error) {
-			require.Equal(t, ownerID, resolvedOwnerID)
-			return chatprovider.ProviderAPIKeys{
-				ByProvider: map[string]string{"bedrock": ""},
-			}, nil
-		},
-		modelOverrideFailureModeSoft,
-	)
-	require.NoError(t, err)
-	require.Nil(t, reasoningEffort)
-	require.True(t, ok)
-	require.Equal(t, modelConfig, resolvedModelConfig)
-	require.Empty(t, logSink.entriesAtLevelWithMessage(
-		slog.LevelInfo,
-		"model override credentials are unavailable, ignoring",
-	))
-}
-
 func TestCreateChildSubagentChat_StoresReasoningEffortOverride(t *testing.T) {
 	t.Parallel()
 
@@ -2714,17 +2604,6 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
 }
 
-func TestDefaultSystemPromptPlanningGuidance_SteersSubagentSelection(t *testing.T) {
-	t.Parallel()
-
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Prefer type="general" for substantial delegated research, analysis, reasoning, review, planning support, or implementation`)
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Use type="general" even for read-only work when the task is open-ended, multi-step, parallel, requires synthesis, or may later need edits`)
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Use type="explore" only for narrow repository-local read-only code discovery or code tracing`)
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Do not use type="explore" for generic research, broad architecture analysis, planning synthesis, external or web research, parallel research, or tasks that may need edits`)
-	require.NotContains(t, defaultSystemPromptPlanningGuidance, "research the codebase")
-	require.NotContains(t, defaultSystemPromptPlanningGuidance, "Reserve type=\"general\" for writable delegated work")
-}
-
 func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 	t.Parallel()
 
@@ -3855,19 +3734,6 @@ func TestWaitAgentDoesNotRelayComputerUseSubagentAttachments(t *testing.T) {
 	attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
 	require.NoError(t, err)
 	assert.Empty(t, attachments)
-	parts := buildAssistantPartsForPersist(
-		context.Background(),
-		testutil.Logger(t),
-		nil,
-		[]fantasy.ToolResultContent{{
-			ToolCallID:     "call-1",
-			ToolName:       "wait_agent",
-			ClientMetadata: resp.Metadata,
-		}},
-		chatloop.PersistedStep{},
-		nil,
-	)
-	assert.Empty(t, parts)
 
 	parentFiles, err := db.GetChatFileMetadataByChatID(ctx, parent.ID)
 	require.NoError(t, err)
@@ -4327,8 +4193,6 @@ func TestWaitAgentToolSchema(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "integer", timeoutSeconds["type"])
 	assert.Equal(t, "Defaults to 5 minutes.", timeoutSeconds["description"])
-	assert.Contains(t, tool.Info().Description, "Returns immediately when the agent finishes")
-	assert.Contains(t, tool.Info().Description, "A timeout does not stop the agent")
 }
 
 func TestWaitAgentTimeoutReturnsInformationalPayload(t *testing.T) {

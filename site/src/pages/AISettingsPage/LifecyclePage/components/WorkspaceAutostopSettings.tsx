@@ -3,15 +3,16 @@ import type { FC } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
+import { docs } from "#/utils/docs";
 import { DurationField } from "./DurationField/DurationField";
 import { LifecycleSettingLayout } from "./LifecycleSettingLayout";
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
-interface WorkspaceAutostopSettingsProps {
+type WorkspaceAutostopSettingsProps = {
 	workspaceTTLData: TypesGen.ChatWorkspaceTTLResponse | undefined;
 	isWorkspaceTTLLoading: boolean;
 	isWorkspaceTTLLoadError: boolean;
@@ -21,7 +22,7 @@ interface WorkspaceAutostopSettingsProps {
 	) => void;
 	isSavingWorkspaceTTL: boolean;
 	isSaveWorkspaceTTLError: boolean;
-}
+};
 
 const DEFAULT_WORKSPACE_TTL_MS = 3_600_000;
 const maxTTLMs = 30 * 24 * 60 * 60_000;
@@ -89,6 +90,9 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 		<LifecycleSettingLayout
 			title="Workspace autostop fallback"
 			description="Set a default autostop for agent-created workspaces that don't have one defined in their template. Template-defined autostop rules always take precedence. Active conversations will extend the stop time."
+			docsHref={docs(
+				"/ai-coder/agents/platform-controls#workspace-autostop-fallback",
+			)}
 			checked={form.values.enabled}
 			onCheckedChange={handleToggleAutostop}
 			switchLabel="Enable default autostop"

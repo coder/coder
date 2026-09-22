@@ -1013,9 +1013,9 @@ func TestEntitlements(t *testing.T) {
 		require.NotNil(t, aiGovernanceSeatLimit.Limit)
 		require.EqualValues(t, 100, *aiGovernanceSeatLimit.Limit)
 
-		// Usage exceeds the limit, so an exceeded warning should be present.
-		require.Len(t, entitlements.Warnings, 1)
-		require.Equal(t, codersdk.LicenseManagedAgentLimitExceededWarningText, entitlements.Warnings[0])
+		// Usage exceeds the limit, but the historical managed agent count
+		// never warns.
+		require.Empty(t, entitlements.Warnings)
 	})
 
 	t.Run("AgentRuntimeHoursHasValue", func(t *testing.T) {
@@ -1839,7 +1839,9 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 		},
 		{
-			Name: "ManagedAgentLimitWarning/ExceededLimit",
+			// Legacy managed agent usage is still reported as Actual but
+			// no longer warns, even past the limit.
+			Name: "ManagedAgentLimit/ExceededLimitNoWarning",
 			Licenses: []*coderdenttest.LicenseOptions{
 				enterpriseLicense().
 					UserLimit(100).
@@ -1851,8 +1853,7 @@ func TestLicenseEntitlements(t *testing.T) {
 				},
 			},
 			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
-				assert.Len(t, entitlements.Warnings, 1)
-				assert.Equal(t, codersdk.LicenseManagedAgentLimitExceededWarningText, entitlements.Warnings[0])
+				assertNoWarnings(t, entitlements)
 				assertNoErrors(t, entitlements)
 
 				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]

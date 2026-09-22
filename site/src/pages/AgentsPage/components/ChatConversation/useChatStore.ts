@@ -22,7 +22,10 @@ import {
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
-import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
+import {
+	createReconnectingWebSocket,
+	type ReconnectSchedule,
+} from "#/utils/reconnectingWebSocket";
 import { type ChatDetailError, normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
@@ -89,7 +92,7 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 		state.retryState !== null ||
 		isActiveChatStatus(state.chatStatus));
 
-interface UseChatStoreOptions {
+type UseChatStoreOptions = {
 	chatID: string | undefined;
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
@@ -99,7 +102,7 @@ interface UseChatStoreOptions {
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
 	aiGatewayDisabled?: boolean;
-}
+};
 
 export const useChatStore = (
 	options: UseChatStoreOptions,
@@ -743,9 +746,7 @@ export const useChatStore = (
 				historyResetPending = false;
 				historyReplacementBuf.length = 0;
 			},
-			onDisconnect(
-				reconnectState: import("#/utils/reconnectingWebSocket").ReconnectSchedule,
-			) {
+			onDisconnect(reconnectState: ReconnectSchedule) {
 				// Only surface reconnecting when the disconnect
 				// interrupted active response work. Idle watcher
 				// reconnects stay silent.
