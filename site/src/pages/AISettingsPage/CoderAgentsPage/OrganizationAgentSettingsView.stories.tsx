@@ -66,11 +66,11 @@ type Story = StoryObj<typeof OrganizationAgentSettingsView>;
 
 export const DefaultModelOpen: Story = {
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const defaultSection = canvas.getByRole("form", {
-			name: "Default model",
-		});
-		await userEvent.click(within(defaultSection).getByRole("combobox"));
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: /^Default model,/,
+			}),
+		);
 	},
 };
 export const UnavailableDefaultModel: Story = {
@@ -85,10 +85,11 @@ export const DefaultModelSaveError: Story = {
 	args: { isSaveDefaultModelError: true },
 	// The error follows a failed save of a new pick, so the row is dirty.
 	play: async ({ canvasElement }) => {
-		const defaultSection = within(canvasElement).getByRole("form", {
-			name: "Default model",
-		});
-		await userEvent.click(within(defaultSection).getByRole("combobox"));
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: /^Default model,/,
+			}),
+		);
 		await userEvent.click(
 			await screen.findByRole("option", {
 				name: new RegExp(alternateModel.display_name),
@@ -197,6 +198,12 @@ export const OverridesRefetchError: Story = {
 		refetchError: mockApiError({
 			message: "Failed to refresh model overrides.",
 		}),
+	},
+};
+
+export const ModelsRefetchError: Story = {
+	args: {
+		modelsError: mockApiError({ message: "Failed to refresh chat models." }),
 	},
 };
 

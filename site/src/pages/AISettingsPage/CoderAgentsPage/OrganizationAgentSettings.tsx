@@ -99,9 +99,6 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 		advisorMutation,
 	] as const;
 	const defaultModelMutation = useMutation(updateChatModel(queryClient));
-	const defaultModelID = modelsQuery.data
-		? (modelsQuery.data.models.find((model) => model.is_default)?.id ?? "")
-		: undefined;
 	const providerInfoByID = providerInfoByIDFromDescriptors(
 		modelsQuery.data?.providers,
 	);
@@ -123,7 +120,12 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 
 	return (
 		<OrganizationAgentSettingsView
-			defaultModelID={defaultModelID}
+			defaultModelID={
+				modelsQuery.data
+					? (modelsQuery.data.models.find((model) => model.is_default)?.id ??
+						"")
+					: undefined
+			}
 			onSaveDefaultModel={(modelID, options) =>
 				defaultModelMutation.mutate(
 					{

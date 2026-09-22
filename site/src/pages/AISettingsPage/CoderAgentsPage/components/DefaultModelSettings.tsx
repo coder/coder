@@ -4,6 +4,7 @@ import { useTemporarySavedState } from "#/components/TemporarySavedState/Tempora
 import { ModelSelector } from "#/modules/aiModels/ModelSelector";
 import { ModelOverrideAlerts } from "#/pages/AgentsPage/components/ModelOverrideAlerts";
 import {
+	isUnavailableHistoricalModelID,
 	type ProviderInfo,
 	toEnabledModelSelectorOptions,
 } from "#/pages/AgentsPage/utils/modelOptions";
@@ -17,7 +18,7 @@ type DefaultModelSettingsProps = {
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
 	modelsError: unknown;
 	isLoading: boolean;
-	onSaveDefaultModel: (modelID: string, options?: MutationCallbacks) => void;
+	onSaveDefaultModel: (modelID: string, options: MutationCallbacks) => void;
 	isSaving: boolean;
 	isSaveError: boolean;
 	disabled: boolean;
@@ -63,9 +64,10 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 	const isFormDisabled = disabled || isSaving || isLoading || !hasLoadedDefault;
 	const canSave =
 		hasLoadedDefault && !disabled && selectedModelID !== savedModelID;
-	const isUnavailableSavedModel =
-		selectedModelID !== "" &&
-		!enabledModelOptions.some((option) => option.id === selectedModelID);
+	const isUnavailableSavedModel = isUnavailableHistoricalModelID(
+		selectedModelID,
+		enabledModelOptions,
+	);
 
 	return (
 		<AgentSettingLayout
@@ -98,7 +100,7 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 					}
 					emptyMessage="No enabled models found."
 					className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
-					contentClassName="min-w-[18rem]"
+					contentClassName="min-w-72"
 				/>
 				<ModelOverrideAlerts
 					isUnavailableSavedModel={isUnavailableSavedModel}

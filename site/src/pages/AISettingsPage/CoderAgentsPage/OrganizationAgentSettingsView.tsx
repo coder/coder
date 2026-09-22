@@ -15,7 +15,7 @@ export type SaveModelOverride = (
 
 type OrganizationAgentSettingsViewProps = {
 	defaultModelID: string | undefined;
-	onSaveDefaultModel: (modelID: string, options?: MutationCallbacks) => void;
+	onSaveDefaultModel: (modelID: string, options: MutationCallbacks) => void;
 	isSavingDefaultModel: boolean;
 	isSaveDefaultModelError: boolean;
 	overrides: readonly TypesGen.ChatModelOverrideResponse[] | undefined;
@@ -95,8 +95,8 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 	errorContexts,
 }) => {
 	const bannerError = loadError ?? refetchError ?? modelsError;
-	// The default row only needs the model catalog, so a failed overrides
-	// request removes just the override rows.
+	// The default row only needs the model catalog, so a failed initial
+	// overrides load removes just the override rows.
 	const visibleSettings =
 		loadError == null
 			? settings.filter(
