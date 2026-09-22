@@ -795,12 +795,13 @@ func (p *Server) subagentTools(
 		),
 		fantasy.NewAgentTool(
 			"wait_agent",
-			"Wait for a spawned child agent to finish and return its response "+
-				"and status. Returns immediately when the agent finishes, even if "+
-				"a longer timeout is set. A timeout does not stop the child; it "+
-				"still owns its task. Wait again or check its status with "+
-				"list_agents; do not take over its work without an acknowledged "+
-				"handoff.",
+			"Wait until a spawned child agent is no longer running or "+
+				"interrupting, then return its latest visible assistant message "+
+				"and status. A requires_action status can return before the "+
+				"assignment is complete. A timeout does not stop the child; it "+
+				"still owns its assignment. Wait again or check its status with "+
+				"list_agents. The response is not correlated with a specific "+
+				"instruction.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -945,35 +946,45 @@ func (p *Server) subagentTools(
 		),
 		fantasy.NewAgentTool(
 			"message_agent",
-			"Send a direct message to a previously spawned child agent. If "+
-				"the agent is idle, it starts work on the message. If it is busy, "+
-				"the message is promoted ahead of queued follow-up work and its "+
-				"current work is interrupted. An errored agent with queued work "+
-				"starts its existing queue head before this message can be "+
-				"promoted. Queueing and promotion are separate operations, so "+
-				"queue processing can win the race and the tool may report a "+
-				"promotion error after the child starts the message. Use "+
-				"wait_agent to collect the child's response.",
+			"Send a prioritized instruction to a previously spawned child "+
+				"agent for a correction or scope change that must affect active "+
+				"work. If the agent is idle, it starts work on the message. If it "+
+				"is busy, the message is promoted ahead of queued follow-up work "+
+				"and its current work is interrupted; older queued follow-ups are "+
+				"preserved. Do not use this for progress requests. An errored agent "+
+				"with queued work starts its existing queue head before this message "+
+				"can be promoted. Queueing and promotion are separate operations, "+
+				"so queue processing can win the race and the tool may report a "+
+				"promotion error after the child starts the message. A successful "+
+				"result confirms acceptance, not that the child has stopped or "+
+				"responded. Use wait_agent to collect the child's response.",
 			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				return p.runSubagentMessageTool(ctx, currentChat, args.ChatID, args.Message, true)
 			},
 		),
 		fantasy.NewAgentTool(
 			"followup_agent",
-			"Queue follow-up work for a previously spawned child agent. If "+
-				"the agent is idle, it starts work on the message. If it is busy, "+
-				"the message remains behind its current work and any earlier "+
-				"queued messages.",
+			"Schedule additional work for a previously spawned child agent "+
+				"after its current assignment and earlier follow-ups. Use this only "+
+				"for work that remains valid after all of them. It does not "+
+				"interrupt or influence active work. Do not use it for corrections, "+
+				"scope changes, or progress requests. If the agent is idle, it "+
+				"starts work on the message. A successful result confirms "+
+				"acceptance, not completion.",
 			func(ctx context.Context, args followupAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				return p.runSubagentMessageTool(ctx, currentChat, args.ChatID, args.Message, false)
 			},
 		),
 		fantasy.NewAgentTool(
 			"interrupt_agent",
-			"Interrupt a spawned child agent's current work. The "+
-				"status may briefly read interrupting before transitioning "+
-				"to waiting, or running if there are queued messages. "+
-				"Resume with message_agent or leave it idle.",
+			"Request interruption of a spawned child agent's current work "+
+				"without adding an instruction. Existing queued follow-ups are "+
+				"preserved and may resume automatically. A waiting child is left "+
+				"unchanged and returns interrupted=false. For active work, "+
+				"interrupted=true confirms that the interruption request committed, "+
+				"not that execution has stopped. The status may briefly read "+
+				"interrupting before transitioning to waiting, or running if there "+
+				"are queued messages.",
 			func(ctx context.Context, args interruptAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -1019,8 +1030,8 @@ func (p *Server) subagentTools(
 				"sort order is best-effort: an agent's position may shift "+
 				"if its updated_at changes between calls. Each "+
 				"agent has chat_id, title, type, status, created_at, "+
-				"updated_at. Status: running = working, "+
-				"interrupting = transient, waiting = idle, "+
+				"updated_at. Status: running = working, interrupting = transient, "+
+				"requires_action = waiting for tool results, waiting = idle, "+
 				"error = stopped on error.",
 			func(ctx context.Context, args listAgentsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {

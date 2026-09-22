@@ -261,10 +261,10 @@ tasks:
 | `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment                                                                                              |
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                                                                                    |
 | `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                                                                                              |
-| `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                                                                                               |
-| `message_agent`                             | Send a direct message that is promoted ahead of queued follow-up work                                                                                                 |
-| `followup_agent`                            | Queue follow-up work after the sub-agent's current and already queued work                                                                                            |
-| `interrupt_agent`                           | Halt a sub-agent's current turn without adding instructions; it transitions to waiting or running if there are queued messages                                        |
+| `wait_agent`                                | Return the latest visible assistant message when a sub-agent is no longer running or interrupting                                                                     |
+| `message_agent`                             | Send a prioritized correction or scope change; interrupt active work and preserve older queued follow-ups                                                             |
+| `followup_agent`                            | Schedule additional work after the current assignment and earlier follow-ups without influencing active work                                                          |
+| `interrupt_agent`                           | Request interruption without adding an instruction; `interrupted` reports whether a request was committed                                                             |
 | `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard)                                                                                              |
 | `list_agents`                               | List spawned child agents, most recently active first                                                                                                                 |
 | `read_skill`                                | Read the instructions for a workspace skill by name                                                                                                                   |
@@ -273,6 +273,10 @@ tasks:
 | `find_tools`                                | Search the deferred MCP tool catalog and activate matching tools. Only available when the `mcp-tool-search` experiment is enabled and the turn has MCP tools to defer |
 
 `message_agent` queues and promotes the message as separate operations. Queue processing can start first, and the tool can report a promotion error after the sub-agent starts the message. If the sub-agent is already stopped with an error while work is queued, the existing queue head starts first.
+
+`wait_agent` returns the latest visible assistant message and does not correlate it with a specific `message_agent` or `followup_agent` instruction. A `requires_action` status can return before the assignment is complete. Use `list_agents` for progress checks instead of sending progress requests.
+
+`interrupt_agent` preserves queued follow-ups. A waiting sub-agent is left unchanged and returns `interrupted=false`. For active work, `interrupted=true` confirms that the interruption request committed, not that execution stopped.
 
 These tools connect to the workspace over the same secure connection used for
 web terminals and IDE access. No additional ports or services are required in
