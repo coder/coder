@@ -6,12 +6,12 @@ import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 
-interface WorkspacesEmptyProps {
+type WorkspacesEmptyProps = {
 	isUsingFilter: boolean;
 	templates?: Template[];
 	canCreateTemplate: boolean;
 	canCreateWorkspace: boolean;
-}
+};
 
 export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 	isUsingFilter,

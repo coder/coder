@@ -591,7 +591,6 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 			model:    chatprovider.NewModel(model, nil),
 			dbConfig: database.ChatModelConfig{Model: "test-model"},
 		},
-		modelBuildOptions{},
 		generated,
 		logger,
 		nil,
@@ -643,7 +642,6 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 	}
 
 	db := dbmock.NewMockStore(gomock.NewController(t))
-	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: "Reasoning title",
@@ -665,7 +663,6 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 			dbConfig:        fallbackConfig,
 			providerOptions: chatprovider.ProviderOptionsForCall(fallbackModel, callConfig, nil),
 		},
-		modelBuildOptions{},
 		&generatedChatTitle{},
 		logger,
 		nil,
@@ -809,6 +806,19 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 		got, ok := selectPreferredConfiguredShortTextModelConfig(configs)
 		require.True(t, ok)
 		require.Equal(t, preferredTitleModels[1].model, got.Model)
+	})
+
+	t.Run("matches dated snapshots of a preferred model", func(t *testing.T) {
+		t.Parallel()
+
+		for _, model := range []string{"claude-haiku-4-5-20251001", "Claude-Haiku-4-5-2025-10-01"} {
+			got, ok := selectPreferredConfiguredShortTextModelConfig([]database.GetEnabledChatModelConfigsByOrganizationRow{
+				{ChatModelConfig: database.ChatModelConfig{Model: "claude-haiku-4-5-preview"}, Provider: "anthropic"},
+				{ChatModelConfig: database.ChatModelConfig{Model: model}, Provider: "anthropic"},
+			})
+			require.True(t, ok, model)
+			require.Equal(t, model, got.Model)
+		}
 	})
 
 	t.Run("returns false when no preferred lightweight model is configured", func(t *testing.T) {

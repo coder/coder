@@ -302,6 +302,12 @@ func TestIsCompatibleUploadMediaType(t *testing.T) {
 			want:     true,
 		},
 		{
+			name:     "TextPlainRefinesToSVG",
+			declared: "text/plain",
+			stored:   "image/svg+xml",
+			want:     true,
+		},
+		{
 			name:     "TextPlainDoesNotRefineToPNG",
 			declared: "text/plain",
 			stored:   "image/png",
@@ -332,7 +338,7 @@ func TestIsAllowedPromptInputMediaType(t *testing.T) {
 	require.True(t, chatfiles.IsAllowedPromptInputMediaType("application/json"))
 	require.True(t, chatfiles.IsAllowedPromptInputMediaType("application/pdf"))
 	require.True(t, chatfiles.IsAllowedPromptInputMediaType("image/png"))
-	require.False(t, chatfiles.IsAllowedPromptInputMediaType("image/svg+xml"))
+	require.True(t, chatfiles.IsAllowedPromptInputMediaType("image/svg+xml"))
 	require.False(t, chatfiles.IsAllowedPromptInputMediaType("image/avif"))
 	require.False(t, chatfiles.IsAllowedPromptInputMediaType("application/zip"))
 }
@@ -346,6 +352,22 @@ func TestIsInlineRenderableStoredMediaType(t *testing.T) {
 	require.False(t, chatfiles.IsInlineRenderableStoredMediaType("application/pdf"))
 	require.False(t, chatfiles.IsInlineRenderableStoredMediaType("image/svg+xml"))
 	require.False(t, chatfiles.IsInlineRenderableStoredMediaType("application/zip"))
+}
+
+func TestIsTextAttachmentMediaType(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, chatfiles.IsTextAttachmentMediaType("image/svg+xml"))
+	require.False(t, chatfiles.IsTextAttachmentMediaType("image/png"))
+	require.False(t, chatfiles.IsTextAttachmentMediaType("application/pdf"))
+}
+
+func TestIsRasterImageMediaType(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, chatfiles.IsRasterImageMediaType("image/png"))
+	require.True(t, chatfiles.IsRasterImageMediaType("image/bmp"))
+	require.False(t, chatfiles.IsRasterImageMediaType("image/svg+xml"))
 }
 
 func TestHasSVGRootElement(t *testing.T) {

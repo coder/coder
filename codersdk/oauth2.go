@@ -19,6 +19,13 @@ type OAuth2ProviderApp struct {
 	Name        string    `json:"name"`
 	CallbackURL string    `json:"callback_url"`
 	Icon        string    `json:"icon"`
+	// Scope is the space-separated list of scopes this app's tokens may be
+	// granted. Empty means unrestricted. A non-empty value with no names is a
+	// configured allowlist that grants nothing.
+	Scope string `json:"scope"`
+
+	// ClientType is "confidential" or "public".
+	ClientType OAuth2ClientType `json:"client_type"`
 
 	// Endpoints are included in the app response for easier discovery. The OAuth2
 	// spec does not have a defined place to find these (for comparison, OIDC has
@@ -77,8 +84,11 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 
 type PostOAuth2ProviderAppRequest struct {
 	Name        string `json:"name" validate:"required,oauth2_app_name"`
-	CallbackURL string `json:"callback_url" validate:"required,http_url"`
+	CallbackURL string `json:"callback_url" validate:"required"`
 	Icon        string `json:"icon" validate:"omitempty"`
+	// Scope is the space-separated list of scopes this app's tokens may be
+	// granted. Leave empty, or omit, for unrestricted.
+	Scope string `json:"scope,omitempty" validate:"omitempty"`
 }
 
 // PostOAuth2ProviderApp adds an application that can authenticate using Coder
@@ -98,8 +108,12 @@ func (c *Client) PostOAuth2ProviderApp(ctx context.Context, app PostOAuth2Provid
 
 type PutOAuth2ProviderAppRequest struct {
 	Name        string `json:"name" validate:"required,oauth2_app_name"`
-	CallbackURL string `json:"callback_url" validate:"required,http_url"`
+	CallbackURL string `json:"callback_url" validate:"required"`
 	Icon        string `json:"icon" validate:"omitempty"`
+	// Scope replaces the app's current allowlist. Omit to leave the existing
+	// allowlist untouched. Set to an empty string to clear it, making the app
+	// unrestricted.
+	Scope *string `json:"scope,omitempty" validate:"omitempty"`
 }
 
 // PutOAuth2ProviderApp updates an application that can authenticate using Coder
@@ -449,12 +463,16 @@ type OAuth2TokenRevocationRequest struct {
 	ClientSecret  string                        `json:"client_secret,omitempty"`
 }
 
-// RevokeOAuth2Token revokes a specific OAuth2 token using RFC 7009 token revocation.
-func (c *Client) RevokeOAuth2Token(ctx context.Context, clientID uuid.UUID, token string) error {
+// RevokeOAuth2Token revokes a specific OAuth2 token using RFC 7009 token
+// revocation. A confidential client must present its clientSecret; a public
+// client passes an empty string and is bound to the token by client_id alone.
+func (c *Client) RevokeOAuth2Token(ctx context.Context, clientID uuid.UUID, clientSecret, token string) error {
 	form := url.Values{}
 	form.Set("token", token)
-	// Client authentication is handled via the client_id in the app middleware
 	form.Set("client_id", clientID.String())
+	if clientSecret != "" {
+		form.Set("client_secret", clientSecret)
+	}
 
 	res, err := c.Request(ctx, http.MethodPost, "/oauth2/revoke", strings.NewReader(form.Encode()), func(r *http.Request) {
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")

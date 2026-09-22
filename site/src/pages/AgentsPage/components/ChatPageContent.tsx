@@ -32,6 +32,7 @@ import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
+	isActiveChatStatus,
 	selectChatStatus,
 	selectHasStreamState,
 	selectIsAwaitingFirstStreamChunk,
@@ -95,7 +96,7 @@ export const workspaceSkillsFromChat = (
 	return [...skills.values()];
 };
 
-interface ChatPageTimelineProps {
+type ChatPageTimelineProps = {
 	organizationId: string | undefined;
 	store: ChatStoreHandle;
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
@@ -117,7 +118,7 @@ interface ChatPageTimelineProps {
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	footer?: ReactNode;
-}
+};
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	organizationId,
@@ -249,7 +250,7 @@ export type PendingAttachment = {
 	mediaType: string;
 };
 
-interface ChatPageInputProps {
+type ChatPageInputProps = {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
 	models: readonly TypesGen.ChatModel[] | undefined;
@@ -307,7 +308,7 @@ interface ChatPageInputProps {
 	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
-}
+};
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
 	chat,
@@ -399,7 +400,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const userPromptHistory: readonly string[] =
 		promptsData?.prompts.map((prompt) => prompt.text) ?? [];
 
-	const rawUsage = getLatestContextUsage(messages);
+	const rawUsage = getLatestContextUsage(
+		messages,
+		modelOptions.find((option) => option.id === selectedModel)?.contextLimit,
+	);
 	const latestContextUsage =
 		rawUsage || chatContext
 			? {
@@ -512,8 +516,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		wasEditingRef.current = isEditing;
 	}, [isEditing, resetEditAttachments]);
 
-	const isStreaming =
-		hasStreamState || chatStatus === "running" || chatStatus === "interrupting";
+	const isStreaming = hasStreamState || isActiveChatStatus(chatStatus);
 
 	const inputElement = (
 		<AgentChatInput

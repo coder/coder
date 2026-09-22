@@ -11,6 +11,7 @@ import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
 import type { UploadState } from "../components/AgentChatInput";
 import {
 	getChatFileURL,
+	isRasterImageMediaType,
 	renameChatFileForUpload,
 } from "../utils/chatAttachments";
 import {
@@ -31,13 +32,13 @@ export const persistedAttachmentsStorageKey = "agents.persisted-attachments";
  * Serializable metadata stored in localStorage so that already-uploaded
  * attachments survive page navigations on the create form.
  */
-interface PersistedAttachment {
+type PersistedAttachment = {
 	fileId: string;
 	fileName: string;
 	fileType: string;
 	lastModified: number;
 	organizationId: string;
-}
+};
 
 /**
  * Restore previously persisted attachments from localStorage.
@@ -97,7 +98,7 @@ function restorePersistedAttachments(currentOrgId: string): {
 			});
 			attachments.push(file);
 			uploadStates.set(file, { status: "uploaded", fileId: p.fileId });
-			if (p.fileType.startsWith("image/")) {
+			if (isRasterImageMediaType(p.fileType)) {
 				previewUrls.set(file, getChatFileURL(p.fileId));
 			}
 		}
@@ -161,7 +162,7 @@ function clearPersistedAttachments() {
 	localStorage.removeItem(persistedAttachmentsStorageKey);
 }
 
-interface UseFileAttachmentsReturn {
+type UseFileAttachmentsReturn = {
 	/**
 	 * True after the post-commit effect assigns in-memory attachment state to
 	 * the supplied organization. Keep attach and send controls disabled until then.
@@ -178,7 +179,7 @@ interface UseFileAttachmentsReturn {
 	setAttachments: Dispatch<SetStateAction<File[]>>;
 	setPreviewUrls: Dispatch<SetStateAction<Map<File, string>>>;
 	setUploadStates: Dispatch<SetStateAction<Map<File, UploadState>>>;
-}
+};
 
 export function useFileAttachments(
 	organizationId: string | undefined,
@@ -250,7 +251,7 @@ export function useFileAttachments(
 
 		const uploadOrgId = organizationId;
 		const uploadEpoch = adoptionEpochRef.current;
-		const isImage = file.type.startsWith("image/");
+		const isImage = isRasterImageMediaType(file.type);
 
 		setUploadStates((prev) => new Map(prev).set(file, { status: "uploading" }));
 		void (async () => {
@@ -377,7 +378,10 @@ export function useFileAttachments(
 			// animated GIF on Anthropic that we don't re-encode).
 			// Surface the error at attach time rather than letting
 			// the server backstop reject only at send time.
-			if (replacement.type.startsWith("image/") && replacement.size > budget) {
+			if (
+				isRasterImageMediaType(replacement.type) &&
+				replacement.size > budget
+			) {
 				setUploadStates((prev) =>
 					new Map(prev).set(replacement, {
 						status: "error" as const,

@@ -27,6 +27,7 @@ import {
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -43,6 +44,7 @@ import {
 	canManageProviderModels,
 	type ProviderState,
 } from "#/modules/aiModels/providerStates";
+import { docs } from "#/utils/docs";
 import { paginateItems } from "#/utils/paginateItems";
 import { ModelRow } from "./components/ModelRow";
 import {
@@ -104,7 +106,7 @@ const AddModelDropdown: FC<{
 	);
 };
 
-interface ModelsPageViewProps {
+type ModelsPageViewProps = {
 	isLoading: boolean;
 	loadError: unknown;
 	refetchError: unknown;
@@ -112,7 +114,7 @@ interface ModelsPageViewProps {
 	providerStates: readonly ProviderState[];
 	providerTypeByID: ReadonlyMap<string, string>;
 	canCreateModel: boolean;
-}
+};
 
 const ModelsPageView: FC<ModelsPageViewProps> = ({
 	isLoading,
@@ -265,7 +267,10 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 				<SettingsHeaderTitle>Models</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Choose which models from your configured providers are available for
-					users to select. You can set a default and adjust context limits.
+					users to select. You can set a default and adjust context limits.{" "}
+					<SettingsHeaderDocsLink
+						href={docs("/ai-coder/agents/models#models")}
+					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			{(loadError ?? refetchError) != null && (

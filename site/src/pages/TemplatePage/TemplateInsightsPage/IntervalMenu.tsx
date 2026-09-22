@@ -20,10 +20,10 @@ const insightsIntervals = {
 
 export type InsightsInterval = keyof typeof insightsIntervals;
 
-interface IntervalMenuProps {
+type IntervalMenuProps = {
 	value: InsightsInterval;
 	onChange: (value: InsightsInterval) => void;
-}
+};
 
 export const IntervalMenu: FC<IntervalMenuProps> = ({ value, onChange }) => {
 	return (

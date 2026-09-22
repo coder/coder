@@ -102,7 +102,7 @@ export {
 export type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 export type { AgentContextUsage } from "./ContextUsageIndicator";
 
-interface AgentChatInputProps {
+type AgentChatInputProps = {
 	onSend: (message: string) => void;
 	placeholder?: string;
 	isDisabled: boolean;
@@ -203,15 +203,15 @@ interface AgentChatInputProps {
 	// Built-in commands offered by the "/" trigger menu ahead of
 	// personal skills.
 	slashCommands?: readonly ChatSlashCommand[];
-}
+};
 
-export interface AttachedWorkspaceInfo {
+export type AttachedWorkspaceInfo = {
 	id: string;
 	name: string;
 	route: string;
 	statusIcon: React.ReactNode;
 	statusLabel: string;
-}
+};
 // Shared pill sizing: flex-basis sets a ~8ch floor (shrink-0 enforces
 // it), grow expands into free row space, and max-w-max caps at the
 // label's natural width. Below the floor the +N overflow takes over.
@@ -852,9 +852,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		e.preventDefault();
 		setIsDragging(false);
 		if (!onAttach || !e.dataTransfer.files.length) return;
-		const attachable = Array.from(e.dataTransfer.files).filter(
-			isChatAttachmentFile,
-		);
+		const dropped = Array.from(e.dataTransfer.files);
+		const attachable = dropped.filter(isChatAttachmentFile);
+		const rejected = dropped.filter((file) => !isChatAttachmentFile(file));
+		if (rejected.length > 0) {
+			toast.error(
+				`Unsupported file type: ${rejected.map((file) => file.name).join(", ")}`,
+			);
+		}
 		if (attachable.length === 0) return;
 		resetPromptCycle();
 		onAttach(attachable);
@@ -1775,7 +1780,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
  * than the chat are disabled unless already selected, so stale bindings
  * can still be cleared.
  */
-interface WorkspacePickerListProps {
+type WorkspacePickerListProps = {
 	workspaceOptions:
 		| ReadonlyArray<{
 				id: string;
@@ -1786,7 +1791,7 @@ interface WorkspacePickerListProps {
 	selectedWorkspaceId?: string | null;
 	chatOrganizationId?: string;
 	onSelect: (id: string | null) => void;
-}
+};
 
 const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
 	workspaceOptions,

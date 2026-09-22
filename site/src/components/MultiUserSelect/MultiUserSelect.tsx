@@ -234,14 +234,14 @@ const TableLoader: FC = () => {
 	);
 };
 
-interface UserRowProps<T extends SelectedUser> {
+type UserRowProps<T extends SelectedUser> = {
 	checked: boolean;
 	children?: ReactNode;
 	isFirst: boolean;
 	isLast: boolean;
 	onChange: (user: T, checked: boolean) => void;
 	user: T;
-}
+};
 
 const UserRow = <T extends SelectedUser>({
 	checked,

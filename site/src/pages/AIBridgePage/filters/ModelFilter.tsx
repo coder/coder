@@ -17,7 +17,7 @@ export const useModelFilterMenu = ({
 		id: "model",
 		getSelectedOption: async () => {
 			const modelsRes = await API.getAIBridgeModels({
-				q: value,
+				model: value,
 				limit: 1,
 			});
 			const firstModel = modelsRes.at(0);
@@ -36,7 +36,7 @@ export const useModelFilterMenu = ({
 		},
 		getOptions: async (query) => {
 			const modelsRes = await API.getAIBridgeModels({
-				q: query,
+				model: query,
 				limit: 25,
 			});
 			return modelsRes.map((model) => ({
@@ -53,10 +53,10 @@ export const useModelFilterMenu = ({
 
 export type ModelFilterMenu = ReturnType<typeof useModelFilterMenu>;
 
-interface ModelFilterProps {
+type ModelFilterProps = {
 	menu: ModelFilterMenu;
 	width?: number;
-}
+};
 
 export const ModelFilter: FC<ModelFilterProps> = ({ menu, width }) => {
 	return (
