@@ -34,7 +34,7 @@ const CostSetupWarning: FC<{ scope: SpendScope }> = ({ scope }) => {
 						</button>
 					</Badge>
 				</TooltipTrigger>
-				<TooltipContent side="bottom" className="max-w-xs">
+				<TooltipContent side="bottom" align="start" className="max-w-xs">
 					Some users have used models without configured pricing. That usage is
 					excluded, so total spend may be higher than shown.
 				</TooltipContent>
@@ -52,7 +52,8 @@ const CostSetupWarning: FC<{ scope: SpendScope }> = ({ scope }) => {
 					<TriangleAlertIcon />
 				</button>
 			</TooltipTrigger>
-			<TooltipContent side="bottom" className="max-w-xs">
+			{/* Spend cells are right-aligned, so the tooltip hangs off the table edge. */}
+			<TooltipContent side="bottom" align="end" className="max-w-xs">
 				This user has used models without configured pricing. That usage is
 				excluded, so their actual spend may be higher than shown.
 			</TooltipContent>
