@@ -1362,7 +1362,7 @@ describe("getSubagentDescriptor", () => {
 		const lifecycleTools = [
 			{ name: "wait_agent", action: "wait" },
 			{ name: "message_agent", action: "message" },
-			{ name: "followup_agent", action: "followup" },
+			{ name: "queue_agent_work", action: "queue" },
 			{ name: "close_agent", action: "interrupt" },
 			{ name: "interrupt_agent", action: "interrupt" },
 		] as const;
@@ -1388,7 +1388,7 @@ describe("getSubagentDescriptor", () => {
 		const lifecycleToolNames = [
 			"wait_agent",
 			"message_agent",
-			"followup_agent",
+			"queue_agent_work",
 			"close_agent",
 			"interrupt_agent",
 		] as const;

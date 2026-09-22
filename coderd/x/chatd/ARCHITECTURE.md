@@ -1008,7 +1008,7 @@ The generation goroutine supports:
 - memory tools (`read_memory`, `save_memory`, `delete_memory`) for root chats in a project, see [Project memory](#project-memory)
   <!-- TODO(f0ssel): add `consolidate_memory` to this tool list. -->
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
-  - TODO: Document bidirectional `message_agent`, direct-parent authorization for child callers, and FIFO `followup_agent` delivery.
+  - TODO: Document bidirectional `message_agent`, direct-parent authorization for child callers, and FIFO `queue_agent_work` delivery.
   - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
 - file links
 - workspace binding

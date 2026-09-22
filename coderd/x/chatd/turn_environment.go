@@ -1992,7 +1992,7 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		return isRootChat
 	case "message_agent":
 		return !isRootChat
-	case "process_list", "process_signal", "followup_agent", "interrupt_agent", "close_agent",
+	case "process_list", "process_signal", "queue_agent_work", "interrupt_agent", "close_agent",
 		"spawn_computer_use_agent":
 		return false
 	default:

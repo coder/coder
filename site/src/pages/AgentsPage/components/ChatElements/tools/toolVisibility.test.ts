@@ -175,19 +175,19 @@ describe("toolVisibility", () => {
 			).toBe(false);
 		});
 
-		it.each(["message_agent", "followup_agent"])(
-			"hides running %s rows until chat_id is available",
-			(name) => {
-				expect(
-					shouldRenderTool({
-						name,
-						status: "running",
-						args: { message: "continue" },
-						result: { status: "pending" },
-					}),
-				).toBe(false);
-			},
-		);
+		it.each([
+			"message_agent",
+			"queue_agent_work",
+		])("hides running %s rows until chat_id is available", (name) => {
+			expect(
+				shouldRenderTool({
+					name,
+					status: "running",
+					args: { message: "continue" },
+					result: { status: "pending" },
+				}),
+			).toBe(false);
+		});
 
 		it("hides running close_agent (legacy alias) rows until chat_id is available", () => {
 			expect(

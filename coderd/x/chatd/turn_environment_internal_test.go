@@ -824,7 +824,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			},
 			dontWant: []string{
 				"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search",
-				"message_agent", "followup_agent", "interrupt_agent",
+				"message_agent", "queue_agent_work", "interrupt_agent",
 			},
 		},
 		{
@@ -835,7 +835,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			want:     []string{"read_file", "execute", "process_output", "message_agent"},
 			dontWant: []string{
 				"write_file", "edit_files", "ask_user_question", "approved__echo", "inline__echo",
-				"workspace__echo", "web_search", "spawn_agent", "wait_agent", "followup_agent",
+				"workspace__echo", "web_search", "spawn_agent", "wait_agent", "queue_agent_work",
 				"interrupt_agent", "list_agents",
 			},
 		},
@@ -860,7 +860,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			},
 			dontWant: []string{
 				"write_file", "edit_files", "spawn_agent", "wait_agent", "unselected__echo", "forced__echo",
-				"inline__echo", "workspace__echo", "followup_agent", "interrupt_agent", "list_agents",
+				"inline__echo", "workspace__echo", "queue_agent_work", "interrupt_agent", "list_agents",
 			},
 		},
 		{
