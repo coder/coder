@@ -57,8 +57,8 @@ export const SpendAmount: FC<SpendAmountProps> = ({
 }) => {
 	return (
 		<span className="inline-flex items-center gap-2 tabular-nums">
-			{unpricedUsageCount > 0 && <CostSetupBadge scope={scope} />}
 			{formatCostMicros(costMicros)}
+			{unpricedUsageCount > 0 && <CostSetupBadge scope={scope} />}
 		</span>
 	);
 };
