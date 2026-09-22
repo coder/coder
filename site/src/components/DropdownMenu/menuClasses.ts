@@ -1,6 +1,5 @@
 export const menuContentClass = [
 	"z-50 min-w-48 overflow-hidden rounded-md border border-solid bg-surface-primary p-2 text-content-secondary shadow-md",
-	"origin-(--radix-popper-transform-origin)",
 	"data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
 ].join(" ");
 
