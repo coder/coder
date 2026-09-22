@@ -114,23 +114,23 @@ export const UnpricedUsage: Story = {
 	args: { reportQuery: loadedReportQuery(mockUnpricedUsageReport) },
 };
 
-export const UnpricedModelsTooltip: Story = {
+export const CostSetupTooltip: Story = {
 	args: { reportQuery: loadedReportQuery(mockUnpricedUsageReport) },
 	play: async ({ canvasElement }) => {
 		await userEvent.hover(
 			within(canvasElement).getByRole("button", {
-				name: `Unpriced models for ${MockOrganizationAISpendUser.name}`,
+				name: `Cost setup for ${MockOrganizationAISpendUser.name}`,
 			}),
 		);
 		await screen.findByRole("tooltip");
 	},
 };
 
-export const TotalUnpricedModelsKeyboard: Story = {
+export const TotalCostSetupKeyboard: Story = {
 	args: { reportQuery: loadedReportQuery(mockUnpricedUsageReport) },
 	play: async ({ canvasElement }) => {
 		within(canvasElement)
-			.getByRole("button", { name: "Unpriced models in total spend" })
+			.getByRole("button", { name: "Cost setup for total spend" })
 			.focus();
 		await screen.findByRole("tooltip");
 	},
