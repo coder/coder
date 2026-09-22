@@ -1007,8 +1007,7 @@ SET
     -- out-of-band.
     title = @title::text,
     title_source = @title_source::chat_title_source,
-    -- Strictly increasing per row even when a later-committing
-    -- transaction started earlier, so clients can order title events.
+    -- Strictly increasing per row, including across overlapping transactions.
     title_updated_at = GREATEST(NOW(), title_updated_at + interval '1 microsecond')
 WHERE
     id = @id::uuid

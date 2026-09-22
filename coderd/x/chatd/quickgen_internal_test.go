@@ -619,8 +619,6 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 		}
 	})
 
-	// A model call that writes no title still publishes the current row
-	// so watchers refetch the call's cost.
 	t.Run("PublishesCurrentRowWhenNoTitleIsWritten", func(t *testing.T) {
 		t.Parallel()
 
