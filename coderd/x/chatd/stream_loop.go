@@ -150,10 +150,15 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 
 		if chat.HistoryVersion > l.state.historyVersion {
 			afterRevision := l.state.historyVersion
+			var cursor *database.ChatMessage
 			if !l.state.initialMessageSyncDone && l.state.afterMessageID > 0 {
-				afterRevision, err = l.initialAfterRevision(ctx, tx)
+				row, ok, err := l.initialSyncCursor(ctx, tx)
 				if err != nil {
 					return err
+				}
+				if ok {
+					cursor = &row
+					afterRevision = row.Revision - 1
 				}
 			}
 			snapshot.changedMessages, err = tx.GetChatMessagesByRevisionForStream(ctx, database.GetChatMessagesByRevisionForStreamParams{
@@ -164,7 +169,7 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 				return xerrors.Errorf("get changed chat messages: %w", err)
 			}
 			for _, msg := range snapshot.changedMessages {
-				if msg.Deleted {
+				if msg.Deleted && tombstoneRequiresReset(cursor, msg) {
 					snapshot.historyReset = true
 					break
 				}
@@ -212,23 +217,36 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 	return snapshot, nil
 }
 
-// initialAfterRevision bounds the first message fetch to what a client
-// holding afterMessageID can be missing. Rows the client already has were
-// committed at or before that message's revision, and an edit truncating
-// any of them soft-deletes the cursor row itself. A cursor that is gone
-// falls back to the full scan so the deletion surfaces as a history reset.
-func (l *streamLoop) initialAfterRevision(ctx context.Context, tx database.Store) (int64, error) {
+// initialSyncCursor loads the live row a client holds as afterMessageID so
+// the first fetch can start at its revision. Rows the client already has
+// were committed at or before that revision, and an edit truncating any of
+// them soft-deletes the cursor row itself. A cursor that is gone, unknown,
+// or from another chat reports false so the full scan surfaces the deletion
+// as a history reset.
+func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (database.ChatMessage, bool, error) {
 	cursor, err := tx.GetChatMessageByID(ctx, l.state.afterMessageID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, nil
+			return database.ChatMessage{}, false, nil
 		}
-		return 0, xerrors.Errorf("get stream cursor message: %w", err)
+		return database.ChatMessage{}, false, xerrors.Errorf("get stream cursor message: %w", err)
 	}
 	if cursor.ChatID != l.chatID {
-		return 0, nil
+		return database.ChatMessage{}, false, nil
 	}
-	return cursor.Revision - 1, nil
+	return cursor, true, nil
+}
+
+// tombstoneRequiresReset reports whether a deleted row invalidates history a
+// client holding cursor may have seen alive. Rows deleted no later than the
+// cursor's revision were gone before or in the transaction that made the
+// cursor visible, and rows after the cursor were never held, so an edit
+// truncation the client already observed does not replay the transcript.
+func tombstoneRequiresReset(cursor *database.ChatMessage, msg database.ChatMessage) bool {
+	if cursor == nil {
+		return true
+	}
+	return msg.ID <= cursor.ID && msg.Revision > cursor.Revision
 }
 
 func (*streamLoop) actionRequiredFromHistory(chat database.Chat, messages []database.ChatMessage) (*codersdk.ChatStreamActionRequired, error) {
@@ -347,6 +365,11 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 
 	events := make([]codersdk.ChatStreamEvent, 0, len(snapshot.changedMessages))
 	for _, msg := range snapshot.changedMessages {
+		// A tombstone that did not force a reset was never held by the
+		// client, so it has nothing to replace.
+		if msg.Deleted {
+			continue
+		}
 		knownRevision := l.state.knownMessages[msg.ID]
 		if knownRevision >= msg.Revision {
 			continue
