@@ -21,6 +21,8 @@ const (
 	scriptOrderSelectorModule
 )
 
+var errScriptOrderConfigModuleNotFound = xerrors.New("script order configuration module not found")
+
 type scriptOrderSelector struct {
 	kind        scriptOrderSelectorKind
 	name        string
@@ -28,13 +30,17 @@ type scriptOrderSelector struct {
 }
 
 type scriptOrderSelectorResolution struct {
-	// contains the sorted, deduplicated Terraform addresses of all
+	// Contains the sorted, deduplicated Terraform addresses of all
 	// concrete scripts selected.
 	addresses []string
-	// For module selectors, distinguishes a declared module call with
-	// no resolved scripts from an unknown module selector. Scripts
-	// may resolve to no instances when a module conditionally sets
-	// their count to zero.
+	// Populated only for empty unindexed script selectors. It
+	// distinguishes a declared resource with no concrete instances,
+	// such as one with count = 0, from an unknown resource selector.
+	scriptResourceDeclared bool
+	// Populated for every module selector. It distinguishes a
+	// declared module call with no resolved scripts from an unknown
+	// module selector. Scripts may resolve to no instances when a
+	// module conditionally sets their count to zero.
 	moduleCallDeclared bool
 }
 
@@ -103,13 +109,15 @@ func parseScriptOrderSelector(raw string) (scriptOrderSelector, error) {
 }
 
 // resolveScriptOrderSelector expands a selector relative to its
-// declaring module. For module selectors, it also reports whether the
-// module call is declared so callers can distinguish an empty module
-// call from an unknown selector.
+// declaring module. For selectors with no resolved scripts, it also
+// reports whether the selected resource or module call is declared so
+// callers can distinguish an empty declaration from an unknown selector.
 //
-// `modules` is the evaluated module tree and its concrete script instances.
-// `planConfig` contains declared module calls, including calls with no
-// instances after evaluation.
+// `modules` contains one or more evaluated module trees and their
+// concrete script instances. During plan conversion, it may include
+// prior state filtered to data resources alongside planned values.
+// `planConfig` contains resource and module call declarations, including
+// declarations with no instances after evaluation.
 // `selector` must have been produced by parseScriptOrderSelector.
 func resolveScriptOrderSelector(
 	modules []*tfjson.StateModule,
@@ -117,18 +125,10 @@ func resolveScriptOrderSelector(
 	moduleAddress string,
 	selector scriptOrderSelector,
 ) (scriptOrderSelectorResolution, error) {
-	if selector.kind != scriptOrderSelectorScript && selector.kind != scriptOrderSelectorModule {
+	if selector.kind != scriptOrderSelectorScript &&
+		selector.kind != scriptOrderSelectorModule {
 		return scriptOrderSelectorResolution{},
 			xerrors.Errorf("unknown script order selector kind %d", selector.kind)
-	}
-
-	var resolution scriptOrderSelectorResolution
-	if selector.kind == scriptOrderSelectorModule {
-		declared, err := isModuleCallInConfig(planConfig, moduleAddress, selector.name)
-		if err != nil {
-			return scriptOrderSelectorResolution{}, err
-		}
-		resolution.moduleCallDeclared = declared
 	}
 
 	resolved := map[string]struct{}{}
@@ -152,7 +152,34 @@ func resolveScriptOrderSelector(
 		}
 	}
 
-	resolution.addresses = slices.Sorted(maps.Keys(resolved))
+	resolution := scriptOrderSelectorResolution{
+		addresses: slices.Sorted(maps.Keys(resolved)),
+	}
+	switch selector.kind {
+	case scriptOrderSelectorScript:
+		// Only unindexed selectors may be valid without concrete
+		// instances. The caller rejects missing indexed instances.
+		if selector.instanceKey == cty.NilVal && len(resolution.addresses) == 0 {
+			declared, err := isCoderScriptResourceInConfig(
+				planConfig, moduleAddress, selector.name,
+			)
+			if err != nil {
+				return scriptOrderSelectorResolution{}, err
+			}
+			resolution.scriptResourceDeclared = declared
+		}
+	case scriptOrderSelectorModule:
+		// Always validate module selectors against the plan config.
+		// This distinguishes unknown selectors from declared calls
+		// with no scripts.
+		declared, err := isModuleCallInConfig(
+			planConfig, moduleAddress, selector.name,
+		)
+		if err != nil {
+			return scriptOrderSelectorResolution{}, err
+		}
+		resolution.moduleCallDeclared = declared
+	}
 	return resolution, nil
 }
 
@@ -167,22 +194,73 @@ func isModuleCallInConfig(
 		return false, xerrors.New("terraform plan configuration is required to resolve a module selector")
 	}
 
-	module := config.RootModule
-	if declaringModuleAddress != "" {
-		modulePath, err := parseStateModuleAddress(declaringModuleAddress)
-		if err != nil {
-			return false, err
-		}
-		for _, step := range modulePath.steps {
-			call := module.ModuleCalls[step.name]
-			if call == nil || call.Module == nil {
-				return false, nil
-			}
-			module = call.Module
-		}
+	module, err := configModuleForAddress(config.RootModule, declaringModuleAddress)
+	if xerrors.Is(err, errScriptOrderConfigModuleNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
 	}
 
 	return module.ModuleCalls[name] != nil, nil
+}
+
+// isCoderScriptResourceInConfig reports whether `name` is a managed
+// coder_script resource in the configuration of the declaring module
+// instance.
+func isCoderScriptResourceInConfig(
+	config *tfjson.Config,
+	declaringModuleAddress string,
+	name string,
+) (bool, error) {
+	if config == nil || config.RootModule == nil {
+		return false, xerrors.New(
+			"cannot validate empty coder_script selector because Terraform plan configuration is unavailable",
+		)
+	}
+
+	module, err := configModuleForAddress(config.RootModule, declaringModuleAddress)
+	if xerrors.Is(err, errScriptOrderConfigModuleNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	for _, resource := range module.Resources {
+		if resource != nil &&
+			resource.Mode == tfjson.ManagedResourceMode &&
+			resource.Type == "coder_script" &&
+			resource.Name == name {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// configModuleForAddress maps an evaluated module-instance address to
+// its configuration. Instance keys are ignored because repeated
+// module instances share one configuration.
+func configModuleForAddress(
+	root *tfjson.ConfigModule,
+	moduleAddress string,
+) (*tfjson.ConfigModule, error) {
+	module := root
+	if moduleAddress == "" {
+		return module, nil
+	}
+
+	modulePath, err := parseStateModuleAddress(moduleAddress)
+	if err != nil {
+		return nil, err
+	}
+	for _, step := range modulePath.steps {
+		call := module.ModuleCalls[step.name]
+		if call == nil || call.Module == nil {
+			return nil, errScriptOrderConfigModuleNotFound
+		}
+		module = call.Module
+	}
+	return module, nil
 }
 
 func resolveScriptOrderScriptSelector(
@@ -347,7 +425,8 @@ type resolvedScriptOrderSelector struct {
 	// addresses contains the concrete coder_script instances selected
 	// by `raw`. For example, "coder_script.setup" can expand to
 	// "coder_script.setup[0]" and "coder_script.setup[1]". It may be
-	// empty for a declared module call with no script instances.
+	// empty for a declared unindexed coder_script resource or module
+	// call with no script instances.
 	addresses []string
 }
 
@@ -490,10 +569,9 @@ func parseScriptOrderPhase(raw string) (scriptOrderPhase, error) {
 	}
 }
 
-// resolveScriptOrderSelectors resolves one run or after field. A
-// selector naming a declared child module call may expand to no
-// scripts, but a script selector must resolve to at least one
-// concrete instance.
+// resolveScriptOrderSelectors resolves one run or after field. An
+// unindexed selector naming a declared script resource or child module
+// call may expand to no scripts.
 func resolveScriptOrderSelectors(
 	modules []*tfjson.StateModule,
 	planConfig *tfjson.Config,
@@ -535,14 +613,26 @@ func resolveScriptOrderSelectors(
 		switch selector.kind {
 		case scriptOrderSelectorScript:
 			if len(resolution.addresses) == 0 {
-				return nil, scriptOrderRuleError(
-					dataSource.address,
-					ruleIndex,
-					xerrors.Errorf(
-						"%s selector %q expanded to no coder_script resources",
-						selectorField, raw,
-					),
-				)
+				if selector.instanceKey != cty.NilVal {
+					return nil, scriptOrderRuleError(
+						dataSource.address,
+						ruleIndex,
+						xerrors.Errorf(
+							"%s selector %q expanded to no coder_script resources",
+							selectorField, raw,
+						),
+					)
+				}
+				if !resolution.scriptResourceDeclared {
+					return nil, scriptOrderRuleError(
+						dataSource.address,
+						ruleIndex,
+						xerrors.Errorf(
+							"%s selector %q does not name a declared coder_script resource",
+							selectorField, raw,
+						),
+					)
+				}
 			}
 		case scriptOrderSelectorModule:
 			if !resolution.moduleCallDeclared {
@@ -790,7 +880,7 @@ func validateScriptOrderSelectedScripts(
 // determineScriptOrderRulePhase returns the rule phase and whether it
 // was inferred rather than explicitly declared. An empty phase with
 // inferred false means every selector resolved only to declared
-// module calls with no scripts.
+// script resources or module calls with no scripts.
 func determineScriptOrderRulePhase(
 	declaration scriptOrderRuleDeclaration,
 	scripts map[string]scriptOrderScript,
@@ -848,7 +938,8 @@ func determineScriptOrderRulePhase(
 		return moduleSelectorPhases[0].phase, true, nil
 	}
 
-	// Every selector names a declared module call with no concrete scripts.
+	// Every selector names a declared script resource or module call
+	// with no concrete scripts.
 	return "", false, nil
 }
 
@@ -935,8 +1026,8 @@ func filterScriptOrderModuleSelectorAddressesByPhase(
 	var filtered []string
 	for _, selector := range selectors {
 		// determineScriptOrderRulePhase returns an empty phase only
-		// when every selector names a declared module call that
-		// expanded to no scripts.
+		// when every selector names a declared script resource or
+		// module call that expanded to no scripts.
 		if selector.kind != scriptOrderSelectorModule || phase == "" {
 			result = append(result, selector)
 			continue
