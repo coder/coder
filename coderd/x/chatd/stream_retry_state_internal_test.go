@@ -190,7 +190,7 @@ func TestStreamSnapshotRetryAfterTurnEnded(t *testing.T) {
 			require.Greater(t, chat.RetryStateVersion, retryStateVersion)
 
 			// A client connects: the bootstrap sync in stream_subscribe.go.
-			loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 0)
+			loop := newStreamLoop(chat, db, slogtest.Make(t, nil), StreamCursor{})
 			events, _, changed, err := loop.syncDB(ctx)
 			require.NoError(t, err)
 			require.True(t, changed)
@@ -286,7 +286,7 @@ func TestStreamSyncObservesTransitionCommittedDuringRead(t *testing.T) {
 	defer cancel()
 
 	store := &holdFirstChatReadStore{Store: db, entered: make(chan struct{}), release: make(chan struct{}), once: new(sync.Once)}
-	loop := newStreamLoop(chat, store, slogtest.Make(t, nil), 0)
+	loop := newStreamLoop(chat, store, slogtest.Make(t, nil), StreamCursor{})
 
 	// A client connects and its bootstrap sync reads the chat, then the
 	// snapshot is held open.

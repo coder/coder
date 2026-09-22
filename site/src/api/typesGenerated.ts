@@ -3153,6 +3153,11 @@ export interface ChatMessagesResponse {
 	 * and when no prompt is at or before that message.
 	 */
 	readonly turn_start_id?: number;
+	/**
+	 * HistoryVersion is the chat history_version this page was read at.
+	 * Pass it as after_revision when opening the stream.
+	 */
+	readonly history_version?: number;
 }
 
 // From codersdk/chats.go
@@ -3878,6 +3883,11 @@ export interface ChatStreamRetry {
  */
 export interface ChatStreamStatus {
 	readonly status: ChatStatus;
+	/**
+	 * HistoryVersion is the chat history_version after the message events
+	 * sent before this status. Pass it as after_revision when reconnecting.
+	 */
+	readonly history_version?: number;
 }
 
 // From codersdk/chats.go
@@ -9805,6 +9815,12 @@ export interface StreamChatOptions {
 	 * full message history.
 	 */
 	readonly AfterID: number | null;
+	/**
+	 * AfterRevision is the ChatMessagesResponse.HistoryVersion the caller's
+	 * messages were read at. Without it, any past edit makes the server
+	 * resend the whole history.
+	 */
+	readonly AfterRevision: number | null;
 }
 
 // From codersdk/client.go

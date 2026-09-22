@@ -1799,7 +1799,7 @@ func TestSubscribeRejectsUnauthorizedCallerBeforeSharedFetches(t *testing.T) {
 	db.EXPECT().GetChatByID(gomock.Any(), chatID).
 		Return(database.Chat{}, dbauthz.NotAuthorizedError{Err: xerrors.New("not authorized")})
 
-	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, StreamCursor{})
 	require.False(t, ok)
 	require.Nil(t, snapshot)
 	require.Nil(t, events)
@@ -1818,7 +1818,7 @@ func TestSubscribeSurfacesTransientLookupFailureAsInitialError(t *testing.T) {
 	db.EXPECT().GetChatByID(gomock.Any(), chatID).
 		Return(database.Chat{}, xerrors.New("transient lookup failure"))
 
-	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, StreamCursor{})
 	require.True(t, ok)
 	require.NotNil(t, cancel)
 	require.Len(t, snapshot, 1)

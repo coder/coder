@@ -1890,6 +1890,9 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		QueuedMessages: convertChatQueuedMessages(queuedMessages),
 		HasMore:        hasMore,
 		TurnStartID:    turnStartID,
+		// Read by the route middleware before the page query, so never
+		// newer than the page's rows.
+		HistoryVersion: chat.HistoryVersion,
 	})
 }
 
@@ -3534,6 +3537,7 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param after_id query int false "Skip snapshot messages with id at or before this cursor"
+// @Param after_revision query int false "Skip history changed at or before this history_version, as returned by the messages page"
 // @Success 200 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
@@ -3546,10 +3550,10 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var afterMessageID int64
+	var cursor chatd.StreamCursor
 	if v := r.URL.Query().Get("after_id"); v != "" {
 		var err error
-		afterMessageID, err = strconv.ParseInt(v, 10, 64)
+		cursor.AfterMessageID, err = strconv.ParseInt(v, 10, 64)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid after_id parameter.",
@@ -3558,10 +3562,21 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if v := r.URL.Query().Get("after_revision"); v != "" {
+		var err error
+		cursor.AfterRevision, err = strconv.ParseInt(v, 10, 64)
+		if err != nil || cursor.AfterRevision < 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid after_revision parameter.",
+				Detail:  "after_revision must be a non-negative integer.",
+			})
+			return
+		}
+	}
 
 	// Subscribe before accepting the WebSocket so that failures
 	// can still be reported as normal HTTP errors.
-	snapshot, events, cancelSub, ok := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, afterMessageID)
+	snapshot, events, cancelSub, ok := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, cursor)
 	// Defensive against future SubscribeAuthorized failure modes.
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
