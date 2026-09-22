@@ -88,7 +88,6 @@ type TerminalSelectorProps = Pick<
 	| "activeTerminalId"
 	| "canCreateTerminal"
 	| "onActiveTerminalChange"
-	| "onCloseTerminal"
 	| "onNewTerminal"
 >;
 
@@ -98,7 +97,6 @@ const TerminalSelector: FC<TerminalSelectorProps> = ({
 	activeTerminalId,
 	canCreateTerminal,
 	onActiveTerminalChange,
-	onCloseTerminal,
 	onNewTerminal,
 }) => {
 	const [open, setOpen] = useState(false);
@@ -148,12 +146,6 @@ const TerminalSelector: FC<TerminalSelectorProps> = ({
 					<PlusIcon />
 					New terminal
 				</DropdownMenuItem>
-				{activeTerminal && (
-					<DropdownMenuItem onSelect={() => onCloseTerminal(activeTerminal.id)}>
-						<XIcon />
-						Close {activeTerminal.label}
-					</DropdownMenuItem>
-				)}
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
@@ -206,6 +198,9 @@ export const TerminalTabPanel: FC<TerminalTabPanelProps> = ({
 		label: terminal.label,
 		onClose: () => onCloseTerminal(terminal.id),
 	}));
+	const activeTerminal = terminals.find(
+		(terminal) => terminal.id === activeTerminalId,
+	);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -227,14 +222,27 @@ export const TerminalTabPanel: FC<TerminalTabPanelProps> = ({
 					<AddTerminalButton onClick={() => {}} disabled={false} />
 				</div>
 				{overflows ? (
-					<TerminalSelector
-						terminals={terminals}
-						activeTerminalId={activeTerminalId}
-						canCreateTerminal={canCreateTerminal}
-						onActiveTerminalChange={onActiveTerminalChange}
-						onCloseTerminal={onCloseTerminal}
-						onNewTerminal={onNewTerminal}
-					/>
+					<div className="flex min-w-0 items-center gap-1.5">
+						<TerminalSelector
+							terminals={terminals}
+							activeTerminalId={activeTerminalId}
+							canCreateTerminal={canCreateTerminal}
+							onActiveTerminalChange={onActiveTerminalChange}
+							onNewTerminal={onNewTerminal}
+						/>
+						{activeTerminal && (
+							<Button
+								variant="outline"
+								size="icon"
+								onClick={() => onCloseTerminal(activeTerminal.id)}
+								aria-label={`Close ${activeTerminal.label}`}
+								title={`Close ${activeTerminal.label}`}
+								className="size-8 shrink-0 p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3.5"
+							>
+								<XIcon />
+							</Button>
+						)}
+					</div>
 				) : (
 					<SubTabStrip
 						label="Terminals"
