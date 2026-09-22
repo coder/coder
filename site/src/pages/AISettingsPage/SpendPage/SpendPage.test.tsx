@@ -217,9 +217,8 @@ it("holds the date picker until the filtered report brings its retention bound",
 		retention_start: fixedNow.subtract(10, "day").toISOString(),
 	});
 	await screen.findByRole("table", { name: "Spend by user" });
-	const picker = screen.getByRole("button", {
-		name: /Feb 10, 2026.*Mar 11, 2026/,
-	});
+	const pickerName = /Feb 10, 2026.*Mar 11, 2026/;
+	await screen.findByRole("button", { name: pickerName });
 
 	let deliverReport = () => {};
 	spendSpy.mockImplementationOnce(
@@ -246,7 +245,9 @@ it("holds the date picker until the filtered report brings its retention bound",
 	// Without the report's retention bound an open picker would offer this
 	// preset, which starts before retention.
 	const requestsBeforePicking = spendSpy.mock.calls.length;
-	await user.click(picker);
+	for (const picker of screen.queryAllByRole("button", { name: pickerName })) {
+		await user.click(picker);
+	}
 	for (const preset of screen.queryAllByRole("button", {
 		name: "Last 30 days",
 	})) {
@@ -257,7 +258,7 @@ it("holds the date picker until the filtered report brings its retention bound",
 
 	deliverReport();
 	await screen.findByText("No AI Gateway spend found");
-	await user.click(picker);
+	await user.click(await screen.findByRole("button", { name: pickerName }));
 	await user.click(await screen.findByRole("button", { name: "Last 7 days" }));
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
