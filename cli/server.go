@@ -853,17 +853,21 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			options.Database = database.New(sqlDB)
 			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
 
-			pgPubsub, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
+			// Build a single shared pubsub metrics instance, registered once
+			// when Prometheus is enabled. Both backends record into it with
+			// their own `backend` label value.
+			var pubsubMetrics *pubsub.Metrics
+			if options.DeploymentValues.Prometheus.Enable {
+				pubsubMetrics = pubsub.NewMetrics(options.PrometheusRegistry)
+			}
+
+			pgPubsub, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL, pubsubMetrics)
 			if err != nil {
 				return xerrors.Errorf("create pubsub: %w", err)
 			}
 			options.Pubsub = pgPubsub
 			options.ReplicaSyncPubsub = pgPubsub
 			defer pgPubsub.Close()
-
-			if options.DeploymentValues.Prometheus.Enable {
-				options.PrometheusRegistry.MustRegister(pgPubsub)
-			}
 
 			useNATSPubsub := !experiments.Enabled(codersdk.ExperimentNoNATSPubsub)
 			// NATS clustering needs this replica's routable address (clusterHost,
@@ -898,16 +902,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					// refactor so the CA cache can be constructed once alongside
 					// the database.
 					ClusterCA: cryptokeys.NoopSigningKeycache{},
+					Metrics:   pubsubMetrics,
 				})
 				if err != nil {
 					return xerrors.Errorf("create nats pubsub: %w", err)
 				}
 				options.Pubsub = natsps
 				defer natsps.Close()
-
-				if options.DeploymentValues.Prometheus.Enable {
-					options.PrometheusRegistry.MustRegister(natsps)
-				}
 			}
 
 			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), options.Pubsub)
