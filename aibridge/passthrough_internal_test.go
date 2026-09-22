@@ -354,12 +354,9 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 					BaseURL: baseURL,
 					KeyPool: pool,
 				}, nil, &config.AWSClaudePlatform{
-					AuthMode:        config.ClaudePlatformAuthModeIAM,
-					Region:          "us-west-2",
-					BaseURL:         baseURL,
-					WorkspaceID:     "wrkspc_config",
-					AccessKey:       "test-access-key",
-					AccessKeySecret: "test-secret-key",
+					Region:      "us-west-2",
+					BaseURL:     baseURL,
+					WorkspaceID: "wrkspc_config",
 				})
 				require.NoError(t, err)
 				return p
@@ -373,7 +370,6 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 					BaseURL: baseURL,
 					KeyPool: pool,
 				}, nil, &config.AWSClaudePlatform{
-					AuthMode:    config.ClaudePlatformAuthModeAPIKey,
 					Region:      "us-west-2",
 					BaseURL:     baseURL,
 					WorkspaceID: "wrkspc_config",
