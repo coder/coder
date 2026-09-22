@@ -1495,7 +1495,7 @@ type ChatModelCallConfig struct {
 // ChatModelOpenAIConfig holds settings applied once when the OpenAI client
 // is built, not per request, including OpenAI-format models on Bedrock.
 type ChatModelOpenAIConfig struct {
-	UseResponsesAPI *bool `json:"use_responses_api,omitempty" label:"Use Responses API" providers:"openai,openaicompat" description:"Override which OpenAI API this model uses. Leave unset to decide from the provider SDK's known-model list, true to force the Responses API, false to force Chat Completions. Azure OpenAI providers ignore this and always follow the known-model list."`
+	UseResponsesAPI *bool `json:"use_responses_api,omitempty" label:"Use Responses API" providers:"openai,openaicompat" description:"Override which OpenAI API this model uses. Leave unset to use the provider SDK's known-model list for OpenAI or Chat Completions for OpenAI-compatible providers. Set true to force the Responses API. Set false to force Chat Completions. Azure OpenAI providers ignore this and always follow the known-model list."`
 	ReasoningModel  *bool `json:"reasoning_model,omitempty" label:"Reasoning Model" providers:"openai,bedrock" description:"Override whether this OpenAI-format model is treated as a reasoning model (reasoning effort and summary are sent, temperature and top_p are dropped). Leave unset to decide from the model name, true for models newer than the provider SDK knows, false to force plain sampling. Ignored for Anthropic models on Bedrock."`
 }
 

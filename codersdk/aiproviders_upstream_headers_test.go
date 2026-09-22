@@ -154,7 +154,7 @@ func TestAIProviderRequest_ValidateUpstreamHeaders(t *testing.T) {
 
 	t.Run("DeniedHeaders", func(t *testing.T) {
 		t.Parallel()
-		for _, name := range []string{"Authorization", "X-Api-Key", "Host", "Content-Length", "Cookie", "Set-Cookie"} {
+		for _, name := range []string{"Authorization", "X-Api-Key", "Host", "Content-Length", "Cookie", "Set-Cookie", "X-AI-Bridge-Actor-ID", "x-ai-bridge-actor-metadata-foo"} {
 			req := valid()
 			req.Settings.UpstreamHeaders.Headers = map[string]string{name: "v"}
 			errs := req.Validate()

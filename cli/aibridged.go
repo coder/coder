@@ -318,6 +318,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
 			SendActorHeaders: sendActorHeaders,
+			UpstreamHeaders:  spec.UpstreamHeaders,
 		}, *bedrock)
 
 	case database.AIProviderTypeCopilot:

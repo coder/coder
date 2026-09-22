@@ -80,6 +80,13 @@ var deniedAIProviderUpstreamHeaders = map[string]struct{}{
 	"set-cookie":          {},
 }
 
+// deniedAIProviderUpstreamHeaderPrefix names the header prefix the
+// custom-headers setting must not override. Actor-attribution headers are
+// written per request by BuildUpstreamHeaders and applied configured headers
+// would clobber them, since ApplyUpstreamHeaders runs after it. Matching is
+// case-insensitive.
+const deniedAIProviderUpstreamHeaderPrefix = "x-ai-bridge-actor"
+
 // validateAIProviderUpstreamHeaders checks a headers blob for structural
 // validity: count and size bounds, RFC 9110 token names, non-empty values
 // without CR/LF, no case-insensitive duplicates, no denied overrides, and no
@@ -104,7 +111,8 @@ func validateAIProviderUpstreamHeaders(h AIProviderUpstreamHeadersSettings) []Va
 			})
 			continue
 		}
-		if _, denied := deniedAIProviderUpstreamHeaders[lowered]; denied {
+		if _, denied := deniedAIProviderUpstreamHeaders[lowered]; denied ||
+			strings.HasPrefix(lowered, deniedAIProviderUpstreamHeaderPrefix) {
 			validations = append(validations, ValidationError{
 				Field:  field,
 				Detail: fmt.Sprintf("header %q is managed by the gateway and cannot be overridden", name),
