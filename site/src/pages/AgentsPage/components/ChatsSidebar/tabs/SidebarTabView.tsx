@@ -252,7 +252,8 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 		>
 			<div className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3">
 				{sidebarExpandButton}
-				<div className="relative min-w-0 flex-1">
+				{/* Pulled down 1px so the active trigger's underline paints over the header border. */}
+				<div className="relative -mb-px min-w-0 flex-1">
 					{canScrollLeft && (
 						<ScrollChevronButton
 							ariaLabel="Scroll tabs left"
@@ -270,7 +271,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 								id={`${idPrefix}-tab-${tab.id}`}
 								value={tab.id}
 								aria-controls={`${idPrefix}-panel-${tab.id}`}
-								className="shrink-0 whitespace-nowrap py-2"
+								className="mb-0 shrink-0 whitespace-nowrap py-2"
 							>
 								{tab.label}
 								{tab.badge !== undefined && (
