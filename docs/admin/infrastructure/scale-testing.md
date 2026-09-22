@@ -77,7 +77,7 @@ seconds. Here are the resulting metrics:
 
 Coder:
 
-- Median CPU usage for _coderd_: 3 vCPU, peaking at 3.7 vCPU while all tests are
+- Median CPU usage for `coderd`: 3 vCPU, peaking at 3.7 vCPU while all tests are
   running concurrently.
 - Median API request rate: 350 RPS during dashboard tests, 250 RPS during Web
   Terminal and workspace apps tests.
@@ -181,7 +181,7 @@ Each external provisioner can run a single concurrent workspace build. For
 example, running 10 provisioner containers will allow 10 users to start
 workspaces at the same time.
 
-By default, the Coder server runs 3 built-in provisioner daemons, but the
+By default, the control plane runs 3 built-in provisioner daemons, but the
 _Premium_ Coder release allows for running external provisioners to separate the
 load caused by workspace provisioning on the `coderd` nodes.
 

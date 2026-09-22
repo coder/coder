@@ -46,10 +46,18 @@ type OAuth2AppFormProps = {
 const BACK_HREF = "/deployment/oauth2-provider/apps";
 const SCOPE_LABEL = "Allowed scopes";
 
-// Mirror codersdk.ValidateRedirectURIScheme and httpapi's oauth2_callback_url.
+// Mirror codersdk.ValidateRedirectURIShape.
 // The server remains authoritative for URL syntax differences between parsers.
 // oxlint-disable-next-line eslint/no-script-url -- This blocklist rejects the scheme; it is never used as a navigation target.
 const DANGEROUS_CALLBACK_SCHEMES = ["javascript:", "data:", "file:", "ftp:"];
+
+const LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
+
+// A public client is held to RFC 8252 loopback. A confidential client may also
+// use a .localhost subdomain, which is how the server draws the line.
+const allowsCleartextHTTP = (hostname: string, isPublicClient: boolean) =>
+	LOOPBACK_HOSTS.includes(hostname) ||
+	(!isPublicClient && hostname.endsWith(".localhost"));
 
 const isValidCallbackURL = (
 	value: string | undefined,
@@ -77,12 +85,12 @@ const isValidCallbackURL = (
 			) {
 				return false;
 			}
-			if (
-				url.protocol === "http:" &&
-				!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
-			) {
-				return false;
-			}
+		}
+		if (
+			url.protocol === "http:" &&
+			!allowsCleartextHTTP(url.hostname, isPublicClient)
+		) {
+			return false;
 		}
 		if (
 			(url.protocol === "http:" || url.protocol === "https:") &&
@@ -128,6 +136,12 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	onIconChange,
 }) => {
 	const didSubmit = useRef(false);
+	const isPublicClient = app?.client_type === "public";
+	// A stored callback that no longer passes validation disables Update on
+	// load. Show its error right away instead of waiting for the field to be
+	// touched, so the admin can see what to correct.
+	const storedCallbackInvalid =
+		app !== undefined && !isValidCallbackURL(app.callback_url, isPublicClient);
 	const form = useFormik<OAuth2AppFormValues>({
 		initialValues: {
 			name: app?.name ?? defaultValues?.name ?? "",
@@ -136,7 +150,8 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 			scope:
 				app?.scope.split(" ").filter(Boolean) ?? defaultValues?.scope ?? [],
 		},
-		validationSchema: validationSchema(app?.client_type === "public"),
+		initialTouched: storedCallbackInvalid ? { callback_url: true } : undefined,
+		validationSchema: validationSchema(isPublicClient),
 		validateOnMount: true,
 		onSubmit: async ({ scope: selectedScopes, ...values }) => {
 			didSubmit.current = true;

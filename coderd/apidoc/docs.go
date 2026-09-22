@@ -770,6 +770,20 @@ const docTemplate = `{
                 ],
                 "summary": "List AI Gateway models",
                 "operationId": "list-ai-gateway-models",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: model. A bare term searches by model prefix.",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Literal model identifier prefix. Cannot be combined with q.",
+                        "name": "model",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -16795,7 +16809,7 @@ const docTemplate = `{
                         "description": "HTML error page. The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback"
                     },
                     "500": {
-                        "description": "HTML error page. The app's registered callback URL is not usable"
+                        "description": "HTML error page. One of the app's registered redirect URIs is not usable"
                     }
                 },
                 "security": [
@@ -16883,7 +16897,7 @@ const docTemplate = `{
                         }
                     },
                     "500": {
-                        "description": "The app's registered callback URL is not usable",
+                        "description": "One of the app's registered redirect URIs is not usable",
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2Error"
                         }
@@ -22154,6 +22168,10 @@ const docTemplate = `{
                 "oauth2_token_url": {
                     "type": "string"
                 },
+                "signing_secret": {
+                    "description": "SigningSecret signs forwarded identity headers and request bodies.\nConfigure the same secret on the MCP server. It is never returned.",
+                    "type": "string"
+                },
                 "slug": {
                     "type": "string"
                 },
@@ -23811,7 +23829,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "regex": {
-                    "description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for \"https://github.com\":'\nAnd sending it to the Coder server to match against the Regex.",
+                    "description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for \"https://github.com\":'\nAnd sending it to the control plane to match against the Regex.",
                     "type": "string"
                 },
                 "revoke_url": {
@@ -24641,6 +24659,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "has_oauth2_secret": {
+                    "type": "boolean"
+                },
+                "has_signing_secret": {
                     "type": "boolean"
                 },
                 "icon_url": {
@@ -25582,6 +25603,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "callback_url": {
+                    "description": "Deprecated: equal to the first entry of redirect_uris. Read\nredirect_uris instead.",
                     "type": "string"
                 },
                 "client_type": {
@@ -25609,6 +25631,13 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "redirect_uris": {
+                    "description": "RedirectURIs are the app's registered redirect URIs, primary first.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "scope": {
                     "description": "Scope is the space-separated list of scopes this app's tokens may be\ngranted. Empty means unrestricted. A non-empty value with no names is a\nconfigured allowlist that grants nothing.",
@@ -26583,11 +26612,11 @@ const docTemplate = `{
         "codersdk.PostOAuth2ProviderAppRequest": {
             "type": "object",
             "required": [
-                "callback_url",
                 "name"
             ],
             "properties": {
                 "callback_url": {
+                    "description": "Deprecated: send redirect_uris instead. If both are sent, callback_url\nmust equal the first entry of redirect_uris.",
                     "type": "string"
                 },
                 "icon": {
@@ -26595,6 +26624,13 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "redirect_uris": {
+                    "description": "RedirectURIs is the ordered list of URIs the app may redirect to. The\nfirst entry is the primary. Required, unless the deprecated\ncallback_url is sent instead.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "scope": {
                     "description": "Scope is the space-separated list of scopes this app's tokens may be\ngranted. Leave empty, or omit, for unrestricted.",
@@ -27429,11 +27465,11 @@ const docTemplate = `{
         "codersdk.PutOAuth2ProviderAppRequest": {
             "type": "object",
             "required": [
-                "callback_url",
                 "name"
             ],
             "properties": {
                 "callback_url": {
+                    "description": "Deprecated: send redirect_uris instead. If both are sent, callback_url\nmust equal the first entry of redirect_uris.",
                     "type": "string"
                 },
                 "icon": {
@@ -27441,6 +27477,13 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "redirect_uris": {
+                    "description": "RedirectURIs is the ordered list of URIs the app may redirect to. The\nfirst entry is the primary. Omit both this and callback_url to keep the\nstored redirect URIs. Other fields are replaced. Sending an empty list\nis an error, not a way to keep the stored list.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "scope": {
                     "description": "Scope replaces the app's current allowlist. Omit to leave the existing\nallowlist untouched. Set to an empty string to clear it, making the app\nunrestricted.",
@@ -29849,6 +29892,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "oauth2_token_url": {
+                    "type": "string"
+                },
+                "signing_secret": {
+                    "description": "SigningSecret replaces the shared signing key. Omit to preserve it;\nan empty string clears it. It is never returned.",
                     "type": "string"
                 },
                 "slug": {

@@ -620,7 +620,7 @@ jobs:
       - name: Complete Linear release
         if: ${{ !inputs.dry_run && steps.linear_version.outputs.skip != 'true' }}
         continue-on-error: true
-        uses: linear/linear-release-action@53ad0f863963e7f8e270fba18426bbb55ef55384 # v0.17.2
+        uses: linear/linear-release-action@d4af10092984f9bc6d5efa075b242bdf01333463 # v0.18.0
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: complete

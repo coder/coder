@@ -3996,6 +3996,11 @@ export interface CreateMCPServerConfigRequest {
 	 * headers on every outgoing MCP request. See MCPServerConfig.
 	 */
 	readonly forward_coder_headers: boolean;
+	/**
+	 * SigningSecret signs forwarded identity headers and request bodies.
+	 * Configure the same secret on the MCP server. It is never returned.
+	 */
+	readonly signing_secret?: string;
 }
 
 // From codersdk/organizations.go
@@ -5152,7 +5157,7 @@ export interface ExternalAuthConfig {
 	 *
 	 * Git clone makes use of this by parsing the URL from:
 	 * 'Username for "https://github.com":'
-	 * And sending it to the Coder server to match against the Regex.
+	 * And sending it to the control plane to match against the Regex.
 	 */
 	readonly regex: string;
 	/**
@@ -6032,6 +6037,7 @@ export interface MCPServerConfig {
 	 * chat identity to third-party servers.
 	 */
 	readonly forward_coder_headers: boolean;
+	readonly has_signing_secret: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
@@ -6119,6 +6125,12 @@ export const MaxAIModelPricesBytes = 1048576; // 1 MiB
  * $1,000,000 per member per budget period.
  */
 export const MaxAISpendLimitMicros = 1000000000000;
+
+// From codersdk/aibridge.go
+/**
+ * MaxAISpendPeriodDays bounds explicit AI spend reporting windows.
+ */
+export const MaxAISpendPeriodDays = 31;
 
 // From codersdk/chats.go
 /**
@@ -6710,6 +6722,14 @@ export interface OAuth2ProtectedResourceMetadata {
 export interface OAuth2ProviderApp {
 	readonly id: string;
 	readonly name: string;
+	/**
+	 * RedirectURIs are the app's registered redirect URIs, primary first.
+	 */
+	readonly redirect_uris: readonly string[];
+	/**
+	 * @deprecated equal to the first entry of redirect_uris. Read
+	 * redirect_uris instead.
+	 */
 	readonly callback_url: string;
 	readonly icon: string;
 	/**
@@ -6814,6 +6834,18 @@ export const OAuth2RedirectCookie = "oauth_redirect";
  * section 4.1.3).
  */
 export const OAuth2RedirectURICookie = "oauth_redirect_uri";
+
+// From codersdk/oauth2_validation.go
+/**
+ * OAuth2RedirectURIMaxBytes is the longest a single redirect URI may be.
+ */
+export const OAuth2RedirectURIMaxBytes = 2048;
+
+// From codersdk/oauth2_validation.go
+/**
+ * OAuth2RedirectURIsMaxCount is the most redirect URIs an app may register.
+ */
+export const OAuth2RedirectURIsMaxCount = 32;
 
 // From codersdk/oauth2.go
 export type OAuth2RevocationTokenTypeHint = "access_token" | "refresh_token";
@@ -7482,7 +7514,17 @@ export interface Permission {
 // From codersdk/oauth2.go
 export interface PostOAuth2ProviderAppRequest {
 	readonly name: string;
-	readonly callback_url: string;
+	/**
+	 * RedirectURIs is the ordered list of URIs the app may redirect to. The
+	 * first entry is the primary. Required, unless the deprecated
+	 * callback_url is sent instead.
+	 */
+	readonly redirect_uris?: readonly string[];
+	/**
+	 * @deprecated send redirect_uris instead. If both are sent, callback_url
+	 * must equal the first entry of redirect_uris.
+	 */
+	readonly callback_url?: string;
 	readonly icon: string;
 	/**
 	 * Scope is the space-separated list of scopes this app's tokens may be
@@ -8006,7 +8048,18 @@ export interface PutExtendWorkspaceRequest {
 // From codersdk/oauth2.go
 export interface PutOAuth2ProviderAppRequest {
 	readonly name: string;
-	readonly callback_url: string;
+	/**
+	 * RedirectURIs is the ordered list of URIs the app may redirect to. The
+	 * first entry is the primary. Omit both this and callback_url to keep the
+	 * stored redirect URIs. Other fields are replaced. Sending an empty list
+	 * is an error, not a way to keep the stored list.
+	 */
+	readonly redirect_uris?: readonly string[];
+	/**
+	 * @deprecated send redirect_uris instead. If both are sent, callback_url
+	 * must equal the first entry of redirect_uris.
+	 */
+	readonly callback_url?: string;
 	readonly icon: string;
 	/**
 	 * Scope replaces the app's current allowlist. Omit to leave the existing
@@ -10019,6 +10072,11 @@ export interface UpdateMCPServerConfigRequest {
 	 * headers are forwarded on every outgoing MCP request.
 	 */
 	readonly forward_coder_headers?: boolean;
+	/**
+	 * SigningSecret replaces the shared signing key. Omit to preserve it;
+	 * an empty string clears it. It is never returned.
+	 */
+	readonly signing_secret?: string;
 }
 
 // From codersdk/notifications.go

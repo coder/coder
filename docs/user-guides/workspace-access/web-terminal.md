@@ -63,11 +63,11 @@ workspace:
 
 1. **Browser**: Renders the terminal using xterm.js
 2. **WebSocket**: Maintains a persistent, low-latency connection
-3. **Coder Server**: Routes traffic between browser and workspace
+3. **Control plane**: Routes traffic between browser and workspace
 4. **Workspace Agent**: Manages the pseudo-terminal (PTY) session
 5. **Shell Process**: Your actual bash/zsh/fish shell
 
-The connection flow is: Browser ↔ WebSocket ↔ Coder Server ↔ Workspace Agent ↔ Shell Process
+The connection flow is: Browser ↔ WebSocket ↔ Control plane ↔ Workspace Agent ↔ Shell Process
 
 ### Reconnection & Persistence
 
@@ -117,7 +117,7 @@ CODER_WEB_TERMINAL_RENDERER=canvas
   complex rendering
 - **`dom`**: Fallback option, useful for accessibility tools or older browsers
 
-> **Note:** The renderer setting is deployment-wide and requires a Coder server
+> **Note:** The renderer setting is deployment-wide and requires a control plane
 > restart to take effect.
 
 ## Keyboard Shortcuts
