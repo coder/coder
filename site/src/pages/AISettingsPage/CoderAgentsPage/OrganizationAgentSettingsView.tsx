@@ -1,6 +1,11 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import {
+	bindingCompactionTrigger,
+	isCompactionTriggerEnabled,
+} from "#/pages/AgentsPage/compactionTriggers";
 import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
 import { SubagentModelOverrideSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/SubagentModelOverrideSettings";
 
@@ -65,6 +70,75 @@ const settings: readonly {
 	},
 ];
 
+const formatModelList = (modelNames: readonly string[]) => {
+	const visibleNames = modelNames.slice(0, 3);
+	const remainingCount = modelNames.length - visibleNames.length;
+	return remainingCount > 0
+		? `${visibleNames.join(", ")} and ${remainingCount} more`
+		: visibleNames.join(", ");
+};
+
+interface CompactionWarningProps {
+	selectedModelID: string;
+	enabledModels: readonly TypesGen.ChatModel[];
+}
+
+const CompactionWarning: FC<CompactionWarningProps> = ({
+	selectedModelID,
+	enabledModels,
+}) => {
+	const compactionModel = enabledModels.find(
+		(model) => model.id === selectedModelID,
+	);
+	if (!compactionModel) {
+		return null;
+	}
+
+	const compactionModelName =
+		compactionModel.display_name.trim() || compactionModel.model;
+	// chatd ignores an override whose own trigger is off because it could
+	// not keep the history within the override model's window.
+	if (compactionModel.compression_threshold >= 100) {
+		return (
+			<Alert severity="info">
+				<AlertDescription>
+					{`${compactionModelName} has compaction disabled (100%), so chats summarize with their own model instead.`}
+				</AlertDescription>
+			</Alert>
+		);
+	}
+	const overrideTrigger = {
+		thresholdPercent: compactionModel.compression_threshold,
+		contextLimit: compactionModel.context_limit,
+	};
+	if (!isCompactionTriggerEnabled(overrideTrigger)) {
+		return null;
+	}
+
+	// Setting 100% disables only the chat model trigger, not the override.
+	const undercutModelNames = enabledModels.flatMap((model) => {
+		const chatTrigger = {
+			thresholdPercent: model.compression_threshold,
+			contextLimit: model.context_limit,
+		};
+		return bindingCompactionTrigger(chatTrigger, overrideTrigger) ===
+			"organization"
+			? [model.display_name.trim() || model.model]
+			: [];
+	});
+	if (undercutModelNames.length === 0) {
+		return null;
+	}
+
+	return (
+		<Alert severity="warning">
+			<AlertDescription>
+				{`Chats using ${formatModelList(undercutModelNames)} may compact earlier than their models' default thresholds because ${compactionModelName} compacts at ${compactionModel.compression_threshold}% of its ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds that trigger compaction sooner still apply first.`}
+			</AlertDescription>
+		</Alert>
+	);
+};
+
 const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 	overrides,
 	enabledModels,
@@ -117,6 +191,16 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 							isSaveError={errorContexts.has(setting.context)}
 							saveErrorMessage={`Failed to save ${setting.title.toLowerCase()} override.`}
 							unavailableModelWarning={setting.unavailableModelWarning}
+							renderSelectedModelAlert={
+								setting.context === "compaction"
+									? (selectedModelID) => (
+											<CompactionWarning
+												selectedModelID={selectedModelID}
+												enabledModels={enabledModels}
+											/>
+										)
+									: undefined
+							}
 							unsetPlaceholder="Use default"
 							disabled={!canEdit}
 						/>

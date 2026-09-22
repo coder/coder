@@ -47,11 +47,9 @@ type resolvedCompactionOverride struct {
 	ResolvedModel    string
 }
 
-// resolveCompactionOverrideConfig resolves the stored organization-scoped
-// compaction model override. Unset, stale, and credential-less
-// overrides fall back to the chat model (nil override). This runs on every
-// generation prepare because the override's context limit feeds the
-// compaction trigger; the model client is built only when compaction runs.
+// resolveCompactionOverrideConfig treats unset, stale, credential-less, or
+// compaction-disabled overrides as absent. Preparation needs their trigger
+// settings, but model client construction is deferred until compaction runs.
 func (p *Server) resolveCompactionOverrideConfig(
 	ctx context.Context,
 	chat database.Chat,
@@ -82,6 +80,12 @@ func (p *Server) resolveCompactionOverrideConfig(
 	)
 	if err != nil || !overrideSet {
 		return nil, err
+	}
+	// With its own trigger disabled the override would receive the chat
+	// trigger's full history, which may exceed its window, so the chat model
+	// summarizes instead.
+	if modelConfig.CompressionThreshold >= 100 {
+		return nil, nil //nolint:nilnil // Disabled override means use the chat model.
 	}
 	// Already validated by the shared resolver; failure is unreachable.
 	resolvedProvider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(

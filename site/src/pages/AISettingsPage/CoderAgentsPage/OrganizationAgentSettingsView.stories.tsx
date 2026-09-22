@@ -15,6 +15,22 @@ const alternateModel: TypesGen.ChatModel = {
 	model: "model-two",
 	display_name: "Model Two",
 };
+const mockSmallCompactionModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "compaction-model",
+	model: "compact-mini",
+	display_name: "Compact Mini",
+	context_limit: 32_000,
+	compression_threshold: 50,
+};
+const mockDisabledCompactionModel: TypesGen.ChatModel = {
+	...mockSmallCompactionModel,
+	compression_threshold: 100,
+};
+const mockWarningModels = [mockSmallCompactionModel, model, alternateModel];
+const mockWarningOverrides: readonly TypesGen.ChatModelOverrideResponse[] = [
+	{ context: "compaction", model_config_id: model.id },
+];
 const saveGeneralOverride = fn();
 const saveExploreOverride = fn();
 const overrides: readonly TypesGen.ChatModelOverrideResponse[] = [
@@ -106,6 +122,37 @@ export const SetAndUnset: Story = {
 		});
 	},
 };
+
+export const CompactionTriggerWarning: Story = {
+	args: {
+		overrides: mockWarningOverrides,
+		enabledModels: mockWarningModels,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const section = within(canvas.getByRole("form", { name: "Compaction" }));
+
+		await userEvent.click(
+			section.getByRole("combobox", { name: /Model One/i }),
+		);
+		await userEvent.click(
+			await body.findByRole("option", { name: /Compact Mini/i }),
+		);
+		await section.findByText(/may compact earlier/i);
+	},
+};
+
+export const CompactionOverrideDisabledNotice: Story = {
+	args: {
+		overrides: [
+			{ context: "compaction", model_config_id: mockSmallCompactionModel.id },
+		],
+		enabledModels: [mockDisabledCompactionModel, model],
+	},
+};
+
+export const NoCompactionTriggerWarning: Story = {};
 export const AdvisorDisabled: Story = {
 	args: { showAdvisor: false },
 	play: async ({ canvasElement }) => {

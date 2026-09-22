@@ -136,6 +136,33 @@ func TestResolveCompactionOverrideConfig_MissingCredentialsFallsBack(t *testing.
 	require.Nil(t, override)
 }
 
+func TestResolveCompactionOverrideConfig_CompactionDisabledFallsBack(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, _ := titleOverrideTestChatAndMessages(t)
+	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
+	overrideConfig.CompressionThreshold = 100
+	providerID := uuid.New()
+	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
+
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), compactionOverrideParams(chat)).Return(orgModelOverride(chat, compactionOverrideContext, overrideConfig.ID, ""), nil)
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
+		ProviderID: providerID,
+		APIKey:     "test-key",
+	}}, nil).AnyTimes()
+
+	server := titleOverrideTestServer(db, logger)
+	override, err := server.resolveCompactionOverrideConfig(ctx, chat)
+	require.NoError(t, err)
+	require.Nil(t, override)
+}
+
 func TestCompactionOverride_SetUsable(t *testing.T) {
 	t.Parallel()
 
