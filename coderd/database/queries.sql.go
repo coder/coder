@@ -8386,7 +8386,7 @@ WITH locked_chat AS (
     SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
     FROM chats
     WHERE id = $1::uuid
-    FOR UPDATE
+    FOR NO KEY UPDATE
 ),
 chats_expanded AS (
     SELECT
@@ -11352,7 +11352,7 @@ WITH bumped_chat AS (
     WHERE id = (
         SELECT id FROM chats
         WHERE id = $1::uuid
-        FOR UPDATE
+        FOR NO KEY UPDATE
     )
     RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
 ),
@@ -11413,10 +11413,17 @@ SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbe
 FROM chats_expanded
 `
 
-// Locks the chat row with FOR UPDATE and atomically increments its
+// Locks the chat row with FOR NO KEY UPDATE and atomically increments its
 // snapshot_version, returning the post-bump chat. This is the single
 // entry point ChatMachine.Update uses to acquire the row lock and
 // allocate a new snapshot version in one round trip.
+//
+// FOR NO KEY UPDATE (rather than FOR UPDATE) is sufficient because the
+// transition never changes chats.id, and it stays compatible with the
+// FOR KEY SHARE locks that foreign-key child writes (chat_heartbeats,
+// messages, queued messages) take on the chat row, so those writers do
+// not convoy against transitions. Concurrent transitions still serialize
+// because FOR NO KEY UPDATE conflicts with itself.
 func (q *sqlQuerier) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, lockChatAndBumpSnapshotVersion, id)
 	var i Chat
@@ -11476,7 +11483,7 @@ const lockChatByID = `-- name: LockChatByID :one
 SELECT id
 FROM chats
 WHERE id = $1::uuid
-FOR UPDATE
+FOR NO KEY UPDATE
 `
 
 func (q *sqlQuerier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
@@ -11821,7 +11828,7 @@ locked AS (
     SELECT id FROM chats
     WHERE id IN (SELECT id FROM changed)
     ORDER BY id
-    FOR UPDATE
+    FOR NO KEY UPDATE
 ),
 deleted AS (
     DELETE FROM chat_context_resources

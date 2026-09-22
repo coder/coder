@@ -1333,10 +1333,17 @@ type sqlcQuerier interface {
 	ListUserSkillMetadataByUserID(ctx context.Context, userID uuid.UUID) ([]ListUserSkillMetadataByUserIDRow, error)
 	ListWorkspaceAgentContextResources(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentContextResource, error)
 	ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error)
-	// Locks the chat row with FOR UPDATE and atomically increments its
+	// Locks the chat row with FOR NO KEY UPDATE and atomically increments its
 	// snapshot_version, returning the post-bump chat. This is the single
 	// entry point ChatMachine.Update uses to acquire the row lock and
 	// allocate a new snapshot version in one round trip.
+	//
+	// FOR NO KEY UPDATE (rather than FOR UPDATE) is sufficient because the
+	// transition never changes chats.id, and it stays compatible with the
+	// FOR KEY SHARE locks that foreign-key child writes (chat_heartbeats,
+	// messages, queued messages) take on the chat row, so those writers do
+	// not convoy against transitions. Concurrent transitions still serialize
+	// because FOR NO KEY UPDATE conflicts with itself.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
