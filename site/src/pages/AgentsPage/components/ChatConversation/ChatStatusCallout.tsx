@@ -1,5 +1,6 @@
 import { type FC, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import { getProviderStatusURL } from "./chatStatusHelpers";
 import type { LiveStatusModel } from "./liveStatusModel";
@@ -64,7 +65,10 @@ const StatusCountdown: FC<{
 	);
 };
 
-const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
+const StatusAlert: FC<{
+	status: RetryOrFailedStatus;
+	onRetry?: () => void;
+}> = ({ status, onRetry }) => {
 	const statusURL = getProviderStatusURL(status.kind, status.provider);
 	const severity =
 		status.phase === "failed"
@@ -121,6 +125,16 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 							{status.detail}
 						</span>
 					))}
+				{status.phase === "failed" && onRetry && (
+					<Button
+						size="sm"
+						variant="outline"
+						className="mt-3"
+						onClick={onRetry}
+					>
+						Try again
+					</Button>
+				)}
 			</AlertDescription>
 		</Alert>
 	);
@@ -148,7 +162,9 @@ const ReconnectingAlert: FC<{ status: ReconnectingStatus }> = ({ status }) => {
 
 export const ChatStatusCallout: FC<{
 	status: LiveStatusModel;
-}> = ({ status }) => {
+	// Resubmits the failed turn. Only rendered for terminal failures.
+	onRetry?: () => void;
+}> = ({ status, onRetry }) => {
 	switch (status.phase) {
 		case "idle":
 		case "streaming":
@@ -159,6 +175,6 @@ export const ChatStatusCallout: FC<{
 		case "reconnecting":
 			return <ReconnectingAlert status={status} />;
 		case "failed":
-			return <StatusAlert status={status} />;
+			return <StatusAlert status={status} onRetry={onRetry} />;
 	}
 };

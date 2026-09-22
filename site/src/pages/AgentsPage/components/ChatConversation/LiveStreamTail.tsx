@@ -28,15 +28,17 @@ export const LiveStreamTailContent = ({
 // the conversation instead of squeezing the composer out of the panel.
 export const TerminalStatusRow = ({
 	liveStatus,
+	onRetry,
 }: {
 	liveStatus: LiveStatusModel;
+	onRetry?: () => void;
 }) => {
 	if (liveStatus.phase !== "failed") {
 		return null;
 	}
 	return (
 		<MessageScroller.Item messageId="terminal-status">
-			<ChatStatusCallout status={liveStatus} />
+			<ChatStatusCallout status={liveStatus} onRetry={onRetry} />
 		</MessageScroller.Item>
 	);
 };

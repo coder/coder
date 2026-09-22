@@ -63,6 +63,16 @@ var responsesAPIDiagnosticMatches = []responsesAPIDiagnosticMatch{
 	},
 }
 
+// bedrockSubscriptionPendingPatterns match the 403 that AWS Bedrock returns
+// while a Marketplace model subscription is still provisioning. The
+// credentials are valid, so the generic auth remediation would mislead.
+var bedrockSubscriptionPendingPatterns = []string{
+	"subscription to the model is being set up",
+}
+
+const bedrockSubscriptionPendingMessage = "AWS Bedrock is still setting up the " +
+	"Marketplace subscription for this model. Wait a few minutes and try again."
+
 // streamIncompleteMatches maps provider stream-truncation errors from
 // fantasy to clearer user-facing messages before broad EOF handling
 // classifies them as generic transport timeouts.
@@ -194,6 +204,19 @@ func Classify(err error) ClassifiedError {
 	// the transport wrapper, so the body can be the only signal regardless
 	// of the class's nominal status code.
 	combinedText := lower + "\n" + strings.ToLower(structured.detail)
+	if containsAny(combinedText, bedrockSubscriptionPendingPatterns...) {
+		if provider == "" {
+			provider = "bedrock"
+		}
+		return normalizeClassification(ClassifiedError{
+			Message:    bedrockSubscriptionPendingMessage,
+			Detail:     structured.detail,
+			Kind:       codersdk.ChatErrorKindAuth,
+			Provider:   provider,
+			StatusCode: statusCode,
+			RetryAfter: structured.retryAfter,
+		})
+	}
 	providerDisabledMatch := containsAny(combinedText, providerDisabledPatterns...)
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
 	overloadedMatch := statusCode == 529 || containsAny(combinedText, overloadedPatterns...)

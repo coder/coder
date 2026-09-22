@@ -115,6 +115,7 @@ type ChatPageTimelineProps = {
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	onRetryFailedTurn?: () => Promise<void> | void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	footer?: ReactNode;
@@ -135,6 +136,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	editingMessageId,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
+	onRetryFailedTurn,
 	urlTransform,
 	mcpServers,
 	footer,
@@ -230,7 +232,12 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
 				/>
-				<TerminalStatusRow liveStatus={liveStatus} />
+				<TerminalStatusRow
+					liveStatus={liveStatus}
+					onRetry={
+						onRetryFailedTurn ? () => void onRetryFailedTurn() : undefined
+					}
+				/>
 			</ChatMessageScroller>
 			{/* The empty state sits outside the scroller content, which holds
 			    transcript rows only. */}

@@ -341,6 +341,38 @@ export const getEditableUserMessagePayload = (
 	};
 };
 
+/**
+ * Builds the resubmission payload for the most recent user message so a
+ * failed turn can be retried through the edit path without duplicating the
+ * user's bubble. Returns undefined when there is no user message to retry.
+ */
+export const getRetryableUserTurn = (
+	messages: readonly TypesGen.ChatMessage[] | undefined,
+):
+	| {
+			messageId: number;
+			text: string;
+			attachments: readonly { fileId: string; mediaType: string }[];
+	  }
+	| undefined => {
+	const lastUserMessage = messages
+		?.filter((message) => message.role === "user")
+		.at(-1);
+	if (!lastUserMessage) {
+		return undefined;
+	}
+	const { text, fileBlocks } = getEditableUserMessagePayload(lastUserMessage);
+	const attachments = (fileBlocks ?? []).flatMap((block) =>
+		block.type === "file" && block.file_id
+			? [{ fileId: block.file_id, mediaType: block.media_type }]
+			: [],
+	);
+	if (!text.trim() && attachments.length === 0) {
+		return undefined;
+	}
+	return { messageId: lastUserMessage.id, text, attachments };
+};
+
 type ParseMessagesWithMergedToolsOptions = {
 	pendingToolCallIDs?: ReadonlySet<string>;
 };
