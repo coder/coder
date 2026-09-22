@@ -67,6 +67,7 @@ import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
+import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
 import {
 	getAgentChatSendShortcut,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
@@ -74,6 +75,7 @@ import {
 import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
+	shouldRouteFileToWorkspace,
 } from "../utils/chatAttachments";
 import type { ChatSlashCommand } from "../utils/slashCommands";
 import { AgentSetupNotice } from "./AgentSetupNotice";
@@ -93,6 +95,7 @@ import { ImageLightbox } from "./ImageLightbox";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
+import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
 
 export {
 	ImageThumbnail,
@@ -101,6 +104,23 @@ export {
 } from "./AttachmentPreview";
 export type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 export type { AgentContextUsage } from "./ContextUsageIndicator";
+
+type WorkspaceUploadsProps = {
+	uploads: readonly WorkspaceFileUpload[];
+	// Present only when the chat has a bound workspace with a
+	// connected agent; its absence hides the whole affordance.
+	onAttach?: (files: File[]) => void;
+	onRemove: (id: string) => void;
+	// Toast shown when a workspace-routed file arrives while onAttach
+	// is unavailable. Overridden on the new-chat page, where the fix
+	// is selecting a workspace rather than attaching one to the chat.
+	unavailableMessage?: string;
+};
+
+const workspaceRequiredAttachmentMessage =
+	"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.";
+const workspaceUploadPendingSendMessage =
+	"Wait for the current message to finish sending, then add the file again.";
 
 type AgentChatInputProps = {
 	onSend: (message: string) => void;
@@ -176,6 +196,7 @@ type AgentChatInputProps = {
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	textContents?: Map<File, string>;
+	workspaceUploads?: WorkspaceUploadsProps;
 	onTextPreview?: (
 		content: string,
 		fileName: string,
@@ -404,6 +425,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	uploadStates,
 	previewUrls,
 	textContents,
+	workspaceUploads,
 	onTextPreview,
 	mcpServers,
 	selectedMCPServerIds,
@@ -794,19 +816,75 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		};
 	}, [composerElement]);
 
+	// Workspace uploads eagerly write bytes into the workspace, so a
+	// disabled (read-only) composer must not route files to them. The
+	// same holds while a send is pending: the post-send reset would drop
+	// the chip after the bytes already landed in the workspace.
+	const workspaceAttachBlockedBySend =
+		isLoading && workspaceUploads?.onAttach !== undefined;
+	const onWorkspaceAttach =
+		isDisabled || isLoading ? undefined : workspaceUploads?.onAttach;
+
+	// Splits files between the attachment pipeline and the workspace
+	// upload path by declared MIME type. Unknown or octet-stream files
+	// stay on the attachment path where the server classifies bytes.
+	// Returns whether any file was routed.
+	const routeFiles = (files: File[]): boolean => {
+		const attachable: File[] = [];
+		const forWorkspace: File[] = [];
+		const rejected: File[] = [];
+		// Workspace-routable files that arrived while the workspace
+		// upload feature is wired but currently unavailable (no
+		// connected agent, read-only composer, pending send). They need
+		// a workspace, not a different file type, so they get their own
+		// toast.
+		const workspaceRequired: File[] = [];
+		for (const file of files) {
+			if (onWorkspaceAttach && shouldRouteFileToWorkspace(file)) {
+				forWorkspace.push(file);
+			} else if (isChatAttachmentFile(file)) {
+				attachable.push(file);
+			} else if (workspaceUploads && shouldRouteFileToWorkspace(file)) {
+				workspaceRequired.push(file);
+			} else {
+				rejected.push(file);
+			}
+		}
+		if (workspaceRequired.length > 0) {
+			toast.error(
+				workspaceAttachBlockedBySend
+					? workspaceUploadPendingSendMessage
+					: (workspaceUploads?.unavailableMessage ??
+							workspaceRequiredAttachmentMessage),
+			);
+		}
+		if (rejected.length > 0) {
+			toast.error(
+				`Unsupported file type: ${rejected.map((file) => file.name).join(", ")}`,
+			);
+		}
+		if (attachable.length === 0 && forWorkspace.length === 0) {
+			return false;
+		}
+		resetPromptCycle();
+		if (attachable.length > 0) {
+			onAttach?.(attachable);
+		}
+		if (forWorkspace.length > 0) {
+			onWorkspaceAttach?.(forWorkspace);
+		}
+		return true;
+	};
+
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-		if (e.target.files && onAttach) {
-			resetPromptCycle();
-			onAttach(Array.from(e.target.files));
+		if (e.target.files?.length) {
+			routeFiles(Array.from(e.target.files));
 		}
 		// Reset so the same file can be selected again.
 		e.target.value = "";
 	};
 
-	const handleFilePaste = (file: File) => {
-		resetPromptCycle();
-		onAttach?.([file]);
-	};
+	const handleFilePaste = (file: File) => routeFiles([file]);
 
 	const handleInlineText = (file: File, nextContent?: string) => {
 		const content = nextContent ?? textContents?.get(file);
@@ -851,18 +929,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const handleDrop = (e: React.DragEvent) => {
 		e.preventDefault();
 		setIsDragging(false);
-		if (!onAttach || !e.dataTransfer.files.length) return;
-		const dropped = Array.from(e.dataTransfer.files);
-		const attachable = dropped.filter(isChatAttachmentFile);
-		const rejected = dropped.filter((file) => !isChatAttachmentFile(file));
-		if (rejected.length > 0) {
-			toast.error(
-				`Unsupported file type: ${rejected.map((file) => file.name).join(", ")}`,
-			);
-		}
-		if (attachable.length === 0) return;
-		resetPromptCycle();
-		onAttach(attachable);
+		if (!e.dataTransfer.files.length) return;
+		routeFiles(Array.from(e.dataTransfer.files));
 	};
 
 	// Track whether the editor has content so we can gate the
@@ -906,14 +974,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			internalRef.current?.focus();
 		}
 	}, [isLoading]);
-	const hasActiveUploads = attachments.some((file) =>
-		isUploadInProgress(uploadStates?.get(file)),
-	);
-	const hasUploadedAttachments = attachments.some(
-		(f) => uploadStates?.get(f)?.status === "uploaded",
-	);
+	const workspaceUploadEntries = workspaceUploads?.uploads ?? [];
+	const hasActiveUploads =
+		attachments.some((file) => isUploadInProgress(uploadStates?.get(file))) ||
+		workspaceUploadEntries.some((upload) => upload.status === "uploading");
+	const hasUploadedAttachments =
+		attachments.some((f) => uploadStates?.get(f)?.status === "uploaded") ||
+		workspaceUploadEntries.some((upload) => upload.status === "uploaded");
 	const hasDraftContext =
-		hasContent || attachments.length > 0 || hasFileReferences;
+		hasContent ||
+		attachments.length > 0 ||
+		workspaceUploadEntries.length > 0 ||
+		hasFileReferences;
 	const isComposerEffectivelyEmpty = !hasDraftContext;
 	const hasSendableContent =
 		hasContent || hasUploadedAttachments || hasFileReferences;
@@ -1176,6 +1248,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						onInlineText={handleInlineText}
 					/>
 				)}
+				{workspaceUploads && (
+					<WorkspaceUploadPreview
+						uploads={workspaceUploads.uploads}
+						onRemove={workspaceUploads.onRemove}
+					/>
+				)}
 				<ChatMessageInput
 					ref={internalRef}
 					onFilePaste={onAttach ? handleFilePaste : undefined}
@@ -1217,13 +1295,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						</Alert>
 					</div>
 				)}
-				{/* Hidden file input for attaching any server-accepted file type. */}
+				{/* Hidden file input for attaching files. When workspace
+				uploads are available every file type is selectable:
+				non-allowlisted types stream into the workspace instead
+				of the attachment pipeline. */}
 				{onAttach && (
 					<input
 						ref={fileInputRef}
 						type="file"
 						multiple
-						accept={chatAttachmentAcceptAttribute}
+						accept={
+							onWorkspaceAttach ? undefined : chatAttachmentAcceptAttribute
+						}
 						onChange={handleFileSelect}
 						className="hidden"
 					/>

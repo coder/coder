@@ -179,13 +179,8 @@ const ChatMessageItem = memo<{
 						isAwaitingFirstStreamChunk,
 					})
 				: undefined;
-		// Editing rebuilds the message from text + attachments and would
-		// drop workspace file references, so such messages are read-only.
 		const canEditUserMessage =
-			isUser &&
-			messageId !== undefined &&
-			Boolean(onEditUserMessage) &&
-			!displayState?.hasWorkspaceFileReferences;
+			isUser && messageId !== undefined && Boolean(onEditUserMessage);
 		const canJumpBetweenUserMessages =
 			isUser &&
 			Boolean(onJumpToUserMessage) &&
@@ -315,16 +310,9 @@ const ChatMessageItem = memo<{
 											className="size-6"
 											aria-label="Edit message"
 											onClick={() => {
-												const editablePayload =
+												const { text, fileBlocks } =
 													getEditableUserMessagePayload(message);
-												if (!editablePayload) {
-													return;
-												}
-												onEditUserMessage?.(
-													messageId,
-													editablePayload.text,
-													editablePayload.fileBlocks,
-												);
+												onEditUserMessage?.(messageId, text, fileBlocks);
 											}}
 										>
 											<PencilIcon />

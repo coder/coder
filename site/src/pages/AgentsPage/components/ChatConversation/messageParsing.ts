@@ -322,32 +322,18 @@ const isEditableAttachmentMediaType = (mediaType: string): boolean =>
 
 const isEditableUserMessageFileBlock = (
 	block: RenderBlock,
-): block is TypesGen.ChatFilePart =>
-	block.type === "file" && isEditableAttachmentMediaType(block.media_type);
-
-const messageHasWorkspaceFileReferences = (
-	message: TypesGen.ChatMessage,
-): boolean =>
-	(message.content ?? []).some(
-		(part) => part.type === "workspace-file-reference",
-	);
+): block is TypesGen.ChatFilePart | TypesGen.ChatWorkspaceFileReferencePart =>
+	(block.type === "file" && isEditableAttachmentMediaType(block.media_type)) ||
+	// Workspace file bytes already live in the workspace; editing
+	// preserves the reference (or drops it when the chip is removed).
+	block.type === "workspace-file-reference";
 
 export const getEditableUserMessagePayload = (
 	message: TypesGen.ChatMessage,
-):
-	| {
-			text: string;
-			fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
-	  }
-	| undefined => {
-	// Editing rebuilds the message from text + editable attachment
-	// blocks, which would silently drop workspace file references.
-	// Until the edit flow preserves them, such messages are not
-	// editable.
-	if (messageHasWorkspaceFileReferences(message)) {
-		return undefined;
-	}
-
+): {
+	text: string;
+	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
+} => {
 	// Concatenate text parts verbatim to match the server-side string_agg in
 	// GetChatUserPromptsByChatID; parseMessageContent/appendText is for streaming and drops whitespace-only chunks.
 	const text = (message.content ?? [])
