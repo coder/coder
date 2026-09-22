@@ -22729,6 +22729,10 @@ const docTemplate = `{
                 "oauth2_token_url": {
                     "type": "string"
                 },
+                "signing_secret": {
+                    "description": "SigningSecret signs forwarded identity headers and request bodies.\nConfigure the same secret on the MCP server. It is never returned.",
+                    "type": "string"
+                },
                 "slug": {
                     "type": "string"
                 },
@@ -25220,6 +25224,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "has_oauth2_secret": {
+                    "type": "boolean"
+                },
+                "has_signing_secret": {
                     "type": "boolean"
                 },
                 "icon_url": {
@@ -30466,6 +30473,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "oauth2_token_url": {
+                    "type": "string"
+                },
+                "signing_secret": {
+                    "description": "SigningSecret replaces the shared signing key. Omit to preserve it;\nan empty string clears it. It is never returned.",
                     "type": "string"
                 },
                 "slug": {

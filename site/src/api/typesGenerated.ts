@@ -4067,6 +4067,11 @@ export interface CreateMCPServerConfigRequest {
 	 * headers on every outgoing MCP request. See MCPServerConfig.
 	 */
 	readonly forward_coder_headers: boolean;
+	/**
+	 * SigningSecret signs forwarded identity headers and request bodies.
+	 * Configure the same secret on the MCP server. It is never returned.
+	 */
+	readonly signing_secret?: string;
 }
 
 // From codersdk/organizations.go
@@ -6106,6 +6111,7 @@ export interface MCPServerConfig {
 	 * chat identity to third-party servers.
 	 */
 	readonly forward_coder_headers: boolean;
+	readonly has_signing_secret: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
@@ -10121,6 +10127,11 @@ export interface UpdateMCPServerConfigRequest {
 	 * headers are forwarded on every outgoing MCP request.
 	 */
 	readonly forward_coder_headers?: boolean;
+	/**
+	 * SigningSecret replaces the shared signing key. Omit to preserve it;
+	 * an empty string clears it. It is never returned.
+	 */
+	readonly signing_secret?: string;
 }
 
 // From codersdk/notifications.go

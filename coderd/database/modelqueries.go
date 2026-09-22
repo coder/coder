@@ -1326,6 +1326,8 @@ func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, organiza
 			&i.OrganizationID,
 			&i.GroupACL,
 			&i.UserACL,
+			&i.SigningSecret,
+			&i.SigningSecretKeyID,
 		); err != nil {
 			return nil, err
 		}
