@@ -1,4 +1,6 @@
-const STORAGE_KEY = "agents.board";
+// Keyed by user: accounts sharing a browser must not see each other's
+// columns and windows.
+const storageKey = (userId: string) => `agents.board.${userId}`;
 
 /**
  * A floating chat window, in viewport pixels. Unpinned windows are hover
@@ -47,9 +49,9 @@ const isWindow = (value: unknown): value is ChatWindow => {
 	);
 };
 
-/** The stored board state, or defaults when absent or unreadable. Previews are never stored. */
-export const readBoardStorage = (): BoardStorage => {
-	const raw = localStorage.getItem(STORAGE_KEY);
+/** The stored board state, or defaults when absent or unreadable. Previews are not restored. */
+export const readBoardStorage = (userId: string): BoardStorage => {
+	const raw = localStorage.getItem(storageKey(userId));
 	if (!raw) return DEFAULT_STORAGE;
 	try {
 		const parsed: unknown = JSON.parse(raw);
@@ -67,6 +69,6 @@ export const readBoardStorage = (): BoardStorage => {
 	}
 };
 
-export const saveBoardStorage = (next: BoardStorage): void => {
-	localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+export const saveBoardStorage = (userId: string, next: BoardStorage): void => {
+	localStorage.setItem(storageKey(userId), JSON.stringify(next));
 };

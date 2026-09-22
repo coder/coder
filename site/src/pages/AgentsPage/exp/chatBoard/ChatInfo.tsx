@@ -125,7 +125,7 @@ const ChatInfoBody: FC<ChatInfoBodyProps> = ({ chat }) => {
 
 	return (
 		<div className="max-h-[60vh] overflow-y-auto px-3.5 py-3 text-[12.5px] leading-[1.45] text-content-primary">
-			<div className="mb-2 text-[13px] font-medium [text-wrap:pretty]">
+			<div className="mb-2 text-[13px] font-medium text-pretty">
 				{chat.title}
 			</div>
 			{summary ? (

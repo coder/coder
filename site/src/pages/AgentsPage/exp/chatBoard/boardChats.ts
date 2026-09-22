@@ -29,7 +29,7 @@ export const boardChatsKey = [
 	{ ...params, board: true },
 ] as const;
 
-// The largest page the API accepts; limit 0 falls back to the SQL default of 50.
+// Limit 0 falls back to the SQL default of 50.
 const PAGE = 200;
 
 const allChats = async (): Promise<Chat[]> => {

@@ -140,3 +140,5 @@ snapshot the previous maps of every touched chat so they can be undone.
   path.
 - Notes have no id of their own: the list keys them by timestamp, so notes
   stored without one fall back to display order.
+- No Storybook stories: the experiment is off by default and not a Pixel
+  target; the page's loading and error states are covered by Vitest.

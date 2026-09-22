@@ -10,8 +10,9 @@ import {
 	useSensors,
 } from "@dnd-kit/core";
 import { cn } from "cn";
-import { type FC, useEffect, useState } from "react";
+import { type FC, type ReactNode, useEffect, useState } from "react";
 import {
+	keepPreviousData,
 	useInfiniteQuery,
 	useMutation,
 	useQuery,
@@ -22,7 +23,10 @@ import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { chatSearch, createChat, updateChatTitle } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
 import { useDebouncedValue } from "#/hooks/debounce";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
 import { buildChatSearchQuery } from "../../components/ChatsSidebar/dialogs/searchQuery";
 import type { DragData } from "./BoardCard";
@@ -84,7 +88,8 @@ type PendingPreview =
 const ChatBoardPage: FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const [storage, setStorage] = useState(readBoardStorage);
+	const { user } = useAuthenticated();
+	const [storage, setStorage] = useState(() => readBoardStorage(user.id));
 	const [search, setSearch] = useState("");
 	const debouncedSearch = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS);
 	const [activeDrag, setActiveDrag] = useState<DragData | null>(null);
@@ -95,7 +100,7 @@ const ChatBoardPage: FC = () => {
 	const { windows } = storage;
 
 	// Column order and pinned windows survive a reload.
-	useEffect(() => saveBoardStorage(storage), [storage]);
+	useEffect(() => saveBoardStorage(user.id, storage), [user.id, storage]);
 
 	useEffect(() => {
 		if (!pendingPreview) return;
@@ -120,13 +125,15 @@ const ChatBoardPage: FC = () => {
 	}, [pendingPreview]);
 
 	const chatsQuery = useInfiniteQuery(boardChats());
+	const searchActive = debouncedSearch.length > 0;
 	// Free text has to travel as a search:"..." token; the backend rejects
 	// bare words. Same builder the search dialog uses.
 	const searchQuery = useQuery({
 		...chatSearch({
 			q: `${buildChatSearchQuery([], debouncedSearch) ?? ""} archived:false`,
 		}),
-		enabled: debouncedSearch.length > 0,
+		enabled: searchActive,
+		placeholderData: keepPreviousData,
 	});
 	const labelsMutation = useMutation({
 		...updateChatLabels(queryClient),
@@ -170,10 +177,11 @@ const ChatBoardPage: FC = () => {
 		storage.emptyColumns,
 	);
 	const boardState = { cards: allCards, columns, storage };
-	const matchingIds =
-		debouncedSearch && searchQuery.data
-			? new Set(searchQuery.data.map((chat) => chat.id))
-			: undefined;
+	// An active search must not fall back to unfiltered cards when results
+	// are unavailable; the body below shows the loading or error state then.
+	const matchingIds = searchActive
+		? new Set((searchQuery.data ?? []).map((chat) => chat.id))
+		: undefined;
 	const visibleColumns = columns.map((column) => ({
 		...column,
 		cards: column.cards.filter(
@@ -242,32 +250,24 @@ const ChatBoardPage: FC = () => {
 		if (command) void run(command(boardState));
 	};
 
-	return (
-		// No text may be selected while something is dragged over the board.
-		<div
-			className={cn(
-				"flex min-h-0 flex-1 flex-col",
-				activeDrag && "select-none",
-			)}
-		>
-			<title>{pageTitle("Board", "Agents")}</title>
-			<BoardHeader
-				chatCount={chats.length}
-				cardCount={allCards.length}
-				visibleCount={matchingIds ? visibleCount : undefined}
-				search={search}
-				onSearchChange={setSearch}
-				// Leaving lands on the chat in front, or the agents home.
-				onExit={() => {
-					const reading = windows.filter((w) => w.pinned).at(-1)?.chatId;
-					void navigate(reading ? `/agents/${reading}` : "/agents");
-				}}
-			/>
-			{chatsQuery.isError && (
-				<p className="m-0 px-3 py-2 text-sm text-content-destructive">
-					Failed to load chats.
-				</p>
-			)}
+	// The board is replaced only while a query has nothing to show. A failed
+	// refetch keeps its data, and the board with it, so open note editors
+	// are not unmounted by a background request; the failure is shown inline.
+	let body: ReactNode;
+	if (chatsQuery.data === undefined) {
+		body = chatsQuery.isError ? (
+			<ErrorAlert error={chatsQuery.error} />
+		) : (
+			<Loader />
+		);
+	} else if (searchActive && searchQuery.data === undefined) {
+		body = searchQuery.isError ? (
+			<ErrorAlert error={searchQuery.error} />
+		) : (
+			<Loader />
+		);
+	} else {
+		body = (
 			<DndContext
 				sensors={sensors}
 				collisionDetection={boardCollision}
@@ -292,6 +292,43 @@ const ChatBoardPage: FC = () => {
 					{activeDrag && <DragGhost drag={activeDrag} />}
 				</DragOverlay>
 			</DndContext>
+		);
+	}
+
+	return (
+		// No text may be selected while something is dragged over the board.
+		<div
+			className={cn(
+				"flex min-h-0 flex-1 flex-col",
+				activeDrag && "select-none",
+			)}
+		>
+			<title>{pageTitle("Board", "Agents")}</title>
+			<BoardHeader
+				chatCount={chatsQuery.data ? chats.length : undefined}
+				cardCount={chatsQuery.data ? allCards.length : undefined}
+				visibleCount={
+					searchActive && searchQuery.data ? visibleCount : undefined
+				}
+				search={search}
+				onSearchChange={setSearch}
+				// Leaving lands on the chat in front, or the agents home.
+				onExit={() => {
+					const reading = windows.filter((w) => w.pinned).at(-1)?.chatId;
+					void navigate(reading ? `/agents/${reading}` : "/agents");
+				}}
+			/>
+			{chatsQuery.data && chatsQuery.isError && (
+				<p className="m-0 px-3 py-2 text-sm text-content-destructive">
+					Failed to load chats.
+				</p>
+			)}
+			{searchActive && searchQuery.data && searchQuery.isError && (
+				<p className="m-0 px-3 py-2 text-sm text-content-destructive">
+					Search failed; showing the last results.
+				</p>
+			)}
+			{body}
 			<BoardWindows
 				windows={windows}
 				chatsById={chatsById}

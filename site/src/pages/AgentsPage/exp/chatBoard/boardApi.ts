@@ -24,9 +24,7 @@ import {
 import type { BoardStorage } from "./boardStorage";
 
 /**
- * What a board action means, as pure functions from the full board model to
- * a Plan. Nothing here knows about React, queries, or toasts. Commands take
- * ids and resolve them against the model, so a caller holding a filtered
+ * The full, unfiltered board. Commands resolve ids against it, so a filtered
  * view cannot make a command act on a subset.
  */
 export type BoardState = Readonly<{

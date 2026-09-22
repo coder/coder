@@ -45,9 +45,7 @@ export const EditableTitle: FC<EditableTitleProps> = ({
 			)}
 			onClick={onEdit}
 		>
-			<span className="line-clamp-2 wrap-anywhere [text-wrap:pretty]">
-				{value}
-			</span>
+			<span className="line-clamp-2 wrap-anywhere text-pretty">{value}</span>
 		</button>
 	);
 };

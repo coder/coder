@@ -164,7 +164,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 				{...dragHandleListeners(listeners)}
 				{...attributes}
 			>
-				<ColumnDot name={column.name} />
+				<span className={dot({ hue: columnHue(column.name) })} />
 				{title}
 				<span className="ml-auto text-[11px] text-content-secondary/70 tabular-nums">
 					{column.cards.length}
@@ -225,14 +225,6 @@ const dot = cva("size-2 shrink-0 rounded-[2px]", {
 		},
 	},
 });
-
-type ColumnDotProps = {
-	readonly name: string;
-};
-
-const ColumnDot: FC<ColumnDotProps> = ({ name }) => (
-	<span className={dot({ hue: columnHue(name) })} />
-);
 
 type InsertionLineProps = {
 	readonly visible: boolean;

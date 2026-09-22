@@ -134,13 +134,8 @@ export const BoardCard: FC<BoardCardProps> = ({
 				onChange={onSetColor}
 			/>
 			{/*
-			  Same anatomy for every card: [icon] title [meta]. A single chat is
-			  its own card, so its title is the chat title and there are no rows;
-			  a group shows a stack icon, the card title, and one row per chat.
-			  Click the title text to rename it (the board decides whether that
-			  renames the chat or the card); click anywhere else on a single
-			  card's header to open the chat, or rest on its chat icon to preview
-			  it. The band is washed with the accent.
+			  Clicking the title text renames; the board decides whether that renames
+			  the chat or the card.
 			*/}
 			<header
 				className={cn(

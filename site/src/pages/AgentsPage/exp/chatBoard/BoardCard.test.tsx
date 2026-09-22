@@ -111,7 +111,7 @@ describe("BoardCard", () => {
 			chat("p", { "board/group": "p" }),
 			chat("m", { "board/group": "p" }),
 		]);
-		const rect = (top: number) => ({ top }) as DOMRect;
+		const rect = (top: number) => new DOMRect(0, top, 0, 0);
 		vi.spyOn(
 			screen.getByRole("article"),
 			"getBoundingClientRect",
