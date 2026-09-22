@@ -17257,6 +17257,8 @@ WITH latest_workspace_builds AS (
 		tvp.options
 	FROM latest_workspace_builds wb
 	JOIN template_version_parameters tvp ON (tvp.template_version_id = wb.template_version_id)
+	-- Sensitive parameter values must never be aggregated or exported.
+	WHERE tvp.sensitive = false
 	GROUP BY tvp.name, tvp.type, tvp.display_name, tvp.description, tvp.options
 )
 
@@ -28390,7 +28392,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral, form_type FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral, form_type, sensitive FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -28421,6 +28423,7 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.DisplayOrder,
 			&i.Ephemeral,
 			&i.FormType,
+			&i.Sensitive,
 		); err != nil {
 			return nil, err
 		}
@@ -28455,7 +28458,8 @@ INSERT INTO
         required,
         display_name,
         display_order,
-        ephemeral
+        ephemeral,
+        sensitive
     )
 VALUES
     (
@@ -28476,8 +28480,9 @@ VALUES
         $15,
         $16,
         $17,
-        $18
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral, form_type
+        $18,
+        $19
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral, form_type, sensitive
 `
 
 type InsertTemplateVersionParameterParams struct {
@@ -28499,6 +28504,7 @@ type InsertTemplateVersionParameterParams struct {
 	DisplayName         string            `db:"display_name" json:"display_name"`
 	DisplayOrder        int32             `db:"display_order" json:"display_order"`
 	Ephemeral           bool              `db:"ephemeral" json:"ephemeral"`
+	Sensitive           bool              `db:"sensitive" json:"sensitive"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -28521,6 +28527,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.DisplayName,
 		arg.DisplayOrder,
 		arg.Ephemeral,
+		arg.Sensitive,
 	)
 	var i TemplateVersionParameter
 	err := row.Scan(
@@ -28542,6 +28549,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.DisplayOrder,
 		&i.Ephemeral,
 		&i.FormType,
+		&i.Sensitive,
 	)
 	return i, err
 }
@@ -37317,6 +37325,7 @@ FROM (
 		AND wb.transition = 'start'
 		AND w.template_id = $2
 		AND tvp.ephemeral = false
+		AND tvp.sensitive = false
 		AND tvp.name = wbp.name
     ORDER BY
         tvp.name, wb.created_at DESC

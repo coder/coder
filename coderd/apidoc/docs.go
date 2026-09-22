@@ -26843,6 +26843,9 @@ const docTemplate = `{
                 "required": {
                     "type": "boolean"
                 },
+                "sensitive": {
+                    "type": "boolean"
+                },
                 "styling": {
                     "$ref": "#/definitions/codersdk.PreviewParameterStyling"
                 },
@@ -29304,6 +29307,10 @@ const docTemplate = `{
                     }
                 },
                 "required": {
+                    "type": "boolean"
+                },
+                "sensitive": {
+                    "description": "Sensitive parameters have their values replaced with RedactedValue in\nAPI responses and logs, and are excluded from insights and autofill.",
                     "type": "boolean"
                 },
                 "type": {

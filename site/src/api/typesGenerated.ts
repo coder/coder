@@ -7684,6 +7684,7 @@ export interface PreviewParameterData {
 	 */
 	readonly order: number;
 	readonly ephemeral: boolean;
+	readonly sensitive: boolean;
 }
 
 // From codersdk/parameters.go
@@ -8185,6 +8186,14 @@ export interface RateLimitConfig {
 	readonly disable_all: boolean;
 	readonly api: number;
 }
+
+// From codersdk/templateversions.go
+/**
+ * RedactedValue replaces sensitive template variable and parameter values in
+ * API responses and logs. Submitting it back for a sensitive parameter keeps
+ * the previous build's value.
+ */
+export const RedactedValue = "*redacted*";
 
 // From codersdk/users.go
 /**
@@ -9600,6 +9609,11 @@ export interface TemplateVersionParameter {
 	readonly validation_monotonic?: ValidationMonotonicOrder;
 	readonly required: boolean;
 	readonly ephemeral: boolean;
+	/**
+	 * Sensitive parameters have their values replaced with RedactedValue in
+	 * API responses and logs, and are excluded from insights and autofill.
+	 */
+	readonly sensitive: boolean;
 }
 
 // From codersdk/templateversions.go

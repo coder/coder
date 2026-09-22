@@ -100,6 +100,43 @@ describe("TemplateEmbedPage", () => {
 		expect(cpuInput).toBeInTheDocument();
 	});
 
+	it("excludes sensitive parameters from the test link and markdown", async () => {
+		const sensitiveParameter = {
+			...MockPreviewParameter,
+			name: "api_token",
+			display_name: "API Token",
+			form_type: "input" as const,
+			value: { value: "secret-token", valid: true },
+			default_value: { value: "", valid: true },
+			sensitive: true,
+			order: 0,
+		};
+		const [, publisher] = mockDynamicParameterWebSocket();
+
+		renderEmbedPage();
+		await connectAndRespond(publisher, {
+			id: 0,
+			parameters: [sensitiveParameter],
+			diagnostics: [],
+		});
+
+		const input = await screen.findByLabelText(/API Token/);
+		expect(input).toHaveAttribute("type", "password");
+
+		const testLink = screen.getByRole("link", { name: "Test" });
+		const href = testLink.getAttribute("href") ?? "";
+		expect(getSearchParams(href).has("param.api_token")).toBe(false);
+		expect(href).not.toContain("secret-token");
+
+		await userEvent.click(
+			screen.getByRole("button", { name: /copy button markdown/i }),
+		);
+		await waitFor(() => expect(writeTextMock).toHaveBeenCalled());
+		const copiedText = writeTextMock.mock.calls[0][0] as string;
+		expect(copiedText).not.toContain("param.api_token");
+		expect(copiedText).not.toContain("secret-token");
+	});
+
 	it("ignores ephemeral parameters", async () => {
 		const paramEphemeral = {
 			...MockPreviewParameter,

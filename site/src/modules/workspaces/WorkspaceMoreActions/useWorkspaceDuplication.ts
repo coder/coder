@@ -2,7 +2,11 @@ import { useCallback } from "react";
 import { useQuery } from "react-query";
 import { useNavigate } from "react-router";
 import { workspaceBuildParameters } from "#/api/queries/workspaceBuilds";
-import type { Workspace, WorkspaceBuildParameter } from "#/api/typesGenerated";
+import {
+	RedactedValue,
+	type Workspace,
+	type WorkspaceBuildParameter,
+} from "#/api/typesGenerated";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { CreateWorkspaceMode } from "#/pages/CreateWorkspacePage/CreateWorkspacePage";
 
@@ -15,7 +19,9 @@ function getDuplicationUrlParams(
 	const consolidatedParams: Record<`param.${string}`, string> = {};
 
 	for (const p of workspaceParams) {
-		consolidatedParams[`param.${p.name}`] = p.value;
+		if (p.value !== RedactedValue) {
+			consolidatedParams[`param.${p.name}`] = p.value;
+		}
 	}
 
 	return new URLSearchParams({

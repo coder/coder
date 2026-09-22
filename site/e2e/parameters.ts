@@ -20,6 +20,7 @@ export const emptyParameter: RichParameter = {
 	order: 0,
 	ephemeral: false,
 	formType: ParameterFormType.DEFAULT,
+	sensitive: false,
 };
 
 // firstParameter is mutable string with a default value (parameter value not required).

@@ -4690,6 +4690,127 @@ func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
 }
 
+func TestWorkspaceWithSensitiveRichParameters(t *testing.T) {
+	t.Parallel()
+
+	const (
+		regionParameterName = "region"
+		regionValue         = "us-east-1"
+
+		secretParameterName = "api_key"
+		secretValue         = "hunter2"
+		rotatedSecretValue  = "hunter3"
+	)
+
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
+					Parameters: []*proto.RichParameter{
+						{
+							Name:         regionParameterName,
+							Type:         "string",
+							DefaultValue: regionValue,
+							Mutable:      true,
+						},
+						{
+							Name:      secretParameterName,
+							Type:      "string",
+							Mutable:   true,
+							Required:  true,
+							Sensitive: true,
+						},
+					},
+				},
+			},
+		}},
+		ProvisionApply: echo.ApplyComplete,
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// The definition advertises sensitivity so clients can mask input.
+	templateParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
+	require.NoError(t, err)
+	require.Len(t, templateParameters, 2)
+	for _, p := range templateParameters {
+		require.Equal(t, p.Name == secretParameterName, p.Sensitive, "parameter %q", p.Name)
+	}
+
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+			{Name: secretParameterName, Value: secretValue},
+		}
+	})
+	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	storedValue := func(buildID uuid.UUID) string {
+		params, err := db.GetWorkspaceBuildParameters(dbauthz.AsSystemRestricted(ctx), buildID)
+		require.NoError(t, err)
+		for _, p := range params {
+			if p.Name == secretParameterName {
+				return p.Value
+			}
+		}
+		t.Fatalf("parameter %q not stored for build %s", secretParameterName, buildID)
+		return ""
+	}
+
+	// The API redacts the value; the database keeps it so the build can use it.
+	buildParameters, err := client.WorkspaceBuildParameters(ctx, build.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []codersdk.WorkspaceBuildParameter{
+		{Name: regionParameterName, Value: regionValue},
+		{Name: secretParameterName, Value: codersdk.RedactedValue},
+	}, buildParameters)
+	require.Equal(t, secretValue, storedValue(build.ID))
+
+	// Clients that round-trip the redacted response keep the previous value.
+	build, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition:          codersdk.WorkspaceTransitionStart,
+		RichParameterValues: buildParameters,
+	})
+	require.NoError(t, err)
+	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+	require.Equal(t, secretValue, storedValue(build.ID))
+
+	// A real new value still replaces the stored one.
+	build, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart,
+		RichParameterValues: []codersdk.WorkspaceBuildParameter{
+			{Name: secretParameterName, Value: rotatedSecretValue},
+		},
+	})
+	require.NoError(t, err)
+	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+	require.Equal(t, rotatedSecretValue, storedValue(build.ID))
+
+	// Sensitive values are never offered as autofill suggestions.
+	autofill, err := client.UserAutofillParameters(ctx, codersdk.Me, template.ID)
+	require.NoError(t, err)
+	for _, p := range autofill {
+		require.NotEqual(t, secretParameterName, p.Name)
+	}
+
+	// The sentinel cannot seed a new workspace, since there is nothing to
+	// fall back to. This catches duplicated workspaces copying a redacted value.
+	_, err = client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+		TemplateID: template.ID,
+		Name:       "copy",
+		RichParameterValues: []codersdk.WorkspaceBuildParameter{
+			{Name: secretParameterName, Value: codersdk.RedactedValue},
+		},
+	})
+	var apiErr *codersdk.Error
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+}
+
 func TestWorkspaceDormant(t *testing.T) {
 	t.Parallel()
 

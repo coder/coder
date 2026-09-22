@@ -6109,6 +6109,8 @@ type TemplateVersionParameter struct {
 	Ephemeral bool `db:"ephemeral" json:"ephemeral"`
 	// Specify what form_type should be used to render the parameter in the UI. Unsupported values are rejected.
 	FormType ParameterFormType `db:"form_type" json:"form_type"`
+	// Sensitive parameters have their values redacted in logs, insights, notifications, and the API. Values are still stored in the database and in Terraform state.
+	Sensitive bool `db:"sensitive" json:"sensitive"`
 }
 
 type TemplateVersionPreset struct {

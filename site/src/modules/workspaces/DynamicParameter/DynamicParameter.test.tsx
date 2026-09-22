@@ -1,8 +1,14 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { PreviewParameter } from "#/api/typesGenerated";
+import type {
+	PreviewParameter,
+	WorkspaceBuildParameter,
+} from "#/api/typesGenerated";
 import { render } from "#/testHelpers/renderHelpers";
-import { DynamicParameter } from "./DynamicParameter";
+import {
+	DynamicParameter,
+	useValidationSchemaForDynamicParameters,
+} from "./DynamicParameter";
 
 const createMockParameter = (
 	overrides: Partial<PreviewParameter> = {},
@@ -27,6 +33,7 @@ const createMockParameter = (
 	order: 1,
 	form_type: "input",
 	ephemeral: false,
+	sensitive: false,
 	...overrides,
 });
 
@@ -833,6 +840,105 @@ describe("DynamicParameter", () => {
 				label: "",
 				mask_input: true,
 			},
+		});
+
+		it("masks sensitive inputs even when mask_input is disabled", () => {
+			const sensitiveParameter = createMockParameter({
+				sensitive: true,
+				styling: {
+					placeholder: "",
+					disabled: false,
+					label: "",
+					mask_input: false,
+				},
+			});
+
+			render(
+				<DynamicParameter
+					parameter={sensitiveParameter}
+					value="secret123"
+					onChange={mockOnChange}
+				/>,
+			);
+
+			expect(screen.getByDisplayValue("secret123")).toHaveAttribute(
+				"type",
+				"password",
+			);
+			expect(
+				screen.queryByRole("button", { name: "Show value" }),
+			).not.toBeInTheDocument();
+		});
+
+		it("masks sensitive number inputs as text passwords", () => {
+			const sensitiveParameter = createMockParameter({
+				type: "number",
+				sensitive: true,
+			});
+
+			render(
+				<DynamicParameter
+					parameter={sensitiveParameter}
+					value="1234"
+					onChange={mockOnChange}
+				/>,
+			);
+
+			expect(screen.getByDisplayValue("1234")).toHaveAttribute(
+				"type",
+				"password",
+			);
+		});
+
+		it("does not include a sensitive value in custom validation errors", async () => {
+			const sensitiveParameter = createMockParameter({
+				sensitive: true,
+				validations: [
+					{
+						validation_error: "Value {value} is invalid",
+						validation_regex: "^valid$",
+						validation_min: null,
+						validation_max: null,
+						validation_monotonic: null,
+					},
+				],
+			});
+			const schema = useValidationSchemaForDynamicParameters([
+				sensitiveParameter,
+			]);
+
+			await expect(
+				schema.validate([
+					{ name: sensitiveParameter.name, value: "secret123" },
+				]),
+			).rejects.toThrow("Value  is invalid");
+		});
+
+		it("does not include a sensitive previous value in monotonic errors", async () => {
+			const sensitiveParameter = createMockParameter({
+				type: "number",
+				sensitive: true,
+				validations: [
+					{
+						validation_error: "",
+						validation_regex: null,
+						validation_min: null,
+						validation_max: null,
+						validation_monotonic: "increasing",
+					},
+				],
+			});
+			const lastBuildParameters: WorkspaceBuildParameter[] = [
+				{ name: sensitiveParameter.name, value: "1234" },
+			];
+			const schema = useValidationSchemaForDynamicParameters(
+				[sensitiveParameter],
+				lastBuildParameters,
+			);
+
+			await expect(
+				schema.validate([{ name: sensitiveParameter.name, value: "1000" }]),
+			).rejects.toThrow("Value must only ever increase.");
 		});
 
 		it("toggles visibility with persistent pressed-state semantics", async () => {

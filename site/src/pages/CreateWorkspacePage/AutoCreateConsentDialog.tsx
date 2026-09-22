@@ -1,5 +1,6 @@
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
+import { type PreviewParameter, RedactedValue } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -14,6 +15,7 @@ import type { AutofillBuildParameter } from "#/utils/richParameters";
 type AutoCreateConsentDialogProps = {
 	open: boolean;
 	autofillParameters: AutofillBuildParameter[];
+	parameters?: readonly PreviewParameter[];
 	presetName?: string;
 	onConfirm: () => void;
 	onDeny: () => void;
@@ -22,6 +24,7 @@ type AutoCreateConsentDialogProps = {
 export const AutoCreateConsentDialog: FC<AutoCreateConsentDialogProps> = ({
 	open,
 	autofillParameters,
+	parameters,
 	presetName,
 	onConfirm,
 	onDeny,
@@ -63,7 +66,16 @@ export const AutoCreateConsentDialog: FC<AutoCreateConsentDialogProps> = ({
 						</span>
 						<code className="block whitespace-pre overflow-x-auto">
 							{autofillParameters
-								.map((p) => `${p.name}: ${p.value}`)
+								.map((p) => {
+									const parameter = parameters?.find(
+										(parameter) => parameter.name === p.name,
+									);
+									const value =
+										p.value === RedactedValue || parameter?.sensitive
+											? "••••••••"
+											: p.value;
+									return `${p.name}: ${value}`;
+								})
 								.join("\n")}
 						</code>
 					</div>

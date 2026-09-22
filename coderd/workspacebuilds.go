@@ -738,12 +738,10 @@ func (api *API) notifyWorkspaceUpdated(
 		return
 	}
 
-	buildParameters := make([]map[string]any, len(parameters))
-	for idx, parameter := range parameters {
-		buildParameters[idx] = map[string]any{
-			"name":  parameter.Name,
-			"value": parameter.Value,
-		}
+	buildParameters, err := api.redactedNotificationParameters(ctx, version.ID, parameters)
+	if err != nil {
+		log.Warn(ctx, "failed to redact parameters for workspace update notification", slog.F("template_version_id", version.ID), slog.Error(err))
+		return
 	}
 
 	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
@@ -954,7 +952,19 @@ func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	apiParameters := db2sdk.WorkspaceBuildParameters(parameters)
+	// Definitions are needed to redact sensitive values before responding.
+	// They are not returned, so read them as system rather than requiring the
+	// caller to hold template read.
+	//nolint:gocritic // Definitions are only used to redact, never exposed.
+	definitions, err := api.Database.GetTemplateVersionParameters(dbauthz.AsSystemRestricted(ctx), workspaceBuild.TemplateVersionID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	apiParameters := db2sdk.RedactedWorkspaceBuildParameters(parameters, definitions)
 	httpapi.Write(ctx, rw, http.StatusOK, apiParameters)
 }
 

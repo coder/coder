@@ -873,6 +873,61 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	require.Equal(t, database.StringMapOfInt{"vscode": 60, "unknown": 60}, byTemplate[sharedConnectionTemplateID].SessionAppUsageSeconds)
 }
 
+func TestGetTemplateParameterInsightsExcludesSensitive(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+	now := dbtime.Now()
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      owner.ID,
+	})
+	workspaceID := uuid.New()
+	version := createTemplateVersion(t, db, tpl, tvArgs{
+		Status:              database.ProvisionerJobStatusSucceeded,
+		WorkspaceTransition: database.WorkspaceTransitionStart,
+		CreateWorkspace:     true,
+		WorkspaceID:         workspaceID,
+	})
+	dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+		TemplateVersionID: version.ID,
+		Name:              "region",
+	})
+	dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+		TemplateVersionID: version.ID,
+		Name:              "api_key",
+		Sensitive:         true,
+	})
+	build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
+	require.NoError(t, err)
+	dbgen.WorkspaceBuildParameters(t, db, []database.WorkspaceBuildParameter{
+		{WorkspaceBuildID: build.ID, Name: "region", Value: "us-east-1"},
+		{WorkspaceBuildID: build.ID, Name: "api_key", Value: "hunter2"},
+	})
+
+	rows, err := db.GetTemplateParameterInsights(ctx, database.GetTemplateParameterInsightsParams{
+		StartTime:   now.Add(-time.Hour),
+		EndTime:     now.Add(time.Hour),
+		TemplateIDs: []uuid.UUID{tpl.ID},
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, "region", rows[0].Name)
+	require.Equal(t, "us-east-1", rows[0].Value)
+
+	autofill, err := db.GetUserWorkspaceBuildParameters(ctx, database.GetUserWorkspaceBuildParametersParams{
+		OwnerID:    tpl.CreatedBy,
+		TemplateID: tpl.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, autofill, 1)
+	require.Equal(t, "region", autofill[0].Name)
+}
+
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 	t.Parallel()
 

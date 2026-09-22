@@ -628,7 +628,7 @@ func handleMissingTemplateVariables(inv *serpent.Invocation, args createValidTem
 		// Only prompt for variables that don't have a default value or have a redacted default
 		// Sensitive variables have a default value of "*redacted*"
 		// See: https://github.com/coder/coder/blob/a78790c632974e04babfef6de0e2ddf044787a7a/coderd/provisionerdserver/provisionerdserver.go#L3206
-		if variable.DefaultValue == "" || (variable.Sensitive && variable.DefaultValue == "*redacted*") {
+		if variable.DefaultValue == "" || (variable.Sensitive && variable.DefaultValue == codersdk.RedactedValue) {
 			missingVariables = append(missingVariables, variable)
 		}
 	}

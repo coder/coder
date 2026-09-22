@@ -111,6 +111,11 @@ func (r *RootCmd) templatePresetsList() *serpent.Command {
 				return nil
 			}
 
+			parameters, err := client.TemplateVersionRichParameters(inv.Context(), version.ID)
+			if err != nil {
+				return xerrors.Errorf("get template version rich parameters: %w", err)
+			}
+
 			// Only display info message for table output
 			if formatter.FormatID() == "table" {
 				cliui.Infof(
@@ -118,7 +123,7 @@ func (r *RootCmd) templatePresetsList() *serpent.Command {
 					"Showing presets for template %q and template version %q.", template.Name, version.Name,
 				)
 			}
-			rows := templatePresetsToRows(presets...)
+			rows := templatePresetsToRows(parameters, presets...)
 			out, err := formatter.Format(inv.Context(), rows)
 			if err != nil {
 				return xerrors.Errorf("render table: %w", err)
@@ -151,30 +156,46 @@ type TemplatePresetRow struct {
 	DesiredPrebuildInstances string `json:"-" table:"desired prebuild instances"`
 }
 
-func formatPresetParameters(params []codersdk.PresetParameter) string {
+func parameterValueForDisplay(name, value string, definitions []codersdk.TemplateVersionParameter) string {
+	for _, parameter := range definitions {
+		if parameter.Name == name && parameter.Sensitive {
+			return codersdk.RedactedValue
+		}
+	}
+	return value
+}
+
+func formatPresetParameters(params []codersdk.PresetParameter, definitions []codersdk.TemplateVersionParameter) string {
 	var paramsStr []string
 	for _, p := range params {
-		paramsStr = append(paramsStr, fmt.Sprintf("%s=%s", p.Name, p.Value))
+		paramsStr = append(paramsStr, fmt.Sprintf("%s=%s", p.Name, parameterValueForDisplay(p.Name, p.Value, definitions)))
 	}
 	return strings.Join(paramsStr, ",")
 }
 
 // templatePresetsToRows converts a list of presets to a list of rows
 // for outputting.
-func templatePresetsToRows(presets ...codersdk.Preset) []TemplatePresetRow {
+func templatePresetsToRows(definitions []codersdk.TemplateVersionParameter, presets ...codersdk.Preset) []TemplatePresetRow {
 	rows := make([]TemplatePresetRow, len(presets))
 	for i, preset := range presets {
+		redactedPreset := preset
+		redactedPreset.Parameters = append([]codersdk.PresetParameter(nil), preset.Parameters...)
+		for i := range redactedPreset.Parameters {
+			parameter := &redactedPreset.Parameters[i]
+			parameter.Value = parameterValueForDisplay(parameter.Name, parameter.Value, definitions)
+		}
+
 		prebuildInstances := "-"
 		if preset.DesiredPrebuildInstances != nil {
 			prebuildInstances = strconv.Itoa(*preset.DesiredPrebuildInstances)
 		}
 		rows[i] = TemplatePresetRow{
 			// For json format
-			TemplatePreset: preset,
+			TemplatePreset: redactedPreset,
 			// For table format
 			Name:                     preset.Name,
 			Description:              preset.Description,
-			Parameters:               formatPresetParameters(preset.Parameters),
+			Parameters:               formatPresetParameters(redactedPreset.Parameters, definitions),
 			Default:                  preset.Default,
 			DesiredPrebuildInstances: prebuildInstances,
 		}

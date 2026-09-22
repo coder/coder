@@ -1627,6 +1627,7 @@ func TemplateVersionParameter(t testing.TB, db database.Store, orig database.Tem
 		DisplayName:         takeFirst(orig.DisplayName, testutil.GetRandomName(t)),
 		DisplayOrder:        takeFirst(orig.DisplayOrder, 0),
 		Ephemeral:           takeFirst(orig.Ephemeral, false),
+		Sensitive:           takeFirst(orig.Sensitive, false),
 	})
 	require.NoError(t, err, "insert template version parameter")
 	return version

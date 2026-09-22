@@ -1,11 +1,14 @@
 import { act, waitFor } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
 import type { Workspace } from "#/api/typesGenerated";
+import { RedactedValue } from "#/api/typesGenerated";
 import CreateWorkspacePage from "#/pages/CreateWorkspacePage/CreateWorkspacePage";
 import * as M from "#/testHelpers/entities";
 import {
 	type GetLocationSnapshot,
 	renderHookWithAuth,
 } from "#/testHelpers/hooks";
+import { server } from "#/testHelpers/server";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 
 function render(workspace?: Workspace) {
@@ -85,6 +88,28 @@ describe(`${useWorkspaceDuplication.name}`, () => {
 			const key = `param.${name}`;
 			expect(search.get(key)).toEqual(value);
 		}
+	});
+
+	test("Navigating excludes redacted build parameters from the URL", async () => {
+		const redactedParameter = {
+			name: "secret",
+			value: RedactedValue,
+		};
+		server.use(
+			http.get("/api/v2/workspacebuilds/:workspaceBuildId/parameters", () =>
+				HttpResponse.json([M.MockWorkspaceBuildParameter1, redactedParameter]),
+			),
+		);
+
+		const { result, getLocationSnapshot } = await render(M.MockWorkspace);
+		await performNavigation(result, getLocationSnapshot);
+
+		const { search } = getLocationSnapshot();
+		expect(search.get(`param.${M.MockWorkspaceBuildParameter1.name}`)).toBe(
+			M.MockWorkspaceBuildParameter1.value,
+		);
+		expect(search.has(`param.${redactedParameter.name}`)).toBe(false);
+		expect(search.toString()).not.toContain(RedactedValue);
 	});
 
 	test("Navigating appends other necessary metadata to the search params", async () => {

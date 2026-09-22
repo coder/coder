@@ -433,23 +433,23 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 	switch jobType := r.job.Type.(type) {
 	case *proto.AcquiredJob_TemplateImport_:
 		r.logger.Debug(context.Background(), "acquired job is template import",
-			slog.F("user_variable_values", redactVariableValues(jobType.TemplateImport.UserVariableValues)),
+			slog.F("user_variable_values", sdkproto.RedactVariableValues(jobType.TemplateImport.UserVariableValues)),
 		)
 
 		return r.runTemplateImport(ctx)
 	case *proto.AcquiredJob_TemplateDryRun_:
 		r.logger.Debug(context.Background(), "acquired job is template dry-run",
 			slog.F("workspace_name", jobType.TemplateDryRun.Metadata.WorkspaceName),
-			slog.F("rich_parameter_values", jobType.TemplateDryRun.RichParameterValues),
-			slog.F("variable_values", redactVariableValues(jobType.TemplateDryRun.VariableValues)),
+			slog.F("rich_parameter_values", sdkproto.RedactRichParameterValues(jobType.TemplateDryRun.RichParameterValues)),
+			slog.F("variable_values", sdkproto.RedactVariableValues(jobType.TemplateDryRun.VariableValues)),
 		)
 		return r.runTemplateDryRun(ctx)
 	case *proto.AcquiredJob_WorkspaceBuild_:
 		r.logger.Debug(context.Background(), "acquired job is workspace provision",
 			slog.F("workspace_name", jobType.WorkspaceBuild.WorkspaceName),
 			slog.F("state_length", len(jobType.WorkspaceBuild.State)),
-			slog.F("rich_parameter_values", jobType.WorkspaceBuild.RichParameterValues),
-			slog.F("variable_values", redactVariableValues(jobType.WorkspaceBuild.VariableValues)),
+			slog.F("rich_parameter_values", sdkproto.RedactRichParameterValues(jobType.WorkspaceBuild.RichParameterValues)),
+			slog.F("variable_values", sdkproto.RedactVariableValues(jobType.WorkspaceBuild.VariableValues)),
 		)
 		return r.runWorkspaceBuild(ctx)
 	default:
@@ -1184,22 +1184,6 @@ func (r *Runner) flushQueuedLogs(ctx context.Context) {
 		}
 		r.logger.Error(ctx, "flush queued logs", slog.Error(err))
 	}
-}
-
-func redactVariableValues(variableValues []*sdkproto.VariableValue) []*sdkproto.VariableValue {
-	var redacted []*sdkproto.VariableValue
-	for _, v := range variableValues {
-		if v.Sensitive {
-			redacted = append(redacted, &sdkproto.VariableValue{
-				Name:      v.Name,
-				Value:     "*redacted*",
-				Sensitive: true,
-			})
-			continue
-		}
-		redacted = append(redacted, v)
-	}
-	return redacted
 }
 
 // logProvisionerJobLog logs a message from the provisioner daemon at the appropriate level.

@@ -914,6 +914,8 @@ WITH latest_workspace_builds AS (
 		tvp.options
 	FROM latest_workspace_builds wb
 	JOIN template_version_parameters tvp ON (tvp.template_version_id = wb.template_version_id)
+	-- Sensitive parameter values must never be aggregated or exported.
+	WHERE tvp.sensitive = false
 	GROUP BY tvp.name, tvp.type, tvp.display_name, tvp.description, tvp.options
 )
 

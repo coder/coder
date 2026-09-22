@@ -1897,6 +1897,7 @@ const _MockWorkspacesResponseWithDeletions = {
 export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
 	{
 		name: "first_parameter",
+		sensitive: false,
 		type: "string",
 		form_type: "input",
 		description: "This is first parameter",
@@ -1912,6 +1913,7 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
 export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
 	{
 		name: "second_parameter",
+		sensitive: false,
 		type: "number",
 		form_type: "input",
 		description: "This is second parameter",
@@ -1930,6 +1932,7 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
 export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
 	{
 		name: "third_parameter",
+		sensitive: false,
 		type: "string",
 		form_type: "input",
 		description: "This is third parameter",
@@ -1946,6 +1949,7 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
 
 const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter = {
 	name: "fourth_parameter",
+	sensitive: false,
 	type: "string",
 	form_type: "input",
 	description: "This is fourth parameter",
@@ -1960,6 +1964,7 @@ const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter = {
 
 const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter = {
 	name: "fifth_parameter",
+	sensitive: false,
 	type: "number",
 	form_type: "input",
 	description: "This is fifth parameter",
@@ -1978,6 +1983,7 @@ const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter = {
 export const MockTemplateVersionParameter6: TypesGen.TemplateVersionParameter =
 	{
 		name: "ephemeral_parameter",
+		sensitive: false,
 		type: "string",
 		form_type: "input",
 		description: "This is ephemeral parameter",
@@ -1993,6 +1999,7 @@ export const MockTemplateVersionParameter6: TypesGen.TemplateVersionParameter =
 // Not required and the default is a blank string.
 const MockTemplateVersionParameter7: TypesGen.TemplateVersionParameter = {
 	name: "seventh_parameter",
+	sensitive: false,
 	type: "string",
 	form_type: "input",
 	description: "This is seventh parameter",
@@ -3602,6 +3609,7 @@ export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	form_type: "input",
 	mutable: true,
 	ephemeral: false,
+	sensitive: false,
 	required: true,
 	value: { valid: true, value: "" },
 	default_value: { valid: true, value: "" },

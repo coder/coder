@@ -1119,12 +1119,10 @@ func (api *API) notifyWorkspaceCreated(
 		return
 	}
 
-	buildParameters := make([]map[string]any, len(parameters))
-	for idx, parameter := range parameters {
-		buildParameters[idx] = map[string]any{
-			"name":  parameter.Name,
-			"value": parameter.Value,
-		}
+	buildParameters, err := api.redactedNotificationParameters(ctx, version.ID, parameters)
+	if err != nil {
+		log.Warn(ctx, "failed to redact parameters for workspace creation notification", slog.F("template_version_id", version.ID), slog.Error(err))
+		return
 	}
 
 	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
@@ -1151,6 +1149,30 @@ func (api *API) notifyWorkspaceCreated(
 	); err != nil {
 		log.Warn(ctx, "failed to notify of workspace creation", slog.Error(err))
 	}
+}
+
+// redactedNotificationParameters shapes build parameters for notification
+// payloads. Notification payloads are persisted and delivered to webhooks, so
+// sensitive values are replaced with codersdk.RedactedValue.
+func (api *API) redactedNotificationParameters(ctx context.Context, templateVersionID uuid.UUID, parameters []codersdk.WorkspaceBuildParameter) ([]map[string]any, error) {
+	definitions, err := api.Database.GetTemplateVersionParameters(ctx, templateVersionID)
+	if err != nil {
+		return nil, xerrors.Errorf("get template version parameters: %w", err)
+	}
+	sensitive := db2sdk.SensitiveParameterNames(definitions)
+
+	buildParameters := make([]map[string]any, len(parameters))
+	for idx, parameter := range parameters {
+		value := parameter.Value
+		if sensitive[parameter.Name] {
+			value = codersdk.RedactedValue
+		}
+		buildParameters[idx] = map[string]any{
+			"name":  parameter.Name,
+			"value": value,
+		}
+	}
+	return buildParameters, nil
 }
 
 // @Summary Update workspace metadata by ID

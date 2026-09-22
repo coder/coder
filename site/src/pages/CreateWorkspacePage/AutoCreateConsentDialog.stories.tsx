@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen } from "storybook/test";
+import { RedactedValue } from "#/api/typesGenerated";
+import { MockPreviewParameter } from "#/testHelpers/entities";
 import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
 
 const meta: Meta<typeof AutoCreateConsentDialog> = {
@@ -87,6 +89,23 @@ export const WithPreset: Story = {
 	play: async () => {
 		expect(screen.getAllByText("Preset:").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("gpu-large").length).toBeGreaterThan(0);
+	},
+};
+
+export const WithSensitiveParameters: Story = {
+	args: {
+		autofillParameters: [
+			{ name: "api_token", value: "secret-token", source: "url" },
+			{ name: "redacted_token", value: RedactedValue, source: "url" },
+		],
+		parameters: [
+			{
+				...MockPreviewParameter,
+				name: "api_token",
+				display_name: "API Token",
+				sensitive: true,
+			},
+		],
 	},
 };
 

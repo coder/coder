@@ -1,7 +1,12 @@
 import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import {
+	RedactedValue,
+	type WorkspaceBuildParameter,
+} from "#/api/typesGenerated";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockPreviewParameter1,
@@ -159,6 +164,102 @@ describe("WorkspaceParametersPage", () => {
 			name: /update and restart/i,
 		});
 		await waitFor(() => expect(submitButton).toBeEnabled());
+	});
+
+	it("preserves an unchanged redacted value and submits a replacement after editing", async () => {
+		const sensitiveParameter = {
+			...MockPreviewParameter1,
+			sensitive: true,
+			value: { valid: true, value: RedactedValue },
+		};
+		const buildParameters: WorkspaceBuildParameter[] = [
+			{ name: sensitiveParameter.name, value: RedactedValue },
+		];
+		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce(
+			buildParameters,
+		);
+		const postWorkspaceBuild = vi.mocked(API.postWorkspaceBuild);
+		postWorkspaceBuild.mockRejectedValue(new Error("not implemented"));
+		vi.spyOn(API, "stopWorkspace").mockResolvedValue(
+			MockWorkspace.latest_build,
+		);
+		vi.spyOn(API, "waitForBuild").mockResolvedValue(undefined);
+		const [, mockPublisher] = mockDynamicParameterWebSocket();
+
+		renderWorkspaceParametersPage();
+		await connectWithInitialParameters(mockPublisher, [sensitiveParameter]);
+		await waitFor(() => expect(mockPublisher.clientSentData).toHaveLength(1));
+		expect(JSON.parse(mockPublisher.clientSentData[0] as string)).toEqual(
+			expect.objectContaining({
+				inputs: { [sensitiveParameter.name]: RedactedValue },
+			}),
+		);
+
+		mockPublisher.publishMessage(
+			new MessageEvent("message", {
+				data: JSON.stringify({
+					id: 0,
+					parameters: [sensitiveParameter],
+					diagnostics: [],
+				}),
+			}),
+		);
+		await waitForLoaderToBeRemoved();
+
+		const input = screen.getByLabelText(
+			new RegExp(sensitiveParameter.display_name),
+		);
+		expect(input).toHaveAttribute("type", "password");
+		const submitButton = screen.getByRole("button", {
+			name: /update and restart/i,
+		});
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await act(async () => submitButton.click());
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Restart" }),
+		);
+		await waitFor(() => {
+			expect(postWorkspaceBuild).toHaveBeenLastCalledWith(
+				MockWorkspace.id,
+				expect.objectContaining({
+					rich_parameter_values: buildParameters,
+				}),
+			);
+		});
+
+		postWorkspaceBuild.mockClear();
+		await userEvent.clear(input);
+		await userEvent.type(input, "replacement-secret");
+		await waitFor(() => expect(mockPublisher.clientSentData).toHaveLength(2));
+		mockPublisher.publishMessage(
+			new MessageEvent("message", {
+				data: JSON.stringify({
+					id: 1,
+					parameters: [
+						{
+							...sensitiveParameter,
+							value: { valid: true, value: "replacement-secret" },
+						},
+					],
+					diagnostics: [],
+				}),
+			}),
+		);
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await act(async () => submitButton.click());
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Restart" }),
+		);
+		await waitFor(() => {
+			expect(postWorkspaceBuild).toHaveBeenLastCalledWith(
+				MockWorkspace.id,
+				expect.objectContaining({
+					rich_parameter_values: [
+						{ name: sensitiveParameter.name, value: "replacement-secret" },
+					],
+				}),
+			);
+		});
 	});
 
 	it("skips zero-length initial parameters", async () => {

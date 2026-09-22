@@ -251,6 +251,51 @@ data "coder_parameter" "force_rebuild" {
 }
 ```
 
+## Sensitive parameters
+
+Parameters are build inputs, not a secrets store. If a template needs a
+credential from the user, prefer [user secrets](../../../user-guides/user-secrets.md)
+or [external authentication](../../external-auth/index.md). When a parameter
+must carry a credential anyway, mark it `sensitive` so Coder redacts the value
+wherever it is displayed or exported:
+
+```tf
+data "coder_parameter" "api_key" {
+  name         = "api_key"
+  display_name = "API key"
+  type         = "string"
+  mutable      = true
+  ephemeral    = true
+  sensitive    = true
+}
+```
+
+A sensitive parameter's value:
+
+- Is returned as `*redacted*` by the API and shown masked in the dashboard and
+  CLI.
+- Is redacted in provisioner logs, workspace notifications, and support
+  bundles.
+- Is excluded from template insights, the `coderd_insights_parameters`
+  Prometheus metric, and autofill suggestions.
+
+Submitting `*redacted*` back for a sensitive parameter keeps the previous
+build's value, so clients can round-trip the redacted response unchanged.
+
+The value is still stored in the Coder database and in the workspace's
+Terraform state, and any Terraform resource that references it receives the
+real value. Terraform itself does not know the parameter is sensitive; wrap
+references in `sensitive()` if you also want Terraform to redact it in its own
+output:
+
+```tf
+resource "coder_env" "api_key" {
+  agent_id = coder_agent.main.id
+  name     = "API_KEY"
+  value    = sensitive(data.coder_parameter.api_key.value)
+}
+```
+
 ## Validating parameters
 
 Coder supports parameters with multiple validation modes: min, max,

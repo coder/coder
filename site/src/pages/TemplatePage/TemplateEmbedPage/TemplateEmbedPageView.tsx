@@ -62,10 +62,13 @@ export const TemplateEmbedPageView: React.FC<TemplateEmbedPageViewProps> = ({
 	const buttonValues = useMemo(() => {
 		const values: ButtonValues = { mode: formState.mode };
 		for (const [key, value] of Object.entries(formState.paramValues)) {
-			values[`param.${key}`] = value;
+			const parameter = parameters.find((parameter) => parameter.name === key);
+			if (!parameter?.sensitive) {
+				values[`param.${key}`] = value;
+			}
 		}
 		return values;
-	}, [formState]);
+	}, [formState, parameters]);
 
 	const handleChange = (
 		changedParamInfo: PreviewParameter,

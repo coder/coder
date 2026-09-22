@@ -64,12 +64,19 @@ message RichParameter {
   int32 order = 16;
   bool ephemeral = 17;
   ParameterFormType form_type = 18;
+  // sensitive parameters have their values redacted in logs, insights,
+  // notifications, and the API. Values are still present in Terraform state.
+  bool sensitive = 19;
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.
 message RichParameterValue {
   string name = 1;
   string value = 2;
+  // sensitive mirrors RichParameter.sensitive so consumers that only see
+  // values, such as provisioner daemon logs, can redact without the
+  // parameter definitions.
+  bool sensitive = 3;
 }
 
 // ExpirationPolicy defines the policy for expiring unclaimed prebuilds.

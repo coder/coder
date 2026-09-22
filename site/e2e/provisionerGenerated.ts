@@ -136,12 +136,23 @@ export interface RichParameter {
   order: number;
   ephemeral: boolean;
   formType: ParameterFormType;
+  /**
+   * sensitive parameters have their values redacted in logs, insights,
+   * notifications, and the API. Values are still present in Terraform state.
+   */
+  sensitive: boolean;
 }
 
 /** RichParameterValue holds the key/value mapping of a parameter. */
 export interface RichParameterValue {
   name: string;
   value: string;
+  /**
+   * sensitive mirrors RichParameter.sensitive so consumers that only see
+   * values, such as provisioner daemon logs, can redact without the
+   * parameter definitions.
+   */
+  sensitive: boolean;
 }
 
 /**
@@ -694,6 +705,9 @@ export const RichParameter = {
     if (message.formType !== 0) {
       writer.uint32(144).int32(message.formType);
     }
+    if (message.sensitive !== false) {
+      writer.uint32(152).bool(message.sensitive);
+    }
     return writer;
   },
 };
@@ -705,6 +719,9 @@ export const RichParameterValue = {
     }
     if (message.value !== "") {
       writer.uint32(18).string(message.value);
+    }
+    if (message.sensitive !== false) {
+      writer.uint32(24).bool(message.sensitive);
     }
     return writer;
   },

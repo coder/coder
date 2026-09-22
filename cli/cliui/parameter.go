@@ -53,10 +53,11 @@ func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.Te
 			}
 
 			_, _ = fmt.Fprintln(inv.Stdout)
-			pretty.Fprintf(
-				inv.Stdout,
-				DefaultStyles.Prompt, "%s\n", strings.Join(values, ", "),
-			)
+			selected := strings.Join(values, ", ")
+			if templateVersionParameter.Sensitive {
+				selected = codersdk.RedactedValue
+			}
+			pretty.Fprintf(inv.Stdout, DefaultStyles.Prompt, "%s\n", selected)
 			value = string(v)
 		}
 	case len(templateVersionParameter.Options) > 0:
@@ -75,13 +76,14 @@ func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.Te
 		}
 	default:
 		text := "Enter a value"
-		if defaultValue != "" {
+		if defaultValue != "" && !templateVersionParameter.Sensitive {
 			text += fmt.Sprintf(" (default: %q)", defaultValue)
 		}
 		text += ":"
 
 		value, err = Prompt(inv, PromptOptions{
-			Text: Bold(text),
+			Text:   Bold(text),
+			Secret: templateVersionParameter.Sensitive,
 			Validate: func(value string) error {
 				// If empty, the default value will be used (if available).
 				if value == "" && defaultValue != "" {

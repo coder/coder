@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -798,6 +799,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
 		}
+		templateVersionParameters, err := s.Database.GetTemplateVersionParameters(ctx, workspaceBuild.TemplateVersionID)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get template version parameters: %s", err))
+		}
+		sensitiveParameters := db2sdk.SensitiveParameterNames(templateVersionParameters)
 
 		dbExternalAuthProviders := []database.ExternalAuthProvider{}
 		err = json.Unmarshal(templateVersion.ExternalAuthProviders, &dbExternalAuthProviders)
@@ -902,8 +908,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				WorkspaceBuildId:        workspaceBuild.ID.String(),
 				WorkspaceName:           workspace.Name,
 				State:                   provisionerStateRow.ProvisionerState,
-				RichParameterValues:     convertRichParameterValues(workspaceBuildParameters),
-				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
+				RichParameterValues:     convertRichParameterValues(workspaceBuildParameters, sensitiveParameters),
+				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters, sensitiveParameters),
 				VariableValues:          asVariableValues(templateVariables),
 				ExternalAuthProviders:   externalAuthProviders,
 				Metadata: &sdkproto.Metadata{
@@ -949,10 +955,14 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			return nil, failJob(fmt.Sprintf("get template version variables: %s", err))
 		}
+		templateVersionParameters, err := s.Database.GetTemplateVersionParameters(ctx, templateVersion.ID)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get template version parameters: %s", err))
+		}
 
 		protoJob.Type = &proto.AcquiredJob_TemplateDryRun_{
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
-				RichParameterValues: convertRichParameterValues(input.RichParameterValues),
+				RichParameterValues: convertRichParameterValues(input.RichParameterValues, db2sdk.SensitiveParameterNames(templateVersionParameters)),
 				VariableValues:      asVariableValues(templateVariables),
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:      s.AccessURL.String(),
@@ -1972,6 +1982,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				Required:            richParameter.Required,
 				DisplayOrder:        richParameter.Order,
 				Ephemeral:           richParameter.Ephemeral,
+				Sensitive:           richParameter.Sensitive,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert parameter: %w", err)
@@ -3332,12 +3343,17 @@ func convertLogSource(logSource proto.LogSource) (database.LogSource, error) {
 	}
 }
 
-func convertRichParameterValues(workspaceBuildParameters []database.WorkspaceBuildParameter) []*sdkproto.RichParameterValue {
+// convertRichParameterValues converts build parameters for the provisioner.
+// Values whose definition is in sensitiveParameters are flagged so downstream
+// consumers that only see values, such as provisioner daemon logs, can redact
+// them.
+func convertRichParameterValues(workspaceBuildParameters []database.WorkspaceBuildParameter, sensitiveParameters map[string]bool) []*sdkproto.RichParameterValue {
 	protoParameters := make([]*sdkproto.RichParameterValue, len(workspaceBuildParameters))
 	for i, buildParameter := range workspaceBuildParameters {
 		protoParameters[i] = &sdkproto.RichParameterValue{
-			Name:  buildParameter.Name,
-			Value: buildParameter.Value,
+			Name:      buildParameter.Name,
+			Value:     buildParameter.Value,
+			Sensitive: sensitiveParameters[buildParameter.Name],
 		}
 	}
 	return protoParameters
@@ -3437,7 +3453,7 @@ func redactTemplateVariable(templateVariable *sdkproto.TemplateVariable) *sdkpro
 		Sensitive:    templateVariable.Sensitive,
 	}
 	if maybeRedacted.Sensitive {
-		maybeRedacted.DefaultValue = "*redacted*"
+		maybeRedacted.DefaultValue = sdkproto.RedactedValue
 	}
 	return maybeRedacted
 }

@@ -2027,8 +2027,6 @@ func convertTemplateVersionVariables(dbVariables []database.TemplateVersionVaria
 	return variables
 }
 
-const redacted = "*redacted*"
-
 func convertTemplateVersionVariable(variable database.TemplateVersionVariable) codersdk.TemplateVersionVariable {
 	templateVariable := codersdk.TemplateVersionVariable{
 		Name:         variable.Name,
@@ -2040,8 +2038,8 @@ func convertTemplateVersionVariable(variable database.TemplateVersionVariable) c
 		Sensitive:    variable.Sensitive,
 	}
 	if templateVariable.Sensitive {
-		templateVariable.Value = redacted
-		templateVariable.DefaultValue = redacted
+		templateVariable.Value = codersdk.RedactedValue
+		templateVariable.DefaultValue = codersdk.RedactedValue
 	}
 	return templateVariable
 }

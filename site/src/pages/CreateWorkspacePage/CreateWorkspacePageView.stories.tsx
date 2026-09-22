@@ -96,6 +96,7 @@ const parameterInput: PreviewParameter = {
 	required: true,
 	order: 0,
 	ephemeral: false,
+	sensitive: false,
 };
 
 const parameterDropdown: PreviewParameter = {
@@ -140,6 +141,7 @@ const parameterDropdown: PreviewParameter = {
 	required: true,
 	order: 1,
 	ephemeral: false,
+	sensitive: false,
 };
 
 const parameterSlider: PreviewParameter = {
@@ -159,6 +161,7 @@ const parameterSlider: PreviewParameter = {
 	required: true,
 	order: 2,
 	ephemeral: false,
+	sensitive: false,
 };
 
 const parameterSwitch: PreviewParameter = {
@@ -178,6 +181,7 @@ const parameterSwitch: PreviewParameter = {
 	required: false,
 	order: 3,
 	ephemeral: false,
+	sensitive: false,
 };
 
 const parameterRadio: PreviewParameter = {
@@ -216,6 +220,7 @@ const parameterRadio: PreviewParameter = {
 	required: true,
 	order: 4,
 	ephemeral: false,
+	sensitive: false,
 };
 
 const parameterMultiSelect: PreviewParameter = {
@@ -260,6 +265,7 @@ const parameterMultiSelect: PreviewParameter = {
 	required: false,
 	order: 5,
 	ephemeral: false,
+	sensitive: false,
 };
 
 const parameterTextarea: PreviewParameter = {
@@ -280,6 +286,7 @@ const parameterTextarea: PreviewParameter = {
 	required: false,
 	order: 6,
 	ephemeral: false,
+	sensitive: false,
 };
 
 const gpuLargePreset: Preset = {
@@ -332,6 +339,7 @@ const parameterCheckbox: PreviewParameter = {
 	required: false,
 	order: 7,
 	ephemeral: false,
+	sensitive: false,
 };
 
 export const WithParameters: Story = {

@@ -1,12 +1,50 @@
 package cli
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
+
+func TestParameterResolverSkipsCopiedSensitiveParameters(t *testing.T) {
+	t.Parallel()
+
+	resolver := new(ParameterResolver).WithSourceWorkspaceParameters([]codersdk.WorkspaceBuildParameter{
+		{Name: "sensitive", Value: "secret"},
+		{Name: "redacted", Value: codersdk.RedactedValue},
+		{Name: "ordinary", Value: "visible"},
+	})
+	definitions := []codersdk.TemplateVersionParameter{
+		{Name: "sensitive", Sensitive: true},
+		{Name: "redacted"},
+		{Name: "ordinary"},
+	}
+
+	resolved := resolver.resolveWithSourceBuildParametersInParameters(nil, definitions)
+	require.Equal(t, []codersdk.WorkspaceBuildParameter{{Name: "ordinary", Value: "visible"}}, resolved)
+}
+
+func TestParameterResolverRedactsSensitiveDefaultOutput(t *testing.T) {
+	t.Parallel()
+
+	const secret = "default-secret"
+	var stdout bytes.Buffer
+	inv := (&serpent.Invocation{Stdout: &stdout}).WithContext(t.Context())
+	resolver := new(ParameterResolver).WithUseParameterDefaults(true)
+
+	resolved, err := resolver.Resolve(inv, WorkspaceCreate, []codersdk.TemplateVersionParameter{
+		{Name: "token", DefaultValue: secret, Sensitive: true},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []codersdk.WorkspaceBuildParameter{{Name: "token", Value: secret}}, resolved)
+	assert.NotContains(t, stdout.String(), secret)
+	assert.Contains(t, stdout.String(), codersdk.RedactedValue)
+}
 
 func TestIsValidTemplateParameterOption(t *testing.T) {
 	t.Parallel()

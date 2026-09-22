@@ -291,6 +291,45 @@ func TestTemplateVersionParameter_OK(t *testing.T) {
 	req.Equal("The Rise and Fall of Ziggy Stardust and the Spiders from Mars", sdk.DescriptionPlaintext)
 }
 
+func TestTemplateVersionParameter_Sensitive(t *testing.T) {
+	t.Parallel()
+
+	sdk, err := db2sdk.TemplateVersionParameter(database.TemplateVersionParameter{
+		Name:      "api_key",
+		Options:   json.RawMessage("[]"),
+		Sensitive: true,
+	})
+	require.NoError(t, err)
+	require.True(t, sdk.Sensitive)
+}
+
+func TestRedactedWorkspaceBuildParameters(t *testing.T) {
+	t.Parallel()
+
+	definitions := []database.TemplateVersionParameter{
+		{Name: "region"},
+		{Name: "api_key", Sensitive: true},
+	}
+	values := []database.WorkspaceBuildParameter{
+		{Name: "region", Value: "us-east-1"},
+		{Name: "api_key", Value: "hunter2"},
+		// A value with no matching definition is passed through. It cannot
+		// be marked sensitive, so redacting it would hide legitimate data.
+		{Name: "orphan", Value: "kept"},
+	}
+
+	got := db2sdk.RedactedWorkspaceBuildParameters(values, definitions)
+	require.Equal(t, []codersdk.WorkspaceBuildParameter{
+		{Name: "region", Value: "us-east-1"},
+		{Name: "api_key", Value: codersdk.RedactedValue},
+		{Name: "orphan", Value: "kept"},
+	}, got)
+
+	// The raw converter must remain unredacted; wsbuilder relies on it.
+	raw := db2sdk.WorkspaceBuildParameters(values)
+	require.Equal(t, "hunter2", raw[1].Value)
+}
+
 func TestTemplateVersionParameter_BadOptions(t *testing.T) {
 	t.Parallel()
 	req := require.New(t)

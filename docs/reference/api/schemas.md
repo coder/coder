@@ -8613,6 +8613,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "order": 0,
       "required": true,
+      "sensitive": true,
       "styling": {
         "disabled": true,
         "label": "string",
@@ -12418,6 +12419,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "order": 0,
   "required": true,
+  "sensitive": true,
   "styling": {
     "disabled": true,
     "label": "string",
@@ -12457,6 +12459,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `options`       | array of [codersdk.PreviewParameterOption](#codersdkpreviewparameteroption)         | false    |              |                                         |
 | `order`         | integer                                                                             | false    |              | legacy_variable_name was removed (= 14) |
 | `required`      | boolean                                                                             | false    |              |                                         |
+| `sensitive`     | boolean                                                                             | false    |              |                                         |
 | `styling`       | [codersdk.PreviewParameterStyling](#codersdkpreviewparameterstyling)                | false    |              |                                         |
 | `type`          | [codersdk.OptionType](#codersdkoptiontype)                                          | false    |              |                                         |
 | `validations`   | array of [codersdk.PreviewParameterValidation](#codersdkpreviewparametervalidation) | false    |              |                                         |
@@ -15088,6 +15091,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     }
   ],
   "required": true,
+  "sensitive": true,
   "type": "string",
   "validation_error": "string",
   "validation_max": 0,
@@ -15099,25 +15103,26 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name                    | Type                                                                                        | Required | Restrictions | Description                                                                                        |
-|-------------------------|---------------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------|
-| `default_value`         | string                                                                                      | false    |              |                                                                                                    |
-| `description`           | string                                                                                      | false    |              |                                                                                                    |
-| `description_plaintext` | string                                                                                      | false    |              |                                                                                                    |
-| `display_name`          | string                                                                                      | false    |              |                                                                                                    |
-| `ephemeral`             | boolean                                                                                     | false    |              |                                                                                                    |
-| `form_type`             | string                                                                                      | false    |              | Form type has an enum value of empty string, `""`. Keep the leading comma in the enums struct tag. |
-| `icon`                  | string                                                                                      | false    |              |                                                                                                    |
-| `mutable`               | boolean                                                                                     | false    |              |                                                                                                    |
-| `name`                  | string                                                                                      | false    |              |                                                                                                    |
-| `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |                                                                                                    |
-| `required`              | boolean                                                                                     | false    |              |                                                                                                    |
-| `type`                  | string                                                                                      | false    |              |                                                                                                    |
-| `validation_error`      | string                                                                                      | false    |              |                                                                                                    |
-| `validation_max`        | integer                                                                                     | false    |              |                                                                                                    |
-| `validation_min`        | integer                                                                                     | false    |              |                                                                                                    |
-| `validation_monotonic`  | [codersdk.ValidationMonotonicOrder](#codersdkvalidationmonotonicorder)                      | false    |              |                                                                                                    |
-| `validation_regex`      | string                                                                                      | false    |              |                                                                                                    |
+| Name                    | Type                                                                                        | Required | Restrictions | Description                                                                                                                                |
+|-------------------------|---------------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `default_value`         | string                                                                                      | false    |              |                                                                                                                                            |
+| `description`           | string                                                                                      | false    |              |                                                                                                                                            |
+| `description_plaintext` | string                                                                                      | false    |              |                                                                                                                                            |
+| `display_name`          | string                                                                                      | false    |              |                                                                                                                                            |
+| `ephemeral`             | boolean                                                                                     | false    |              |                                                                                                                                            |
+| `form_type`             | string                                                                                      | false    |              | Form type has an enum value of empty string, `""`. Keep the leading comma in the enums struct tag.                                         |
+| `icon`                  | string                                                                                      | false    |              |                                                                                                                                            |
+| `mutable`               | boolean                                                                                     | false    |              |                                                                                                                                            |
+| `name`                  | string                                                                                      | false    |              |                                                                                                                                            |
+| `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |                                                                                                                                            |
+| `required`              | boolean                                                                                     | false    |              |                                                                                                                                            |
+| `sensitive`             | boolean                                                                                     | false    |              | Sensitive parameters have their values replaced with RedactedValue in API responses and logs, and are excluded from insights and autofill. |
+| `type`                  | string                                                                                      | false    |              |                                                                                                                                            |
+| `validation_error`      | string                                                                                      | false    |              |                                                                                                                                            |
+| `validation_max`        | integer                                                                                     | false    |              |                                                                                                                                            |
+| `validation_min`        | integer                                                                                     | false    |              |                                                                                                                                            |
+| `validation_monotonic`  | [codersdk.ValidationMonotonicOrder](#codersdkvalidationmonotonicorder)                      | false    |              |                                                                                                                                            |
+| `validation_regex`      | string                                                                                      | false    |              |                                                                                                                                            |
 
 #### Enumerated Values
 

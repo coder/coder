@@ -2848,6 +2848,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
       ],
       "order": 0,
       "required": true,
+      "sensitive": true,
       "styling": {
         "disabled": true,
         "label": "string",
@@ -3474,6 +3475,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
       }
     ],
     "required": true,
+    "sensitive": true,
     "type": "string",
     "validation_error": "string",
     "validation_max": 0,
@@ -3494,30 +3496,31 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
 
 Status Code **200**
 
-| Name                      | Type                                                                             | Required | Restrictions | Description                                                                                        |
-|---------------------------|----------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------|
-| `[array item]`            | array                                                                            | false    |              |                                                                                                    |
-| `» default_value`         | string                                                                           | false    |              |                                                                                                    |
-| `» description`           | string                                                                           | false    |              |                                                                                                    |
-| `» description_plaintext` | string                                                                           | false    |              |                                                                                                    |
-| `» display_name`          | string                                                                           | false    |              |                                                                                                    |
-| `» ephemeral`             | boolean                                                                          | false    |              |                                                                                                    |
-| `» form_type`             | string                                                                           | false    |              | Form type has an enum value of empty string, `""`. Keep the leading comma in the enums struct tag. |
-| `» icon`                  | string                                                                           | false    |              |                                                                                                    |
-| `» mutable`               | boolean                                                                          | false    |              |                                                                                                    |
-| `» name`                  | string                                                                           | false    |              |                                                                                                    |
-| `» options`               | array                                                                            | false    |              |                                                                                                    |
-| `»» description`          | string                                                                           | false    |              |                                                                                                    |
-| `»» icon`                 | string                                                                           | false    |              |                                                                                                    |
-| `»» name`                 | string                                                                           | false    |              |                                                                                                    |
-| `»» value`                | string                                                                           | false    |              |                                                                                                    |
-| `» required`              | boolean                                                                          | false    |              |                                                                                                    |
-| `» type`                  | string                                                                           | false    |              |                                                                                                    |
-| `» validation_error`      | string                                                                           | false    |              |                                                                                                    |
-| `» validation_max`        | integer                                                                          | false    |              |                                                                                                    |
-| `» validation_min`        | integer                                                                          | false    |              |                                                                                                    |
-| `» validation_monotonic`  | [codersdk.ValidationMonotonicOrder](schemas.md#codersdkvalidationmonotonicorder) | false    |              |                                                                                                    |
-| `» validation_regex`      | string                                                                           | false    |              |                                                                                                    |
+| Name                      | Type                                                                             | Required | Restrictions | Description                                                                                                                                |
+|---------------------------|----------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`            | array                                                                            | false    |              |                                                                                                                                            |
+| `» default_value`         | string                                                                           | false    |              |                                                                                                                                            |
+| `» description`           | string                                                                           | false    |              |                                                                                                                                            |
+| `» description_plaintext` | string                                                                           | false    |              |                                                                                                                                            |
+| `» display_name`          | string                                                                           | false    |              |                                                                                                                                            |
+| `» ephemeral`             | boolean                                                                          | false    |              |                                                                                                                                            |
+| `» form_type`             | string                                                                           | false    |              | Form type has an enum value of empty string, `""`. Keep the leading comma in the enums struct tag.                                         |
+| `» icon`                  | string                                                                           | false    |              |                                                                                                                                            |
+| `» mutable`               | boolean                                                                          | false    |              |                                                                                                                                            |
+| `» name`                  | string                                                                           | false    |              |                                                                                                                                            |
+| `» options`               | array                                                                            | false    |              |                                                                                                                                            |
+| `»» description`          | string                                                                           | false    |              |                                                                                                                                            |
+| `»» icon`                 | string                                                                           | false    |              |                                                                                                                                            |
+| `»» name`                 | string                                                                           | false    |              |                                                                                                                                            |
+| `»» value`                | string                                                                           | false    |              |                                                                                                                                            |
+| `» required`              | boolean                                                                          | false    |              |                                                                                                                                            |
+| `» sensitive`             | boolean                                                                          | false    |              | Sensitive parameters have their values replaced with RedactedValue in API responses and logs, and are excluded from insights and autofill. |
+| `» type`                  | string                                                                           | false    |              |                                                                                                                                            |
+| `» validation_error`      | string                                                                           | false    |              |                                                                                                                                            |
+| `» validation_max`        | integer                                                                          | false    |              |                                                                                                                                            |
+| `» validation_min`        | integer                                                                          | false    |              |                                                                                                                                            |
+| `» validation_monotonic`  | [codersdk.ValidationMonotonicOrder](schemas.md#codersdkvalidationmonotonicorder) | false    |              |                                                                                                                                            |
+| `» validation_regex`      | string                                                                           | false    |              |                                                                                                                                            |
 
 #### Enumerated Values
 

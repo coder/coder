@@ -18,11 +18,12 @@ import {
 	templateVersionPresets,
 } from "#/api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "#/api/queries/workspaces";
-import type {
-	DynamicParametersRequest,
-	DynamicParametersResponse,
-	MinimalUser,
-	Workspace,
+import {
+	type DynamicParametersRequest,
+	type DynamicParametersResponse,
+	type MinimalUser,
+	RedactedValue,
+	type Workspace,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
@@ -421,6 +422,7 @@ const CreateWorkspacePage: FC = () => {
 				open={showAutoCreateConsent}
 				presetName={effectivePresetName}
 				autofillParameters={autofillParameters}
+				parameters={latestResponse ? sortedParams : undefined}
 				onConfirm={() => setAutoCreateConsented(true)}
 				onDeny={() => setMode("form")}
 			/>
@@ -504,7 +506,10 @@ const getAutofillParameters = (
 	const buildValues: AutofillBuildParameter[] = Array.from(
 		urlSearchParams.keys(),
 	)
-		.filter((key) => key.startsWith("param."))
+		.filter(
+			(key) =>
+				key.startsWith("param.") && urlSearchParams.get(key) !== RedactedValue,
+		)
 		.map((key) => {
 			const name = key.replace("param.", "");
 			const value = urlSearchParams.get(key) ?? "";

@@ -9,6 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 type TemplateVersionWarning string
@@ -75,7 +77,15 @@ type TemplateVersionParameter struct {
 	ValidationMonotonic ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
 	Required            bool                             `json:"required"`
 	Ephemeral           bool                             `json:"ephemeral"`
+	// Sensitive parameters have their values replaced with RedactedValue in
+	// API responses and logs, and are excluded from insights and autofill.
+	Sensitive bool `json:"sensitive"`
 }
+
+// RedactedValue replaces sensitive template variable and parameter values in
+// API responses and logs. Submitting it back for a sensitive parameter keeps
+// the previous build's value.
+const RedactedValue = proto.RedactedValue
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.
 type TemplateVersionParameterOption struct {

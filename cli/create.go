@@ -310,8 +310,6 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 
 				// Convert preset parameters into workspace build parameters
 				presetParameters = presetParameterAsWorkspaceBuildParameters(preset.Parameters)
-				// Inform the user which preset was applied and its parameters
-				displayAppliedPreset(inv, preset, presetParameters)
 			} else {
 				// Inform the user that no preset was applied
 				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.Bold("No preset applied."))
@@ -330,6 +328,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				NewWorkspaceName:  workspaceName,
 				Owner:             workspaceOwner,
 
+				AppliedPreset:         preset,
 				PresetParameters:      presetParameters,
 				RichParameterFile:     parameterFlags.richParameterFile,
 				RichParameters:        cliBuildParameters,
@@ -482,6 +481,7 @@ type prepWorkspaceBuildArgs struct {
 	PromptEphemeralParameters bool
 	EphemeralParameters       []codersdk.WorkspaceBuildParameter
 
+	AppliedPreset         *codersdk.Preset
 	PresetParameters      []codersdk.WorkspaceBuildParameter
 	PromptRichParameters  bool
 	RichParameters        []codersdk.WorkspaceBuildParameter
@@ -547,7 +547,7 @@ func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (
 }
 
 // displayAppliedPreset shows the user which preset was applied and its parameters
-func displayAppliedPreset(inv *serpent.Invocation, preset *codersdk.Preset, parameters []codersdk.WorkspaceBuildParameter) {
+func displayAppliedPreset(inv *serpent.Invocation, preset *codersdk.Preset, parameters []codersdk.WorkspaceBuildParameter, definitions []codersdk.TemplateVersionParameter) {
 	label := fmt.Sprintf("Preset '%s'", preset.Name)
 	if preset.Default {
 		label += " (default)"
@@ -555,7 +555,7 @@ func displayAppliedPreset(inv *serpent.Invocation, preset *codersdk.Preset, para
 
 	_, _ = fmt.Fprintf(inv.Stdout, "%s applied:\n", cliui.Bold(label))
 	for _, param := range parameters {
-		_, _ = fmt.Fprintf(inv.Stdout, "  %s: '%s'\n", cliui.Bold(param.Name), param.Value)
+		_, _ = fmt.Fprintf(inv.Stdout, "  %s: '%s'\n", cliui.Bold(param.Name), parameterValueForDisplay(param.Name, param.Value, definitions))
 	}
 }
 
@@ -635,6 +635,10 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		for _, param := range eval.Parameters {
 			templateVersionParameters = append(templateVersionParameters, param.TemplateVersionParameter())
 		}
+	}
+
+	if args.AppliedPreset != nil {
+		displayAppliedPreset(inv, args.AppliedPreset, args.PresetParameters, templateVersionParameters)
 	}
 
 	buildParameters, err := resolver.Resolve(inv, args.Action, templateVersionParameters)

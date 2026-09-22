@@ -5,6 +5,7 @@ import {
 	EyeOffIcon,
 	HourglassIcon,
 	InfoIcon,
+	KeyRoundIcon,
 	LinkIcon,
 	SettingsIcon,
 	TriangleAlertIcon,
@@ -153,6 +154,24 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 							</Tooltip>
 						</TooltipProvider>
 					)}
+					{parameter.sensitive && (
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="flex items-center">
+										<Badge size="sm">
+											<KeyRoundIcon />
+											Sensitive
+										</Badge>
+									</span>
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs">
+									This value is hidden because it contains sensitive
+									information.
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
 					{parameter.ephemeral && (
 						<TooltipProvider delayDuration={100}>
 							<Tooltip>
@@ -256,7 +275,8 @@ const ParameterField: FC<ParameterFieldProps> = ({
 
 	switch (parameter.form_type) {
 		case "textarea": {
-			const maskInput = parameter.styling?.mask_input ?? false;
+			const maskInput =
+				parameter.sensitive || (parameter.styling?.mask_input ?? false);
 
 			return (
 				<MaskableTextArea
@@ -264,6 +284,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					onChange={onChange}
 					value={value}
 					masked={maskInput}
+					allowReveal={!parameter.sensitive}
 					disabled={disabled}
 					required={parameter.required}
 					placeholder={parameter.styling?.placeholder}
@@ -272,15 +293,13 @@ const ParameterField: FC<ParameterFieldProps> = ({
 		}
 
 		case "input": {
-			let maskInput = parameter.styling?.mask_input ?? false;
+			const maskInput =
+				parameter.sensitive || (parameter.styling?.mask_input ?? false);
 			const inputProps: Partial<MaskableInputProps> = {
-				type: "text",
+				type: maskInput ? "password" : "text",
 			};
 
-			if (parameter.type === "number") {
-				// Only text can be effectively masked
-				maskInput = false;
-
+			if (parameter.type === "number" && !maskInput) {
 				inputProps.type = "number";
 
 				const { validation_min, validation_max } =
@@ -291,8 +310,6 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				if (validation_max !== null) {
 					inputProps.max = validation_max;
 				}
-			} else if (parameter.styling?.mask_input) {
-				inputProps.type = "password";
 			}
 
 			return (
@@ -301,6 +318,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					onChange={onChange}
 					value={value}
 					masked={maskInput}
+					allowReveal={!parameter.sensitive}
 					disabled={disabled}
 					required={parameter.required}
 					placeholder={parameter.styling?.placeholder}
@@ -485,6 +503,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 type MaskableInputProps = Omit<React.ComponentProps<"input">, "onChange"> & {
 	onChange: (value: string) => void;
 	masked?: boolean;
+	allowReveal?: boolean;
 };
 
 const MaskableInput: FC<MaskableInputProps> = ({
@@ -492,6 +511,7 @@ const MaskableInput: FC<MaskableInputProps> = ({
 	onChange,
 	value,
 	masked,
+	allowReveal = true,
 	disabled,
 	required,
 	placeholder,
@@ -514,7 +534,7 @@ const MaskableInput: FC<MaskableInputProps> = ({
 				placeholder={placeholder}
 				{...inputProps}
 			/>
-			{masked && (
+			{masked && allowReveal && (
 				<Button
 					type="button"
 					variant="subtle"
@@ -540,6 +560,7 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 	onChange,
 	value,
 	masked,
+	allowReveal = true,
 	disabled,
 	placeholder,
 	required,
@@ -568,7 +589,7 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 				required={required}
 				placeholder={placeholder}
 			/>
-			{masked && (
+			{masked && allowReveal && (
 				<Button
 					type="button"
 					variant="subtle"
@@ -834,7 +855,9 @@ export const useValidationSchemaForDynamicParameters = (
 													if (Number(lastBuildParameter.value) > Number(val)) {
 														return ctx.createError({
 															path: ctx.path,
-															message: `Value must only ever increase (last value was ${lastBuildParameter.value})`,
+															message: parameter.sensitive
+																? "Value must only ever increase."
+																: `Value must only ever increase (last value was ${lastBuildParameter.value})`,
 														});
 													}
 													break;
@@ -842,7 +865,9 @@ export const useValidationSchemaForDynamicParameters = (
 													if (Number(lastBuildParameter.value) < Number(val)) {
 														return ctx.createError({
 															path: ctx.path,
-															message: `Value must only ever decrease (last value was ${lastBuildParameter.value})`,
+															message: parameter.sensitive
+																? "Value must only ever decrease."
+																: `Value must only ever decrease (last value was ${lastBuildParameter.value})`,
 														});
 													}
 													break;
@@ -904,7 +929,7 @@ const parameterError = (
 			"{max}",
 			maxValidation ? (maxValidation.validation_max?.toString() ?? "") : "",
 		],
-		["{value}", value],
+		["{value}", parameter.sensitive ? "" : value],
 	]);
 	return validation_error.validation_error.replace(
 		/{min}|{max}|{value}/g,

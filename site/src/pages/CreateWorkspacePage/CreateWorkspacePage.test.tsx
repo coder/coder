@@ -2,7 +2,11 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { API } from "#/api/api";
-import type { Preset, PreviewParameter } from "#/api/typesGenerated";
+import {
+	type Preset,
+	type PreviewParameter,
+	RedactedValue,
+} from "#/api/typesGenerated";
 import {
 	MockDropdownParameter,
 	MockDynamicParametersResponseWithError,
@@ -281,6 +285,27 @@ describe("CreateWorkspacePage", () => {
 			// Should still see the loader as the client wais for the response to the
 			// client's init message.
 			expect(screen.queryByTestId("loader")).toBeInTheDocument();
+		});
+
+		it("ignores redacted URL autofill values", async () => {
+			const sensitiveParameter = {
+				...MockPreviewParameter1,
+				sensitive: true,
+			};
+			const { mockPublisher } = await renderPageWithSocket({
+				urlfill: { [sensitiveParameter.name]: RedactedValue },
+			});
+
+			await expectSocketHandshake({
+				mockPublisher,
+				parameters: [sensitiveParameter],
+			});
+			await waitForLoaderToBeRemoved();
+
+			expect(mockPublisher.clientSentData).toHaveLength(0);
+			expect(
+				screen.getByLabelText(new RegExp(sensitiveParameter.display_name)),
+			).toHaveValue(sensitiveParameter.value.value);
 		});
 
 		it("handles error gracefully", async () => {

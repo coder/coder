@@ -76,6 +76,7 @@ type Builder struct {
 	templateVersionJob                   *database.ProvisionerJob
 	terraformValues                      *database.TemplateVersionTerraformValue
 	templateVersionParameters            *[]previewtypes.Parameter
+	templateVersionParameterRows         *[]database.TemplateVersionParameter
 	templateVersionVariables             *[]database.TemplateVersionVariable
 	templateVersionWorkspaceTags         *[]database.TemplateVersionWorkspaceTag
 	lastBuild                            *database.WorkspaceBuild
@@ -818,6 +819,11 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		return nil, nil, BuildError{http.StatusBadRequest, "Unable to build workspace with unsupported parameters", err}
 	}
 
+	err = b.stripRedactedSensitiveValues()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	if b.usingDynamicParameters() {
 		names, values, err = b.getDynamicParameters()
 	} else {
@@ -961,6 +967,18 @@ func (b *Builder) getTemplateVersionParameters() ([]previewtypes.Parameter, erro
 	if b.templateVersionParameters != nil {
 		return *b.templateVersionParameters, nil
 	}
+	tvp, err := b.getTemplateVersionParameterRows()
+	if err != nil {
+		return nil, err
+	}
+	b.templateVersionParameters = ptr.Ref(slice.List(tvp, dynamicparameters.TemplateVersionParameter))
+	return *b.templateVersionParameters, nil
+}
+
+func (b *Builder) getTemplateVersionParameterRows() ([]database.TemplateVersionParameter, error) {
+	if b.templateVersionParameterRows != nil {
+		return *b.templateVersionParameterRows, nil
+	}
 	tvID, err := b.getTemplateVersionID()
 	if err != nil {
 		return nil, xerrors.Errorf("get template version ID to get parameters: %w", err)
@@ -969,8 +987,58 @@ func (b *Builder) getTemplateVersionParameters() ([]previewtypes.Parameter, erro
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get template version %s parameters: %w", tvID, err)
 	}
-	b.templateVersionParameters = ptr.Ref(slice.List(tvp, dynamicparameters.TemplateVersionParameter))
-	return *b.templateVersionParameters, nil
+	b.templateVersionParameterRows = &tvp
+	return tvp, nil
+}
+
+// stripRedactedSensitiveValues drops request values equal to
+// codersdk.RedactedValue for sensitive parameters so resolution falls back to
+// the previous build's value. The API redacts sensitive values, so clients that
+// round-trip build parameters submit the sentinel back unchanged. A sentinel
+// with no previous value to fall back to is rejected.
+func (b *Builder) stripRedactedSensitiveValues() error {
+	hasSentinel := false
+	for _, v := range b.richParameterValues {
+		if v.Value == codersdk.RedactedValue {
+			hasSentinel = true
+			break
+		}
+	}
+	if !hasSentinel {
+		return nil
+	}
+
+	definitions, err := b.getTemplateVersionParameterRows()
+	if err != nil {
+		return BuildError{http.StatusInternalServerError, "failed to fetch template version parameters", err}
+	}
+	sensitive := db2sdk.SensitiveParameterNames(definitions)
+
+	lastBuildParameters, err := b.getLastBuildParameters()
+	if err != nil {
+		return BuildError{http.StatusInternalServerError, "failed to fetch last build parameters", err}
+	}
+	hasPrevious := make(map[string]bool, len(lastBuildParameters))
+	for _, p := range lastBuildParameters {
+		hasPrevious[p.Name] = true
+	}
+
+	kept := make([]codersdk.WorkspaceBuildParameter, 0, len(b.richParameterValues))
+	for _, v := range b.richParameterValues {
+		if v.Value != codersdk.RedactedValue || !sensitive[v.Name] {
+			kept = append(kept, v)
+			continue
+		}
+		if !hasPrevious[v.Name] {
+			return BuildError{
+				http.StatusBadRequest,
+				fmt.Sprintf("Unable to validate parameter %q", v.Name),
+				errors.Join(ErrParameterValidation, xerrors.Errorf("sensitive parameter %q was submitted as %q but has no previous value", v.Name, codersdk.RedactedValue)),
+			}
+		}
+	}
+	b.richParameterValues = kept
+	return nil
 }
 
 func (b *Builder) getTemplateVersionVariables() ([]database.TemplateVersionVariable, error) {

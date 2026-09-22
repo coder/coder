@@ -160,6 +160,16 @@ type resourceMetadataItem struct {
 	IsNull    bool   `mapstructure:"is_null"`
 }
 
+// A mapping of attributes on the "coder_parameter" data source. Wraps the
+// provider's struct so attributes can be decoded before the pinned provider
+// version exposes them.
+type terraformParameter struct {
+	provider.Parameter `mapstructure:",squash"`
+	// TODO(provider): drop once terraform-provider-coder adds Sensitive to
+	// provider.Parameter.
+	Sensitive bool `mapstructure:"sensitive"`
+}
+
 type State struct {
 	Resources             []*proto.Resource
 	Parameters            []*proto.RichParameter
@@ -784,7 +794,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	var duplicatedParamNames []string
 	parameters := make([]*proto.RichParameter, 0)
 	for _, resource := range tfResourcesRichParameters {
-		var param provider.Parameter
+		var param terraformParameter
 		err = mapstructure.Decode(resource.AttributeValues, &param)
 		if err != nil {
 			return nil, xerrors.Errorf("decode map values for coder_parameter.%s: %w", resource.Name, err)
@@ -812,6 +822,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			// #nosec G115 - Safe conversion as parameter order value is expected to be within int32 range
 			Order:     int32(param.Order),
 			Ephemeral: param.Ephemeral,
+			Sensitive: param.Sensitive,
 		}
 		if len(param.Validation) == 1 {
 			protoParam.ValidationRegex = param.Validation[0].Regex

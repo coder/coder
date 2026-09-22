@@ -251,6 +251,10 @@ next:
 func (pr *ParameterResolver) resolveWithSourceBuildParameters(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
 next:
 	for _, buildParameter := range pr.sourceWorkspaceParameters {
+		if buildParameter.Value == codersdk.RedactedValue {
+			continue
+		}
+
 		for i, r := range resolved {
 			if r.Name == buildParameter.Name {
 				resolved[i].Value = buildParameter.Value
@@ -273,6 +277,10 @@ next:
 
 		if tvp.Ephemeral {
 			continue // ephemeral parameters should not be passed to consecutive builds
+		}
+
+		if tvp.Sensitive || buildParameter.Value == codersdk.RedactedValue {
+			continue
 		}
 
 		for i, r := range resolved {
@@ -342,7 +350,11 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 			// an empty string).
 			hasDefault := cliDefaultProvided || !tvp.Required
 			if pr.useParameterDefaults && hasDefault {
-				_, _ = fmt.Fprintf(inv.Stdout, "Using default value for %s: '%s'\n", name, parameterValue)
+				displayValue := parameterValue
+				if tvp.Sensitive {
+					displayValue = codersdk.RedactedValue
+				}
+				_, _ = fmt.Fprintf(inv.Stdout, "Using default value for %s: '%s'\n", name, displayValue)
 			} else {
 				var err error
 				parameterValue, err = cliui.RichParameter(inv, tvp, name, parameterValue)

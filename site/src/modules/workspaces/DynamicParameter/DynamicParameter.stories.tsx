@@ -233,6 +233,16 @@ export const Immutable: Story = {
 	},
 };
 
+export const Sensitive: Story = {
+	args: {
+		parameter: {
+			...MockPreviewParameter,
+			sensitive: true,
+			value: { valid: true, value: "sensitive value" },
+		},
+	},
+};
+
 export const Ephemeral: Story = {
 	args: {
 		parameter: {
@@ -248,6 +258,7 @@ export const AllBadges: Story = {
 			...MockPreviewParameter,
 			value: { valid: true, value: "us-west-2" },
 			mutable: false,
+			sensitive: true,
 		},
 		isPreset: true,
 	},

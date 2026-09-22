@@ -3108,6 +3108,7 @@ CREATE TABLE template_version_parameters (
     display_order integer DEFAULT 0 NOT NULL,
     ephemeral boolean DEFAULT false NOT NULL,
     form_type parameter_form_type DEFAULT ''::parameter_form_type NOT NULL,
+    sensitive boolean DEFAULT false NOT NULL,
     CONSTRAINT validation_monotonic_order CHECK ((validation_monotonic = ANY (ARRAY['increasing'::text, 'decreasing'::text, ''::text])))
 );
 
@@ -3144,6 +3145,8 @@ COMMENT ON COLUMN template_version_parameters.display_order IS 'Specifies the or
 COMMENT ON COLUMN template_version_parameters.ephemeral IS 'The value of an ephemeral parameter will not be preserved between consecutive workspace builds.';
 
 COMMENT ON COLUMN template_version_parameters.form_type IS 'Specify what form_type should be used to render the parameter in the UI. Unsupported values are rejected.';
+
+COMMENT ON COLUMN template_version_parameters.sensitive IS 'Sensitive parameters have their values redacted in logs, insights, notifications, and the API. Values are still stored in the database and in Terraform state.';
 
 CREATE TABLE template_version_preset_parameters (
     id uuid DEFAULT gen_random_uuid() NOT NULL,

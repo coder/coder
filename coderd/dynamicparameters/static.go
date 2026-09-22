@@ -82,7 +82,9 @@ func TemplateVersionParameter(it database.TemplateVersionParameter) previewtypes
 			Required:     it.Required,
 			Order:        int64(it.DisplayOrder),
 			Ephemeral:    it.Ephemeral,
-			Source:       nil,
+			// TODO(preview): copy it.Sensitive once coder/preview exposes it on
+			// types.ParameterData.
+			Source: nil,
 		},
 		// Always use the default, since we used to assume the empty string
 		Value:       previewtypes.StringLiteral(it.DefaultValue),

@@ -149,8 +149,37 @@ func WorkspaceBuildParameter(p database.WorkspaceBuildParameter) codersdk.Worksp
 	}
 }
 
+// WorkspaceBuildParameters returns raw values. Use
+// RedactedWorkspaceBuildParameters for anything written to an API response or
+// log so sensitive parameters are not exposed.
 func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
 	return slice.List(params, WorkspaceBuildParameter)
+}
+
+// RedactedWorkspaceBuildParameters converts build parameters for external
+// consumption, replacing the value of any parameter whose template version
+// definition is sensitive with codersdk.RedactedValue.
+func RedactedWorkspaceBuildParameters(params []database.WorkspaceBuildParameter, definitions []database.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
+	sensitive := SensitiveParameterNames(definitions)
+	return slice.List(params, func(p database.WorkspaceBuildParameter) codersdk.WorkspaceBuildParameter {
+		sdk := WorkspaceBuildParameter(p)
+		if sensitive[p.Name] {
+			sdk.Value = codersdk.RedactedValue
+		}
+		return sdk
+	})
+}
+
+// SensitiveParameterNames returns the set of parameter names marked sensitive
+// in the given template version parameter definitions.
+func SensitiveParameterNames(definitions []database.TemplateVersionParameter) map[string]bool {
+	sensitive := make(map[string]bool)
+	for _, def := range definitions {
+		if def.Sensitive {
+			sensitive[def.Name] = true
+		}
+	}
+	return sensitive
 }
 
 func TemplateVersionParameters(params []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
@@ -184,7 +213,9 @@ func TemplateVersionParameterFromPreview(param previewtypes.Parameter) (codersdk
 		Icon:                 param.Icon,
 		Required:             param.Required,
 		Ephemeral:            param.Ephemeral,
-		Options:              slice.List(param.Options, TemplateVersionParameterOptionFromPreview),
+		// TODO(preview): copy param.Sensitive once coder/preview exposes it on
+		// types.ParameterData.
+		Options: slice.List(param.Options, TemplateVersionParameterOptionFromPreview),
 		// Validation set after
 	}
 	if len(param.Validations) > 0 {
@@ -248,6 +279,7 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
 		Required:             param.Required,
 		Ephemeral:            param.Ephemeral,
+		Sensitive:            param.Sensitive,
 	}, nil
 }
 
@@ -1046,6 +1078,8 @@ func PreviewParameter(param previewtypes.Parameter) codersdk.PreviewParameter {
 			Required:     param.Required,
 			Order:        param.Order,
 			Ephemeral:    param.Ephemeral,
+			// TODO(preview): copy param.Sensitive and redact Value and
+			// DefaultValue below once coder/preview exposes the field.
 		},
 		Value:       PreviewHCLString(param.Value),
 		Diagnostics: PreviewDiagnostics(param.Diagnostics),
