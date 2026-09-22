@@ -380,7 +380,7 @@ func connectAllWithHooks(
 			if connectErr != nil {
 				logger.Warn(ctx,
 					"skipping MCP server due to connection failure",
-					slog.F("server_slug", srv.Slug),
+					slog.F("server_slug", summary.Slug),
 					slog.F("server_url", redactServerURL(opts.kind, srv.URL)),
 					slog.F("duration", duration),
 					slog.F("error", summary.Error),
@@ -388,7 +388,7 @@ func connectAllWithHooks(
 			} else if duration >= slowConnectThreshold {
 				logger.Warn(ctx,
 					"slow MCP server connect",
-					slog.F("server_slug", srv.Slug),
+					slog.F("server_slug", summary.Slug),
 					slog.F("server_url", redactServerURL(opts.kind, srv.URL)),
 					slog.F("duration", duration),
 				)
@@ -603,7 +603,7 @@ func connectOne(
 			srv.ToolDenyList,
 		) {
 			logger.Debug(ctx, "skipping denied MCP tool",
-				slog.F("server_slug", srv.Slug),
+				slog.F("server_slug", redactor.redactString(srv.Slug)),
 				slog.F("tool_name", redactor.redactString(mcpTool.Name)),
 			)
 			continue
