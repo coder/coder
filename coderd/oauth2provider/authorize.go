@@ -256,11 +256,11 @@ type authorizeFailure struct {
 	// the answer stays on this server, because the failure names the redirect
 	// URI or the client identifier.
 	redirect authorizeResponse
-	// corruptCallback is set when the app's registered callback does not parse
-	// or uses a scheme registration rejects. That is bad server state rather
-	// than a client mistake, so it answers 500, and it is decided before any
-	// parameter is read.
-	corruptCallback error
+	// corruptRedirectURI is set when one of the app's registered redirect URIs
+	// does not parse or uses a scheme registration rejects. That is bad server
+	// state rather than a client mistake, so it answers 500, and it is decided
+	// before any parameter is read.
+	corruptRedirectURI error
 	// code is the OAuth2 error to answer with. Read it through errorCode, which
 	// supplies the invalid_request default.
 	code codersdk.OAuth2ErrorCode
@@ -292,7 +292,7 @@ const (
 
 func (f authorizeFailure) kind() failureKind {
 	switch {
-	case f.corruptCallback != nil:
+	case f.corruptRedirectURI != nil:
 		return failureCorruptRegistration
 	case f.redirect.canRedirect():
 		return failureDeliverToClient
@@ -310,7 +310,7 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 
 	response, err := newAuthorizeResponse(p, vals, app)
 	if err != nil {
-		return authorizeParams{}, &authorizeFailure{corruptCallback: err}
+		return authorizeParams{}, &authorizeFailure{corruptRedirectURI: err}
 	}
 
 	params := authorizeParams{
@@ -481,7 +481,9 @@ func newAuthorizeResponse(p *httpapi.QueryParamParser, vals url.Values, app data
 	}
 	for _, u := range append([]*url.URL{primary}, alternates...) {
 		if err := codersdk.ValidateRedirectURIScheme(u); err != nil {
-			return authorizeResponse{}, err
+			// The scheme error names no URI, so the log would otherwise
+			// carry the whole list with no way to tell which entry failed.
+			return authorizeResponse{}, xerrors.Errorf("registered redirect URI %q: %w", u.Redacted(), err)
 		}
 	}
 
@@ -584,11 +586,12 @@ func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, logger slog
 	http.Redirect(rw, r, response.errorURL(code, description).String(), http.StatusFound)
 }
 
-// logCorruptCallback reports a registered callback URL this server should never
-// have stored: unparsable, or using a scheme registration rejects. The response
-// only says the callback is bad, so operators need the log to identify the app.
-func logCorruptCallback(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, err error) {
-	logger.Error(ctx, "oauth2 app has an unusable registered callback URL",
+// logCorruptRedirectURI reports a registered redirect URI this server should
+// never have stored: unparsable, or using a scheme registration rejects. The
+// response only says one entry is bad, so operators need the log to identify
+// the app and which URI failed.
+func logCorruptRedirectURI(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, err error) {
+	logger.Error(ctx, "oauth2 app has an unusable registered redirect URI",
 		slog.Error(err),
 		slog.F("app_id", app.ID.String()),
 		slog.F("redirect_uris", app.RegisteredRedirectURIs()))
@@ -620,9 +623,9 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		if failure != nil {
 			switch failure.kind() {
 			case failureCorruptRegistration:
-				logCorruptCallback(r.Context(), logger, app, failure.corruptCallback)
-				errorPage(http.StatusInternalServerError, "Invalid Callback URL",
-					"The application's registered callback URL is not usable.", nil)
+				logCorruptRedirectURI(r.Context(), logger, app, failure.corruptRedirectURI)
+				errorPage(http.StatusInternalServerError, "Invalid Redirect URI",
+					"One of the application's registered redirect URIs is not usable.", nil)
 
 			case failureDeliverToClient:
 				// §4.1.2.1: once the callback has been matched against the app's
@@ -716,10 +719,10 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		if failure != nil {
 			switch failure.kind() {
 			case failureCorruptRegistration:
-				logCorruptCallback(ctx, logger, app, failure.corruptCallback)
+				logCorruptRedirectURI(ctx, logger, app, failure.corruptRedirectURI)
 				httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError,
 					codersdk.OAuth2ErrorCodeServerError,
-					"The application's registered callback URL is not usable")
+					"One of the application's registered redirect URIs is not usable")
 
 			case failureDeliverToClient:
 				redirectAuthorizeError(rw, r, logger, failure.redirect,

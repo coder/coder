@@ -62,8 +62,8 @@ func CreateTestOAuth2App(t *testing.T, client *codersdk.Client) (*codersdk.OAuth
 	appName := fmt.Sprintf("test-oauth2-app-%s", testutil.MustRandString(t, 10))
 
 	req := codersdk.PostOAuth2ProviderAppRequest{
-		Name:        appName,
-		CallbackURL: TestRedirectURI,
+		Name:         appName,
+		RedirectURIs: []string{TestRedirectURI},
 	}
 
 	app, err := client.PostOAuth2ProviderApp(ctx, req)

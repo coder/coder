@@ -6722,6 +6722,14 @@ export interface OAuth2ProtectedResourceMetadata {
 export interface OAuth2ProviderApp {
 	readonly id: string;
 	readonly name: string;
+	/**
+	 * RedirectURIs are the app's registered redirect URIs, primary first.
+	 */
+	readonly redirect_uris: readonly string[];
+	/**
+	 * @deprecated equal to the first entry of redirect_uris. Read
+	 * redirect_uris instead.
+	 */
 	readonly callback_url: string;
 	readonly icon: string;
 	/**
@@ -7506,7 +7514,17 @@ export interface Permission {
 // From codersdk/oauth2.go
 export interface PostOAuth2ProviderAppRequest {
 	readonly name: string;
-	readonly callback_url: string;
+	/**
+	 * RedirectURIs is the ordered list of URIs the app may redirect to. The
+	 * first entry is the primary. Required, unless the deprecated
+	 * callback_url is sent instead.
+	 */
+	readonly redirect_uris?: readonly string[];
+	/**
+	 * @deprecated send redirect_uris instead. If both are sent, callback_url
+	 * must equal the first entry of redirect_uris.
+	 */
+	readonly callback_url?: string;
 	readonly icon: string;
 	/**
 	 * Scope is the space-separated list of scopes this app's tokens may be
@@ -8030,7 +8048,18 @@ export interface PutExtendWorkspaceRequest {
 // From codersdk/oauth2.go
 export interface PutOAuth2ProviderAppRequest {
 	readonly name: string;
-	readonly callback_url: string;
+	/**
+	 * RedirectURIs is the ordered list of URIs the app may redirect to. The
+	 * first entry is the primary. Omit both this and callback_url to keep the
+	 * stored redirect URIs. Other fields are replaced. Sending an empty list
+	 * is an error, not a way to keep the stored list.
+	 */
+	readonly redirect_uris?: readonly string[];
+	/**
+	 * @deprecated send redirect_uris instead. If both are sent, callback_url
+	 * must equal the first entry of redirect_uris.
+	 */
+	readonly callback_url?: string;
 	readonly icon: string;
 	/**
 	 * Scope replaces the app's current allowlist. Omit to leave the existing
