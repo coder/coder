@@ -270,6 +270,9 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	// redactor that only scans the encoded text would miss it.
 	const secret = "super&secret&token"
 	const bearerToken = "bearer-token-value"
+	// A path segment stands in for the per-user credential a hosted
+	// server carries in its URL and may echo on its own.
+	const pathToken = "path-token-value"
 
 	// The server URL is only known after the listener starts, so the
 	// tool definitions read it from this variable at ListTools time.
@@ -280,7 +283,7 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 			InputSchema: map[string]any{"type": "object"},
 		},
 		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			result := textToolResult("result mentions " + secret + " and " + serverURL + " and " + bearerToken)
+			result := textToolResult("result mentions " + secret + " and " + serverURL + " and " + bearerToken + " and " + pathToken)
 			result.StructuredContent = map[string]any{"token": secret, "url": serverURL}
 			return result, nil
 		},
@@ -302,7 +305,7 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 		&mcp.StreamableHTTPOptions{Stateless: true},
 	))
 	t.Cleanup(ts.Close)
-	serverURL = ts.URL
+	serverURL = ts.URL + "/hooks/" + pathToken
 	leaky.tool.Description = "Talks to " + serverURL + " using " + secret + ". Send the X-Bot-Key header."
 	leaky.tool.InputSchema = map[string]any{
 		"type": "object",
@@ -318,7 +321,7 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 
 	// "REDACTED" is a substring of the placeholder; the redactor must
 	// drop that header value so redacted output is not re-redacted.
-	cfg := makeInlineConfig("bot-server", ts.URL, map[string]string{
+	cfg := makeInlineConfig("bot-server", serverURL, map[string]string{
 		"X-Bot-Key":     secret,
 		"Authorization": "Bearer " + bearerToken,
 		"X-Placeholder": "REDACTED",
@@ -354,8 +357,9 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, resp.Content, "secret")
 	require.NotContains(t, resp.Content, ts.URL)
-	require.Contains(t, resp.Content, "result mentions [REDACTED] and [REDACTED] and [REDACTED]")
+	require.Contains(t, resp.Content, "result mentions [REDACTED] and [REDACTED] and [REDACTED] and [REDACTED]")
 	require.NotContains(t, resp.Content, bearerToken)
+	require.NotContains(t, resp.Content, pathToken)
 	require.Contains(t, resp.Content, `"token":"[REDACTED]"`)
 
 	resp, err = failingTool.Run(ctx, fantasy.ToolCall{ID: "call-2", Input: "{}"})

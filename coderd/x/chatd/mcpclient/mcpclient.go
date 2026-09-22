@@ -17,7 +17,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 	"unicode/utf8"
 
 	"charm.land/fantasy"
@@ -244,11 +243,11 @@ func ConnectAll(
 // inline on their own chat. Unlike org-configured servers, these
 // endpoints are chosen by an end user, so the connection is hardened:
 // response bodies, tool counts, tool definitions, and tool results are
-// size-capped after redaction, and each server's URL and header values
-// are redacted from every string a model or a non-owner chat viewer
-// can see. Inline servers have no OAuth tokens or OIDC identity, so those
-// inputs are always empty. A nil httpClient falls back to the default
-// guarded client.
+// size-capped after redaction, and each server's URL, its path segments,
+// and header values are redacted from every string a model or a
+// non-owner chat viewer can see. Inline servers have no OAuth tokens or
+// OIDC identity, so those inputs are always empty. A nil httpClient
+// falls back to the default guarded client.
 func ConnectInline(
 	ctx context.Context,
 	logger slog.Logger,
@@ -996,23 +995,24 @@ func newSecretRedactor(values []string) secretRedactor {
 	return secretRedactor{values: values}
 }
 
-// newServerRedactor hides the values an inline server's operator
-// supplied: the URL and every header value. A scheme-prefixed header
-// value such as "Bearer <token>" also contributes the credential alone,
-// because a server commonly echoes the credential without its scheme.
-// Org servers are configured by admins and are not redacted.
+// newServerRedactor hides every value an inline server's operator
+// supplied, whole and as each structural component, because a server
+// may echo a path segment or a header credential on its own. The URL
+// origin is public, as in redactServerURL. Org servers are not redacted.
 func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
 	if kind != connectionKindInline {
 		return secretRedactor{}
 	}
 	values := []string{srv.URL}
+	if u, err := url.Parse(srv.URL); err == nil {
+		for _, path := range []string{u.EscapedPath(), u.Path} {
+			values = append(values, path)
+			values = append(values, strings.Split(path, "/")...)
+		}
+	}
 	for _, value := range srv.Headers {
 		values = append(values, value)
-		if i := strings.IndexFunc(value, unicode.IsSpace); i > 0 {
-			if credential := strings.TrimSpace(value[i:]); credential != "" {
-				values = append(values, credential)
-			}
-		}
+		values = append(values, strings.Fields(value)...)
 	}
 	return newSecretRedactor(values)
 }
