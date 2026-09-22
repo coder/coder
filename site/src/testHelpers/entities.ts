@@ -5596,7 +5596,7 @@ export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	updated_at: "2026-05-14T10:00:00Z",
 };
 
-const MockOrganizationAISpendUser: TypesGen.OrganizationAISpendUser = {
+export const MockOrganizationAISpendUser: TypesGen.OrganizationAISpendUser = {
 	user_id: MockUserOwner.id,
 	username: MockUserOwner.username,
 	name: "Test User",
