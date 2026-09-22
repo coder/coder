@@ -4,10 +4,8 @@ import { useQuery } from "react-query";
 import { useParams } from "react-router";
 import { chat } from "#/api/queries/chats";
 import { workspaceById } from "#/api/queries/workspaces";
-import type {
-	WorkspaceAgentStatus,
-	WorkspaceStatus,
-} from "#/api/typesGenerated";
+import type { Workspace, WorkspaceAgentStatus } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
@@ -94,7 +92,14 @@ export default function DesktopPopoutPage() {
 	return (
 		<DesktopPopoutPageView
 			status={status}
-			workspaceStatus={workspace?.latest_build.status}
+			workspace={workspace}
+			workspaceError={
+				chatQuery.error ??
+				workspaceQuery.error ??
+				(chatQuery.isSuccess && !workspaceId
+					? new Error("This chat has no workspace.")
+					: undefined)
+			}
 			agentStatus={workspaceAgent?.status}
 			onStartWorkspace={startWorkspace}
 			isStartingWorkspace={isStartingWorkspace}
@@ -111,11 +116,13 @@ export default function DesktopPopoutPage() {
 
 export type DesktopPopoutPageViewProps = Omit<
 	DesktopWorkspaceStateProps,
-	"workspaceStatus"
+	"workspace"
 > & {
 	status: DesktopConnectionStatus;
 	/** Undefined until the chat's workspace has loaded. */
-	workspaceStatus: WorkspaceStatus | undefined;
+	workspace: Workspace | undefined;
+	/** Set when the chat or its workspace could not be loaded. */
+	workspaceError?: unknown;
 	agentStatus: WorkspaceAgentStatus | undefined;
 	reconnect: () => void;
 	attach: (container: HTMLElement) => void;
@@ -128,7 +135,8 @@ export type DesktopPopoutPageViewProps = Omit<
 
 export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
 	status,
-	workspaceStatus,
+	workspace,
+	workspaceError,
 	agentStatus,
 	onStartWorkspace,
 	isStartingWorkspace,
@@ -140,14 +148,22 @@ export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
 	onTakeControl,
 	onReleaseControl,
 }) => {
+	if (workspaceError) {
+		return (
+			<div className="flex h-screen w-screen items-center justify-center bg-surface-primary p-6">
+				<ErrorAlert error={workspaceError} />
+			</div>
+		);
+	}
+
 	if (
-		workspaceStatus !== undefined &&
-		!isDesktopReachable(workspaceStatus, agentStatus)
+		workspace !== undefined &&
+		!isDesktopReachable(workspace.latest_build.status, agentStatus)
 	) {
 		return (
 			<div className="h-screen w-screen bg-surface-primary">
 				<DesktopWorkspaceState
-					workspaceStatus={workspaceStatus}
+					workspace={workspace}
 					onStartWorkspace={onStartWorkspace}
 					isStartingWorkspace={isStartingWorkspace}
 				/>

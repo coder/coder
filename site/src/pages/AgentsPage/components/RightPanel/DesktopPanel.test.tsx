@@ -6,10 +6,13 @@ import {
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { QueryClientProvider } from "react-query";
+import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as ApiModule from "#/api/api";
 import { API, watchChatDesktop } from "#/api/api";
 import {
+	MockFailedWorkspace,
+	MockOutdatedStoppedWorkspaceRequireActiveVersion,
 	MockStoppedWorkspace,
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -53,7 +56,11 @@ const render = (element: ReactNode) => {
 	const queryClient = createTestQueryClient();
 	return testingLibraryRender(element, {
 		wrapper: ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+			<MemoryRouter>
+				<QueryClientProvider client={queryClient}>
+					{children}
+				</QueryClientProvider>
+			</MemoryRouter>
 		),
 	});
 };
@@ -89,11 +96,62 @@ describe("DesktopPanel", () => {
 			expect(startWorkspace).toHaveBeenCalledWith(
 				MockStoppedWorkspace.id,
 				MockStoppedWorkspace.latest_build.template_version_id,
-				undefined,
-				undefined,
 			);
 		});
 		expect(mockWatchChatDesktop).not.toHaveBeenCalled();
+	});
+
+	it("updates to the active version when the template requires it", async () => {
+		const startWorkspace = vi.spyOn(API, "startWorkspace");
+		const updateWorkspace = vi
+			.spyOn(API, "updateWorkspace")
+			.mockResolvedValue(MockWorkspaceBuild);
+
+		render(
+			<DesktopPanel
+				chatId="chat-1"
+				workspace={MockOutdatedStoppedWorkspaceRequireActiveVersion}
+				workspaceAgent={undefined}
+				isVisible
+			/>,
+		);
+
+		await userEvent.click(
+			screen.getByRole("button", { name: /update and start/i }),
+		);
+
+		await waitFor(() => {
+			expect(updateWorkspace).toHaveBeenCalledWith(
+				MockOutdatedStoppedWorkspaceRequireActiveVersion,
+			);
+		});
+		expect(startWorkspace).not.toHaveBeenCalled();
+	});
+
+	it("retries a failed start with a cleanup stop", async () => {
+		const retryWorkspace = vi
+			.spyOn(API, "retryWorkspace")
+			.mockResolvedValue(MockWorkspaceBuild);
+
+		render(
+			<DesktopPanel
+				chatId="chat-1"
+				workspace={MockFailedWorkspace}
+				workspaceAgent={undefined}
+				isVisible
+			/>,
+		);
+
+		await userEvent.click(
+			screen.getByRole("button", { name: /start workspace/i }),
+		);
+
+		await waitFor(() => {
+			expect(retryWorkspace).toHaveBeenCalledWith(
+				MockFailedWorkspace,
+				MockFailedWorkspace.latest_build.template_version_id,
+			);
+		});
 	});
 
 	it("dials the desktop only once the agent is connected", async () => {

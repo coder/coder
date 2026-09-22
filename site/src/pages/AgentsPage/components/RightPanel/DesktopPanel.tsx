@@ -122,7 +122,7 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({
 	return (
 		<DesktopPanelView
 			status={status}
-			workspaceStatus={workspace.latest_build.status}
+			workspace={workspace}
 			agentStatus={workspaceAgent?.status}
 			onStartWorkspace={startWorkspace}
 			isStartingWorkspace={isStartingWorkspace}
@@ -153,7 +153,7 @@ export type DesktopPanelViewProps = DesktopWorkspaceStateProps & {
 
 export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	status,
-	workspaceStatus,
+	workspace,
 	agentStatus,
 	onStartWorkspace,
 	isStartingWorkspace,
@@ -166,10 +166,10 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	onReleaseControl,
 	onPopOut,
 }) => {
-	if (!isDesktopReachable(workspaceStatus, agentStatus)) {
+	if (!isDesktopReachable(workspace.latest_build.status, agentStatus)) {
 		return (
 			<DesktopWorkspaceState
-				workspaceStatus={workspaceStatus}
+				workspace={workspace}
 				onStartWorkspace={onStartWorkspace}
 				isStartingWorkspace={isStartingWorkspace}
 			/>
