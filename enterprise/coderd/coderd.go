@@ -567,6 +567,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				httpmw.ExtractOrganizationParam(api.Database),
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 			)
+			r.Get("/", api.organizationAISpendDetails)
 			r.Get("/export", api.exportOrganizationAISpend)
 			r.Get("/users", api.organizationAISpendUsers)
 		})
