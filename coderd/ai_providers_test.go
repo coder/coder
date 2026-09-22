@@ -2397,26 +2397,22 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 
 // TestAIProvidersClaudePlatformAWS covers the Claude Platform for AWS variant
 // end to end through the API: it is an authentication method on
-// type=anthropic, its secrets are write-only, and the auth mode must stay
-// consistent with the provider's api_keys.
+// type=anthropic, and accepts provider keys independently of its settings.
 func TestAIProvidersClaudePlatformAWS(t *testing.T) {
 	t.Parallel()
 
-	iamSettings := func() codersdk.AIProviderSettings {
+	claudePlatformSettings := func() codersdk.AIProviderSettings {
 		return codersdk.AIProviderSettings{
 			ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
-				AuthMode:        codersdk.AIProviderClaudePlatformAWSAuthModeIAM,
-				Region:          "us-east-1",
-				WorkspaceID:     "wrkspc_123",
-				AccessKey:       new("AKIA-test"), //nolint:gosec // test fixture, not a real credential
-				AccessKeySecret: new("secret-test"),
+				Region:      "us-east-1",
+				WorkspaceID: "wrkspc_123",
 			},
 		}
 	}
 
-	t.Run("CreateIAMWithoutKeys", func(t *testing.T) {
+	t.Run("CreateWithoutSettingsKeys", func(t *testing.T) {
 		t.Parallel()
-		client, db := coderdtest.NewWithDatabase(t, nil)
+		client, _ := coderdtest.NewWithDatabase(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -2426,44 +2422,12 @@ func TestAIProvidersClaudePlatformAWS(t *testing.T) {
 			Name:     "claude-platform-iam",
 			Enabled:  true,
 			BaseURL:  "https://aws-external-anthropic.us-east-1.api.aws/",
-			Settings: iamSettings(),
+			Settings: claudePlatformSettings(),
 		})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.AIProviderTypeAnthropic, created.Type)
 		require.NotNil(t, created.Settings.ClaudePlatformAWS)
 		require.Empty(t, created.APIKeys)
-		// Write-only fields must never be echoed back.
-		require.Nil(t, created.Settings.ClaudePlatformAWS.AccessKey)
-		require.Nil(t, created.Settings.ClaudePlatformAWS.AccessKeySecret)
-
-		//nolint:gocritic // Test reads the row to verify write-only fields.
-		row, err := db.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), created.ID)
-		require.NoError(t, err)
-		persisted, err := db2sdk.AIProviderSettings(row.Settings)
-		require.NoError(t, err)
-		require.NotNil(t, persisted.ClaudePlatformAWS)
-		require.Equal(t, "AKIA-test", *persisted.ClaudePlatformAWS.AccessKey)
-		require.Equal(t, "secret-test", *persisted.ClaudePlatformAWS.AccessKeySecret)
-	})
-
-	t.Run("CreateRejectsIAMWithKeys", func(t *testing.T) {
-		t.Parallel()
-		client, _ := coderdtest.NewWithDatabase(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:     codersdk.AIProviderTypeAnthropic,
-			Name:     "claude-platform-iam-keys",
-			Enabled:  true,
-			BaseURL:  "https://aws-external-anthropic.us-east-1.api.aws/",
-			APIKeys:  []string{"sk-workspace-key"},
-			Settings: iamSettings(),
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
 	t.Run("CreateRejectsNonAnthropicType", func(t *testing.T) {
@@ -2478,14 +2442,14 @@ func TestAIProvidersClaudePlatformAWS(t *testing.T) {
 			Name:     "claude-platform-openai",
 			Enabled:  true,
 			BaseURL:  "https://aws-external-anthropic.us-east-1.api.aws/",
-			Settings: iamSettings(),
+			Settings: claudePlatformSettings(),
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
-	t.Run("CreateAPIKeyModeWithKeys", func(t *testing.T) {
+	t.Run("CreateWithKeys", func(t *testing.T) {
 		t.Parallel()
 		client, _ := coderdtest.NewWithDatabase(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
@@ -2500,23 +2464,58 @@ func TestAIProvidersClaudePlatformAWS(t *testing.T) {
 			APIKeys: []string{"sk-workspace-key"},
 			Settings: codersdk.AIProviderSettings{
 				ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
-					AuthMode:    codersdk.AIProviderClaudePlatformAWSAuthModeAPIKey,
 					Region:      "us-east-1",
 					WorkspaceID: "wrkspc_123",
 				},
 			},
 		})
 		require.NoError(t, err)
-		// The workspace key lives in api_keys, so it inherits masking, the key
-		// pool, rotation, and failover from the standard Anthropic path.
 		require.Len(t, created.APIKeys, 1)
 		require.NotEmpty(t, created.APIKeys[0].Masked)
+
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &[]codersdk.AIProviderKeyMutation{},
+		})
+		require.NoError(t, err)
+
+		persisted, err := client.AIProvider(ctx, created.Name)
+		require.NoError(t, err)
+		require.Empty(t, persisted.APIKeys)
+		require.Equal(t, created.Settings, persisted.Settings)
+
+		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &[]codersdk.AIProviderKeyMutation{{APIKey: new("sk-replacement-key")}},
+		})
+		require.NoError(t, err)
+		require.Len(t, updated.APIKeys, 1)
+		require.Equal(t, created.Settings, updated.Settings)
 	})
 
-	// The gateway prefers the key pool over signing, so a patch that would
-	// leave an IAM provider holding keys must fail rather than silently
-	// authenticating with the keys.
-	t.Run("PatchToIAMRejectsExistingKeys", func(t *testing.T) {
+	t.Run("CreateWithoutKeys", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdtest.NewWithDatabase(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "claude-platform-api-key-empty",
+			Enabled: true,
+			BaseURL: "https://aws-external-anthropic.us-east-1.api.aws/",
+			Settings: codersdk.AIProviderSettings{
+				ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+					Region:      "us-east-1",
+					WorkspaceID: "wrkspc_123",
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, created.APIKeys)
+		require.NotNil(t, created.Settings.ClaudePlatformAWS)
+	})
+
+	t.Run("PatchAllowsStoredKeys", func(t *testing.T) {
 		t.Parallel()
 		client, _ := coderdtest.NewWithDatabase(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
@@ -2529,93 +2528,32 @@ func TestAIProvidersClaudePlatformAWS(t *testing.T) {
 			Enabled: true,
 			BaseURL: "https://aws-external-anthropic.us-east-1.api.aws/",
 			APIKeys: []string{"sk-workspace-key"},
-			Settings: codersdk.AIProviderSettings{
-				ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
-					AuthMode:    codersdk.AIProviderClaudePlatformAWSAuthModeAPIKey,
-					Region:      "us-east-1",
-					WorkspaceID: "wrkspc_123",
-				},
-			},
+			Settings: codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+				Region: "us-east-1", WorkspaceID: "wrkspc_123",
+			}},
 		})
 		require.NoError(t, err)
-
-		settings := iamSettings()
-		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
-			Settings: &settings,
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-
-		// Clearing the keys in the same patch makes the switch valid.
-		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
-			Settings: &settings,
-			APIKeys:  &[]codersdk.AIProviderKeyMutation{},
-		})
+		settings := claudePlatformSettings()
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{Settings: &settings})
 		require.NoError(t, err)
 	})
 
-	t.Run("PatchToAPIKeyModeRequiresKeys", func(t *testing.T) {
+	t.Run("PatchAllowsNoKeys", func(t *testing.T) {
 		t.Parallel()
 		client, _ := coderdtest.NewWithDatabase(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
-
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:     codersdk.AIProviderTypeAnthropic,
-			Name:     "claude-platform-to-api-key",
-			Enabled:  true,
-			BaseURL:  "https://aws-external-anthropic.us-east-1.api.aws/",
-			Settings: iamSettings(),
+			Type: codersdk.AIProviderTypeAnthropic, Name: "claude-platform-to-api-key", Enabled: true,
+			BaseURL: "https://aws-external-anthropic.us-east-1.api.aws/", Settings: claudePlatformSettings(),
 		})
 		require.NoError(t, err)
-
-		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
-			Settings: &codersdk.AIProviderSettings{
-				ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
-					AuthMode:    codersdk.AIProviderClaudePlatformAWSAuthModeAPIKey,
-					Region:      "us-east-1",
-					WorkspaceID: "wrkspc_123",
-				},
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{Settings: &codersdk.AIProviderSettings{
+			ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+				Region: "us-east-1", WorkspaceID: "wrkspc_123",
 			},
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-	})
-
-	t.Run("ExternalIDIsServerGenerated", func(t *testing.T) {
-		t.Parallel()
-		client, _ := coderdtest.NewWithDatabase(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		settings := iamSettings()
-		settings.ClaudePlatformAWS.RoleARN = "arn:aws:iam::123456789012:role/ClaudeRole"
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:     codersdk.AIProviderTypeAnthropic,
-			Name:     "claude-platform-external-id",
-			Enabled:  true,
-			BaseURL:  "https://aws-external-anthropic.us-east-1.api.aws/",
-			Settings: settings,
-		})
+		}})
 		require.NoError(t, err)
-		require.NotEmpty(t, created.Settings.ClaudePlatformAWS.ExternalID)
-
-		// A patch may echo the stored value back but may not change it.
-		patch := iamSettings()
-		patch.ClaudePlatformAWS.RoleARN = "arn:aws:iam::123456789012:role/ClaudeRole"
-		patch.ClaudePlatformAWS.ExternalID = "client-supplied"
-		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{Settings: &patch})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-
-		patch.ClaudePlatformAWS.ExternalID = created.Settings.ClaudePlatformAWS.ExternalID
-		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{Settings: &patch})
-		require.NoError(t, err)
-		require.Equal(t, created.Settings.ClaudePlatformAWS.ExternalID, updated.Settings.ClaudePlatformAWS.ExternalID)
 	})
 }

@@ -3901,9 +3901,7 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 	}
 	if cp := settings.ClaudePlatformAWS; cp != nil {
 		region = strings.TrimSpace(cp.Region)
-		// IAM mode signs with the server's AWS identity, so it is usable with
-		// no key in the pool. api_key mode is key-driven like plain Anthropic.
-		ambient = cp.ResolvedAuthMode() == codersdk.AIProviderClaudePlatformAWSAuthModeIAM
+		ambient = true
 	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,

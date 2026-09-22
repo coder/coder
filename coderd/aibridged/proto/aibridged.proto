@@ -232,19 +232,14 @@ message AIProvider {
 }
 
 // AIProviderKindClaudePlatformAWS configures Anthropic's AWS-hosted Messages
-// API. auth_mode selects whether requests are SigV4-signed or authenticated
-// with a workspace API key from keys.
+// API. Requests use a supplied API key, otherwise ambient AWS credentials.
 message AIProviderKindClaudePlatformAWS {
-  // auth_mode is "iam" or "api_key".
-  string auth_mode = 1;
+  reserved 1;
+  reserved "auth_mode";
   string region = 2;
   string workspace_id = 3;
-  // access_key, access_key_secret and role_arn apply to iam mode only. With no
-  // access key pair the ambient AWS credential chain resolves the identity.
-  string access_key = 4;
-  string access_key_secret = 5;
-  string role_arn = 6;
-  string external_id = 7;
+  reserved 4 to 7;
+  reserved "access_key", "access_key_secret", "role_arn", "external_id";
 }
 
 message AIProviderKindBedrock {

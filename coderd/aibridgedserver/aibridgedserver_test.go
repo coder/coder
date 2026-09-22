@@ -4574,13 +4574,8 @@ func TestGetAIProviders(t *testing.T) {
 	// keys: it authenticates by signing.
 	claudePlatformSettings, err := json.Marshal(codersdk.AIProviderSettings{
 		ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
-			AuthMode:        codersdk.AIProviderClaudePlatformAWSAuthModeIAM,
-			Region:          "us-west-2",
-			WorkspaceID:     "wrkspc_123",
-			AccessKey:       new("AKID-cp"),
-			AccessKeySecret: new("secret-cp"),
-			RoleARN:         "arn:aws:iam::123456789012:role/claude",
-			ExternalID:      "external-id",
+			Region:      "us-west-2",
+			WorkspaceID: "wrkspc_123",
 		},
 	})
 	require.NoError(t, err)
@@ -4666,13 +4661,8 @@ func TestGetAIProviders(t *testing.T) {
 		"claude platform is an authentication method on anthropic, not a provider type")
 	assert.Nil(t, gotClaudePlatform.GetBedrock())
 	require.NotNil(t, gotClaudePlatform.GetClaudePlatformAws())
-	assert.Equal(t, string(codersdk.AIProviderClaudePlatformAWSAuthModeIAM), gotClaudePlatform.GetClaudePlatformAws().GetAuthMode())
 	assert.Equal(t, "us-west-2", gotClaudePlatform.GetClaudePlatformAws().GetRegion())
 	assert.Equal(t, "wrkspc_123", gotClaudePlatform.GetClaudePlatformAws().GetWorkspaceId())
-	assert.Equal(t, "AKID-cp", gotClaudePlatform.GetClaudePlatformAws().GetAccessKey())
-	assert.Equal(t, "secret-cp", gotClaudePlatform.GetClaudePlatformAws().GetAccessKeySecret())
-	assert.Equal(t, "arn:aws:iam::123456789012:role/claude", gotClaudePlatform.GetClaudePlatformAws().GetRoleArn())
-	assert.Equal(t, "external-id", gotClaudePlatform.GetClaudePlatformAws().GetExternalId())
 	assert.Empty(t, gotClaudePlatform.GetKeys())
 
 	gotCopilot := byName["copilot"]

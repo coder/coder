@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -213,19 +212,8 @@ func protoToProviderSpec(pp *proto.AIProvider) aiProviderSpec {
 	}
 	if cp := pp.GetClaudePlatformAws(); cp != nil {
 		claudePlatform := codersdk.AIProviderClaudePlatformAWSSettings{
-			AuthMode:    codersdk.AIProviderClaudePlatformAWSAuthMode(cp.GetAuthMode()),
 			Region:      cp.GetRegion(),
 			WorkspaceID: cp.GetWorkspaceId(),
-			RoleARN:     cp.GetRoleArn(),
-			ExternalID:  cp.GetExternalId(),
-		}
-		// Leave the credentials nil when absent so "unset" stays distinct from
-		// "empty": with neither, the ambient AWS credential chain applies.
-		if key := cp.GetAccessKey(); key != "" {
-			claudePlatform.AccessKey = &key
-		}
-		if secret := cp.GetAccessKeySecret(); secret != "" {
-			claudePlatform.AccessKeySecret = &secret
 		}
 		spec.ClaudePlatformAWS = &claudePlatform
 	}
@@ -301,8 +289,8 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 		// A bearer-token Anthropic without any key cannot make upstream calls.
 		// Claude Platform in IAM mode authenticates by signing, so it counts
 		// as configured here too.
-		if claudePlatform == nil && len(spec.Keys) == 0 && !cfg.AllowBYOK.Value() {
-			return nil, xerrors.New("anthropic provider has no api keys, no claude platform settings, and BYOK is not enabled")
+		if len(spec.Keys) == 0 && !cfg.AllowBYOK.Value() && claudePlatform == nil {
+			return nil, xerrors.New("anthropic provider has no api keys configured and BYOK is not enabled")
 		}
 		var pool *keypool.Pool
 		if len(spec.Keys) > 0 {
@@ -370,14 +358,9 @@ func claudePlatformConfig(baseURL string, cp *codersdk.AIProviderClaudePlatformA
 		return nil
 	}
 	return &aibridge.AWSClaudePlatformConfig{
-		AuthMode:        config.ClaudePlatformAuthMode(cp.AuthMode),
-		Region:          cp.Region,
-		WorkspaceID:     cp.WorkspaceID,
-		AccessKey:       ptr.NilToEmpty(cp.AccessKey),
-		AccessKeySecret: ptr.NilToEmpty(cp.AccessKeySecret),
-		RoleARN:         cp.RoleARN,
-		ExternalID:      cp.ExternalID,
-		BaseURL:         baseURL,
+		Region:      cp.Region,
+		WorkspaceID: cp.WorkspaceID,
+		BaseURL:     baseURL,
 	}
 }
 

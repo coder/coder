@@ -7233,16 +7233,9 @@ func (api *API) chatModelProviderDescriptors(
 }
 
 // aiProviderUsesAmbientCredentials reports whether the provider's settings
-// select an authentication method that signs with the Coder server's own AWS
-// identity instead of a stored key.
+// can authenticate with the server's ambient credentials.
 func aiProviderUsesAmbientCredentials(settings codersdk.AIProviderSettings) bool {
-	if settings.Bedrock != nil {
-		return true
-	}
-	if cp := settings.ClaudePlatformAWS; cp != nil {
-		return cp.ResolvedAuthMode() == codersdk.AIProviderClaudePlatformAWSAuthModeIAM
-	}
-	return false
+	return settings.Bedrock != nil || settings.ClaudePlatformAWS != nil
 }
 
 func chatModelConfigRBACObject(config database.ChatModelConfig) rbac.Object {
