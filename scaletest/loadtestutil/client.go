@@ -1,6 +1,7 @@
 package loadtestutil
 
 import (
+	"context"
 	"maps"
 	"net/http"
 
@@ -12,10 +13,10 @@ import (
 // DupClientCopyingHeaders duplicates the Client, but with an independent underlying HTTP transport, so that it will not
 // share connections with the client being duplicated. It copies any headers already on the existing transport as
 // [codersdk.HeaderTransport] and add the headers in the argument.
-func DupClientCopyingHeaders(client *codersdk.Client, header http.Header) (*codersdk.Client, error) {
+func DupClientCopyingHeaders(ctx context.Context, client *codersdk.Client, header http.Header) (*codersdk.Client, error) {
 	nc := codersdk.New(client.URL, codersdk.WithLogger(client.Logger()))
 	nc.SessionTokenProvider = client.SessionTokenProvider
-	newHeader, t, err := extractHeaderAndInnerTransport(client.HTTPClient.Transport)
+	newHeader, t, err := extractHeaderAndInnerTransport(ctx, client.HTTPClient.Transport)
 	if err != nil {
 		return nil, xerrors.Errorf("extract headers: %w", err)
 	}
@@ -23,22 +24,28 @@ func DupClientCopyingHeaders(client *codersdk.Client, header http.Header) (*code
 
 	nc.HTTPClient.Transport = &codersdk.HeaderTransport{
 		Transport: t.Clone(),
-		Header:    newHeader,
+		Provider:  codersdk.StaticHeaderProvider{Header: newHeader},
 	}
 	return nc, nil
 }
 
-func extractHeaderAndInnerTransport(rt http.RoundTripper) (http.Header, *http.Transport, error) {
+func extractHeaderAndInnerTransport(ctx context.Context, rt http.RoundTripper) (http.Header, *http.Transport, error) {
 	if t, ok := rt.(*http.Transport); ok {
 		// base case
 		return make(http.Header), t, nil
 	}
 	if ht, ok := rt.(*codersdk.HeaderTransport); ok {
-		headers, t, err := extractHeaderAndInnerTransport(ht.Transport)
+		headers, t, err := extractHeaderAndInnerTransport(ctx, ht.Transport)
 		if err != nil {
 			return nil, nil, err
 		}
-		maps.Copy(headers, ht.Header)
+		if ht.Provider != nil {
+			provided, err := ht.Provider.Headers(ctx)
+			if err != nil {
+				return nil, nil, xerrors.Errorf("get headers: %w", err)
+			}
+			maps.Copy(headers, provided)
+		}
 		return headers, t, nil
 	}
 	// unrecognized RoundTripper. Just return a default transport, since we only care about preserving headers.

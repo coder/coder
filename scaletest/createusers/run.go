@@ -79,7 +79,7 @@ func (r *Runner) RunReturningUser(ctx context.Context, id string, logs io.Writer
 	// Duplicate the client with an independent transport to ensure each user
 	// login gets its own HTTP connection pool, preventing connection sharing
 	// during load testing.
-	client, err := loadtestutil.DupClientCopyingHeaders(r.client, nil)
+	client, err := loadtestutil.DupClientCopyingHeaders(ctx, r.client, nil)
 	if err != nil {
 		return User{}, xerrors.Errorf("duplicate client: %w", err)
 	}

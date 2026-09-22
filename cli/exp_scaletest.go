@@ -630,9 +630,9 @@ func (r *RootCmd) scaletestCleanup() *serpent.Command {
 			client.HTTPClient = &http.Client{
 				Transport: &codersdk.HeaderTransport{
 					Transport: http.DefaultTransport,
-					Header: map[string][]string{
+					Provider: codersdk.StaticHeaderProvider{Header: http.Header{
 						codersdk.BypassRatelimitHeader: {"true"},
-					},
+					}},
 				},
 			}
 
@@ -975,7 +975,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 
 				// use an independent client for each Runner, so they don't reuse TCP connections. This can lead to
 				// requests being unbalanced among Coder instances.
-				runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
+				runnerClient, err := loadtestutil.DupClientCopyingHeaders(inv.Context(), client, BypassHeader)
 				if err != nil {
 					return xerrors.Errorf("create runner client: %w", err)
 				}
@@ -1329,7 +1329,7 @@ func (r *RootCmd) scaletestWorkspaceUpdates() *serpent.Command {
 
 				// use an independent client for each Runner, so they don't reuse TCP connections. This can lead to
 				// requests being unbalanced among Coder instances.
-				runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
+				runnerClient, err := loadtestutil.DupClientCopyingHeaders(inv.Context(), client, BypassHeader)
 				if err != nil {
 					return xerrors.Errorf("create runner client: %w", err)
 				}
@@ -1591,7 +1591,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 				}
 				// use an independent client for each Runner, so they don't reuse TCP connections. This can lead to
 				// requests being unbalanced among Coder instances.
-				runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
+				runnerClient, err := loadtestutil.DupClientCopyingHeaders(inv.Context(), client, BypassHeader)
 				if err != nil {
 					return xerrors.Errorf("create runner client: %w", err)
 				}
@@ -1785,7 +1785,7 @@ func (r *RootCmd) scaletestDashboard() *serpent.Command {
 
 				// use an independent client for each Runner, so they don't reuse TCP connections. This can lead to
 				// requests being unbalanced among Coder instances.
-				userClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
+				userClient, err := loadtestutil.DupClientCopyingHeaders(inv.Context(), client, BypassHeader)
 				if err != nil {
 					return xerrors.Errorf("create runner client: %w", err)
 				}
@@ -2032,7 +2032,7 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 				}
 				// use an independent client for each Runner, so they don't reuse TCP connections. This can lead to
 				// requests being unbalanced among Coder instances.
-				runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
+				runnerClient, err := loadtestutil.DupClientCopyingHeaders(inv.Context(), client, BypassHeader)
 				if err != nil {
 					return xerrors.Errorf("create runner client: %w", err)
 				}

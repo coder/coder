@@ -1849,8 +1849,11 @@ func (a *agent) createTailnet(
 	// Inject `CODER_AGENT_HEADER` into the DERP header.
 	var header http.Header
 	if client, ok := a.client.(*agentsdk.Client); ok {
-		if headerTransport, ok := client.SDK.HTTPClient.Transport.(*codersdk.HeaderTransport); ok {
-			header = headerTransport.Header
+		if headerTransport, ok := client.SDK.HTTPClient.Transport.(*codersdk.HeaderTransport); ok && headerTransport.Provider != nil {
+			header, err = headerTransport.Provider.Headers(ctx)
+			if err != nil {
+				return nil, xerrors.Errorf("get DERP headers: %w", err)
+			}
 		}
 	}
 	network, err := tailnet.NewConn(&tailnet.Options{

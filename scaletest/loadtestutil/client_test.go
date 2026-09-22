@@ -17,16 +17,16 @@ func TestDupClientCopyingHeaders(t *testing.T) {
 		Transport: &codersdk.HeaderTransport{
 			Transport: &codersdk.HeaderTransport{
 				Transport: http.DefaultTransport,
-				Header: map[string][]string{
+				Provider: codersdk.StaticHeaderProvider{Header: http.Header{
 					"X-Coder-Test":  {"foo"},
 					"X-Coder-Test3": {"socks"},
 					"X-Coder-Test5": {"ninjas"},
-				},
+				}},
 			},
-			Header: map[string][]string{
+			Provider: codersdk.StaticHeaderProvider{Header: http.Header{
 				"X-Coder-Test":  {"bar"},
 				"X-Coder-Test2": {"baz"},
-			},
+			}},
 		},
 	}
 	serverURL, err := url.Parse("http://coder.example.com")
@@ -34,7 +34,7 @@ func TestDupClientCopyingHeaders(t *testing.T) {
 	sdkClient := codersdk.New(serverURL,
 		codersdk.WithSessionToken("test-token"), codersdk.WithHTTPClient(httpClient))
 
-	dup, err := loadtestutil.DupClientCopyingHeaders(sdkClient, map[string][]string{
+	dup, err := loadtestutil.DupClientCopyingHeaders(t.Context(), sdkClient, map[string][]string{
 		"X-Coder-Test3": {"clocks"},
 		"X-Coder-Test4": {"bears"},
 	})
@@ -43,10 +43,12 @@ func TestDupClientCopyingHeaders(t *testing.T) {
 	require.Equal(t, "test-token", dup.SessionToken())
 	ht, ok := dup.HTTPClient.Transport.(*codersdk.HeaderTransport)
 	require.True(t, ok)
-	require.Equal(t, "bar", ht.Header.Get("X-Coder-Test"))
-	require.Equal(t, "baz", ht.Header.Get("X-Coder-Test2"))
-	require.Equal(t, "clocks", ht.Header.Get("X-Coder-Test3"))
-	require.Equal(t, "bears", ht.Header.Get("X-Coder-Test4"))
-	require.Equal(t, "ninjas", ht.Header.Get("X-Coder-Test5"))
+	headers, err := ht.Provider.Headers(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "bar", headers.Get("X-Coder-Test"))
+	require.Equal(t, "baz", headers.Get("X-Coder-Test2"))
+	require.Equal(t, "clocks", headers.Get("X-Coder-Test3"))
+	require.Equal(t, "bears", headers.Get("X-Coder-Test4"))
+	require.Equal(t, "ninjas", headers.Get("X-Coder-Test5"))
 	require.NotEqual(t, http.DefaultTransport, ht.Transport)
 }

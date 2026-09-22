@@ -207,7 +207,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				name := fmt.Sprintf("notifications-%s", id)
 				// use an independent client for each Runner, so they don't reuse TCP connections. This can lead to
 				// requests being unbalanced among Coder instances.
-				runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
+				runnerClient, err := loadtestutil.DupClientCopyingHeaders(inv.Context(), client, BypassHeader)
 				if err != nil {
 					return xerrors.Errorf("create runner client: %w", err)
 				}

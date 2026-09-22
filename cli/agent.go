@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -202,7 +203,7 @@ func workspaceAgent() *serpent.Command {
 			client.SDK.HTTPClient.Timeout = 30 * time.Second
 			// Attach header transport so we process --agent-header and
 			// --agent-header-command flags
-			headerTransport, err := headerTransport(ctx, &agentAuth.agentURL, agentHeader, agentHeaderCommand)
+			headerTransport, err := headerTransport(ctx, &agentAuth.agentURL, agentHeader, agentHeaderCommand, quartz.NewReal())
 			if err != nil {
 				return xerrors.Errorf("configure header transport: %w", err)
 			}
@@ -428,7 +429,7 @@ func workspaceAgent() *serpent.Command {
 			Flag:        "agent-header-command",
 			Env:         "CODER_AGENT_HEADER_COMMAND",
 			Value:       serpent.StringOf(&agentHeaderCommand),
-			Description: "An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.",
+			Description: "An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line. If a header value is a JWT with an exp claim, the command is re-run on demand starting 10 seconds before the earliest expiration.",
 		},
 		{
 			Flag:        "agent-header",

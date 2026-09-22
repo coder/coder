@@ -289,8 +289,11 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 
 	ip := tailnet.TailscaleServicePrefix.RandomAddr()
 	var header http.Header
-	if headerTransport, ok := c.client.HTTPClient.Transport.(*codersdk.HeaderTransport); ok {
-		header = headerTransport.Header
+	if headerTransport, ok := c.client.HTTPClient.Transport.(*codersdk.HeaderTransport); ok && headerTransport.Provider != nil {
+		header, err = headerTransport.Provider.Headers(ctx)
+		if err != nil {
+			return nil, xerrors.Errorf("get DERP headers: %w", err)
+		}
 	}
 	var telemetrySink tailnet.TelemetrySink
 	if options.EnableTelemetry {
