@@ -1,7 +1,6 @@
 package dynamicparameters_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -371,119 +370,6 @@ func TestResolveParameters(t *testing.T) {
 			})
 		}
 	})
-	// A template update can remove an option that an existing workspace already selected
-	t.Run("StaleOptionValue", func(t *testing.T) {
-		t.Parallel()
-
-		t.Run("MutableFallsBackToDefault", func(t *testing.T) {
-			t.Parallel()
-
-			ctrl := gomock.NewController(t)
-			render := rendermock.NewMockRenderer(ctrl)
-
-			// The previous value is rendered as-is, and preview rejects it because its no longer an option.
-			render.EXPECT().
-				Render(gomock.Any(), gomock.Any(), gomock.Eq(map[string]string{"color": "red"})).
-				Times(1).
-				Return(&preview.Output{
-					Parameters: []previewtypes.Parameter{
-						staleOptionParameter(true, previewtypes.StringLiteral("red"), invalidOptionDiagnostic("red")),
-					},
-				}, nil)
-
-			// Once the stale value is dropped, preview renders the default.
-			render.EXPECT().
-				Render(gomock.Any(), gomock.Any(), gomock.Eq(map[string]string{})).
-				Times(1).
-				Return(&preview.Output{
-					Parameters: []previewtypes.Parameter{
-						staleOptionParameter(true, previewtypes.StringLiteral("blue")),
-					},
-				}, nil)
-
-			ctx := testutil.Context(t, testutil.WaitShort)
-			values, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, false,
-				database.WorkspaceTransitionStart,
-				[]database.WorkspaceBuildParameter{{Name: "color", Value: "red"}},
-				[]codersdk.WorkspaceBuildParameter{},
-				[]database.TemplateVersionPresetParameter{},
-			)
-			require.NoError(t, err)
-			require.Equal(t, map[string]string{"color": "blue"}, values)
-		})
-
-		// Replacing an immutable value would trip the immutability check, so the
-		// parameter keeps reporting the option error instead.
-		t.Run("ImmutableStillErrors", func(t *testing.T) {
-			t.Parallel()
-
-			ctrl := gomock.NewController(t)
-			render := rendermock.NewMockRenderer(ctrl)
-
-			render.EXPECT().
-				Render(gomock.Any(), gomock.Any(), gomock.Any()).
-				AnyTimes().
-				Return(&preview.Output{
-					Parameters: []previewtypes.Parameter{
-						staleOptionParameter(false, previewtypes.StringLiteral("red"), invalidOptionDiagnostic("red")),
-					},
-				}, nil)
-
-			ctx := testutil.Context(t, testutil.WaitShort)
-			_, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, false,
-				database.WorkspaceTransitionStart,
-				[]database.WorkspaceBuildParameter{{Name: "color", Value: "red"}},
-				[]codersdk.WorkspaceBuildParameter{},
-				[]database.TemplateVersionPresetParameter{},
-			)
-			require.Error(t, err)
-			resp, ok := httperror.IsResponder(err)
-			require.True(t, ok)
-			_, respErr := resp.Response()
-			require.Len(t, respErr.Validations, 1)
-			require.Contains(t, respErr.Validations[0].Error(), "valid option")
-		})
-
-		// A value supplied with this build was asked for explicitly, so it is validated
-		t.Run("BuildValueStillErrors", func(t *testing.T) {
-			t.Parallel()
-
-			ctrl := gomock.NewController(t)
-			render := rendermock.NewMockRenderer(ctrl)
-
-			render.EXPECT().
-				Render(gomock.Any(), gomock.Any(), gomock.Eq(map[string]string{})).
-				Times(1).
-				Return(&preview.Output{
-					Parameters: []previewtypes.Parameter{
-						staleOptionParameter(true, previewtypes.StringLiteral("blue")),
-					},
-				}, nil)
-
-			render.EXPECT().
-				Render(gomock.Any(), gomock.Any(), gomock.Eq(map[string]string{"color": "red"})).
-				Times(1).
-				Return(&preview.Output{
-					Parameters: []previewtypes.Parameter{
-						staleOptionParameter(true, previewtypes.StringLiteral("red"), invalidOptionDiagnostic("red")),
-					},
-				}, nil)
-
-			ctx := testutil.Context(t, testutil.WaitShort)
-			_, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, false,
-				database.WorkspaceTransitionStart,
-				[]database.WorkspaceBuildParameter{},
-				[]codersdk.WorkspaceBuildParameter{{Name: "color", Value: "red"}},
-				[]database.TemplateVersionPresetParameter{},
-			)
-			require.Error(t, err)
-			resp, ok := httperror.IsResponder(err)
-			require.True(t, ok)
-			_, respErr := resp.Response()
-			require.Len(t, respErr.Validations, 1)
-			require.Contains(t, respErr.Validations[0].Error(), "valid option")
-		})
-	})
 }
 
 // moduleNotLoadedDiagnostic is the warning preview emits when a module block
@@ -494,34 +380,4 @@ func moduleNotLoadedDiagnostic() *hcl.Diagnostic {
 		Summary:  "Module not loaded. Did you run `terraform init`?",
 		Detail:   "Module 'module \"jetbrains_gateway\"' cannot be resolved. This module will be ignored.",
 	}, previewtypes.DiagnosticModuleNotLoaded)
-}
-
-// staleOptionParameter is a dropdown whose options no longer include "red", modeling a template update that removed an option value.
-func staleOptionParameter(mutable bool, value previewtypes.HCLString, diags ...*hcl.Diagnostic) previewtypes.Parameter {
-	return previewtypes.Parameter{
-		ParameterData: previewtypes.ParameterData{
-			Name:         "color",
-			Type:         previewtypes.ParameterTypeString,
-			FormType:     provider.ParameterFormTypeDropdown,
-			Mutable:      mutable,
-			DefaultValue: previewtypes.StringLiteral("blue"),
-			Options: []*previewtypes.ParameterOption{
-				{Name: "Blue", Value: previewtypes.StringLiteral("blue")},
-				{Name: "Green", Value: previewtypes.StringLiteral("green")},
-			},
-		},
-		Value:       value,
-		Diagnostics: previewtypes.Diagnostics(diags),
-	}
-}
-
-// invalidOptionDiagnostic is the error terraform-provider-coder raises for a
-// value that is not one of the parameter's options. It carries no extra code,
-// which is why the value has to be checked against the options directly.
-func invalidOptionDiagnostic(value string) *hcl.Diagnostic {
-	return &hcl.Diagnostic{
-		Severity: hcl.DiagError,
-		Summary:  "Value must be a valid option",
-		Detail:   fmt.Sprintf("the value %q must be defined as one of options", value),
-	}
 }

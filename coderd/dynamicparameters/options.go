@@ -11,43 +11,45 @@ import (
 
 	"github.com/coder/preview"
 	previewtypes "github.com/coder/preview/types"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
-// DiagnosticCodeStaleOption identifies the warning raised when a value is
-// replaced by the default because it is no longer one of the parameter's options.
+// DiagnosticCodeStaleOption identifies the warning raised when a value is staled no longer an option
 const DiagnosticCodeStaleOption = "stale_option"
 
-// RenderReconciled renders the template version's parameters, dropping any
-// mutable parameter value that is no longer one of that parameter's options.
+// RenderReconciled renders the template version's parameters, dropping any mutable parameter values.
 //
 // A template update can remove an option value that a workspace already selected.
 // Dropping the value renders the default instead, and the substitution is warn logged.
-// Immutable parameters are left alone.
 func RenderReconciled(ctx context.Context, renderer Renderer, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
 	output, diags := renderer.Render(ctx, ownerID, values)
 	if output == nil || diags.HasErrors() {
 		return output, diags
 	}
 
-	stale := staleOptionValues(output.Parameters, values)
-	if len(stale) == 0 {
-		return output, diags
-	}
-
 	reconciled := maps.Clone(values)
-	for name := range stale {
-		delete(reconciled, name)
+	dropped := make(map[string]string)
+	for range len(output.Parameters) {
+		stale := staleOptionValues(output.Parameters, reconciled)
+		if len(stale) == 0 {
+			break
+		}
+
+		for name, value := range stale {
+			delete(reconciled, name)
+			dropped[name] = value
+		}
+
+		output, diags = renderer.Render(ctx, ownerID, reconciled)
+		if output == nil || diags.HasErrors() {
+			return output, diags
+		}
 	}
 
-	// rerender with stale values removed from reconciled
-	output, diags = renderer.Render(ctx, ownerID, reconciled)
-	if output == nil || diags.HasErrors() {
-		return output, diags
-	}
-
+	// The warnings are applied before render after errors are returned.
 	for i, parameter := range output.Parameters {
-		if dropped, ok := stale[parameter.Name]; ok {
-			output.Parameters[i].Diagnostics = append(output.Parameters[i].Diagnostics, staleOptionDiagnostic(dropped))
+		if value, ok := dropped[parameter.Name]; ok {
+			output.Parameters[i].Diagnostics = append(output.Parameters[i].Diagnostics, staleOptionDiagnosticWarning(value))
 		}
 	}
 
@@ -82,6 +84,14 @@ func isValidParameterOption(parameter previewtypes.Parameter, value string) bool
 		return true
 	}
 
+	// A multi-select holds a list(string) but offers string options, so its value has to be split into entries before matching.
+	optionType, _, err := provider.ValidateFormType(
+		provider.OptionType(parameter.Type), len(parameter.Options), parameter.FormType)
+	if err != nil {
+		// The form type is unusable, so there is no option set to judge against.
+		return true
+	}
+
 	options := make(map[string]struct{}, len(parameter.Options))
 	for _, option := range parameter.Options {
 		if !option.Value.IsKnown() || !option.Value.Valid() {
@@ -90,7 +100,7 @@ func isValidParameterOption(parameter previewtypes.Parameter, value string) bool
 		options[option.Value.AsString()] = struct{}{}
 	}
 
-	if parameter.Type == previewtypes.ParameterTypeListString {
+	if parameter.Type == previewtypes.ParameterTypeListString && optionType == provider.OptionTypeString {
 		var selected []string
 		if err := json.Unmarshal([]byte(value), &selected); err != nil {
 			return false
@@ -108,7 +118,7 @@ func isValidParameterOption(parameter previewtypes.Parameter, value string) bool
 	return ok
 }
 
-func staleOptionDiagnostic(value string) *hcl.Diagnostic {
+func staleOptionDiagnosticWarning(value string) *hcl.Diagnostic {
 	return previewtypes.DiagnosticCode(&hcl.Diagnostic{
 		Severity: hcl.DiagWarning,
 		Summary:  "Previously selected option is no longer available",
