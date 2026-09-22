@@ -3,6 +3,7 @@ package tailnet
 import (
 	"context"
 	"database/sql"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -675,6 +676,16 @@ func newMapper(c *connIO, logger slog.Logger, h *heartbeats) *mapper {
 }
 
 func (m *mapper) run() {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			m.logger.Error(m.ctx, "panic processing peer mappings (recovered)",
+				slog.F("panic", recovered),
+				slog.F("stack", string(debug.Stack())),
+			)
+			_ = m.c.Enqueue(&proto.CoordinateResponse{Error: agpl.CloseErrInternal})
+			_ = m.c.Close()
+		}
+	}()
 	for {
 		var best map[uuid.UUID]mapping
 		select {
