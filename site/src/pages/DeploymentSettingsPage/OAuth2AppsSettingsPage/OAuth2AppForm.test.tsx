@@ -94,7 +94,6 @@ describe("OAuth2AppForm", () => {
 		await waitFor(() => {
 			expect(onSubmit).toHaveBeenCalledWith({
 				name: "Cursor MCP Extension",
-				redirect_uris: ["vscode://coder.coder-remote/oauth/callback"],
 				icon: app.icon,
 			});
 		});
@@ -316,7 +315,9 @@ describe("OAuth2AppForm", () => {
 		},
 	);
 
-	it("sends the list unchanged and no callback_url key on rename", async () => {
+	// The stored list is left out of an unrelated save. If another admin removed
+	// a URI after this form loaded, resending the loaded list would restore it.
+	it("omits redirect_uris and callback_url on a rename", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 		const app = {
@@ -344,9 +345,9 @@ describe("OAuth2AppForm", () => {
 			const call = onSubmit.mock.calls[0][0];
 			expect(call).toStrictEqual({
 				name: "Renamed app",
-				redirect_uris: ["https://a.example.com/cb", "https://b.example.com/cb"],
 				icon: app.icon,
 			});
+			expect(call).not.toHaveProperty("redirect_uris");
 			expect(call).not.toHaveProperty("callback_url");
 		});
 	});
@@ -827,7 +828,6 @@ describe("OAuth2AppForm", () => {
 			await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
 			expect(onSubmit.mock.calls[0][0]).toStrictEqual({
 				name: "foo-updated",
-				redirect_uris: MockOAuth2ProviderApps[0].redirect_uris,
 				icon: MockOAuth2ProviderApps[0].icon,
 			});
 		},
@@ -857,7 +857,6 @@ describe("OAuth2AppForm", () => {
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
 		expect(onSubmit.mock.calls[0][0]).toStrictEqual({
 			name: "foo-updated",
-			redirect_uris: MockOAuth2ProviderApps[0].redirect_uris,
 			icon: MockOAuth2ProviderApps[0].icon,
 		});
 	});

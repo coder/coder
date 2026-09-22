@@ -32,18 +32,26 @@ type OAuth2AppFormValues = {
 	scope: string[];
 };
 
-// The create page sends this as a POST and the edit page as a PUT, so it has
-// to satisfy both request types, and a field added to either is a type error
-// here rather than a silently missing field.
-type OAuth2AppFormRequest = TypesGen.PostOAuth2ProviderAppRequest &
-	TypesGen.PutOAuth2ProviderAppRequest;
+// A create always sends the redirect URI list. An update may leave it out,
+// so the two modes submit different request types.
+type OAuth2AppFormSubmit =
+	| {
+			app?: undefined;
+			onSubmit: (
+				data: TypesGen.PostOAuth2ProviderAppRequest,
+			) => void | Promise<void>;
+	  }
+	| {
+			app: TypesGen.OAuth2ProviderApp;
+			onSubmit: (
+				data: TypesGen.PutOAuth2ProviderAppRequest,
+			) => void | Promise<void>;
+	  };
 
-type OAuth2AppFormProps = {
-	app?: TypesGen.OAuth2ProviderApp;
+type OAuth2AppFormProps = OAuth2AppFormSubmit & {
 	// Passed on its own because the create page has no app yet. The client
 	// type decides which redirect URI rules apply.
 	clientType: TypesGen.OAuth2ClientType;
-	onSubmit: (data: OAuth2AppFormRequest) => void | Promise<void>;
 	error?: unknown;
 	isUpdating: boolean;
 	defaultValues?: Partial<OAuth2AppFormValues>;
@@ -170,16 +178,16 @@ const validationSchema = (isPublicClient: boolean) =>
 		icon: iconValidator,
 	});
 
-export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
-	app,
-	clientType,
-	onSubmit,
-	error,
-	isUpdating,
-	defaultValues,
-	disabled,
-	onIconChange,
-}) => {
+export const OAuth2AppForm: FC<OAuth2AppFormProps> = (props) => {
+	const {
+		app,
+		clientType,
+		error,
+		isUpdating,
+		defaultValues,
+		disabled,
+		onIconChange,
+	} = props;
 	const didSubmit = useRef(false);
 	const isPublicClient = clientType === "public";
 	// A stored list that no longer passes validation disables Update on load.
@@ -205,21 +213,39 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 			: undefined,
 		validationSchema: validationSchema(isPublicClient),
 		validateOnMount: true,
-		onSubmit: async ({ scope: selectedScopes, ...values }) => {
+		onSubmit: async ({
+			scope: selectedScopes,
+			redirect_uris: enteredRedirectURIs,
+			...values
+		}) => {
 			didSubmit.current = true;
-			const redirectURIs = values.redirect_uris.map((uri) => uri.trim());
+			const redirectURIs = enteredRedirectURIs.map((uri) => uri.trim());
 			const scope = selectedScopes.join(" ");
 			// An untouched allowlist is left out of updates rather than echoed
 			// back. The form cannot round-trip a stored list exactly: a whitespace
 			// only list grants nothing but would resend as "" and lift the
 			// restriction, and a legacy list may exceed the current size limits.
 			const scopeChanged = !app || scope !== form.initialValues.scope.join(" ");
-			await onSubmit({
+			const request = {
 				...values,
 				name: values.name.trim(),
-				redirect_uris: redirectURIs,
 				...(scopeChanged ? { scope } : {}),
-			});
+			};
+			if (props.app === undefined) {
+				await props.onSubmit({ ...request, redirect_uris: redirectURIs });
+				return;
+			}
+			// An untouched list is also left out, so a copy loaded before another
+			// admin changed the list does not overwrite their change.
+			const stored = props.app.redirect_uris;
+			const redirectURIsChanged =
+				redirectURIs.length !== stored.length ||
+				redirectURIs.some((uri, index) => uri !== stored[index]);
+			await props.onSubmit(
+				redirectURIsChanged
+					? { ...request, redirect_uris: redirectURIs }
+					: request,
+			);
 		},
 	});
 	const scopesQuery = useQuery(getExternalScopes());
