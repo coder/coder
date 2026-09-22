@@ -94,6 +94,9 @@ importers:
       axios:
         specifier: 1.19.0
         version: 1.19.0
+      bippy:
+        specifier: 0.7.3
+        version: 0.7.3(@types/react@19.2.18)(react@19.2.8)
       class-variance-authority:
         specifier: 0.7.1
         version: 0.7.1
@@ -3246,6 +3249,11 @@ packages:
     peerDependencies:
       '@types/react': ^19.2.0
 
+  '@types/react-reconciler@0.33.0':
+    resolution: {integrity: sha512-HZOXsKT0tGI9LlUw2LuedXsVeB88wFa536vVL0M6vE8zN63nI+sSr1ByxmPToP5K5bukaVscyeCJcF9guVNJ1g==, tarball: https://registry.npmjs.org/@types/react-reconciler/-/react-reconciler-0.33.0.tgz}
+    peerDependencies:
+      '@types/react': '*'
+
   '@types/react-syntax-highlighter@15.5.13':
     resolution: {integrity: sha512-uLGJ87j6Sz8UaBAooU0T6lWJ0dBmjZgN1PZTrj05TNql2/XpC6+4HhMT5syIdFUUt+FASfCeLLv4kBygNU+8qA==, tarball: https://registry.npmjs.org/@types/react-syntax-highlighter/-/react-syntax-highlighter-15.5.13.tgz}
 
@@ -3541,6 +3549,11 @@ packages:
 
   bidi-js@1.0.3:
     resolution: {integrity: sha512-RKshQI1R3YQ+n9YJz2QQ147P66ELpa1FQEg20Dk8oW9t2KgLbpDLLp9aGZ7y8WHSshDknG0bknqGw5/tyCs5tw==, tarball: https://registry.npmjs.org/bidi-js/-/bidi-js-1.0.3.tgz}
+
+  bippy@0.7.3:
+    resolution: {integrity: sha512-C3yYBkcthd9kMXJwwwR69+ICGruw+R/Mcoq1LqsoscEoPe1OshyhYjMtYmtpoDSiJX40a867qhG4TT7g4mMIdQ==, tarball: https://registry.npmjs.org/bippy/-/bippy-0.7.3.tgz}
+    peerDependencies:
+      react: '>=16.0.0'
 
   bl@4.1.0:
     resolution: {integrity: sha512-1W07cM9gS6DcLperZfFSj+bWLtaPGSOHWhPiGzXmvVJbRLdG82sH/Kn8EtW1VqWVA54AKf2h5k5BbnIbwF3h6w==, tarball: https://registry.npmjs.org/bl/-/bl-4.1.0.tgz}
@@ -9392,6 +9405,10 @@ snapshots:
     dependencies:
       '@types/react': 19.2.18
 
+  '@types/react-reconciler@0.33.0(@types/react@19.2.18)':
+    dependencies:
+      '@types/react': 19.2.18
+
   '@types/react-syntax-highlighter@15.5.13':
     dependencies:
       '@types/react': 19.2.18
@@ -9705,6 +9722,13 @@ snapshots:
   bidi-js@1.0.3:
     dependencies:
       require-from-string: 2.0.2
+
+  bippy@0.7.3(@types/react@19.2.18)(react@19.2.8):
+    dependencies:
+      '@types/react-reconciler': 0.33.0(@types/react@19.2.18)
+      react: 19.2.8
+    transitivePeerDependencies:
+      - '@types/react'
 
   bl@4.1.0:
     dependencies:

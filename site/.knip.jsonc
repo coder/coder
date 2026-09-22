@@ -3,7 +3,9 @@
 	"entry": [
 		"./src/index.tsx",
 		"./src/serviceWorker.ts",
-		"./src/annotator/main.ts"
+		"./src/annotator/main.ts",
+		// Aliased over `react` by vite.annotator.config.mts, never imported.
+		"./src/annotator/reactShim.ts"
 	],
 	"project": [
 		"./src/**/*.ts",

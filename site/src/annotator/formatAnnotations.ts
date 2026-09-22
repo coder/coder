@@ -57,8 +57,17 @@ function formatAnnotation(annotation: Annotation, index: number): string {
 	if (element.reactComponents?.length) {
 		lines.push(`- React: ${inline(element.reactComponents.join(" < "))}`);
 	}
+	if (element.reactProps?.length) {
+		lines.push(`- Props: ${code(element.reactProps.join(", "))}`);
+	}
 	if (element.sourceLocation) {
 		lines.push(`- Source: ${code(element.sourceLocation)}`);
+	}
+	if (element.reactOwnerStack?.length) {
+		lines.push("- Rendered by:");
+		for (const frame of element.reactOwnerStack) {
+			lines.push(`  - ${inline(frame)}`);
+		}
 	}
 	if (element.classes.length > 0) {
 		lines.push(`- Classes: ${code(element.classes.join(" "))}`);

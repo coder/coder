@@ -27,12 +27,15 @@ function click(target: Element, init: MouseEventInit = {}) {
 	);
 }
 
-function comment(target: Element, text: string, hold = false) {
+// Describing an element resolves its source asynchronously, so a comment
+// only lands after the microtasks behind Send have run.
+async function comment(target: Element, text: string, hold = false) {
 	click(target);
 	const textarea = query<HTMLTextAreaElement>(".popup textarea");
 	textarea.value = text;
 	textarea.dispatchEvent(new Event("input", { bubbles: true }));
 	click(query(".popup .button:not(.outline)"), { shiftKey: hold });
+	await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 describe("mountAnnotator", () => {
@@ -96,14 +99,14 @@ describe("mountAnnotator", () => {
 		handle.destroy();
 	});
 
-	it("bounds the page title and url it reports", () => {
+	it("bounds the page title and url it reports", async () => {
 		const onSubmit = vi.fn<(submission: AnnotationSubmission) => void>();
 		const handle = mountAnnotator({ document, onSubmit });
 		document.title = "t".repeat(maxFieldLength * 3);
 		window.history.replaceState(null, "", `/${"p".repeat(maxFieldLength * 3)}`);
 		handle.setPicking(true);
 
-		comment(document.getElementById("save") as HTMLElement, "Bigger");
+		await comment(document.getElementById("save") as HTMLElement, "Bigger");
 		expect(onSubmit).toHaveBeenCalledTimes(1);
 		const [{ page }] = onSubmit.mock.calls[0];
 		expect(page.title).toHaveLength(maxFieldLength);
@@ -112,20 +115,20 @@ describe("mountAnnotator", () => {
 		handle.destroy();
 	});
 
-	it("sends held comments together with the next Send", () => {
+	it("sends held comments together with the next Send", async () => {
 		const onSubmit = vi.fn<(submission: AnnotationSubmission) => void>();
 		const handle = mountAnnotator({ document, onSubmit });
 		handle.setPicking(true);
 		const title = document.getElementById("title") as HTMLElement;
 		const save = document.getElementById("save") as HTMLElement;
 
-		comment(title, "Bigger", true);
+		await comment(title, "Bigger", true);
 		expect(onSubmit).not.toHaveBeenCalled();
 		expect(query(".held-badge").textContent).toBe("1");
 		expect(shadow().querySelectorAll(".held-outline")).toHaveLength(1);
 		expect(handle.getState().picking).toBe(true);
 
-		comment(save, "Primary", false);
+		await comment(save, "Primary", false);
 		expect(onSubmit).toHaveBeenCalledTimes(1);
 		const [submission] = onSubmit.mock.calls[0];
 		expect(submission.annotations.map((a) => a.comment)).toEqual([
@@ -141,11 +144,15 @@ describe("mountAnnotator", () => {
 		handle.destroy();
 	});
 
-	it("discards held comments from the toolbar badge", () => {
+	it("discards held comments from the toolbar badge", async () => {
 		const onSubmit = vi.fn();
 		const handle = mountAnnotator({ document, onSubmit });
 		handle.setPicking(true);
-		comment(document.getElementById("title") as HTMLElement, "Bigger", true);
+		await comment(
+			document.getElementById("title") as HTMLElement,
+			"Bigger",
+			true,
+		);
 		click(query(".held-badge"));
 		expect(shadow().querySelectorAll(".held-outline")).toHaveLength(0);
 		expect(

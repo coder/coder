@@ -1,4 +1,4 @@
-import { describeElement } from "./describeElement";
+import { describeElementWithSource } from "./describeElement";
 import { outlineInset, viewportBox } from "./geometry";
 import { createHighlightLayer, statusChip } from "./highlights";
 import { carryMarkerAcrossNavigation } from "./navigation";
@@ -224,15 +224,15 @@ export function mountAnnotator(
 	});
 
 	// Every saved comment is its own submission; there is no batching.
-	const createAnnotation = (
+	const createAnnotation = async (
 		session: PopupSession,
 		comment: string,
-	): Annotation => {
+	): Promise<Annotation> => {
 		const annotation: Annotation = {
 			id: randomId(),
 			comment,
 			selectedText: session.selectedText,
-			element: describeElement(session.target),
+			element: await describeElementWithSource(session.target),
 		};
 		// Stamped after describing so the marker never leaks into the
 		// captured selector or opening tag.
@@ -273,8 +273,8 @@ export function mountAnnotator(
 
 	// Shift+Send: keep the comment and stay in picking mode so several
 	// elements can be described before anything goes to the agent.
-	const holdAnnotation = (session: PopupSession, comment: string) => {
-		const annotation = createAnnotation(session, comment);
+	const holdAnnotation = async (session: PopupSession, comment: string) => {
+		const annotation = await createAnnotation(session, comment);
 		const node = el(doc, "div", "held-outline", { "aria-hidden": "true" });
 		shadow.append(node);
 		held.push({ annotation, target: session.target, node });
@@ -284,10 +284,10 @@ export function mountAnnotator(
 	};
 
 	// Plain Send: this comment plus anything held goes as one submission.
-	const submitAnnotation = (session: PopupSession, comment: string) => {
+	const submitAnnotation = async (session: PopupSession, comment: string) => {
 		const annotations = [
 			...held.map((item) => item.annotation),
-			createAnnotation(session, comment),
+			await createAnnotation(session, comment),
 		];
 		const targets = [...held.map((item) => item.target), session.target];
 		for (const item of held.splice(0)) {
@@ -432,9 +432,9 @@ export function mountAnnotator(
 				return;
 			}
 			if (hold) {
-				holdAnnotation(session, comment);
+				void holdAnnotation(session, comment);
 			} else {
-				submitAnnotation(session, comment);
+				void submitAnnotation(session, comment);
 			}
 			closePopup();
 		};
