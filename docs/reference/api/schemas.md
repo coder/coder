@@ -9110,7 +9110,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `no_refresh`                       | boolean         | false    |              |                                                                                                                                                                                               |
 | `redirect_url`                     | string          | false    |              | Redirect URL is optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where the OAuth callback domain is different from the ACCESS_URL domain. The path component is ignored. |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
-Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
+Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the control plane to match against the Regex.|
 |`revoke_url`|string|false|||
 |`scopes`|array of string|false|||
 |`token_url`|string|false|||
@@ -11014,21 +11014,25 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
+  "redirect_uris": [
+    "string"
+  ],
   "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
-|----------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `callback_url` | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `client_type`  | [codersdk.OAuth2ClientType](#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
-| `endpoints`    | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
-| `icon`         | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `id`           | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `name`         | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `scope`        | string                                                     | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
+| Name            | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
+|-----------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`  | string                                                     | false    |              | Deprecated: equal to the first entry of redirect_uris. Read redirect_uris instead.                                                                                                                      |
+| `client_type`   | [codersdk.OAuth2ClientType](#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
+| `endpoints`     | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
+| `icon`          | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `id`            | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `name`          | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `redirect_uris` | array of string                                            | false    |              | Redirect uris are the app's registered redirect URIs, primary first.                                                                                                                                    |
+| `scope`         | string                                                     | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
 
 ## codersdk.OAuth2ProviderAppSecret
 
@@ -12205,18 +12209,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "callback_url": "string",
   "icon": "string",
   "name": "string",
+  "redirect_uris": [
+    "string"
+  ],
   "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description                                                                                                           |
-|----------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
-| `callback_url` | string | true     |              |                                                                                                                       |
-| `icon`         | string | false    |              |                                                                                                                       |
-| `name`         | string | true     |              |                                                                                                                       |
-| `scope`        | string | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Leave empty, or omit, for unrestricted. |
+| Name            | Type            | Required | Restrictions | Description                                                                                                                                                      |
+|-----------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`  | string          | false    |              | Deprecated: send redirect_uris instead. If both are sent, callback_url must equal the first entry of redirect_uris.                                              |
+| `icon`          | string          | false    |              |                                                                                                                                                                  |
+| `name`          | string          | true     |              |                                                                                                                                                                  |
+| `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry is the primary. Required, unless the deprecated callback_url is sent instead. |
+| `scope`         | string          | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Leave empty, or omit, for unrestricted.                                            |
 
 ## codersdk.PostWorkspaceUsageRequest
 
@@ -13094,18 +13102,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "callback_url": "string",
   "icon": "string",
   "name": "string",
+  "redirect_uris": [
+    "string"
+  ],
   "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description                                                                                                                                                  |
-|----------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `callback_url` | string | true     |              |                                                                                                                                                              |
-| `icon`         | string | false    |              |                                                                                                                                                              |
-| `name`         | string | true     |              |                                                                                                                                                              |
-| `scope`        | string | false    |              | Scope replaces the app's current allowlist. Omit to leave the existing allowlist untouched. Set to an empty string to clear it, making the app unrestricted. |
+| Name            | Type            | Required | Restrictions | Description                                                                                                                                                                                                                                                           |
+|-----------------|-----------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`  | string          | false    |              | Deprecated: send redirect_uris instead. If both are sent, callback_url must equal the first entry of redirect_uris.                                                                                                                                                   |
+| `icon`          | string          | false    |              |                                                                                                                                                                                                                                                                       |
+| `name`          | string          | true     |              |                                                                                                                                                                                                                                                                       |
+| `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry is the primary. Omit both this and callback_url to keep the stored redirect URIs. Other fields are replaced. Sending an empty list is an error, not a way to keep the stored list. |
+| `scope`         | string          | false    |              | Scope replaces the app's current allowlist. Omit to leave the existing allowlist untouched. Set to an empty string to clear it, making the app unrestricted.                                                                                                          |
 
 ## codersdk.RBACAction
 
