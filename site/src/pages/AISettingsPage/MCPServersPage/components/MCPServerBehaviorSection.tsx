@@ -15,6 +15,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { SecretInput } from "./MCPServerAuthSection";
 import { Field } from "./MCPServerFormFieldPrimitives";
 import {
 	AVAILABILITY_OPTIONS,
@@ -92,6 +93,29 @@ export const MCPServerBehaviorSection: FC<MCPServerBehaviorSectionProps> = ({
 					tooltip="Only enable for first-party or trusted MCP servers."
 				/>
 			</div>
+			{form.values.forwardCoderHeaders && (
+				<Field
+					label="Signing secret"
+					htmlFor={`${formId}-signing-secret`}
+					description="Configure the same random secret on the MCP server. Without a secret, requests are unsigned."
+				>
+					<SecretInput
+						id={`${formId}-signing-secret`}
+						value={form.values.signingSecret}
+						touched={form.values.signingSecretTouched}
+						onTouch={() =>
+							void form.setFieldValue("signingSecretTouched", true)
+						}
+						onValueChange={(value) =>
+							void form.setFieldValue("signingSecret", value)
+						}
+						onReset={() =>
+							void form.setFieldValue("signingSecretTouched", false)
+						}
+						disabled={disabled}
+					/>
+				</Field>
+			)}
 			<div className="grid items-start gap-4 sm:grid-cols-2">
 				<Field
 					label="Tool allow list"

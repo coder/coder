@@ -3996,6 +3996,11 @@ export interface CreateMCPServerConfigRequest {
 	 * headers on every outgoing MCP request. See MCPServerConfig.
 	 */
 	readonly forward_coder_headers: boolean;
+	/**
+	 * SigningSecret signs forwarded identity headers and request bodies.
+	 * Configure the same secret on the MCP server. It is never returned.
+	 */
+	readonly signing_secret?: string;
 }
 
 // From codersdk/organizations.go
@@ -6032,6 +6037,7 @@ export interface MCPServerConfig {
 	 * chat identity to third-party servers.
 	 */
 	readonly forward_coder_headers: boolean;
+	readonly has_signing_secret: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
@@ -6119,6 +6125,12 @@ export const MaxAIModelPricesBytes = 1048576; // 1 MiB
  * $1,000,000 per member per budget period.
  */
 export const MaxAISpendLimitMicros = 1000000000000;
+
+// From codersdk/aibridge.go
+/**
+ * MaxAISpendPeriodDays bounds explicit AI spend reporting windows.
+ */
+export const MaxAISpendPeriodDays = 31;
 
 // From codersdk/chats.go
 /**
@@ -10031,6 +10043,11 @@ export interface UpdateMCPServerConfigRequest {
 	 * headers are forwarded on every outgoing MCP request.
 	 */
 	readonly forward_coder_headers?: boolean;
+	/**
+	 * SigningSecret replaces the shared signing key. Omit to preserve it;
+	 * an empty string clears it. It is never returned.
+	 */
+	readonly signing_secret?: string;
 }
 
 // From codersdk/notifications.go
