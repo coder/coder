@@ -7,7 +7,6 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { Link as RouterLink } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import {
 	chatMessagesForInfiniteScroll,
@@ -21,7 +20,6 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
@@ -240,15 +238,10 @@ const WorkspaceDebugChat: FC<WorkspaceDebugChatProps> = ({
 							: "Ask a follow-up question"
 					}
 				/>
-				<div className="flex items-center justify-between text-xs text-content-secondary">
-					<span>
-						{modelName
-							? `Model: ${modelName.display_name || modelName.model}`
-							: "Default model"}
-					</span>
-					<Link asChild size="sm">
-						<RouterLink to={`/agents/${chatId}`}>Open in Agents</RouterLink>
-					</Link>
+				<div className="text-xs text-content-secondary">
+					{modelName
+						? `Model: ${modelName.display_name || modelName.model}`
+						: "Default model"}
 				</div>
 			</footer>
 		</>
