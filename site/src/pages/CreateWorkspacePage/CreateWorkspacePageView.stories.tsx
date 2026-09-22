@@ -499,3 +499,78 @@ export const ExternalAuthForAnotherUser: Story = {
 		).not.toBeInTheDocument();
 	},
 };
+
+const classicParameterFlowTemplate = {
+	...MockTemplate,
+	organization_name: "default",
+	name: "docker-template",
+	use_classic_parameter_flow: true,
+};
+
+export const ClassicParameterFlowTemplate: Story = {
+	args: {
+		template: classicParameterFlowTemplate,
+		canUpdateTemplate: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const alert = canvas.getByRole("alert");
+		expect(
+			within(alert).getByText("This template uses deprecated parameters"),
+		).toBeVisible();
+		expect(
+			within(alert).getByRole("link", {
+				name: /view docs \(opens in new tab\)/i,
+			}),
+		).toBeVisible();
+		expect(
+			within(alert).queryByRole("link", { name: "Open template settings" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const ClassicParameterFlowTemplateWithUpdatePermission: Story = {
+	args: {
+		template: classicParameterFlowTemplate,
+		canUpdateTemplate: true,
+	},
+	play: async ({ canvasElement }) => {
+		const alert = within(canvasElement).getByRole("alert");
+
+		const docsLink = within(alert).getByRole("link", {
+			name: /view docs \(opens in new tab\)/i,
+		});
+		expect(docsLink).toHaveAttribute(
+			"href",
+			expect.stringContaining(
+				"/admin/templates/extending-templates/dynamic-parameters",
+			),
+		);
+		expect(docsLink).toHaveAttribute("target", "_blank");
+		expect(docsLink).toHaveAttribute("rel", "noreferrer");
+		expect(
+			within(alert).getByRole("link", { name: "Open template settings" }),
+		).toHaveAttribute(
+			"href",
+			"/templates/default/docker-template/settings/parameters",
+		);
+	},
+};
+
+export const DynamicParameterFlowTemplate: Story = {
+	args: {
+		template: {
+			...classicParameterFlowTemplate,
+			use_classic_parameter_flow: false,
+		},
+		canUpdateTemplate: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.queryByText("This template uses deprecated parameters"),
+		).not.toBeInTheDocument();
+	},
+};

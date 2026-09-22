@@ -1,4 +1,4 @@
-import { type FC, useId, useRef, useState } from "react";
+import { type FC, useId, useLayoutEffect, useRef, useState } from "react";
 import { API } from "#/api/api";
 import type { DisplayApp } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -13,13 +13,13 @@ import { getVSCodeHref } from "#/modules/apps/apps";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
-interface VSCodeDesktopButtonProps {
+type VSCodeDesktopButtonProps = {
 	userName: string;
 	workspaceName: string;
 	agentName?: string;
 	folderPath?: string;
 	displayApps: readonly DisplayApp[];
-}
+};
 
 type VSCodeVariant = "vscode" | "vscode-insiders";
 
@@ -37,6 +37,13 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 	});
 	const menuAnchorRef = useRef<HTMLDivElement>(null);
 	const menuContentId = useId();
+	const [menuWidth, setMenuWidth] = useState<number | undefined>(undefined);
+
+	useLayoutEffect(() => {
+		if (isVariantMenuOpen) {
+			setMenuWidth(menuAnchorRef.current?.clientWidth);
+		}
+	}, [isVariantMenuOpen]);
 
 	const selectVariant = (nextVariant: VSCodeVariant) => {
 		localStorage.setItem(VARIANT_KEY, nextVariant);
@@ -72,7 +79,7 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 					id={menuContentId}
 					align="end"
 					collisionPadding={16}
-					style={{ width: menuAnchorRef.current?.clientWidth }}
+					style={{ width: menuWidth }}
 				>
 					<DropdownMenuItem
 						onClick={() => {

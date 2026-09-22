@@ -7,16 +7,16 @@ import { OrganizationField } from "#/components/OrganizationAutocomplete/Organiz
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import {
-	canManageProviderModels,
-	type ProviderState,
-} from "#/modules/aiModels/providerStates";
-import {
 	buildInitialModelFormValues,
 	buildModelConfigFromForm,
 	type ModelFormValues,
 	parsePositiveInteger,
 	parseThresholdInteger,
-} from "#/pages/AgentsPage/components/ChatModelAdminPanel/modelConfigFormLogic";
+} from "#/modules/aiModels/modelConfigFormLogic";
+import {
+	canManageProviderModels,
+	type ProviderState,
+} from "#/modules/aiModels/providerStates";
 import { getFormHelpers } from "#/utils/formUtils";
 import {
 	creatableModelOrganizations,
@@ -51,7 +51,7 @@ const validationSchema = Yup.object({
 	isDefault: Yup.boolean(),
 });
 
-interface ModelFormProps {
+type ModelFormProps = {
 	editingModel?: TypesGen.ChatModel;
 	duplicateSourceModel?: TypesGen.ChatModel;
 	providerStates: readonly ProviderState[];
@@ -71,7 +71,7 @@ interface ModelFormProps {
 	onSetDefault?: () => void;
 	onDuplicate?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
-}
+};
 
 export const ModelForm: FC<ModelFormProps> = ({
 	editingModel,

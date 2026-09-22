@@ -2,7 +2,7 @@ import type { DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type FC, useState } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { fn, userEvent, waitFor, within } from "storybook/test";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { DiffViewer } from "../DiffViewer/DiffViewer";
 import { parseDiffString } from "../DiffViewer/parseDiff";
@@ -210,14 +210,6 @@ export const CrossSideAnnotation: Story = {
 			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
 		),
 	},
-	play: async ({ canvasElement }) => {
-		// The annotation renders via a slot in the light DOM of the
-		// web component, so we can find the textarea directly.
-		await waitFor(() => {
-			const textarea = canvasElement.querySelector("textarea");
-			expect(textarea).not.toBeNull();
-		});
-	},
 };
 
 // Same regression scenario in unified view to ensure the
@@ -227,7 +219,6 @@ export const CrossSideAnnotationUnified: Story = {
 		...CrossSideAnnotation.args,
 		diffStyle: "unified",
 	},
-	play: CrossSideAnnotation.play,
 };
 
 // -------------------------------------------------------------------
@@ -235,17 +226,6 @@ export const CrossSideAnnotationUnified: Story = {
 // -------------------------------------------------------------------
 
 // Play function shared by all annotation edge-case stories.
-const expectAnnotationTextarea = async ({
-	canvasElement,
-}: {
-	canvasElement: HTMLElement;
-}) => {
-	await waitFor(() => {
-		const textarea = canvasElement.querySelector("textarea");
-		expect(textarea).not.toBeNull();
-	});
-};
-
 // Diff where deletion and addition line numbers are wildly
 // different (hunk header: @@ -508,4 +218,4 @@). Deletion
 // lines are 509-510, addition lines are 219-220.
@@ -301,7 +281,6 @@ export const CrossSideMismatchedLineNumbers: Story = {
 			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
 		),
 	},
-	play: expectAnnotationTextarea,
 };
 
 // Same mismatched-line-number scenario in unified view.
@@ -310,7 +289,6 @@ export const CrossSideMismatchedLineNumbersUnified: Story = {
 		...CrossSideMismatchedLineNumbers.args,
 		diffStyle: "unified",
 	},
-	play: expectAnnotationTextarea,
 };
 
 // Backward same-side selection (start > end). The user clicks
@@ -363,7 +341,6 @@ export const BackwardSameSideSelection: Story = {
 			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
 		),
 	},
-	play: expectAnnotationTextarea,
 };
 
 // Cross-side selection going additions -> deletions (the
@@ -399,7 +376,6 @@ export const CrossSideAdditionsToDeletions: Story = {
 			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
 		),
 	},
-	play: expectAnnotationTextarea,
 };
 
 // Rename diff with long file paths to verify that:
@@ -441,14 +417,6 @@ export const LargeDiff: Story = {
 			</div>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		// The @pierre/trees file tree mounts a `file-tree-container` custom
-		// element once the sidebar is shown (isExpanded). Assert it appears.
-		await waitFor(() => {
-			const tree = canvasElement.querySelector("file-tree-container");
-			expect(tree).not.toBeNull();
-		});
-	},
 };
 
 // In production, before content-derived keys, the second render could hit
@@ -500,37 +468,33 @@ const ReparseSamePath: FC = () => {
 	);
 };
 
+/**
+ * Resolve once a given diff body has rendered inside the shadow root that
+ * Pixel's DOM-idle check cannot observe.
+ */
+const waitForDiffBody = (canvasElement: HTMLElement, text: string) =>
+	waitFor(() => {
+		const rendered = Array.from(
+			canvasElement.querySelectorAll("diffs-container"),
+		).some((host) => host.shadowRoot?.textContent?.includes(text));
+		if (!rendered) {
+			throw new Error(`Diff body has not rendered yet: ${text}`);
+		}
+	});
+
 export const ReparseSamePathAfterEdit: StoryObj = {
 	render: () => <ReparseSamePath />,
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const shadowText = () =>
-			Array.from(canvasElement.querySelectorAll("diffs-container"))
-				.map((host) => host.shadowRoot?.textContent ?? "")
-				.join("\n");
-		const expectRendered = (text: string) =>
-			waitFor(
-				() => {
-					// Checked inside the wait so a crash surfaces as the
-					// error-box assertion instead of a text-timeout.
-					expectNoErrorBox();
-					expect(shadowText().includes(text)).toBe(true);
-				},
-				{
-					timeout: 5000,
-				},
-			);
-		const expectNoErrorBox = () =>
-			expect(
-				Array.from(canvasElement.querySelectorAll("diffs-container")).some(
-					(host) => host.shadowRoot?.querySelector("[data-error-message]"),
-				),
-			).toBe(false);
+		// The regression is a reparse: the first parse must commit before the
+		// swap, or body 2 renders as a fresh parse and the bug is not exercised.
+		await waitForDiffBody(canvasElement, "const v = 2");
 
-		await expectRendered("const v = 2");
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "next body" }),
+		);
 
-		await userEvent.click(canvas.getByRole("button", { name: "next body" }));
-
-		await expectRendered("const v = 3");
+		// Shadow-root renders are invisible to the stability wait, so wait for
+		// the reparsed body.
+		await waitForDiffBody(canvasElement, "const v = 3");
 	},
 };

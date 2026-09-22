@@ -5,13 +5,14 @@ import { userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsPanel } from "./chats/ChatsPanel";
-import { ChatSearchDialog, RenameChatDialog } from "./dialogs";
+import { ChatSearchDialog } from "./dialogs/ChatSearchDialog";
+import { RenameChatDialog } from "./dialogs/RenameChatDialog";
 import { SettingsPanel } from "./settings/SettingsPanel";
 import { isSettingsView, sidebarViewFromPath } from "./sidebarView";
 
 export { isSettingsView, sidebarViewFromPath } from "./sidebarView";
 
-interface ChatsSidebarProps {
+type ChatsSidebarProps = {
 	chats: readonly Chat[];
 	chatErrorReasons: Record<string, string>;
 	modelConfigs: readonly ChatModel[];
@@ -56,7 +57,7 @@ interface ChatsSidebarProps {
 	 */
 	canManageAgentSettings?: boolean;
 	currentUserId: string;
-}
+};
 
 export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const {

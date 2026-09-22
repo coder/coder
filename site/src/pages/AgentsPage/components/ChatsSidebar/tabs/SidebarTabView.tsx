@@ -17,10 +17,12 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useOutletContext } from "react-router";
 import { Button } from "#/components/Button/Button";
+import type { AgentsPageOutletContext } from "../../../AgentsPageLayout";
 
 /** A single tab definition for the sidebar panel. */
-export interface SidebarTab {
+export type SidebarTab = {
 	id: string;
 	/** Label shown in the tab button. */
 	label: string;
@@ -30,19 +32,15 @@ export interface SidebarTab {
 	/** The content to render when this tab is active. */
 	content: ReactNode;
 	onClose?: () => void;
-}
+};
 
-interface SidebarTabViewProps {
+type SidebarTabViewProps = {
 	/** The tabs to display. */
 	tabs: SidebarTab[];
 	/** Whether the panel is in expanded/fullscreen mode. */
 	isExpanded: boolean;
 	/** Callback to toggle expanded state. */
 	onToggleExpanded: () => void;
-	/** Whether the left sidebar is collapsed. */
-	isSidebarCollapsed?: boolean;
-	/** Callback to toggle left sidebar. */
-	onToggleSidebarCollapsed?: () => void;
 	/** Shown in center when expanded. */
 	chatTitle?: string;
 	/** Callback to close the panel (used on mobile). */
@@ -58,7 +56,7 @@ interface SidebarTabViewProps {
 	/** Called when the user switches tabs. */
 	onActiveTabChange: (tabId: string) => void;
 	addTabControl?: ReactNode;
-}
+};
 
 const TAB_SCROLL_AMOUNT = 120;
 
@@ -117,11 +115,11 @@ function useTabScroll() {
 	return { ref, canScrollLeft, canScrollRight, scrollLeft, scrollRight };
 }
 
-interface ScrollChevronButtonProps {
+type ScrollChevronButtonProps = {
 	direction: "left" | "right";
 	onClick: () => void;
 	ariaLabel: string;
-}
+};
 
 const ScrollChevronButton: FC<ScrollChevronButtonProps> = ({
 	direction,
@@ -152,14 +150,14 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	tabs,
 	isExpanded,
 	onToggleExpanded,
-	isSidebarCollapsed,
-	onToggleSidebarCollapsed,
 	chatTitle,
 	onClose,
 	effectiveTabId,
 	onActiveTabChange,
 	addTabControl,
 }) => {
+	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
+		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 	const tabIdPrefix = useId();
 	const {
 		ref: tabScrollRef,

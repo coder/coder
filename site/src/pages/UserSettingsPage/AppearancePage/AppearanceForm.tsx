@@ -41,20 +41,20 @@ const sortedTerminalFontNames = [
 	...TerminalFontNames.filter((name) => name !== "" && name !== "geist-mono"),
 ];
 
-interface AppearanceFormValues {
+type AppearanceFormValues = {
 	draft: ThemeModeDraft;
 	terminalFont: TerminalFontName;
-}
+};
 
 type AppearanceThemeMode = ThemeModeDraft["mode"];
 
-interface AppearanceFormProps {
+type AppearanceFormProps = {
 	isUpdating?: boolean;
 	error?: unknown;
 	initialValues: UserAppearanceSettings;
 	activeScheme: "dark" | "light"; // The OS color scheme currently in effect
 	onSubmit: (values: UpdateUserAppearanceSettingsRequest) => void;
-}
+};
 
 export const AppearanceForm: FC<AppearanceFormProps> = ({
 	isUpdating,

@@ -6,11 +6,11 @@ import { useTheme } from "#/theme/context";
 
 loader.config({ monaco });
 
-export interface MonacoEditorProps {
+export type MonacoEditorProps = {
 	value?: string;
 	path?: string;
 	onChange?: (value: string) => void;
-}
+};
 
 // Monaco exposes the keybinding service only as a private field, so we describe
 // the shape we use instead of reaching for `any`.

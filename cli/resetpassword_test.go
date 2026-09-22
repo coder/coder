@@ -39,7 +39,7 @@ func TestResetPassword(t *testing.T) {
 	serverDone := make(chan struct{})
 	serverinv, cfg := clitest.New(t,
 		"server",
-		"--http-address", ":0",
+		"--http-address", "127.0.0.1:0",
 		"--access-url", "http://example.com",
 		"--postgres-url", connectionURL,
 		"--cache-dir", t.TempDir(),

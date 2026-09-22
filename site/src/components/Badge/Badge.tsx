@@ -19,6 +19,8 @@ const badgeVariants = cva(
 					"border-surface-secondary bg-surface-secondary text-content-secondary shadow-sm",
 				outline:
 					"border-border bg-transparent text-content-primary shadow-none",
+				dashed:
+					"border-dashed border-border bg-surface-secondary text-content-secondary shadow-none",
 				warning:
 					"border-highlight-orange bg-surface-orange text-highlight-orange shadow-sm",
 				destructive:
@@ -54,6 +56,11 @@ const badgeVariants = cva(
 			},
 			{
 				hover: true,
+				variant: "outline",
+				class: "hover:bg-surface-secondary",
+			},
+			{
+				hover: true,
 				variant: "info",
 				class: "hover:bg-surface-info/20",
 			},
@@ -67,7 +74,7 @@ const badgeVariants = cva(
 	},
 );
 
-export type BadgeProps = React.ComponentPropsWithRef<"div"> &
+export type BadgeProps = React.ComponentProps<"div"> &
 	VariantProps<typeof badgeVariants> & {
 		asChild?: boolean;
 	};

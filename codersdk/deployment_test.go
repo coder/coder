@@ -87,20 +87,6 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"Notifications: Email Auth: Password": {
 			yaml: true,
 		},
-		// We don't want these to be configurable via YAML because they are secrets.
-		// However, we do want to allow them to be shown in documentation.
-		"AI Gateway OpenAI Key": {
-			yaml: true,
-		},
-		"AI Gateway Anthropic Key": {
-			yaml: true,
-		},
-		"AI Gateway Bedrock Access Key": {
-			yaml: true,
-		},
-		"AI Gateway Bedrock Access Key Secret": {
-			yaml: true,
-		},
 	}
 
 	set := (&codersdk.DeploymentValues{}).Options()
@@ -621,7 +607,7 @@ func TestAIGatewayCompatibilityAliases(t *testing.T) {
 		aliases = append(aliases, alias{old: opt, new: newOpt})
 	}
 	// Update this count when adding or removing aibridge alias options.
-	require.Len(t, aliases, 34, "unexpected number of aibridge alias options")
+	require.Len(t, aliases, 24, "unexpected number of aibridge alias options")
 
 	sampleVal := func(opt serpent.Option) any {
 		switch opt.Value.Type() {
@@ -949,6 +935,39 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 			if tt.url != "" {
 				require.NoError(t, dv.AI.Chat.HookURL.Set(tt.url))
 			}
+
+			err := dv.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestDeploymentValues_Validate_ChatStreamSilenceTimeout(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		timeout time.Duration
+		wantErr string
+	}{
+		{name: "Disabled", timeout: 0},
+		{name: "Negative", timeout: -time.Second, wantErr: "chat stream silence timeout"},
+		{name: "Maximum", timeout: 24 * time.Hour},
+		{name: "AboveMaximum", timeout: 24*time.Hour + time.Second, wantErr: "chat stream silence timeout"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := &codersdk.DeploymentValues{}
+			dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
+			dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
+			dv.AI.Chat.StreamSilenceTimeout = serpent.Duration(tt.timeout)
 
 			err := dv.Validate()
 			if tt.wantErr == "" {

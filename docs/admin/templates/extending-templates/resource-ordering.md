@@ -1,4 +1,6 @@
-# UI Resource Ordering
+---
+title: UI resource ordering
+---
 
 In Coder templates, managing the order of UI elements is crucial for a seamless
 user experience. This page outlines how resources can be aligned using the

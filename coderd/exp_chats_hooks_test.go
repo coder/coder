@@ -78,7 +78,7 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 			model := createAdditionalChatModel(t, client, "openai", "gpt-4.1")
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats", codersdk.CreateChatRequest{
+			res, err := client.Request(ctx, http.MethodPost, "/api/v2/chats", codersdk.CreateChatRequest{
 				OrganizationID: user.OrganizationID,
 				ModelConfigID:  &model.ID,
 				Content: []codersdk.ChatInputPart{{

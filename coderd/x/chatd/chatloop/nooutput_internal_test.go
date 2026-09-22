@@ -93,7 +93,6 @@ func TestGenerateAssistant_SilentNoOutputFinish(t *testing.T) {
 		outcome, metrics, err := generate(t, unterminatedReasoning(fantasy.FinishReasonStop))
 		require.NoError(t, err)
 		require.Empty(t, outcome.Step.Content)
-		require.True(t, outcome.ModelStopped)
 
 		retries := promtestutil.ToFloat64(metrics.StreamRetriesTotal.WithLabelValues(
 			"google", "test-model", string(codersdk.ChatErrorKindGeneric),

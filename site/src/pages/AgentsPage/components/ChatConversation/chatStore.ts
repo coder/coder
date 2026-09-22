@@ -97,9 +97,17 @@ const reconnectStatesEqual = (
 	);
 };
 
+/**
+ * Whether the agent's turn is still in progress. `requires_action` counts:
+ * the server is blocked on a client-executed tool call and accepts an
+ * interrupt to cancel it.
+ */
 export const isActiveChatStatus = (
 	status: TypesGen.ChatStatus | null,
-): boolean => status === "running" || status === "interrupting";
+): boolean =>
+	status === "running" ||
+	status === "requires_action" ||
+	status === "interrupting";
 
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;

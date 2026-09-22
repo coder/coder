@@ -70,7 +70,7 @@ replace github.com/charmbracelet/bubbletea => github.com/coder/bubbletea v1.2.2-
 
 // Trivy has some issues that we're floating patches for, and will hopefully
 // be upstreamed eventually.
-replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-20260309164037-c413f5a2f511
+replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-20260911135535-15b949537506
 
 // afero/tarfs has a bug that breaks our usage. A PR has been submitted upstream.
 // https://github.com/spf13/afero/pull/487
@@ -101,8 +101,14 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    trailing chunks cannot zero reported usage.
 // 8) go.mod replaces pointing anthropic-sdk-go and openai-go at the
 //    coder forks below.
-// See: https://github.com/coder/fantasy/commits/833854abc543
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260812122040-833854abc543
+// 9) coder/fantasy#57, reasoning-model override (WithReasoningModelFunc)
+//    and gpt-6+ reasoning classification in getResponsesModelConfig; also
+//    carries upstream #354 (gpt-6+ in IsResponsesModel).
+// 10) coder/fantasy#58, keep media tool results in the Gemini prompt.
+// 11) coder/fantasy mike/mcp-tool-media-batch-order (unmerged), keep OpenAI
+//    tool-result batches contiguous before attaching user media.
+// See: https://github.com/coder/fantasy/commits/9a3598480a71
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260917071228-9a3598480a71
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -124,7 +130,7 @@ replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykoppin
 replace github.com/openai/openai-go/v3 => github.com/coder/openai-go/v3 v3.0.0-20260810175933-92b5addb22d2
 
 require (
-	cdr.dev/slog/v3 v3.1.0
+	cdr.dev/slog/v3 v3.2.0
 	cloud.google.com/go/compute/metadata v0.9.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/Microsoft/go-winio v0.6.2
@@ -157,10 +163,10 @@ require (
 	github.com/coder/terraform-provider-coder/v2 v2.19.0
 	github.com/coder/websocket v1.8.14
 	github.com/coder/wgtunnel v0.2.0
-	github.com/coreos/go-oidc/v3 v3.20.0
+	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.24
-	github.com/dave/dst v0.27.2
+	github.com/dave/dst v0.28.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/dblohm7/wingoes v0.0.0-20240820181039-f2b84150679e
 	github.com/elastic/go-sysinfo v1.15.1
@@ -181,7 +187,7 @@ require (
 	github.com/gofrs/flock v0.13.0
 	github.com/gohugoio/hugo v0.163.3
 	github.com/golang-jwt/jwt/v4 v4.5.2
-	github.com/golang-migrate/migrate/v4 v4.19.0
+	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github/v43 v43.0.1-0.20220414155304-00e42332e405
@@ -201,7 +207,7 @@ require (
 	github.com/justinas/nosurf v1.2.0
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
-	github.com/klauspost/compress v1.19.1
+	github.com/klauspost/compress v1.20.0
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-isatty v0.0.22
 	github.com/mitchellh/go-wordwrap v1.0.1
@@ -232,7 +238,7 @@ require (
 	github.com/tidwall/gjson v1.19.0
 	github.com/u-root/u-root v0.14.0
 	github.com/unrolled/secure v1.17.0
-	github.com/valyala/fasthttp v1.73.0
+	github.com/valyala/fasthttp v1.74.0
 	github.com/wagslane/go-password-validator v0.3.0
 	github.com/zclconf/go-cty-yaml v1.2.0
 	go.nhat.io/otelsql v0.16.0
@@ -245,18 +251,18 @@ require (
 	go.uber.org/goleak v1.3.1-0.20240429205332-517bace7cc29
 	go.uber.org/mock v0.6.0
 	go4.org/netipx v0.0.0-20230728180743-ad4cb58a6516
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.57.0
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f
-	golang.org/x/mod v0.40.0
-	golang.org/x/net v0.58.0
-	golang.org/x/oauth2 v0.36.0
-	golang.org/x/sync v0.22.0
-	golang.org/x/sys v0.47.0
-	golang.org/x/term v0.45.0
-	golang.org/x/text v0.41.0
-	golang.org/x/tools v0.49.0
+	golang.org/x/mod v0.41.0
+	golang.org/x/net v0.59.0
+	golang.org/x/oauth2 v0.37.0
+	golang.org/x/sync v0.23.0
+	golang.org/x/sys v0.48.0
+	golang.org/x/term v0.46.0
+	golang.org/x/text v0.42.0
+	golang.org/x/tools v0.50.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/api v0.295.0
+	google.golang.org/api v0.298.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/DataDog/dd-trace-go.v1 v1.74.0
@@ -299,19 +305,19 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/armon/go-radix v1.0.1-0.20221118154546-54df44f2176c // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.45.1
+	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.1
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.19.1 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.7.1
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.1 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.1 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.3 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.35.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.40.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.47.1
+	github.com/aws/aws-sdk-go-v2/service/sts v1.51.0
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -328,7 +334,7 @@ require (
 	github.com/coreos/go-iptables v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
 	github.com/docker/cli v29.2.0+incompatible // indirect
-	github.com/docker/go-connections v0.6.0 // indirect
+	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dop251/goja v0.0.0-20241024094426-79f3a7efcdbd // indirect
 	github.com/dustin/go-humanize v1.0.1
@@ -507,13 +513,13 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0 // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.9.0 // indirect
 	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.1 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.3 // indirect
 	github.com/charmbracelet/colorprofile v0.4.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
 	github.com/charmbracelet/x/exp/strings v0.1.0 // indirect
 	github.com/go-json-experiment/json v0.0.0-20260623181947-01eb4420fa68 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
-	github.com/google/jsonschema-go v0.4.3 // indirect
+	github.com/google/jsonschema-go v0.4.3
 	github.com/linkdata/deadlock v0.5.5 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
 	github.com/petermattis/goid v0.0.0-20260226131333-17d1149c6ac6 // indirect
@@ -528,12 +534,13 @@ require (
 	charm.land/fantasy v0.8.1
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.15
+	github.com/aws/aws-sdk-go-v2/service/bedrock v1.72.0
 	github.com/aymanbagabas/go-udiff v0.4.1
-	github.com/brianvoe/gofakeit/v7 v7.16.0
+	github.com/brianvoe/gofakeit/v7 v7.17.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.10.0
-	github.com/coder/preview v1.0.10-0.20260521153517-34deb0946c4f
+	github.com/coder/preview v1.0.10-0.20260915135839-c0dfdeecbd89
 	github.com/coder/safedial v0.2.0
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.4.0
@@ -542,7 +549,7 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/invopop/jsonschema v0.14.0
-	github.com/modelcontextprotocol/go-sdk v1.7.0
+	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/nats-io/nats-server/v2 v2.14.2
 	github.com/nats-io/nats.go v1.53.1
 	github.com/openai/openai-go/v3 v3.50.0
@@ -639,8 +646,8 @@ require (
 	github.com/lestrrat-go/jwx/v3 v3.1.1 // indirect
 	github.com/lestrrat-go/option/v2 v2.0.0 // indirect
 	github.com/minio/highwayhash v1.0.4 // indirect
-	github.com/moby/moby/api v1.54.0 // indirect
-	github.com/moby/moby/client v0.3.0 // indirect
+	github.com/moby/moby/api v1.54.2 // indirect
+	github.com/moby/moby/client v0.4.1 // indirect
 	github.com/moby/sys/user v0.4.0 // indirect
 	github.com/nats-io/jwt/v2 v2.8.2 // indirect
 	github.com/nats-io/nkeys v0.4.16 // indirect
@@ -674,7 +681,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.3 // indirect
-	golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5 // indirect
+	golang.org/x/telemetry v0.0.0-20260908163034-4bcc4b2ee518 // indirect
 	google.golang.org/genai v1.67.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d // indirect

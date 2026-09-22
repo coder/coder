@@ -1063,6 +1063,11 @@ const toChatPlanModePayload = (
 	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
 };
 
+export const planModeFieldsForCreateMessage = (
+	clearPlanMode: boolean,
+): { readonly plan_mode?: ChatPlanModeOrClear } =>
+	clearPlanMode ? { plan_mode: toChatPlanModePayload(undefined) } : {};
+
 export const CHAT_SOURCE_ORDER = [
 	...ChatListSources,
 ] as const satisfies readonly TypesGen.ChatListSource[];
@@ -2159,7 +2164,7 @@ export const updateUserChatPersonalModelOverride = (
 	},
 });
 
-const userCompactionThresholdsKey = [
+export const userCompactionThresholdsKey = [
 	...chatConfigKey,
 	"compaction-thresholds",
 	"me",

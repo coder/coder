@@ -45,7 +45,7 @@ const CodernautsSVG = () => (
 	</svg>
 );
 
-interface UserDropdownContentProps {
+type UserDropdownContentProps = {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	/** Extra content for the profile area, rendered below the profile link
@@ -56,7 +56,7 @@ interface UserDropdownContentProps {
 	onSignOut: () => void;
 	/** Premium trial entry, rendered above the build info. */
 	trialCta?: ReactNode;
-}
+};
 
 export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	user,

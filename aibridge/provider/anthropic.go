@@ -69,20 +69,21 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 	// so it is cheap to run at construction.
 	var bedrock *messages.BedrockRuntime
 	if bedrockCfg != nil {
-		creds, resolvedRegion, err := buildBedrockCredentials(ctx, *bedrockCfg)
+		awsCfg, err := buildBedrockCredentials(ctx, *bedrockCfg)
 		if err != nil {
 			return nil, xerrors.Errorf("build bedrock credentials: %w", err)
 		}
 		runtimeCfg := *bedrockCfg
-		// resolvedRegion is bedrockCfg.Region if provided;
+		// awsCfg.Region is bedrockCfg.Region if provided;
 		// otherwise, it is resolved from the environment via awsconfig.LoadDefaultConfig
 		if runtimeCfg.Region == "" {
-			runtimeCfg.Region = resolvedRegion
+			runtimeCfg.Region = awsCfg.Region
 		}
 		if err := runtimeCfg.Validate(); err != nil {
 			return nil, xerrors.Errorf("bedrock config: %w", err)
 		}
-		bedrock = &messages.BedrockRuntime{Cfg: runtimeCfg, Creds: creds}
+
+		bedrock = messages.NewBedrockRuntime(runtimeCfg, awsCfg.Credentials)
 	}
 
 	return &Anthropic{
@@ -184,7 +185,7 @@ func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, er
 		return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
 	}
 	if p.bedrock != nil {
-		return intercept.Bedrock{AccessKey: p.bedrock.Cfg.AccessKey}, nil
+		return intercept.AWSSigV4{AccessKey: p.bedrock.Cfg.AccessKey}, nil
 	}
 	return nil, ErrNoCredential
 }

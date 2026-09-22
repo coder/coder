@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -22,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -664,6 +667,131 @@ func TestUpdateClientConfiguration_LegacyAuthMethodMismatch(t *testing.T) {
 			require.Len(t, secrets, 1)
 		})
 	}
+}
+
+// TestUpdateClientConfiguration_LegacyOversizedScope covers apps that stored
+// a scope list larger than the current limit before the limit existed. An
+// RFC 7592 update replaces every field, so a client changing only its name
+// has to resend that list. Resending it unchanged must succeed, while a new
+// value is still held to the limit.
+func TestUpdateClientConfiguration_LegacyOversizedScope(t *testing.T) {
+	t.Parallel()
+
+	oversized := strings.TrimSpace(strings.Repeat("workspace:read ", codersdk.OAuth2ScopeListMaxNames+1))
+
+	tests := []struct {
+		name       string
+		scope      string
+		wantStatus int
+	}{
+		{
+			name:       "ResendingStoredScopeIsAccepted",
+			scope:      oversized,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "NewOversizedScopeIsRejected",
+			scope:      oversized + " workspace:write",
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			db, _ := dbtestutil.NewDB(t)
+			require.NoError(t, db.UpsertOAuth2DCREnabled(ctx, true))
+
+			legacy := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+				Name:                    "legacy-app",
+				CallbackURL:             "https://example.com/callback",
+				RedirectUris:            []string{"https://example.com/callback"},
+				ClientType:              database.OAuth2ProviderAppClientTypeConfidential,
+				TokenEndpointAuthMethod: sql.NullString{String: "client_secret_basic", Valid: true},
+				DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
+				Scope:                   sql.NullString{String: oversized, Valid: true},
+			})
+
+			logger := slogtest.Make(t, nil)
+			auditor := audit.NewNop()
+			handler := tracing.StatusWriterMiddleware(oauth2provider.UpdateClientConfiguration(db, &auditor, logger))
+
+			body, err := json.Marshal(codersdk.OAuth2ClientRegistrationRequest{
+				ClientName:              "renamed-app",
+				RedirectURIs:            []string{"https://example.com/callback"},
+				TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+				Scope:                   tt.scope,
+			})
+			require.NoError(t, err)
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("client_id", legacy.ID.String())
+			r := httptest.NewRequest(http.MethodPut, "/oauth2/clients/"+legacy.ID.String(),
+				bytes.NewReader(body)).WithContext(context.WithValue(ctx, chi.RouteCtxKey, rctx))
+			r.Header.Set("Content-Type", "application/json")
+			rw := httptest.NewRecorder()
+
+			handler.ServeHTTP(rw, r)
+			require.Equal(t, tt.wantStatus, rw.Code, "body: %s", rw.Body.String())
+
+			app, err := db.GetOAuth2ProviderAppByClientID(ctx, legacy.ID)
+			require.NoError(t, err)
+			// Neither request changes the stored scope: the unchanged value
+			// is kept and the oversized new value is rejected.
+			require.Equal(t, oversized, app.Scope.String)
+			if tt.wantStatus == http.StatusOK {
+				require.Equal(t, "renamed-app", app.Name)
+			} else {
+				require.Equal(t, "legacy-app", app.Name)
+				require.Contains(t, rw.Body.String(), "invalid_client_metadata")
+			}
+		})
+	}
+}
+
+// TestCreateDynamicClientRegistration_BodyTooLarge asserts that an oversized
+// body is rejected with an RFC 7591 error body rather than a codersdk.Response.
+// Every other error in this handler is protocol-shaped, and a client that parses
+// the OAuth2 error shape would fail to read a codersdk.Response, so the status
+// alone is not sufficient.
+func TestCreateDynamicClientRegistration_BodyTooLarge(t *testing.T) {
+	t.Parallel()
+
+	accessURL, err := url.Parse("https://oauth2-registration-too-large-test.example.com")
+	require.NoError(t, err)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	db, _ := dbtestutil.NewDB(t)
+	require.NoError(t, db.UpsertOAuth2DCREnabled(ctx, true))
+
+	logger := slogtest.Make(t, nil)
+	auditor := audit.NewNop()
+	handler := tracing.StatusWriterMiddleware(oauth2provider.CreateDynamicClientRegistration(db, accessURL, &auditor, logger))
+
+	// One valid redirect URI padded past the limit, so size is the only reason
+	// to reject the request.
+	req := codersdk.OAuth2ClientRegistrationRequest{
+		RedirectURIs: []string{"https://example.com/callback"},
+		ClientName:   strings.Repeat("a", httpapi.DefaultMaxRequestBodyBytes),
+	}
+	body, err := json.Marshal(req)
+	require.NoError(t, err)
+	require.Greater(t, len(body), httpapi.DefaultMaxRequestBodyBytes)
+
+	r := httptest.NewRequest(http.MethodPost, "/oauth2/register", bytes.NewReader(body)).WithContext(ctx)
+	r.Header.Set("Content-Type", "application/json")
+	rw := httptest.NewRecorder()
+
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+
+	var errResp map[string]string
+	require.NoError(t, json.Unmarshal(rw.Body.Bytes(), &errResp))
+	require.Equal(t, "invalid_request", errResp["error"])
+	require.Contains(t, errResp["error_description"], strconv.Itoa(httpapi.DefaultMaxRequestBodyBytes))
 }
 
 func TestClientConfiguration_ReportedAuthMethod(t *testing.T) {

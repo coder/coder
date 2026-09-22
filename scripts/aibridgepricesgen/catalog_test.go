@@ -272,7 +272,7 @@ func TestCurationMatchesGeneratedCatalog(t *testing.T) {
 
 	curation := embeddedCuration(t)
 
-	data, err := os.ReadFile("../../site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json")
+	data, err := os.ReadFile("../../site/src/modules/aiModels/knownModels/knownModelsGenerated.json")
 	require.NoError(t, err)
 	var generated map[string][]catalogEntry
 	require.NoError(t, json.Unmarshal(data, &generated))

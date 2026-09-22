@@ -1,4 +1,6 @@
-# Guides and Tutorials
+---
+title: Guides and tutorials
+---
 
 Here you can find a list of employee-written guides on Coder. These tutorials
 are hosted on our [GitHub](https://github.com/coder/coder/) where you can leave

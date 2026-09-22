@@ -56,7 +56,7 @@ export const VerticalForm: FC<HTMLProps<HTMLFormElement>> = ({
 	);
 };
 
-interface FormSectionProps {
+type FormSectionProps = {
 	children?: ReactNode;
 	title: ReactNode;
 	description: ReactNode;
@@ -68,7 +68,7 @@ interface FormSectionProps {
 	alpha?: boolean;
 	deprecated?: boolean;
 	ref?: React.Ref<HTMLElement>;
-}
+};
 
 export const FormSection: FC<FormSectionProps> = ({
 	children,

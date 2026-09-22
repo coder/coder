@@ -127,23 +127,10 @@ type Options struct {
 }
 
 type Client interface {
-	ConnectRPC29(ctx context.Context) (
-		proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
-	)
-	// ConnectRPC29WithRole is like ConnectRPC29 but sends an explicit
-	// role query parameter to the server. The workspace agent should
-	// use role "agent" to enable connection monitoring.
-	ConnectRPC29WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
-	)
-	ConnectRPC210(ctx context.Context) (
-		proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
-	)
-	// ConnectRPC210WithRole is like ConnectRPC210 but sends an explicit
-	// role query parameter to the server. The workspace agent should
-	// use role "agent" to enable connection monitoring.
-	ConnectRPC210WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
+	// ConnectRPC211WithRole connects to the Agent API v2.11. The workspace
+	// agent should use role "agent" to enable connection monitoring.
+	ConnectRPC211WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -475,25 +462,22 @@ func (a *agent) init() {
 
 	pathStore := agentgit.NewPathStore()
 	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo))
-	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, func() string {
+	// workingDirFn reports the workspace directory ("" before the first manifest).
+	workingDirFn := func() string {
 		if m := a.manifest.Load(); m != nil {
 			return m.Directory
 		}
 		return ""
-	})
+	}
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn)
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(
 		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(), nil,
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
-	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"), a.execer, a.updateCommandEnv)
-	a.contextConfigAPI = agentcontextconfig.NewAPI(func() string {
-		if m := a.manifest.Load(); m != nil {
-			return m.Directory
-		}
-		return ""
-	}, a.contextConfig)
+	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"), a.execer, a.filesystem, a.envInfo, a.updateCommandEnv, workingDirFn)
+	a.contextConfigAPI = agentcontextconfig.NewAPI(workingDirFn, a.contextConfig)
 	a.mcpAPI = agentmcp.NewAPI(a.mcpManager)
 
 	// agentcontext.Manager is the new consolidated resolver,
@@ -501,12 +485,6 @@ func (a *agent) init() {
 	// and the MCP manager during rollout. Initial sources are
 	// seeded from the existing CODER_AGENT_EXP_* env vars and
 	// from the agent's working directory at scan time.
-	workingDirFn := func() string {
-		if m := a.manifest.Load(); m != nil {
-			return m.Directory
-		}
-		return ""
-	}
 	a.contextManager = agentcontext.NewManager(agentcontext.ManagerOptions{
 		Logger:         a.logger.Named("agentcontext"),
 		Clock:          a.clock,
@@ -1175,7 +1153,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC210WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC211WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -2161,13 +2139,13 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		stats.TxPackets += int64(counts.TxPackets)
 	}
 
-	// The count of active sessions; types without a protocol field are dropped.
-	sessionCounts := a.sshServer.SessionCounts()
-	stats.SessionCountSsh = sessionCounts[string(codersdk.AppFamilySSH)]
-	stats.SessionCountVscode = sessionCounts[string(codersdk.AppFamilyVSCode)]
-	stats.SessionCountJetbrains = sessionCounts[string(codersdk.AppFamilyJetBrains)]
-
-	stats.SessionCountReconnectingPty = a.reconnectingPTYServer.ConnCount()
+	// A client picks its own app name and can pick reconnecting_pty, so add
+	// rather than overwrite. A non-empty map suppresses the deprecated
+	// session_count_* fields on ingest, so leave them zero.
+	stats.SessionCounts = a.sshServer.SessionCounts()
+	if count := a.reconnectingPTYServer.ConnCount(); count > 0 {
+		stats.SessionCounts[string(codersdk.AppFamilyReconnectingPTY)] += count
+	}
 
 	// Compute the median connection latency!
 	a.logger.Debug(ctx, "starting peer latency measurement for stats")

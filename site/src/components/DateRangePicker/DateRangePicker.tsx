@@ -22,10 +22,10 @@ export type DateRangeValue = {
 	endDate: Date;
 };
 
-interface DateRangePreset {
+type DateRangePreset = {
 	label: string;
 	range: () => { from: Date; to: Date };
-}
+};
 
 const buildDefaultPresets = (now?: Date): DateRangePreset[] => {
 	const getCurrentTime = () => dayjs(now ?? new Date());
@@ -77,13 +77,13 @@ const buildDefaultPresets = (now?: Date): DateRangePreset[] => {
 	];
 };
 
-interface DateRangePickerProps {
+type DateRangePickerProps = {
 	value: DateRangeValue;
 	onChange: (value: DateRangeValue) => void;
 	now?: Date;
 	presets?: DateRangePreset[];
 	size?: ButtonProps["size"];
-}
+};
 
 /**
  * Normalise a calendar selection into the API-friendly boundary format

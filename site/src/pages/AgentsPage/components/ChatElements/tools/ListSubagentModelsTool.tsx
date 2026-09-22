@@ -1,8 +1,8 @@
 import type React from "react";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
+import { formatContextLimit } from "#/modules/aiModels/ModelSelector";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel } from "#/utils/aiProviders";
-import { formatContextLimit } from "../ModelSelector";
 import { ToolCall } from "./ToolCall";
 import { asNumber, asRecord, asString, type ToolStatus } from "./utils";
 

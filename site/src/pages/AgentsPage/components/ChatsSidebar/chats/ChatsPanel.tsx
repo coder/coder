@@ -63,7 +63,7 @@ const UNREAD_SECTION_KEY = "Unread";
 const READ_SECTION_KEY = "Read";
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
-interface ChatsPanelProps {
+type ChatsPanelProps = {
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
@@ -97,7 +97,7 @@ interface ChatsPanelProps {
 	readonly isChatsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
-}
+};
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
 	chats,
@@ -524,11 +524,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														(disablePinnedReordering ? (
 															<div className="flex flex-col gap-0.5">
 																{sortedPinnedChats.map((chat) => (
-																	<ChatTreeNode
-																		key={chat.id}
-																		chat={chat}
-																		isChildNode={false}
-																	/>
+																	<ChatTreeNode key={chat.id} chat={chat} />
 																))}
 															</div>
 														) : (
@@ -582,11 +578,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 													{!collapsedSections[SHARED_WITH_YOU_SECTION_KEY] && (
 														<div className="flex flex-col gap-0.5">
 															{sharedWithYouChats.map((chat) => (
-																<ChatTreeNode
-																	key={chat.id}
-																	chat={chat}
-																	isChildNode={false}
-																/>
+																<ChatTreeNode key={chat.id} chat={chat} />
 															))}
 														</div>
 													)}
@@ -607,11 +599,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														{isSectionExpanded && (
 															<div className="flex flex-col gap-0.5">
 																{section.chats.map((chat) => (
-																	<ChatTreeNode
-																		key={chat.id}
-																		chat={chat}
-																		isChildNode={false}
-																	/>
+																	<ChatTreeNode key={chat.id} chat={chat} />
 																))}
 															</div>
 														)}

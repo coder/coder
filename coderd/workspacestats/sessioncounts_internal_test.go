@@ -11,7 +11,8 @@ import (
 
 // sessionCountsFromProto is what the batcher applies on ingest.
 func sessionCountsFromProto(st *agentproto.Stats) map[string]int64 {
-	return capSessionCounts(normalizedSessionCounts(st))
+	counts, _ := capSessionCounts(normalizedSessionCounts(st))
+	return counts
 }
 
 func TestSessionCountsFromProto(t *testing.T) {

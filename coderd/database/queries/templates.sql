@@ -71,10 +71,10 @@ WHERE
 			END
 		ELSE true
 	END
-	-- Filter by has_ai_task in latest version
+	-- Filter by classic parameter flow
 	AND CASE
-		WHEN sqlc.narg('has_ai_task') :: boolean IS NOT NULL THEN
-			tv.has_ai_task = sqlc.narg('has_ai_task') :: boolean
+		WHEN sqlc.narg('use_classic_parameter_flow') :: boolean IS NOT NULL THEN
+			t.use_classic_parameter_flow = sqlc.narg('use_classic_parameter_flow') :: boolean
 		ELSE true
 	END
 	-- Filter by agents_allowed

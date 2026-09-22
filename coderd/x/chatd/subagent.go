@@ -73,28 +73,6 @@ type modelOverrideProviderKeysResolver func(
 	uuid.UUID,
 ) (chatprovider.ProviderAPIKeys, error)
 
-type parsedModelOverride struct {
-	modelConfigID   uuid.UUID
-	reasoningEffort *string
-}
-
-func parseModelOverride(raw string) (parsedModelOverride, bool) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return parsedModelOverride{}, true
-	}
-	rawID, rawEffort, hasEffort := strings.Cut(trimmed, ":")
-	modelConfigID, err := uuid.Parse(rawID)
-	if err != nil || (hasEffort && rawEffort == "") {
-		return parsedModelOverride{}, false
-	}
-	parsed := parsedModelOverride{modelConfigID: modelConfigID}
-	if hasEffort {
-		parsed.reasoningEffort = &rawEffort
-	}
-	return parsed, true
-}
-
 const (
 	subagentAwaitPollInterval  = 200 * time.Millisecond
 	subagentAwaitFallbackPoll  = 5 * time.Second
@@ -211,122 +189,6 @@ const (
 
 func modelOverrideErrorLabel(overrideContext string) string {
 	return strings.ReplaceAll(overrideContext, "_", " ")
-}
-
-// resolveConfiguredModelOverride returns ok when a usable override is
-// resolved. In hard failure mode, ok is also true for configured but unusable
-// overrides so callers can distinguish them from unset or malformed values.
-// The normalized provider name is only meaningful for a usable override.
-func (p *Server) resolveConfiguredModelOverride(
-	ctx context.Context,
-	overrideContext string,
-	raw string,
-	ownerID uuid.UUID,
-	resolveModelConfig modelOverrideConfigResolver,
-	resolveProviderKeys modelOverrideProviderKeysResolver,
-	failureMode modelOverrideFailureMode,
-) (database.ChatModelConfig, string, *string, bool, error) {
-	parsed, ok := parseModelOverride(raw)
-	if !ok {
-		p.logger.Info(ctx,
-			"invalid model override, ignoring",
-			slog.F("override_context", overrideContext),
-			slog.F("raw_model_config_id", strings.TrimSpace(raw)),
-		)
-		return database.ChatModelConfig{}, "", nil, false, nil
-	}
-	if parsed.modelConfigID == uuid.Nil {
-		return database.ChatModelConfig{}, "", nil, false, nil
-	}
-
-	modelConfig, providerName, err := resolveModelConfig(
-		ctx,
-		parsed.modelConfigID,
-	)
-	if err != nil {
-		if failureMode == modelOverrideFailureModeHard {
-			label := modelOverrideErrorLabel(overrideContext)
-			switch {
-			case errors.Is(err, sql.ErrNoRows), errors.Is(err, errModelConfigOutsideOrganization):
-				return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
-					"%s model override is unavailable: %s: %w",
-					label,
-					parsed.modelConfigID,
-					err,
-				)
-			case errors.Is(err, errInvalidModelOverrideMetadata):
-				return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
-					"%s model override metadata is invalid for %s: %w",
-					label,
-					parsed.modelConfigID,
-					err,
-				)
-			default:
-				return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
-					"resolve %s model override %s: %w",
-					label,
-					parsed.modelConfigID,
-					err,
-				)
-			}
-		}
-
-		switch {
-		case errors.Is(err, errModelConfigOutsideOrganization):
-			p.logger.Info(ctx,
-				"model override belongs to another organization, ignoring",
-				slog.F("override_context", overrideContext),
-				slog.F("model_config_id", parsed.modelConfigID),
-			)
-		case errors.Is(err, sql.ErrNoRows):
-			p.logger.Info(ctx,
-				"model override is unavailable, ignoring",
-				slog.F("override_context", overrideContext),
-				slog.F("model_config_id", parsed.modelConfigID),
-			)
-		case errors.Is(err, errInvalidModelOverrideMetadata):
-			p.logger.Info(ctx,
-				"model override metadata is invalid, ignoring",
-				slog.F("override_context", overrideContext),
-				slog.F("model_config_id", parsed.modelConfigID),
-				slog.Error(err),
-			)
-		default:
-			p.logger.Warn(ctx,
-				"failed to resolve model override, ignoring",
-				slog.F("override_context", overrideContext),
-				slog.F("model_config_id", parsed.modelConfigID),
-				slog.Error(err),
-			)
-		}
-		return database.ChatModelConfig{}, "", nil, false, nil
-	}
-
-	providerKeys, err := resolveProviderKeys(ctx, ownerID, modelConfigAIProviderID(modelConfig))
-	if err != nil {
-		return database.ChatModelConfig{}, "", nil, false, xerrors.Errorf(
-			"resolve provider API keys: %w",
-			err,
-		)
-	}
-	if !userCanUseProviderKeys(providerKeys, providerName) {
-		if failureMode == modelOverrideFailureModeHard {
-			return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
-				"%s model override credentials are unavailable for provider %q",
-				modelOverrideErrorLabel(overrideContext),
-				providerName,
-			)
-		}
-
-		p.logger.Info(ctx,
-			"model override credentials are unavailable, ignoring",
-			slog.F("override_context", overrideContext),
-			slog.F("model_config_id", parsed.modelConfigID),
-			slog.F("provider", providerName),
-		)
-		return database.ChatModelConfig{}, "", nil, false, nil
-	}
-	return modelConfig, providerName, parsed.reasoningEffort, true, nil
 }
 
 // resolveOrganizationModelOverride resolves an override row whose composite
@@ -931,8 +793,10 @@ func (p *Server) subagentTools(
 			"wait_agent",
 			"Wait for a spawned child agent to finish and return its response "+
 				"and status. Returns immediately when the agent finishes, even if "+
-				"a longer timeout is set. A timeout does not stop the agent; call "+
-				"wait_agent again or use list_agents to check its status.",
+				"a longer timeout is set. A timeout does not stop the child; it "+
+				"still owns its task. Wait again or check its status with "+
+				"list_agents; do not take over its work without an acknowledged "+
+				"handoff.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -1079,11 +943,16 @@ func (p *Server) subagentTools(
 			"message_agent",
 			"Send a follow-up message to a previously spawned child "+
 				"agent. If the agent is idle, it resumes work on the "+
-				"message. If the agent is busy, the message is queued and "+
-				"processed after current work. Set interrupt to true to "+
-				"stop the agent's current work; the message is queued and "+
-				"processed next, after any already-queued messages. "+
-				"After sending, use wait_agent to retrieve the response.",
+				"message. If it is busy, the message is queued behind its "+
+				"current work and any earlier queued messages; set interrupt "+
+				"to true for corrections, changed scope, or a handoff that "+
+				"returns the child's task to you, so its current work stops "+
+				"first. Interrupting does not clear earlier queued messages, "+
+				"and the tool result does not confirm the child has stopped. "+
+				"Use wait_agent to collect the child's response. A handoff is "+
+				"acknowledged only when wait_agent returns the child's response "+
+				"to your handoff message; a message_agent result or an "+
+				"interrupting status is not an acknowledgment.",
 			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil

@@ -2,10 +2,10 @@ import type { FC } from "react";
 import { InlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { readableForegroundColor } from "#/utils/colors";
 
-interface AnnouncementBannerViewProps {
+type AnnouncementBannerViewProps = {
 	message: string;
 	backgroundColor: string;
-}
+};
 
 export const AnnouncementBannerView: FC<AnnouncementBannerViewProps> = ({
 	message,
