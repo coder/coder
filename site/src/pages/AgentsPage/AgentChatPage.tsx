@@ -1,9 +1,4 @@
-import {
-	MessageScroller,
-	useMessageScroller,
-} from "@shadcn/react/message-scroller";
 import { type FC, useEffect, useRef, useState } from "react";
-
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -49,6 +44,7 @@ import {
 } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
+import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
