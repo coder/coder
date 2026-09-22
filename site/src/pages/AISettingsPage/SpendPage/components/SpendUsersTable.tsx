@@ -99,7 +99,7 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({ reportQuery }) => {
 								</TableHead>
 							</TableRow>
 						</TableHeader>
-						<TableBody>
+						<TableBody size="lg">
 							{report.users.length === 0 ? (
 								<TableEmpty message="No AI Gateway spend found" isCompact />
 							) : (
@@ -124,7 +124,7 @@ const SpendUserRow: FC<SpendUserRowProps> = ({ user }) => (
 		{/* The row header gives the count badges and warning their user. */}
 		<TableHead
 			scope="row"
-			className="border-0 border-t border-border border-solid py-2"
+			className="border-0 border-t border-border border-solid"
 		>
 			<AvatarData
 				truncate
