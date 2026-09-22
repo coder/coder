@@ -1,7 +1,13 @@
-import { renderHook as renderHookBase, waitFor } from "@testing-library/react";
+import {
+	configure,
+	getConfig,
+	renderHook as renderHookBase,
+	waitFor,
+} from "@testing-library/react";
 import { act, createElement, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { UploadChatWorkspaceFileResponse } from "#/api/typesGenerated";
 import { useWorkspaceFileUploads } from "./useWorkspaceFileUploads";
 
 vi.mock("#/api/api", () => ({
@@ -82,17 +88,287 @@ describe("useWorkspaceFileUploads", () => {
 		expect(result.current.uploads[0].error).toBeTruthy();
 	});
 
-	it("errors immediately without a chat id", () => {
+	it("queues entries without a chat id until uploadQueued runs them", async () => {
+		uploadMock.mockResolvedValue(okResponse);
 		const { result } = renderHook(() =>
-			useWorkspaceFileUploads(undefined, "ws-1"),
+			useWorkspaceFileUploads(undefined, undefined),
+		);
+
+		act(() => {
+			result.current.attach([makeFile("a.tar"), makeFile("b.tar")]);
+		});
+
+		expect(result.current.uploads).toHaveLength(2);
+		expect(result.current.uploads.every((u) => u.status === "queued")).toBe(
+			true,
+		);
+		expect(uploadMock).not.toHaveBeenCalled();
+
+		let settled: readonly { status: string }[] = [];
+		await act(async () => {
+			settled = await result.current.uploadQueued("chat-9");
+		});
+
+		expect(settled).toHaveLength(2);
+		expect(settled.every((u) => u.status === "uploaded")).toBe(true);
+		expect(result.current.uploads.every((u) => u.status === "uploaded")).toBe(
+			true,
+		);
+		expect(uploadMock).toHaveBeenCalledWith(
+			"chat-9",
+			expect.any(File),
+			expect.any(AbortSignal),
+		);
+	});
+
+	it("uploadQueued proceeds after a StrictMode simulated unmount", async () => {
+		// StrictMode only replays mount effects for the root or a newly
+		// placed subtree inside it, so a StrictMode wrapper component
+		// around the hook would not exercise the remount.
+		const previousStrictMode = getConfig().reactStrictMode;
+		configure({ reactStrictMode: true });
+		try {
+			uploadMock.mockResolvedValue(okResponse);
+			const { result } = renderHook(() =>
+				useWorkspaceFileUploads(undefined, undefined),
+			);
+
+			act(() => {
+				result.current.attach([makeFile("a.tar")]);
+			});
+
+			let settled: readonly { status: string }[] = [];
+			await act(async () => {
+				settled = await result.current.uploadQueued("chat-9");
+			});
+
+			expect(settled).toHaveLength(1);
+			expect(settled[0].status).toBe("uploaded");
+		} finally {
+			configure({ reactStrictMode: previousStrictMode });
+		}
+	});
+
+	it("does not upload an entry removed before a deferred callback runs", async () => {
+		uploadMock.mockResolvedValue(okResponse);
+		const { result } = renderHook(() =>
+			useWorkspaceFileUploads(undefined, undefined),
+		);
+
+		act(() => {
+			result.current.attach([makeFile()]);
+		});
+		const uploadQueued = result.current.uploadQueued;
+		const [entry] = result.current.uploads;
+
+		act(() => {
+			result.current.remove(entry.id);
+		});
+
+		let settled: readonly { status: string }[] = [];
+		await act(async () => {
+			settled = await uploadQueued("chat-9");
+		});
+
+		expect(settled).toHaveLength(0);
+		expect(uploadMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects a deferred callback invalidated before it runs", async () => {
+		uploadMock.mockResolvedValue(okResponse);
+		const { result } = renderHook(() =>
+			useWorkspaceFileUploads(undefined, undefined),
+		);
+
+		act(() => {
+			result.current.attach([makeFile()]);
+		});
+		const uploadQueued = result.current.uploadQueued;
+
+		act(() => {
+			result.current.reset();
+		});
+
+		await expect(uploadQueued("chat-9")).rejects.toMatchObject({
+			name: "AbortError",
+		});
+		expect(uploadMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects uploadQueued when reset cancels an in-flight submission", async () => {
+		let capturedSignal: AbortSignal | undefined;
+		uploadMock.mockImplementationOnce(
+			(_chatId: string, _file: File, signal?: AbortSignal) => {
+				capturedSignal = signal;
+				return new Promise((_resolve, reject) => {
+					signal?.addEventListener(
+						"abort",
+						() => reject(new DOMException("aborted", "AbortError")),
+						{ once: true },
+					);
+				});
+			},
+		);
+		const { result } = renderHook(() =>
+			useWorkspaceFileUploads(undefined, undefined),
+		);
+
+		act(() => {
+			result.current.attach([makeFile()]);
+		});
+		const settledPromise = result.current.uploadQueued("chat-9");
+		await waitFor(() => {
+			expect(uploadMock).toHaveBeenCalledOnce();
+		});
+
+		let settledError: unknown;
+		await act(async () => {
+			result.current.reset();
+			try {
+				await settledPromise;
+			} catch (error) {
+				settledError = error;
+			}
+		});
+
+		expect(settledError).toMatchObject({ name: "AbortError" });
+		expect(capturedSignal?.aborted).toBe(true);
+	});
+
+	it("uploadQueued reports per-file failures and keeps chips in error state", async () => {
+		uploadMock
+			.mockResolvedValueOnce(okResponse)
+			.mockRejectedValueOnce(new Error("boom"));
+		const { result } = renderHook(() =>
+			useWorkspaceFileUploads(undefined, undefined),
+		);
+
+		act(() => {
+			result.current.attach([makeFile("a.tar"), makeFile("b.tar")]);
+		});
+
+		let settled: readonly { status: string }[] = [];
+		await act(async () => {
+			settled = await result.current.uploadQueued("chat-9");
+		});
+
+		expect(settled).toHaveLength(2);
+		expect(settled.filter((u) => u.status === "uploaded")).toHaveLength(1);
+		expect(settled.filter((u) => u.status === "error")).toHaveLength(1);
+		expect(
+			result.current.uploads.filter((u) => u.status === "error"),
+		).toHaveLength(1);
+	});
+
+	it("uploadQueued re-uploads every entry on retry", async () => {
+		uploadMock
+			.mockRejectedValueOnce(new Error("boom"))
+			.mockResolvedValue(okResponse);
+		const { result } = renderHook(() =>
+			useWorkspaceFileUploads(undefined, undefined),
 		);
 
 		act(() => {
 			result.current.attach([makeFile()]);
 		});
 
+		await act(async () => {
+			await result.current.uploadQueued("chat-1");
+		});
 		expect(result.current.uploads[0].status).toBe("error");
-		expect(uploadMock).not.toHaveBeenCalled();
+
+		// The retry targets a fresh chat, so the failed entry uploads
+		// again rather than being skipped.
+		let settled: readonly { status: string }[] = [];
+		await act(async () => {
+			settled = await result.current.uploadQueued("chat-2");
+		});
+
+		expect(settled).toHaveLength(1);
+		expect(settled[0].status).toBe("uploaded");
+		expect(uploadMock).toHaveBeenLastCalledWith(
+			"chat-2",
+			expect.any(File),
+			expect.any(AbortSignal),
+		);
+	});
+
+	it("uploadQueued excludes entries removed mid-upload", async () => {
+		let resolveUpload:
+			| ((value: UploadChatWorkspaceFileResponse) => void)
+			| undefined;
+		uploadMock.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveUpload = resolve;
+				}),
+		);
+		uploadMock.mockResolvedValueOnce(okResponse);
+		const { result } = renderHook(() =>
+			useWorkspaceFileUploads(undefined, undefined),
+		);
+
+		act(() => {
+			result.current.attach([makeFile("a.tar"), makeFile("b.tar")]);
+		});
+		const [first] = result.current.uploads;
+
+		let settledPromise: Promise<readonly { status: string }[]> | undefined;
+		act(() => {
+			settledPromise = result.current.uploadQueued("chat-1");
+		});
+		act(() => {
+			result.current.remove(first.id);
+		});
+		resolveUpload?.(okResponse);
+
+		const settled = await settledPromise;
+		expect(settled).toHaveLength(1);
+		expect(settled?.[0].status).toBe("uploaded");
+		expect(result.current.uploads).toHaveLength(1);
+	});
+
+	it("uploadQueued excludes entries removed after their upload completed", async () => {
+		let resolveSecond:
+			| ((value: UploadChatWorkspaceFileResponse) => void)
+			| undefined;
+		uploadMock.mockResolvedValueOnce(okResponse);
+		uploadMock.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveSecond = resolve;
+				}),
+		);
+		const { result } = renderHook(() =>
+			useWorkspaceFileUploads(undefined, undefined),
+		);
+
+		act(() => {
+			result.current.attach([makeFile("a.tar"), makeFile("b.tar")]);
+		});
+		const [first] = result.current.uploads;
+
+		let settledPromise:
+			| Promise<readonly { id: string; status: string }[]>
+			| undefined;
+		act(() => {
+			settledPromise = result.current.uploadQueued("chat-1");
+		});
+		// The first file settles as uploaded while the second is still
+		// in flight; removing its chip now must drop it from the final
+		// results even though its settle promise already resolved.
+		await waitFor(() => {
+			expect(result.current.uploads[0]?.status).toBe("uploaded");
+		});
+		act(() => {
+			result.current.remove(first.id);
+		});
+		resolveSecond?.(okResponse);
+
+		const settled = await settledPromise;
+		expect(settled).toHaveLength(1);
+		expect(settled?.[0].id).not.toBe(first.id);
+		expect(result.current.uploads).toHaveLength(1);
 	});
 
 	it("remove aborts an in-flight upload and drops the entry", async () => {

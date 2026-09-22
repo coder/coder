@@ -13,6 +13,8 @@ import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
 
 const uploadStatusLabel = (upload: WorkspaceFileUpload): string => {
 	switch (upload.status) {
+		case "queued":
+			return "Uploads when sent";
 		case "uploading":
 			return "Uploading to workspace...";
 		case "uploaded":
@@ -88,9 +90,9 @@ export const WorkspaceUploadPreview: FC<{
 							<TooltipContent side="top">
 								{upload.status === "uploaded"
 									? "Removes the reference. Uploaded bytes stay in the workspace."
-									: upload.status === "error"
-										? "Remove this file"
-										: "Cancel this upload"}
+									: upload.status === "uploading"
+										? "Cancel this upload"
+										: "Remove this file"}
 							</TooltipContent>
 						</Tooltip>
 					</div>

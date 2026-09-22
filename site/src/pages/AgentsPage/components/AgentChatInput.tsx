@@ -115,6 +115,10 @@ type WorkspaceUploadsProps = {
 	// is unavailable. Overridden on the new-chat page, where the fix
 	// is selecting a workspace rather than attaching one to the chat.
 	unavailableMessage?: string;
+	// Deferred mode (new-chat page): entries upload during submit and
+	// every entry re-uploads on the next send after a failure, so
+	// error chips still count as sendable content.
+	deferred?: boolean;
 };
 
 const workspaceRequiredAttachmentMessage =
@@ -978,9 +982,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const hasActiveUploads =
 		attachments.some((file) => isUploadInProgress(uploadStates?.get(file))) ||
 		workspaceUploadEntries.some((upload) => upload.status === "uploading");
+	// Queued workspace entries upload during submit (deferred mode),
+	// so they count as sendable content just like finished uploads. In
+	// deferred mode failed entries stay sendable too: the next send
+	// re-uploads them against the fresh chat.
 	const hasUploadedAttachments =
 		attachments.some((f) => uploadStates?.get(f)?.status === "uploaded") ||
-		workspaceUploadEntries.some((upload) => upload.status === "uploaded");
+		workspaceUploadEntries.some(
+			(upload) =>
+				upload.status === "uploaded" ||
+				upload.status === "queued" ||
+				(workspaceUploads?.deferred === true && upload.status === "error"),
+		);
 	const hasDraftContext =
 		hasContent ||
 		attachments.length > 0 ||
@@ -1303,6 +1316,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					<input
 						ref={fileInputRef}
 						type="file"
+						data-testid="chat-attachment-file-input"
 						multiple
 						accept={
 							onWorkspaceAttach ? undefined : chatAttachmentAcceptAttribute
