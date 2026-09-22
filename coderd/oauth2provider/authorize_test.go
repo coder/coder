@@ -394,8 +394,8 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Empty(t, getResp.Header.Get("Location"),
 			"GET: a dangerous scheme must never reach a Location header")
 		getBody := readBody(t, getResp)
-		require.Contains(t, getBody, "Invalid Callback URL",
-			"GET: the failure must name the callback URL, not the scope")
+		require.Contains(t, getBody, "Invalid Redirect URI",
+			"GET: the failure must name the redirect URI, not the scope")
 		require.NotContains(t, getBody, "javascript:",
 			"GET: the scheme must not reach the page as a link either")
 
@@ -406,8 +406,8 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 			"POST: a dangerous scheme must never reach a Location header")
 		postBody := readBody(t, postResp)
 		require.Contains(t, postBody, string(codersdk.OAuth2ErrorCodeServerError))
-		require.Contains(t, postBody, "callback URL is not usable",
-			"POST: the failure must name the callback, not just the error class")
+		require.Contains(t, postBody, "registered redirect URIs is not usable",
+			"POST: the failure must name the redirect URI, not just the error class")
 	})
 
 	// The other half of the same class: a stored callback that does not even
@@ -428,8 +428,8 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		defer getResp.Body.Close()
 		require.Equal(t, http.StatusInternalServerError, getResp.StatusCode)
 		getBody := readBody(t, getResp)
-		require.Contains(t, getBody, "Invalid Callback URL",
-			"GET: the failure must name the callback URL")
+		require.Contains(t, getBody, "Invalid Redirect URI",
+			"GET: the failure must name the redirect URI")
 		require.NotContains(t, getBody, unparsable,
 			"GET: the Go parse error carries the stored URL, which must not reach the page")
 
@@ -438,7 +438,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, http.StatusInternalServerError, postResp.StatusCode)
 		postBody := readBody(t, postResp)
 		require.Contains(t, postBody, string(codersdk.OAuth2ErrorCodeServerError))
-		require.Contains(t, postBody, "callback URL is not usable",
+		require.Contains(t, postBody, "registered redirect URIs is not usable",
 			"POST: nothing was validated, so the description must not blame the query")
 	})
 
