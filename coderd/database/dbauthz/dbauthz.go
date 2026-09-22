@@ -3473,6 +3473,19 @@ func (q *querier) GetChatMessageByID(ctx context.Context, id int64) (database.Ch
 	return msg, nil
 }
 
+func (q *querier) GetChatMessageByIDForStream(ctx context.Context, id int64) (database.ChatMessage, error) {
+	msg, err := q.db.GetChatMessageByIDForStream(ctx, id)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	// Authorize read on the parent chat.
+	_, err = q.GetChatByID(ctx, msg.ChatID)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	return msg, nil
+}
+
 func (q *querier) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesPerChatRow, error) {
 	// Telemetry queries are called from system contexts only.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {

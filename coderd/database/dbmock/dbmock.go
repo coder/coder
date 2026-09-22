@@ -3074,6 +3074,21 @@ func (mr *MockStoreMockRecorder) GetChatMessageByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessageByID", reflect.TypeOf((*MockStore)(nil).GetChatMessageByID), ctx, id)
 }
 
+// GetChatMessageByIDForStream mocks base method.
+func (m *MockStore) GetChatMessageByIDForStream(ctx context.Context, id int64) (database.ChatMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessageByIDForStream", ctx, id)
+	ret0, _ := ret[0].(database.ChatMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessageByIDForStream indicates an expected call of GetChatMessageByIDForStream.
+func (mr *MockStoreMockRecorder) GetChatMessageByIDForStream(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessageByIDForStream", reflect.TypeOf((*MockStore)(nil).GetChatMessageByIDForStream), ctx, id)
+}
+
 // GetChatMessageSummariesPerChat mocks base method.
 func (m *MockStore) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesPerChatRow, error) {
 	m.ctrl.T.Helper()

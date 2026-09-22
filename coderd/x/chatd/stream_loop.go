@@ -218,10 +218,10 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 }
 
 // initialSyncCursor resolves afterMessageID to bound the first fetch by
-// revision. Missing or foreign cursors use an unbounded scan so deletions can
-// trigger a history reset.
+// revision. Deleted and unknown cursors keep the unbounded scan so tombstones
+// can force a reset, and a cursor from another chat also drops the ID cutoff.
 func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (database.ChatMessage, bool, error) {
-	cursor, err := tx.GetChatMessageByID(ctx, l.state.afterMessageID)
+	cursor, err := tx.GetChatMessageByIDForStream(ctx, l.state.afterMessageID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return database.ChatMessage{}, false, nil
@@ -231,6 +231,10 @@ func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (
 	if cursor.ChatID != l.chatID {
 		// Another chat's ID says nothing about which messages the client holds.
 		l.state.afterMessageID = 0
+		return database.ChatMessage{}, false, nil
+	}
+	if cursor.Deleted {
+		// Deletion bumped its revision, so bounding by it would skip the reset.
 		return database.ChatMessage{}, false, nil
 	}
 	return cursor, true, nil

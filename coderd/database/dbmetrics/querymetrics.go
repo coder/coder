@@ -1640,6 +1640,14 @@ func (m queryMetricsStore) GetChatMessageByID(ctx context.Context, id int64) (da
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatMessageByIDForStream(ctx context.Context, id int64) (database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMessageByIDForStream(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatMessageByIDForStream").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessageByIDForStream").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesPerChatRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatMessageSummariesPerChat(ctx, createdAfter)

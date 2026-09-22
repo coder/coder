@@ -10218,18 +10218,32 @@ func TestStreamChat(t *testing.T) {
 		otherPage, err := client.GetChatMessages(ctx, other.ID, nil)
 		require.NoError(t, err)
 		require.NotEmpty(t, otherPage.Messages)
+		foreignID := otherPage.Messages[0].ID
 
-		afterID := otherPage.Messages[0].ID
-		events, closer, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterID: &afterID})
-		require.NoError(t, err)
-		defer closer.Close()
+		requireFullHistory := func(msg string) {
+			t.Helper()
+			events, closer, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterID: &foreignID})
+			require.NoError(t, err)
+			defer closer.Close()
 
-		snapshot := readStreamChatSnapshot(ctx, t, events)
-		require.True(t, streamChatSnapshotHasText(snapshot, initialMessage), "foreign cursor must fall back to the full history")
-		require.False(t, streamChatSnapshotHasText(snapshot, otherMessage), "foreign cursor must not leak another chat's messages")
-		for _, event := range snapshot {
-			require.Equal(t, chat.ID, event.ChatID)
+			snapshot := readStreamChatSnapshot(ctx, t, events)
+			require.Empty(t, streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeHistoryReset))
+			require.True(t, streamChatSnapshotHasText(snapshot, initialMessage), msg)
+			require.False(t, streamChatSnapshotHasText(snapshot, otherMessage), "foreign cursor must not leak another chat's messages")
+			for _, event := range snapshot {
+				require.Equal(t, chat.ID, event.ChatID)
+			}
 		}
+		requireFullHistory("foreign cursor must fall back to the full history")
+
+		// The edit soft-deletes the cursor, which must still resolve as foreign.
+		_, err = client.EditChatMessage(ctx, other.ID, foreignID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "stream chat other chat edited"},
+			},
+		})
+		require.NoError(t, err)
+		requireFullHistory("deleted foreign cursor must fall back to the full history")
 	})
 
 	t.Run("Unauthenticated", func(t *testing.T) {

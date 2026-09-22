@@ -484,6 +484,9 @@ type sqlcQuerier interface {
 	// otherwise the setting defaults to true.
 	GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error)
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
+	// Includes deleted rows so the stream can resolve which chat a deleted cursor
+	// belongs to.
+	GetChatMessageByIDForStream(ctx context.Context, id int64) (ChatMessage, error)
 	// Aggregates message-level metrics per chat for messages created
 	// after the given timestamp. Uses message created_at so that
 	// ongoing activity in long-running chats is captured each window.
