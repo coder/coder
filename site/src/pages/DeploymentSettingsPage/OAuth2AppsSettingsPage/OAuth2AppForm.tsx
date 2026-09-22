@@ -123,31 +123,28 @@ const redirectURIsSchema = (isPublicClient: boolean) =>
 					"valid-redirect-uri",
 					"Please enter a valid redirect URI.",
 					(value) => isValidCallbackURL(value, isPublicClient),
-				)
-				// The server also deduplicates on save, so without this the form
-				// would submit a URI it never actually saved and mislead the user.
-				.test(
-					"unique-redirect-uri",
-					"This redirect URI is already used by another row.",
-					function (value) {
-						const trimmed = value?.trim();
-						if (!trimmed) {
-							return true;
-						}
-						const siblings: unknown = this.parent;
-						if (!Array.isArray(siblings)) {
-							return true;
-						}
-						const ownIndexMatch = /\[(\d+)\]$/.exec(this.path);
-						if (!ownIndexMatch) {
-							return true;
-						}
-						const firstIndex = siblings.findIndex(
-							(uri) => typeof uri === "string" && uri.trim() === trimmed,
-						);
-						return firstIndex === Number(ownIndexMatch[1]);
-					},
 				),
+		)
+		// The server also deduplicates on save, so without this the form
+		// would submit a URI it never actually saved and mislead the user.
+		.test(
+			"unique-redirect-uri",
+			"This redirect URI is already used by another row.",
+			function (uris) {
+				const seen = new Set<string>();
+				const errors: Yup.ValidationError[] = [];
+				for (const [index, uri] of (uris ?? []).entries()) {
+					const trimmed = uri?.trim();
+					if (!trimmed) {
+						continue;
+					}
+					if (seen.has(trimmed)) {
+						errors.push(this.createError({ path: `${this.path}[${index}]` }));
+					}
+					seen.add(trimmed);
+				}
+				return errors.length === 0 || new Yup.ValidationError(errors);
+			},
 		)
 		.min(1, "At least one redirect URI is required.")
 		.max(

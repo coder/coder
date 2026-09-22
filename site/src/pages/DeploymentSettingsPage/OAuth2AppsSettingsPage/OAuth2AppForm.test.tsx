@@ -528,6 +528,43 @@ describe("OAuth2AppForm", () => {
 		).toBeInTheDocument();
 	});
 
+	it("flags every row that duplicates an earlier one", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		const app = {
+			...MockOAuth2ProviderApps[0],
+			redirect_uris: [
+				"https://a.example.com/cb",
+				"https://b.example.com/cb",
+				"https://c.example.com/cb",
+			],
+		};
+
+		render(
+			<OAuth2AppForm
+				app={app}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		for (const row of [2, 3]) {
+			const field = screen.getByLabelText(
+				new RegExp(`^redirect uri ${row}`, "i"),
+			);
+			await user.clear(field);
+			await user.type(field, "https://a.example.com/cb");
+		}
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+
+		await act(async () => {});
+		expect(onSubmit).not.toHaveBeenCalled();
+		expect(screen.getAllByText(/already used by another row/i)).toHaveLength(2);
+	});
+
 	// Confidential apps could store a non-local http redirect URI before the
 	// form checked for it. The stored value fails validation on load, so the
 	// error must show without the field being touched.
