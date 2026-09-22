@@ -370,6 +370,7 @@ describe("applyMessagePartToStreamState", () => {
 			tool_name: "advisor",
 			tool_call_id: "call-advisor-3",
 			result_delta: "partial advice",
+			reasoning_delta: "transient reasoning",
 		});
 
 		expect(state!.toolResults["call-advisor-3"]).toMatchObject({
@@ -391,6 +392,7 @@ describe("applyMessagePartToStreamState", () => {
 		expect(state!.toolResults["call-advisor-3"]).toMatchObject({
 			result: "partial advice",
 			isError: true,
+			reasoning: undefined,
 		});
 		expect(state!.toolResults["call-advisor-3"].isStreaming).toBeUndefined();
 		expect(
@@ -418,6 +420,119 @@ describe("applyMessagePartToStreamState", () => {
 		expect(
 			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
 		).toBe("running");
+	});
+
+	it.each([
+		{ first: "checking ", second: "tradeoffs", expected: "checking tradeoffs" },
+		{
+			first: ' {"thinking":',
+			second: ' "keep whitespace"} ',
+			expected: ' {"thinking": "keep whitespace"} ',
+		},
+		{ first: " ", second: "\n", expected: " \n" },
+	])(
+		"accumulates advisor reasoning as plain text: $expected",
+		({ first, second, expected }) => {
+			let state: StreamState | null = null;
+			state = applyMessagePartToStreamState(state, {
+				type: "tool-call",
+				tool_name: "advisor",
+				tool_call_id: "call-advisor-1",
+				args: { question: "What is the safe path?" },
+			});
+			state = applyMessagePartToStreamState(state, {
+				type: "tool-result",
+				tool_name: "advisor",
+				tool_call_id: "call-advisor-1",
+				result_delta: "",
+				reasoning_delta: first,
+			});
+			state = applyMessagePartToStreamState(state, {
+				type: "tool-result",
+				tool_name: "advisor",
+				tool_call_id: "call-advisor-1",
+				reasoning_delta: second,
+				result_delta: "Use small steps.",
+			});
+
+			expect(state).not.toBeNull();
+			expect(state?.toolResults["call-advisor-1"]).toMatchObject({
+				id: "call-advisor-1",
+				name: "advisor",
+				reasoning: expected,
+				result: "Use small steps.",
+				resultRaw: "Use small steps.",
+				isStreaming: true,
+			});
+			expect(
+				buildStreamTools(state?.toolCalls, state?.toolResults)[0],
+			).toMatchObject({
+				status: "running",
+				reasoning: expected,
+				result: "Use small steps.",
+			});
+		},
+	);
+
+	it("clears streaming advisor reasoning on reset and final result", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			args: { question: "What is the safe path?" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			reasoning_delta: "stale thinking",
+			result_delta: "stale advice",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result_reset: true,
+		});
+
+		expect(state?.toolResults["call-advisor-1"]).toBeUndefined();
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			reasoning_delta: "fresh thinking",
+		});
+		expect(state?.toolResults["call-advisor-1"].reasoning).toBe(
+			"fresh thinking",
+		);
+		expect(
+			buildStreamTools(state?.toolCalls, state?.toolResults)[0].status,
+		).toBe("running");
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result: {
+				type: "advice",
+				advice: "Use small steps.",
+				remaining_uses: "2",
+			},
+		});
+
+		expect(state?.toolResults["call-advisor-1"].reasoning).toBeUndefined();
+		expect(
+			buildStreamTools(state?.toolCalls, state?.toolResults)[0],
+		).toMatchObject({
+			status: "completed",
+			result: {
+				type: "advice",
+				advice: "Use small steps.",
+				remaining_uses: "2",
+			},
+		});
 	});
 
 	it("resets streaming tool result deltas", () => {

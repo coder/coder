@@ -3039,6 +3039,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "reasoning_delta": "string",
       "result": [
         0
       ],
@@ -3126,6 +3127,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "provider_metadata": [
     0
   ],
+  "reasoning_delta": "string",
   "result": [
     0
   ],
@@ -3174,6 +3176,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
 | `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
+| `reasoning_delta`              | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3288,6 +3291,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -3362,6 +3366,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -4677,6 +4682,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "reasoning_delta": "string",
       "result": [
         0
       ],
@@ -4834,6 +4840,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -4906,6 +4913,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "reasoning_delta": "string",
       "result": [
         0
       ],
@@ -4966,6 +4974,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -5075,6 +5084,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "provider_metadata": [
       0
     ],
+    "reasoning_delta": "string",
     "result": [
       0
     ],
@@ -5802,6 +5812,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -5875,6 +5886,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -5949,6 +5961,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -8744,6 +8757,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -8817,6 +8831,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],

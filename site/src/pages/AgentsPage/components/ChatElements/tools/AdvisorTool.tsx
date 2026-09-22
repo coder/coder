@@ -13,6 +13,7 @@ type AdvisorToolProps = {
 	isError: boolean;
 	resultType?: AdvisorToolResultType;
 	advice?: string;
+	reasoning?: string;
 	errorMessage?: string;
 	modelIntent?: string;
 };
@@ -23,11 +24,13 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 	isError,
 	resultType,
 	advice,
+	reasoning,
 	errorMessage,
 	modelIntent,
 }) => {
 	const questionText = question.trim() || "No question provided.";
 	const adviceText = advice?.trim() ?? "";
+	const reasoningText = reasoning?.trim() ?? "";
 	const effectiveErrorMessage =
 		errorMessage?.trim() || "Advisor could not return guidance.";
 	const isRunning = status === "running";
@@ -94,7 +97,9 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 										You have reached the advisor limit for this conversation.
 									</p>
 								</div>
-							) : isRunning && adviceText.length === 0 ? (
+							) : isRunning &&
+								adviceText.length === 0 &&
+								reasoningText.length === 0 ? (
 								<div
 									role="status"
 									className="text-[13px] text-content-secondary"
@@ -102,12 +107,39 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 									Reviewing context and preparing guidance.
 								</div>
 							) : (
-								<Response
-									streaming={isRunning}
-									className="text-[13px] leading-5"
-								>
-									{adviceText || "Advisor returned no guidance."}
-								</Response>
+								<div className="space-y-3">
+									{isRunning && reasoningText.length > 0 && (
+										<section
+											aria-label="Advisor thinking"
+											className="space-y-1"
+										>
+											<p className="m-0 text-[13px] font-medium text-content-secondary">
+												Thinking
+											</p>
+											<Response
+												streaming
+												className="text-[13px] leading-5 text-content-secondary"
+											>
+												{reasoningText}
+											</Response>
+										</section>
+									)}
+									{(adviceText.length > 0 || !isRunning) && (
+										<section aria-label="Advisor advice" className="space-y-1">
+											{isRunning && reasoningText.length > 0 && (
+												<p className="m-0 text-[13px] font-medium text-content-secondary">
+													Advice
+												</p>
+											)}
+											<Response
+												streaming={isRunning}
+												className="text-[13px] leading-5"
+											>
+												{adviceText || "Advisor returned no guidance."}
+											</Response>
+										</section>
+									)}
+								</div>
 							)}
 						</div>
 					</div>

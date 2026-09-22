@@ -25,6 +25,7 @@ export type MergedTool = {
 	name: string;
 	args?: unknown;
 	result?: unknown;
+	reasoning?: string;
 	isError: boolean;
 	isMedia?: boolean;
 	status: "completed" | "error" | "running";
@@ -103,6 +104,7 @@ type StreamToolResult = {
 	name: string;
 	result?: unknown;
 	resultRaw?: string;
+	reasoning?: string;
 	isError: boolean;
 	isMedia?: boolean;
 	/** True while result deltas are still accumulating before the final result. */

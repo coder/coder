@@ -119,6 +119,7 @@ export const applyMessagePartToStreamState = (
 			}
 			if (
 				part.result_delta === "" &&
+				!part.reasoning_delta &&
 				part.result === undefined &&
 				!part.is_error
 			) {
@@ -134,11 +135,15 @@ export const applyMessagePartToStreamState = (
 				part.result,
 				part.result_delta,
 			);
+			const nextReasoning = part.reasoning_delta
+				? `${existing?.reasoning ?? ""}${part.reasoning_delta}`
+				: existing?.reasoning;
 			const nextToolName = part.tool_name || existing?.name || "Tool";
 			const isFinalResult = part.result !== undefined || part.is_error;
 			const isStreaming = isFinalResult
 				? false
-				: existing?.isStreaming || Boolean(part.result_delta);
+				: existing?.isStreaming ||
+					Boolean(part.result_delta || part.reasoning_delta);
 			const nextIsError =
 				existing?.isError ||
 				parseToolResultIsError(nextToolName, part, nextResult.value);
@@ -153,6 +158,7 @@ export const applyMessagePartToStreamState = (
 						name: nextToolName,
 						result: nextResult.value,
 						resultRaw: nextResult.rawText,
+						reasoning: isFinalResult ? undefined : nextReasoning,
 						isError: nextIsError,
 						isMedia: part.is_media || existing?.isMedia,
 						isStreaming: isStreaming || undefined,
@@ -255,6 +261,7 @@ export const buildStreamTools = (
 			name: call.name,
 			args: call.args,
 			result: result?.result,
+			reasoning: result?.reasoning,
 			isError: result?.isError ?? false,
 			isMedia: result?.isMedia,
 			status: getStreamToolStatus(result),
@@ -272,6 +279,7 @@ export const buildStreamTools = (
 					id: result.id,
 					name: result.name,
 					result: result.result,
+					reasoning: result.reasoning,
 					isError: result.isError,
 					isMedia: result.isMedia,
 					status: getStreamToolStatus(result),
