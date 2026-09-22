@@ -161,3 +161,27 @@ export const ModelsList: Story = {
 		await screen.findByRole("tooltip");
 	},
 };
+
+// A list taller than the viewport scrolls inside the tooltip.
+export const LongModelsList: Story = {
+	args: {
+		reportQuery: loadedReportQuery({
+			...mockMultipleDimensionsReport,
+			users: mockMultipleDimensionsReport.users.map((user) => ({
+				...user,
+				models: Array.from({ length: 40 }, (_, i) =>
+					i % 2 === 0 ? `claude-model-${i}` : `gpt-model-${i}`,
+				),
+			})),
+		}),
+	},
+	globals: { viewport: { value: "mobile2", isRotated: false } },
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(
+				within(canvasElement).getByRole("row", { name: /alice/ }),
+			).getByRole("button", { name: "40 models" }),
+		);
+		await screen.findByRole("tooltip");
+	},
+};
