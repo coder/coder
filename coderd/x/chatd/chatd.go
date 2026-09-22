@@ -1107,7 +1107,7 @@ type CreateOptions struct {
 	SystemPrompt            string
 	InitialUserContent      []codersdk.ChatMessagePart
 	MCPServerIDs            []uuid.UUID
-	MCPServers              []codersdk.ChatMCPServerRequest
+	InlineMCPServers        []codersdk.InlineMCPServerRequest
 	Labels                  database.StringMap
 	DynamicTools            json.RawMessage
 }
@@ -1135,8 +1135,8 @@ type SendMessageOptions struct {
 	BusyBehavior    SendMessageBusyBehavior
 	PlanMode        *database.NullChatPlanMode
 	MCPServerIDs    *[]uuid.UUID
-	// MCPServers replaces the chat-attached MCP servers. nil: no change.
-	MCPServers *[]codersdk.ChatMCPServerRequest
+	// InlineMCPServers replaces the inline MCP servers. nil: no change.
+	InlineMCPServers *[]codersdk.InlineMCPServerRequest
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1265,15 +1265,11 @@ func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.
 	return updated, nil
 }
 
-func (p *Server) applyRequestedChatMCPServers(ctx context.Context, store database.Store, lockedChat database.Chat, requested *[]codersdk.ChatMCPServerRequest) error {
+func applyRequestedInlineMCPServers(ctx context.Context, store database.Store, lockedChat database.Chat, requested *[]codersdk.InlineMCPServerRequest) error {
 	if requested == nil {
 		return nil
 	}
-	if isExploreSubagentMode(lockedChat.Mode) {
-		p.logger.Warn(ctx, "ignoring chat-attached MCP servers for explore chat", slog.F("chat_id", lockedChat.ID))
-		return nil
-	}
-	return chatstate.ReplaceChatMCPServers(ctx, store, lockedChat.ID, *requested)
+	return chatstate.ReplaceInlineMCPServers(ctx, store, lockedChat.ID, *requested)
 }
 
 // CreateChat creates a chat with its initial history through
@@ -1412,7 +1408,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		Mode:              opts.ChatMode,
 		PlanMode:          opts.PlanMode,
 		MCPServerIDs:      opts.MCPServerIDs,
-		MCPServers:        opts.MCPServers,
+		InlineMCPServers:  opts.InlineMCPServers,
 		Labels: pqtype.NullRawMessage{
 			RawMessage: labelsJSON,
 			Valid:      true,
@@ -1553,7 +1549,7 @@ func (p *Server) SendMessage(
 			return err
 		}
 
-		if err := p.applyRequestedChatMCPServers(ctx, store, lockedChat, opts.MCPServers); err != nil {
+		if err := applyRequestedInlineMCPServers(ctx, store, lockedChat, opts.InlineMCPServers); err != nil {
 			return xerrors.Errorf("replace chat MCP servers: %w", err)
 		}
 
@@ -3334,6 +3330,56 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
 
+// mcpPlanPolicy is the plan-mode input for one external MCP server,
+// org-configured or inline.
+type mcpPlanPolicy struct {
+	ID              uuid.UUID
+	AllowInPlanMode bool
+}
+
+// planApprovedMCPServerIDs returns the external MCP server IDs a turn may
+// use. nil means no restriction (not a plan-mode turn). Plan-mode
+// subagents get an empty set: their trust boundary is narrower than the
+// root chat's.
+func planApprovedMCPServerIDs(
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+	servers []mcpPlanPolicy,
+) map[uuid.UUID]struct{} {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return nil
+	}
+	approved := make(map[uuid.UUID]struct{})
+	if parentChatID.Valid {
+		return approved
+	}
+	for _, srv := range servers {
+		if srv.AllowInPlanMode {
+			approved[srv.ID] = struct{}{}
+		}
+	}
+	return approved
+}
+
+// approvedMCPServers keeps the items whose ID is approved. A nil approved
+// set keeps everything.
+func approvedMCPServers[T any](
+	items []T,
+	id func(T) uuid.UUID,
+	approved map[uuid.UUID]struct{},
+) []T {
+	if approved == nil {
+		return items
+	}
+	var filtered []T
+	for _, item := range items {
+		if _, ok := approved[id(item)]; ok {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
 // filterExternalMCPConfigsForTurn returns the external MCP server configs
 // visible on the current turn. Explore children snapshot this filtered set at
 // spawn time so later model overrides cannot widen the external-tool boundary.
@@ -3342,25 +3388,16 @@ func filterExternalMCPConfigsForTurn(
 	mode database.NullChatPlanMode,
 	parentChatID uuid.NullUUID,
 ) ([]database.MCPServerConfig, map[uuid.UUID]struct{}) {
-	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
-		return configs, nil
-	}
-	if parentChatID.Valid {
-		// Plan-mode subagents do not receive external MCP tools because
-		// their trust boundary is narrower than the root chat's.
-		return nil, map[uuid.UUID]struct{}{}
-	}
-
-	filtered := make([]database.MCPServerConfig, 0, len(configs))
-	approvedIDs := make(map[uuid.UUID]struct{})
+	policies := make([]mcpPlanPolicy, 0, len(configs))
 	for _, cfg := range configs {
-		if !cfg.AllowInPlanMode {
-			continue
-		}
-		filtered = append(filtered, cfg)
-		approvedIDs[cfg.ID] = struct{}{}
+		policies = append(policies, mcpPlanPolicy{ID: cfg.ID, AllowInPlanMode: cfg.AllowInPlanMode})
 	}
-	return filtered, approvedIDs
+	approved := planApprovedMCPServerIDs(mode, parentChatID, policies)
+	return approvedMCPServers(configs, mcpConfigID, approved), approved
+}
+
+func mcpConfigID(cfg database.MCPServerConfig) uuid.UUID {
+	return cfg.ID
 }
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {

@@ -19,8 +19,8 @@ import (
 	"github.com/coder/serpent"
 )
 
-func chatMCPServerRequest(slug, url string) codersdk.ChatMCPServerRequest {
-	return codersdk.ChatMCPServerRequest{Slug: slug, URL: url}
+func chatMCPServerRequest(slug, url string) codersdk.InlineMCPServerRequest {
+	return codersdk.InlineMCPServerRequest{Slug: slug, URL: url}
 }
 
 func chatTextContent(text string) []codersdk.ChatInputPart {
@@ -35,7 +35,7 @@ func chatMCPServerSlugs(rows []database.ChatMCPServer) map[string]database.ChatM
 	return bySlug
 }
 
-func TestChatMCPServers(t *testing.T) {
+func TestInlineMCPServers(t *testing.T) {
 	t.Parallel()
 
 	t.Run("CreateAndGet", func(t *testing.T) {
@@ -49,7 +49,7 @@ func TestChatMCPServers(t *testing.T) {
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: user.OrganizationID,
 			Content:        chatTextContent("hello"),
-			MCPServers: []codersdk.ChatMCPServerRequest{{
+			InlineMCPServers: []codersdk.InlineMCPServerRequest{{
 				Slug:                "orders",
 				URL:                 "https://mcp.example.com/v1",
 				Headers:             map[string]string{"Authorization": "Bearer secret-value-123"},
@@ -66,7 +66,7 @@ func TestChatMCPServers(t *testing.T) {
 		require.Equal(t, "orders", rows[0].Slug)
 		require.JSONEq(t, `{"Authorization":"Bearer secret-value-123"}`, rows[0].Headers)
 
-		servers, err := client.GetChatMCPServers(ctx, chat.ID)
+		servers, err := client.GetChatInlineMCPServers(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, servers, 1)
 		require.Equal(t, rows[0].ID, servers[0].ID)
@@ -95,12 +95,12 @@ func TestChatMCPServers(t *testing.T) {
 		_ = createChatModel(t, client)
 
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: user.OrganizationID,
-			Content:        chatTextContent("hello"),
-			MCPServers:     []codersdk.ChatMCPServerRequest{chatMCPServerRequest("orders", "https://mcp.example.com/v1")},
+			OrganizationID:   user.OrganizationID,
+			Content:          chatTextContent("hello"),
+			InlineMCPServers: []codersdk.InlineMCPServerRequest{chatMCPServerRequest("orders", "https://mcp.example.com/v1")},
 		})
 		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Equal(t, "Chat-attached MCP servers are not enabled on this deployment.", sdkErr.Message)
+		require.Equal(t, "Inline MCP servers are not enabled on this deployment.", sdkErr.Message)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: user.OrganizationID,
@@ -109,13 +109,13 @@ func TestChatMCPServers(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-			Content:    chatTextContent("again"),
-			MCPServers: &[]codersdk.ChatMCPServerRequest{chatMCPServerRequest("orders", "https://mcp.example.com/v1")},
+			Content:          chatTextContent("again"),
+			InlineMCPServers: &[]codersdk.InlineMCPServerRequest{chatMCPServerRequest("orders", "https://mcp.example.com/v1")},
 		})
 		sdkErr = requireSDKError(t, err, http.StatusForbidden)
-		require.Equal(t, "Chat-attached MCP servers are not enabled on this deployment.", sdkErr.Message)
+		require.Equal(t, "Inline MCP servers are not enabled on this deployment.", sdkErr.Message)
 
-		_, err = client.GetChatMCPServers(ctx, chat.ID)
+		_, err = client.GetChatInlineMCPServers(ctx, chat.ID)
 		requireSDKError(t, err, http.StatusForbidden)
 	})
 
@@ -133,9 +133,9 @@ func TestChatMCPServers(t *testing.T) {
 		_ = createChatModel(t, client)
 
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: user.OrganizationID,
-			Content:        chatTextContent("hello"),
-			MCPServers:     []codersdk.ChatMCPServerRequest{chatMCPServerRequest("orders", "https://mcp.example.com/v1")},
+			OrganizationID:   user.OrganizationID,
+			Content:          chatTextContent("hello"),
+			InlineMCPServers: []codersdk.InlineMCPServerRequest{chatMCPServerRequest("orders", "https://mcp.example.com/v1")},
 		})
 		sdkErr := requireSDKError(t, err, http.StatusForbidden)
 		require.Equal(t, "Caller-supplied tools are disabled on this deployment.", sdkErr.Message)
@@ -147,16 +147,16 @@ func TestChatMCPServers(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-			Content:    chatTextContent("again"),
-			MCPServers: &[]codersdk.ChatMCPServerRequest{chatMCPServerRequest("orders", "https://mcp.example.com/v1")},
+			Content:          chatTextContent("again"),
+			InlineMCPServers: &[]codersdk.InlineMCPServerRequest{chatMCPServerRequest("orders", "https://mcp.example.com/v1")},
 		})
 		sdkErr = requireSDKError(t, err, http.StatusForbidden)
 		require.Equal(t, "Caller-supplied tools are disabled on this deployment.", sdkErr.Message)
 
 		dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: chat.ID, Slug: "stale"})
 		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-			Content:    chatTextContent("detach"),
-			MCPServers: &[]codersdk.ChatMCPServerRequest{},
+			Content:          chatTextContent("detach"),
+			InlineMCPServers: &[]codersdk.InlineMCPServerRequest{},
 		})
 		require.NoError(t, err)
 
@@ -175,60 +175,60 @@ func TestChatMCPServers(t *testing.T) {
 
 		for _, tc := range []struct {
 			name      string
-			server    codersdk.ChatMCPServerRequest
+			server    codersdk.InlineMCPServerRequest
 			wantField string
 		}{
 			{
 				name:      "BadSlug",
 				server:    chatMCPServerRequest("bad slug", "https://mcp.example.com/v1"),
-				wantField: "mcp_servers[0].slug",
+				wantField: "inline_mcp_servers[0].slug",
 			},
 			{
 				name:      "QueryString",
 				server:    chatMCPServerRequest("orders", "https://mcp.example.com/v1?token=x"),
-				wantField: "mcp_servers[0].url",
+				wantField: "inline_mcp_servers[0].url",
 			},
 			{
 				name:      "PrivateIPLiteral",
 				server:    chatMCPServerRequest("orders", "http://10.0.0.1/mcp"),
-				wantField: "mcp_servers[0].url",
+				wantField: "inline_mcp_servers[0].url",
 			},
 			{
 				name: "HeadersOverHTTP",
-				server: codersdk.ChatMCPServerRequest{
+				server: codersdk.InlineMCPServerRequest{
 					Slug:    "orders",
 					URL:     "http://mcp.example.com/v1",
 					Headers: map[string]string{"Authorization": "Bearer x"},
 				},
-				wantField: "mcp_servers[0].headers",
+				wantField: "inline_mcp_servers[0].headers",
 			},
 			{
 				name: "ReservedHeader",
-				server: codersdk.ChatMCPServerRequest{
+				server: codersdk.InlineMCPServerRequest{
 					Slug:    "orders",
 					URL:     "https://mcp.example.com/v1",
-					Headers: map[string]string{"X-Coder-Owner-Id": "x"},
+					Headers: map[string]string{"X-Coder-Owner-Id": "override-id"},
 				},
-				wantField: "mcp_servers[0].headers[X-Coder-Owner-Id]",
+				wantField: "inline_mcp_servers[0].headers[X-Coder-Owner-Id]",
 			},
 			{
 				name: "AllowAndDeny",
-				server: codersdk.ChatMCPServerRequest{
+				server: codersdk.InlineMCPServerRequest{
 					Slug:          "orders",
 					URL:           "https://mcp.example.com/v1",
 					ToolAllowList: []string{"a"},
 					ToolDenyList:  []string{"b"},
 				},
-				wantField: "mcp_servers[0].tool_deny_list",
+				wantField: "inline_mcp_servers[0].tool_deny_list",
 			},
 		} {
 			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-				OrganizationID: user.OrganizationID,
-				Content:        chatTextContent("hello"),
-				MCPServers:     []codersdk.ChatMCPServerRequest{tc.server},
+				OrganizationID:   user.OrganizationID,
+				Content:          chatTextContent("hello"),
+				InlineMCPServers: []codersdk.InlineMCPServerRequest{tc.server},
 			})
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-			require.Equal(t, "Invalid mcp_servers.", sdkErr.Message, tc.name)
+			require.Equal(t, "Invalid inline_mcp_servers.", sdkErr.Message, tc.name)
 			require.NotEmpty(t, sdkErr.Validations, tc.name)
 			require.Equal(t, tc.wantField, sdkErr.Validations[0].Field, tc.name)
 		}
@@ -236,7 +236,7 @@ func TestChatMCPServers(t *testing.T) {
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: user.OrganizationID,
 			Content:        chatTextContent("hello"),
-			MCPServers: []codersdk.ChatMCPServerRequest{{
+			InlineMCPServers: []codersdk.InlineMCPServerRequest{{
 				Slug:    "local",
 				URL:     "http://127.0.0.1:1/mcp",
 				Headers: map[string]string{"Authorization": "Bearer x"},
@@ -257,7 +257,7 @@ func TestChatMCPServers(t *testing.T) {
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: user.OrganizationID,
 			Content:        chatTextContent("hello"),
-			MCPServers: []codersdk.ChatMCPServerRequest{
+			InlineMCPServers: []codersdk.InlineMCPServerRequest{
 				chatMCPServerRequest("a", "https://a.example.com/mcp"),
 				chatMCPServerRequest("b", "https://b.example.com/mcp"),
 			},
@@ -279,7 +279,7 @@ func TestChatMCPServers(t *testing.T) {
 
 		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: chatTextContent("replace"),
-			MCPServers: &[]codersdk.ChatMCPServerRequest{
+			InlineMCPServers: &[]codersdk.InlineMCPServerRequest{
 				chatMCPServerRequest("a", "https://a2.example.com/mcp"),
 				chatMCPServerRequest("c", "https://c.example.com/mcp"),
 			},
@@ -295,15 +295,15 @@ func TestChatMCPServers(t *testing.T) {
 		require.Contains(t, bySlug, "c")
 
 		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-			Content:    chatTextContent("clear"),
-			MCPServers: &[]codersdk.ChatMCPServerRequest{},
+			Content:          chatTextContent("clear"),
+			InlineMCPServers: &[]codersdk.InlineMCPServerRequest{},
 		})
 		require.NoError(t, err)
 		rows, err = db.GetChatMCPServersByChatID(dbCtx, chat.ID)
 		require.NoError(t, err)
 		require.Empty(t, rows)
 
-		servers, err := client.GetChatMCPServers(ctx, chat.ID)
+		servers, err := client.GetChatInlineMCPServers(ctx, chat.ID)
 		require.NoError(t, err)
 		require.NotNil(t, servers)
 		require.Empty(t, servers)
@@ -331,11 +331,19 @@ func TestChatMCPServers(t *testing.T) {
 		})
 
 		_, err = client.CreateChatMessage(ctx, child.ID, codersdk.CreateChatMessageRequest{
-			Content:    chatTextContent("child"),
-			MCPServers: &[]codersdk.ChatMCPServerRequest{chatMCPServerRequest("orders", "https://mcp.example.com/v1")},
+			Content:          chatTextContent("child"),
+			InlineMCPServers: &[]codersdk.InlineMCPServerRequest{chatMCPServerRequest("orders", "https://mcp.example.com/v1")},
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "mcp_servers can only be declared on a root chat.", sdkErr.Message)
+		require.Equal(t, "inline_mcp_servers can only be declared on a root chat.", sdkErr.Message)
+
+		// An empty declaration is still a declaration on a child chat.
+		_, err = client.CreateChatMessage(ctx, child.ID, codersdk.CreateChatMessageRequest{
+			Content:          chatTextContent("child again"),
+			InlineMCPServers: &[]codersdk.InlineMCPServerRequest{},
+		})
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "inline_mcp_servers can only be declared on a root chat.", sdkErr.Message)
 	})
 
 	t.Run("NonOwnerForbidden", func(t *testing.T) {
@@ -347,20 +355,20 @@ func TestChatMCPServers(t *testing.T) {
 		_ = createChatModel(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: user.OrganizationID,
-			Content:        chatTextContent("hello"),
-			MCPServers:     []codersdk.ChatMCPServerRequest{chatMCPServerRequest("orders", "https://mcp.example.com/v1")},
+			OrganizationID:   user.OrganizationID,
+			Content:          chatTextContent("hello"),
+			InlineMCPServers: []codersdk.InlineMCPServerRequest{chatMCPServerRequest("orders", "https://mcp.example.com/v1")},
 		})
 		require.NoError(t, err)
 
 		memberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, user.OrganizationID)
 		member := codersdk.NewExperimentalClient(memberRaw)
-		_, err = member.GetChatMCPServers(ctx, chat.ID)
+		_, err = member.GetChatInlineMCPServers(ctx, chat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 
 		ownerRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, user.OrganizationID, rbac.RoleOwner())
 		owner := codersdk.NewExperimentalClient(ownerRaw)
-		_, err = owner.GetChatMCPServers(ctx, chat.ID)
+		_, err = owner.GetChatInlineMCPServers(ctx, chat.ID)
 		sdkErr := requireSDKError(t, err, http.StatusForbidden)
 		require.Equal(t, "Only the chat owner may view chat MCP servers.", sdkErr.Message)
 	})

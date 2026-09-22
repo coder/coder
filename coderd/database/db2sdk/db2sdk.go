@@ -2016,20 +2016,20 @@ func nullRawJSONObject(raw pqtype.NullRawMessage) map[string]any {
 	return rawJSONObject(raw.RawMessage)
 }
 
-// ChatMCPServer converts a database.ChatMCPServer to its redacted
-// codersdk.ChatMCPServer view. Header values are dropped; only sorted
+// InlineMCPServer converts a database.ChatMCPServer to its redacted
+// codersdk.InlineMCPServer view. Header values are dropped; only sorted
 // header names remain.
-func ChatMCPServer(row database.ChatMCPServer) (codersdk.ChatMCPServer, error) {
+func InlineMCPServer(row database.ChatMCPServer) (codersdk.InlineMCPServer, error) {
 	var headers map[string]string
 	if err := json.Unmarshal([]byte(row.Headers), &headers); err != nil {
-		return codersdk.ChatMCPServer{}, xerrors.Errorf("parse headers for chat MCP server %q: %w", row.Slug, err)
+		return codersdk.InlineMCPServer{}, xerrors.Errorf("parse headers for chat MCP server %q: %w", row.Slug, err)
 	}
 	headerNames := make([]string, 0, len(headers))
 	for name := range headers {
 		headerNames = append(headerNames, name)
 	}
 	slices.Sort(headerNames)
-	return codersdk.ChatMCPServer{
+	return codersdk.InlineMCPServer{
 		ID:                  row.ID,
 		Slug:                row.Slug,
 		URL:                 row.Url,

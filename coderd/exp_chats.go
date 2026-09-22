@@ -1378,18 +1378,18 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if (len(req.UnsafeDynamicTools) > 0 || len(req.MCPServers) > 0) && api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
+	if (len(req.UnsafeDynamicTools) > 0 || len(req.InlineMCPServers) > 0) && api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
 		writeChatCallerSuppliedToolsDisabled(ctx, rw)
 		return
 	}
 
-	if len(req.MCPServers) > 0 {
-		if !api.Experiments.Enabled(codersdk.ExperimentChatMCPServers) {
-			writeChatMCPServersExperimentRequired(ctx, rw)
+	if len(req.InlineMCPServers) > 0 {
+		if !api.Experiments.Enabled(codersdk.ExperimentChatInlineMCPServers) {
+			writeInlineMCPServersExperimentRequired(ctx, rw)
 			return
 		}
-		if validations := validateChatMCPServers(req.MCPServers, api.MCPAllowedPrivateCIDRs); len(validations) > 0 {
-			writeChatMCPServersInvalid(ctx, rw, validations)
+		if validations := validateInlineMCPServers(req.InlineMCPServers, api.MCPAllowedPrivateCIDRs); len(validations) > 0 {
+			writeInlineMCPServersInvalid(ctx, rw, validations)
 			return
 		}
 	}
@@ -1473,7 +1473,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		SystemPrompt:            req.SystemPrompt,
 		InitialUserContent:      contentBlocks,
 		MCPServerIDs:            mcpServerIDs,
-		MCPServers:              req.MCPServers,
+		InlineMCPServers:        req.InlineMCPServers,
 		Labels:                  labels,
 		DynamicTools:            dynamicToolsJSON,
 		// IMPORTANT: users can only create root chats at the time of writing.
@@ -1814,19 +1814,19 @@ func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
-// @Summary Get chat MCP servers
-// @ID get-chat-mcp-servers
+// @Summary Get inline MCP servers
+// @ID get-chat-inline-mcp-servers
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {array} codersdk.ChatMCPServer
-// @Router /api/experimental/chats/{chat}/mcp-servers [get]
-// @Description Lists the chat-attached MCP servers declared on the chat. Header values are never returned.
+// @Success 200 {array} codersdk.InlineMCPServer
+// @Router /api/experimental/chats/{chat}/inline-mcp-servers [get]
+// @Description Lists the inline MCP servers declared on the chat. Header values are never returned.
 // @Description Experimental: this endpoint is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
-func (api *API) getChatMCPServers(rw http.ResponseWriter, r *http.Request) {
+func (api *API) getChatInlineMCPServers(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	apiKey := httpmw.APIKey(r)
@@ -1837,8 +1837,8 @@ func (api *API) getChatMCPServers(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !api.Experiments.Enabled(codersdk.ExperimentChatMCPServers) {
-		writeChatMCPServersExperimentRequired(ctx, rw)
+	if !api.Experiments.Enabled(codersdk.ExperimentChatInlineMCPServers) {
+		writeInlineMCPServersExperimentRequired(ctx, rw)
 		return
 	}
 
@@ -1851,9 +1851,9 @@ func (api *API) getChatMCPServers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	servers := make([]codersdk.ChatMCPServer, 0, len(rows))
+	servers := make([]codersdk.InlineMCPServer, 0, len(rows))
 	for _, row := range rows {
-		server, err := db2sdk.ChatMCPServer(row)
+		server, err := db2sdk.InlineMCPServer(row)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to convert chat MCP server.",
@@ -2757,24 +2757,30 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 	req.MCPServerIDs = normalizedMCPServerIDs
 
-	if req.MCPServers != nil && len(*req.MCPServers) > 0 {
-		if api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
-			writeChatCallerSuppliedToolsDisabled(ctx, rw)
-			return
-		}
-		if !api.Experiments.Enabled(codersdk.ExperimentChatMCPServers) {
-			writeChatMCPServersExperimentRequired(ctx, rw)
-			return
-		}
+	if req.InlineMCPServers != nil {
+		// The field belongs to root chats, so a child rejects every value,
+		// including []. The kill switch and experiment gates apply only to
+		// non-empty declarations: [] is the detach path and must keep
+		// working when the feature is turned off.
 		if chat.ParentChatID.Valid {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "mcp_servers can only be declared on a root chat.",
+				Message: "inline_mcp_servers can only be declared on a root chat.",
 			})
 			return
 		}
-		if validations := validateChatMCPServers(*req.MCPServers, api.MCPAllowedPrivateCIDRs); len(validations) > 0 {
-			writeChatMCPServersInvalid(ctx, rw, validations)
-			return
+		if len(*req.InlineMCPServers) > 0 {
+			if api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
+				writeChatCallerSuppliedToolsDisabled(ctx, rw)
+				return
+			}
+			if !api.Experiments.Enabled(codersdk.ExperimentChatInlineMCPServers) {
+				writeInlineMCPServersExperimentRequired(ctx, rw)
+				return
+			}
+			if validations := validateInlineMCPServers(*req.InlineMCPServers, api.MCPAllowedPrivateCIDRs); len(validations) > 0 {
+				writeInlineMCPServersInvalid(ctx, rw, validations)
+				return
+			}
 		}
 	}
 
@@ -2825,15 +2831,15 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
-			ChatID:          chatID,
-			CreatedBy:       apiKey.UserID,
-			Content:         contentBlocks,
-			ModelConfigID:   modelConfigID,
-			ReasoningEffort: reasoningEffort,
-			BusyBehavior:    busyBehavior,
-			PlanMode:        sendPlanMode,
-			MCPServerIDs:    req.MCPServerIDs,
-			MCPServers:      req.MCPServers,
+			ChatID:           chatID,
+			CreatedBy:        apiKey.UserID,
+			Content:          contentBlocks,
+			ModelConfigID:    modelConfigID,
+			ReasoningEffort:  reasoningEffort,
+			BusyBehavior:     busyBehavior,
+			PlanMode:         sendPlanMode,
+			MCPServerIDs:     req.MCPServerIDs,
+			InlineMCPServers: req.InlineMCPServers,
 		},
 	)
 	if sendErr != nil {

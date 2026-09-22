@@ -259,7 +259,7 @@ but chats that already have the server selected keep using it, the same way
 existing workspaces keep running after template access is revoked. To cut
 off existing chats as well, disable or delete the server.
 
-## Chat-attached MCP servers (experimental)
+## Inline MCP servers (experimental)
 
 > [!NOTE]
 > This feature is experimental. Pin a release before broad rollout and review
@@ -268,19 +268,21 @@ off existing chats as well, disable or delete the server.
 ### Enable the experiment
 
 ```sh
-coder server --experiments=chat-mcp-servers
+coder server --experiments=chat-inline-mcp-servers
 ```
 
 Or set the environment variable:
 
 ```sh
-CODER_EXPERIMENTS=chat-mcp-servers
+CODER_EXPERIMENTS=chat-inline-mcp-servers
 ```
 
 ### What it does
 
-A chat owner can declare up to five MCP server URLs on a chat through the API,
-with no administrator registration. On every turn, chatd connects to each
+A chat owner can declare up to five MCP servers inline on a chat through the
+API, by URL and headers, with no administrator registration. Inline servers
+sit next to the organization-registered servers selected with
+`mcp_server_ids`. On every turn, chatd connects to each
 declared server over streamable HTTP, calls `tools/list`, and offers the
 discovered tools to the model next to the built-in and organization-registered
 tools.
@@ -291,7 +293,7 @@ Declare servers on `POST /api/experimental/chats`:
 {
   "organization_id": "...",
   "content": [{ "type": "text", "text": "Look up the order." }],
-  "mcp_servers": [
+  "inline_mcp_servers": [
     {
       "slug": "orders",
       "url": "https://mcp.example.com/orders",
@@ -306,16 +308,16 @@ Declare servers on `POST /api/experimental/chats`:
 ```
 
 `POST /api/experimental/chats/{chat}/messages` accepts the same field and
-replaces the chat's set before the turn runs. Omit `mcp_servers` to keep the
+replaces the chat's set before the turn runs. Omit `inline_mcp_servers` to keep the
 current set. Send `[]` to remove every server. A server whose `slug` already
-exists keeps its `id`. Only root chats accept `mcp_servers`.
+exists keeps its `id`. Only root chats accept `inline_mcp_servers`.
 
 ### Fields
 
 | Field                   | Description                                                                                                                       |
 |-------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
 | `slug`                  | 1 to 32 ASCII letters, numbers, `_`, or `-`, starting with a letter or number. Unique within the chat. Prefixes every tool name.  |
-| `url`                   | Streamable HTTP MCP endpoint. See [URL requirements](#url-requirements).                                                          |
+| `url`                   | Streamable HTTP MCP endpoint. See [URL and header requirements](#url-and-header-requirements).                                    |
 | `headers`               | Up to 16 HTTP headers sent on every request. This is the only credential mechanism.                                               |
 | `tool_allow_list`       | Same semantics as [Tool governance](#tool-governance). Up to 64 names. Cannot be combined with `tool_deny_list`.                  |
 | `tool_deny_list`        | Same semantics as [Tool governance](#tool-governance). Up to 64 names. Cannot be combined with `tool_allow_list`.                 |
@@ -325,17 +327,23 @@ exists keeps its `id`. Only root chats accept `mcp_servers`.
 
 ### Limits
 
-| Limit                         | Value   |
-|-------------------------------|---------|
-| Servers per chat              | 5       |
-| Headers per server            | 16      |
-| Total size of one declaration | 24 KiB  |
-| Tools per server              | 64      |
-| HTTP response body            | 1 MiB   |
-| Tool result                   | 256 KiB |
-| Time per tool call            | 60 s    |
+| Limit                         | Value        |
+|-------------------------------|--------------|
+| Servers per chat              | 5            |
+| Total size of one declaration | 24 KiB       |
+| Slug                          | 32 B         |
+| URL                           | 2 KiB        |
+| Headers per server            | 16           |
+| Header name                   | 128 B        |
+| Header value                  | 8 B to 8 KiB |
+| Tool names per filter list    | 64           |
+| Tool name                     | 128 B        |
+| Tools per server              | 64           |
+| HTTP response body            | 1 MiB        |
+| Tool result                   | 256 KiB      |
+| Time per tool call            | 60 s         |
 
-### URL requirements
+### URL and header requirements
 
 The URL must use `https://`, or `http://` to an IP literal inside
 `CODER_MCP_ALLOWED_PRIVATE_CIDRS`. Headers on an `http://` URL are rejected
@@ -350,12 +358,16 @@ rejected: names starting with `Proxy-` or `X-Coder-`, and `Host`,
 `TE`, `Keep-Alive`, `Accept`, `Accept-Encoding`, `Content-Type`,
 `Last-Event-ID`, `MCP-Protocol-Version`, and `MCP-Session-ID`.
 
+Header names are case-insensitive. A declaration that repeats a name with
+different casing is rejected.
+
 ### Security
 
 Header values are encrypted at rest when
 [database encryption](../../../admin/security/database-encryption.md) is
-configured. The URL, header names, and header values are redacted from every
-string the model sees, including tool descriptions and tool results.
+configured. The URL and header values are redacted from every string the model
+sees, including tool descriptions and tool results. Header names are not
+secret; the read-back endpoint returns them.
 
 Tool calls are at-least-once. Every `tools/call` request carries
 `_meta["com.coder/tool_call_id"]`, which stays the same across chatd retries
@@ -364,13 +376,15 @@ of one model tool call. A server can use it to deduplicate side effects.
 ### Kill switch
 
 `--disable-chat-caller-supplied-tools` (`CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS`)
-rejects chat requests that include `unsafe_dynamic_tools` or `mcp_servers`
+rejects chat requests that include `unsafe_dynamic_tools` or `inline_mcp_servers`
 with `403`, and runs existing chats without either. The flag takes effect on
-`coder server` restart. `GET /api/experimental/chats/{chat}/mcp-servers` still
+`coder server` restart. Turning off the `chat-inline-mcp-servers` experiment
+has the same effect on existing chats: declared servers stay stored and are not
+connected. `GET /api/experimental/chats/{chat}/inline-mcp-servers` still
 lists declared servers while the flag is set, and a message with
-`"mcp_servers": []` still removes them.
+`"inline_mcp_servers": []` still removes them.
 
 ### Read back
 
-`GET /api/experimental/chats/{chat}/mcp-servers` returns the declared servers
+`GET /api/experimental/chats/{chat}/inline-mcp-servers` returns the declared servers
 to the chat owner. The response includes header names but never header values.

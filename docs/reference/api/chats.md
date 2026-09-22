@@ -8,20 +8,20 @@ description: "REST endpoints for Coder Agents Chats API (programmatic agent sess
 
 Programmatic API for Coder Agents (the user-facing "Coder Agents" / "Chats" product). Use these endpoints to create, list, and manage AI coding agent sessions.
 
-## Get chat MCP servers
+## Get inline MCP servers
 
 ### Code samples
 
 ```sh
 # Example request using curl
-curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/mcp-servers \
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/inline-mcp-servers \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /api/experimental/chats/{chat}/mcp-servers`
+`GET /api/experimental/chats/{chat}/inline-mcp-servers`
 
-Lists the chat-attached MCP servers declared on the chat. Header values are never returned.
+Lists the inline MCP servers declared on the chat. Header values are never returned.
 Experimental: this endpoint is subject to change.
 
 ### Parameters
@@ -60,11 +60,11 @@ Experimental: this endpoint is subject to change.
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                              |
-|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ChatMCPServer](schemas.md#codersdkchatmcpserver) |
+| Status | Meaning                                                 | Description | Schema                                                                  |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.InlineMCPServer](schemas.md#codersdkinlinemcpserver) |
 
-<h3 id="get-chat-mcp-servers-responseschema">Response Schema</h3>
+<h3 id="get-inline-mcp-servers-responseschema">Response Schema</h3>
 
 Status Code **200**
 
@@ -383,14 +383,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "type": "text"
     }
   ],
-  "labels": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "mcp_server_ids": [
-    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-  ],
-  "mcp_servers": [
+  "inline_mcp_servers": [
     {
       "allow_in_plan_mode": true,
       "allow_in_subagents": true,
@@ -408,6 +401,13 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       ],
       "url": "string"
     }
+  ],
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -2557,10 +2557,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       "type": "text"
     }
   ],
-  "mcp_server_ids": [
-    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-  ],
-  "mcp_servers": [
+  "inline_mcp_servers": [
     {
       "allow_in_plan_mode": true,
       "allow_in_subagents": true,
@@ -2578,6 +2575,9 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       ],
       "url": "string"
     }
+  ],
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "plan_mode": "plan",

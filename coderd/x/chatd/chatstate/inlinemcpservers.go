@@ -12,10 +12,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// ReplaceChatMCPServers makes the chat's chat-attached MCP servers equal
+// ReplaceInlineMCPServers makes the chat's inline MCP servers equal
 // to servers. Rows with a matching slug keep their id. An empty slice
 // removes every server. store must be the transaction handle inside InTx.
-func ReplaceChatMCPServers(ctx context.Context, store database.Store, chatID uuid.UUID, servers []codersdk.ChatMCPServerRequest) error {
+func ReplaceInlineMCPServers(ctx context.Context, store database.Store, chatID uuid.UUID, servers []codersdk.InlineMCPServerRequest) error {
 	// A nil slice binds as SQL NULL and the delete would remove nothing.
 	slugs := make([]string, 0, len(servers))
 	for _, server := range servers {

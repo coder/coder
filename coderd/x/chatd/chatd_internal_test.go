@@ -612,6 +612,62 @@ func TestAppendComputerUseProviderTool_AnthropicHasNoResultMetadata(t *testing.T
 	require.Nil(t, providerTools[0].ResultProviderMetadata)
 }
 
+func TestPlanApprovedMCPServerIDs(t *testing.T) {
+	t.Parallel()
+
+	orgApproved := mcpPlanPolicy{ID: uuid.New(), AllowInPlanMode: true}
+	orgBlocked := mcpPlanPolicy{ID: uuid.New()}
+	chatApproved := mcpPlanPolicy{ID: uuid.New(), AllowInPlanMode: true}
+	chatBlocked := mcpPlanPolicy{ID: uuid.New()}
+	policies := []mcpPlanPolicy{orgApproved, orgBlocked, chatApproved, chatBlocked}
+	planMode := database.NullChatPlanMode{
+		ChatPlanMode: database.ChatPlanModePlan,
+		Valid:        true,
+	}
+
+	t.Run("NonPlanModeHasNoRestriction", func(t *testing.T) {
+		t.Parallel()
+
+		approved := planApprovedMCPServerIDs(database.NullChatPlanMode{}, uuid.NullUUID{}, policies)
+		require.Nil(t, approved)
+		require.Equal(t, policies, approvedMCPServers(policies, func(p mcpPlanPolicy) uuid.UUID { return p.ID }, approved))
+	})
+
+	t.Run("PlanModeSubagentApprovesNothing", func(t *testing.T) {
+		t.Parallel()
+
+		approved := planApprovedMCPServerIDs(planMode, uuid.NullUUID{UUID: uuid.New(), Valid: true}, policies)
+		require.NotNil(t, approved)
+		require.Empty(t, approved)
+		require.Nil(t, approvedMCPServers(policies, func(p mcpPlanPolicy) uuid.UUID { return p.ID }, approved))
+	})
+
+	t.Run("PlanModeRootApprovesBothSources", func(t *testing.T) {
+		t.Parallel()
+
+		approved := planApprovedMCPServerIDs(planMode, uuid.NullUUID{}, policies)
+		require.Equal(t, map[uuid.UUID]struct{}{orgApproved.ID: {}, chatApproved.ID: {}}, approved)
+		require.Equal(t,
+			[]mcpPlanPolicy{orgApproved, chatApproved},
+			approvedMCPServers(policies, func(p mcpPlanPolicy) uuid.UUID { return p.ID }, approved),
+		)
+
+		// An inline tool from an unapproved server must not survive
+		// the plan-mode tool filter even though its server was loaded.
+		tools := []fantasy.AgentTool{
+			newTestMCPAgentTool("org__tool", orgApproved.ID),
+			newTestMCPAgentTool("bot__tool", chatApproved.ID),
+			newTestMCPAgentTool("blocked__tool", chatBlocked.ID),
+		}
+		filtered := filterToolsForTurn(tools, planMode, uuid.NullUUID{}, approved)
+		names := make([]string, 0, len(filtered))
+		for _, tool := range filtered {
+			names = append(names, tool.Info().Name)
+		}
+		require.Equal(t, []string{"org__tool", "bot__tool"}, names)
+	})
+}
+
 func TestFilterExternalMCPConfigsForTurn(t *testing.T) {
 	t.Parallel()
 

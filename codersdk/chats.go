@@ -36,11 +36,22 @@ const MaxChatFileIDs = 50
 // attachments.
 const MaxChatFileSizeBytes = 10 * 1024 * 1024
 
-// MaxChatMCPServers caps chat-attached MCP servers per chat.
-const MaxChatMCPServers = 5
-
-// MaxChatMCPServersBytes caps the aggregate size of one mcp_servers declaration.
-const MaxChatMCPServersBytes = 24 * 1024
+// Inline MCP server declaration caps. Clients can validate before sending.
+const (
+	MaxInlineMCPServers                = 5
+	MaxInlineMCPServersBytes           = 24 * 1024
+	MaxInlineMCPServerSlugBytes        = 32
+	MaxInlineMCPServerURLBytes         = 2048
+	MaxInlineMCPServerHeaders          = 16
+	MaxInlineMCPServerHeaderNameBytes  = 128
+	MaxInlineMCPServerHeaderValueBytes = 8 * 1024
+	MaxInlineMCPServerToolFilters      = 64
+	MaxInlineMCPServerToolNameBytes    = 128
+	// MinInlineMCPServerHeaderValueBytes is the shortest accepted header
+	// value. Shorter values are not secrets and are rejected so every
+	// accepted value is redacted.
+	MinInlineMCPServerHeaderValueBytes = 8
+)
 
 // AnthropicInlineImageCapBytes is Anthropic's documented per-image
 // wire limit; the same cap applies to Bedrock-hosted Claude. Other
@@ -588,15 +599,16 @@ type CreateChatRequest struct {
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.
 	UnsafeDynamicTools []DynamicTool `json:"unsafe_dynamic_tools,omitempty"`
-	// MCPServers declares chat-attached MCP servers. Experimental.
-	MCPServers []ChatMCPServerRequest `json:"mcp_servers,omitempty"`
-	PlanMode   ChatPlanMode           `json:"plan_mode,omitempty"`
-	ClientType ChatClientType         `json:"client_type,omitempty"`
+	// InlineMCPServers declares MCP servers by value on this chat, next
+	// to the org-configured servers selected by MCPServerIDs. Experimental.
+	InlineMCPServers []InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
+	PlanMode         ChatPlanMode             `json:"plan_mode,omitempty"`
+	ClientType       ChatClientType           `json:"client_type,omitempty"`
 }
 
-// ChatMCPServerRequest declares a streamable HTTP MCP server attached to
+// InlineMCPServerRequest declares a streamable HTTP MCP server by value on
 // one chat. Header values are stored encrypted and never returned.
-type ChatMCPServerRequest struct {
+type InlineMCPServerRequest struct {
 	Slug                string            `json:"slug"`
 	URL                 string            `json:"url"`
 	Headers             map[string]string `json:"headers,omitempty"`
@@ -607,8 +619,8 @@ type ChatMCPServerRequest struct {
 	ForwardCoderHeaders bool              `json:"forward_coder_headers,omitempty"`
 }
 
-// ChatMCPServer is the redacted view of a chat-attached MCP server.
-type ChatMCPServer struct {
+// InlineMCPServer is the redacted view of an inline MCP server.
+type InlineMCPServer struct {
 	ID                  uuid.UUID `json:"id" format:"uuid"`
 	Slug                string    `json:"slug"`
 	URL                 string    `json:"url"`
@@ -671,10 +683,10 @@ type CreateChatMessageRequest struct {
 	Content       []ChatInputPart `json:"content"`
 	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
 	MCPServerIDs  *[]uuid.UUID    `json:"mcp_server_ids,omitempty" format:"uuid"`
-	// MCPServers replaces the chat-attached MCP servers.
+	// InlineMCPServers replaces the inline MCP servers.
 	// nil: no change, empty: remove all.
-	MCPServers   *[]ChatMCPServerRequest `json:"mcp_servers,omitempty"`
-	BusyBehavior ChatBusyBehavior        `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	InlineMCPServers *[]InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
+	BusyBehavior     ChatBusyBehavior          `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`
@@ -2880,9 +2892,9 @@ func (c *ExperimentalClient) GetChatDebugRuns(ctx context.Context, chatID uuid.U
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
-// GetChatMCPServers returns the chat-attached MCP servers with header values omitted.
-func (c *ExperimentalClient) GetChatMCPServers(ctx context.Context, chatID uuid.UUID) ([]ChatMCPServer, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/mcp-servers", chatID), nil)
+// GetChatInlineMCPServers returns the inline MCP servers with header values omitted.
+func (c *ExperimentalClient) GetChatInlineMCPServers(ctx context.Context, chatID uuid.UUID) ([]InlineMCPServer, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/inline-mcp-servers", chatID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2890,7 +2902,7 @@ func (c *ExperimentalClient) GetChatMCPServers(ctx context.Context, chatID uuid.
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-	var resp []ChatMCPServer
+	var resp []InlineMCPServer
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 

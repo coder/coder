@@ -181,7 +181,7 @@ See the following pages for experiment-gated features:
 
 - [Advisor](./advisor.md) (`--experiments=chat-advisor`)
 - [Virtual desktop](./virtual-desktop.md) (`--experiments=chat-virtual-desktop`)
-- [Chat-attached MCP servers](./mcp-servers.md#chat-attached-mcp-servers-experimental) (`--experiments=chat-mcp-servers`)
+- [Inline MCP servers](./mcp-servers.md#inline-mcp-servers-experimental) (`--experiments=chat-inline-mcp-servers`)
 
 For chat debug logging (not experiment-gated), see [Chat debug logging](./chat-debug-logging.md).
 

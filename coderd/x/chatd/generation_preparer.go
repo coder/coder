@@ -89,8 +89,11 @@ func (server *Server) prepareGeneration(
 		promptRows       []database.ChatMessage
 		mcpConfigs       []database.MCPServerConfig
 		mcpTokens        []database.MCPServerUserToken
-		chatMCPConfigs   []database.MCPServerConfig
-		chatMCPSensitive map[uuid.UUID][]string
+		inlineMCPServers []inlineMCPServer
+		// mcpLoadFailures are servers that never reached the connect
+		// step. They join the connect summaries so the debug panel shows
+		// them next to connection failures.
+		mcpLoadFailures []mcpclient.ConnectSummary
 	)
 
 	var g errgroup.Group
@@ -107,14 +110,9 @@ func (server *Server) prepareGeneration(
 		mcpConfigs, err = server.effectiveMCPServerConfigs(ctx, logger, chat)
 		return err
 	})
-	if !server.disableCallerSuppliedTools {
+	if server.inlineMCPServersEnabled() {
 		g.Go(func() error {
-			var err error
-			chatMCPConfigs, chatMCPSensitive, err = server.loadChatMCPServers(ctx, chat)
-			if err != nil {
-				logger.Warn(ctx, "failed to load chat-attached MCP servers", slog.Error(err))
-				chatMCPConfigs, chatMCPSensitive = nil, nil
-			}
+			inlineMCPServers, mcpLoadFailures = server.loadInlineMCPServers(ctx, chat)
 			return nil
 		})
 	}
@@ -184,18 +182,23 @@ func (server *Server) prepareGeneration(
 	isExploreSubagent := isExploreSubagentMode(chat.Mode)
 	isRootChat := !chat.ParentChatID.Valid
 
-	mcpConnectConfigs, approvedPlanMCPConfigIDs := filterExternalMCPConfigsForTurn(
-		mcpConfigs,
-		currentPlanMode,
-		chat.ParentChatID,
-	)
+	// One plan-mode policy covers org-configured and inline
+	// servers: both feed the same approved set, and every tool source
+	// below is filtered against it.
+	mcpPolicies := make([]mcpPlanPolicy, 0, len(mcpConfigs)+len(inlineMCPServers))
+	for _, cfg := range mcpConfigs {
+		mcpPolicies = append(mcpPolicies, mcpPlanPolicy{ID: cfg.ID, AllowInPlanMode: cfg.AllowInPlanMode})
+	}
+	for _, srv := range inlineMCPServers {
+		mcpPolicies = append(mcpPolicies, mcpPlanPolicy{ID: srv.Server.ID, AllowInPlanMode: srv.AllowInPlanMode})
+	}
+	approvedPlanMCPConfigIDs := planApprovedMCPServerIDs(currentPlanMode, chat.ParentChatID, mcpPolicies)
+	mcpConnectConfigs := approvedMCPServers(mcpConfigs, mcpConfigID, approvedPlanMCPConfigIDs)
+	inlineMCPConnectServers := approvedMCPServers(inlineMCPServers, inlineMCPServerID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent && isRootChat {
 		mcpConnectConfigs = nil
+		inlineMCPConnectServers = nil
 		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
-	}
-	chatMCPConnectConfigs, approvedChatMCPConfigIDs := filterExternalMCPConfigsForTurn(chatMCPConfigs, currentPlanMode, chat.ParentChatID)
-	for id := range approvedChatMCPConfigIDs {
-		approvedPlanMCPConfigIDs[id] = struct{}{}
 	}
 
 	planModeInstructions := server.loadPlanModeInstructions(ctx, currentPlanMode, logger)
@@ -291,9 +294,9 @@ func (server *Server) prepareGeneration(
 		mcpTools           []fantasy.AgentTool
 		mcpSummaries       []mcpclient.ConnectSummary
 		mcpCleanup         func()
-		chatMCPTools       []fantasy.AgentTool
-		chatMCPSummaries   []mcpclient.ConnectSummary
-		chatMCPCleanup     func()
+		inlineMCPTools     []fantasy.AgentTool
+		inlineMCPSummaries []mcpclient.ConnectSummary
+		inlineMCPCleanup   func()
 		workspaceMCPTools  []fantasy.AgentTool
 		workspaceSkills    []chattool.SkillMeta
 		personalSkills     []skillspkg.Skill
@@ -412,6 +415,7 @@ func (server *Server) prepareGeneration(
 			}
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			mcpServers := make([]mcpclient.Server, 0, len(mcpConnectConfigs))
+			var invalidConfigs []mcpclient.ConnectSummary
 			for _, cfg := range mcpConnectConfigs {
 				if !cfg.Enabled {
 					continue
@@ -420,6 +424,12 @@ func (server *Server) prepareGeneration(
 				if err != nil {
 					logger.Warn(ctx, "skipping MCP server with invalid config",
 						slog.F("server_slug", cfg.Slug), slog.Error(err))
+					invalidConfigs = append(invalidConfigs, mcpclient.ConnectSummary{
+						ConfigID: cfg.ID,
+						Slug:     cfg.Slug,
+						Outcome:  mcpclient.ConnectOutcomeError,
+						Error:    "invalid server config",
+					})
 					continue
 				}
 				mcpServers = append(mcpServers, srv)
@@ -434,18 +444,22 @@ func (server *Server) prepareGeneration(
 				chatprovider.CoderHeaders(chat),
 				server.mcpHTTPClient,
 			)
+			mcpSummaries = append(mcpSummaries, invalidConfigs...)
 			return nil
 		})
 	}
-	if len(chatMCPConnectConfigs) > 0 {
+	if len(inlineMCPConnectServers) > 0 {
 		g2.Go(func() error {
-			chatMCPTools, chatMCPSummaries, chatMCPCleanup = mcpclient.ConnectChatAttached(
+			servers := make([]mcpclient.Server, 0, len(inlineMCPConnectServers))
+			for _, srv := range inlineMCPConnectServers {
+				servers = append(servers, srv.Server)
+			}
+			inlineMCPTools, inlineMCPSummaries, inlineMCPCleanup = mcpclient.ConnectInline(
 				ctx,
 				logger,
-				chatMCPConnectConfigs,
+				servers,
 				chatprovider.CoderHeaders(chat),
 				server.mcpHTTPClient,
-				chatMCPSensitive,
 			)
 			return nil
 		})
@@ -468,7 +482,8 @@ func (server *Server) prepareGeneration(
 		})
 	}
 	g2Err := g2.Wait()
-	mcpSummaries = append(mcpSummaries, chatMCPSummaries...)
+	mcpSummaries = append(mcpSummaries, inlineMCPSummaries...)
+	mcpSummaries = append(mcpSummaries, mcpLoadFailures...)
 	// Record connect outcomes before acting on any preparation error:
 	// ConnectAll has already run, so a failure below (or in g2 itself)
 	// would otherwise discard this attempt's outcomes.
@@ -487,10 +502,10 @@ func (server *Server) prepareGeneration(
 			previousCleanup()
 		}
 	}
-	if chatMCPCleanup != nil {
+	if inlineMCPCleanup != nil {
 		previousCleanup := cleanup
 		cleanup = func() {
-			chatMCPCleanup()
+			inlineMCPCleanup()
 			previousCleanup()
 		}
 	}
@@ -659,8 +674,11 @@ func (server *Server) prepareGeneration(
 	if !isExploreSubagent {
 		tools = append(tools, workspaceMCPTools...)
 	}
+	// Inline tools join after every trusted source so a name
+	// collision resolves in favor of the trusted tool, and before the
+	// plan-mode filter so they are subject to the same approved set.
+	tools = mcpclient.AppendInline(ctx, logger, tools, inlineMCPTools)
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
-	tools = mcpclient.AppendChatAttached(ctx, logger, tools, chatMCPTools)
 
 	var dynamicToolNames map[string]bool
 	if server.disableCallerSuppliedTools {

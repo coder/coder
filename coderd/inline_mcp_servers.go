@@ -18,56 +18,46 @@ import (
 	"github.com/coder/safedial"
 )
 
-const (
-	maxChatMCPServerSlugBytes  = 32
-	maxChatMCPServerURLBytes   = 2048
-	maxChatMCPHeadersPerServer = 16
-	maxChatMCPHeaderNameBytes  = 128
-	maxChatMCPHeaderValueBytes = 8 * 1024
-	maxChatMCPToolFilters      = 64
-	maxChatMCPToolNameBytes    = 128
-)
-
-var chatMCPServerSlugPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$`)
+var inlineMCPServerSlugPattern = regexp.MustCompile(fmt.Sprintf(`^[A-Za-z0-9][A-Za-z0-9_-]{0,%d}$`, codersdk.MaxInlineMCPServerSlugBytes-1))
 
 func writeChatCallerSuppliedToolsDisabled(ctx context.Context, rw http.ResponseWriter) {
 	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 		Message: "Caller-supplied tools are disabled on this deployment.",
-		Detail:  "The server runs with --disable-chat-caller-supplied-tools. Remove unsafe_dynamic_tools and mcp_servers from the request.",
+		Detail:  "The server runs with --disable-chat-caller-supplied-tools. Remove unsafe_dynamic_tools and inline_mcp_servers from the request.",
 	})
 }
 
-func writeChatMCPServersExperimentRequired(ctx context.Context, rw http.ResponseWriter) {
+func writeInlineMCPServersExperimentRequired(ctx context.Context, rw http.ResponseWriter) {
 	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-		Message: "Chat-attached MCP servers are not enabled on this deployment.",
-		Detail:  "Enable the chat-mcp-servers experiment.",
+		Message: "Inline MCP servers are not enabled on this deployment.",
+		Detail:  fmt.Sprintf("Enable the %s experiment.", codersdk.ExperimentChatInlineMCPServers),
 	})
 }
 
-func writeChatMCPServersInvalid(ctx context.Context, rw http.ResponseWriter, validations []codersdk.ValidationError) {
+func writeInlineMCPServersInvalid(ctx context.Context, rw http.ResponseWriter, validations []codersdk.ValidationError) {
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-		Message:     "Invalid mcp_servers.",
+		Message:     "Invalid inline_mcp_servers.",
 		Validations: validations,
 	})
 }
 
-func validateChatMCPServers(
-	servers []codersdk.ChatMCPServerRequest,
+func validateInlineMCPServers(
+	servers []codersdk.InlineMCPServerRequest,
 	allowedIPRanges []netip.Prefix,
 ) []codersdk.ValidationError {
-	if len(servers) > codersdk.MaxChatMCPServers {
+	if len(servers) > codersdk.MaxInlineMCPServers {
 		return []codersdk.ValidationError{{
-			Field:  "mcp_servers",
-			Detail: fmt.Sprintf("must contain at most %d servers", codersdk.MaxChatMCPServers),
+			Field:  "inline_mcp_servers",
+			Detail: fmt.Sprintf("must contain at most %d servers", codersdk.MaxInlineMCPServers),
 		}}
 	}
 
-	if chatMCPServersSize(servers) > codersdk.MaxChatMCPServersBytes {
+	if inlineMCPServersSize(servers) > codersdk.MaxInlineMCPServersBytes {
 		return []codersdk.ValidationError{{
-			Field: "mcp_servers",
+			Field: "inline_mcp_servers",
 			Detail: fmt.Sprintf(
 				"total size must not exceed %d bytes",
-				codersdk.MaxChatMCPServersBytes,
+				codersdk.MaxInlineMCPServersBytes,
 			),
 		}}
 	}
@@ -75,61 +65,77 @@ func validateChatMCPServers(
 	seenSlugs := make(map[string]struct{}, len(servers))
 	var validations []codersdk.ValidationError
 	for i, server := range servers {
-		slugField := fmt.Sprintf("mcp_servers[%d].slug", i)
-		if !chatMCPServerSlugPattern.MatchString(server.Slug) {
+		slugField := fmt.Sprintf("inline_mcp_servers[%d].slug", i)
+		if !inlineMCPServerSlugPattern.MatchString(server.Slug) {
 			validations = append(validations, codersdk.ValidationError{
 				Field: slugField,
 				Detail: fmt.Sprintf(
 					"must be 1 to %d ASCII letters, numbers, underscores, or hyphens, and must start with a letter or number",
-					maxChatMCPServerSlugBytes,
+					codersdk.MaxInlineMCPServerSlugBytes,
 				),
 			})
 		} else if _, ok := seenSlugs[server.Slug]; ok {
 			validations = append(validations, codersdk.ValidationError{
 				Field:  slugField,
-				Detail: "must be unique within mcp_servers",
+				Detail: "must be unique within inline_mcp_servers",
 			})
 		} else {
 			seenSlugs[server.Slug] = struct{}{}
 		}
 
-		parsedURL, urlValidation := validateChatMCPServerURL(i, server.URL, allowedIPRanges)
+		parsedURL, urlValidation := validateInlineMCPServerURL(i, server.URL, allowedIPRanges)
 		if urlValidation != nil {
 			validations = append(validations, *urlValidation)
 		}
 
-		if len(server.Headers) > maxChatMCPHeadersPerServer {
+		if len(server.Headers) > codersdk.MaxInlineMCPServerHeaders {
 			validations = append(validations, codersdk.ValidationError{
-				Field: fmt.Sprintf("mcp_servers[%d].headers", i),
+				Field: fmt.Sprintf("inline_mcp_servers[%d].headers", i),
 				Detail: fmt.Sprintf(
 					"must contain at most %d headers",
-					maxChatMCPHeadersPerServer,
+					codersdk.MaxInlineMCPServerHeaders,
 				),
 			})
 		}
+		// Header names are case-insensitive identifiers: the transport
+		// canonicalizes them on the wire, so two spellings of one name
+		// would collide nondeterministically. Track the first spelling
+		// of each canonical name and reject repeats.
+		seen := make(map[string]string, len(server.Headers))
 		for _, name := range slices.Sorted(maps.Keys(server.Headers)) {
-			field := fmt.Sprintf("mcp_servers[%d].headers[%s]", i, name)
+			field := fmt.Sprintf("inline_mcp_servers[%d].headers[%s]", i, name)
 			value := server.Headers[name]
+			canonical := http.CanonicalHeaderKey(name)
 			switch {
-			case len(name) > maxChatMCPHeaderNameBytes:
+			case seen[canonical] != "":
 				validations = append(validations, codersdk.ValidationError{
 					Field:  field,
-					Detail: fmt.Sprintf("header name must not exceed %d bytes", maxChatMCPHeaderNameBytes),
+					Detail: fmt.Sprintf("header name duplicates %q; header names are case-insensitive", seen[canonical]),
+				})
+			case len(name) > codersdk.MaxInlineMCPServerHeaderNameBytes:
+				validations = append(validations, codersdk.ValidationError{
+					Field:  field,
+					Detail: fmt.Sprintf("header name must not exceed %d bytes", codersdk.MaxInlineMCPServerHeaderNameBytes),
 				})
 			case !httpguts.ValidHeaderFieldName(name):
 				validations = append(validations, codersdk.ValidationError{
 					Field:  field,
 					Detail: "header name is invalid",
 				})
-			case chatMCPHeaderReserved(name):
+			case inlineMCPHeaderReserved(name):
 				validations = append(validations, codersdk.ValidationError{
 					Field:  field,
 					Detail: "header name is reserved",
 				})
-			case len(value) > maxChatMCPHeaderValueBytes:
+			case len(value) < codersdk.MinInlineMCPServerHeaderValueBytes:
 				validations = append(validations, codersdk.ValidationError{
 					Field:  field,
-					Detail: fmt.Sprintf("header value must not exceed %d bytes", maxChatMCPHeaderValueBytes),
+					Detail: fmt.Sprintf("header value must be at least %d bytes", codersdk.MinInlineMCPServerHeaderValueBytes),
+				})
+			case len(value) > codersdk.MaxInlineMCPServerHeaderValueBytes:
+				validations = append(validations, codersdk.ValidationError{
+					Field:  field,
+					Detail: fmt.Sprintf("header value must not exceed %d bytes", codersdk.MaxInlineMCPServerHeaderValueBytes),
 				})
 			case !httpguts.ValidHeaderFieldValue(value):
 				validations = append(validations, codersdk.ValidationError{
@@ -137,41 +143,42 @@ func validateChatMCPServers(
 					Detail: "header value is invalid",
 				})
 			}
+			seen[canonical] = name
 		}
 
-		if parsedURL != nil && parsedURL.Scheme == "http" && len(server.Headers) > 0 && !chatMCPURLUsesAllowedIPLiteral(parsedURL, allowedIPRanges) {
+		if parsedURL != nil && parsedURL.Scheme == "http" && len(server.Headers) > 0 && !inlineMCPURLUsesAllowedIPLiteral(parsedURL, allowedIPRanges) {
 			validations = append(validations, codersdk.ValidationError{
-				Field:  fmt.Sprintf("mcp_servers[%d].headers", i),
+				Field:  fmt.Sprintf("inline_mcp_servers[%d].headers", i),
 				Detail: "headers require an HTTPS server URL",
 			})
 		}
 
 		if len(server.ToolAllowList) > 0 && len(server.ToolDenyList) > 0 {
 			validations = append(validations, codersdk.ValidationError{
-				Field:  fmt.Sprintf("mcp_servers[%d].tool_deny_list", i),
+				Field:  fmt.Sprintf("inline_mcp_servers[%d].tool_deny_list", i),
 				Detail: "cannot be combined with tool_allow_list",
 			})
 		}
-		validations = append(validations, validateChatMCPToolFilter(i, "tool_allow_list", server.ToolAllowList)...)
-		validations = append(validations, validateChatMCPToolFilter(i, "tool_deny_list", server.ToolDenyList)...)
+		validations = append(validations, validateInlineMCPToolFilter(i, "tool_allow_list", server.ToolAllowList)...)
+		validations = append(validations, validateInlineMCPToolFilter(i, "tool_deny_list", server.ToolDenyList)...)
 	}
 	return validations
 }
 
-func validateChatMCPServerURL(
+func validateInlineMCPServerURL(
 	index int,
 	rawURL string,
 	allowedIPRanges []netip.Prefix,
 ) (*url.URL, *codersdk.ValidationError) {
-	field := fmt.Sprintf("mcp_servers[%d].url", index)
+	field := fmt.Sprintf("inline_mcp_servers[%d].url", index)
 	invalid := func(detail string) (*url.URL, *codersdk.ValidationError) {
 		return nil, &codersdk.ValidationError{Field: field, Detail: detail}
 	}
 	if len(rawURL) == 0 {
 		return invalid("is required")
 	}
-	if len(rawURL) > maxChatMCPServerURLBytes {
-		return invalid(fmt.Sprintf("must not exceed %d bytes", maxChatMCPServerURLBytes))
+	if len(rawURL) > codersdk.MaxInlineMCPServerURLBytes {
+		return invalid(fmt.Sprintf("must not exceed %d bytes", codersdk.MaxInlineMCPServerURLBytes))
 	}
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
@@ -198,12 +205,12 @@ func validateChatMCPServerURL(
 	return parsed, nil
 }
 
-func validateChatMCPToolFilter(index int, name string, values []string) []codersdk.ValidationError {
-	field := fmt.Sprintf("mcp_servers[%d].%s", index, name)
-	if len(values) > maxChatMCPToolFilters {
+func validateInlineMCPToolFilter(index int, name string, values []string) []codersdk.ValidationError {
+	field := fmt.Sprintf("inline_mcp_servers[%d].%s", index, name)
+	if len(values) > codersdk.MaxInlineMCPServerToolFilters {
 		return []codersdk.ValidationError{{
 			Field:  field,
-			Detail: fmt.Sprintf("must contain at most %d tool names", maxChatMCPToolFilters),
+			Detail: fmt.Sprintf("must contain at most %d tool names", codersdk.MaxInlineMCPServerToolFilters),
 		}}
 	}
 	seen := make(map[string]struct{}, len(values))
@@ -214,10 +221,10 @@ func validateChatMCPToolFilter(index int, name string, values []string) []coders
 		switch {
 		case value == "":
 			validations = append(validations, codersdk.ValidationError{Field: itemField, Detail: "tool name must not be empty"})
-		case len(value) > maxChatMCPToolNameBytes:
+		case len(value) > codersdk.MaxInlineMCPServerToolNameBytes:
 			validations = append(validations, codersdk.ValidationError{
 				Field:  itemField,
-				Detail: fmt.Sprintf("tool name must not exceed %d bytes", maxChatMCPToolNameBytes),
+				Detail: fmt.Sprintf("tool name must not exceed %d bytes", codersdk.MaxInlineMCPServerToolNameBytes),
 			})
 		case strings.ContainsRune(value, '\x00'):
 			validations = append(validations, codersdk.ValidationError{Field: itemField, Detail: "tool name must not contain null bytes"})
@@ -230,7 +237,7 @@ func validateChatMCPToolFilter(index int, name string, values []string) []coders
 	return validations
 }
 
-func chatMCPServersSize(servers []codersdk.ChatMCPServerRequest) int {
+func inlineMCPServersSize(servers []codersdk.InlineMCPServerRequest) int {
 	total := 0
 	for _, server := range servers {
 		total += len(server.Slug) + len(server.URL)
@@ -247,7 +254,7 @@ func chatMCPServersSize(servers []codersdk.ChatMCPServerRequest) int {
 	return total
 }
 
-func chatMCPURLUsesAllowedIPLiteral(parsed *url.URL, allowedIPRanges []netip.Prefix) bool {
+func inlineMCPURLUsesAllowedIPLiteral(parsed *url.URL, allowedIPRanges []netip.Prefix) bool {
 	ip, err := netip.ParseAddr(parsed.Hostname())
 	if err != nil {
 		return false
@@ -261,7 +268,7 @@ func chatMCPURLUsesAllowedIPLiteral(parsed *url.URL, allowedIPRanges []netip.Pre
 	return false
 }
 
-func chatMCPHeaderReserved(name string) bool {
+func inlineMCPHeaderReserved(name string) bool {
 	canonical := strings.ToLower(http.CanonicalHeaderKey(name))
 	if strings.HasPrefix(canonical, "proxy-") || strings.HasPrefix(canonical, "x-coder-") {
 		return true

@@ -2685,40 +2685,6 @@ export const ChatListSources: ChatListSource[] = [
 
 // From codersdk/chats.go
 /**
- * ChatMCPServer is the redacted view of a chat-attached MCP server.
- */
-export interface ChatMCPServer {
-	readonly id: string;
-	readonly slug: string;
-	readonly url: string;
-	readonly header_names: readonly string[];
-	readonly tool_allow_list: readonly string[];
-	readonly tool_deny_list: readonly string[];
-	readonly allow_in_plan_mode: boolean;
-	readonly allow_in_subagents: boolean;
-	readonly forward_coder_headers: boolean;
-	readonly created_at: string;
-	readonly updated_at: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatMCPServerRequest declares a streamable HTTP MCP server attached to
- * one chat. Header values are stored encrypted and never returned.
- */
-export interface ChatMCPServerRequest {
-	readonly slug: string;
-	readonly url: string;
-	readonly headers?: Record<string, string>;
-	readonly tool_allow_list?: readonly string[];
-	readonly tool_deny_list?: readonly string[];
-	readonly allow_in_plan_mode?: boolean;
-	readonly allow_in_subagents?: boolean;
-	readonly forward_coder_headers?: boolean;
-}
-
-// From codersdk/chats.go
-/**
  * ChatMessage represents a single message in a chat.
  */
 export interface ChatMessage {
@@ -3894,10 +3860,10 @@ export interface CreateChatMessageRequest {
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: string[];
 	/**
-	 * MCPServers replaces the chat-attached MCP servers.
+	 * InlineMCPServers replaces the inline MCP servers.
 	 * nil: no change, empty: remove all.
 	 */
-	readonly mcp_servers?: ChatMCPServerRequest[];
+	readonly inline_mcp_servers?: InlineMCPServerRequest[];
 	readonly busy_behavior?: ChatBusyBehavior;
 	/**
 	 * PlanMode switches the chat's persistent plan mode.
@@ -3971,9 +3937,10 @@ export interface CreateChatRequest {
 	 */
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
 	/**
-	 * MCPServers declares chat-attached MCP servers. Experimental.
+	 * InlineMCPServers declares MCP servers by value on this chat, next
+	 * to the org-configured servers selected by MCPServerIDs. Experimental.
 	 */
-	readonly mcp_servers?: readonly ChatMCPServerRequest[];
+	readonly inline_mcp_servers?: readonly InlineMCPServerRequest[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
 }
@@ -5107,7 +5074,7 @@ export type Experiment =
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
-	| "chat-mcp-servers"
+	| "chat-inline-mcp-servers"
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
@@ -5124,7 +5091,7 @@ export const Experiments: Experiment[] = [
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
-	"chat-mcp-servers",
+	"chat-inline-mcp-servers",
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",
@@ -5846,6 +5813,40 @@ export const InboxNotificationFallbackIconTemplate = "DEFAULT_ICON_TEMPLATE";
 // From codersdk/inboxnotification.go
 export const InboxNotificationFallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE";
 
+// From codersdk/chats.go
+/**
+ * InlineMCPServer is the redacted view of an inline MCP server.
+ */
+export interface InlineMCPServer {
+	readonly id: string;
+	readonly slug: string;
+	readonly url: string;
+	readonly header_names: readonly string[];
+	readonly tool_allow_list: readonly string[];
+	readonly tool_deny_list: readonly string[];
+	readonly allow_in_plan_mode: boolean;
+	readonly allow_in_subagents: boolean;
+	readonly forward_coder_headers: boolean;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * InlineMCPServerRequest declares a streamable HTTP MCP server by value on
+ * one chat. Header values are stored encrypted and never returned.
+ */
+export interface InlineMCPServerRequest {
+	readonly slug: string;
+	readonly url: string;
+	readonly headers?: Record<string, string>;
+	readonly tool_allow_list?: readonly string[];
+	readonly tool_deny_list?: readonly string[];
+	readonly allow_in_plan_mode?: boolean;
+	readonly allow_in_subagents?: boolean;
+	readonly forward_coder_headers?: boolean;
+}
+
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
 
@@ -6225,15 +6226,57 @@ export const MaxChatFileSizeBytes = 10485760;
 
 // From codersdk/chats.go
 /**
- * MaxChatMCPServers caps chat-attached MCP servers per chat.
+ * Inline MCP server declaration caps. Clients can validate before sending.
  */
-export const MaxChatMCPServers = 5;
+export const MaxInlineMCPServerHeaderNameBytes = 128;
 
 // From codersdk/chats.go
 /**
- * MaxChatMCPServersBytes caps the aggregate size of one mcp_servers declaration.
+ * Inline MCP server declaration caps. Clients can validate before sending.
  */
-export const MaxChatMCPServersBytes = 24576;
+export const MaxInlineMCPServerHeaderValueBytes = 8192;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServerHeaders = 16;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServerSlugBytes = 32;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServerToolFilters = 64;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServerToolNameBytes = 128;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServerURLBytes = 2048;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServers = 5;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServersBytes = 24576;
 
 // From codersdk/usersecretsimport.go
 /**
@@ -6340,6 +6383,15 @@ export const MaxUserSecretsPerUserCount = 50;
  * math behind all three caps.
  */
 export const MaxUserSecretsTotalValueBytes = 204800; // 200 KiB
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ * MinInlineMCPServerHeaderValueBytes is the shortest accepted header
+ * value. Shorter values are not secrets and are rejected so every
+ * accepted value is redacted.
+ */
+export const MinInlineMCPServerHeaderValueBytes = 8;
 
 // From codersdk/organizations.go
 export interface MinimalOrganization {

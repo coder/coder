@@ -188,7 +188,7 @@ Workspace templates can expose custom
 [MCP](https://modelcontextprotocol.io/introduction) tools by placing a
 `.mcp.json` file in the workspace working directory.
 The agent connects to these servers, reports their tools in the context snapshot it pushes, and chats register those tools alongside their built-in tools.
-To attach an MCP server to one chat through the API instead, see [Chat-attached MCP servers](./platform-controls/mcp-servers.md#chat-attached-mcp-servers-experimental).
+To declare an MCP server inline on one chat through the API instead, see [Inline MCP servers](./platform-controls/mcp-servers.md#inline-mcp-servers-experimental).
 
 ### Configuration
 

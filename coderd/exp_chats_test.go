@@ -76,7 +76,7 @@ func newChatTestOptions(
 			string(codersdk.ExperimentChatAdvisor),
 			string(codersdk.ExperimentChatVirtualDesktop),
 			string(codersdk.ExperimentAgentLifecycleHooks),
-			string(codersdk.ExperimentChatMCPServers),
+			string(codersdk.ExperimentChatInlineMCPServers),
 		}
 	}
 

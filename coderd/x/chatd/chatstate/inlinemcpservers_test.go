@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestReplaceChatMCPServers(t *testing.T) {
+func TestReplaceInlineMCPServers(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitShort))
@@ -25,7 +25,7 @@ func TestReplaceChatMCPServers(t *testing.T) {
 		LastModelConfigID: model.ID,
 	})
 
-	err := chatstate.ReplaceChatMCPServers(ctx, db, chat.ID, []codersdk.ChatMCPServerRequest{
+	err := chatstate.ReplaceInlineMCPServers(ctx, db, chat.ID, []codersdk.InlineMCPServerRequest{
 		{Slug: "a", URL: "https://a.example.com/mcp", Headers: map[string]string{"Authorization": "Bearer a"}},
 		{Slug: "b", URL: "https://b.example.com/mcp"},
 	})
@@ -43,7 +43,7 @@ func TestReplaceChatMCPServers(t *testing.T) {
 	require.NotNil(t, bySlug["b"].ToolAllowList)
 	originalAID := bySlug["a"].ID
 
-	err = chatstate.ReplaceChatMCPServers(ctx, db, chat.ID, []codersdk.ChatMCPServerRequest{
+	err = chatstate.ReplaceInlineMCPServers(ctx, db, chat.ID, []codersdk.InlineMCPServerRequest{
 		{Slug: "a", URL: "https://a2.example.com/mcp"},
 		{Slug: "c", URL: "https://c.example.com/mcp", ToolAllowList: []string{"lookup"}},
 	})
@@ -62,7 +62,7 @@ func TestReplaceChatMCPServers(t *testing.T) {
 	require.Equal(t, "{}", bySlug["a"].Headers)
 	require.Equal(t, []string{"lookup"}, bySlug["c"].ToolAllowList)
 
-	err = chatstate.ReplaceChatMCPServers(ctx, db, chat.ID, []codersdk.ChatMCPServerRequest{})
+	err = chatstate.ReplaceInlineMCPServers(ctx, db, chat.ID, []codersdk.InlineMCPServerRequest{})
 	require.NoError(t, err)
 
 	rows, err = db.GetChatMCPServersByChatID(ctx, chat.ID)

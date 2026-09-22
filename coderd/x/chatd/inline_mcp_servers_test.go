@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,12 +23,12 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-const chatAttachedMCPSecret = "bot-secret-value"
+const chatInlineMCPSecret = "bot-secret-value"
 
-// chatAttachedMCPServer is a streamable HTTP MCP server with one echo
+// chatInlineMCPServer is a streamable HTTP MCP server with one echo
 // tool. It records the request headers and the _meta payload of every
 // tool call so tests can assert what chatd sent.
-type chatAttachedMCPServer struct {
+type chatInlineMCPServer struct {
 	url string
 
 	mu          sync.Mutex
@@ -35,10 +36,10 @@ type chatAttachedMCPServer struct {
 	toolCallIDs []string
 }
 
-func newChatAttachedMCPServer(t *testing.T, name string, toolDescription string) *chatAttachedMCPServer {
+func newChatInlineMCPServer(t *testing.T, name string, toolDescription string) *chatInlineMCPServer {
 	t.Helper()
 
-	recorder := &chatAttachedMCPServer{}
+	recorder := &chatInlineMCPServer{}
 	srv := newTestMCPServer(name)
 	srv.AddTool(&mcp.Tool{
 		Name:        "echo",
@@ -76,15 +77,15 @@ func newChatAttachedMCPServer(t *testing.T, name string, toolDescription string)
 	return recorder
 }
 
-func (s *chatAttachedMCPServer) snapshot() ([]http.Header, []string) {
+func (s *chatInlineMCPServer) snapshot() ([]http.Header, []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]http.Header(nil), s.requests...), append([]string(nil), s.toolCallIDs...)
 }
 
-// chatAttachedMCPModel is an OpenAI mock that calls toolName on its first
+// chatInlineMCPModel is an OpenAI mock that calls toolName on its first
 // streamed request and records the tool names and raw body it received.
-type chatAttachedMCPModel struct {
+type chatInlineMCPModel struct {
 	url string
 
 	mu           sync.Mutex
@@ -94,10 +95,10 @@ type chatAttachedMCPModel struct {
 	sawResult    atomic.Bool
 }
 
-func newChatAttachedMCPModel(t *testing.T, toolName string) *chatAttachedMCPModel {
+func newChatInlineMCPModel(t *testing.T, toolName string) *chatInlineMCPModel {
 	t.Helper()
 
-	model := &chatAttachedMCPModel{}
+	model := &chatInlineMCPModel{}
 	model.url = chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
@@ -128,13 +129,13 @@ func newChatAttachedMCPModel(t *testing.T, toolName string) *chatAttachedMCPMode
 	return model
 }
 
-func (m *chatAttachedMCPModel) first() ([]string, string) {
+func (m *chatInlineMCPModel) first() ([]string, string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]string(nil), m.firstTools...), m.firstRawBody
 }
 
-func TestChatAttachedMCPServers(t *testing.T) {
+func TestChatInlineMCPServers(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ToolInvocation", func(t *testing.T) {
@@ -142,8 +143,8 @@ func TestChatAttachedMCPServers(t *testing.T) {
 
 		db, ps := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		bot := newChatAttachedMCPServer(t, "bot", "Talks to "+chatAttachedMCPSecret+" over the wire.")
-		model := newChatAttachedMCPModel(t, "bot__echo")
+		bot := newChatInlineMCPServer(t, "bot", "Talks to "+chatInlineMCPSecret+" over the wire.")
+		model := newChatInlineMCPModel(t, "bot__echo")
 		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			withoutMCPToolSearch(cfg)
@@ -153,12 +154,12 @@ func TestChatAttachedMCPServers(t *testing.T) {
 		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 			OrganizationID: org.ID,
 			OwnerID:        user.ID,
-			Title:          "chat-attached-mcp",
+			Title:          "inline-mcp",
 			ModelConfigID:  modelConfig.ID,
-			MCPServers: []codersdk.ChatMCPServerRequest{{
+			InlineMCPServers: []codersdk.InlineMCPServerRequest{{
 				Slug:                "bot",
 				URL:                 bot.url,
-				Headers:             map[string]string{"X-Bot-Key": chatAttachedMCPSecret},
+				Headers:             map[string]string{"X-Bot-Key": chatInlineMCPSecret},
 				ForwardCoderHeaders: true,
 			}},
 			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("Echo something.")},
@@ -174,13 +175,13 @@ func TestChatAttachedMCPServers(t *testing.T) {
 		require.Contains(t, tools, "bot__echo")
 		require.True(t, model.sawResult.Load(), "tool result must reach the second model call")
 		require.Contains(t, rawBody, "Talks to [REDACTED] over the wire.")
-		require.NotContains(t, rawBody, chatAttachedMCPSecret, "header values must be redacted before reaching the model")
+		require.NotContains(t, rawBody, chatInlineMCPSecret, "header values must be redacted before reaching the model")
 		require.NotContains(t, rawBody, bot.url, "server URL must be redacted before reaching the model")
 
 		requests, toolCallIDs := bot.snapshot()
 		require.NotEmpty(t, requests)
 		for _, h := range requests {
-			require.Equal(t, chatAttachedMCPSecret, h.Get("X-Bot-Key"))
+			require.Equal(t, chatInlineMCPSecret, h.Get("X-Bot-Key"))
 			require.Equal(t, user.ID.String(), h.Get(chatprovider.HeaderCoderOwnerID))
 			require.Equal(t, chat.ID.String(), h.Get(chatprovider.HeaderCoderChatID))
 		}
@@ -193,8 +194,8 @@ func TestChatAttachedMCPServers(t *testing.T) {
 
 		db, ps := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		bot := newChatAttachedMCPServer(t, "bot", "Echoes the input")
-		model := newChatAttachedMCPModel(t, "")
+		bot := newChatInlineMCPServer(t, "bot", "Echoes the input")
+		model := newChatInlineMCPModel(t, "")
 		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			withoutMCPToolSearch(cfg)
@@ -205,9 +206,9 @@ func TestChatAttachedMCPServers(t *testing.T) {
 		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 			OrganizationID:     org.ID,
 			OwnerID:            user.ID,
-			Title:              "chat-attached-mcp-disabled",
+			Title:              "inline-mcp-disabled",
 			ModelConfigID:      modelConfig.ID,
-			MCPServers:         []codersdk.ChatMCPServerRequest{{Slug: "bot", URL: bot.url}},
+			InlineMCPServers:   []codersdk.InlineMCPServerRequest{{Slug: "bot", URL: bot.url}},
 			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("List tools.")},
 		})
 		require.NoError(t, err)
@@ -219,14 +220,52 @@ func TestChatAttachedMCPServers(t *testing.T) {
 		require.Empty(t, requests, "chatd must not connect when caller-supplied tools are disabled")
 	})
 
+	t.Run("ExperimentDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		bot := newChatInlineMCPServer(t, "bot", "Echoes the input")
+		model := newChatInlineMCPModel(t, "")
+		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			withoutMCPToolSearch(cfg)
+			cfg.Experiments = slices.DeleteFunc(slices.Clone(cfg.Experiments), func(experiment codersdk.Experiment) bool {
+				return experiment == codersdk.ExperimentChatInlineMCPServers
+			})
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
+		})
+
+		// chatd does not gate the declaration itself (the HTTP handler
+		// does), so a stored row exists and only the turn must skip it.
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID:     org.ID,
+			OwnerID:            user.ID,
+			Title:              "inline-mcp-experiment-off",
+			ModelConfigID:      modelConfig.ID,
+			InlineMCPServers:   []codersdk.InlineMCPServerRequest{{Slug: "bot", URL: bot.url}},
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("List tools.")},
+		})
+		require.NoError(t, err)
+		rows, err := db.GetChatMCPServersByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		waitForChatProcessed(ctx, t, db, chat.ID, server)
+
+		tools, _ := model.first()
+		require.NotContains(t, tools, "bot__echo")
+		requests, _ := bot.snapshot()
+		require.Empty(t, requests, "chatd must not connect when the experiment is off")
+	})
+
 	t.Run("PlanMode", func(t *testing.T) {
 		t.Parallel()
 
 		db, ps := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		approved := newChatAttachedMCPServer(t, "approved", "Echoes the input")
-		blocked := newChatAttachedMCPServer(t, "blocked", "Echoes the input")
-		model := newChatAttachedMCPModel(t, "approved__echo")
+		approved := newChatInlineMCPServer(t, "approved", "Echoes the input")
+		blocked := newChatInlineMCPServer(t, "blocked", "Echoes the input")
+		model := newChatInlineMCPModel(t, "approved__echo")
 		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			withoutMCPToolSearch(cfg)
@@ -236,10 +275,10 @@ func TestChatAttachedMCPServers(t *testing.T) {
 		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 			OrganizationID: org.ID,
 			OwnerID:        user.ID,
-			Title:          "chat-attached-mcp-plan",
+			Title:          "inline-mcp-plan",
 			ModelConfigID:  modelConfig.ID,
 			PlanMode:       database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
-			MCPServers: []codersdk.ChatMCPServerRequest{
+			InlineMCPServers: []codersdk.InlineMCPServerRequest{
 				{Slug: "approved", URL: approved.url, AllowInPlanMode: true},
 				{Slug: "blocked", URL: blocked.url},
 			},

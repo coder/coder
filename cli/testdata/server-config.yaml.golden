@@ -590,8 +590,8 @@ disableWorkspaceSharing: false
 # (default: <unset>, type: bool)
 disableChatSharing: false
 # Disable caller-supplied tools in chats. Chat requests that include
-# unsafe_dynamic_tools or mcp_servers are rejected, and existing chats run without
-# their dynamic tools and chat-attached MCP servers.
+# unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing chats run
+# without their dynamic tools and inline MCP servers.
 # (default: <unset>, type: bool)
 disableChatCallerSuppliedTools: false
 # Stop persisting workspace agent context snapshots (instructions, skills, and MCP
