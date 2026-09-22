@@ -96,7 +96,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, next.ID, codersdk.EditChatQueuedMessageRequest{Editing: boolPtr(true)}))
 		_, err = db.UpdateChatStatus(sysCtx, database.UpdateChatStatusParams{ID: chat.ID, Status: database.ChatStatusPaused})
 		require.NoError(t, err)
-		res, err := client.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/%s/queue/%d", chat.ID, next.ID), nil)
+		res, err := client.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/chats/%s/queue/%d", chat.ID, next.ID), nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusNoContent, res.StatusCode)
@@ -116,7 +116,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 			LastModelConfigID: modelConfig.ID, Title: "queued edit guards", Status: database.ChatStatusError,
 		})
 		queued := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "original"), modelConfig.ID)
-		path := fmt.Sprintf("/api/experimental/chats/%s/queue/%d", chat.ID, queued.ID)
+		path := fmt.Sprintf("/api/v2/chats/%s/queue/%d", chat.ID, queued.ID)
 
 		err := client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{})
 		require.Equal(t, "Nothing to edit.", requireSDKError(t, err, http.StatusBadRequest).Message)
@@ -127,7 +127,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, "Content is required.", requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusBadRequest).Message)
 
-		res, err = client.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/%s/queue/not-an-int", chat.ID), codersdk.EditChatQueuedMessageRequest{Editing: boolPtr(true)})
+		res, err = client.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/chats/%s/queue/not-an-int", chat.ID), codersdk.EditChatQueuedMessageRequest{Editing: boolPtr(true)})
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, "Invalid queued message ID.", requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusBadRequest).Message)
