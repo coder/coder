@@ -64,6 +64,10 @@ func TestOAuth2RateLimit(t *testing.T) {
 		requireLimited(t, func() *http.Response {
 			return doRequest(ctx, t, http.MethodGet, uri, nil)
 		}, http.StatusSeeOther)
+
+		resp := doRequest(ctx, t, http.MethodGet, authorizeURL(baseURL, uuid.NewString(), challenge), nil)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTooManyRequests, resp.StatusCode, "an unknown client should be refused before the app lookup")
 	})
 
 	t.Run("Tokens", func(t *testing.T) {
@@ -81,6 +85,11 @@ func TestOAuth2RateLimit(t *testing.T) {
 		requireLimited(t, func() *http.Response {
 			return doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/tokens", strings.NewReader(form.Encode()), formContentType)
 		}, http.StatusUnauthorized)
+
+		form.Set("client_id", uuid.NewString())
+		resp := doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/tokens", strings.NewReader(form.Encode()), formContentType)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTooManyRequests, resp.StatusCode, "an unknown client should be refused before the app lookup")
 	})
 
 	t.Run("Revoke", func(t *testing.T) {
@@ -97,6 +106,11 @@ func TestOAuth2RateLimit(t *testing.T) {
 		requireLimited(t, func() *http.Response {
 			return doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/revoke", strings.NewReader(form.Encode()), formContentType)
 		}, http.StatusUnauthorized)
+
+		form.Set("client_id", uuid.NewString())
+		resp := doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/revoke", strings.NewReader(form.Encode()), formContentType)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTooManyRequests, resp.StatusCode, "an unknown client should be refused before the app lookup")
 	})
 
 	t.Run("Register", func(t *testing.T) {
