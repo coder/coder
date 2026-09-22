@@ -67,9 +67,8 @@ const renderTopBar = (chat: Chat) => {
 };
 
 describe("ChatTopBar PR chip", () => {
-	it("opens the selected PR's URL when the chat tracks several", async () => {
+	it("links every tracked PR as a menu anchor when the chat tracks several", async () => {
 		const user = userEvent.setup();
-		const open = vi.spyOn(window, "open").mockReturnValue(null);
 
 		// Both PRs share a title, so the numbers must name them apart.
 		const primary = { ...MockChatDiffStatus };
@@ -86,12 +85,14 @@ describe("ChatTopBar PR chip", () => {
 
 		await user.click(screen.getByRole("button", { name: /2 PRs/ }));
 		const menu = await screen.findByRole("menu");
-		await user.click(within(menu).getByRole("menuitem", { name: /PR #456/ }));
 
-		expect(open).toHaveBeenCalledWith(
-			"https://github.com/coder/coder/pull/456",
-			"_blank",
-			"noreferrer",
-		);
+		// Real anchors: middle-click and copy-link work, and the
+		// destination is announced.
+		expect(
+			within(menu).getByRole("menuitem", { name: /PR #123/ }),
+		).toHaveAttribute("href", "https://github.com/coder/coder/pull/123");
+		expect(
+			within(menu).getByRole("menuitem", { name: /PR #456/ }),
+		).toHaveAttribute("href", "https://github.com/coder/coder/pull/456");
 	});
 });

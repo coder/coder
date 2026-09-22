@@ -313,11 +313,8 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					</DropdownMenu>
 				)}
 			</div>
-			{/* PR link. On mobile: icon + number; on desktop: icon + title.
-			   Hidden on desktop when the sidebar panel is open
-			   (which already shows PR info).
-			   One PR links directly. Several PRs open a menu with one
-			   link per PR, and the trigger shows the primary. */}
+			{/* Hidden on desktop when the sidebar panel is open,
+			   which already shows PR info. */}
 			{hasMultiplePRs ? (
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
@@ -337,23 +334,21 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						{prStatuses.map((status) => (
 							<DropdownMenuItem
 								key={`${status.remote_origin}/${status.git_branch}`}
-								onSelect={() => {
-									if (status.url) {
-										window.open(status.url, "_blank", "noreferrer");
-									}
-								}}
+								asChild
 								className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs"
 							>
-								<PrStateIcon
-									state={status.pull_request_state}
-									draft={status.pull_request_draft}
-									className="size-3.5! shrink-0"
-								/>
-								{/* The number keeps every item distinguishable when
-										two PRs share a title. */}
-								<span className="truncate">
-									{`PR #${prNumber(status)} ${status.pull_request_title}`}
-								</span>
+								<a href={status.url} target="_blank" rel="noreferrer">
+									<PrStateIcon
+										state={status.pull_request_state}
+										draft={status.pull_request_draft}
+										className="size-3.5! shrink-0"
+									/>
+									{/* The number keeps every item distinguishable when
+													two PRs share a title. */}
+									<span className="truncate">
+										{`PR #${prNumber(status)} ${status.pull_request_title}`}
+									</span>
+								</a>
 							</DropdownMenuItem>
 						))}
 					</DropdownMenuContent>
@@ -399,8 +394,6 @@ type PrLinkProps = {
 	className?: string;
 };
 
-// The PR chip in the top bar. On mobile it shows the number, on
-// desktop the title.
 const PrLink: FC<PrLinkProps> = ({ status, className }) => {
 	const number = prNumber(status);
 
