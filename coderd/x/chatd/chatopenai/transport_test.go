@@ -38,7 +38,9 @@ func TestTransportFor(t *testing.T) {
 		{"OpenAIGPT6AstraForceCompletions", fantasyopenai.Name, "gpt-6-astra", &forceCompletions, chatopenai.TransportChatCompletions},
 		{"AzureIgnoresOverride", fantasyazure.Name, responsesModel, &forceCompletions, chatopenai.TransportResponses},
 		{"AzureKnownModelList", fantasyazure.Name, nonResponsesModel, nil, chatopenai.TransportChatCompletions},
-		{"OpenAICompat", fantasyopenaicompat.Name, responsesModel, &forceResponses, chatopenai.TransportChatCompletions},
+		{"OpenAICompatKnownModelDefaultsToChatCompletions", fantasyopenaicompat.Name, responsesModel, nil, chatopenai.TransportChatCompletions},
+		{"OpenAICompatForceResponses", fantasyopenaicompat.Name, "muse-spark-1.3-contributor", &forceResponses, chatopenai.TransportResponses},
+		{"OpenAICompatForceCompletions", fantasyopenaicompat.Name, responsesModel, &forceCompletions, chatopenai.TransportChatCompletions},
 		{"Anthropic", "anthropic", "claude-sonnet-4-5", &forceResponses, chatopenai.TransportNotApplicable},
 	}
 

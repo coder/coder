@@ -14,9 +14,59 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestResolvedModelCallDefaultsResponsesToolChoice(t *testing.T) {
+	t.Parallel()
+
+	responses := true
+	completions := false
+	cases := []struct {
+		name           string
+		provider       string
+		override       *bool
+		wantToolChoice *fantasy.ToolChoice
+	}{
+		{
+			name:           "responses defaults to auto",
+			provider:       fantasyopenai.Name,
+			override:       &responses,
+			wantToolChoice: ptr.Ref(fantasy.ToolChoiceAuto),
+		},
+		{
+			name:     "chat completions leaves choice unset",
+			provider: fantasyopenai.Name,
+			override: &completions,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			model := chatprovider.NewModel(
+				&chattest.FakeModel{ProviderName: tc.provider, ModelName: "test-model"},
+				&codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tc.override},
+			)
+			call := (resolvedModelCall{model: model}).newCall()
+			if tc.wantToolChoice == nil {
+				require.Nil(t, call.ToolChoice)
+				return
+			}
+			require.NotNil(t, call.ToolChoice)
+			require.Equal(t, *tc.wantToolChoice, *call.ToolChoice)
+
+			forced := fantasy.ToolChoiceNone
+			call.ToolChoice = &forced
+			require.Equal(t, fantasy.ToolChoiceNone, *call.ToolChoice,
+				"an explicit tool choice must override the Responses default")
+		})
+	}
+}
 
 func modelCallSentinelOptions(t *testing.T, user string) json.RawMessage {
 	t.Helper()
