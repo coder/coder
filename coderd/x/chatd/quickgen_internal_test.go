@@ -605,7 +605,7 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 
 				db, _ := dbtestutil.NewDB(t)
 				ctx := testutil.Context(t, testutil.WaitMedium)
-				owner, chat := seedTitleGenerationChat(t, db, fallback)
+				owner, chat := seedTitleChat(t, db, fallback, database.ChatTitleSourceFallback)
 				ps := dbpubsub.NewInMemory()
 				events := subscribeChatWatchEvents(t, ps, owner.ID)
 
@@ -649,7 +649,7 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 
 				db, _ := dbtestutil.NewDB(t)
 				ctx := testutil.Context(t, testutil.WaitMedium)
-				owner, chat := seedTitleGenerationChat(t, db, fallback)
+				owner, chat := seedTitleChat(t, db, fallback, database.ChatTitleSourceFallback)
 				ps := dbpubsub.NewInMemory()
 				events := subscribeChatWatchEvents(t, ps, owner.ID)
 
@@ -699,7 +699,7 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 	})
 }
 
-func seedTitleGenerationChat(t *testing.T, db database.Store, title string) (database.User, database.Chat) {
+func seedTitleChat(t *testing.T, db database.Store, title string, source database.ChatTitleSource) (database.User, database.Chat) {
 	t.Helper()
 	owner := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -720,6 +720,7 @@ func seedTitleGenerationChat(t *testing.T, db database.Store, title string) (dat
 		OwnerID:           owner.ID,
 		LastModelConfigID: modelConfig.ID,
 		Title:             title,
+		TitleSource:       source,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 	})
