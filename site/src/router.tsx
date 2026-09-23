@@ -24,7 +24,9 @@ import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
 import { TemplateRedirectController } from "./pages/TemplatePage/TemplateRedirectController";
 import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
-import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
+import UserSettingsLayout, {
+	UserSettingsIndexRedirect,
+} from "./pages/UserSettingsPage/Layout";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
@@ -671,6 +673,7 @@ export const router = createBrowserRouter(
 					</Route>
 
 					<Route path="/settings" element={<UserSettingsLayout />}>
+						<Route index element={<UserSettingsIndexRedirect />} />
 						<Route path="account" element={<AccountPage />} />
 						<Route path="appearance" element={<AppearancePage />} />
 						<Route path="schedule" element={<SchedulePage />} />

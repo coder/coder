@@ -9,9 +9,14 @@
 import { cn } from "cn";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
+import { createContext, useContext } from "react";
 import {
 	menuContentClass,
+	menuContentSmallClass,
 	menuItemClass,
+	menuItemSmallClass,
+	menuLabelClass,
+	menuLabelSmallClass,
 	menuSeparatorClass,
 } from "./menuClasses";
 
@@ -21,17 +26,46 @@ export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
+type MenuSize = "default" | "sm";
+
+const MenuSizeContext = createContext<MenuSize>("default");
+
 export const DropdownMenuContent: React.FC<
-	React.ComponentProps<typeof DropdownMenuPrimitive.Content>
-> = ({ className, sideOffset = 4, ...props }) => {
+	React.ComponentProps<typeof DropdownMenuPrimitive.Content> & {
+		/** Compact variant with extra-small item text. */
+		size?: MenuSize;
+	}
+> = ({ className, sideOffset = 4, size = "default", ...props }) => {
 	return (
-		<DropdownMenuPrimitive.Portal>
-			<DropdownMenuPrimitive.Content
-				sideOffset={sideOffset}
-				className={cn(menuContentClass, className)}
-				{...props}
-			/>
-		</DropdownMenuPrimitive.Portal>
+		<MenuSizeContext.Provider value={size}>
+			<DropdownMenuPrimitive.Portal>
+				<DropdownMenuPrimitive.Content
+					sideOffset={sideOffset}
+					className={cn(
+						menuContentClass,
+						size === "sm" && menuContentSmallClass,
+						className,
+					)}
+					{...props}
+				/>
+			</DropdownMenuPrimitive.Portal>
+		</MenuSizeContext.Provider>
+	);
+};
+
+export const DropdownMenuLabel: React.FC<
+	React.ComponentProps<typeof DropdownMenuPrimitive.Label>
+> = ({ className, ...props }) => {
+	const size = useContext(MenuSizeContext);
+	return (
+		<DropdownMenuPrimitive.Label
+			className={cn(
+				menuLabelClass,
+				size === "sm" && menuLabelSmallClass,
+				className,
+			)}
+			{...props}
+		/>
 	);
 };
 
@@ -46,9 +80,15 @@ export const DropdownMenuItem: React.FC<DropdownMenuItemProps> = ({
 	inset,
 	...props
 }) => {
+	const size = useContext(MenuSizeContext);
 	return (
 		<DropdownMenuPrimitive.Item
-			className={cn(menuItemClass, inset && "pl-8", className)}
+			className={cn(
+				menuItemClass,
+				size === "sm" && menuItemSmallClass,
+				inset && "pl-8",
+				className,
+			)}
 			{...props}
 		/>
 	);

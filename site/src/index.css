@@ -746,6 +746,27 @@
 		}
 	}
 
+	html[data-settings-navigation],
+	html[data-settings-navigation] body {
+		overflow: hidden;
+	}
+
+	html[data-settings-navigation] [data-dashboard-layout] {
+		height: 100%;
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	html[data-settings-navigation] [data-dashboard-body] {
+		flex: 1;
+	}
+
+	html[data-settings-navigation] body[data-scroll-locked] {
+		--removed-body-scroll-bar-size: 0 !important;
+		margin-right: 0 !important;
+		overflow: hidden !important;
+	}
+
 	h1 {
 		margin-block: 0.67em;
 	}
@@ -764,6 +785,10 @@
 	h4 {
 		margin-block: 1.33em;
 	}
+}
+
+html[data-settings-navigation] [data-dashboard-body] {
+	min-height: 0 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

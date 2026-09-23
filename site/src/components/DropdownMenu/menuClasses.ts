@@ -18,3 +18,13 @@ export const menuItemClass = `
 	`;
 
 export const menuSeparatorClass = "-mx-1 my-2 h-px bg-border";
+
+export const menuLabelClass =
+	"px-2 py-1.5 text-sm font-medium text-content-secondary";
+
+export const menuContentSmallClass = "p-1 min-w-40";
+
+export const menuItemSmallClass =
+	"text-xs py-1 [&>svg]:size-icon-xs [&>img]:size-icon-xs";
+
+export const menuLabelSmallClass = "text-xs py-1";
