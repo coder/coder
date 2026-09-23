@@ -311,6 +311,55 @@ export const useFilterCombobox = ({
 			? parseTypedCategoryPrefix(inputValue, inlineCategories)
 			: null;
 
+	// Category rows preview their options while the menu is open with an empty
+	// input. The empty-query key is shared with the category view, so entering a
+	// category reuses the cached result. Inline options always load because
+	// applied chips take their labels from them, and single-option categories
+	// load so they can be left out before the menu opens.
+	const previewsEnabled = isBrowsing && activeCategoryKey === null;
+	const previewOptions = useQueries({
+		queries: categories.map((category) =>
+			filterComboboxOptions(
+				category.key,
+				category.getOptions,
+				"",
+				previewsEnabled ||
+					Boolean(category.inlineOptions || category.hideWhenSingleOption),
+			),
+		),
+		combine: (results) => {
+			const optionsByKey = new Map<string, readonly FilterOption[]>();
+			results.forEach((result, index) => {
+				if (result.data) {
+					optionsByKey.set(categories[index].key, result.data);
+				}
+			});
+			return {
+				optionsByKey,
+				isPending: results.some(
+					(result, index) =>
+						categories[index].inlineOptions &&
+						!result.isError &&
+						result.data === undefined,
+				),
+			};
+		},
+	});
+	// Filtering by a category with at most one option would not narrow the
+	// results, so opted-in categories stay out of the menu until they offer a
+	// real choice. An applied chip keeps the category listed so it can change.
+	const menuCategories = submenuCategories.filter((category) => {
+		if (
+			!category.hideWhenSingleOption ||
+			chipValues.some((token) =>
+				(category.chipKeys ?? [category.key]).includes(chipKeyOf(token) ?? ""),
+			)
+		) {
+			return true;
+		}
+		return (previewOptions.optionsByKey.get(category.key)?.length ?? 0) > 1;
+	});
+
 	const categoryQuery =
 		activeCategoryKey !== null || browseAll ? "" : inputValue.trim();
 	// Typing the start of a word in a scope toggle's pill label (e.g. `sha` for
@@ -319,7 +368,7 @@ export const useFilterCombobox = ({
 	const scopeMatchedCategory =
 		scopeQuery.length < 3 || typedInlinePrefix !== null
 			? undefined
-			: submenuCategories.find((category) => {
+			: menuCategories.find((category) => {
 					const pillLabel = category.scopeToggle?.pillLabel.toLowerCase();
 					return (
 						pillLabel !== undefined &&
@@ -327,12 +376,12 @@ export const useFilterCombobox = ({
 							pillLabel.split(" ").some((word) => word.startsWith(scopeQuery)))
 					);
 				});
-	const matchedCategories = matchCategories(categoryQuery, submenuCategories);
+	const matchedCategories = matchCategories(categoryQuery, menuCategories);
 	const listedCategories =
 		!open || typedInlinePrefix !== null
 			? []
 			: categoryQuery.length === 0
-				? submenuCategories
+				? menuCategories
 				: scopeMatchedCategory &&
 						!matchedCategories.includes(scopeMatchedCategory)
 					? [...matchedCategories, scopeMatchedCategory]
@@ -420,38 +469,6 @@ export const useFilterCombobox = ({
 		},
 	});
 
-	// Category rows preview their options while the menu is open with an empty
-	// input. The empty-query key is shared with the category view, so entering a
-	// category reuses the cached result. Inline options always load because
-	// applied chips take their labels from them.
-	const previewsEnabled = isBrowsing && activeCategoryKey === null;
-	const previewOptions = useQueries({
-		queries: categories.map((category) =>
-			filterComboboxOptions(
-				category.key,
-				category.getOptions,
-				"",
-				previewsEnabled || Boolean(category.inlineOptions),
-			),
-		),
-		combine: (results) => {
-			const optionsByKey = new Map<string, readonly FilterOption[]>();
-			results.forEach((result, index) => {
-				if (result.data) {
-					optionsByKey.set(categories[index].key, result.data);
-				}
-			});
-			return {
-				optionsByKey,
-				isPending: results.some(
-					(result, index) =>
-						categories[index].inlineOptions &&
-						!result.isError &&
-						result.data === undefined,
-				),
-			};
-		},
-	});
 	const inlineOptionsSource =
 		typeaheadQuerySource.length === 0
 			? previewOptions.optionsByKey

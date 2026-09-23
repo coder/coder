@@ -43,6 +43,11 @@ export type FilterCategory = {
 	/** Applied chips show only the option label, without the category prefix. */
 	inlineOptionsLabelOnly?: boolean;
 	/**
+	 * Leave the category out of the menu while it has at most one option, since
+	 * filtering by it would not narrow the results.
+	 */
+	hideWhenSingleOption?: boolean;
+	/**
 	 * Switch shown below the category's options, on by default. While on,
 	 * options commit under `chipKey` instead of the category key, e.g. Owner
 	 * committing `user:alice` (owned by or shared with alice) instead of
