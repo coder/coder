@@ -262,6 +262,7 @@ type ProviderTool struct {
 type stepResult struct {
 	content              []fantasy.Content
 	usage                fantasy.Usage
+	responseBytes        int
 	providerMetadata     fantasy.ProviderMetadata
 	finishReason         fantasy.FinishReason
 	toolCalls            []fantasy.ToolCallContent
@@ -355,6 +356,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		}
 		return AssistantOutcome{}, wrappedErr
 	}
+	opts.Metrics.ResponseSizeBytes.WithLabelValues(provider, modelName).Observe(float64(result.responseBytes))
 
 	contextLimit := extractContextLimitWithFallback(result.providerMetadata, opts.ContextLimitFallback)
 	result.content = chatsanitize.SanitizeAnthropicProviderToolStepContent(
@@ -852,6 +854,7 @@ func processStepStream(
 			activeTextContent[part.ID] = ""
 
 		case fantasy.StreamPartTypeTextDelta:
+			result.responseBytes += len(part.Delta)
 			if _, exists := activeTextContent[part.ID]; exists {
 				activeTextContent[part.ID] += part.Delta
 			}
@@ -867,6 +870,7 @@ func processStepStream(
 			}
 
 		case fantasy.StreamPartTypeReasoningStart:
+			result.responseBytes += len(part.Delta)
 			activeReasoningContent[part.ID] = reasoningState{
 				text:      part.Delta,
 				options:   part.ProviderMetadata,
@@ -874,6 +878,7 @@ func processStepStream(
 			}
 
 		case fantasy.StreamPartTypeReasoningDelta:
+			result.responseBytes += len(part.Delta)
 			reasoningPart := codersdk.ChatMessageReasoning(part.Delta)
 			if active, exists := activeReasoningContent[part.ID]; exists {
 				active.text += part.Delta
@@ -909,6 +914,7 @@ func processStepStream(
 			}
 
 		case fantasy.StreamPartTypeToolInputDelta:
+			result.responseBytes += len(part.Delta)
 			providerExecuted := providerExecutedCalls[part.ID]
 			toolName := toolNames[part.ID]
 			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{

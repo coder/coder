@@ -29,6 +29,7 @@ type Metrics struct {
 	Chats                     *prometheus.GaugeVec
 	MessageCount              *prometheus.HistogramVec
 	PromptSizeBytes           *prometheus.HistogramVec
+	ResponseSizeBytes         *prometheus.HistogramVec
 	ToolResultSizeBytes       *prometheus.HistogramVec
 	ToolResultTruncatedTotal  *prometheus.CounterVec
 	ToolErrorsTotal           *prometheus.CounterVec
@@ -66,6 +67,13 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "prompt_size_bytes",
 			Help:      "Estimated byte size of the prompt per LLM request.",
 			Buckets:   prometheus.ExponentialBuckets(1024, 4, 10), // 1KB .. 256MB
+		}, []string{"provider", "model"}),
+		ResponseSizeBytes: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "response_size_bytes",
+			Help:      "Byte size of streamed model response content (assistant text, reasoning, and tool-call input deltas) per LLM request.",
+			Buckets:   prometheus.ExponentialBuckets(64, 4, 11), // 64B .. 64MB
 		}, []string{"provider", "model"}),
 		ToolResultSizeBytes: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,

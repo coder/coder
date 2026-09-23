@@ -7112,6 +7112,10 @@ func TestActiveServer_RecordsGenerationMetrics(t *testing.T) {
 		"provider": "openai",
 		"model":    "gpt-4o-mini",
 	}, chatdMetricHistogramRequirement{PositiveSum: true})
+	requireChatdMetricHistogram(t, reg, "coderd_chatd_response_size_bytes", 1, map[string]string{
+		"provider": "openai",
+		"model":    "gpt-4o-mini",
+	}, chatdMetricHistogramRequirement{PositiveSum: true})
 	requireChatdMetricHistogram(t, reg, "coderd_chatd_ttft_seconds", 1, map[string]string{
 		"provider": "openai",
 		"model":    "gpt-4o-mini",
