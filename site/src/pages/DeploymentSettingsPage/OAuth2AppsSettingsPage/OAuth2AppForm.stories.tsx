@@ -5,6 +5,7 @@ import { externalScopesKey } from "#/api/queries/oauth2";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockExternalAPIKeyScopes,
+	MockOAuth2ProviderAppPublic,
 	MockOAuth2ProviderApps,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -90,5 +91,19 @@ export const Disabled: Story = {
 	args: {
 		app: appWithScopes,
 		disabled: true,
+	},
+};
+
+export const SelfRegisteredScopesNarrowed: Story = {
+	args: {
+		app: {
+			...MockOAuth2ProviderAppPublic,
+			scope: "coder:workspaces.access workspace:ssh",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getAllByTestId("clear-option-button")[0],
+		);
 	},
 };

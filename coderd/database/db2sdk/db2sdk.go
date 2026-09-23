@@ -487,6 +487,9 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 		Icon:         dbApp.Icon,
 		Scope:        rbac.CanonicalScopeList(dbApp.Scope.String),
 		ClientType:   codersdk.OAuth2ClientType(dbApp.ClientType),
+		// The column is nullable for rows written before it existed. Those
+		// apps were created by an admin.
+		DynamicallyRegistered: dbApp.DynamicallyRegistered.Bool,
 		Endpoints: codersdk.OAuth2AppEndpoints{
 			Authorization: accessURL.ResolveReference(&url.URL{
 				Path: "/oauth2/authorize",

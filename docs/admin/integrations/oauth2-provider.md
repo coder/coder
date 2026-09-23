@@ -63,6 +63,7 @@ Treat the setting as a way to stop new authorizations rather than as a way to re
    - **Name**: Your application name
    - **Callback URL**: `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop)
    - **Icon**: Optional icon URL
+   - **Allowed scopes**: Optional. Refer to [Scopes](#scopes).
 
 ### Method 2: Management API
 
@@ -341,10 +342,18 @@ The client may then request anything that allowlist covers, and is granted the w
 An application with no allowlist honors any requested scope, and a request that names no scope is granted `coder:all`.
 
 An application registered through [Dynamic Client Registration](#dynamic-client-registration) declares its allowlist in the `scope` field of its registration.
-An administrator sets one with the optional, space-separated `scope` field when [creating an application](../../reference/api/enterprise.md#create-oauth2-application) through the management API.
+An administrator sets one with the **Allowed scopes** field in the web UI, or with the optional, space-separated `scope` field when [creating an application](../../reference/api/enterprise.md#create-oauth2-application) through the management API.
 When [updating an application](../../reference/api/enterprise.md#update-oauth2-application), omit `scope` to keep the current allowlist, send a new value to replace it, or send an empty string to clear it and make the application unrestricted.
 The stored value is not checked against the scopes this deployment offers; a name it does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](#invalid_scope-returned-to-your-callback).
-The web UI does not yet set the allowlist.
+
+Use caution when narrowing the scope allowlist of a self-registered application.
+Many clients, including popular MCP clients, request every scope Coder advertises in `scopes_supported` rather than selecting specific scopes.
+The allowlist is stored on the application and does not affect that advertised list, so the client continues requesting the full set.
+Coder rejects requests that exceed the allowlist rather than trimming their scopes, causing every new authorization attempt to fail with `invalid_scope`.
+Previously issued tokens retain their scopes.
+To restrict such a client, re-register it with a narrower set of scopes.
+Clearing the allowlist resolves the failures but leaves the application unrestricted.
+The web UI warns before saving a narrower allowlist, and the application page indicates whether the application was self-registered or created by an administrator.
 
 The consent page states the scope being granted before the user approves it. A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
 
@@ -517,6 +526,7 @@ opens with the requested name that caused the rejection:
   `GET /.well-known/oauth-authorization-server`.
 - `scope requests permissions beyond this app's allowed scopes`: the name is supported, but the application's `scope` allowlist does not cover it.
   Request less, or widen the allowlist.
+  If the application registered itself and an administrator has since narrowed its allowlist, refer to [Scopes](#scopes).
 - `none of the scopes registered for this app are supported by this deployment`: the application's `scope` allowlist names nothing this deployment offers, so no request against it can succeed, including one that omits `scope`.
   Update the allowlist with supported scopes.
   This description stands alone.

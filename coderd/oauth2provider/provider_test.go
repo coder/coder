@@ -293,6 +293,35 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("RegistrationOrigin", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		created, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        testutil.GetRandomName(t),
+			CallbackURL: "https://example.com/callback",
+		})
+		require.NoError(t, err)
+		adminApp, err := client.OAuth2ProviderApp(ctx, created.ID)
+		require.NoError(t, err)
+		require.False(t, adminApp.DynamicallyRegistered)
+
+		registered, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+			ClientName:   testutil.GetRandomName(t),
+			RedirectURIs: []string{"https://example.com/callback"},
+		})
+		require.NoError(t, err)
+		registeredID, err := uuid.Parse(registered.ClientID)
+		require.NoError(t, err)
+		dcrApp, err := client.OAuth2ProviderApp(ctx, registeredID)
+		require.NoError(t, err)
+		require.True(t, dcrApp.DynamicallyRegistered)
+	})
+
 	t.Run("DuplicateNames", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

@@ -8,6 +8,7 @@ import { getErrorMessage } from "#/api/errors";
 import { getExternalScopes } from "#/api/queries/oauth2";
 import type * as TypesGen from "#/api/typesGenerated";
 import { OAuth2AppNameMaxBytes } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -174,6 +175,15 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	const iconField = getFieldHelpers("icon");
 	const formDisabled = disabled || isUpdating;
 	const editing = Boolean(app);
+	// A self-registered client usually requests every scope it registered, so
+	// removing scopes fails its new authorizations instead of narrowing them.
+	// Clearing the allowlist lifts the restriction and does not count.
+	const narrowsSelfRegisteredScopes =
+		app?.dynamically_registered === true &&
+		form.values.scope.length > 0 &&
+		form.initialValues.scope.some(
+			(scope) => !form.values.scope.includes(scope),
+		);
 	const submitDisabled =
 		formDisabled || !form.isValid || (editing && !form.dirty);
 
@@ -253,6 +263,14 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 						granted. Empty means no restriction: tokens can be granted any
 						scope.
 					</div>
+					{narrowsSelfRegisteredScopes && (
+						<Alert severity="warning">
+							This self-registered application may continue requesting scopes
+							you remove from its allowlist, causing new authorizations to fail
+							with invalid_scope. Existing tokens retain their scopes. To
+							restrict this client, re-register it with fewer scopes.
+						</Alert>
+					)}
 					<MultiSelectCombobox
 						// cmdk generates the input's id and aria-labelledby itself, so
 						// the accessible name has to come from its own label prop.

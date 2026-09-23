@@ -191,6 +191,12 @@ export const EditOAuth2AppPageView: FC = () => {
 						value={app.endpoints.authorization}
 					/>
 					<EndpointField label="Token URL" value={app.endpoints.token} />
+					<div className="flex items-center gap-2">
+						<dt className="text-sm">Registration</dt>
+						<dd className="m-0 text-sm text-content-secondary">
+							{app.dynamically_registered ? "Self-registered" : "Admin created"}
+						</dd>
+					</div>
 				</dl>
 
 				{secretsQuery.error ? (
