@@ -1094,57 +1094,49 @@ func TestWorkspacesSortOrder(t *testing.T) {
 	defer cancel()
 	require.NoError(t, client.FavoriteWorkspace(ctx, wsbF.Workspace.ID)) // need to do this via API call for now
 
+	// the correct sorting order is:
+	// 1. Favorited workspaces you own
+	// 2. Workspaces you own
+	// 2. Running workspaces
+	// 3. Sort by usernames
+	// 4. Sort by workspace names
+	var (
+		expectedOrderForFirstUser = []string{
+			wsbF.Workspace.Name, // favorited
+			wsbA.Workspace.Name, // running
+			wsbC.Workspace.Name, // running
+			wsbB.Workspace.Name, // stopped, testuser < zzz
+			wsbD.Workspace.Name, // stopped, zzz > testuser
+			wsbE.Workspace.Name, // stopped, zzz > testuser
+		}
+		expectedOrderForSecondUser = []string{
+			wsbD.Workspace.Name, // stopped, but owned by me
+			wsbE.Workspace.Name, // stopped, but owned by me
+			wsbA.Workspace.Name, // running
+			wsbC.Workspace.Name, // running
+			wsbB.Workspace.Name, // stopped, testuser < zzz
+			wsbF.Workspace.Name, // stopped, testuser < zzz, favorited but owned by someone else
+		}
+	)
+
+	// List workspaces as `firstUser`
 	workspacesResponse, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-	require.NoError(t, err, "(first) fetch workspaces")
-	workspaces := workspacesResponse.Workspaces
-
-	expectedNames := []string{
-		wsbF.Workspace.Name, // favorite
-		wsbA.Workspace.Name, // running
-		wsbC.Workspace.Name, // running
-		wsbB.Workspace.Name, // stopped, testuser < zzz
-		wsbD.Workspace.Name, // stopped, zzz > testuser
-		wsbE.Workspace.Name, // stopped, zzz > testuser
-	}
-
-	actualNames := make([]string, 0, len(expectedNames))
-	for _, w := range workspaces {
+	require.NoError(t, err, "(firstUser) fetch workspaces")
+	actualNames := make([]string, 0, len(expectedOrderForFirstUser))
+	for _, w := range workspacesResponse.Workspaces {
 		actualNames = append(actualNames, w.Name)
 	}
 
-	// the correct sorting order is:
-	// 1. Favorite workspaces (we have one, workspace-f)
-	// 2. Running workspaces
-	// 3. Sort by usernames
-	// 4. Sort by workspace names
-	assert.Equal(t, expectedNames, actualNames)
+	assert.Equal(t, expectedOrderForFirstUser, actualNames)
 
-	// Once again but this time as a different user. This time we do not expect to see another
-	// user's favorites first.
+	// List workspaces as `secondUser`
 	workspacesResponse, err = secondUserClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
-	require.NoError(t, err, "(second) fetch workspaces")
-	workspaces = workspacesResponse.Workspaces
-
-	expectedNames = []string{
-		wsbA.Workspace.Name, // running
-		wsbC.Workspace.Name, // running
-		wsbB.Workspace.Name, // stopped, testuser < zzz
-		wsbF.Workspace.Name, // stopped, testuser < zzz
-		wsbD.Workspace.Name, // stopped, zzz > testuser
-		wsbE.Workspace.Name, // stopped, zzz > testuser
-	}
-
-	actualNames = make([]string, 0, len(expectedNames))
-	for _, w := range workspaces {
+	require.NoError(t, err, "(secondUser) fetch workspaces")
+	actualNames = make([]string, 0, len(expectedOrderForSecondUser))
+	for _, w := range workspacesResponse.Workspaces {
 		actualNames = append(actualNames, w.Name)
 	}
-
-	// the correct sorting order is:
-	// 1. Favorite workspaces (we have none this time)
-	// 2. Running workspaces
-	// 3. Sort by usernames
-	// 4. Sort by workspace names
-	assert.Equal(t, expectedNames, actualNames)
+	assert.Equal(t, expectedOrderForSecondUser, actualNames)
 }
 
 func TestPostWorkspacesByOrganization(t *testing.T) {
