@@ -268,7 +268,7 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 						aria-label="State"
 						value={filters.archiveStatus}
 						onValueChange={setArchiveStatus}
-						className="mb-1 flex rounded-lg bg-surface-secondary p-0.5"
+						className="mb-1 flex rounded-lg bg-surface-secondary p-1"
 					>
 						{AGENT_ARCHIVE_STATUS_ORDER.map((status) => (
 							<DropdownMenuPrimitive.RadioItem
