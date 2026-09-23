@@ -203,7 +203,9 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 // client may still display. On the initial sync with an after_id, the client
 // holds history up to the revision of message after_id, so only a deletion
 // above that revision, or the deletion or absence of message after_id itself,
-// requires a reset. Revisions increase monotonically per chat.
+// requires a reset. Revisions increase monotonically per chat. This relies on
+// visible messages never being updated in place except to set deleted, so the
+// revision of message after_id is the revision at which the client loaded it.
 func (l *streamLoop) historyResetRequired(changed []database.ChatMessage) bool {
 	hasDeleted := slices.ContainsFunc(changed, func(msg database.ChatMessage) bool {
 		return msg.Deleted
