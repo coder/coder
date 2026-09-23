@@ -207,6 +207,12 @@ func TestValidateInlineMCPServers(t *testing.T) {
 			wantDetail: "at least 8 bytes",
 		},
 		{
+			name:       "HeaderValuePartOfPlaceholder",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: valid.URL, Headers: map[string]string{"Authorization": "REDACTED"}}},
+			wantField:  "inline_mcp_servers[0].headers[Authorization]",
+			wantDetail: "redaction placeholder",
+		},
+		{
 			name:       "HeaderValueTooLarge",
 			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: valid.URL, Headers: map[string]string{"Authorization": strings.Repeat("x", codersdk.MaxInlineMCPServerHeaderValueBytes+1)}}},
 			wantField:  "inline_mcp_servers[0].headers[Authorization]",
