@@ -70,9 +70,6 @@ type generationPrepared struct {
 	ModelConfigID        uuid.UUID
 	CallTemplate         fantasy.Call
 	ContextLimitFallback int64
-	// ThinkingDropBlock reports whether the calls send Anthropic's thinking
-	// drop_block control after an earlier thinking binding error.
-	ThinkingDropBlock bool
 
 	DynamicToolNames   map[string]bool
 	StopAfterTools     map[string]struct{}
@@ -532,15 +529,21 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if errors.Is(actionErr, errTaskExpectedExit) {
 			return xerrors.Errorf("generation action: %w", actionErr)
 		}
-		if isThinkingBindingError(actionErr) && s.server.enableThinkingDropBlock(input.ChatID, prepared.ModelConfigID) {
-			s.opts.Logger.Warn(ctx, "chat generation retrying with thinking drop_block",
-				slog.F("chat_id", input.ChatID),
-				slog.F("worker_id", input.WorkerID),
-				slog.F("action", decision.kind),
-				slog.F("model_config_id", prepared.ModelConfigID),
-				slogError(actionErr),
-			)
-			continue
+		if isThinkingBindingError(actionErr) {
+			modelConfigID := prepared.ModelConfigID
+			if decision.kind == generationActionCompact && prepared.Compaction != nil && prepared.Compaction.Override != nil {
+				modelConfigID = prepared.Compaction.Override.Config.ID
+			}
+			if s.server.enableThinkingDropBlock(input.ChatID, modelConfigID) {
+				s.opts.Logger.Warn(ctx, "chat generation retrying with thinking drop_block",
+					slog.F("chat_id", input.ChatID),
+					slog.F("worker_id", input.WorkerID),
+					slog.F("action", decision.kind),
+					slog.F("model_config_id", modelConfigID),
+					slogError(actionErr),
+				)
+				continue
+			}
 		}
 		classified := chaterror.Classify(actionErr)
 		if classified.Retryable {
@@ -1027,7 +1030,7 @@ func (s *taskStarter) generateCompaction(
 		if err != nil {
 			return xerrors.Errorf("build compaction model override: %w", err)
 		}
-		if prepared.ThinkingDropBlock {
+		if s.server.thinkingDropBlockEnabled(prepared.Chat.ID, override.Config.ID) {
 			overrideModel.applyThinkingDropBlock()
 		}
 		logger := s.server.logger.With(

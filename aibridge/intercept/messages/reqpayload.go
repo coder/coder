@@ -29,6 +29,8 @@ const (
 	messagesReqPathStream                    = "stream"
 	messagesReqPathThinking                  = "thinking"
 	messagesReqPathThinkingBlockBinding      = "thinking.block_binding"
+	messagesReqPathBindingMismatch           = "thinking.block_binding.mismatch_behavior"
+	messagesReqPathBindingPrefixMismatch     = "thinking.block_binding.prefix_mismatch_behavior"
 	messagesReqPathThinkingBudgetTokens      = "thinking.budget_tokens"
 	messagesReqPathThinkingType              = "thinking.type"
 	messagesReqPathToolChoice                = "tool_choice"
@@ -430,19 +432,33 @@ func (p RequestPayload) replaceThinking(thinking map[string]any) (RequestPayload
 	return p.set(messagesReqPathThinking, thinking)
 }
 
-// removeUngatedThinkingBlockBinding drops thinking.block_binding when the
-// already-filtered Anthropic-Beta header lacks the flag that enables it.
-// Bedrock rejects the field without the flag.
-func (p RequestPayload) removeUngatedThinkingBlockBinding(headers http.Header) (RequestPayload, error) {
+// convertThinkingBlockBindingForBedrock drops thinking.block_binding when the
+// already-filtered Anthropic-Beta header lacks the flag that enables it,
+// because Bedrock rejects the field without the flag. Otherwise it renames
+// prefix_mismatch_behavior to mismatch_behavior, the Bedrock name. Only some
+// Bedrock regions accept the Anthropic name as an alias.
+func (p RequestPayload) convertThinkingBlockBindingForBedrock(headers http.Header) (RequestPayload, error) {
 	if !gjson.GetBytes(p, messagesReqPathThinkingBlockBinding).Exists() {
 		return p, nil
 	}
-	if slices.Contains(headers.Values("Anthropic-Beta"), bedrockBetaThinkingBinding) {
+	if !slices.Contains(headers.Values("Anthropic-Beta"), bedrockBetaThinkingBinding) {
+		out, err := sjson.DeleteBytes(p, messagesReqPathThinkingBlockBinding)
+		if err != nil {
+			return p, xerrors.Errorf("delete %s: %w", messagesReqPathThinkingBlockBinding, err)
+		}
+		return RequestPayload(out), nil
+	}
+	behavior := gjson.GetBytes(p, messagesReqPathBindingPrefixMismatch)
+	if !behavior.Exists() {
 		return p, nil
 	}
-	out, err := sjson.DeleteBytes(p, messagesReqPathThinkingBlockBinding)
+	out, err := sjson.SetRawBytes(p, messagesReqPathBindingMismatch, []byte(behavior.Raw))
 	if err != nil {
-		return p, xerrors.Errorf("delete %s: %w", messagesReqPathThinkingBlockBinding, err)
+		return p, xerrors.Errorf("set %s: %w", messagesReqPathBindingMismatch, err)
+	}
+	out, err = sjson.DeleteBytes(out, messagesReqPathBindingPrefixMismatch)
+	if err != nil {
+		return p, xerrors.Errorf("delete %s: %w", messagesReqPathBindingPrefixMismatch, err)
 	}
 	return RequestPayload(out), nil
 }

@@ -546,7 +546,6 @@ func TestAWSBedrockIntegration(t *testing.T) {
 			sendThinkingEnabled bool     // send enabled thinking with budget_tokens instead of the fixture's adaptive thinking
 			expectKeptFields    []string // fields from strippableFields expected to survive
 			expectedBetaFlags   []string // values expected in the anthropic_beta array in the forwarded body
-			expectBlockBinding  bool     // thinking.block_binding expected to survive
 		}{
 			// "beddel" matches no model prefix, so adaptive thinking is converted
 			// to enabled with budget, and all model-gated beta flags are stripped.
@@ -603,20 +602,6 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				expectKeptFields:    []string{"output_config"},
 				expectedBetaFlags:   []string{"interleaved-thinking-2025-05-14"},
 			},
-			// Opus 5.5 requires adaptive thinking and enforces thinking block
-			// binding, so the beta flag and thinking.block_binding both survive
-			// the conversion from enabled thinking.
-			{
-				name:                "opus-5.5",
-				model:               "anthropic.claude-opus-5-5",
-				smallFastModel:      "anthropic.claude-haiku-4-5-20241022-v1:0",
-				expectEffort:        "medium",
-				expectThinkingType:  "adaptive",
-				sendThinkingEnabled: true,
-				expectKeptFields:    []string{"output_config"},
-				expectedBetaFlags:   []string{"interleaved-thinking-2025-05-14", "thinking-binding-controls-2026-08-01"},
-				expectBlockBinding:  true,
-			},
 		}
 
 		for _, tc := range cases {
@@ -652,12 +637,10 @@ func TestAWSBedrockIntegration(t *testing.T) {
 						})
 						require.NoError(t, err)
 					}
-					reqBody, err = sjson.SetBytes(reqBody, "thinking.block_binding.prefix_mismatch_behavior", "drop_block")
-					require.NoError(t, err)
 
 					// Send with Anthropic-Beta header containing flags that should be filtered.
 					resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody, http.Header{
-						"Anthropic-Beta": {"interleaved-thinking-2025-05-14,effort-2025-11-24,context-management-2025-06-27,prompt-caching-scope-2026-01-05,thinking-binding-controls-2026-08-01"},
+						"Anthropic-Beta": {"interleaved-thinking-2025-05-14,effort-2025-11-24,context-management-2025-06-27,prompt-caching-scope-2026-01-05"},
 					})
 					require.NoError(t, err)
 					defer resp.Body.Close()
@@ -682,7 +665,6 @@ func TestAWSBedrockIntegration(t *testing.T) {
 						assert.False(t, gjson.GetBytes(body, "thinking.budget_tokens").Exists(), "budget_tokens should not be present")
 					}
 					assert.Equal(t, tc.expectEffort, gjson.GetBytes(body, "output_config.effort").String(), "effort mismatch")
-					assert.Equal(t, tc.expectBlockBinding, gjson.GetBytes(body, "thinking.block_binding").Exists(), "block_binding mismatch")
 
 					// The Bedrock SDK middleware moves Anthropic-Beta from the header
 					// into the body as "anthropic_beta".

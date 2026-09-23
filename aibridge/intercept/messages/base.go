@@ -63,8 +63,8 @@ var bedrockSupportedBetaFlags = map[string]bool{
 	"tool-search-tool-2025-10-19": true,
 	// Supported on Claude Opus 4.5.
 	"tool-examples-2025-10-29": true,
-	// Supported on Claude Opus 5.5 and Claude Fable 5.1.
-	// Enables the thinking.block_binding body field.
+	// Enables the thinking.block_binding body field. Not gated per model:
+	// clients send it only to models that enforce thinking block binding.
 	bedrockBetaThinkingBinding: true,
 }
 
@@ -567,9 +567,9 @@ func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 	}
 	i.reqPayload = updated
 
-	updated, err = i.reqPayload.removeUngatedThinkingBlockBinding(i.clientHeaders)
+	updated, err = i.reqPayload.convertThinkingBlockBindingForBedrock(i.clientHeaders)
 	if err != nil {
-		i.logger.Warn(context.Background(), "failed to remove thinking block binding for Bedrock", slog.Error(err))
+		i.logger.Warn(context.Background(), "failed to convert thinking block binding for Bedrock", slog.Error(err))
 		return
 	}
 	i.reqPayload = updated
@@ -642,13 +642,6 @@ func filterBedrockBetaFlags(headers http.Header, model string) {
 		if trimmed == "context-management-2025-06-27" &&
 			!strings.Contains(model, "anthropic.claude-sonnet-4-5") &&
 			!strings.Contains(model, "anthropic.claude-haiku-4-5") {
-			continue
-		}
-
-		// thinking block binding is only enforced by Opus 5.5 and Fable 5.1.
-		if trimmed == bedrockBetaThinkingBinding &&
-			!strings.Contains(model, "anthropic.claude-opus-5-5") &&
-			!strings.Contains(model, "anthropic.claude-fable-5-1") {
 			continue
 		}
 

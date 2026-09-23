@@ -789,7 +789,6 @@ func (server *Server) prepareGeneration(
 		ModelConfigID:        modelConfig.ID,
 		CallTemplate:         resolved.newCall(),
 		ContextLimitFallback: modelConfig.ContextLimit,
-		ThinkingDropBlock:    thinkingDropBlock,
 		DynamicToolNames:     dynamicToolNames,
 		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
 		ExclusiveToolNames:   exclusiveToolNames,

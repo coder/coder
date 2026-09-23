@@ -31,19 +31,24 @@ func isThinkingBindingError(err error) bool {
 	return strings.Contains(text, "bound to a different conversation")
 }
 
+type thinkingDropBlockKey struct {
+	chatID        uuid.UUID
+	modelConfigID uuid.UUID
+}
+
 // thinkingDropBlockEnabled reports whether earlier generations of the chat
 // hit a thinking binding error with the given model config.
 func (p *Server) thinkingDropBlockEnabled(chatID, modelConfigID uuid.UUID) bool {
-	v, ok := p.thinkingDropBlock.Load(chatID)
-	return ok && v == modelConfigID
+	_, ok := p.thinkingDropBlock.Load(thinkingDropBlockKey{chatID: chatID, modelConfigID: modelConfigID})
+	return ok
 }
 
 // enableThinkingDropBlock turns on drop_block for the chat and model config.
 // It returns false when drop_block was already on, so each chat retries a
 // binding error at most once per model config.
 func (p *Server) enableThinkingDropBlock(chatID, modelConfigID uuid.UUID) bool {
-	prev, loaded := p.thinkingDropBlock.Swap(chatID, modelConfigID)
-	return !loaded || prev != modelConfigID
+	_, loaded := p.thinkingDropBlock.LoadOrStore(thinkingDropBlockKey{chatID: chatID, modelConfigID: modelConfigID}, struct{}{})
+	return !loaded
 }
 
 // applyThinkingDropBlock makes Anthropic drop stale signed thinking blocks
