@@ -172,6 +172,7 @@ The admin `PUT` also validates the stored name, so a self-registered client whos
 - Check [Common issues](./troubleshooting.md) if a request fails
 - Review [Security considerations and limitations](./security.md) before deploying to production
 - Check [External Authentication](../../external-auth/index.md) for configuring Coder as an OAuth2 client
+- Review the [API Reference](../../../reference/api/index.md) for complete endpoint documentation
 
 ## Moved sections
 
