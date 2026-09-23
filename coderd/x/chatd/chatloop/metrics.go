@@ -164,7 +164,7 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "ttft_seconds",
-			Help:      "Time-to-first-token: wall time from LLM request to first streamed chunk. The time_to_first_token stage of stage_duration_seconds measures the same window without a model label and is registered only with the chat-stage-metrics experiment.",
+			Help:      "Time-to-first-token: wall time from LLM request to the first streamed content part. Attempts that fail before a content part arrives are not observed. The time_to_first_token stage of stage_duration_seconds measures the same window without a model label and is registered only with the chat-stage-metrics experiment.",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		}, []string{"provider", "model"}),
 		StageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{

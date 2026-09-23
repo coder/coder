@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -68,8 +69,22 @@ type resolvedModelCall struct {
 	providerOptions  fantasy.ProviderOptions
 	resolvedProvider string
 	resolvedModel    string
+	resolvedEffort   string
 	route            aiGatewayModelRoute
 	debugEnabled     bool
+}
+
+// stageModel returns the model identity stage instrumentation labels
+// spans and durations with. The provider type is the configured AI
+// provider's type rather than resolvedProvider, which is normalized
+// against the fantasy provider names and is empty for types outside
+// that set.
+func (r resolvedModelCall) stageModel() chatloop.StageModel {
+	return chatloop.StageModel{
+		ProviderType: string(r.route.Provider.Type),
+		Model:        r.resolvedModel,
+		Effort:       r.resolvedEffort,
+	}
 }
 
 // resolveModelCall is the single pipeline from a spec to a ready model
@@ -146,8 +161,15 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	debugSvc := p.debugService()
 	out.debugEnabled = debugSvc != nil && debugSvc.IsEnabled(ctx, spec.chat.ID, spec.chat.OwnerID)
 
+	// resolvedEffort is the effort the provider call uses: the requested
+	// value when set, otherwise the model config's default.
+	if effectiveEffort := chatprovider.ResolveReasoningEffort(spec.requestedEffort, out.callConfig.ReasoningEffort); effectiveEffort != nil {
+		out.resolvedEffort = *effectiveEffort
+	}
+
 	buildOpts := spec.buildOptions
 	buildOpts.RecordHTTP = out.debugEnabled
+	buildOpts.StageModel = out.stageModel()
 	model, err := p.newModel(ctx, modelClientRequest{
 		Chat:         spec.chat,
 		ModelName:    modelName,
@@ -181,6 +203,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		slog.F("chat_id", spec.chat.ID),
 		slog.F("provider", out.resolvedProvider),
 		slog.F("model", out.resolvedModel),
+		slog.F("reasoning_effort", out.resolvedEffort),
 		slog.F("debug_enabled", out.debugEnabled),
 	)
 	return out, nil
