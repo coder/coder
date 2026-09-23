@@ -273,6 +273,10 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	// A path segment stands in for the per-user credential a hosted
 	// server carries in its URL and may echo on its own.
 	const pathToken = "path-token-value"
+	// Structured header values hold each credential after a name and
+	// "=", can quote it, and separate pairs with ";" or ",".
+	const cookieToken = "cookie-token-value"
+	const signatureToken = "signature-token-value"
 
 	// The server URL is only known after the listener starts, so the
 	// tool definitions read it from this variable at ListTools time.
@@ -283,7 +287,7 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 			InputSchema: map[string]any{"type": "object"},
 		},
 		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			result := textToolResult("result mentions " + secret + " and " + serverURL + " and " + bearerToken + " and " + pathToken)
+			result := textToolResult("result mentions " + secret + " and " + serverURL + " and " + bearerToken + " and " + pathToken + " and " + cookieToken + " and " + signatureToken)
 			result.StructuredContent = map[string]any{"token": secret, "url": serverURL}
 			return result, nil
 		},
@@ -306,7 +310,7 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	))
 	t.Cleanup(ts.Close)
 	serverURL = ts.URL + "/hooks/" + pathToken
-	leaky.tool.Description = "Talks to " + serverURL + " using " + secret + ". Send the X-Bot-Key header."
+	leaky.tool.Description = "Talks to " + serverURL + " using " + secret + ". Send the X-Bot-Key header and the sessionid cookie."
 	leaky.tool.InputSchema = map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -324,6 +328,8 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	cfg := makeInlineConfig("bot-server", serverURL, map[string]string{
 		"X-Bot-Key":     secret,
 		"Authorization": "Bearer " + bearerToken,
+		"Cookie":        "sessionid=" + cookieToken + "; theme=dark",
+		"X-Signature":   `keyid="bot",signature="` + signatureToken + `"`,
 		"X-Placeholder": "REDACTED",
 		"X-Slug":        "bot-server",
 	})
@@ -347,7 +353,7 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	require.True(t, ok)
 
 	info := leakyTool.Info()
-	require.Equal(t, "Talks to [REDACTED] using [REDACTED]. Send the X-Bot-Key header.", info.Description)
+	require.Equal(t, "Talks to [REDACTED] using [REDACTED]. Send the X-Bot-Key header and the sessionid cookie.", info.Description)
 	require.NotContains(t, info.Description, ts.URL)
 	prop, ok := info.Parameters["token"].(map[string]any)
 	require.True(t, ok, "parameters: %#v", info.Parameters)
@@ -357,9 +363,11 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, resp.Content, "secret")
 	require.NotContains(t, resp.Content, ts.URL)
-	require.Contains(t, resp.Content, "result mentions [REDACTED] and [REDACTED] and [REDACTED] and [REDACTED]")
+	require.Contains(t, resp.Content, "result mentions [REDACTED] and [REDACTED] and [REDACTED] and [REDACTED] and [REDACTED] and [REDACTED]")
 	require.NotContains(t, resp.Content, bearerToken)
 	require.NotContains(t, resp.Content, pathToken)
+	require.NotContains(t, resp.Content, cookieToken)
+	require.NotContains(t, resp.Content, signatureToken)
 	require.Contains(t, resp.Content, `"token":"[REDACTED]"`)
 
 	resp, err = failingTool.Run(ctx, fantasy.ToolCall{ID: "call-2", Input: "{}"})

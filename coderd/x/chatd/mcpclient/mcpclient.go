@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"charm.land/fantasy"
@@ -1013,6 +1014,18 @@ func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
 	for _, value := range srv.Headers {
 		values = append(values, value)
 		values = append(values, strings.Fields(value)...)
+		parts := strings.FieldsFunc(value, func(r rune) bool {
+			return unicode.IsSpace(r) || r == ';' || r == ','
+		})
+		for _, part := range parts {
+			values = append(values, part)
+			// Add the value of a name=value part on its own, but not the
+			// name. A name is not secret, and redacting it could rewrite
+			// a schema property with the same name.
+			if _, v, ok := strings.Cut(part, "="); ok {
+				values = append(values, strings.Trim(v, `"`))
+			}
+		}
 	}
 	return newSecretRedactor(values)
 }
