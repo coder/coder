@@ -418,6 +418,75 @@ describe("OAuth2AppForm", () => {
 		expect(onSubmit).toHaveBeenCalledTimes(2);
 	});
 
+	// A finished save resets the form to the untrimmed input. Comparing the
+	// trimmed submission against that input would resend the list on the next
+	// unrelated save and restore a URI another admin removed in between.
+	it("omits redirect_uris on a rename after saving a padded URI", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		const loadedApp = {
+			...MockOAuth2ProviderApps[0],
+			redirect_uris: ["https://a.example.com/cb", "https://b.example.com/cb"],
+		};
+		const serverRedirectURIs = ["https://c.example.com/cb"];
+		let finishSave = () => {};
+		const EditPage = () => {
+			const [app, setApp] = useState(loadedApp);
+			const [isUpdating, setIsUpdating] = useState(false);
+			return (
+				<OAuth2AppForm
+					app={app}
+					clientType={app.client_type}
+					onSubmit={(req) => {
+						onSubmit(req);
+						setIsUpdating(true);
+						return new Promise((resolve) => {
+							finishSave = () => {
+								setApp({ ...app, ...req, redirect_uris: serverRedirectURIs });
+								setIsUpdating(false);
+								resolve();
+							};
+						});
+					}}
+					isUpdating={isUpdating}
+					disabled={false}
+				/>
+			);
+		};
+
+		render(<EditPage />);
+
+		await user.clear(screen.getByLabelText(/default callback/i));
+		await user.type(
+			screen.getByLabelText(/default callback/i),
+			" https://c.example.com/cb ",
+		);
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenLastCalledWith({
+				name: loadedApp.name,
+				redirect_uris: ["https://c.example.com/cb", "https://b.example.com/cb"],
+				icon: loadedApp.icon,
+			}),
+		);
+		await act(async () => finishSave());
+
+		await user.clear(screen.getByLabelText(/^name/i));
+		await user.type(screen.getByLabelText(/^name/i), "Renamed app");
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenLastCalledWith({
+				name: "Renamed app",
+				icon: loadedApp.icon,
+			}),
+		);
+		expect(onSubmit).toHaveBeenCalledTimes(2);
+	});
+
 	it("edits an entry in place, keeping its position", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
