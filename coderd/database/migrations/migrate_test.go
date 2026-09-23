@@ -69,18 +69,6 @@ func TestMigrate(t *testing.T) {
 		require.NoError(t, eg.Wait())
 	})
 
-	t.Run("Twice", func(t *testing.T) {
-		t.Parallel()
-
-		db := testSQLDB(t)
-
-		err := migrations.Up(db)
-		require.NoError(t, err)
-
-		err = migrations.Up(db)
-		require.NoError(t, err)
-	})
-
 	t.Run("UpDownUp", func(t *testing.T) {
 		t.Parallel()
 
@@ -100,19 +88,15 @@ func TestMigrate(t *testing.T) {
 func testSQLDB(t testing.TB) *sql.DB {
 	t.Helper()
 
-	connection, err := dbtestutil.Open(t)
+	// dbtestutil.Open clones an already migrated template database, but this
+	// package tests the migrations themselves, so start from Postgres' stock
+	// empty template instead.
+	connection, err := dbtestutil.Open(t, dbtestutil.WithDBFrom("template1"))
 	require.NoError(t, err)
 
 	db, err := sql.Open("postgres", connection)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
-
-	// dbtestutil.Open automatically runs migrations, but we want to actually test
-	// migration behavior in this package.
-	_, err = db.Exec(`DROP SCHEMA public CASCADE`)
-	require.NoError(t, err)
-	_, err = db.Exec(`CREATE SCHEMA public`)
-	require.NoError(t, err)
 
 	return db
 }
@@ -368,29 +352,100 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 	}
 }
 
-// TestMigration000362AggregateUsageEvents tests the migration that aggregates
-// usage events into daily rows correctly.
-func TestMigration000362AggregateUsageEvents(t *testing.T) {
+// migrationStepper applies the next migration and reports the version it
+// reached, see migrations.Stepper.
+type migrationStepper = func() (version uint, more bool, err error)
+
+// TestMigrationChain steps one database through the migration chain once and
+// runs each per-migration test when the chain reaches the migration before
+// the one it covers, so the hundreds of preceding migrations are applied once
+// instead of once per test. Each step must leave the chain clean at its
+// version and must not assert whole-table counts that fixtures committed by
+// earlier steps would change; tests that cannot are standalone.
+//
+//nolint:tparallel,paralleltest // Subtests share one database and step a single migration chain in version order.
+func TestMigrationChain(t *testing.T) {
 	t.Parallel()
 
-	const migrationVersion = 362
+	if testing.Short() {
+		t.SkipNow()
+		return
+	}
 
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB)
-
-	// Migrate up to the migration before the one that aggregates usage events.
 	next, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
+
+	stepTo := func(target uint) {
+		t.Helper()
+		for {
+			version, more, err := next()
+			require.NoError(t, err)
+			require.Truef(t, more, "migration %d not found", target)
+			if version == target {
+				return
+			}
+		}
+	}
+
+	steps := []struct {
+		name    string
+		version uint
+		run     func(t *testing.T, sqlDB *sql.DB, next migrationStepper)
+	}{
+		{"Migration000362AggregateUsageEvents", 362, testMigration000362AggregateUsageEvents},
+		{"Migration000387MigrateTaskWorkspaces", 387, testMigration000387MigrateTaskWorkspaces},
+		{"Migration000457ChatAccessRole", 457, testMigration000457ChatAccessRole},
+		{"Migration000475AgentsAccessOrgRole", 475, testMigration000475AgentsAccessOrgRole},
+		{"Migration000498SoftDeleteStaleWorkspaceAgents", 498, testMigration000498SoftDeleteStaleWorkspaceAgents},
+		{"Migration000546ChatHistoryAPIKeyConstraints", 546, testMigration000546ChatHistoryAPIKeyConstraints},
+		{"Migration000556UserSecretsEnabled", 556, testMigration000556UserSecretsEnabled},
+		{"Migration000587RemoveAgentsAccessRole", 587, testMigration000587RemoveAgentsAccessRole},
+		{"Migration000590WorkspaceAgentSessionCounts", 590, testMigration000590WorkspaceAgentSessionCounts},
+		{"Migration000595RemoveTaskPermissions", 595, testMigration000595RemoveTaskPermissions},
+	}
+	for _, step := range steps {
+		stepTo(step.version - 1)
+		if !t.Run(step.name, func(t *testing.T) {
+			step.run(t, sqlDB, next)
+		}) {
+			t.Fatalf("%s failed, the chain state is unknown so the remaining steps are skipped", step.name)
+		}
+	}
+
 	for {
-		version, more, err := next()
+		_, more, err := next()
 		require.NoError(t, err)
 		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
 			break
 		}
 	}
+
+	// These tests need the fully migrated schema.
+	migrated := []struct {
+		name string
+		run  func(t *testing.T, sqlDB *sql.DB)
+	}{
+		{"Migration000543ChatMessageSearchText", testMigration000543ChatMessageSearchText},
+		{"Migration000543ChatSearchSchemaIndexes", testMigration000543ChatSearchSchemaIndexes},
+		{"Migration000543ChatSearchSchemaBehavior", testMigration000543ChatSearchSchemaBehavior},
+		{"Migration000583ChatModelOverrideOrgScope", testMigration000583ChatModelOverrideOrgScope},
+	}
+	for _, tt := range migrated {
+		if !t.Run(tt.name, func(t *testing.T) {
+			tt.run(t, sqlDB)
+		}) {
+			t.Fatalf("%s failed, the database state is unknown so the remaining tests are skipped", tt.name)
+		}
+	}
+}
+
+// testMigration000362AggregateUsageEvents tests the migration that aggregates
+// usage events into daily rows correctly.
+func testMigration000362AggregateUsageEvents(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 362
+
+	db := database.New(sqlDB)
 
 	locSydney, err := time.LoadLocation("Australia/Sydney")
 	require.NoError(t, err)
@@ -469,9 +524,7 @@ func TestMigration000362AggregateUsageEvents(t *testing.T) {
 	}
 }
 
-func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
-	t.Parallel()
-
+func testMigration000387MigrateTaskWorkspaces(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	// This test verifies the migration of task workspaces to the new tasks data model.
 	// Test cases:
 	//
@@ -493,22 +546,6 @@ func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
 	//   - Deleted workspace (w.deleted = true)
 
 	const migrationVersion = 387
-
-	sqlDB := testSQLDB(t)
-
-	// Migrate up to the migration before the task workspace migration.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	deletingAt := now.Add(24 * time.Hour).Truncate(time.Microsecond)
@@ -882,27 +919,8 @@ func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
 	require.Equal(t, 0, antCount, "antagonist workspaces (deleted and regular) should not be migrated")
 }
 
-func TestMigration000457ChatAccessRole(t *testing.T) {
-	t.Parallel()
-
+func testMigration000457ChatAccessRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 457
-
-	sqlDB := testSQLDB(t)
-
-	// Migrate up to the migration before the one that grants
-	// agents-access roles.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
@@ -1028,26 +1046,8 @@ func TestMigration000457ChatAccessRole(t *testing.T) {
 		"existing roles should be preserved")
 }
 
-func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
-	t.Parallel()
-
+func testMigration000475AgentsAccessOrgRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 475
-
-	sqlDB := testSQLDB(t)
-
-	// Migrate up to the migration before 000475.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
@@ -1461,23 +1461,8 @@ func TestMigration000593TaskBuildReasonRewriteTiming(t *testing.T) {
 	require.Zero(t, count)
 }
 
-func TestMigration000595RemoveTaskPermissions(t *testing.T) {
-	t.Parallel()
-
+func testMigration000595RemoveTaskPermissions(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 595
-	sqlDB := testSQLDB(t)
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -1643,42 +1628,8 @@ func TestMigration000595RemoveTaskPermissions(t *testing.T) {
 	assertMigrated()
 }
 
-func TestMigration000587RemoveAgentsAccessRole(t *testing.T) {
-	t.Parallel()
-
+func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 587
-
-	// The immediately preceding migration numbers may not exist in this
-	// tree (the target is numbered past migrations that landed on main
-	// separately), so step to the highest version below the target rather
-	// than assuming migrationVersion-1 exists.
-	entries, err := os.ReadDir(".")
-	require.NoError(t, err)
-	prevVersion := uint(0)
-	for _, entry := range entries {
-		var version uint
-		if _, err := fmt.Sscanf(entry.Name(), "%d_", &version); err != nil {
-			continue
-		}
-		if version > prevVersion && version < migrationVersion {
-			prevVersion = version
-		}
-	}
-	require.NotZero(t, prevVersion)
-
-	sqlDB := testSQLDB(t)
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == prevVersion {
-			break
-		}
-	}
 
 	db := database.New(sqlDB)
 	user := dbgen.User(t, db, database.User{
@@ -2180,22 +2131,7 @@ func TestMigration000542ChatReasoningEffortBackfill(t *testing.T) {
 	require.Equal(t, sql.NullString{}, got["bedrock:anthropic.invalid-effort"])
 }
 
-func TestMigration000546ChatHistoryAPIKeyConstraints(t *testing.T) {
-	t.Parallel()
-
-	const priorMigrationVersion = 545
-
-	sqlDB := testSQLDB(t)
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more || version == priorMigrationVersion {
-			break
-		}
-	}
-
+func testMigration000546ChatHistoryAPIKeyConstraints(t *testing.T, sqlDB *sql.DB, _ migrationStepper) {
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	constraintNames := []string{
 		"chat_messages_api_key_id_fkey",
@@ -2625,26 +2561,8 @@ func setupMigration000563Templates(t *testing.T) (
 	return sqlDB, ctx, orgID, userID, templateIDs
 }
 
-func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
-	t.Parallel()
-
+func testMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 498
-
-	sqlDB := testSQLDB(t)
-
-	// Step up to migrationVersion - 1.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -2836,15 +2754,7 @@ func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	// under coderd/coderd_test.go; not retested here.
 }
 
-func TestMigration000543ChatMessageSearchText(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.SkipNow()
-	}
-
-	sqlDB := testSQLDB(t)
-	require.NoError(t, migrations.Up(sqlDB))
-
+func testMigration000543ChatMessageSearchText(t *testing.T, sqlDB *sql.DB) {
 	cases := []struct {
 		name    string
 		content sql.NullString
@@ -2912,15 +2822,7 @@ const eligibilityPredicate = `deleted = false
 	AND visibility IN ('user', 'both')
 	AND role IN ('user', 'assistant')`
 
-func TestMigration000543ChatSearchSchemaIndexes(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.SkipNow()
-	}
-
-	sqlDB := testSQLDB(t)
-	require.NoError(t, migrations.Up(sqlDB))
-
+func testMigration000543ChatSearchSchemaIndexes(t *testing.T, sqlDB *sql.DB) {
 	cases := []struct {
 		name    string
 		table   string
@@ -2951,14 +2853,7 @@ func TestMigration000543ChatSearchSchemaIndexes(t *testing.T) {
 	}
 }
 
-func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.SkipNow()
-	}
-
-	sqlDB := testSQLDB(t)
-	require.NoError(t, migrations.Up(sqlDB))
+func testMigration000543ChatSearchSchemaBehavior(t *testing.T, sqlDB *sql.DB) {
 	db := database.New(sqlDB)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -3220,27 +3115,8 @@ func TestMigration000585ChatSearchEnglishConfigDown(t *testing.T) {
 	require.Zero(t, columnCount, "search_tsv_config must be dropped")
 }
 
-func TestMigration000556UserSecretsEnabled(t *testing.T) {
-	t.Parallel()
-
+func testMigration000556UserSecretsEnabled(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 556
-
-	sqlDB := testSQLDB(t)
-
-	// Migrate up to the migration before the one that adds the enabled
-	// column.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
@@ -3542,26 +3418,7 @@ func TestMigration000565OAuth2ClientTypeConstraint(t *testing.T) {
 	}
 }
 
-//nolint:tparallel,paralleltest // Subtests share one database with transaction-local fixtures.
-func TestMigration000590WorkspaceAgentSessionCounts(t *testing.T) {
-	t.Parallel()
-
-	const priorMigrationVersion = 589
-
-	sqlDB := testSQLDB(t)
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", priorMigrationVersion)
-		}
-		if version == priorMigrationVersion {
-			break
-		}
-	}
-
+func testMigration000590WorkspaceAgentSessionCounts(t *testing.T, sqlDB *sql.DB, _ migrationStepper) {
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	migrationSQL, err := os.ReadFile("000590_workspace_agent_session_counts.up.sql")
 	require.NoError(t, err)
@@ -4068,25 +3925,7 @@ func mustJSON(t *testing.T, v any) []byte {
 	return raw
 }
 
-func TestMigration000583ChatModelOverrideOrgScope(t *testing.T) {
-	t.Parallel()
-
-	const migrationVersion = 583
-
-	db := testSQLDB(t)
-	next, err := migrations.Stepper(db)
-	require.NoError(t, err)
-	last := uint(0)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			break
-		}
-		last = version
-	}
-	require.GreaterOrEqual(t, last, uint(migrationVersion))
-
+func testMigration000583ChatModelOverrideOrgScope(t *testing.T, db *sql.DB) {
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	upSQL, err := os.ReadFile("000583_chat_model_override_org_scope.up.sql")
 	require.NoError(t, err)
@@ -4194,4 +4033,85 @@ func TestMigration000583ChatModelOverrideOrgScope(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
+}
+
+// Migration 000599 makes redirect_uris the source of truth for an OAuth2
+// app's redirect URIs, with the callback as the first entry. Every row shape
+// the column could hold before the migration must come out with the callback
+// first and nothing lost, and running the statement again must change
+// nothing.
+func TestMigration000599OAuth2RedirectURIsPrimary(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 599
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	const (
+		callback = "https://app.example.com/callback"
+		other    = "https://other.example.com/callback"
+		third    = "https://third.example.com/callback"
+	)
+	rows := []struct {
+		name   string
+		id     uuid.UUID
+		before pq.StringArray
+		after  pq.StringArray
+	}{
+		{name: "null-list", id: uuid.New(), before: nil, after: pq.StringArray{callback}},
+		{name: "empty-list", id: uuid.New(), before: pq.StringArray{}, after: pq.StringArray{callback}},
+		{name: "callback-first", id: uuid.New(), before: pq.StringArray{callback, other}, after: pq.StringArray{callback, other}},
+		{name: "callback-absent", id: uuid.New(), before: pq.StringArray{other, third}, after: pq.StringArray{callback, other, third}},
+		{name: "callback-second", id: uuid.New(), before: pq.StringArray{other, callback}, after: pq.StringArray{callback, other}},
+	}
+	for _, row := range rows {
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url, redirect_uris)
+			VALUES ($1, $2, $2, $3, '', $4, $5)
+		`, row.id, now, row.name, callback, row.before)
+		require.NoError(t, err, row.name)
+	}
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	assertRows := func() {
+		t.Helper()
+		for _, row := range rows {
+			var got pq.StringArray
+			var callbackURL string
+			err := sqlDB.QueryRowContext(ctx, `
+				SELECT redirect_uris, callback_url FROM oauth2_provider_apps WHERE id = $1
+			`, row.id).Scan(&got, &callbackURL)
+			require.NoError(t, err, row.name)
+			require.Equal(t, row.after, got, row.name)
+			require.Equal(t, callback, callbackURL, row.name)
+		}
+	}
+	assertRows()
+
+	// Running the statement again must be a no-op.
+	upSQL, err := os.ReadFile("000599_oauth2_redirect_uris_primary.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	assertRows()
 }

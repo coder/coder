@@ -17,6 +17,11 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
+	getDefaultMCPSelection,
+	getSavedMCPSelection,
+	saveMCPSelection,
+} from "../utils/mcpSelection";
+import {
 	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
 	getProviderForModelOption,
@@ -38,11 +43,6 @@ import {
 } from "./ChatConversation/chatError";
 import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
 import { CompactOrgSelector } from "./ChatElements/CompactOrgSelector";
-import {
-	getDefaultMCPSelection,
-	getSavedMCPSelection,
-	saveMCPSelection,
-} from "./MCPServerPicker";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
 /** @internal Exported for testing. */
@@ -129,7 +129,7 @@ export function useEmptyStateDraft() {
 	};
 }
 
-interface AgentCreateFormProps {
+type AgentCreateFormProps = {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	isCreating: boolean;
 	createError: unknown;
@@ -140,7 +140,7 @@ interface AgentCreateFormProps {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
-}
+};
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,

@@ -1,7 +1,6 @@
 import type React from "react";
-import { useState } from "react";
-import { ImageLightbox } from "../../ImageLightbox";
 import { ToolCall } from "./ToolCall";
+import { ToolResultImage } from "./ToolResultImage";
 import type { ToolStatus } from "./utils";
 
 /**
@@ -19,12 +18,10 @@ export const ComputerTool: React.FC<{
 	isError: boolean;
 	errorMessage?: string;
 }> = ({ imageData, mimeType, text, status, isError, errorMessage }) => {
-	const [showLightbox, setShowLightbox] = useState(false);
 	const isRunning = status === "running";
 	const hasImage = imageData.length > 0;
 	const hasText = text.length > 0;
 	const hasContent = hasImage || hasText;
-	const imageSrc = hasImage ? `data:${mimeType};base64,${imageData}` : "";
 
 	return (
 		<ToolCall.Root
@@ -41,27 +38,11 @@ export const ComputerTool: React.FC<{
 			/>
 			<ToolCall.Content>
 				{hasImage ? (
-					<>
-						<div className="mt-1.5 overflow-hidden rounded-md border border-solid border-border-default">
-							<button
-								type="button"
-								className="cursor-pointer bg-transparent p-0 border-none"
-								onClick={() => setShowLightbox(true)}
-							>
-								<img
-									src={imageSrc}
-									alt="Screenshot from computer tool"
-									className="max-h-96 w-auto object-contain"
-								/>
-							</button>
-						</div>
-						{showLightbox && (
-							<ImageLightbox
-								src={imageSrc}
-								onClose={() => setShowLightbox(false)}
-							/>
-						)}
-					</>
+					<ToolResultImage
+						data={imageData}
+						mimeType={mimeType}
+						alt="Screenshot from computer tool"
+					/>
 				) : hasText ? (
 					<div className="mt-1.5 rounded-md border border-solid border-border-default px-3 py-2">
 						<pre className="whitespace-pre-wrap text-xs text-content-secondary">

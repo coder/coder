@@ -59,7 +59,7 @@ resource "coderd_template" "kubernetes" {
 }
 ```
 
-For an example, see how we push our development image and template
+For an example, see how we push our development image
 [with GitHub actions](../../../../.github/workflows/dogfood.yaml).
 
 ## Coder CLI

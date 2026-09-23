@@ -1075,6 +1075,12 @@
 									"path": "./ai-coder/agents/platform-controls/organizations.md"
 								},
 								{
+									"title": "Sandboxing",
+									"description": "Run Coder Agents in a separate sandbox with a two-Pod Kubernetes template.",
+									"path": "./ai-coder/agents/platform-controls/agent-isolation.md",
+									"state": ["early access"]
+								},
+								{
 									"title": "MCP Servers",
 									"description": "Configure external MCP servers that provide additional tools for agent chat sessions",
 									"path": "./ai-coder/agents/platform-controls/mcp-servers.md"

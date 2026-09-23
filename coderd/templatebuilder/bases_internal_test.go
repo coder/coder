@@ -117,123 +117,6 @@ func TestParseBasesFromFS(t *testing.T) {
 		require.NotContains(t, b.Templates, "cloud-init/config.yaml.tftpl")
 	})
 
-	t.Run("RejectsMissingReadme", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"bases/bad/base.json": &fstest.MapFile{
-				Data: []byte(`{"id": "bad", "os": "linux"}`),
-			},
-			"bases/bad/main.tf.tmpl": &fstest.MapFile{
-				Data: []byte(`resource {}`),
-			},
-		}
-
-		_, err := parseBasesFromFS(fsys)
-		require.ErrorContains(t, err, "read README.md for base")
-	})
-
-	t.Run("RejectsDirWithoutManifest", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"bases/nobase/readme.txt": &fstest.MapFile{Data: []byte("hi")},
-		}
-
-		_, err := parseBasesFromFS(fsys)
-		require.ErrorContains(t, err, "read nobase/base.json")
-	})
-
-	t.Run("RejectsEmptyID", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"bases/bad/base.json": &fstest.MapFile{
-				Data: []byte(`{"id": "", "os": "linux"}`),
-			},
-		}
-
-		_, err := parseBasesFromFS(fsys)
-		require.ErrorContains(t, err, "empty id")
-	})
-
-	t.Run("RejectsDuplicateID", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"bases/a/base.json": &fstest.MapFile{
-				Data: []byte(`{"id": "dupe", "os": "linux"}`),
-			},
-			"bases/a/README.md": &fstest.MapFile{
-				Data: []byte("# A\n"),
-			},
-			"bases/b/base.json": &fstest.MapFile{
-				Data: []byte(`{"id": "dupe", "os": "linux"}`),
-			},
-			"bases/b/README.md": &fstest.MapFile{
-				Data: []byte("# B\n"),
-			},
-		}
-
-		_, err := parseBasesFromFS(fsys)
-		require.ErrorContains(t, err, "duplicate base id")
-	})
-
-	t.Run("RejectsUnknownOS", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"bases/bad/base.json": &fstest.MapFile{
-				Data: []byte(`{"id": "bad", "os": "beos"}`),
-			},
-		}
-
-		_, err := parseBasesFromFS(fsys)
-		require.ErrorContains(t, err, `unknown os "beos"`)
-	})
-
-	t.Run("RejectsUnknownField", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"bases/bad/base.json": &fstest.MapFile{
-				Data: []byte(`{"id": "bad", "os": "linux", "dispaly_name": "typo"}`),
-			},
-		}
-
-		_, err := parseBasesFromFS(fsys)
-		require.ErrorContains(t, err, "decode")
-	})
-
-	t.Run("RejectsInvalidJSON", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"bases/bad/base.json": &fstest.MapFile{
-				Data: []byte(`{not json`),
-			},
-		}
-
-		_, err := parseBasesFromFS(fsys)
-		require.ErrorContains(t, err, "decode")
-	})
-
-	t.Run("RejectsInvalidTemplate", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"bases/bad/base.json": &fstest.MapFile{
-				Data: []byte(`{"id": "bad", "os": "linux"}`),
-			},
-			"bases/bad/main.tf.tmpl": &fstest.MapFile{
-				Data: []byte(`{{ .Broken`),
-			},
-		}
-
-		_, err := parseBasesFromFS(fsys)
-		require.ErrorContains(t, err, "parse templates")
-	})
-
 	t.Run("AllowsEmptyOS", func(t *testing.T) {
 		t.Parallel()
 
@@ -294,57 +177,141 @@ resource "coder_agent" "gpu" {}`),
 		require.Equal(t, []BaseAgent{{Name: "main"}, {Name: "gpu", Default: true}}, agents)
 	})
 
-	t.Run("RejectsEmptyAgentName", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"bases/bad/base.json": &fstest.MapFile{
-				Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": ""}]}`),
+	rejects := []struct {
+		name    string
+		fsys    fstest.MapFS
+		wantErr string
+	}{
+		{
+			name: "RejectsMissingReadme",
+			fsys: fstest.MapFS{
+				"bases/bad/base.json": &fstest.MapFile{
+					Data: []byte(`{"id": "bad", "os": "linux"}`),
+				},
+				"bases/bad/main.tf.tmpl": &fstest.MapFile{
+					Data: []byte(`resource {}`),
+				},
 			},
-		}
-
-		_, err := parseBasesFromFS(fsys)
-		require.ErrorContains(t, err, "empty name")
-	})
-
-	t.Run("RejectsDuplicateAgentName", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"bases/bad/base.json": &fstest.MapFile{
-				Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": "main"}, {"name": "main"}]}`),
+			wantErr: "read README.md for base",
+		},
+		{
+			name: "RejectsDirWithoutManifest",
+			fsys: fstest.MapFS{
+				"bases/nobase/readme.txt": &fstest.MapFile{Data: []byte("hi")},
 			},
-		}
-
-		_, err := parseBasesFromFS(fsys)
-		require.ErrorContains(t, err, "duplicate agent name")
-	})
-
-	t.Run("RejectsMultipleDefaultAgents", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"bases/bad/base.json": &fstest.MapFile{
-				Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": "a", "default": true}, {"name": "b", "default": true}]}`),
+			wantErr: "read nobase/base.json",
+		},
+		{
+			name: "RejectsEmptyID",
+			fsys: fstest.MapFS{
+				"bases/bad/base.json": &fstest.MapFile{
+					Data: []byte(`{"id": "", "os": "linux"}`),
+				},
 			},
-		}
-
-		_, err := parseBasesFromFS(fsys)
-		require.ErrorContains(t, err, "exactly one required")
-	})
-
-	t.Run("RejectsMultiAgentWithoutDefault", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"bases/bad/base.json": &fstest.MapFile{
-				Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": "a"}, {"name": "b"}]}`),
+			wantErr: "empty id",
+		},
+		{
+			name: "RejectsDuplicateID",
+			fsys: fstest.MapFS{
+				"bases/a/base.json": &fstest.MapFile{
+					Data: []byte(`{"id": "dupe", "os": "linux"}`),
+				},
+				"bases/a/README.md": &fstest.MapFile{
+					Data: []byte("# A\n"),
+				},
+				"bases/b/base.json": &fstest.MapFile{
+					Data: []byte(`{"id": "dupe", "os": "linux"}`),
+				},
+				"bases/b/README.md": &fstest.MapFile{
+					Data: []byte("# B\n"),
+				},
 			},
-		}
+			wantErr: "duplicate base id",
+		},
+		{
+			name: "RejectsUnknownOS",
+			fsys: fstest.MapFS{
+				"bases/bad/base.json": &fstest.MapFile{
+					Data: []byte(`{"id": "bad", "os": "beos"}`),
+				},
+			},
+			wantErr: `unknown os "beos"`,
+		},
+		{
+			name: "RejectsUnknownField",
+			fsys: fstest.MapFS{
+				"bases/bad/base.json": &fstest.MapFile{
+					Data: []byte(`{"id": "bad", "os": "linux", "dispaly_name": "typo"}`),
+				},
+			},
+			wantErr: "decode",
+		},
+		{
+			name: "RejectsInvalidJSON",
+			fsys: fstest.MapFS{
+				"bases/bad/base.json": &fstest.MapFile{
+					Data: []byte(`{not json`),
+				},
+			},
+			wantErr: "decode",
+		},
+		{
+			name: "RejectsInvalidTemplate",
+			fsys: fstest.MapFS{
+				"bases/bad/base.json": &fstest.MapFile{
+					Data: []byte(`{"id": "bad", "os": "linux"}`),
+				},
+				"bases/bad/main.tf.tmpl": &fstest.MapFile{
+					Data: []byte(`{{ .Broken`),
+				},
+			},
+			wantErr: "parse templates",
+		},
+		{
+			name: "RejectsEmptyAgentName",
+			fsys: fstest.MapFS{
+				"bases/bad/base.json": &fstest.MapFile{
+					Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": ""}]}`),
+				},
+			},
+			wantErr: "empty name",
+		},
+		{
+			name: "RejectsDuplicateAgentName",
+			fsys: fstest.MapFS{
+				"bases/bad/base.json": &fstest.MapFile{
+					Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": "main"}, {"name": "main"}]}`),
+				},
+			},
+			wantErr: "duplicate agent name",
+		},
+		{
+			name: "RejectsMultipleDefaultAgents",
+			fsys: fstest.MapFS{
+				"bases/bad/base.json": &fstest.MapFile{
+					Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": "a", "default": true}, {"name": "b", "default": true}]}`),
+				},
+			},
+			wantErr: "exactly one required",
+		},
+		{
+			name: "RejectsMultiAgentWithoutDefault",
+			fsys: fstest.MapFS{
+				"bases/bad/base.json": &fstest.MapFile{
+					Data: []byte(`{"id": "bad", "os": "linux", "agents": [{"name": "a"}, {"name": "b"}]}`),
+				},
+			},
+			wantErr: "exactly one required",
+		},
+	}
+	for _, tc := range rejects {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		_, err := parseBasesFromFS(fsys)
-		require.ErrorContains(t, err, "exactly one required")
-	})
+			_, err := parseBasesFromFS(tc.fsys)
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
 }
 
 func TestDefaultAgentName(t *testing.T) {

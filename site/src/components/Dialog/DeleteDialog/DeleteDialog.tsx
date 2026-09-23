@@ -13,7 +13,7 @@ import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 
-interface DeleteDialogProps {
+type DeleteDialogProps = {
 	isOpen: boolean;
 	onConfirm: () => void;
 	onCancel: () => void;
@@ -25,7 +25,7 @@ interface DeleteDialogProps {
 	title?: string;
 	label?: string;
 	confirmText?: string;
-}
+};
 
 export const DeleteDialog: FC<DeleteDialogProps> = ({
 	isOpen,

@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -136,6 +137,9 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 	t.Run("silent stream generation retry recovers", func(t *testing.T) {
 		t.Parallel()
 
+		// Longer than the 15m task watchdog.
+		const streamSilenceTimeout = 20 * time.Minute
+
 		ctx := testutil.Context(t, testutil.WaitLong)
 		db, ps := dbtestutil.NewDB(t)
 		reg := prometheus.NewRegistry()
@@ -164,12 +168,14 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 			cfg.PrometheusRegistry = reg
 			cfg.PendingChatAcquireInterval = 30 * time.Minute
 			cfg.ChatHeartbeatInterval = 30 * time.Minute
+			cfg.StreamSilenceTimeout = streamSilenceTimeout
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		})
 
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
 		firstGuard := streamGuardTrap.MustWait(ctx)
 		firstGuard.MustRelease(ctx)
+		require.Equal(t, streamSilenceTimeout, firstGuard.Duration)
 		waitUntilProviderCall(ctx, t, &calls, 1)
 		advanceMockClockBy(ctx, t, clock, firstGuard.Duration)
 		retryTimer := retryTrap.MustWait(ctx)
@@ -194,6 +200,47 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 			"model":    model.Model,
 			"kind":     string(codersdk.ChatErrorKindStreamSilenceTimeout),
 		})
+	})
+
+	t.Run("disabled stream silence timeout never cancels a silent stream", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+		var calls atomic.Int32
+		unblock := make(chan struct{})
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			calls.Add(1)
+			select {
+			case <-unblock:
+			case <-req.Request.Context().Done():
+			}
+			return chattest.OpenAIStreamingResponse(openAITextChunksWithStop("done")...)
+		})
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+		factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.Clock = clock
+			cfg.PendingChatAcquireInterval = 30 * time.Minute
+			cfg.ChatHeartbeatInterval = 30 * time.Minute
+			cfg.StreamSilenceTimeout = chatloop.StreamSilenceTimeoutDisabled
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		})
+
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+		waitUntilProviderCall(ctx, t, &calls, 1)
+		// Past the 15m task watchdog.
+		advanceMockClockBy(ctx, t, clock, 16*time.Minute)
+		close(unblock)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.Equal(t, int32(1), calls.Load())
+		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+		require.NoError(t, err)
+		requireTextPart(t, messages[len(messages)-1], "done")
 	})
 }
 

@@ -2,13 +2,13 @@ import type { FC } from "react";
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { Response } from "./ChatElements/Response";
 
-interface TextPreviewDialogProps {
+type TextPreviewDialogProps = {
 	content: string;
 	fileName?: string;
 	/** Explicit media type for the attachment, if known. */
 	mediaType?: string;
 	onClose: () => void;
-}
+};
 
 /**
  * Returns true when the attachment should render as Markdown rather than as

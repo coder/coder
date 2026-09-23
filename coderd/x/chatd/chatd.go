@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -62,10 +63,10 @@ import (
 const (
 	// DefaultPendingChatAcquireInterval is the default time between attempts to
 	// acquire pending chats.
-	DefaultPendingChatAcquireInterval = time.Second
+	DefaultPendingChatAcquireInterval = 30 * time.Second
 	// DefaultInFlightChatStaleAfter is the default age after which a running
 	// chat is considered stale and should be recovered.
-	DefaultInFlightChatStaleAfter = 5 * time.Minute
+	DefaultInFlightChatStaleAfter = 30 * time.Second
 
 	workspaceDialValidationDelay = 5 * time.Second
 	turnStatusLabelWriteTimeout  = 5 * time.Second
@@ -80,7 +81,7 @@ const (
 	planPathLookupTimeout = defaultDialTimeout + 5*time.Second
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
-	DefaultChatHeartbeatInterval = 30 * time.Second
+	DefaultChatHeartbeatInterval = 9 * time.Second
 	maxChatSteps                 = 1200
 
 	// slowPrepareThreshold is the generation-preparation duration
@@ -209,6 +210,7 @@ type Server struct {
 
 	// Configuration
 	inFlightChatStaleAfter time.Duration
+	streamSilenceTimeout   time.Duration
 }
 
 func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) advisorRuntimeConfig {
@@ -246,11 +248,6 @@ func isAdvisorGuidanceMessage(msg fantasy.Message) bool {
 	return strings.TrimSpace(text.Text) == strings.TrimSpace(chatadvisor.ParentGuidanceBlock)
 }
 
-const advisorOverrideContext = "advisor"
-
-// resolveAdvisorModelOverride resolves the advisor model override for the
-// chat's organization. Missing or unusable overrides fall back to the chat
-// model. Linked-provider route and client failures remain hard failures.
 func (p *Server) resolveAdvisorModelOverride(
 	ctx context.Context,
 	chat database.Chat,
@@ -258,78 +255,37 @@ func (p *Server) resolveAdvisorModelOverride(
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (resolvedModelCall, bool, error) {
-	//nolint:gocritic // Chatd reads organization-scoped runtime configuration.
-	override, err := p.db.GetChatOrganizationModelOverride(
-		dbauthz.AsChatd(ctx),
-		database.GetChatOrganizationModelOverrideParams{
-			OrganizationID: chat.OrganizationID,
-			Context:        advisorOverrideContext,
-		},
-	)
+	override, err := p.resolveModelOverride(ctx, modelOverrideSpec{
+		context:         advisorOverrideContext,
+		ownerID:         chat.OwnerID,
+		organizationID:  chat.OrganizationID,
+		queryFailure:    modelOverrideFailureModeSoft,
+		configFailure:   modelOverrideFailureModeSoft,
+		providerFailure: modelOverrideFailureModeHard,
+	})
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return resolvedModelCall{}, false, nil
-		}
-		logger.Warn(
-			ctx,
-			"failed to load advisor model override, continuing with chat model",
-			slog.F("organization_id", chat.OrganizationID),
-			slog.Error(err),
-		)
-		return resolvedModelCall{}, false, nil
+		return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
 	}
-
-	modelCtx, modelCtxErr := p.callerModelConfigContext(ctx, chat.OwnerID)
-	if modelCtxErr != nil {
-		logger.Warn(
-			ctx,
-			"failed to load advisor model authorization, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
-			slog.Error(modelCtxErr),
-		)
-		return resolvedModelCall{}, false, nil
-	}
-	// Re-read the model row for every runtime so disabled models or providers
-	// stop routing advisor prompts immediately.
-	overrideConfig, err := p.db.GetEnabledChatModelConfigByID(modelCtx, override.ModelConfigID)
-	if err == nil && overrideConfig.OrganizationID != chat.OrganizationID {
-		err = sql.ErrNoRows
-	}
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			logger.Warn(
-				ctx,
-				"advisor model config is disabled or unavailable, continuing with chat model",
-				slog.F("model_config_id", override.ModelConfigID),
-			)
-			return resolvedModelCall{}, false, nil
-		}
-		logger.Warn(
-			ctx,
-			"failed to resolve advisor model config, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
-			slog.Error(err),
-		)
+	if !override.Set {
 		return resolvedModelCall{}, false, nil
 	}
 
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:         "advisor",
 		chat:            chat,
-		explicitConfig:  &overrideConfig,
-		requestedEffort: ptr.FromNullString(override.ReasoningEffort),
+		explicitConfig:  &override.Config,
+		requestedEffort: override.ReasoningEffort,
 		maxOutputTokens: ptr.Ref(maxOutputTokens),
 		buildOptions:    modelOpts,
 	})
 	if err != nil {
 		var parseErr modelCallConfigParseError
-		if overrideConfig.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
+		if override.Config.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
 			return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
 		}
-		logger.Warn(
-			ctx,
+		logger.Warn(ctx,
 			"failed to resolve advisor override model, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
+			slog.F("model_config_id", override.Config.ID),
 			slog.Error(err),
 		)
 		return resolvedModelCall{}, false, nil
@@ -398,10 +354,11 @@ func (p *Server) newAdvisorRuntime(
 	}
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
-		Model:           advisor.model.LanguageModel(),
-		CallTemplate:    advisor.newCall(),
-		MaxUsesPerRun:   maxUsesPerRun,
-		MaxOutputTokens: maxOutputTokens,
+		Model:                advisor.model.LanguageModel(),
+		CallTemplate:         advisor.newCall(),
+		MaxUsesPerRun:        maxUsesPerRun,
+		MaxOutputTokens:      maxOutputTokens,
+		StreamSilenceTimeout: p.streamSilenceTimeout,
 	})
 	if err != nil {
 		logger.Warn(
@@ -1126,8 +1083,10 @@ var (
 
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
-	OrganizationID          uuid.UUID
-	OwnerID                 uuid.UUID
+	OrganizationID uuid.UUID
+	OwnerID        uuid.UUID
+	// CreatedBy attributes the initial user message; defaults to OwnerID.
+	CreatedBy               uuid.UUID
 	WorkspaceID             uuid.NullUUID
 	BuildID                 uuid.NullUUID
 	AgentID                 uuid.NullUUID
@@ -1419,7 +1378,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		initialMessages = append(initialMessages, systemMessage(userPromptContent, opts.ModelConfigID))
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
-	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, opts.OwnerID, opts.ReasoningEffort))
+	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, cmp.Or(opts.CreatedBy, opts.OwnerID), opts.ReasoningEffort))
 
 	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
@@ -2641,7 +2600,7 @@ func (p *Server) ProposeChatTitle(
 ) (string, error) {
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	return p.generateManualTitleCandidate(chatdCtx, p.db, chat)
+	return p.generateManualTitleCandidate(chatdCtx, chat)
 }
 
 // generateManualTitleCandidate generates a title candidate from the chat's
@@ -2649,10 +2608,9 @@ func (p *Server) ProposeChatTitle(
 // Endpoint-specific commit paths decide whether to persist the title.
 func (p *Server) generateManualTitleCandidate(
 	ctx context.Context,
-	store database.Store,
 	chat database.Chat,
 ) (string, error) {
-	headMessages, err := store.GetChatMessagesByChatIDAscPaginated(
+	headMessages, err := p.db.GetChatMessagesByChatIDAscPaginated(
 		ctx,
 		database.GetChatMessagesByChatIDAscPaginatedParams{
 			ChatID:   chat.ID,
@@ -2663,7 +2621,7 @@ func (p *Server) generateManualTitleCandidate(
 	if err != nil {
 		return "", xerrors.Errorf("get head chat messages: %w", err)
 	}
-	tailMessages, err := store.GetChatMessagesByChatIDDescPaginated(
+	tailMessages, err := p.db.GetChatMessagesByChatIDDescPaginated(
 		ctx,
 		database.GetChatMessagesByChatIDDescPaginatedParams{
 			ChatID:   chat.ID,
@@ -2678,7 +2636,7 @@ func (p *Server) generateManualTitleCandidate(
 	if len(messages) == 0 {
 		return "", nil
 	}
-	pasteText, err := titlePasteText(ctx, store, messages)
+	pasteText, err := titlePasteText(ctx, p.db, messages)
 	if err != nil {
 		return "", xerrors.Errorf("get pasted-text attachments for manual title: %w", err)
 	}
@@ -2688,7 +2646,7 @@ func (p *Server) generateManualTitleCandidate(
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
-	resolved, err := p.resolveManualTitleModel(ctx, store, chat, modelOpts)
+	resolved, err := p.resolveQuickgenModel(ctx, "title", chat, modelOpts)
 	if err != nil {
 		return "", err
 	}
@@ -2847,94 +2805,6 @@ func deriveChatDebugSeed(messages []database.ChatMessage) (
 	return triggerMessageID, historyTipMessageID, triggerLabel
 }
 
-func (p *Server) resolveManualTitleModel(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-	modelOpts modelBuildOptions,
-) (resolvedModelCall, error) {
-	overrideResolved, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
-		ctx,
-		chat,
-		modelOpts,
-	)
-	if overrideErr != nil {
-		if overrideSet {
-			return resolvedModelCall{}, xerrors.Errorf(
-				"resolve manual title generation model override: %w",
-				overrideErr,
-			)
-		}
-		p.logger.Debug(ctx, "failed to resolve title generation model override for manual title",
-			slog.F("chat_id", chat.ID),
-			slog.Error(overrideErr),
-		)
-	} else if overrideSet {
-		return overrideResolved, nil
-	}
-
-	modelCtx, err := p.callerModelConfigContext(ctx, chat.OwnerID)
-	if err != nil {
-		return resolvedModelCall{}, err
-	}
-	configs, err := enabledChatModelConfigsForOrganization(modelCtx, store, chat.OrganizationID)
-	if err != nil {
-		p.logger.Debug(ctx, "failed to list manual title model configs",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
-	}
-
-	config, ok := selectPreferredConfiguredShortTextModelConfig(configs)
-	if !ok {
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
-	}
-
-	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
-		purpose:        "title",
-		chat:           chat,
-		explicitConfig: &config,
-		buildOptions:   modelOpts,
-	})
-	if err != nil {
-		p.logger.Debug(ctx, "manual title preferred model unavailable",
-			slog.F("chat_id", chat.ID),
-			slog.F("model", config.Model),
-			slog.Error(err),
-		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
-	}
-	return resolved, nil
-}
-
-func (p *Server) resolveFallbackManualTitleModel(
-	ctx context.Context,
-	chat database.Chat,
-	modelOpts modelBuildOptions,
-) (resolvedModelCall, error) {
-	config, err := p.resolveModelConfig(ctx, chat)
-	if err != nil {
-		return resolvedModelCall{}, xerrors.Errorf(
-			"resolve fallback manual title model config: %w",
-			err,
-		)
-	}
-	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
-		purpose:        "title",
-		chat:           chat,
-		explicitConfig: &config,
-		buildOptions:   modelOpts,
-	})
-	if err != nil {
-		return resolvedModelCall{}, xerrors.Errorf(
-			"create fallback manual title model: %w",
-			err,
-		)
-	}
-	return resolved, nil
-}
-
 func mergeManualTitleMessages(
 	headMessages []database.ChatMessage,
 	tailMessagesDesc []database.ChatMessage,
@@ -2969,6 +2839,7 @@ type Config struct {
 	MaxChatsPerAcquire             int32
 	InFlightChatStaleAfter         time.Duration
 	ChatHeartbeatInterval          time.Duration
+	StreamSilenceTimeout           time.Duration
 	AgentConn                      AgentConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
 	CreateWorkspace                chattool.CreateWorkspaceFn
@@ -3023,6 +2894,11 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	chatHeartbeatInterval := cfg.ChatHeartbeatInterval
 	if chatHeartbeatInterval == 0 {
 		chatHeartbeatInterval = DefaultChatHeartbeatInterval
+	}
+
+	streamSilenceTimeout := cfg.StreamSilenceTimeout
+	if streamSilenceTimeout == 0 {
+		streamSilenceTimeout = chatloop.DefaultStreamSilenceTimeout
 	}
 
 	clk := cfg.Clock
@@ -3094,6 +2970,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
+		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,
 		clock:                    clk,
 		recordingSem:             make(chan struct{}, maxConcurrentRecordingUploads),
@@ -3331,7 +3208,7 @@ func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
 			if hasImageCap &&
-				strings.HasPrefix(f.Mimetype, "image/") &&
+				chatfiles.IsRasterImageMediaType(f.Mimetype) &&
 				len(f.Data) >= imageCap {
 				err := xerrors.Errorf(
 					"image attachment %q is %d bytes; %s inline image limit is %d bytes",
@@ -4177,6 +4054,8 @@ func (p *Server) resolveUserProviderAPIKeys(
 	return keys, nil
 }
 
+var errModelConfigOutsideOrganization = xerrors.Errorf("%w: model config belongs to another organization", sql.ErrNoRows)
+
 func (p *Server) resolveModelConfigForOrganization(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -4771,8 +4650,12 @@ func (p *Server) generateAndStoreChatSummary(
 	summary, _, genErr := generateChatSummary(summaryCtx, resolved.model.LanguageModel(), summaryObjectCall(resolved), transcript)
 
 	if genErr != nil {
-		logger.Debug(ctx, "failed to generate chat summary",
-			slog.F("chat_id", chat.ID), slog.Error(genErr))
+		logger.Warn(ctx, "failed to generate chat summary",
+			slog.F("chat_id", chat.ID),
+			slog.F("provider", resolved.resolvedProvider),
+			slog.F("model", resolved.resolvedModel),
+			slog.Error(genErr),
+		)
 		return
 	}
 
@@ -4785,13 +4668,9 @@ func (p *Server) resolveChatSummaryModel(
 	chat database.Chat,
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, bool) {
-	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
-		purpose:      "chat_summary",
-		chat:         chat,
-		buildOptions: modelOpts,
-	})
+	resolved, err := p.resolveQuickgenModel(ctx, "chat_summary", chat, modelOpts)
 	if err != nil {
-		logger.Debug(ctx, "failed to resolve chat model for summary",
+		logger.Warn(ctx, "failed to resolve model for chat summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return resolvedModelCall{}, false
 	}

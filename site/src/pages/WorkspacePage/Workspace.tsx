@@ -21,7 +21,7 @@ import {
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
-interface WorkspaceProps {
+type WorkspaceProps = {
 	workspace: TypesGen.Workspace;
 	template: TypesGen.Template;
 	permissions: WorkspacePermissions;
@@ -40,7 +40,7 @@ interface WorkspaceProps {
 	handleToggleFavorite: () => void;
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-}
+};
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
@@ -88,7 +88,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const resources = [...workspace.latest_build.resources].sort(
 		(a, b) => countAgents(b) - countAgents(a),
 	);
-	const resourcesNav = useResourcesNav(resources);
+	const visibleResources = resources.filter((r) => !r.hide);
+	const resourcesNav = useResourcesNav(visibleResources);
 	const selectedResource = resources.find(
 		(r) => resourceOptionValue(r) === resourcesNav.value,
 	);

@@ -20,6 +20,7 @@ import {
 	getChatFileURL,
 	handleAttachmentDownloadClick,
 	isAbortError,
+	isRasterImageMediaType,
 	probeAttachmentFailure,
 } from "../../utils/chatAttachments";
 import {
@@ -129,7 +130,7 @@ const getAttachmentDisplayName = (
 	if (name) {
 		return name;
 	}
-	if (block.media_type.startsWith("image/")) {
+	if (isRasterImageMediaType(block.media_type)) {
 		return "Attached image";
 	}
 	if (isTextPreviewAttachmentMediaType(block.media_type)) {
@@ -680,7 +681,7 @@ export const AttachmentBlock: FC<{
 		);
 	}
 
-	if (block.media_type.startsWith("image/")) {
+	if (isRasterImageMediaType(block.media_type)) {
 		if (!href) {
 			return null;
 		}

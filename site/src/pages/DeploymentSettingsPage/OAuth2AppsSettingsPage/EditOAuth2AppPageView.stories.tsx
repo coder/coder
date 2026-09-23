@@ -3,10 +3,12 @@ import { expect, screen, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import {
+	externalScopesKey,
 	oauth2ProviderAppKey,
 	oauth2ProviderAppSecretsKey,
 } from "#/api/queries/oauth2";
 import {
+	MockExternalAPIKeyScopes,
 	MockOAuth2ProviderAppPublic,
 	MockOAuth2ProviderAppSecrets,
 	MockOAuth2ProviderApps,
@@ -49,6 +51,7 @@ type Story = StoryObj<typeof EditOAuth2AppPageView>;
 export const Default: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{ key: oauth2ProviderAppKey(appId), data: mockApp },
 			{
 				key: oauth2ProviderAppSecretsKey(appId),
@@ -71,6 +74,7 @@ export const Default: Story = {
 export const EmptySecrets: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{ key: oauth2ProviderAppKey(appId), data: mockApp },
 			{
 				key: oauth2ProviderAppSecretsKey(appId),
@@ -102,6 +106,7 @@ export const Loading: Story = {
 export const WithValidationError: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{ key: oauth2ProviderAppKey(appId), data: mockApp },
 			{
 				key: oauth2ProviderAppSecretsKey(appId),
@@ -115,7 +120,7 @@ export const WithValidationError: Story = {
 				message: "Validation failed",
 				validations: [
 					{ field: "name", detail: "name error" },
-					{ field: "callback_url", detail: "url error" },
+					{ field: "redirect_uris", detail: "url error" },
 					{ field: "icon", detail: "icon error" },
 				],
 			}),
@@ -137,6 +142,7 @@ export const WithValidationError: Story = {
 export const DeleteDialogOpen: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{ key: oauth2ProviderAppKey(appId), data: mockApp },
 			{
 				key: oauth2ProviderAppSecretsKey(appId),
@@ -155,9 +161,37 @@ export const DeleteDialogOpen: Story = {
 	},
 };
 
+export const DynamicallyRegisteredValues: Story = {
+	parameters: {
+		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
+			{
+				key: oauth2ProviderAppKey(appId),
+				data: {
+					...mockApp,
+					name: "VS Code Coder Extension",
+					callback_url: "vscode://coder.coder-remote/oauth/callback",
+					redirect_uris: ["vscode://coder.coder-remote/oauth/callback"],
+				},
+			},
+			{
+				key: oauth2ProviderAppSecretsKey(appId),
+				data: MockOAuth2ProviderAppSecrets,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const nameField = await canvas.findByLabelText(/^name/i);
+		await userEvent.clear(nameField);
+		await userEvent.type(nameField, "Cursor (MCP)");
+	},
+};
+
 export const PublicClient: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{
 				key: oauth2ProviderAppKey(MockOAuth2ProviderAppPublic.id),
 				data: MockOAuth2ProviderAppPublic,
@@ -182,6 +216,56 @@ export const PublicClient: Story = {
 	},
 };
 
+export const MultipleRedirectURIs: Story = {
+	parameters: {
+		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
+			{
+				key: oauth2ProviderAppKey(appId),
+				data: {
+					...mockApp,
+					redirect_uris: [mockApp.callback_url, "https://example.com/callback"],
+				},
+			},
+			{
+				key: oauth2ProviderAppSecretsKey(appId),
+				data: MockOAuth2ProviderAppSecrets,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Waits for the query to resolve so Pixel captures the loaded state.
+		await canvas.findByLabelText(/^redirect uri 2/i);
+	},
+};
+
+export const InvalidRowState: Story = {
+	parameters: {
+		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
+			{ key: oauth2ProviderAppKey(appId), data: mockApp },
+			{
+				key: oauth2ProviderAppSecretsKey(appId),
+				data: MockOAuth2ProviderAppSecrets,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /add redirect uri/i }),
+		);
+		// oxlint-disable-next-line eslint/no-script-url -- Deliberately invalid input exercises redirect URI rejection.
+		const invalidRedirectURI = "javascript:alert(1)";
+		await userEvent.type(
+			canvas.getByLabelText(/^redirect uri 2/i),
+			invalidRedirectURI,
+		);
+		await userEvent.tab();
+	},
+};
+
 export const NoSecretPermissions: Story = {
 	parameters: {
 		permissions: {
@@ -189,7 +273,10 @@ export const NoSecretPermissions: Story = {
 			viewOAuth2AppSecrets: false,
 			deleteOAuth2App: false,
 		},
-		queries: [{ key: oauth2ProviderAppKey(appId), data: mockApp }],
+		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
+			{ key: oauth2ProviderAppKey(appId), data: mockApp },
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

@@ -2501,6 +2501,7 @@ func TestConvertMessagesWithFiles_IsSyntheticPaste(t *testing.T) {
 		{name: "plain text", fileName: "pasted-text-2025-01-01-12-00-00.txt", mediaType: "text/plain", want: true},
 		{name: "markdown", fileName: "pasted-text-2025-01-01-12-00-00.txt", mediaType: "text/markdown", want: true},
 		{name: "json", fileName: "pasted-text-2025-01-01-12-00-00.txt", mediaType: "application/json", want: true},
+		{name: "svg source", fileName: "pasted-text-2025-01-01-12-00-00.txt", mediaType: "image/svg+xml", want: true},
 		{name: "binary mime", fileName: "pasted-text-2025-01-01-12-00-00.txt", mediaType: "image/png", want: false},
 		{name: "non synthetic name", fileName: "report.txt", mediaType: "text/plain", want: false},
 		{name: "malformed timestamp", fileName: "pasted-text-2025-01-01.txt", mediaType: "text/plain", want: false},

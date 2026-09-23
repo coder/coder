@@ -38,7 +38,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -142,6 +141,7 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		ContextLimit:        []int64{seed.ContextLimit.Int64},
 		Compressed:          []bool{seed.Compressed},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
+		ProviderResponseID:  []string{seed.ProviderResponseID.String},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
@@ -396,6 +396,8 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		APIKeyValueKeyID:        seed.APIKeyValueKeyID,
 		CustomHeaders:           seed.CustomHeaders,
 		CustomHeadersKeyID:      seed.CustomHeadersKeyID,
+		SigningSecret:           seed.SigningSecret,
+		SigningSecretKeyID:      seed.SigningSecretKeyID,
 		ToolAllowList:           takeFirstSlice(seed.ToolAllowList, []string{}),
 		ToolDenyList:            takeFirstSlice(seed.ToolDenyList, []string{}),
 		Availability:            takeFirst(seed.Availability, "default_off"),
@@ -652,18 +654,6 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey, munge ...func
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
 }
 
-func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.WorkspaceAgentPortShare) database.WorkspaceAgentPortShare {
-	ps, err := db.UpsertWorkspaceAgentPortShare(genCtx, database.UpsertWorkspaceAgentPortShareParams{
-		WorkspaceID: takeFirst(orig.WorkspaceID, uuid.New()),
-		AgentName:   takeFirst(orig.AgentName, testutil.GetRandomName(t)),
-		Port:        takeFirst(orig.Port, 8080),
-		ShareLevel:  takeFirst(orig.ShareLevel, database.AppSharingLevelPublic),
-		Protocol:    takeFirst(orig.Protocol, database.PortShareProtocolHttp),
-	})
-	require.NoError(t, err, "insert workspace agent")
-	return ps
-}
-
 func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgent) database.WorkspaceAgent {
 	agt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
@@ -828,20 +818,6 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 		require.NoError(t, err, "insert workspace agent script")
 	}
 	panic("failed to insert workspace agent script timing")
-}
-
-func WorkspaceAgentDevcontainer(t testing.TB, db database.Store, orig database.WorkspaceAgentDevcontainer) database.WorkspaceAgentDevcontainer {
-	devcontainers, err := db.InsertWorkspaceAgentDevcontainers(genCtx, database.InsertWorkspaceAgentDevcontainersParams{
-		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
-		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
-		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
-		Name:             []string{takeFirst(orig.Name, testutil.GetRandomName(t))},
-		WorkspaceFolder:  []string{takeFirst(orig.WorkspaceFolder, "/workspace")},
-		ConfigPath:       []string{takeFirst(orig.ConfigPath, "")},
-		SubagentID:       []uuid.UUID{orig.SubagentID.UUID},
-	})
-	require.NoError(t, err, "insert workspace agent devcontainer")
-	return devcontainers[0]
 }
 
 func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) database.WorkspaceTable {
@@ -1446,21 +1422,6 @@ func WorkspaceAppStat(t testing.TB, db database.Store, orig database.WorkspaceAp
 	return scheme
 }
 
-func WorkspaceAppStatus(t testing.TB, db database.Store, orig database.WorkspaceAppStatus) database.WorkspaceAppStatus {
-	appStatus, err := db.InsertWorkspaceAppStatus(genCtx, database.InsertWorkspaceAppStatusParams{
-		ID:          takeFirst(orig.ID, uuid.New()),
-		CreatedAt:   takeFirst(orig.CreatedAt, dbtime.Now()),
-		WorkspaceID: takeFirst(orig.WorkspaceID, uuid.New()),
-		AgentID:     takeFirst(orig.AgentID, uuid.New()),
-		AppID:       takeFirst(orig.AppID, uuid.New()),
-		State:       takeFirst(orig.State, database.WorkspaceAppStatusStateWorking),
-		Message:     takeFirst(orig.Message, ""),
-		Uri:         takeFirst(orig.Uri, sql.NullString{}),
-	})
-	require.NoError(t, err, "insert workspace agent status")
-	return appStatus
-}
-
 func WorkspaceResource(t testing.TB, db database.Store, orig database.WorkspaceResource) database.WorkspaceResource {
 	resource, err := db.InsertWorkspaceResource(genCtx, database.InsertWorkspaceResourceParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
@@ -1645,16 +1606,6 @@ func TemplateVersionVariable(t testing.TB, db database.Store, orig database.Temp
 	return version
 }
 
-func TemplateVersionWorkspaceTag(t testing.TB, db database.Store, orig database.TemplateVersionWorkspaceTag) database.TemplateVersionWorkspaceTag {
-	workspaceTag, err := db.InsertTemplateVersionWorkspaceTag(genCtx, database.InsertTemplateVersionWorkspaceTagParams{
-		TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
-		Key:               takeFirst(orig.Key, testutil.GetRandomName(t)),
-		Value:             takeFirst(orig.Value, testutil.GetRandomName(t)),
-	})
-	require.NoError(t, err, "insert template version workspace tag")
-	return workspaceTag
-}
-
 func TemplateVersionParameter(t testing.TB, db database.Store, orig database.TemplateVersionParameter) database.TemplateVersionParameter {
 	t.Helper()
 
@@ -1680,34 +1631,6 @@ func TemplateVersionParameter(t testing.TB, db database.Store, orig database.Tem
 	})
 	require.NoError(t, err, "insert template version parameter")
 	return version
-}
-
-func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig database.TemplateVersionTerraformValue) database.TemplateVersionTerraformValue {
-	t.Helper()
-
-	jobID := uuid.New()
-	if orig.TemplateVersionID != uuid.Nil {
-		v, err := db.GetTemplateVersionByID(genCtx, orig.TemplateVersionID)
-		if err == nil {
-			jobID = v.JobID
-		}
-	}
-
-	params := database.InsertTemplateVersionTerraformValuesByJobIDParams{
-		JobID:               jobID,
-		CachedPlan:          takeFirstSlice(orig.CachedPlan, []byte("{}")),
-		CachedModuleFiles:   orig.CachedModuleFiles,
-		UpdatedAt:           takeFirst(orig.UpdatedAt, dbtime.Now()),
-		ProvisionerdVersion: takeFirst(orig.ProvisionerdVersion, proto.CurrentVersion.String()),
-	}
-
-	err := db.InsertTemplateVersionTerraformValuesByJobID(genCtx, params)
-	require.NoError(t, err, "insert template version parameter")
-
-	v, err := db.GetTemplateVersionTerraformValues(genCtx, orig.TemplateVersionID)
-	require.NoError(t, err, "get template version values")
-
-	return v
 }
 
 // WorkspaceAgentStat inserts a workspace agent stat row. Seed the
@@ -2079,6 +2002,7 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 		CredentialHint:              takeFirst(seed.CredentialHint, ""),
 		AgentFirewallSessionID:      seed.AgentFirewallSessionID,
 		AgentFirewallSequenceNumber: seed.AgentFirewallSequenceNumber,
+		WorkspaceID:                 seed.WorkspaceID,
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{

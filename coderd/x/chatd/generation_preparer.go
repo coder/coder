@@ -366,6 +366,7 @@ func (server *Server) prepareGeneration(
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
+		prompt = replaceUnsupportedToolMedia(ctx, logger, prompt, model, providerType)
 		if pendingRowsStart < len(promptRows) {
 			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], server.chatFileResolver(providerType), logger, acceptsFilePart)
 			if err != nil {
@@ -701,6 +702,7 @@ func (server *Server) prepareGeneration(
 		builtinToolNames[chattool.FindToolsName] = true
 	}
 
+	toolDefinitions := chatloop.BuildToolDefinitions(tools, activeToolNames, providerTools)
 	toolNameToConfigID := make(map[string]uuid.UUID)
 	for _, t := range tools {
 		if mcpTool, ok := t.(mcpclient.MCPToolIdentifier); ok {
@@ -717,12 +719,21 @@ func (server *Server) prepareGeneration(
 	// models' context limits: the history must also fit the summarizer's
 	// window.
 	compactionContextLimit := modelConfig.ContextLimit
-	compactionOverride, err := server.resolveCompactionOverrideConfig(ctx, chat)
+	resolvedCompactionOverride, err := server.resolveModelOverride(ctx, modelOverrideSpec{
+		context:         compactionOverrideContext,
+		ownerID:         chat.OwnerID,
+		organizationID:  chat.OrganizationID,
+		queryFailure:    modelOverrideFailureModeHard,
+		configFailure:   modelOverrideFailureModeSoft,
+		providerFailure: modelOverrideFailureModeSoft,
+	})
 	if err != nil {
 		cleanup()
 		return generationPrepared{}, err
 	}
-	if compactionOverride != nil {
+	var compactionOverride *resolvedModelOverride
+	if resolvedCompactionOverride.Set {
+		compactionOverride = &resolvedCompactionOverride
 		if overrideLimit := compactionOverride.Config.ContextLimit; overrideLimit > 0 &&
 			(compactionContextLimit <= 0 || overrideLimit < compactionContextLimit) {
 			compactionContextLimit = overrideLimit
@@ -748,6 +759,7 @@ func (server *Server) prepareGeneration(
 		ModelConfigID:        modelConfig.ID,
 		StepUsage:            compactionStepUsage,
 		SummaryCall:          compactionSummaryCall(resolved),
+		ToolDefinitions:      toolDefinitions,
 	}
 
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted
@@ -898,11 +910,7 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
-		purpose:      "turn_status_label",
-		chat:         chat,
-		buildOptions: modelOpts,
-	})
+	resolved, err := server.resolveQuickgenModel(ctx, "turn_status_label", chat, modelOpts)
 	if err != nil {
 		// Preserve the text and IDs for the generic-label fallback.
 		logger.Warn(ctx, "derive final turn status label: resolve model", slog.Error(err))

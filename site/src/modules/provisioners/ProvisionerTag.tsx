@@ -19,12 +19,12 @@ const parseBool = (s: string): { valid: boolean; value: boolean } => {
 	}
 };
 
-interface ProvisionerTagProps {
+type ProvisionerTagProps = {
 	tagName: string;
 	tagValue: string;
 	/** Only used in the TemplateVersionEditor */
 	onDelete?: (tagName: string) => void;
-}
+};
 
 export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 	tagName,

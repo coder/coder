@@ -1,9 +1,9 @@
 import type { AuditDiff } from "#/api/typesGenerated";
 
-interface GroupMember {
+type GroupMember = {
 	user_id: string;
 	group_id: string;
-}
+};
 
 /**
  *

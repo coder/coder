@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -13,7 +14,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestChatRoutesCompatibility(t *testing.T) {
+func TestChatRouteMounts(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -29,10 +30,9 @@ func TestChatRoutesCompatibility(t *testing.T) {
 	})
 
 	for _, route := range []string{
-		"/api/experimental/chats",
-		"/api/experimental/chats/config/system-prompt",
 		"/api/v2/chats",
 		"/api/v2/chats/config/system-prompt",
+		fmt.Sprintf("/api/experimental/chats/%s/debug/runs", chat.ID),
 	} {
 		res, err := client.Request(ctx, http.MethodGet, route, nil)
 		require.NoError(t, err)
@@ -44,18 +44,20 @@ func TestChatRoutesCompatibility(t *testing.T) {
 		method string
 		path   string
 	}{
-		{http.MethodGet, "/api/experimental/chats/models"},
-		{http.MethodGet, "/api/experimental/chats/model-configs"},
-		{http.MethodPost, "/api/experimental/chats/model-configs"},
+		// Promoted routes no longer answer on /api/experimental.
+		{http.MethodGet, "/api/experimental/chats"},
+		{http.MethodGet, "/api/experimental/chats/config/system-prompt"},
+		{http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/models", firstUser.OrganizationID)},
+		{http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers", firstUser.OrganizationID)},
+		{http.MethodDelete, fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/disconnect", uuid.New())},
+		{http.MethodGet, "/api/experimental/users/me/ai-provider-keys"},
+		// Never-promoted routes are absent from /api/v2.
 		{http.MethodGet, "/api/v2/chats/model-configs"},
 		{http.MethodPost, "/api/v2/chats/model-configs"},
-		{http.MethodGet, "/api/v2/chats/providers"},
-		{http.MethodGet, "/api/v2/chats/user-provider-configs"},
 		{http.MethodGet, "/api/v2/chats/config/computer-use-provider"},
 		{http.MethodGet, "/api/v2/chats/config/advisor"},
 		{http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/debug/runs", chat.ID)},
 		{http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/stream/desktop", chat.ID)},
-		{http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/not-a-uuid/acl/available", firstUser.OrganizationID)},
 		{http.MethodGet, "/api/v2/mcp/servers/not-a-uuid/oauth2/callback"},
 		{http.MethodPost, "/api/v2/mcp/http/server"},
 	} {

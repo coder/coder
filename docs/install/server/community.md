@@ -17,3 +17,4 @@ Contributions are welcome.
 | Heroku                                                                            | [Docs: Deploy Coder on Heroku](https://github.com/coder/packages/blob/main/heroku/README.md) |
 | Render                                                                            | [Docs: Deploy Coder on Render](https://github.com/coder/packages/blob/main/render/README.md) |
 | Snapcraft                                                                         | [Get it from the Snap Store](https://snapcraft.io/coder)                                     |
+| Easypanel                                                                         | [Deploy Coder on Easypanel](https://easypanel.io/templates/coder)                            |

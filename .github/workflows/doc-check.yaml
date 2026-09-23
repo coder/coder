@@ -47,7 +47,7 @@ jobs:
       ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch') &&
       (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
       pull-requests: write
@@ -319,8 +319,9 @@ jobs:
           Use \`gh\` to read the PR details, the diff, and every comment.
 
           Follow the skill in full: its evidence discipline, its comment
-          rules, and its comment format. **Do not comment if no
-          documentation changes are needed.**
+          rules, and its comment format. Every item links its page, and the
+          comment ends with \`<!-- doc-check-sticky -->\` on its own line.
+          **Do not comment if no documentation changes are needed.**
 
           ## When the workspace is broken
 
@@ -348,7 +349,7 @@ jobs:
 
       - name: Run doc-check via Coder Agent Chat
         if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
-        uses: coder/agents-chat-action@3e20636f47ed88d1486b767ade8cb1e13a1effa7 # v0.5.0
+        uses: coder/agents-chat-action@9b3ac42d568e9206f9cd51a97789820d6935cc8d # v0.5.1
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
@@ -368,7 +369,11 @@ jobs:
           github-url: ${{ steps.determine-context.outputs.pr_url }}
           github-token: ${{ github.token }}
           wait: complete
-          wait-timeout-seconds: "600"
+          # The chat keeps running in Coder after this job stops watching, so
+          # a timeout here only turns a finished review red. A review on the
+          # local model takes 5 to 30 minutes; 40 minutes covers every normal
+          # run seen so far and leaves the job cap above room for setup.
+          wait-timeout-seconds: "2400"
           # The doc-check agent posts its own sticky comment when there
           # are findings; failures surface in the workflow run log.
           comment-on-issue: "false"
