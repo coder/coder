@@ -1,10 +1,10 @@
 // This file screens the vocabulary of an inline JSON Schema in one linear
 // walk over its schema positions before any validator library sees it. It
 // is NOT full Draft-07 validity checking and imposes no resource limits
-// beyond the raw JSON caps of ParseSchemaDocument (A1a). A1c adds schema
-// resource limits and regexp screening; A1d adds trusted meta-validation
-// and compilation, which reject what this walk copies unchecked, such as
-// malformed keyword values. The preflight never decides whether an
+// beyond the raw JSON caps of ParseSchemaDocument. Later layers add schema
+// resource limits, regexp screening, trusted meta-validation and
+// compilation; meta-validation rejects what this walk copies unchecked,
+// such as malformed keyword values. The preflight never decides whether an
 // instance matches a schema.
 
 package chatstructured
@@ -26,12 +26,12 @@ var (
 
 // screenedSchema is the result of preflightSchema.
 type screenedSchema struct {
-	document  map[string]any // the parsed original document; A1d meta-validates it as data
+	document  map[string]any // the parsed original document, meta-validated later as data
 	sanitized map[string]any // a copy for compilation: annotations and $schema removed
 }
 
-// preflightSchema parses raw with the A1a schema caps and screens the
-// vocabulary at schema positions. The A1a depth cap bounds the recursion.
+// preflightSchema parses raw with the ParseSchemaDocument caps and screens
+// the vocabulary at schema positions. The depth cap bounds the recursion.
 func preflightSchema(raw []byte) (screenedSchema, error) {
 	doc, err := ParseSchemaDocument(raw)
 	if err != nil {
