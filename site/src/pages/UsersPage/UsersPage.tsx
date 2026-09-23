@@ -5,14 +5,16 @@ import { deploymentConfig } from "#/api/queries/deployment";
 import { groupsByUserId } from "#/api/queries/groups";
 import { paginatedUsers } from "#/api/queries/users";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
-import { useFilter } from "#/components/Filter/Filter";
+import { useFilter, useFilterParamsKey } from "#/components/Filter/Filter";
+import { parseFilterQuery } from "#/components/Filter/filterQuery";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
 import {
-	ALL_TIME_PRESET_ID,
-	parseLastSeenRange,
+	LAST_SEEN_PRESET_PARAM,
+	lastSeenUrlState,
+	resolveLastSeen,
 	withLastSeen,
 } from "./filter/lastSeenRange";
 import { UsersPageView } from "./UsersPageView";
@@ -34,31 +36,37 @@ const UsersPage: React.FC = () => {
 		enabled: viewDeploymentConfig,
 	});
 
-	const usersQuery = usePaginatedQuery(paginatedUsers(searchParams));
+	const filterQuery = searchParams.get(useFilterParamsKey) ?? "";
+	// Anchors preset ranges so the query key stays stable across renders.
+	const [now, setNow] = useState(() => new Date());
+	const lastSeen = resolveLastSeen(
+		searchParams.get(LAST_SEEN_PRESET_PARAM),
+		parseFilterQuery(filterQuery),
+		now,
+	);
+
+	const usersQuery = usePaginatedQuery(
+		paginatedUsers(searchParams, withLastSeen(filterQuery, lastSeen)),
+	);
 	const useFilterResult = useFilter({
 		searchParams,
 		onSearchParamsChange: setSearchParams,
 		onUpdate: usersQuery.goToFirstPage,
 	});
 
-	const lastSeenRange = parseLastSeenRange(useFilterResult.values);
-	// The URL only stores timestamps, so keep the picked preset to label the
-	// trigger while the range is unchanged.
-	const [lastPicked, setLastPicked] = useState<DateTimeRangeValue>();
-	const lastSeen: DateTimeRangeValue =
-		lastSeenRange === undefined
-			? { start: new Date(0), end: new Date(), preset: ALL_TIME_PRESET_ID }
-			: {
-					...lastSeenRange,
-					preset:
-						lastPicked?.start.getTime() === lastSeenRange.start.getTime() &&
-						lastPicked.end.getTime() === lastSeenRange.end.getTime()
-							? lastPicked.preset
-							: undefined,
-				};
 	const onLastSeenChange = (value: DateTimeRangeValue) => {
-		setLastPicked(value);
-		useFilterResult.update(withLastSeen(useFilterResult.query, value));
+		setNow(new Date());
+		const { filter, preset } = lastSeenUrlState(useFilterResult.query, value);
+		if (preset === undefined) {
+			searchParams.delete(LAST_SEEN_PRESET_PARAM);
+		} else {
+			searchParams.set(LAST_SEEN_PRESET_PARAM, preset);
+		}
+		if (filter === useFilterResult.query) {
+			usersQuery.goToFirstPage();
+		} else {
+			useFilterResult.update(filter);
+		}
 	};
 
 	// Indicates if oidc roles are synced from the oidc idp.

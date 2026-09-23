@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
 	ALL_TIME_PRESET_ID,
+	lastSeenUrlState,
 	parseLastSeenRange,
+	resolveLastSeen,
 	withLastSeen,
 } from "./lastSeenRange";
 
@@ -75,5 +77,60 @@ describe("withLastSeen", () => {
 		expect(
 			withLastSeen(filtered, { start, end, preset: ALL_TIME_PRESET_ID }),
 		).toBe("status:active alice");
+	});
+});
+
+describe("resolveLastSeen", () => {
+	it("resolves a preset against the given time", () => {
+		expect(resolveLastSeen("over_30d", {}, end)).toEqual({
+			start: new Date(0),
+			end: new Date("2026-02-10T12:00:00.000Z"),
+			preset: "over_30d",
+		});
+	});
+
+	it("uses the filter range when there is no known preset", () => {
+		expect(
+			resolveLastSeen(
+				"unknown",
+				{
+					last_seen_after: start.toISOString(),
+					last_seen_before: end.toISOString(),
+				},
+				end,
+			),
+		).toEqual({ start, end });
+	});
+
+	it("falls back to All time", () => {
+		expect(resolveLastSeen(null, {}, end)).toEqual({
+			start: new Date(0),
+			end,
+			preset: ALL_TIME_PRESET_ID,
+		});
+	});
+});
+
+describe("lastSeenUrlState", () => {
+	const query = `status:active last_seen_after:"${start.toISOString()}" last_seen_before:"${end.toISOString()}"`;
+
+	it("stores a preset by ID and drops the timestamps", () => {
+		expect(lastSeenUrlState(query, { start, end, preset: "last_7d" })).toEqual({
+			filter: "status:active",
+			preset: "last_7d",
+		});
+	});
+
+	it("stores a custom range as timestamps", () => {
+		expect(lastSeenUrlState("status:active", { start, end })).toEqual({
+			filter: query,
+			preset: undefined,
+		});
+	});
+
+	it("clears both for All time", () => {
+		expect(
+			lastSeenUrlState(query, { start, end, preset: ALL_TIME_PRESET_ID }),
+		).toEqual({ filter: "status:active", preset: undefined });
 	});
 });

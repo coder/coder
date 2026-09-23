@@ -20,6 +20,9 @@ export const LAST_SEEN_KEYS = [
 
 export const ALL_TIME_PRESET_ID = "all_time";
 
+/** Search param holding the picked preset, so its range stays relative. */
+export const LAST_SEEN_PRESET_PARAM = "last_seen";
+
 // Start of "Over N days" ranges, which send only `last_seen_before` so users
 // who were never seen still match.
 const UNBOUNDED_START = new Date(0);
@@ -113,3 +116,43 @@ export const withLastSeen = (
 	]
 		.filter((part) => part.length > 0)
 		.join(" ");
+
+/**
+ * The last seen range for the page. A preset from `LAST_SEEN_PRESET_PARAM` is
+ * resolved against `now`; otherwise the range comes from the filter query.
+ */
+export const resolveLastSeen = (
+	presetId: string | null,
+	values: FilterValues,
+	now: Date,
+): DateTimeRangeValue => {
+	const preset = lastSeenPresets.find(
+		(preset) => preset.id === presetId && preset.id !== ALL_TIME_PRESET_ID,
+	);
+	if (preset) {
+		return { ...preset.range(now), preset: preset.id };
+	}
+	return (
+		parseLastSeenRange(values) ?? {
+			...allTime.range(now),
+			preset: ALL_TIME_PRESET_ID,
+		}
+	);
+};
+
+/**
+ * The URL state for a picked range. Presets are stored by ID and custom
+ * ranges as timestamps in the filter query.
+ */
+export const lastSeenUrlState = (
+	query: string,
+	value: DateTimeRangeValue,
+): { filter: string; preset: string | undefined } => {
+	if (value.preset === undefined) {
+		return { filter: withLastSeen(query, value), preset: undefined };
+	}
+	return {
+		filter: extractFreeText(query, LAST_SEEN_KEYS),
+		preset: value.preset === ALL_TIME_PRESET_ID ? undefined : value.preset,
+	};
+};
