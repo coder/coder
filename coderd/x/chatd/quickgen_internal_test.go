@@ -360,7 +360,7 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 
 			require.Contains(t, prompt, "Primary user objective:")
 			require.Contains(t, prompt, "Requirements:")
-			require.Contains(t, prompt, "- Return only the title text in 2-8 words.")
+			require.Contains(t, prompt, "- Keep the title to 2-8 words.")
 			require.Contains(t, prompt, "Do not answer the user or describe the title-writing task")
 			require.Contains(t, prompt, "stay close to the user's wording")
 			require.Contains(t, prompt, "same language as the user's messages")
@@ -630,7 +630,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 		ModelName:    "gpt-4o-mini",
 		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			require.NotNil(t, call.MaxOutputTokens)
-			require.Equal(t, int64(256), *call.MaxOutputTokens)
+			require.Equal(t, titleMaxOutputTokens, *call.MaxOutputTokens)
 			providerOptions, ok := call.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
 			require.True(t, ok, "%T", call.ProviderOptions[fantasyopenai.Name])
 			require.NotNil(t, providerOptions.ReasoningEffort)
@@ -672,7 +672,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
 	t.Parallel()
 
-	require.Contains(t, titleGenerationPrompt, "Return only the title text in 2-8 words")
+	require.Contains(t, titleGenerationPrompt, "Keep the title to 2-8 words")
 	require.Contains(t, titleGenerationPrompt, "Do not answer the user or describe the title-writing task")
 	require.Contains(t, titleGenerationPrompt, "stay close to the user's wording")
 	require.Contains(t, titleGenerationPrompt, "same language as the user's message")

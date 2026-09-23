@@ -34,7 +34,7 @@ import (
 
 const titleGenerationPrompt = "Write a short title for the user's message. " +
 	"Populate the title field with the result. " +
-	"Return only the title text in 2-8 words. " +
+	"Keep the title to 2-8 words. " +
 	"Do not answer the user or describe the title-writing task. " +
 	"Preserve specific identifiers such as PR numbers, repo names, file paths, function names, and error messages. " +
 	"If the message is short or vague, stay close to the user's wording instead of inventing context. " +
@@ -513,7 +513,10 @@ func (p *Server) maybeGenerateChatTitle(
 	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
 }
 
-const titleMaxOutputTokens = int64(256)
+// Quickgen caps leave room for adaptive thinking, which counts toward the cap
+// on models that think by default (Claude 5+). Validators bound the output
+// itself, and models that do not think stop once the object is complete.
+const titleMaxOutputTokens = int64(2048)
 
 func titleObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 	return resolved.newObjectCall("propose_title", "Propose a short chat title.", titleMaxOutputTokens)
@@ -948,7 +951,7 @@ func renderManualTitlePrompt(
 	}
 
 	write("\n\nRequirements:\n")
-	write("- Return only the title text in 2-8 words.\n")
+	write("- Keep the title to 2-8 words.\n")
 	write("- Populate the title field only.\n")
 	write("- Do not answer the user or describe the title-writing task.\n")
 	write("- Preserve specific identifiers (PR numbers, repo names, file paths, function names, error messages).\n")
@@ -1056,7 +1059,8 @@ const (
 	summaryTranscriptMaxRunes = 16000
 	// Cap a single turn so one long message cannot dominate the budget.
 	summaryTranscriptPerMessageMaxRunes = 4000
-	summaryMaxOutputTokens              = 512
+	// Includes thinking headroom; see titleMaxOutputTokens.
+	summaryMaxOutputTokens = 2048
 	// Reject pathologically long or verbose summaries.
 	summaryMaxRunes             = 750
 	summaryHeadlineMaxRunes     = 200
@@ -1447,7 +1451,8 @@ const turnStatusLabelPrompt = "You write compact chat status labels for a sideba
 	"Prefer short action or state phrases such as Finished, Submitted, Fixed, Testing, Still working, or Waiting for. " +
 	"No quotes, emoji, markdown, or trailing punctuation."
 
-const turnStatusLabelMaxOutputTokens = int64(64)
+// Includes thinking headroom; see titleMaxOutputTokens.
+const turnStatusLabelMaxOutputTokens = int64(1024)
 
 func turnStatusLabelObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 	return resolved.newObjectCall("propose_turn_status_label", "Propose a compact chat status label.", turnStatusLabelMaxOutputTokens)
