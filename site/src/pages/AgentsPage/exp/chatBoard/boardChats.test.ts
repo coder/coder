@@ -59,16 +59,16 @@ describe("boardChats", () => {
 		const data = await new QueryClient().fetchInfiniteQuery(boardChats());
 		expect(data.pages).toHaveLength(1);
 		expect(data.pages[0]).toHaveLength(201);
-		expect(spy).toHaveBeenNthCalledWith(1, {
-			limit: 200,
-			offset: 0,
-			q: "archived:false",
-		});
-		expect(spy).toHaveBeenNthCalledWith(2, {
-			limit: 200,
-			offset: 200,
-			q: "archived:false",
-		});
+		expect(spy).toHaveBeenNthCalledWith(
+			1,
+			{ limit: 200, offset: 0, q: "archived:false" },
+			expect.any(AbortSignal),
+		);
+		expect(spy).toHaveBeenNthCalledWith(
+			2,
+			{ limit: 200, offset: 200, q: "archived:false" },
+			expect.any(AbortSignal),
+		);
 	});
 
 	it("lives under the chat list family so list helpers reach it", () => {
@@ -117,6 +117,11 @@ describe("boardChats", () => {
 			queryClient.fetchInfiniteQuery({ ...boardChats(), staleTime: 0 });
 
 		const pending = write(queryClient, "a");
+		await vi.waitFor(() =>
+			expect(queryClient.getQueryData(boardChatsKey)).toEqual(
+				boardPage([chat("a", { "board/column": "Doing" })]),
+			),
+		);
 		const midQueue = refetch();
 		staleList.resolve([chat("a"), chat("new")]);
 		await midQueue;
@@ -129,6 +134,58 @@ describe("boardChats", () => {
 		await refetch();
 		expect(queryClient.getQueryData(boardChatsKey)).toEqual(
 			boardPage([chat("a", { "board/column": "Done" })]),
+		);
+	});
+
+	it("aborts a board refetch in flight when a write starts", async () => {
+		vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+		let signal: AbortSignal | undefined;
+		vi.spyOn(API.experimental, "getChats").mockImplementationOnce((_req, s) => {
+			signal = s;
+			return new Promise(() => {});
+		});
+		const queryClient = new QueryClient();
+		queryClient.setQueryData(boardChatsKey, boardPage([chat("a")]));
+
+		void queryClient
+			.fetchInfiniteQuery({ ...boardChats(), staleTime: 0 })
+			.catch(() => undefined);
+		await vi.waitFor(() => expect(signal).toBeDefined());
+		await write(queryClient, "a");
+
+		expect(signal?.aborted).toBe(true);
+		expect(queryClient.getQueryData(boardChatsKey)).toEqual(
+			boardPage([chat("a", { "board/column": "Doing" })]),
+		);
+	});
+
+	it("keeps the board's labels from a response requested before a write settled", async () => {
+		const request = createDeferred<void>();
+		vi.spyOn(API.experimental, "updateChat").mockReturnValue(request.promise);
+		const staleList = createDeferred<Chat[]>();
+		vi.spyOn(API.experimental, "getChats").mockReturnValueOnce(
+			staleList.promise,
+		);
+		const queryClient = new QueryClient();
+		queryClient.setQueryData(boardChatsKey, boardPage([chat("a")]));
+
+		const pending = write(queryClient, "a");
+		await vi.waitFor(() =>
+			expect(queryClient.getQueryData(boardChatsKey)).toEqual(
+				boardPage([chat("a", { "board/column": "Doing" })]),
+			),
+		);
+		const inFlight = queryClient.fetchInfiniteQuery({
+			...boardChats(),
+			staleTime: 0,
+		});
+		request.resolve();
+		await pending;
+		staleList.resolve([chat("a")]);
+		await inFlight;
+
+		expect(queryClient.getQueryData(boardChatsKey)).toEqual(
+			boardPage([chat("a", { "board/column": "Doing" })]),
 		);
 	});
 

@@ -368,15 +368,14 @@ export const cardColorByChat = (
 /**
  * Column order: stored order first, then columns discovered from labels in
  * first-seen order. Inbox is present by default and cannot be removed; once
- * the user has ordered columns, the stored order decides its position.
+ * the stored order includes it, that order decides its position.
  */
 export const buildColumns = (
 	cards: readonly BoardCard[],
 	storedOrder: readonly string[],
 	emptyColumns: readonly string[],
 ): BoardColumn[] => {
-	// The stored order is authoritative once the user has reordered; before
-	// that, Inbox leads and discovered columns follow.
+	// Inbox leads unless the stored order places it.
 	const names = new Set<string>(
 		storedOrder.includes(INBOX_COLUMN)
 			? storedOrder
