@@ -5159,7 +5159,6 @@ type ChatDiffStatus struct {
 	Approved         sql.NullBool   `db:"approved" json:"approved"`
 	ReviewerCount    sql.NullInt32  `db:"reviewer_count" json:"reviewer_count"`
 	HeadBranch       sql.NullString `db:"head_branch" json:"head_branch"`
-	ReportedAt       time.Time      `db:"reported_at" json:"reported_at"`
 }
 
 type ChatFile struct {

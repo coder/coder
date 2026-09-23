@@ -1995,8 +1995,7 @@ CREATE TABLE chat_diff_statuses (
     commits integer,
     approved boolean,
     reviewer_count integer,
-    head_branch text,
-    reported_at timestamp with time zone DEFAULT now() NOT NULL
+    head_branch text
 );
 
 CREATE TABLE chat_file_links (
