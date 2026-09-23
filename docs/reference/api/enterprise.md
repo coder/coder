@@ -1527,7 +1527,11 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
     },
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "name": "string"
+    "name": "string",
+    "redirect_uris": [
+      "string"
+    ],
+    "scope": "string"
   }
 ]
 ```
@@ -1545,7 +1549,7 @@ Status Code **200**
 | Name                      | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                             |
 |---------------------------|----------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]`            | array                                                                | false    |              |                                                                                                                                                                                                         |
-| `» callback_url`          | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» callback_url`          | string                                                               | false    |              | Deprecated: equal to the first entry of redirect_uris. Read redirect_uris instead.                                                                                                                      |
 | `» client_type`           | [codersdk.OAuth2ClientType](schemas.md#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
 | `» endpoints`             | [codersdk.OAuth2AppEndpoints](schemas.md#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
 | `»» authorization`        | string                                                               | false    |              |                                                                                                                                                                                                         |
@@ -1555,6 +1559,8 @@ Status Code **200**
 | `» icon`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
 | `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» redirect_uris`         | array                                                                | false    |              | Redirect uris are the app's registered redirect URIs, primary first.                                                                                                                                    |
+| `» scope`                 | string                                                               | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
 
 #### Enumerated Values
 
@@ -1584,7 +1590,11 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "scope": "string"
 }
 ```
 
@@ -1610,7 +1620,11 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "scope": "string"
 }
 ```
 
@@ -1657,7 +1671,11 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "scope": "string"
 }
 ```
 
@@ -1689,7 +1707,11 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "scope": "string"
 }
 ```
 
@@ -1716,7 +1738,11 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "scope": "string"
 }
 ```
 
@@ -5007,7 +5033,7 @@ curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&response_
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | Returns HTML authorization page                                                                               |        |
 | 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3)                 | Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)                        |        |
 | 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | HTML error page. The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback |        |
-| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | HTML error page. The app's registered callback URL is not usable                                              |        |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | HTML error page. One of the app's registered redirect URIs is not usable                                      |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -5062,7 +5088,7 @@ curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&response
 |--------|----------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
 | 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3)                 | Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1) |                                                        |
 | 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback                           | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
-| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | The app's registered callback URL is not usable                                                                        | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | One of the app's registered redirect URIs is not usable                                                                | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -5389,12 +5415,12 @@ token_type_hint: string
 
 ### Responses
 
-| Status | Meaning                                                                 | Description                                                                                                                    | Schema                                                 |
-|--------|-------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | Token successfully revoked. A 200 does not confirm that the token existed or belonged to the client                            |                                                        |
-| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | invalid_request: a missing client_id or token, credentials in both the Authorization header and the body, or a malformed token | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
-| 401    | [Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)         | invalid_client: the client is unknown, or a confidential client did not present a valid secret                                 | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB                                                                                                     | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| Status | Meaning                                                                 | Description                                                                                                                                                           | Schema                                                 |
+|--------|-------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | Token successfully revoked. A 200 does not confirm that the token existed or belonged to the client                                                                   |                                                        |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | invalid_request: a missing client_id or token, credentials in both the Authorization header and the body, client_secret in the URL query string, or a malformed token | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| 401    | [Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)         | invalid_client: the client is unknown, or a confidential client did not present a valid secret                                                                        | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB                                                                                                                                            | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 
 ## OAuth2 token exchange
 
@@ -5455,10 +5481,11 @@ grant_type: authorization_code
 
 ### Responses
 
-| Status | Meaning                                                                 | Description                | Schema                                                                 |
-|--------|-------------------------------------------------------------------------|----------------------------|------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                         | [codersdk.OAuth2TokenResponse](schemas.md#codersdkoauth2tokenresponse) |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error)                 |
+| Status | Meaning                                                                 | Description                                                                                 | Schema                                                                 |
+|--------|-------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                                                                                          | [codersdk.OAuth2TokenResponse](schemas.md#codersdkoauth2tokenresponse) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | invalid_request: client_secret in the URL query string, or a missing or malformed parameter | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error)                 |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB                                                                  | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error)                 |
 
 ## Delete OAuth2 application tokens
 

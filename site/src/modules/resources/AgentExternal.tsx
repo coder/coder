@@ -6,10 +6,10 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { Loader } from "#/components/Loader/Loader";
 
-interface AgentExternalProps {
+type AgentExternalProps = {
 	agent: WorkspaceAgent;
 	workspace: Workspace;
-}
+};
 
 export const AgentExternal: FC<AgentExternalProps> = ({ agent, workspace }) => {
 	const {

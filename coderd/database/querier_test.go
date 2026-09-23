@@ -11072,6 +11072,55 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 	})
 }
 
+func TestListAIBridgeClients(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ExactMatchFirst", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user := dbgen.User(t, db, database.User{})
+		endedAt := dbtime.Now()
+
+		// The clients filter resolves a selected value with a prefix search and
+		// limit 1, so longer siblings recorded before the exact client must not
+		// win that single slot.
+		for _, client := range []string{
+			"claude-code-router",
+			"claude-code-ext",
+			"claude-code-desktop",
+			"claude-code-cli",
+			"claude-code-web",
+			"claude-code",
+		} {
+			dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: user.ID,
+				Client:      sql.NullString{String: client, Valid: true},
+			}, &endedAt)
+		}
+
+		clients, err := db.ListAIBridgeClients(ctx, database.ListAIBridgeClientsParams{
+			Client: "claude-code",
+			Limit:  1,
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"claude-code"}, clients)
+
+		clients, err = db.ListAIBridgeClients(ctx, database.ListAIBridgeClientsParams{
+			Client: "claude-code",
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{
+			"claude-code",
+			"claude-code-cli",
+			"claude-code-desktop",
+			"claude-code-ext",
+			"claude-code-router",
+			"claude-code-web",
+		}, clients)
+	})
+}
+
 func TestAIBridgeInterceptionAgentFirewallColumns(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
@@ -19237,6 +19286,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	secondGroup := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
 	otherOrg := dbgen.Organization(t, db, database.Organization{})
 	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
 
@@ -19265,7 +19315,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 	for _, u := range []usage{
 		// alice: 1500 priced plus one unpriced usage without a recorded client.
 		{user: alice, group: inGroup, at: start, providerName: "anthropic-prod", model: "claude", client: vscode, cost: priced(1000)},
-		{user: alice, group: inGroup, at: start.Add(time.Hour), providerName: "openai-prod", model: "gpt-4", cost: priced(500)},
+		{user: alice, group: uuid.NullUUID{UUID: secondGroup.ID, Valid: true}, at: start.Add(time.Hour), providerName: "openai-prod", model: "gpt-4", cost: priced(500)},
 		{user: alice, group: inGroup, at: start.Add(2 * time.Hour), providerName: "openai-prod", model: "gpt-4o"},
 		// bob: the most expensive user.
 		{user: bob, group: inGroup, at: start.Add(time.Hour), providerName: "anthropic-prod", model: "claude", client: cursor, cost: priced(3000)},

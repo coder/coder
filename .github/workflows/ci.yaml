@@ -444,7 +444,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "go node pnpm terraform protoc protoc-gen-go"
+          install-args: "go node pnpm protoc protoc-gen-go"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -457,6 +457,10 @@ jobs:
 
       - name: Start PostgreSQL container
         run: make test-postgres-docker
+
+      # Reject an outdated input record before make gen could invoke Terraform.
+      - name: Check Terraform fixture record
+        run: ./provisioner/terraform/testdata/generate.sh --check
 
       - name: make gen
         timeout-minutes: 8
@@ -1271,7 +1275,7 @@ jobs:
           set -euxo pipefail
           ./.github/scripts/retry.sh -- go mod download
           make gen/mark-fresh
-          make build
+          make -j build
 
   build:
     # This builds and publishes ghcr.io/coder/coder-preview:main for each commit

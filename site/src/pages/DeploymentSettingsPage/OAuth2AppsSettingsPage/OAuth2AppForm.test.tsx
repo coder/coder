@@ -1,13 +1,32 @@
 import { act, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
+import { API } from "#/api/api";
 import {
+	OAuth2ScopeListMaxBytes,
+	OAuth2ScopeListMaxNames,
+} from "#/api/typesGenerated";
+import {
+	MockExternalAPIKeyScopes,
 	MockOAuth2ProviderAppPublic,
 	MockOAuth2ProviderApps,
 } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
+const selectScope = async (user: UserEvent, name: string) => {
+	await user.click(screen.getByRole("combobox", { name: /allowed scopes/i }));
+	await user.click(await screen.findByRole("option", { name }));
+};
+
 describe("OAuth2AppForm", () => {
+	// The form loads the scope catalog on mount. Tests that exercise a failed
+	// load override this spy.
+	beforeEach(() => {
+		vi.spyOn(API, "getExternalAPIKeyScopes").mockResolvedValue(
+			MockExternalAPIKeyScopes,
+		);
+	});
+
 	it.each([
 		"VS Code Coder Extension",
 		" VS Code Coder Extension",
@@ -35,6 +54,7 @@ describe("OAuth2AppForm", () => {
 				name: "VS Code Coder Extension",
 				callback_url: "vscode://coder.coder-remote/oauth/callback",
 				icon: "",
+				scope: "",
 			});
 		});
 	});
@@ -46,6 +66,7 @@ describe("OAuth2AppForm", () => {
 			...MockOAuth2ProviderApps[0],
 			name: "VS Code Coder Extension",
 			callback_url: "vscode://coder.coder-remote/oauth/callback",
+			redirect_uris: ["vscode://coder.coder-remote/oauth/callback"],
 		};
 
 		render(
@@ -133,13 +154,14 @@ describe("OAuth2AppForm", () => {
 				name: "OAuth App",
 				callback_url: callback.trim(),
 				icon: "",
+				scope: "",
 			}),
 		);
 	});
 
 	it.each([
 		{ name: "é".repeat(32), valid: true },
-		{ name: "a" + "é".repeat(32), valid: false },
+		{ name: `a${"é".repeat(32)}`, valid: false },
 		{ name: "é".repeat(33), valid: false },
 		{ name: "界".repeat(21), valid: true },
 		{ name: "界".repeat(22), valid: false },
@@ -164,6 +186,7 @@ describe("OAuth2AppForm", () => {
 					name,
 					callback_url: "https://example.com/callback",
 					icon: "",
+					scope: "",
 				}),
 			);
 		} else {
@@ -183,6 +206,7 @@ describe("OAuth2AppForm", () => {
 		{ callback: "http://localhost:3000/callback", valid: true },
 		{ callback: "http://127.0.0.1:3000/callback", valid: true },
 		{ callback: "http://[::1]:3000/callback", valid: true },
+		{ callback: "http://app.localhost/callback", valid: false },
 		{ callback: "https://example.com/callback", valid: true },
 		{ callback: "vscode://coder.coder-remote/oauth/callback", valid: true },
 		{ callback: "com.example.app:/oauth2redirect", valid: true },
@@ -222,4 +246,299 @@ describe("OAuth2AppForm", () => {
 			}
 		},
 	);
+
+	it.each([
+		{ callback: "http://example.com/callback", valid: false },
+		{ callback: "http://10.0.0.5:8080/callback", valid: false },
+		{ callback: "http://localhost:3000/callback", valid: true },
+		{ callback: "http://127.0.0.1:3000/callback", valid: true },
+		{ callback: "http://[::1]:3000/callback", valid: true },
+		{ callback: "http://app.localhost/callback", valid: true },
+		{ callback: "https://example.com/callback", valid: true },
+		{ callback: "vscode://coder.coder-remote/oauth/callback", valid: true },
+	])(
+		"validates confidential client callback $callback",
+		async ({ callback, valid }) => {
+			const user = userEvent.setup();
+			const onSubmit = vi.fn();
+			render(
+				<OAuth2AppForm
+					onSubmit={onSubmit}
+					isUpdating={false}
+					disabled={false}
+				/>,
+			);
+			await user.type(screen.getByLabelText(/^name/i), "confidential-app");
+			await user.type(
+				screen.getByLabelText(/callback url/i),
+				callback.replaceAll("[", "[["),
+			);
+			await user.click(
+				screen.getByRole("button", { name: /create application/i }),
+			);
+			await act(async () => {});
+			if (valid) {
+				await waitFor(() =>
+					expect(onSubmit).toHaveBeenCalledWith({
+						name: "confidential-app",
+						callback_url: callback,
+						icon: "",
+						scope: "",
+					}),
+				);
+			} else {
+				expect(onSubmit).not.toHaveBeenCalled();
+			}
+		},
+	);
+
+	// Confidential apps could store a non-local http callback before the form
+	// checked for it. The stored value fails validation on load, so the error
+	// must show without the field being touched.
+	it("shows the error for a stored callback that fails validation", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		render(
+			<OAuth2AppForm
+				app={{
+					...MockOAuth2ProviderApps[0],
+					callback_url: "http://intranet.example.com/callback",
+				}}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		expect(
+			await screen.findByText("Please enter a valid callback URL."),
+		).toBeInTheDocument();
+		await user.type(screen.getByLabelText(/^name/i), " updated");
+		expect(
+			screen.getByRole("button", { name: /update application/i }),
+		).toBeDisabled();
+
+		await user.clear(screen.getByLabelText(/callback url/i));
+		await user.type(
+			screen.getByLabelText(/callback url/i),
+			"https://intranet.example.com/callback",
+		);
+		await waitFor(() =>
+			expect(
+				screen.queryByText("Please enter a valid callback URL."),
+			).not.toBeInTheDocument(),
+		);
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith({
+				name: `${MockOAuth2ProviderApps[0].name} updated`,
+				callback_url: "https://intranet.example.com/callback",
+				icon: MockOAuth2ProviderApps[0].icon,
+			}),
+		);
+	});
+
+	it("keeps the callback error hidden when the stored callback is valid", async () => {
+		const user = userEvent.setup();
+		render(
+			<OAuth2AppForm
+				app={MockOAuth2ProviderApps[0]}
+				onSubmit={vi.fn()}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.type(screen.getByLabelText(/^name/i), " updated");
+		expect(
+			screen.queryByText("Please enter a valid callback URL."),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /update application/i }),
+		).toBeEnabled();
+	});
+
+	it("submits the selected scopes as a space separated list", async () => {
+		const onSubmit = vi.fn();
+		const user = userEvent.setup();
+		render(
+			<OAuth2AppForm onSubmit={onSubmit} isUpdating={false} disabled={false} />,
+		);
+
+		await user.type(screen.getByLabelText(/^name/i), "test-app");
+		await user.type(
+			screen.getByLabelText(/callback url/i),
+			"https://example.com/callback",
+		);
+		await selectScope(user, "workspace:ssh");
+		await selectScope(user, "coder:all");
+		await user.click(
+			screen.getByRole("button", { name: /create application/i }),
+		);
+
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith({
+				name: "test-app",
+				callback_url: "https://example.com/callback",
+				icon: "",
+				scope: "workspace:ssh coder:all",
+			}),
+		);
+	});
+
+	it("submits an empty scope when the selection is cleared", async () => {
+		const onSubmit = vi.fn();
+		const user = userEvent.setup();
+		render(
+			<OAuth2AppForm
+				app={{ ...MockOAuth2ProviderApps[0], scope: "coder:all" }}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.click(screen.getByTestId("clear-all-button"));
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({ scope: "" }),
+			),
+		);
+	});
+
+	it("lets the admin retry a failed catalog load and then pick a scope", async () => {
+		vi.spyOn(API, "getExternalAPIKeyScopes")
+			.mockRejectedValueOnce(new Error("catalog unavailable"))
+			.mockResolvedValueOnce(MockExternalAPIKeyScopes);
+		const onSubmit = vi.fn();
+		const user = userEvent.setup();
+		render(
+			<OAuth2AppForm
+				app={MockOAuth2ProviderApps[0]}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.click(await screen.findByRole("button", { name: /retry/i }));
+		await selectScope(user, "workspace:ssh");
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({ scope: "workspace:ssh" }),
+			),
+		);
+	});
+
+	// The stored list is left out of a name-only update because the form cannot
+	// resend it faithfully. Whitespace-only would come back as "" and lift the
+	// restriction, and oversized legacy lists fail the current size limits.
+	const untouchedScopes = [
+		{
+			label: "a scope the catalog does not list",
+			scope: "legacy:scope coder:all",
+		},
+		{ label: "a whitespace-only scope", scope: "   " },
+		{
+			label: "more names than the limit allows",
+			scope: Array.from(
+				{ length: OAuth2ScopeListMaxNames + 1 },
+				(_, i) => `legacy:scope${i}`,
+			).join(" "),
+		},
+		{
+			label: "a scope longer than the byte limit",
+			scope: `legacy:${"a".repeat(OAuth2ScopeListMaxBytes)}`,
+		},
+	];
+
+	it.each(untouchedScopes)(
+		"omits $label from a name-only update",
+		async ({ scope }) => {
+			const onSubmit = vi.fn();
+			const user = userEvent.setup();
+			render(
+				<OAuth2AppForm
+					app={{ ...MockOAuth2ProviderApps[0], scope }}
+					onSubmit={onSubmit}
+					isUpdating={false}
+					disabled={false}
+				/>,
+			);
+
+			await user.type(screen.getByLabelText(/^name/i), "-updated");
+			await user.click(
+				screen.getByRole("button", { name: /update application/i }),
+			);
+
+			await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+			expect(onSubmit.mock.calls[0][0]).toStrictEqual({
+				name: "foo-updated",
+				callback_url: MockOAuth2ProviderApps[0].callback_url,
+				icon: MockOAuth2ProviderApps[0].icon,
+			});
+		},
+	);
+
+	it("omits a whitespace-only scope when the catalog fails to load", async () => {
+		vi.spyOn(API, "getExternalAPIKeyScopes").mockRejectedValue(
+			new Error("catalog unavailable"),
+		);
+		const onSubmit = vi.fn();
+		const user = userEvent.setup();
+		render(
+			<OAuth2AppForm
+				app={{ ...MockOAuth2ProviderApps[0], scope: "   " }}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.type(screen.getByLabelText(/^name/i), "-updated");
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+		expect(onSubmit.mock.calls[0][0]).toStrictEqual({
+			name: "foo-updated",
+			callback_url: MockOAuth2ProviderApps[0].callback_url,
+			icon: MockOAuth2ProviderApps[0].icon,
+		});
+	});
+
+	it("sends the scope when a selection is added to an existing allowlist", async () => {
+		const onSubmit = vi.fn();
+		const user = userEvent.setup();
+		render(
+			<OAuth2AppForm
+				app={{ ...MockOAuth2ProviderApps[0], scope: "legacy:scope" }}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await selectScope(user, "workspace:ssh");
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({ scope: "legacy:scope workspace:ssh" }),
+			),
+		);
+	});
 });

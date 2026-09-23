@@ -96,7 +96,7 @@ export const workspaceSkillsFromChat = (
 	return [...skills.values()];
 };
 
-interface ChatPageTimelineProps {
+type ChatPageTimelineProps = {
 	organizationId: string | undefined;
 	store: ChatStoreHandle;
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
@@ -118,7 +118,7 @@ interface ChatPageTimelineProps {
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	footer?: ReactNode;
-}
+};
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	organizationId,
@@ -250,7 +250,7 @@ export type PendingAttachment = {
 	mediaType: string;
 };
 
-interface ChatPageInputProps {
+type ChatPageInputProps = {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
 	models: readonly TypesGen.ChatModel[] | undefined;
@@ -308,7 +308,7 @@ interface ChatPageInputProps {
 	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
-}
+};
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
 	chat,

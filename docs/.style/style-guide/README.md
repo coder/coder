@@ -16,7 +16,87 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 - **Reviewers**: cite the section in a review comment.
   Reviews are easier when the guidance lives in one place.
 - **AI agents**: read every section before editing anything under `docs/`.
+  A clean linter run doesn't substitute for that; refer to [What the tooling checks, and what it doesn't](#what-the-tooling-checks-and-what-it-doesnt).
   The Coder Agents and Claude Code guides ([`AGENTS.md`](../../../AGENTS.md), [`.claude/docs/DOCS_STYLE_GUIDE.md`](../../../.claude/docs/DOCS_STYLE_GUIDE.md)) link here.
+
+## What the tooling checks, and what it doesn't
+
+A clean `make lint/prose` run is not evidence that a page follows this guide.
+The guide documents 77 rules.
+Automated tooling checks 8 of them, and 1 of those 8 doesn't run on published pages.
+The other 69 are yours to apply by reading, 70 on published pages, where the one-sentence-per-line rule is off.
+
+Open the section that matches what you're writing and work through it.
+The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
+
+### Checks that run today
+
+| Check                              | Tool               | Severity  | Scope                                                       | What it catches                                                       |
+|------------------------------------|--------------------|-----------|-------------------------------------------------------------|-----------------------------------------------------------------------|
+| `Coder.BrandNames`                 | Vale               | `error`   | `docs/**` except `docs/.style/style-guide/**`               | `Hashicorp` casing only, not the other brands in the word-choice list |
+| `Coder.GerundHeading`              | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`               | Headings that lead with a gerund                                      |
+| `Coder.SelectClick`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`               | `click` and its inflections                                           |
+| `Coder.OneSentencePerLine`         | Vale               | `warning` | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only | Sentence boundaries mid-line, on contributor docs only                |
+| `MD001`, `MD025`, `MD040`, `MD045` | markdownlint       | `error`   | All Markdown                                                | Heading increments, single H1, fence language, missing alt text       |
+| `scripts/check_emdash.sh`          | `make lint/emdash` | `error`   | Repository                                                  | Em-dash, en-dash, and ` -- ` as punctuation                           |
+
+The markdownlint row lists only the rules that map to a rule in this guide.
+markdownlint runs its full default set minus the rules `.markdownlint.jsonc` disables, so it catches more than these 4.
+
+Vale runs advisory.
+`make lint/prose` passes `--no-exit`, and the CI step is advisory by design, so no Vale finding fails a build at any severity.
+Findings accumulate instead of blocking: rules that shipped against a clean corpus have since collected a backlog of warnings in `docs/`.
+The markdownlint and emdash checks do fail the build.
+
+### Coverage by section
+
+| Section                                                               | Rules | Tool-checked | Planned | Documentation-only |
+|-----------------------------------------------------------------------|-------|--------------|---------|--------------------|
+| [Audience and scope](./audience-and-scope.md)                         | 6     | 0            | 0       | 6                  |
+| [Voice and tone](./voice-and-tone.md)                                 | 10    | 0            | 2       | 8                  |
+| [Procedural writing](./procedural-writing.md)                         | 5     | 0            | 0       | 5                  |
+| [Word choice](./word-choice.md)                                       | 16    | 2            | 9       | 5                  |
+| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 13    | 2            | 3       | 8                  |
+| [Capitalization and punctuation](./capitalization-and-punctuation.md) | 11    | 2            | 6       | 3                  |
+| [Formatting](./formatting.md)                                         | 12    | 2            | 0       | 10                 |
+| [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 0            | 5       | 0                  |
+| **Total**                                                             | 78    | 8            | 25      | 45                 |
+
+Every column counts rule sections, not linter rule names.
+A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
+Every heading that states a rule of its own carries one, including a sub-heading that adds a rule to its parent.
+Only `##` and `###` headings state rules; anything deeper is detail inside one.
+
+Five kinds of heading carry no footer, and none of them are counted:
+
+- Headings that only group sub-rules, like [Commas](./capitalization-and-punctuation.md#commas).
+- Sub-headings that scope or qualify the parent rule instead of adding one, like [Exceptions](./capitalization-and-punctuation.md#exceptions) under No gerund-leading headings.
+  The parent rule's footer covers them.
+- Reference sections that give writers vocabulary rather than a rule, like [Personas the Coder docs serve](./audience-and-scope.md#personas-the-coder-docs-serve), along with every heading inside them.
+- Example headings inside a sample document.
+- Navigation headings, like Learn more.
+
+[Color contrast](./accessibility-and-inclusion.md#color-contrast) carries an out-of-scope note rather than an enforcement footer, because the docs site theme owns it, so it isn't a rule of this guide and isn't counted.
+
+Classify a counted section from its footer, in this order:
+
+1. The footer states **Documentation-only** about the section: the section is documentation-only, whatever else the footer names.
+   A footer in this column can still cross-reference a rule that another section owns, or name a rule that doesn't exist yet.
+   A lowercase "documentation-only" that qualifies one part of a longer footer doesn't count.
+2. The footer names a check that runs today: the section is tool-checked.
+   A section that names several checks still counts once.
+3. Anything else: the section is planned.
+
+So the 6 rows in the table above name 9 checks, because the markdownlint row bundles 4, and those 9 checks cover 8 sections: each check counts under the section that owns it rather than under every section that mentions it.
+
+A rule marked `(planned)` in a section footer names the rule that would enforce it if it existed.
+It isn't running today.
+The same is true of every third-party `Google.*`, `alex.*`, and `write-good.*` rule the guide names: the repo-root `.vale.ini` sets `BasedOnStyles = Coder`, so none of them load.
+Each one returns in its own PR, once `docs/` passes that rule cleanly.
+
+Keep this table honest when a rule lands.
+The per-rule PR pattern in the [Vale doctrine README](../README.md) already requires touching this guide, so update the row in the same change.
+This section is the only place that states the counts; the agent-facing guides link here instead of repeating them, so one edit keeps every caller current.
 
 ## Sections
 
@@ -69,6 +149,8 @@ The style guide itself follows the rule: "refer to" for formal cross-references,
 Reserve "see" for the rare case where the prose describes what a reader observes in the product UI.
 
 ## Vale enforcement
+
+For what Vale checks today and what it leaves to the reader, refer to [What the tooling checks, and what it doesn't](#what-the-tooling-checks-and-what-it-doesnt).
 
 The repo-root `.vale.ini` loads only the Coder rule package by default.
 Third-party rules from Google, alex, and write-good aren't enabled until a per-rule PR brings each back in.

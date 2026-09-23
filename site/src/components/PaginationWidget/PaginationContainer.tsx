@@ -1,4 +1,4 @@
-import type { FC, HTMLAttributes } from "react";
+import type { ComponentProps, FC } from "react";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
 import { PaginationAmount } from "./PaginationAmount";
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
@@ -8,7 +8,7 @@ export type PaginationResult<Data = unknown> = PaginationResultInfo & {
 	data?: Data;
 };
 
-type PaginationProps = HTMLAttributes<HTMLDivElement> & {
+type PaginationProps = ComponentProps<"div"> & {
 	query: PaginationResult;
 	paginationUnitLabel: string;
 };
@@ -32,7 +32,7 @@ export const PaginationContainer: FC<PaginationProps> = ({
 				className="justify-end"
 			/>
 
-			{query.isSuccess && (
+			{query.totalRecords !== undefined && (
 				<PaginationWidgetBase
 					totalRecords={query.totalRecords}
 					totalPages={query.totalPages}

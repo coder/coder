@@ -23,7 +23,7 @@ import { SettingsSidebarNavItem } from "#/components/Sidebar/Sidebar";
 import type { Permissions } from "#/modules/permissions";
 import type { OrganizationPermissions } from "#/modules/permissions/organizations";
 
-interface OrganizationsSettingsNavigationProps {
+type OrganizationsSettingsNavigationProps = {
 	/** The organization selected from the dropdown */
 	activeOrganization: Organization | undefined;
 	/** Permissions for the active organization */
@@ -32,7 +32,7 @@ interface OrganizationsSettingsNavigationProps {
 	organizations: readonly Organization[];
 	/** Site-wide permissions. */
 	permissions: Permissions;
-}
+};
 
 /**
  * Displays navigation items for the active organization and a combobox to
@@ -155,10 +155,10 @@ function urlForSubpage(organizationName: string, subpage = ""): string {
 		.join("/");
 }
 
-interface OrganizationSettingsNavigationProps {
+type OrganizationSettingsNavigationProps = {
 	organization: Organization;
 	orgPermissions: OrganizationPermissions;
-}
+};
 
 const OrganizationSettingsNavigation: FC<
 	OrganizationSettingsNavigationProps

@@ -349,7 +349,7 @@ jobs:
 
       - name: Run doc-check via Coder Agent Chat
         if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
-        uses: coder/agents-chat-action@3e20636f47ed88d1486b767ade8cb1e13a1effa7 # v0.5.0
+        uses: coder/agents-chat-action@9b3ac42d568e9206f9cd51a97789820d6935cc8d # v0.5.1
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}

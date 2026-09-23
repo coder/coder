@@ -3,10 +3,12 @@ import { expect, screen, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import {
+	externalScopesKey,
 	oauth2ProviderAppKey,
 	oauth2ProviderAppSecretsKey,
 } from "#/api/queries/oauth2";
 import {
+	MockExternalAPIKeyScopes,
 	MockOAuth2ProviderAppPublic,
 	MockOAuth2ProviderAppSecrets,
 	MockOAuth2ProviderApps,
@@ -49,6 +51,7 @@ type Story = StoryObj<typeof EditOAuth2AppPageView>;
 export const Default: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{ key: oauth2ProviderAppKey(appId), data: mockApp },
 			{
 				key: oauth2ProviderAppSecretsKey(appId),
@@ -71,6 +74,7 @@ export const Default: Story = {
 export const EmptySecrets: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{ key: oauth2ProviderAppKey(appId), data: mockApp },
 			{
 				key: oauth2ProviderAppSecretsKey(appId),
@@ -102,6 +106,7 @@ export const Loading: Story = {
 export const WithValidationError: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{ key: oauth2ProviderAppKey(appId), data: mockApp },
 			{
 				key: oauth2ProviderAppSecretsKey(appId),
@@ -137,6 +142,7 @@ export const WithValidationError: Story = {
 export const DeleteDialogOpen: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{ key: oauth2ProviderAppKey(appId), data: mockApp },
 			{
 				key: oauth2ProviderAppSecretsKey(appId),
@@ -158,12 +164,14 @@ export const DeleteDialogOpen: Story = {
 export const DynamicallyRegisteredValues: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{
 				key: oauth2ProviderAppKey(appId),
 				data: {
 					...mockApp,
 					name: "VS Code Coder Extension",
 					callback_url: "vscode://coder.coder-remote/oauth/callback",
+					redirect_uris: ["vscode://coder.coder-remote/oauth/callback"],
 				},
 			},
 			{
@@ -183,6 +191,7 @@ export const DynamicallyRegisteredValues: Story = {
 export const PublicClient: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{
 				key: oauth2ProviderAppKey(MockOAuth2ProviderAppPublic.id),
 				data: MockOAuth2ProviderAppPublic,
@@ -214,7 +223,10 @@ export const NoSecretPermissions: Story = {
 			viewOAuth2AppSecrets: false,
 			deleteOAuth2App: false,
 		},
-		queries: [{ key: oauth2ProviderAppKey(appId), data: mockApp }],
+		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
+			{ key: oauth2ProviderAppKey(appId), data: mockApp },
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

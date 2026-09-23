@@ -54,7 +54,7 @@ import { VariableInput } from "./VariableInput";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
-export interface CreateTemplateFormData {
+export type CreateTemplateFormData = {
 	name: string;
 	display_name: string;
 	description: string;
@@ -72,7 +72,7 @@ export interface CreateTemplateFormData {
 	provisioner_type: ProvisionerType;
 	organization: string;
 	tags: CreateTemplateVersionRequest["tags"];
-}
+};
 
 const validationSchema = Yup.object({
 	name: nameValidator("Name"),

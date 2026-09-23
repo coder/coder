@@ -673,6 +673,69 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, "anthropic.claude-3-5-haiku", updated.Settings.Bedrock.SmallFastModel)
 	})
 
+	t.Run("CredentialsMustBePairedOnCreate", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		tests := []struct {
+			name             string
+			provider         string
+			accessKey        *string
+			accessKeySecret  *string
+			missingField     string
+			detail           string
+			secretNotInError string
+		}{
+			{
+				name:             "MissingAccessKey",
+				provider:         "bedrock-create-missing-access-key",
+				accessKeySecret:  new("create-secret-only"),
+				missingField:     "settings.access_key",
+				detail:           "access_key_secret is set, but access_key is missing or empty",
+				secretNotInError: "create-secret-only",
+			},
+			{
+				name:             "MissingAccessKeySecret",
+				provider:         "bedrock-create-missing-access-key-secret",
+				accessKey:        new("AKIA-create-key-only"), //nolint:gosec // test fixture
+				missingField:     "settings.access_key_secret",
+				detail:           "access_key is set, but access_key_secret is missing or empty",
+				secretNotInError: "AKIA-create-key-only",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+					Type:    codersdk.AIProviderTypeAnthropic,
+					Name:    tt.provider,
+					Enabled: true,
+					BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+					Settings: codersdk.AIProviderSettings{
+						Bedrock: &codersdk.AIProviderBedrockSettings{
+							Region:          "us-east-1",
+							Model:           "anthropic.claude-3-5-sonnet",
+							SmallFastModel:  "anthropic.claude-3-5-haiku",
+							AccessKey:       tt.accessKey,
+							AccessKeySecret: tt.accessKeySecret,
+						},
+					},
+				})
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
+				require.Contains(t, sdkErr.Validations, codersdk.ValidationError{
+					Field:  tt.missingField,
+					Detail: tt.detail,
+				})
+				body, marshalErr := json.Marshal(sdkErr)
+				require.NoError(t, marshalErr)
+				require.NotContains(t, string(body), tt.secretNotInError)
+			})
+		}
+	})
+
 	t.Run("BedrockSecretsHidden", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -734,10 +797,15 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 			Name:    "keys-openai",
 			Enabled: true,
 			BaseURL: "https://api.openai.com/v1",
-			APIKeys: []string{primary, secondary},
+			APIKeys: []string{
+				primary, secondary,
+				"sk-openai-third-fixture-cccccc",  //nolint:gosec // test fixture
+				"sk-openai-fourth-fixture-dddddd", //nolint:gosec // test fixture
+				"sk-openai-fifth-fixture-eeeeee",  //nolint:gosec // test fixture
+			},
 		})
 		require.NoError(t, err)
-		require.Len(t, provider.APIKeys, 2)
+		require.Len(t, provider.APIKeys, 5)
 		// Masked form preserves prefix and suffix while hiding the
 		// middle, so it's enough for an operator to recognize the key
 		// without recovering the plaintext.
@@ -745,8 +813,9 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		require.True(t, strings.HasSuffix(provider.APIKeys[0].Masked, "aaaa"))
 		require.NotContains(t, provider.APIKeys[0].Masked, primary)
 		require.NotContains(t, provider.APIKeys[1].Masked, secondary)
-		require.NotEqual(t, uuid.Nil, provider.APIKeys[0].ID)
-		require.NotEqual(t, uuid.Nil, provider.APIKeys[1].ID)
+		for _, key := range provider.APIKeys {
+			require.NotEqual(t, uuid.Nil, key.ID)
+		}
 	})
 
 	t.Run("ResponseHidesPlaintext", func(t *testing.T) {
@@ -782,33 +851,52 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "keys-replace",
-			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
-			APIKeys: []string{"sk-openai-original-ddddddddddddddd"}, //nolint:gosec // test fixture, not a real credential
-		})
-		require.NoError(t, err)
-		require.Len(t, provider.APIKeys, 1)
-		originalID := provider.APIKeys[0].ID
+		const original = "sk-openai-original-ddddddddddddddd" //nolint:gosec // test fixture
+		for _, tt := range []struct {
+			name        string
+			replacement []codersdk.AIProviderKeyMutation
+		}{
+			{
+				name: "DifferentPlaintext",
+				replacement: []codersdk.AIProviderKeyMutation{
+					{APIKey: new("sk-openai-rotated-eeeeeeeeeeeeeeeeeee")},     //nolint:gosec // test fixture
+					{APIKey: new("sk-openai-rotated-second-ffffffffffffffff")}, //nolint:gosec // test fixture
+				},
+			},
+			{
+				name:        "SamePlaintext",
+				replacement: []codersdk.AIProviderKeyMutation{{APIKey: new(original)}},
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Omitting the original ID from the mutation list deletes it;
-		// the two APIKey-bearing entries add fresh rows.
-		replacement := []codersdk.AIProviderKeyMutation{
-			{APIKey: new("sk-openai-rotated-eeeeeeeeeeeeeeeeeee")},     //nolint:gosec // test fixture
-			{APIKey: new("sk-openai-rotated-second-ffffffffffffffff")}, //nolint:gosec // test fixture
-		}
-		updated, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
-			APIKeys: &replacement,
-		})
-		require.NoError(t, err)
-		require.Len(t, updated.APIKeys, 2)
-		for _, k := range updated.APIKeys {
-			require.NotEqual(t, originalID, k.ID)
+				//nolint:gocritic // Owner role is the audience for this endpoint.
+				provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+					Type:    codersdk.AIProviderTypeOpenAI,
+					Name:    "keys-replace-" + strings.ToLower(tt.name),
+					Enabled: true,
+					BaseURL: "https://api.openai.com/v1",
+					APIKeys: []string{original},
+				})
+				require.NoError(t, err)
+				require.Len(t, provider.APIKeys, 1)
+				originalID := provider.APIKeys[0].ID
+
+				// Omitting the original ID deletes it; plaintext entries create
+				// fresh rows even when the secret is unchanged.
+				updated, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+					APIKeys: &tt.replacement,
+				})
+				require.NoError(t, err)
+				require.Len(t, updated.APIKeys, len(tt.replacement))
+				for _, k := range updated.APIKeys {
+					require.NotEqual(t, uuid.Nil, k.ID)
+					require.NotEqual(t, originalID, k.ID)
+				}
+			})
 		}
 	})
 
@@ -835,17 +923,20 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		keepMasked := provider.APIKeys[0].Masked
 		evictID := provider.APIKeys[1].ID
 
-		// Reference only keepID and add one new plaintext: evictID is
-		// implicitly removed.
+		// Reference only keepID and add four new keys, reaching the five-key
+		// limit. evictID is implicitly removed.
 		patch := []codersdk.AIProviderKeyMutation{
 			{ID: &keepID},
 			{APIKey: new("sk-openai-added-cccccccccccccccccccccc")}, //nolint:gosec // test fixture
+			{APIKey: new("sk-openai-added-2-dddddddddddddddddddd")}, //nolint:gosec // test fixture
+			{APIKey: new("sk-openai-added-3-eeeeeeeeeeeeeeeeeeee")}, //nolint:gosec // test fixture
+			{APIKey: new("sk-openai-added-4-ffffffffffffffffffff")}, //nolint:gosec // test fixture
 		}
 		updated, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &patch,
 		})
 		require.NoError(t, err)
-		require.Len(t, updated.APIKeys, 2)
+		require.Len(t, updated.APIKeys, 5)
 		ids := keyIDs(updated.APIKeys)
 		require.Contains(t, ids, keepID)
 		require.NotContains(t, ids, evictID)
@@ -1082,68 +1173,77 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		require.Contains(t, sdkErr.Message, "Copilot providers do not accept api_keys")
 	})
 
-	t.Run("EmptyKeyRejected", func(t *testing.T) {
+	t.Run("CreateRejectsInvalidKeys", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "keys-empty-element",
-			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
-			APIKeys: []string{""},
-		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
-		require.Len(t, sdkErr.Validations, 1)
-		require.Equal(t, "api_keys[0]", sdkErr.Validations[0].Field)
-		require.Contains(t, sdkErr.Validations[0].Detail, "must not be empty")
-	})
-
-	t.Run("WhitespaceKeyRejected", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// Surrounding whitespace would silently break upstream auth,
-		// since the server stores credentials verbatim. Reject up-front
-		// so the operator gets a clear signal instead of a 401 later.
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "keys-whitespace-create",
-			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
-			APIKeys: []string{" sk-openai-padded-nnnnnnnnnnnnnnnnnnnn "}, //nolint:gosec // test fixture
-		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-
-		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "keys-whitespace-update",
-			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
-			APIKeys: []string{"sk-openai-clean-oooooooooooooooooooo"}, //nolint:gosec // test fixture
-		})
-		require.NoError(t, err)
-		padded := " sk-openai-padded-pppppppppppppppppppp "
-		muts := []codersdk.AIProviderKeyMutation{{APIKey: &padded}}
-		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
-			APIKeys: &muts,
-		})
-		require.Error(t, err)
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		const duplicateKey = "sk-openai-create-duplicate-vvvvvvvvvvvvvvvv" //nolint:gosec // test fixture
+		for _, tt := range []struct {
+			name       string
+			keys       []string
+			field      string
+			detail     string
+			notContain string
+		}{
+			{
+				name:   "Empty",
+				keys:   []string{""},
+				field:  "api_keys[0]",
+				detail: "must not be empty",
+			},
+			{
+				// Surrounding whitespace would silently break upstream auth,
+				// since credentials are stored verbatim.
+				name:   "Whitespace",
+				keys:   []string{" sk-openai-padded-nnnnnnnnnnnnnnnnnnnn "}, //nolint:gosec // test fixture
+				field:  "api_keys[0]",
+				detail: "must not contain leading or trailing whitespace",
+			},
+			{
+				name:       "Duplicate",
+				keys:       []string{duplicateKey, duplicateKey},
+				field:      "api_keys[1]",
+				detail:     "duplicate key already provided at api_keys[0]",
+				notContain: duplicateKey,
+			},
+			{
+				name: "TooMany",
+				keys: []string{
+					"sk-openai-create-max-1-vvvvvvvvvvvvvvvv", //nolint:gosec // test fixture
+					"sk-openai-create-max-2-vvvvvvvvvvvvvvvv", //nolint:gosec // test fixture
+					"sk-openai-create-max-3-vvvvvvvvvvvvvvvv", //nolint:gosec // test fixture
+					"sk-openai-create-max-4-vvvvvvvvvvvvvvvv", //nolint:gosec // test fixture
+					"sk-openai-create-max-5-vvvvvvvvvvvvvvvv", //nolint:gosec // test fixture
+					"sk-openai-create-max-6-vvvvvvvvvvvvvvvv", //nolint:gosec // test fixture
+				},
+				field:  "api_keys",
+				detail: "api_keys must contain at most 5 keys",
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				//nolint:gocritic // Owner role is the audience for this endpoint.
+				_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+					Type:    codersdk.AIProviderTypeOpenAI,
+					Name:    "keys-create-invalid-" + strings.ToLower(tt.name),
+					Enabled: true,
+					BaseURL: "https://api.openai.com/v1",
+					APIKeys: tt.keys,
+				})
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
+				require.Len(t, sdkErr.Validations, 1)
+				require.Equal(t, tt.field, sdkErr.Validations[0].Field)
+				require.Contains(t, sdkErr.Validations[0].Detail, tt.detail)
+				if tt.notContain != "" {
+					body, marshalErr := json.Marshal(sdkErr)
+					require.NoError(t, marshalErr)
+					require.NotContains(t, string(body), tt.notContain)
+				}
+			})
+		}
 	})
 
 	t.Run("NonOwnerForbidden", func(t *testing.T) {
@@ -1173,102 +1273,6 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-	})
-
-	t.Run("MutationBothFieldsRejected", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "keys-mut-both",
-			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
-			APIKeys: []string{"sk-openai-existing-kkkkkkkkkkkkkkkk"}, //nolint:gosec // test fixture
-		})
-		require.NoError(t, err)
-		existingID := provider.APIKeys[0].ID
-
-		muts := []codersdk.AIProviderKeyMutation{
-			{ID: &existingID, APIKey: new("sk-conflict")}, //nolint:gosec // test fixture
-		}
-		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
-			APIKeys: &muts,
-		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
-		require.Len(t, sdkErr.Validations, 1)
-		require.Equal(t, "api_keys[0]", sdkErr.Validations[0].Field)
-		require.Contains(t, sdkErr.Validations[0].Detail, "exactly one of id or api_key must be set")
-	})
-
-	t.Run("MutationNeitherFieldRejected", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "keys-mut-empty",
-			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
-		})
-		require.NoError(t, err)
-
-		muts := []codersdk.AIProviderKeyMutation{{}}
-		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
-			APIKeys: &muts,
-		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
-		require.Len(t, sdkErr.Validations, 1)
-		require.Equal(t, "api_keys[0]", sdkErr.Validations[0].Field)
-		require.Contains(t, sdkErr.Validations[0].Detail, "exactly one of id or api_key must be set")
-	})
-
-	t.Run("MutationDuplicateIDRejected", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "keys-mut-dup",
-			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
-			APIKeys: []string{"sk-openai-dup-llllllllllllllllllll"}, //nolint:gosec // test fixture
-		})
-		require.NoError(t, err)
-		id := provider.APIKeys[0].ID
-
-		muts := []codersdk.AIProviderKeyMutation{
-			{ID: &id},
-			{ID: &id},
-		}
-		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
-			APIKeys: &muts,
-		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
-		require.Len(t, sdkErr.Validations, 1)
-		require.Equal(t, "api_keys[1].id", sdkErr.Validations[0].Field)
-		require.Contains(t, sdkErr.Validations[0].Detail, "already referenced")
 	})
 
 	t.Run("PATCHPropertiesAudited", func(t *testing.T) {
@@ -1403,38 +1407,161 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		require.True(t, sawDelete, "expected delete audit for removed key")
 	})
 
-	t.Run("MutationUnknownIDRejected", func(t *testing.T) {
+	t.Run("UpdateRejectsInvalidKeys", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
+		const (
+			retainedKey = "sk-openai-update-retained-xxxxxxxxxxxxxxxx" //nolint:gosec // test fixture
+			otherKey    = "sk-openai-update-other-yyyyyyyyyyyyyyyyyyy" //nolint:gosec // test fixture
+			duplicate   = "sk-openai-update-duplicate-zzzzzzzzzzzzzzz" //nolint:gosec // test fixture
+		)
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "keys-mut-unknown",
-			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
-			APIKeys: []string{"sk-openai-real-mmmmmmmmmmmmmmmmmmmm"}, //nolint:gosec // test fixture
+			Type:        codersdk.AIProviderTypeOpenAI,
+			Name:        "keys-update-validation",
+			DisplayName: "Original key provider",
+			Enabled:     true,
+			BaseURL:     "https://api.openai.com/v1",
+			APIKeys:     []string{retainedKey, otherKey},
 		})
 		require.NoError(t, err)
+		require.Len(t, provider.APIKeys, 2)
+		originalIDs := keyIDs(provider.APIKeys)
+		retainedID := provider.APIKeys[0].ID
 
-		bogus := uuid.New()
-		muts := []codersdk.AIProviderKeyMutation{{ID: &bogus}}
-		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
-			APIKeys: &muts,
-		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "api_keys references an unknown id for this provider")
+		tests := []struct {
+			name       string
+			mutations  []codersdk.AIProviderKeyMutation
+			message    string
+			field      string
+			detail     string
+			notContain string
+		}{
+			{
+				name:      "BothFields",
+				mutations: []codersdk.AIProviderKeyMutation{{ID: &retainedID, APIKey: new(duplicate)}},
+				message:   "Invalid AI provider request.",
+				field:     "api_keys[0]",
+				detail:    "exactly one of id or api_key must be set",
+			},
+			{
+				name:      "NeitherField",
+				mutations: []codersdk.AIProviderKeyMutation{{}},
+				message:   "Invalid AI provider request.",
+				field:     "api_keys[0]",
+				detail:    "exactly one of id or api_key must be set",
+			},
+			{
+				name:      "DuplicateID",
+				mutations: []codersdk.AIProviderKeyMutation{{ID: &retainedID}, {ID: &retainedID}},
+				message:   "Invalid AI provider request.",
+				field:     "api_keys[1].id",
+				detail:    "already referenced",
+			},
+			{
+				name:      "Whitespace",
+				mutations: []codersdk.AIProviderKeyMutation{{APIKey: new(" sk-openai-padded-pppppppppppppppppppp ")}}, //nolint:gosec // test fixture
+				message:   "Invalid AI provider request.",
+				field:     "api_keys[0].api_key",
+				detail:    "must not contain leading or trailing whitespace",
+			},
+			{
+				name:      "UnknownID",
+				mutations: []codersdk.AIProviderKeyMutation{{ID: new(uuid.New())}},
+				message:   "api_keys references an unknown id for this provider",
+			},
+			{
+				name: "DuplicateKey",
+				mutations: []codersdk.AIProviderKeyMutation{
+					{APIKey: new(duplicate)},
+					{APIKey: new(duplicate)},
+				},
+				message:    "Invalid AI provider request.",
+				field:      "api_keys[1].api_key",
+				detail:     "duplicate key already provided at api_keys[0]",
+				notContain: duplicate,
+			},
+			{
+				name: "DuplicateKeyWithRetainedIDs",
+				mutations: []codersdk.AIProviderKeyMutation{
+					{ID: &retainedID},
+					{APIKey: new(duplicate)},
+					{ID: &provider.APIKeys[1].ID},
+					{APIKey: new(duplicate)},
+				},
+				message:    "Invalid AI provider request.",
+				field:      "api_keys[3].api_key",
+				detail:     "duplicate key already provided at api_keys[1]",
+				notContain: duplicate,
+			},
+			{
+				name: "RetainedThenDuplicatePlaintext",
+				mutations: []codersdk.AIProviderKeyMutation{
+					{ID: &retainedID},
+					{APIKey: new(retainedKey)},
+				},
+				message:    "Invalid AI provider request.",
+				field:      "api_keys",
+				detail:     "duplicate key already provided at api_keys[0]",
+				notContain: retainedKey,
+			},
+			{
+				name: "DuplicatePlaintextThenRetained",
+				mutations: []codersdk.AIProviderKeyMutation{
+					{APIKey: new(retainedKey)},
+					{ID: &retainedID},
+				},
+				message:    "Invalid AI provider request.",
+				field:      "api_keys",
+				detail:     "duplicate key already provided at api_keys[0]",
+				notContain: retainedKey,
+			},
+			{
+				name: "TooManyFinalKeys",
+				mutations: []codersdk.AIProviderKeyMutation{
+					{ID: &provider.APIKeys[0].ID},
+					{ID: &provider.APIKeys[1].ID},
+					{APIKey: new("sk-openai-update-max-3-aaaaaaaaaaaaaaaa")}, //nolint:gosec // test fixture
+					{APIKey: new("sk-openai-update-max-4-bbbbbbbbbbbbbbbb")}, //nolint:gosec // test fixture
+					{APIKey: new("sk-openai-update-max-5-cccccccccccccccc")}, //nolint:gosec // test fixture
+					{APIKey: new("sk-openai-update-max-6-dddddddddddddddd")}, //nolint:gosec // test fixture
+				},
+				message: "Invalid AI provider request.",
+				field:   "api_keys",
+				detail:  "api_keys must contain at most 5 keys",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				changedDisplay := "Must not be persisted by " + tt.name
+				_, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+					DisplayName: &changedDisplay,
+					APIKeys:     &tt.mutations,
+				})
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, tt.message, sdkErr.Message)
+				if tt.field != "" {
+					require.Len(t, sdkErr.Validations, 1)
+					require.Equal(t, tt.field, sdkErr.Validations[0].Field)
+					require.Contains(t, sdkErr.Validations[0].Detail, tt.detail)
+				} else {
+					require.Empty(t, sdkErr.Validations)
+				}
+				if tt.notContain != "" {
+					body, marshalErr := json.Marshal(sdkErr)
+					require.NoError(t, marshalErr)
+					require.NotContains(t, string(body), tt.notContain)
+				}
 
-		// Provider's real key is left untouched.
-		reread, err := client.AIProvider(ctx, provider.Name)
-		require.NoError(t, err)
-		require.Len(t, reread.APIKeys, 1)
-		require.Equal(t, provider.APIKeys[0].ID, reread.APIKeys[0].ID)
+				reread, getErr := client.AIProvider(ctx, provider.Name)
+				require.NoError(t, getErr)
+				require.Equal(t, provider.DisplayName, reread.DisplayName)
+				require.ElementsMatch(t, originalIDs, keyIDs(reread.APIKeys))
+			})
+		}
 	})
 }
 
@@ -1445,6 +1572,87 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 // confirm what the merge actually persisted.
 func TestAIProviderSettingsMerge(t *testing.T) {
 	t.Parallel()
+
+	t.Run("RejectsUnpairedCredentialsWithoutStoredCredentials", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		for _, tt := range []struct {
+			name             string
+			accessKey        *string
+			accessKeySecret  *string
+			missingField     string
+			detail           string
+			secretNotInError string
+		}{
+			{
+				name:             "AccessKeyOnly",
+				accessKey:        new("AKIA-introduced"), //nolint:gosec // test fixture
+				missingField:     "settings.access_key_secret",
+				detail:           "access_key is set, but access_key_secret is missing or empty",
+				secretNotInError: "AKIA-introduced",
+			},
+			{
+				name:             "AccessKeySecretOnly",
+				accessKeySecret:  new("introduced-secret"),
+				missingField:     "settings.access_key",
+				detail:           "access_key_secret is set, but access_key is missing or empty",
+				secretNotInError: "introduced-secret",
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+					Type:        codersdk.AIProviderTypeAnthropic,
+					Name:        "bedrock-introduce-" + strings.ToLower(tt.name),
+					DisplayName: "Original Bedrock provider",
+					Enabled:     true,
+					BaseURL:     "https://bedrock-runtime.us-east-1.amazonaws.com/",
+					Settings: codersdk.AIProviderSettings{
+						Bedrock: &codersdk.AIProviderBedrockSettings{
+							Region:         "us-east-1",
+							Model:          "anthropic.claude-3-5-sonnet",
+							SmallFastModel: "anthropic.claude-3-5-haiku",
+						},
+					},
+				})
+				require.NoError(t, err)
+				_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+					DisplayName: new("Must not be persisted"),
+					Settings: &codersdk.AIProviderSettings{
+						Bedrock: &codersdk.AIProviderBedrockSettings{
+							Region:          "us-west-2",
+							Model:           "anthropic.claude-3-7-sonnet",
+							SmallFastModel:  "anthropic.claude-3-5-haiku",
+							AccessKey:       tt.accessKey,
+							AccessKeySecret: tt.accessKeySecret,
+						},
+					},
+				})
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
+				require.Contains(t, sdkErr.Validations, codersdk.ValidationError{
+					Field:  tt.missingField,
+					Detail: tt.detail,
+				})
+				body, err := json.Marshal(sdkErr)
+				require.NoError(t, err)
+				require.NotContains(t, string(body), tt.secretNotInError)
+
+				reread, err := client.AIProvider(ctx, provider.Name)
+				require.NoError(t, err)
+				require.Equal(t, provider, reread)
+				//nolint:gocritic // Test reads the row to verify write-only fields.
+				row, err := db.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), provider.ID)
+				require.NoError(t, err)
+				persisted, err := db2sdk.AIProviderSettings(row.Settings)
+				require.NoError(t, err)
+				require.Equal(t, provider.Settings, persisted)
+			})
+		}
+	})
 
 	t.Run("OmittedSecretsPreserveExisting", func(t *testing.T) {
 		t.Parallel()
@@ -1498,107 +1706,178 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 		require.Equal(t, "secret-old", *persisted.Bedrock.AccessKeySecret)
 	})
 
-	t.Run("ExplicitEmptyClearsSecrets", func(t *testing.T) {
+	t.Run("ClearSecrets", func(t *testing.T) {
 		t.Parallel()
-		// An admin migrating from static AWS credentials to IAM
-		// role-based auth needs to clear AccessKey and AccessKeySecret
-		// in a single PATCH. Sending the field with an empty string is
-		// the explicit clear signal; the *string field distinguishes
-		// "omitted" (nil) from "set to empty" (pointer to "").
+		// Empty strings explicitly clear credentials; omitted fields retain
+		// their stored values. Clearing just one half must be rejected.
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeAnthropic,
-			Name:    "merge-clear",
-			Enabled: true,
-			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
-			Settings: codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{
-					Region:          "us-east-1",
-					Model:           "anthropic.claude-3-5-sonnet",
-					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       new("AKIA-old"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: new("secret-old"),
-				},
+		for _, tt := range []struct {
+			name            string
+			accessKey       *string
+			accessKeySecret *string
+			missingField    string
+			detail          string
+		}{
+			{
+				name:            "Both",
+				accessKey:       new(""),
+				accessKeySecret: new(""),
 			},
-		})
-		require.NoError(t, err)
-
-		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
-			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{
-					Region:          "us-east-1",
-					Model:           "anthropic.claude-3-5-sonnet",
-					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       new(""),
-					AccessKeySecret: new(""),
-				},
+			{
+				name:         "AccessKeyOnly",
+				accessKey:    new(""),
+				missingField: "settings.access_key",
+				detail:       "access_key_secret is set, but access_key is missing or empty",
 			},
-		})
-		require.NoError(t, err)
+			{
+				name:            "AccessKeySecretOnly",
+				accessKeySecret: new(""),
+				missingField:    "settings.access_key_secret",
+				detail:          "access_key is set, but access_key_secret is missing or empty",
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				req := codersdk.CreateAIProviderRequest{
+					Type:        codersdk.AIProviderTypeAnthropic,
+					Name:        "merge-clear-" + strings.ToLower(tt.name),
+					DisplayName: "Original Bedrock provider",
+					Enabled:     true,
+					BaseURL:     "https://bedrock-runtime.us-east-1.amazonaws.com/",
+					Settings: codersdk.AIProviderSettings{
+						Bedrock: &codersdk.AIProviderBedrockSettings{
+							Region:          "us-east-1",
+							Model:           "anthropic.claude-3-5-sonnet",
+							SmallFastModel:  "anthropic.claude-3-5-haiku",
+							AccessKey:       new("AKIA-old"), //nolint:gosec // test fixture
+							AccessKeySecret: new("secret-old"),
+						},
+					},
+				}
+				//nolint:gocritic // Owner role is the audience for this endpoint.
+				created, err := client.CreateAIProvider(ctx, req)
+				require.NoError(t, err)
 
-		//nolint:gocritic // Test reads the row to verify write-only fields.
-		row, err := db.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), created.ID)
-		require.NoError(t, err)
-		persisted, err := db2sdk.AIProviderSettings(row.Settings)
-		require.NoError(t, err)
-		require.NotNil(t, persisted.Bedrock)
-		require.NotNil(t, persisted.Bedrock.AccessKey)
-		require.Equal(t, "", *persisted.Bedrock.AccessKey)
-		require.NotNil(t, persisted.Bedrock.AccessKeySecret)
-		require.Equal(t, "", *persisted.Bedrock.AccessKeySecret)
+				patch := codersdk.UpdateAIProviderRequest{
+					DisplayName: new("Updated Bedrock provider"),
+					Settings: &codersdk.AIProviderSettings{
+						Bedrock: &codersdk.AIProviderBedrockSettings{
+							Region:          "us-west-2",
+							Model:           "anthropic.claude-3-7-sonnet",
+							SmallFastModel:  "anthropic.claude-3-5-haiku",
+							AccessKey:       tt.accessKey,
+							AccessKeySecret: tt.accessKeySecret,
+						},
+					},
+				}
+				_, err = client.UpdateAIProvider(ctx, created.Name, patch)
+				expected := req.Settings
+				if tt.missingField != "" {
+					sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+					require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
+					require.Contains(t, sdkErr.Validations, codersdk.ValidationError{
+						Field:  tt.missingField,
+						Detail: tt.detail,
+					})
+					reread, err := client.AIProvider(ctx, created.Name)
+					require.NoError(t, err)
+					require.Equal(t, created, reread)
+				} else {
+					require.NoError(t, err)
+					expected = *patch.Settings
+				}
+
+				//nolint:gocritic // Test reads the row to verify write-only fields.
+				row, err := db.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), created.ID)
+				require.NoError(t, err)
+				persisted, err := db2sdk.AIProviderSettings(row.Settings)
+				require.NoError(t, err)
+				require.Equal(t, expected, persisted)
+			})
+		}
 	})
 
 	t.Run("ExplicitRotatesSecrets", func(t *testing.T) {
 		t.Parallel()
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeAnthropic,
-			Name:    "merge-rotate",
-			Enabled: true,
-			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
-			Settings: codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{
-					Region:          "us-east-1",
-					Model:           "anthropic.claude-3-5-sonnet",
-					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       new("AKIA-old"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: new("secret-old"),
-				},
+		for _, tt := range []struct {
+			name                    string
+			accessKey               *string
+			accessKeySecret         *string
+			expectedAccessKey       string
+			expectedAccessKeySecret string
+		}{
+			{
+				name:                    "Both",
+				accessKey:               new("AKIA-new"), //nolint:gosec // test fixture
+				accessKeySecret:         new("secret-new"),
+				expectedAccessKey:       "AKIA-new",
+				expectedAccessKeySecret: "secret-new",
 			},
-		})
-		require.NoError(t, err)
-
-		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
-			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{
-					Region:          "us-east-1",
-					Model:           "anthropic.claude-3-5-sonnet",
-					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       new("AKIA-new"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: new("secret-new"),
-				},
+			{
+				name:                    "AccessKeyOnly",
+				accessKey:               new("AKIA-new"), //nolint:gosec // test fixture
+				expectedAccessKey:       "AKIA-new",
+				expectedAccessKeySecret: "secret-old",
 			},
-		})
-		require.NoError(t, err)
+			{
+				name:                    "AccessKeySecretOnly",
+				accessKeySecret:         new("secret-new"),
+				expectedAccessKey:       "AKIA-old",
+				expectedAccessKeySecret: "secret-new",
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				//nolint:gocritic // Owner role is the audience for this endpoint.
+				created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+					Type:    codersdk.AIProviderTypeAnthropic,
+					Name:    "merge-rotate-" + strings.ToLower(tt.name),
+					Enabled: true,
+					BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+					Settings: codersdk.AIProviderSettings{
+						Bedrock: &codersdk.AIProviderBedrockSettings{
+							Region:          "us-east-1",
+							Model:           "anthropic.claude-3-5-sonnet",
+							SmallFastModel:  "anthropic.claude-3-5-haiku",
+							AccessKey:       new("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+							AccessKeySecret: new("secret-old"),
+						},
+					},
+				})
+				require.NoError(t, err)
 
-		//nolint:gocritic // Test reads the row to verify write-only fields.
-		row, err := db.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), created.ID)
-		require.NoError(t, err)
-		persisted, err := db2sdk.AIProviderSettings(row.Settings)
-		require.NoError(t, err)
-		require.NotNil(t, persisted.Bedrock)
-		require.NotNil(t, persisted.Bedrock.AccessKey)
-		require.Equal(t, "AKIA-new", *persisted.Bedrock.AccessKey)
-		require.NotNil(t, persisted.Bedrock.AccessKeySecret)
-		require.Equal(t, "secret-new", *persisted.Bedrock.AccessKeySecret)
+				_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+					Settings: &codersdk.AIProviderSettings{
+						Bedrock: &codersdk.AIProviderBedrockSettings{
+							Region:          "us-east-1",
+							Model:           "anthropic.claude-3-5-sonnet",
+							SmallFastModel:  "anthropic.claude-3-5-haiku",
+							AccessKey:       tt.accessKey,
+							AccessKeySecret: tt.accessKeySecret,
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				//nolint:gocritic // Test reads the row to verify write-only fields.
+				row, err := db.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), created.ID)
+				require.NoError(t, err)
+				persisted, err := db2sdk.AIProviderSettings(row.Settings)
+				require.NoError(t, err)
+				require.NotNil(t, persisted.Bedrock)
+				require.NotNil(t, persisted.Bedrock.AccessKey)
+				require.Equal(t, tt.expectedAccessKey, *persisted.Bedrock.AccessKey)
+				require.NotNil(t, persisted.Bedrock.AccessKeySecret)
+				require.Equal(t, tt.expectedAccessKeySecret, *persisted.Bedrock.AccessKeySecret)
+			})
+		}
 	})
 
 	t.Run("MigrateStaticToRole", func(t *testing.T) {

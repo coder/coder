@@ -31,11 +31,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agenttest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -45,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -1974,7 +1978,7 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 		for _, msg := range messages {
 			if msg.Role == database.ChatMessageRoleSystem {
 				content := string(msg.Content.RawMessage)
-				if strings.Contains(content, "No workspace is attached to this chat yet") {
+				if strings.Contains(content, "This chat started without an attached workspace") {
 					workspaceMsg = &msg
 					break
 				}
@@ -1984,9 +1988,11 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 		require.Equal(t, database.ChatMessageRoleSystem, workspaceMsg.Role)
 		require.Equal(t, database.ChatMessageVisibilityModel, workspaceMsg.Visibility)
 		workspaceContent := string(workspaceMsg.Content.RawMessage)
-		require.Contains(t, workspaceContent, "Do not create or start a workspace by default")
-		require.Contains(t, workspaceContent, "Only call create_workspace or start_workspace")
-		require.NotContains(t, workspaceContent, "Create one using the create_workspace tool before using workspace tools")
+		require.Contains(t, workspaceContent, "missing tools, skills, MCPs, or context prevent progress")
+		require.Contains(t, workspaceContent, "create a suitable workspace with create_workspace")
+		require.NotContains(t, workspaceContent, "start_workspace")
+		require.Contains(t, workspaceContent, "Use the workspace's available context and capabilities to continue the user's request")
+		require.NotContains(t, workspaceContent, "Do not create or start a workspace by default")
 	})
 }
 
@@ -4528,9 +4534,19 @@ func filterMessageEvents(events []codersdk.ChatStreamEvent) []codersdk.ChatStrea
 func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
+	const (
+		instruction      = "Run the workspace checks before reporting completion."
+		skillName        = "workspace-checks"
+		skillDescription = "Validate the newly created workspace."
+		mcpToolName      = "workspace__check"
+	)
+
 	ctx := testutil.Context(t, testutil.WaitLong)
+	deploymentValues := coderdtest.DeploymentValues(t)
+	// Keep the seeded published snapshot independent of agent discovery.
+	deploymentValues.DisableWorkspaceAgentContextSync = true
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:         coderdtest.DeploymentValues(t),
+		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
 	})
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
@@ -4556,10 +4572,6 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-	// Start the test workspace agent so create_workspace can wait for
-	// the agent to become reachable before returning.
-	_ = agenttest.New(t, client.URL, agentToken)
-
 	workspaceName := "chat-ws-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
 	createWorkspaceArgs := fmt.Sprintf(
 		`{"template_id":%q,"name":%q}`,
@@ -4569,7 +4581,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 
 	var streamedCallCount atomic.Int32
 	var streamedCallsMu sync.Mutex
-	streamedCalls := make([][]chattest.OpenAIMessage, 0, 2)
+	streamedCalls := make([]recordedOpenAIRequest, 0, 2)
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
@@ -4577,7 +4589,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		}
 
 		streamedCallsMu.Lock()
-		streamedCalls = append(streamedCalls, append([]chattest.OpenAIMessage(nil), req.Messages...))
+		streamedCalls = append(streamedCalls, recordOpenAIRequest(req))
 		streamedCallsMu.Unlock()
 
 		if streamedCallCount.Add(1) == 1 {
@@ -4602,6 +4614,67 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
+	var workspaceAgentID uuid.UUID
+	require.Eventually(t, func() bool {
+		got, getErr := expClient.GetChat(ctx, chat.ID)
+		if getErr != nil || got.WorkspaceID == nil {
+			return false
+		}
+		workspace, getErr := client.Workspace(ctx, *got.WorkspaceID)
+		if getErr != nil || workspace.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
+			return false
+		}
+		for _, resource := range workspace.LatestBuild.Resources {
+			for _, workspaceAgent := range resource.Agents {
+				workspaceAgentID = workspaceAgent.ID
+			}
+		}
+		return workspaceAgentID != uuid.Nil
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.EqualValues(t, 1, streamedCallCount.Load())
+
+	// Publish before the agent connects so the same-turn continuation has
+	// a complete snapshot. This does not test startup discovery readiness.
+	instructionBody, err := protojson.Marshal(&agentproto.InstructionFileBody{Content: []byte(instruction)})
+	require.NoError(t, err)
+	skillBody, err := protojson.Marshal(&agentproto.SkillMetaBody{
+		Name:        skillName,
+		Description: skillDescription,
+		Meta:        []byte("---\nname: " + skillName + "\ndescription: " + skillDescription + "\n---\nRun workspace checks.\n"),
+	})
+	require.NoError(t, err)
+	schema, err := structpb.NewStruct(map[string]any{"type": "object"})
+	require.NoError(t, err)
+	mcpBody, err := protojson.Marshal(&agentproto.MCPServerBody{
+		ServerName: "workspace",
+		Tools:      []*agentproto.MCPTool{{Name: "check", Description: "Check the workspace.", InputSchema: schema}},
+	})
+	require.NoError(t, err)
+
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	now := dbtime.Now()
+	for _, resource := range []database.UpsertWorkspaceAgentContextResourceParams{
+		{Source: "/workspace/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Body: instructionBody},
+		{Source: "/workspace/skills/" + skillName, BodyKind: database.WorkspaceAgentContextBodyKindSkill, Body: skillBody},
+		{Source: "workspace", BodyKind: database.WorkspaceAgentContextBodyKindMcpServer, Body: mcpBody},
+	} {
+		resource.WorkspaceAgentID = workspaceAgentID
+		resource.ContentHash = []byte(resource.Source)
+		resource.SizeBytes = int64(len(resource.Body))
+		resource.Status = database.WorkspaceAgentContextResourceStatusOk
+		resource.Now = now
+		_, err = api.Database.UpsertWorkspaceAgentContextResource(systemCtx, resource)
+		require.NoError(t, err)
+	}
+	_, err = api.Database.UpsertWorkspaceAgentContextSnapshot(systemCtx, database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID: workspaceAgentID,
+		Version:          1,
+		AggregateHash:    []byte("created-workspace-context"),
+		ReceivedAt:       now,
+	})
+	require.NoError(t, err)
+	_ = agenttest.New(t, client.URL, agentToken)
 
 	var chatResult codersdk.Chat
 	require.Eventually(t, func() bool {
@@ -4648,6 +4721,9 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		}
 	}
 	require.True(t, foundCreateWorkspaceResult, "expected create_workspace tool result message")
+	require.Len(t, slice.Filter(chatMsgs.Messages, func(message codersdk.ChatMessage) bool {
+		return message.Role == codersdk.ChatMessageRoleUser
+	}), 1, "workspace context should be available without another user turn")
 
 	// Verify that the tool waited for startup scripts to
 	// complete. The agent should be in "ready" state by the
@@ -4663,14 +4739,34 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	require.Equal(t, codersdk.WorkspaceAgentLifecycleReady, agentLifecycle,
 		"agent should be ready after create_workspace returns; startup scripts were not awaited")
 
-	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
 	streamedCallsMu.Lock()
-	recordedStreamCalls := append([][]chattest.OpenAIMessage(nil), streamedCalls...)
+	recordedStreamCalls := append([]recordedOpenAIRequest(nil), streamedCalls...)
 	streamedCallsMu.Unlock()
-	require.GreaterOrEqual(t, len(recordedStreamCalls), 2)
+	require.Len(t, recordedStreamCalls, 2)
+
+	for i, call := range recordedStreamCalls {
+		var systemContent string
+		for _, message := range call.Messages {
+			if message.Role == "system" {
+				systemContent += message.Content + "\n"
+			}
+		}
+		if i == 0 {
+			require.NotContains(t, systemContent, instruction)
+			require.NotContains(t, systemContent, skillName)
+			require.NotContains(t, call.Tools, mcpToolName)
+			continue
+		}
+		require.Contains(t, systemContent, "<workspace-context>")
+		require.Contains(t, systemContent, instruction)
+		require.Contains(t, systemContent, "<available-skills>")
+		require.Contains(t, systemContent, skillName)
+		require.Contains(t, systemContent, skillDescription)
+		require.Contains(t, call.Tools, mcpToolName)
+	}
 
 	var foundToolResultInSecondCall bool
-	for _, message := range recordedStreamCalls[1] {
+	for _, message := range recordedStreamCalls[1].Messages {
 		if message.Role != "tool" {
 			continue
 		}
@@ -5140,22 +5236,25 @@ func highUsageTextResponse(text string) chattest.AnthropicResponse {
 	}, text)...)
 }
 
-func anthropicCompactionResponse(text string) chattest.AnthropicResponse {
-	return chattest.AnthropicResponse{Response: &chattest.AnthropicMessage{
-		ID:         "msg-compaction",
-		Type:       "message",
-		Role:       "assistant",
-		Content:    text,
-		Model:      "claude-3-opus-20240229",
-		StopReason: "end_turn",
-	}}
+func anthropicCompactionResponse(t testing.TB, req *chattest.AnthropicRequest, text string) chattest.AnthropicResponse {
+	t.Helper()
+	require.True(t, req.Stream)
+	// The summary cap is the configured cap with headroom bounded by
+	// the remaining context window, so it varies per test fixture; exact
+	// values are pinned in the chatloop unit tests and the hook test.
+	require.Positive(t, req.MaxTokens)
+	return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks(text)...)
 }
 
 func highUsageReadFileResponse(path string) chattest.AnthropicResponse {
+	return readFileResponseWithInputTokens(path, 80)
+}
+
+func readFileResponseWithInputTokens(path string, inputTokens int) chattest.AnthropicResponse {
 	chunks := chattest.AnthropicToolCallChunks("read_file", fmt.Sprintf(`{"path":%q}`, path))
 	for i := range chunks {
 		if chunks[i].Type == "message_start" {
-			chunks[i].Message.Usage = map[string]int{"input_tokens": 80}
+			chunks[i].Message.Usage = map[string]int{"input_tokens": inputTokens}
 		}
 		if chunks[i].Type == "message_delta" {
 			chunks[i].UsageMap = map[string]int{"output_tokens": 5}
@@ -5179,10 +5278,10 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 	var streamCount atomic.Int32
 	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 		body := anthropicRequestBody(t, *req)
+		if strings.Contains(body, "You are performing a context compaction") {
+			return anthropicCompactionResponse(t, req, compactionSummary)
+		}
 		if !req.Stream {
-			if strings.Contains(body, "You are performing a context compaction") {
-				return chattest.AnthropicNonStreamingResponse(compactionSummary)
-			}
 			return chattest.AnthropicNonStreamingResponse("AI Gateway Compaction")
 		}
 
@@ -5302,10 +5401,10 @@ func TestActiveServer_CompactionRecordsMetric(t *testing.T) {
 	var streamCount atomic.Int32
 	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 		body := anthropicRequestBody(t, *req)
+		if strings.Contains(body, "You are performing a context compaction") {
+			return anthropicCompactionResponse(t, req, compactionSummary)
+		}
 		if !req.Stream {
-			if strings.Contains(body, "You are performing a context compaction") {
-				return anthropicCompactionResponse(compactionSummary)
-			}
 			return chattest.AnthropicNonStreamingResponse("title")
 		}
 		switch streamCount.Add(1) {
@@ -5394,12 +5493,12 @@ func TestActiveServer_Compaction(t *testing.T) {
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			requests.record(req)
 			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				require.Contains(t, body, "read_file")
+				require.Contains(t, body, "package main")
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
 			if !req.Stream {
-				if strings.Contains(body, "You are performing a context compaction") {
-					require.Contains(t, body, "read_file")
-					require.Contains(t, body, "package main")
-					return anthropicCompactionResponse(compactionSummary)
-				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
 			switch streamCount.Add(1) {
@@ -5490,7 +5589,7 @@ func TestActiveServer_Compaction(t *testing.T) {
 			body := anthropicRequestBody(t, *req)
 			if strings.Contains(body, "You are performing a context compaction") {
 				compactionRequests.Add(1)
-				return anthropicCompactionResponse(compactionSummary)
+				return anthropicCompactionResponse(t, req, compactionSummary)
 			}
 			if !req.Stream {
 				return chattest.AnthropicNonStreamingResponse("title")
@@ -5529,10 +5628,10 @@ func TestActiveServer_Compaction(t *testing.T) {
 		var streamCount atomic.Int32
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
 			if !req.Stream {
-				if strings.Contains(body, "You are performing a context compaction") {
-					return anthropicCompactionResponse(compactionSummary)
-				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
 			switch streamCount.Add(1) {
@@ -5631,12 +5730,13 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		var compactionRequests atomic.Int32
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				compactionRequests.Add(1)
+				require.Contains(t, body, "hello from the user")
+				require.True(t, anthropicMessageHasEphemeralCacheControl(t, req.Messages[len(req.Messages)-1]))
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
 			if !req.Stream {
-				if strings.Contains(body, "You are performing a context compaction") {
-					compactionRequests.Add(1)
-					require.Contains(t, body, "hello from the user")
-					return anthropicCompactionResponse(compactionSummary)
-				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
 			streamCount.Add(1)
@@ -5722,11 +5822,11 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		var compactionRequests atomic.Int32
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				compactionRequests.Add(1)
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
 			if !req.Stream {
-				if strings.Contains(body, "You are performing a context compaction") {
-					compactionRequests.Add(1)
-					return anthropicCompactionResponse(compactionSummary)
-				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
 			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("assistant answer")...)
@@ -5771,6 +5871,69 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
 		require.Len(t, compressed.summaries, 1,
 			"prompt history contains the compressed summary boundary")
+	})
+
+	t.Run("retries the summary without tools when the prompt exceeds the context window", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var mu sync.Mutex
+		var compactionToolCounts []int
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				mu.Lock()
+				compactionToolCounts = append(compactionToolCounts, len(req.Tools))
+				mu.Unlock()
+				// The tool definitions push the summary request past
+				// the window that the tool-less request still fits.
+				if len(req.Tools) > 0 {
+					return chattest.AnthropicResponse{Error: &chattest.ErrorResponse{
+						StatusCode: http.StatusBadRequest,
+						Type:       "invalid_request_error",
+						Message:    "prompt is too long: 20000 tokens > 16385 maximum",
+					}}
+				}
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		compacted, err := server.CompactChat(ctx, chat)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRunning, compacted.Status)
+
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.False(t, chat.CompactionRequestedAt.Valid)
+
+		mu.Lock()
+		toolCounts := slices.Clone(compactionToolCounts)
+		mu.Unlock()
+		require.Len(t, toolCounts, 2, "one rejected request with tools, one tool-less retry")
+		require.Positive(t, toolCounts[0], "the first summary request carries the turn's tool definitions")
+		require.Zero(t, toolCounts[1], "the retry drops the tool definitions")
+
+		messages := chatMessages(ctx, t, db, chat.ID)
+		promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
+		require.Len(t, compressed.results, 1)
+		resultPart := singlePartOfType(t, compressed.results[0], codersdk.ChatMessagePartTypeToolResult)
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(resultPart.Result, &result))
+		require.Equal(t, compactionSummary, result["summary"])
 	})
 
 	t.Run("busy chat rejects manual compaction", func(t *testing.T) {
@@ -5959,11 +6122,11 @@ func TestActiveServer_ManualClear(t *testing.T) {
 		var compactionRequests atomic.Int32
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				compactionRequests.Add(1)
+				return anthropicCompactionResponse(t, req, "unexpected summary")
+			}
 			if !req.Stream {
-				if strings.Contains(body, "You are performing a context compaction") {
-					compactionRequests.Add(1)
-					return anthropicCompactionResponse("unexpected summary")
-				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
 			// The first turn exceeds the threshold, so stale usage would
@@ -6009,10 +6172,10 @@ func TestActiveServer_ManualClear(t *testing.T) {
 		db, ps := dbtestutil.NewDB(t)
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				return anthropicCompactionResponse(t, req, "compaction summary")
+			}
 			if !req.Stream {
-				if strings.Contains(body, "You are performing a context compaction") {
-					return anthropicCompactionResponse("compaction summary")
-				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
 			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("assistant answer")...)
@@ -6219,6 +6382,7 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 		name                 string
 		overrideModel        string
 		effort               string
+		keepsTools           bool
 		assertSummaryRequest func(t *testing.T, req *chattest.AnthropicRequest)
 	}{
 		{
@@ -6233,14 +6397,17 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			},
 		},
 		{
-			// 3276 is 0.8 (high) of the summary call's default 4096 max_tokens.
+			// High effort maps to 0.8 of the summary call's max_tokens
+			// (the remaining-window clamp; its exact value is pinned in
+			// the chatloop unit tests).
 			name:          "legacy budget-thinking override model",
 			overrideModel: "claude-haiku-4-5",
 			effort:        "high",
 			assertSummaryRequest: func(t *testing.T, req *chattest.AnthropicRequest) {
 				require.Empty(t, string(req.OutputConfig))
 				require.Contains(t, string(req.Thinking), `"type":"enabled"`)
-				require.Contains(t, string(req.Thinking), `"budget_tokens":3276`)
+				wantBudget := int64(float64(req.MaxTokens) * 0.8)
+				require.Contains(t, string(req.Thinking), fmt.Sprintf(`"budget_tokens":%d`, wantBudget))
 			},
 		},
 		{
@@ -6251,6 +6418,15 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				require.Contains(t, string(req.OutputConfig), `"effort":"low"`)
 				require.Contains(t, string(req.Thinking), `"type":"adaptive"`)
 			},
+		},
+		{
+			// Only an override resolving to the chat model itself shares
+			// its prompt cache, so only then do the tool definitions stay.
+			name:                 "override resolves to the chat model",
+			overrideModel:        chatModelName,
+			effort:               "low",
+			keepsTools:           true,
+			assertSummaryRequest: func(*testing.T, *chattest.AnthropicRequest) {},
 		},
 	}
 
@@ -6264,18 +6440,27 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			var streamCount atomic.Int32
 			anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 				body := anthropicRequestBody(t, *req)
-				if !req.Stream {
-					if strings.Contains(body, "You are performing a context compaction") {
-						require.Equal(t, tc.overrideModel, req.Model)
-						tc.assertSummaryRequest(t, req)
-						return anthropicCompactionResponse(compactionSummary)
+				if strings.Contains(body, "You are performing a context compaction") {
+					require.Equal(t, tc.overrideModel, req.Model)
+					if tc.keepsTools {
+						require.NotEmpty(t, req.Tools)
+					} else {
+						require.Empty(t, req.Tools, "a different model shares no prompt cache, so the summary carries no tool definitions")
 					}
+					tc.assertSummaryRequest(t, req)
+					return anthropicCompactionResponse(t, req, compactionSummary)
+				}
+				if !req.Stream {
 					return chattest.AnthropicNonStreamingResponse("title")
 				}
 				require.Equal(t, chatModelName, req.Model)
 				switch streamCount.Add(1) {
 				case 1:
-					return highUsageReadFileResponse("/tmp/a.txt")
+					// A large window keeps the summary cap clamp
+					// (limit minus usage and reserves) above the
+					// minimum legacy thinking budget so the effort
+					// mapping stays observable on the summary request.
+					return readFileResponseWithInputTokens("/tmp/a.txt", 80_000)
 				default:
 					require.Contains(t, body, compactionSummary)
 					require.Empty(t, string(req.OutputConfig),
@@ -6289,7 +6474,7 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				}
 			})
 			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
-			model = updateChatModelCompressionThreshold(t, db, model, 100, thresholdPercent)
+			model = updateChatModelCompressionThreshold(t, db, model, 100_000, thresholdPercent)
 			overrideModel := seedOverrideModel(ctx, t, db, model, tc.overrideModel, tc.effort, 1_000_000)
 			ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
@@ -6373,11 +6558,11 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 		var streamCount atomic.Int32
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				require.Equal(t, overrideModelName, req.Model)
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
 			if !req.Stream {
-				if strings.Contains(body, "You are performing a context compaction") {
-					require.Equal(t, overrideModelName, req.Model)
-					return anthropicCompactionResponse(compactionSummary)
-				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
 			switch streamCount.Add(1) {
@@ -11600,10 +11785,10 @@ func TestActiveServer_ChatTurnDebugRunRecordsMCPConnectOnDecisionError(t *testin
 	// terminally with the still-over-limit error.
 	var streamCount atomic.Int32
 	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		if strings.Contains(anthropicRequestBody(t, *req), "You are performing a context compaction") {
+			return anthropicCompactionResponse(t, req, "summary text for compaction")
+		}
 		if !req.Stream {
-			if strings.Contains(anthropicRequestBody(t, *req), "You are performing a context compaction") {
-				return anthropicCompactionResponse("summary text for compaction")
-			}
 			return chattest.AnthropicNonStreamingResponse("title")
 		}
 		if streamCount.Add(1) == 1 {

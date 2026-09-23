@@ -2596,6 +2596,8 @@ CREATE TABLE mcp_server_configs (
     organization_id uuid NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    signing_secret text DEFAULT ''::text NOT NULL,
+    signing_secret_key_id text,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
@@ -2770,7 +2772,9 @@ CREATE TABLE oauth2_provider_apps (
 
 COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
 
-COMMENT ON COLUMN oauth2_provider_apps.redirect_uris IS 'List of valid redirect URIs for the application';
+COMMENT ON COLUMN oauth2_provider_apps.callback_url IS 'Deprecated: the primary redirect URI is the first entry of redirect_uris. Every writer keeps this column equal to it until the column is dropped.';
+
+COMMENT ON COLUMN oauth2_provider_apps.redirect_uris IS 'Redirect URIs the authorize and token endpoints accept. The first entry is the primary, used when a request omits redirect_uri.';
 
 COMMENT ON COLUMN oauth2_provider_apps.client_type IS 'OAuth2 client type: confidential or public';
 
@@ -5281,6 +5285,9 @@ ALTER TABLE ONLY mcp_server_configs
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_signing_secret_key_id_fkey FOREIGN KEY (signing_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;

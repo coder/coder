@@ -1300,6 +1300,89 @@ func TestAIBridgeListSessions(t *testing.T) {
 	})
 }
 
+func TestAIBridgeListModels(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAIBridge: 1,
+			},
+		},
+	})
+
+	now := dbtime.Now()
+	endedAt := now.Add(time.Minute)
+	models := []string{
+		"us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+		`=HYPERLINK("http://insecure/","invoice")`,
+		"gpt-4",
+		"gpt_4",
+		"gpt%4",
+		`gpt\4`,
+	}
+	for _, model := range models {
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now,
+			Model:       model,
+		}, &endedAt)
+	}
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: firstUser.UserID,
+		StartedAt:   now,
+		Model:       "gpt-5",
+	}, nil)
+
+	t.Run("ModelMatchesLiterally", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		for _, model := range models {
+			got, err := client.AIBridgeListModels(ctx, codersdk.AIBridgeListModelsFilter{Model: model})
+			require.NoError(t, err, model)
+			require.Equal(t, []string{model}, got, model)
+		}
+	})
+
+	t.Run("ModelIsAPrefix", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		got, err := client.AIBridgeListModels(ctx, codersdk.AIBridgeListModelsFilter{Model: "gpt"})
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"gpt-4", "gpt_4", "gpt%4", `gpt\4`}, got)
+	})
+
+	t.Run("SearchQueryKeepsPatternMatching", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/models", nil, func(r *http.Request) {
+			r.URL.RawQuery = "q=gpt_4"
+		})
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		var got []string
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&got))
+		require.ElementsMatch(t, []string{"gpt-4", "gpt_4", "gpt%4", `gpt\4`}, got)
+	})
+
+	t.Run("RejectsSearchQueryWithModel", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/models", nil, func(r *http.Request) {
+			r.URL.RawQuery = "q=gpt&model=gpt"
+		})
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+}
+
 func TestAIBridgeListClients(t *testing.T) {
 	t.Parallel()
 
@@ -1358,6 +1441,14 @@ func TestAIBridgeListClients(t *testing.T) {
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,
+	}, &endedAt)
+
+	// Completed interception whose client is literally "Unknown". Must share
+	// the entry for the missing client rather than duplicate it.
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: firstUser.UserID,
+		StartedAt:   now,
+		Client:      sql.NullString{String: "Unknown", Valid: true},
 	}, &endedAt)
 
 	// Duplicate client. Should be deduplicated in results.

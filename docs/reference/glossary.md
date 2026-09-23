@@ -72,7 +72,8 @@ Refer to [Workspace scheduling](../admin/templates/managing-templates/schedule.m
 
 ### Built-in roles
 
-The predefined roles, including User Admin, Template Admin, Auditor, and Member, with progressively narrower permissions.
+The roles Coder predefines at two scopes.
+Deployment roles such as Owner, User Admin, Template Admin, and Auditor apply across the deployment, and [organization roles](#organization-roles) apply inside one organization.
 Refer to [Groups and roles](../admin/users/groups-roles.md).
 
 ## C
@@ -125,6 +126,12 @@ Refer to [Coder Desktop](../user-guides/desktop/index.md).
 The editor extension that connects VS Code, and forks such as Cursor and Devin Desktop (formerly Windsurf), to Coder workspaces.
 Refer to [VS Code](../user-guides/workspace-access/vscode.md).
 
+### `coder server`
+
+The CLI command that starts [`coderd`](#coderd).
+Use this name only for the command a reader runs, not as a name for the [control plane](#control-plane) itself.
+Refer to the [`coder server` reference](./cli/server.md).
+
 ### `coder_agent`
 
 The Terraform resource that declares a [workspace agent](#workspace-agent) inside a template.
@@ -147,8 +154,9 @@ Refer to the [`coder_script` resource](https://registry.terraform.io/providers/c
 
 ### `coderd`
 
-The Coder control plane server, started with `coder server`.
-It serves the dashboard and API, brokers connections to workspaces, and stores state in PostgreSQL.
+The process that runs the [control plane](#control-plane), started with [`coder server`](#coder-server).
+Use `coderd` for the process itself, such as in metric names, log output, configuration flags, and troubleshooting steps.
+Introduce it on first use in a page as "`coderd`, the process that runs the control plane".
 Refer to [Architecture](../admin/infrastructure/architecture.md).
 
 ### codersdk
@@ -177,12 +185,14 @@ Refer to [Connection logs](../admin/monitoring/connection-logs.md).
 
 ### Control plane
 
-The collective term for `coderd`, its provisioners, and its database.
-The control plane also runs the agent loop for [Coder Agents](#coder-agents).
+The component that serves the Coder API and dashboard, brokers connections to workspaces, and coordinates provisioners.
+It is implemented by the [`coderd`](#coderd) process and also runs the agent loop for [Coder Agents](#coder-agents).
+Use *control plane* in prose, diagrams, and any planning, sizing, architecture, or security discussion.
+Do not call it "the Coder server", and do not describe it generically as "a service".
 
 ### Custom roles
 
-Deployment-defined roles composed of specific RBAC actions.
+Roles an administrator defines inside an organization from a chosen set of permissions.
 This is a Premium feature.
 Refer to [Groups and roles](../admin/users/groups-roles.md).
 
@@ -345,6 +355,12 @@ Refer to [Provisioning with OpenTofu](../admin/integrations/opentofu.md).
 An isolation boundary for members, templates, provisioners, and quotas.
 Multi-organization support is a Premium feature.
 Refer to [Organizations](../admin/users/organizations.md).
+
+### Organization roles
+
+The [built-in roles](#built-in-roles) that apply inside a single organization, such as Organization Admin and Organization Template Admin.
+A user can hold different organization roles in each organization they belong to.
+Refer to [Organization roles](../admin/users/groups-roles.md#organization-roles).
 
 ### Owner
 
