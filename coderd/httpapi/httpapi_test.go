@@ -28,6 +28,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 func TestInternalServerError(t *testing.T) {
@@ -480,169 +482,121 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		}
 	})
 
+	newWebSocket := func(t *testing.T, ctx context.Context, watcher *httpapi.WSWatcher) (func(codersdk.ServerSentEvent) error, <-chan struct{}, *websocket.Conn) {
+		t.Helper()
+		type sender struct {
+			send func(codersdk.ServerSentEvent) error
+			done <-chan struct{}
+			err  error
+		}
+		ready := make(chan sender, 1)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			send, done, err := httpapi.OneWayWebSocketEventSender(testutil.Logger(t), watcher)(w, r.WithContext(ctx))
+			ready <- sender{send: send, done: done, err: err}
+			if err == nil {
+				<-done
+			}
+		}))
+		t.Cleanup(server.Close)
+		//nolint:bodyclose
+		client, _, err := websocket.Dial(ctx, server.URL, nil)
+		require.NoError(t, err)
+		s := testutil.RequireReceive(ctx, t, ready)
+		require.NoError(t, s.err)
+		t.Cleanup(func() {
+			_ = client.CloseNow()
+			testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, s.done)
+		})
+		return s.send, s.done, client
+	}
+
 	t.Run("Returned callback can publish new event to WebSocket connection", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		wsw := httpapi.NewWSWatcher(quartz.NewReal(), nil)
-
-		req := newBaseRequest(ctx)
-		writer := newOneWayWriter(t)
-		send, _, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil), wsw)(writer, req)
-		require.NoError(t, err)
+		wsw := httpapi.NewWSWatcher(quartz.NewMock(t), nil)
+		send, _, client := newWebSocket(t, ctx, wsw)
 
 		serverPayload := codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
 			Data: "Blah",
 		}
-		err = send(serverPayload)
-		require.NoError(t, err)
+		require.NoError(t, send(serverPayload))
 
-		// The client connection will receive a little bit of additional data on
-		// top of the main payload. Have to make sure check has tolerance for
-		// extra data being present
-		serverBytes, err := json.Marshal(serverPayload)
-		require.NoError(t, err)
-		clientBytes, err := io.ReadAll(writer.clientConn)
-		require.NoError(t, err)
-		require.True(t, bytes.Contains(clientBytes, serverBytes))
+		var clientPayload codersdk.ServerSentEvent
+		require.NoError(t, wsjson.Read(ctx, client, &clientPayload))
+		require.Equal(t, serverPayload, clientPayload)
 	})
 
 	t.Run("Signals to outside consumer when socket has been closed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
-		wsw := httpapi.NewWSWatcher(quartz.NewReal(), nil)
-		req := newBaseRequest(ctx)
-		writer := newOneWayWriter(t)
-		_, done, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil), wsw)(writer, req)
-		require.NoError(t, err)
-
-		successC := make(chan bool)
-		ticker := time.NewTicker(testutil.WaitShort)
-		go func() {
-			select {
-			case <-done:
-				successC <- true
-			case <-ticker.C:
-				successC <- false
-			}
-		}()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		requestCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		wsw := httpapi.NewWSWatcher(quartz.NewMock(t), nil)
+		_, done, client := newWebSocket(t, requestCtx, wsw)
+		client.CloseRead(ctx)
 
 		cancel()
-		require.True(t, <-successC)
+		testutil.TryReceive(ctx, t, done)
 	})
 
 	t.Run("Socket will immediately close if client sends any message", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		wsw := httpapi.NewWSWatcher(quartz.NewReal(), nil)
-		req := newBaseRequest(ctx)
-		writer := newOneWayWriter(t)
-		_, done, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil), wsw)(writer, req)
-		require.NoError(t, err)
+		wsw := httpapi.NewWSWatcher(quartz.NewMock(t), nil)
+		_, done, client := newWebSocket(t, ctx, wsw)
 
-		successC := make(chan bool)
-		ticker := time.NewTicker(testutil.WaitShort)
-		go func() {
-			select {
-			case <-done:
-				successC <- true
-			case <-ticker.C:
-				successC <- false
-			}
-		}()
-
-		type JunkClientEvent struct {
-			Value string
-		}
-		b, err := json.Marshal(JunkClientEvent{"Hi :)"})
-		require.NoError(t, err)
-		_, err = writer.clientConn.Write(b)
-		require.NoError(t, err)
-		require.True(t, <-successC)
+		require.NoError(t, client.Write(ctx, websocket.MessageText, []byte(`{"Value":"Hi :)"}`)))
+		_, _, err := client.Read(ctx)
+		require.Equal(t, websocket.StatusProtocolError, websocket.CloseStatus(err))
+		testutil.TryReceive(ctx, t, done)
 	})
 
 	t.Run("Renders the socket inert if the request context cancels", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
-		wsw := httpapi.NewWSWatcher(quartz.NewReal(), nil)
-		req := newBaseRequest(ctx)
-		writer := newOneWayWriter(t)
-		send, done, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil), wsw)(writer, req)
-		require.NoError(t, err)
-
-		successC := make(chan bool)
-		ticker := time.NewTicker(testutil.WaitShort)
-		go func() {
-			select {
-			case <-done:
-				successC <- true
-			case <-ticker.C:
-				successC <- false
-			}
-		}()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		requestCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		wsw := httpapi.NewWSWatcher(quartz.NewMock(t), nil)
+		send, done, client := newWebSocket(t, requestCtx, wsw)
+		clientClosed := client.CloseRead(ctx)
 
 		cancel()
-		require.True(t, <-successC)
-		err = send(codersdk.ServerSentEvent{
+		testutil.TryReceive(ctx, t, done)
+		err := send(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
 			Data: "Didn't realize you were closed - sorry! I'll try coming back tomorrow.",
 		})
-		require.Equal(t, err, ctx.Err())
+		require.ErrorIs(t, err, requestCtx.Err())
 		_, open := <-done
 		require.False(t, open)
-		_, err = writer.serverConn.Write([]byte{})
-		require.Equal(t, err, io.ErrClosedPipe)
-		_, err = writer.clientConn.Read([]byte{})
-		require.Equal(t, err, io.EOF)
+		testutil.TryReceive(ctx, t, clientClosed.Done())
+		require.Error(t, client.Write(ctx, websocket.MessageText, nil))
 	})
 
 	t.Run("Sends a heartbeat to the socket on a fixed internal of time to keep connections alive", func(t *testing.T) {
 		t.Parallel()
 
-		// Need add at least three heartbeats for something to be reliably
-		// counted as an interval, but also need some wiggle room
-		heartbeatCount := 3
-		hbDuration := time.Duration(heartbeatCount) * httpapi.HeartbeatInterval
-		timeout := hbDuration + (5 * time.Second)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().NewTicker("WSWatcher")
+		defer trap.Close()
+		probes := make(chan httpapi.ProbeResult, 3)
+		wsw := httpapi.NewWSWatcher(mClock, func(_ context.Context, result httpapi.ProbeResult) {
+			probes <- result
+		})
+		_, _, client := newWebSocket(t, ctx, wsw)
+		client.CloseRead(ctx)
+		trap.MustWait(ctx).MustRelease(ctx)
 
-		ctx := testutil.Context(t, timeout)
-		wsw := httpapi.NewWSWatcher(quartz.NewReal(), nil)
-		req := newBaseRequest(ctx)
-		writer := newOneWayWriter(t)
-		_, _, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil), wsw)(writer, req)
-		require.NoError(t, err)
-
-		type Result struct {
-			Err     error
-			Success bool
+		for range 3 {
+			mClock.Advance(httpapi.HeartbeatInterval).MustWait(ctx)
+			require.Equal(t, httpapi.ProbeOK, testutil.RequireReceive(ctx, t, probes))
 		}
-		resultC := make(chan Result)
-		go func() {
-			err := writer.
-				clientConn.
-				SetReadDeadline(time.Now().Add(timeout))
-			if err != nil {
-				resultC <- Result{err, false}
-				return
-			}
-			for range heartbeatCount {
-				pingBuffer := make([]byte, 1)
-				pingSize, err := writer.clientConn.Read(pingBuffer)
-				if err != nil || pingSize != 1 {
-					resultC <- Result{err, false}
-					return
-				}
-			}
-			resultC <- Result{nil, true}
-		}()
-
-		result := <-resultC
-		require.NoError(t, result.Err)
-		require.True(t, result.Success)
 	})
 }
 
