@@ -97,19 +97,3 @@ export const FilterBySubmenu: Story = {
 		await userEvent.click(menu.getByRole("menuitem", { name: /Filter by/ }));
 	},
 };
-
-export const FilterBySearch: Story = {
-	args: {
-		filters: activeFilters,
-	},
-	play: async ({ canvasElement }) => {
-		const menu = await openMenu(canvasElement);
-		await userEvent.click(menu.getByRole("menuitem", { name: /Filter by/ }));
-		await userEvent.type(
-			await within(document.body).findByRole("textbox", {
-				name: "Search filters",
-			}),
-			"pr",
-		);
-	},
-};

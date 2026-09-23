@@ -1,8 +1,7 @@
 import { cn } from "cn";
 import { CheckIcon, ListFilterIcon, RotateCcwIcon, XIcon } from "lucide-react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
-import type { ComponentProps, FC, KeyboardEvent, ReactNode } from "react";
-import { useState } from "react";
+import type { ComponentProps, FC, ReactNode } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import {
@@ -17,7 +16,6 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { menuItemClass } from "#/components/DropdownMenu/menuClasses";
-import { SearchField } from "#/components/SearchField/SearchField";
 import {
 	AGENT_ARCHIVE_STATUS_ORDER,
 	AGENT_CHAT_ATTRIBUTE_ORDER,
@@ -141,14 +139,6 @@ const keepMenuOpen = (event: Event) => {
 	event.preventDefault();
 };
 
-// Radix menus use typeahead on printable keys, which would steal focus
-// from the search input while typing.
-const stopTypeahead = (event: KeyboardEvent<HTMLDivElement>) => {
-	if (event.key.length === 1) {
-		event.stopPropagation();
-	}
-};
-
 type AdvancedFilterOption = Readonly<{
 	key: string;
 	label: string;
@@ -199,14 +189,6 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 	filters,
 	onFiltersChange,
 }) => {
-	const [optionSearch, setOptionSearch] = useState("");
-
-	const handleOpenChange = (open: boolean) => {
-		if (!open) {
-			setOptionSearch("");
-		}
-	};
-
 	const setGroupBy = (value: string) => {
 		if (isGroupBy(value)) {
 			onFiltersChange({ ...filters, groupBy: value });
@@ -294,13 +276,9 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 	const selectedAdvancedOptions = advancedOptions.filter(
 		(option) => option.checked,
 	);
-	const normalizedOptionSearch = optionSearch.trim().toLowerCase();
-	const visibleAdvancedOptions = advancedOptions.filter((option) =>
-		option.label.toLowerCase().includes(normalizedOptionSearch),
-	);
 
 	return (
-		<DropdownMenu onOpenChange={handleOpenChange}>
+		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button
 					variant="subtle"
@@ -436,32 +414,16 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 						<DropdownMenuSubContent
 							className={cn(MOBILE_MENU_CLASS, "w-64 p-1")}
 						>
-							<div onKeyDown={stopTypeahead} className="p-1">
-								<SearchField
-									value={optionSearch}
-									onChange={setOptionSearch}
-									placeholder="Search..."
-									aria-label="Search filters"
-									className="h-8 [&_input]:h-8 [&_input]:text-sm [&_svg]:size-4"
-								/>
-							</div>
-							<div className="max-h-72 overflow-y-auto">
-								{visibleAdvancedOptions.map((option) => (
-									<MultiSelectMenuItem
-										key={option.key}
-										checked={option.checked}
-										onCheckedChange={option.setChecked}
-										onSelect={keepMenuOpen}
-									>
-										{option.label}
-									</MultiSelectMenuItem>
-								))}
-								{visibleAdvancedOptions.length === 0 && (
-									<p className="m-0 px-2 py-3 text-sm text-content-secondary">
-										No filters found
-									</p>
-								)}
-							</div>
+							{advancedOptions.map((option) => (
+								<MultiSelectMenuItem
+									key={option.key}
+									checked={option.checked}
+									onCheckedChange={option.setChecked}
+									onSelect={keepMenuOpen}
+								>
+									{option.label}
+								</MultiSelectMenuItem>
+							))}
 						</DropdownMenuSubContent>
 					</DropdownMenuSub>
 
