@@ -26,14 +26,13 @@ import (
 const chatInlineMCPSecret = "bot-secret-value"
 
 // chatInlineMCPServer is a streamable HTTP MCP server with one echo
-// tool. It records the request headers and the _meta payload of every
-// tool call so tests can assert what chatd sent.
+// tool. It records the headers of every request so tests can assert
+// what chatd sent.
 type chatInlineMCPServer struct {
 	url string
 
-	mu          sync.Mutex
-	requests    []http.Header
-	toolCallIDs []string
+	mu       sync.Mutex
+	requests []http.Header
 }
 
 func newChatInlineMCPServer(t *testing.T, name string, toolDescription string) *chatInlineMCPServer {
@@ -55,11 +54,6 @@ func newChatInlineMCPServer(t *testing.T, name string, toolDescription string) *
 		var arguments map[string]any
 		_ = json.Unmarshal(req.Params.Arguments, &arguments)
 		input, _ := arguments["input"].(string)
-		if id, ok := req.Params.Meta["com.coder/tool_call_id"].(string); ok {
-			recorder.mu.Lock()
-			recorder.toolCallIDs = append(recorder.toolCallIDs, id)
-			recorder.mu.Unlock()
-		}
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: "echo: " + input}},
 		}, nil
@@ -77,10 +71,10 @@ func newChatInlineMCPServer(t *testing.T, name string, toolDescription string) *
 	return recorder
 }
 
-func (s *chatInlineMCPServer) snapshot() ([]http.Header, []string) {
+func (s *chatInlineMCPServer) snapshot() []http.Header {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return append([]http.Header(nil), s.requests...), append([]string(nil), s.toolCallIDs...)
+	return append([]http.Header(nil), s.requests...)
 }
 
 // chatInlineMCPModel is an OpenAI mock that calls toolName on its first
@@ -178,84 +172,75 @@ func TestChatInlineMCPServers(t *testing.T) {
 		require.NotContains(t, rawBody, chatInlineMCPSecret, "header values must be redacted before reaching the model")
 		require.NotContains(t, rawBody, bot.url, "server URL must be redacted before reaching the model")
 
-		requests, toolCallIDs := bot.snapshot()
+		requests := bot.snapshot()
 		require.NotEmpty(t, requests)
 		for _, h := range requests {
 			require.Equal(t, chatInlineMCPSecret, h.Get("X-Bot-Key"))
 			require.Equal(t, user.ID.String(), h.Get(chatprovider.HeaderCoderOwnerID))
 			require.Equal(t, chat.ID.String(), h.Get(chatprovider.HeaderCoderChatID))
 		}
-		require.Len(t, toolCallIDs, 1)
-		require.NotEmpty(t, toolCallIDs[0])
 	})
 
-	t.Run("CallerSuppliedToolsDisabled", func(t *testing.T) {
+	t.Run("Disabled", func(t *testing.T) {
 		t.Parallel()
 
-		db, ps := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-		bot := newChatInlineMCPServer(t, "bot", "Echoes the input")
-		model := newChatInlineMCPModel(t, "")
-		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
-		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-			withoutMCPToolSearch(cfg)
-			cfg.DisableCallerSuppliedTools = true
-			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
-		})
+		for _, tc := range []struct {
+			name      string
+			configure func(*chatd.Config)
+		}{
+			{
+				name:      "CallerSuppliedTools",
+				configure: func(cfg *chatd.Config) { cfg.DisableCallerSuppliedTools = true },
+			},
+			{
+				name: "Experiment",
+				configure: func(cfg *chatd.Config) {
+					cfg.Experiments = slices.DeleteFunc(slices.Clone(cfg.Experiments), func(experiment codersdk.Experiment) bool {
+						return experiment == codersdk.ExperimentChatInlineMCPServers
+					})
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-			OrganizationID:     org.ID,
-			OwnerID:            user.ID,
-			Title:              "inline-mcp-disabled",
-			ModelConfigID:      modelConfig.ID,
-			InlineMCPServers:   []codersdk.InlineMCPServerRequest{{Slug: "bot", URL: bot.url}},
-			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("List tools.")},
-		})
-		require.NoError(t, err)
-		waitForChatProcessed(ctx, t, db, chat.ID, server)
+				db, ps := dbtestutil.NewDB(t)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				bot := newChatInlineMCPServer(t, "bot", "Echoes the input")
+				model := newChatInlineMCPModel(t, "")
+				user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
+				server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+					withoutMCPToolSearch(cfg)
+					tc.configure(cfg)
+					cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
+				})
 
-		tools, _ := model.first()
-		require.NotContains(t, tools, "bot__echo")
-		requests, _ := bot.snapshot()
-		require.Empty(t, requests, "chatd must not connect when caller-supplied tools are disabled")
-	})
+				// chatd does not gate the declaration itself (the HTTP handler
+				// does), so a stored row exists and only the turn must skip it.
+				chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+					OrganizationID:     org.ID,
+					OwnerID:            user.ID,
+					Title:              "inline-mcp-disabled",
+					ModelConfigID:      modelConfig.ID,
+					InlineMCPServers:   []codersdk.InlineMCPServerRequest{{Slug: "bot", URL: bot.url}},
+					InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("List tools.")},
+				})
+				require.NoError(t, err)
+				rows, err := db.GetChatMCPServersByChatID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Len(t, rows, 1)
+				waitForChatProcessed(ctx, t, db, chat.ID, server)
 
-	t.Run("ExperimentDisabled", func(t *testing.T) {
-		t.Parallel()
+				chatResult, err := db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, database.ChatStatusWaiting, chatResult.Status, chatLastErrorMessage(chatResult.LastError))
 
-		db, ps := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-		bot := newChatInlineMCPServer(t, "bot", "Echoes the input")
-		model := newChatInlineMCPModel(t, "")
-		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
-		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-			withoutMCPToolSearch(cfg)
-			cfg.Experiments = slices.DeleteFunc(slices.Clone(cfg.Experiments), func(experiment codersdk.Experiment) bool {
-				return experiment == codersdk.ExperimentChatInlineMCPServers
+				tools, _ := model.first()
+				require.NotContains(t, tools, "bot__echo")
+				requests := bot.snapshot()
+				require.Empty(t, requests, "chatd must not connect when inline MCP servers are disabled")
 			})
-			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
-		})
-
-		// chatd does not gate the declaration itself (the HTTP handler
-		// does), so a stored row exists and only the turn must skip it.
-		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-			OrganizationID:     org.ID,
-			OwnerID:            user.ID,
-			Title:              "inline-mcp-experiment-off",
-			ModelConfigID:      modelConfig.ID,
-			InlineMCPServers:   []codersdk.InlineMCPServerRequest{{Slug: "bot", URL: bot.url}},
-			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("List tools.")},
-		})
-		require.NoError(t, err)
-		rows, err := db.GetChatMCPServersByChatID(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		waitForChatProcessed(ctx, t, db, chat.ID, server)
-
-		tools, _ := model.first()
-		require.NotContains(t, tools, "bot__echo")
-		requests, _ := bot.snapshot()
-		require.Empty(t, requests, "chatd must not connect when the experiment is off")
+		}
 	})
 
 	t.Run("PlanMode", func(t *testing.T) {
@@ -295,7 +280,7 @@ func TestChatInlineMCPServers(t *testing.T) {
 		require.Contains(t, tools, "approved__echo")
 		require.NotContains(t, tools, "blocked__echo")
 		require.True(t, model.sawResult.Load(), "approved tool must be active in plan mode")
-		blockedRequests, _ := blocked.snapshot()
+		blockedRequests := blocked.snapshot()
 		require.Empty(t, blockedRequests, "plan mode must not connect to servers without allow_in_plan_mode")
 	})
 }

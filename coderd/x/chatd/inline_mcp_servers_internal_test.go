@@ -3,12 +3,13 @@ package chatd
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -23,11 +24,23 @@ func TestInlineMCPServerHeaderValueMinimum(t *testing.T) {
 func TestLoadInlineMCPServers(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-	ctx := chatdTestContext(t)
+	db, _ := dbtestutil.NewDB(t)
+	server := &Server{db: db, logger: slogtest.Make(t, nil)}
 	user, org, model := seedInternalChatDeps(t, db)
-	root := createInternalParentChat(ctx, t, server, db, org.ID, user.ID, model.ID, "chat-mcp-root")
+	newChat := func(chat database.Chat) database.Chat {
+		chat.OrganizationID = org.ID
+		chat.OwnerID = user.ID
+		chat.LastModelConfigID = model.ID
+		return dbgen.Chat(t, db, chat)
+	}
+	root := newChat(database.Chat{})
+	rootRef := uuid.NullUUID{UUID: root.ID, Valid: true}
+	child := newChat(database.Chat{ParentChatID: rootRef, RootChatID: rootRef})
+	exploreChild := newChat(database.Chat{
+		ParentChatID: rootRef,
+		RootChatID:   rootRef,
+		Mode:         database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true},
+	})
 
 	shared := dbgen.ChatMCPServer(t, db, database.ChatMCPServer{
 		ChatID:           root.ID,
@@ -90,9 +103,6 @@ func TestLoadInlineMCPServers(t *testing.T) {
 		t.Parallel()
 
 		ctx := chatdTestContext(t)
-		child, err := server.createChildSubagentChatWithOptions(ctx, root, "delegate work", "", childSubagentChatOptions{})
-		require.NoError(t, err)
-
 		servers, failures := server.loadInlineMCPServers(ctx, child)
 		require.Empty(t, failures, "the bad row is root-only, so a child never reads it")
 		require.Len(t, servers, 1)
@@ -103,12 +113,7 @@ func TestLoadInlineMCPServers(t *testing.T) {
 		t.Parallel()
 
 		ctx := chatdTestContext(t)
-		child, err := server.createChildSubagentChatWithOptions(ctx, root, "inspect", "", childSubagentChatOptions{
-			chatMode: database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true},
-		})
-		require.NoError(t, err)
-
-		servers, failures := server.loadInlineMCPServers(ctx, child)
+		servers, failures := server.loadInlineMCPServers(ctx, exploreChild)
 		require.Empty(t, failures)
 		require.Empty(t, servers)
 	})

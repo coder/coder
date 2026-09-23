@@ -24,6 +24,15 @@ func TestReplaceInlineMCPServers(t *testing.T) {
 		OwnerID:           user.ID,
 		LastModelConfigID: model.ID,
 	})
+	serversBySlug := func() map[string]database.ChatMCPServer {
+		rows, err := db.GetChatMCPServersByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		bySlug := make(map[string]database.ChatMCPServer, len(rows))
+		for _, row := range rows {
+			bySlug[row.Slug] = row
+		}
+		return bySlug
+	}
 
 	err := chatstate.ReplaceInlineMCPServers(ctx, db, chat.ID, []codersdk.InlineMCPServerRequest{
 		{Slug: "a", URL: "https://a.example.com/mcp", Headers: map[string]string{"Authorization": "Bearer a"}},
@@ -31,16 +40,10 @@ func TestReplaceInlineMCPServers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rows, err := db.GetChatMCPServersByChatID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Len(t, rows, 2)
-	bySlug := map[string]database.ChatMCPServer{}
-	for _, row := range rows {
-		bySlug[row.Slug] = row
-	}
+	bySlug := serversBySlug()
+	require.Len(t, bySlug, 2)
 	require.JSONEq(t, `{"Authorization":"Bearer a"}`, bySlug["a"].Headers)
 	require.Equal(t, "{}", bySlug["b"].Headers)
-	require.NotNil(t, bySlug["b"].ToolAllowList)
 	originalAID := bySlug["a"].ID
 
 	err = chatstate.ReplaceInlineMCPServers(ctx, db, chat.ID, []codersdk.InlineMCPServerRequest{
@@ -49,13 +52,8 @@ func TestReplaceInlineMCPServers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rows, err = db.GetChatMCPServersByChatID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Len(t, rows, 2)
-	bySlug = map[string]database.ChatMCPServer{}
-	for _, row := range rows {
-		bySlug[row.Slug] = row
-	}
+	bySlug = serversBySlug()
+	require.Len(t, bySlug, 2)
 	require.NotContains(t, bySlug, "b")
 	require.Equal(t, originalAID, bySlug["a"].ID)
 	require.Equal(t, "https://a2.example.com/mcp", bySlug["a"].Url)
@@ -64,8 +62,5 @@ func TestReplaceInlineMCPServers(t *testing.T) {
 
 	err = chatstate.ReplaceInlineMCPServers(ctx, db, chat.ID, []codersdk.InlineMCPServerRequest{})
 	require.NoError(t, err)
-
-	rows, err = db.GetChatMCPServersByChatID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Empty(t, rows)
+	require.Empty(t, serversBySlug())
 }

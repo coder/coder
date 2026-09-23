@@ -90,6 +90,13 @@ func TestValidateInlineMCPServers(t *testing.T) {
 			wantDetail: "private or reserved",
 		},
 		{
+			name:       "PrivateIPOutsideAllowlist",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: "https://10.0.0.1/mcp"}},
+			allowed:    loopbackAllowed,
+			wantField:  "inline_mcp_servers[0].url",
+			wantDetail: "private or reserved",
+		},
+		{
 			name:       "HTTPHostname",
 			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: "http://mcp.example.com"}},
 			allowed:    loopbackAllowed,
