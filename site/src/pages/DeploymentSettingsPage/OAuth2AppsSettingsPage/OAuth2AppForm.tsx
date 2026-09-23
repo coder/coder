@@ -7,7 +7,11 @@ import * as Yup from "yup";
 import { getErrorMessage } from "#/api/errors";
 import { getExternalScopes } from "#/api/queries/oauth2";
 import type * as TypesGen from "#/api/typesGenerated";
-import { OAuth2AppNameMaxBytes } from "#/api/typesGenerated";
+import {
+	OAuth2AppNameMaxBytes,
+	OAuth2RedirectURIMaxBytes,
+	OAuth2RedirectURIsMaxCount,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -19,23 +23,35 @@ import { MultiSelectCombobox } from "#/components/MultiSelectCombobox/MultiSelec
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { getFormHelpers, iconValidator } from "#/utils/formUtils";
+import { RedirectURIsField } from "./components/RedirectURIsField";
 
 type OAuth2AppFormValues = {
 	name: string;
-	callback_url: string;
+	redirect_uris: string[];
 	icon: string;
 	scope: string[];
 };
 
-// The create page sends this as a POST and the edit page as a PUT, so it has
-// to satisfy both request types, and a field added to either is a type error
-// here rather than a silently missing field.
-type OAuth2AppFormRequest = TypesGen.PostOAuth2ProviderAppRequest &
-	TypesGen.PutOAuth2ProviderAppRequest;
+// A create always sends the redirect URI list. An update may leave it out,
+// so the two modes submit different request types.
+type OAuth2AppFormSubmit =
+	| {
+			app?: undefined;
+			onSubmit: (
+				data: TypesGen.PostOAuth2ProviderAppRequest,
+			) => void | Promise<void>;
+	  }
+	| {
+			app: TypesGen.OAuth2ProviderApp;
+			onSubmit: (
+				data: TypesGen.PutOAuth2ProviderAppRequest,
+			) => void | Promise<void>;
+	  };
 
-type OAuth2AppFormProps = {
-	app?: TypesGen.OAuth2ProviderApp;
-	onSubmit: (data: OAuth2AppFormRequest) => void | Promise<void>;
+type OAuth2AppFormProps = OAuth2AppFormSubmit & {
+	// Passed on its own because the create page has no app yet. The client
+	// type decides which redirect URI rules apply.
+	clientType: TypesGen.OAuth2ClientType;
 	error?: unknown;
 	isUpdating: boolean;
 	defaultValues?: Partial<OAuth2AppFormValues>;
@@ -104,6 +120,50 @@ const isValidCallbackURL = (
 	}
 };
 
+const redirectURIsSchema = (isPublicClient: boolean) =>
+	Yup.array()
+		.of(
+			Yup.string()
+				.trim()
+				.test(
+					"redirect-uri-byte-length",
+					`A redirect URI cannot be longer than ${OAuth2RedirectURIMaxBytes} UTF-8 bytes.`,
+					(value) =>
+						new TextEncoder().encode(value).length <= OAuth2RedirectURIMaxBytes,
+				)
+				.test(
+					"valid-redirect-uri",
+					"Please enter a valid redirect URI.",
+					(value) => isValidCallbackURL(value, isPublicClient),
+				),
+		)
+		// The server also deduplicates on save, so without this the form
+		// would submit a URI it never actually saved and mislead the user.
+		.test(
+			"unique-redirect-uri",
+			"This redirect URI is already used by another row.",
+			function (uris) {
+				const seen = new Set<string>();
+				const errors: Yup.ValidationError[] = [];
+				for (const [index, uri] of (uris ?? []).entries()) {
+					const trimmed = uri?.trim();
+					if (!trimmed) {
+						continue;
+					}
+					if (seen.has(trimmed)) {
+						errors.push(this.createError({ path: `${this.path}[${index}]` }));
+					}
+					seen.add(trimmed);
+				}
+				return errors.length === 0 || new Yup.ValidationError(errors);
+			},
+		)
+		.min(1, "At least one redirect URI is required.")
+		.max(
+			OAuth2RedirectURIsMaxCount,
+			`At most ${OAuth2RedirectURIsMaxCount} redirect URIs are allowed.`,
+		);
+
 const validationSchema = (isPublicClient: boolean) =>
 	Yup.object({
 		name: Yup.string()
@@ -115,63 +175,91 @@ const validationSchema = (isPublicClient: boolean) =>
 				(value) =>
 					new TextEncoder().encode(value).length <= OAuth2AppNameMaxBytes,
 			),
-		callback_url: Yup.string()
-			.trim()
-			.required("Please enter a callback URL.")
-			.test(
-				"valid-callback-url",
-				"Please enter a valid callback URL.",
-				(value) => isValidCallbackURL(value, isPublicClient),
-			),
+		redirect_uris: redirectURIsSchema(isPublicClient),
 		icon: iconValidator,
 	});
 
+// app and onSubmit stay together in submit so that checking app also
+// narrows the type of onSubmit.
 export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
-	app,
-	onSubmit,
+	clientType,
 	error,
 	isUpdating,
 	defaultValues,
 	disabled,
 	onIconChange,
+	...submit
 }) => {
+	const { app } = submit;
 	const didSubmit = useRef(false);
-	const isPublicClient = app?.client_type === "public";
-	// A stored callback that no longer passes validation disables Update on
-	// load. Show its error right away instead of waiting for the field to be
+	const isPublicClient = clientType === "public";
+	// A stored list that no longer passes validation disables Update on load.
+	// Show its errors right away instead of waiting for the field to be
 	// touched, so the admin can see what to correct.
-	const storedCallbackInvalid =
-		app !== undefined && !isValidCallbackURL(app.callback_url, isPublicClient);
+	const storedRedirectURIsInvalid =
+		app !== undefined &&
+		!redirectURIsSchema(isPublicClient).isValidSync(app.redirect_uris);
 	const form = useFormik<OAuth2AppFormValues>({
 		initialValues: {
 			name: app?.name ?? defaultValues?.name ?? "",
-			callback_url: app?.callback_url ?? defaultValues?.callback_url ?? "",
+			redirect_uris: app
+				? [...app.redirect_uris]
+				: defaultValues?.redirect_uris?.length
+					? [...defaultValues.redirect_uris]
+					: [""],
 			icon: app?.icon ?? defaultValues?.icon ?? "",
 			scope:
 				app?.scope.split(" ").filter(Boolean) ?? defaultValues?.scope ?? [],
 		},
-		initialTouched: storedCallbackInvalid ? { callback_url: true } : undefined,
+		initialTouched: storedRedirectURIsInvalid
+			? { redirect_uris: true }
+			: undefined,
 		validationSchema: validationSchema(isPublicClient),
 		validateOnMount: true,
-		onSubmit: async ({ scope: selectedScopes, ...values }) => {
+		onSubmit: async ({
+			scope: selectedScopes,
+			redirect_uris: enteredRedirectURIs,
+			...values
+		}) => {
 			didSubmit.current = true;
+			const redirectURIs = enteredRedirectURIs.map((uri) => uri.trim());
 			const scope = selectedScopes.join(" ");
 			// An untouched allowlist is left out of updates rather than echoed
 			// back. The form cannot round-trip a stored list exactly: a whitespace
 			// only list grants nothing but would resend as "" and lift the
 			// restriction, and a legacy list may exceed the current size limits.
 			const scopeChanged = !app || scope !== form.initialValues.scope.join(" ");
-			await onSubmit({
+			const request = {
 				...values,
 				name: values.name.trim(),
-				callback_url: values.callback_url.trim(),
 				...(scopeChanged ? { scope } : {}),
-			});
+			};
+			if (submit.app === undefined) {
+				await submit.onSubmit({ ...request, redirect_uris: redirectURIs });
+				return;
+			}
+			// An untouched list is also left out, so a copy loaded before another
+			// admin changed the list does not overwrite their change.
+			const stored = submit.app.redirect_uris;
+			const redirectURIsChanged =
+				redirectURIs.length !== stored.length ||
+				redirectURIs.some((uri, index) => uri !== stored[index]);
+			await submit.onSubmit(
+				redirectURIsChanged
+					? { ...request, redirect_uris: redirectURIs }
+					: request,
+			);
 		},
 	});
 	const scopesQuery = useQuery(getExternalScopes());
 	const getFieldHelpers = getFormHelpers(form, error);
 	const iconField = getFieldHelpers("icon");
+	const redirectURIsField = getFieldHelpers("redirect_uris");
+	const redirectURIsErrors = form.errors.redirect_uris;
+	const redirectURIsRowErrors =
+		form.touched.redirect_uris && Array.isArray(redirectURIsErrors)
+			? redirectURIsErrors
+			: undefined;
 	const formDisabled = disabled || isUpdating;
 	const editing = Boolean(app);
 	const submitDisabled =
@@ -201,6 +289,30 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 		onIconChange?.(value);
 	};
 
+	const handleRedirectURIsChange = (values: string[]) => {
+		void form.setFieldValue("redirect_uris", values);
+		// Removing the last row disables Update without a blur event to mark
+		// the field touched, so the required-URI message never shows. Mark it
+		// touched here (skipping its own validate call, since setFieldValue
+		// above already triggers one) only for that case, since doing this on
+		// every keystroke would race with the blur-triggered validateForm below.
+		if (values.length === 0) {
+			void form.setFieldTouched("redirect_uris", true, false);
+		}
+	};
+	// Touched is set on blur rather than on every keystroke. Setting it in
+	// handleRedirectURIsChange as well would fire a second concurrent
+	// validateForm per keystroke; Formik does not guarantee those resolve in
+	// order, so the result of an earlier keystroke can overwrite the latest.
+	const handleRedirectURIsBlur = () => {
+		void form.setFieldTouched("redirect_uris", true);
+	};
+	// The overall-list message (min/max count, or a server validation error)
+	// is shown once below the rows; a per-row message is shown on its row
+	// instead, so this excludes the case where Yup reports one message per row.
+	const showRedirectURIsListError =
+		redirectURIsField.error && !Array.isArray(redirectURIsErrors);
+
 	return (
 		<Form onSubmit={form.handleSubmit}>
 			<FormFields>
@@ -213,13 +325,21 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 					autoFocus
 					required
 				/>
-				<FormField
-					field={getFieldHelpers("callback_url")}
-					label="Callback URL"
-					description="The full URL to redirect to after a user authorizes an installation."
-					disabled={formDisabled}
-					required
-				/>
+				<div className="flex flex-col gap-2">
+					<RedirectURIsField
+						values={form.values.redirect_uris}
+						onChange={handleRedirectURIsChange}
+						onBlur={handleRedirectURIsBlur}
+						disabled={formDisabled}
+						isPublicClient={isPublicClient}
+						errors={redirectURIsRowErrors}
+					/>
+					{showRedirectURIsListError && (
+						<span className="text-xs text-content-destructive">
+							{redirectURIsField.helperText}
+						</span>
+					)}
+				</div>
 				<div className="flex flex-col gap-2">
 					<Label htmlFor="icon">Icon</Label>
 					<div className="text-xs text-content-secondary">
