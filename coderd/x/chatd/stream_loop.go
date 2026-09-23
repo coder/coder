@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -154,12 +155,7 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 			if err != nil {
 				return xerrors.Errorf("get changed chat messages: %w", err)
 			}
-			for _, msg := range snapshot.changedMessages {
-				if msg.Deleted {
-					snapshot.historyReset = true
-					break
-				}
-			}
+			snapshot.historyReset = l.historyResetRequired(snapshot.changedMessages)
 			if snapshot.historyReset {
 				snapshot.fullHistory, err = tx.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 					ChatID:  l.chatID,
@@ -201,6 +197,34 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		return streamDBSnapshot{}, err
 	}
 	return snapshot, nil
+}
+
+// historyResetRequired reports whether changed contains a deleted message the
+// client may still display. On the initial sync with an after_id, the client
+// holds history up to the revision of message after_id, so only a deletion
+// above that revision, or the deletion or absence of message after_id itself,
+// requires a reset. Revisions increase monotonically per chat.
+func (l *streamLoop) historyResetRequired(changed []database.ChatMessage) bool {
+	hasDeleted := slices.ContainsFunc(changed, func(msg database.ChatMessage) bool {
+		return msg.Deleted
+	})
+	if !hasDeleted {
+		return false
+	}
+	if l.state.initialMessageSyncDone || l.state.afterMessageID <= 0 {
+		return true
+	}
+
+	idx := slices.IndexFunc(changed, func(msg database.ChatMessage) bool {
+		return msg.ID == l.state.afterMessageID
+	})
+	if idx < 0 || changed[idx].Deleted {
+		return true
+	}
+	horizon := changed[idx].Revision
+	return slices.ContainsFunc(changed, func(msg database.ChatMessage) bool {
+		return msg.Deleted && msg.Revision > horizon
+	})
 }
 
 func (*streamLoop) actionRequiredFromHistory(chat database.Chat, messages []database.ChatMessage) (*codersdk.ChatStreamActionRequired, error) {
@@ -319,6 +343,10 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 
 	events := make([]codersdk.ChatStreamEvent, 0, len(snapshot.changedMessages))
 	for _, msg := range snapshot.changedMessages {
+		// Deleted rows are not sent as message events.
+		if msg.Deleted {
+			continue
+		}
 		knownRevision := l.state.knownMessages[msg.ID]
 		if knownRevision >= msg.Revision {
 			continue
