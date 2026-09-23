@@ -1,16 +1,12 @@
 import { infiniteQueryOptions, type QueryClient } from "react-query";
 import { API } from "#/api/api";
 import {
-	cancelChatListRefetches,
-	cancelLoadedChatEntityRefetch,
 	chatListFamilyKey,
 	getChatListQueryString,
 	invalidateChatEntity,
 	invalidateChatListQueries,
-	invalidateChatSearches,
 	patchChatEntity,
 	toChatListParams,
-	updateChatTitle,
 	updateInfiniteChatsCache,
 } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
@@ -50,7 +46,25 @@ const allChats = async (): Promise<Chat[]> => {
 export const boardChats = () =>
 	infiniteQueryOptions({
 		queryKey: boardChatsKey,
-		queryFn: allChats,
+		queryFn: async ({ client }) => {
+			const chats = await allChats();
+			const pending = client.isMutating({
+				predicate: (m) => m.options.scope?.id === boardWriteScope.id,
+			});
+			if (!pending) return chats;
+			// Queued writes are built from the cached labels, and the response
+			// may predate them. The refetch after the queue drains syncs them.
+			const cached = new Map(
+				client
+					.getQueryData<{ pages: Chat[][] }>(boardChatsKey)
+					?.pages.flat()
+					.map((chat) => [chat.id, chat.labels]),
+			);
+			return chats.map((chat) => {
+				const labels = cached.get(chat.id);
+				return labels ? { ...chat, labels } : chat;
+			});
+		},
 		initialPageParam: 0,
 		getNextPageParam: () => undefined,
 		refetchOnWindowFocus: true,
@@ -66,18 +80,7 @@ type UpdateChatLabelsVariables = {
 
 // Board writes run one at a time in call order, so a map built before a
 // newer write cannot land after it. onMutate still patches at once.
-const boardWriteScope = { id: "chat-board-write" };
-
-// The list is refetched only after the last board write: a response that
-// predates a pending write would replace its optimistic patch. The settling
-// write still counts as pending, and the scope settles one at a time.
-const settleBoardWrite = (queryClient: QueryClient, chatId: string) => {
-	const pending = queryClient.isMutating({
-		predicate: (m) => m.options.scope?.id === boardWriteScope.id,
-	});
-	if (pending === 1) void invalidateChatListQueries(queryClient);
-	void invalidateChatEntity(queryClient, chatId);
-};
+export const boardWriteScope = { id: "chat-board-write" };
 
 // Labels replace the whole map server-side, so callers pass the complete
 // desired map. The caches are patched before the request so board drags
@@ -99,15 +102,7 @@ export const updateChatLabels = (queryClient: QueryClient) => ({
 		return API.experimental.updateChat(chatId, { labels });
 	},
 
-	onMutate: async ({ chatId, labels }: UpdateChatLabelsVariables) => {
-		// A list refetch already in flight carries pre-write labels. If it lands
-		// after the patch below it replaces the list, the board reverts, and
-		// the next write on this chat is built from the stale map. Initial loads
-		// and pagination fetches are left alone by these helpers.
-		await Promise.all([
-			cancelChatListRefetches(queryClient),
-			cancelLoadedChatEntityRefetch(queryClient, chatId),
-		]);
+	onMutate: ({ chatId, labels }: UpdateChatLabelsVariables) => {
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) => (chat.id === chatId ? { ...chat, labels } : chat)),
 		);
@@ -120,21 +115,8 @@ export const updateChatLabels = (queryClient: QueryClient) => ({
 		_data: unknown,
 		_error: unknown,
 		{ chatId }: UpdateChatLabelsVariables,
-	) => settleBoardWrite(queryClient, chatId),
-});
-
-// The stock title mutation refetches the list on settle unconditionally,
-// which would replace the optimistic labels of writes still queued behind
-// it.
-export const updateBoardChatTitle = (queryClient: QueryClient) => ({
-	...updateChatTitle(queryClient),
-	scope: boardWriteScope,
-	onSettled: (
-		_data: unknown,
-		_error: unknown,
-		{ chatId }: { chatId: string },
 	) => {
-		settleBoardWrite(queryClient, chatId);
-		void invalidateChatSearches(queryClient);
+		void invalidateChatListQueries(queryClient);
+		void invalidateChatEntity(queryClient, chatId);
 	},
 });

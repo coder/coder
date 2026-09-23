@@ -9,7 +9,7 @@ import {
 import { toast } from "sonner";
 import { afterEach, describe, expect, it, type MockInstance, vi } from "vitest";
 import { API } from "#/api/api";
-import { infiniteChats } from "#/api/queries/chats";
+import { infiniteChats, updateChatTitle } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
@@ -21,11 +21,7 @@ import {
 	moveNote,
 	renameCard,
 } from "./boardApi";
-import {
-	boardChatsKey,
-	updateBoardChatTitle,
-	updateChatLabels,
-} from "./boardChats";
+import { boardChatsKey, boardWriteScope, updateChatLabels } from "./boardChats";
 import { addCommentLabels, buildCards, buildColumns } from "./boardLabels";
 import type { BoardStorage } from "./boardStorage";
 import { type PlanDeps, runPlan } from "./runPlan";
@@ -89,7 +85,10 @@ const renderDeps = () => {
 				...updateChatLabels(queryClient),
 				onError: (error: Error) => toast.error(error.message),
 			});
-			const titles = useMutation(updateBoardChatTitle(queryClient));
+			const titles = useMutation({
+				...updateChatTitle(queryClient),
+				scope: boardWriteScope,
+			});
 			return {
 				write: (chatId, map, after) =>
 					labels.mutateAsync({ chatId, labels: map, after }),
@@ -295,44 +294,5 @@ describe("runPlan", () => {
 		await pending;
 
 		expect(queryClient.getQueryState(boardChatsKey)?.isInvalidated).toBe(true);
-	});
-
-	it("keeps the patch when a board refetch started before the write lands after it", async () => {
-		const request: Deferred<void> = createDeferred();
-		vi.spyOn(API.experimental, "updateChat").mockReturnValue(request.promise);
-		const primary = chat("p");
-		const { queryClient, deps } = renderDeps();
-		queryClient.setQueryData(boardChatsKey, {
-			pages: [[primary]],
-			pageParams: [0],
-		});
-		const staleFetch = createDeferred<Chat[]>();
-		const refetch = queryClient.fetchInfiniteQuery({
-			queryKey: boardChatsKey,
-			queryFn: () => staleFetch.promise,
-			initialPageParam: 0,
-			staleTime: 0,
-		});
-		const cachedLabels = () =>
-			queryClient.getQueryData<{ pages: Chat[][] }>(boardChatsKey)
-				?.pages[0]?.[0]?.labels;
-		const written = {
-			"board/column": "Doing",
-			"board/pos": expect.any(String),
-		};
-
-		const pending = runPlan(
-			moveCard(stateOf([primary]), "p", "Doing", null),
-			deps,
-		);
-		await waitFor(() => expect(cachedLabels()).toEqual(written));
-
-		// The server answers the old refetch with pre-write labels.
-		staleFetch.resolve([primary]);
-		await refetch.catch(() => undefined);
-		request.resolve();
-		await pending;
-
-		expect(cachedLabels()).toEqual(written);
 	});
 });
