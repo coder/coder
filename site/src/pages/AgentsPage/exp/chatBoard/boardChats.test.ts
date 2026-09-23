@@ -10,7 +10,12 @@ import {
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
-import { boardChats, boardChatsKey, updateChatLabels } from "./boardChats";
+import {
+	boardChats,
+	boardChatsKey,
+	updateBoardChatTitle,
+	updateChatLabels,
+} from "./boardChats";
 
 const chat = (id: string, labels: Record<string, string> = {}): Chat => ({
 	...MockChat,
@@ -25,11 +30,18 @@ const write = (
 	queryClient: QueryClient,
 	chatId: string,
 	after?: Promise<unknown>,
+	labels: Record<string, string> = { "board/column": "Doing" },
 ) =>
 	new MutationObserver(queryClient, {
 		...updateChatLabels(queryClient),
 		retry: false,
-	}).mutate({ chatId, labels: { "board/column": "Doing" }, after });
+	}).mutate({ chatId, labels, after });
+
+const rename = (queryClient: QueryClient, chatId: string, title: string) =>
+	new MutationObserver(queryClient, {
+		...updateBoardChatTitle(queryClient),
+		retry: false,
+	}).mutate({ chatId, title });
 
 const listInvalidations = (
 	invalidate: MockInstance<QueryClient["invalidateQueries"]>,
@@ -118,21 +130,38 @@ describe("boardChats", () => {
 		expect(invalidate).toHaveBeenCalledTimes(3);
 	});
 
-	it("invalidates the list when two writes settle in the same tick", async () => {
-		const first = createDeferred<void>();
-		const second = createDeferred<void>();
-		vi.spyOn(API.experimental, "updateChat").mockImplementation((chatId) =>
-			chatId === "a" ? first.promise : second.promise,
-		);
+	it("sends board writes to the server one at a time in call order", async () => {
+		const requests: Array<ReturnType<typeof createDeferred<void>>> = [];
+		const spy = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockImplementation(() => {
+				const request = createDeferred<void>();
+				requests.push(request);
+				return request.promise;
+			});
 		const queryClient = new QueryClient();
-		const invalidate = vi.spyOn(queryClient, "invalidateQueries");
 
-		const writes = [write(queryClient, "a"), write(queryClient, "b")];
-		first.resolve();
-		second.resolve();
+		// A transfer (source gated on the receiver), a later source write,
+		// and a rename.
+		const received = write(queryClient, "r", undefined, { "board/n": "1" });
+		const writes = [
+			received,
+			write(queryClient, "s", received, {}),
+			write(queryClient, "s", undefined, { "board/column": "Done" }),
+			rename(queryClient, "s", "Renamed"),
+		];
+		const expected = [
+			["r", { labels: { "board/n": "1" } }],
+			["s", { labels: {} }],
+			["s", { labels: { "board/column": "Done" } }],
+			["s", { title: "Renamed" }],
+		];
+		for (let i = 0; i < expected.length; i++) {
+			await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(i + 1));
+			expect(spy.mock.calls).toEqual(expected.slice(0, i + 1));
+			requests[i].resolve();
+		}
 		await Promise.all(writes);
-
-		expect(listInvalidations(invalidate)).toBe(1);
 	});
 
 	it("sends no request for a write whose gate rejected", async () => {

@@ -9,7 +9,7 @@ import {
 import { toast } from "sonner";
 import { afterEach, describe, expect, it, type MockInstance, vi } from "vitest";
 import { API } from "#/api/api";
-import { infiniteChats, updateChatTitle } from "#/api/queries/chats";
+import { infiniteChats } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
@@ -21,7 +21,11 @@ import {
 	moveNote,
 	renameCard,
 } from "./boardApi";
-import { boardChatsKey, updateChatLabels } from "./boardChats";
+import {
+	boardChatsKey,
+	updateBoardChatTitle,
+	updateChatLabels,
+} from "./boardChats";
 import { addCommentLabels, buildCards, buildColumns } from "./boardLabels";
 import type { BoardStorage } from "./boardStorage";
 import { type PlanDeps, runPlan } from "./runPlan";
@@ -85,7 +89,7 @@ const renderDeps = () => {
 				...updateChatLabels(queryClient),
 				onError: (error: Error) => toast.error(error.message),
 			});
-			const titles = useMutation(updateChatTitle(queryClient));
+			const titles = useMutation(updateBoardChatTitle(queryClient));
 			return {
 				write: (chatId, map, after) =>
 					labels.mutateAsync({ chatId, labels: map, after }),
@@ -195,7 +199,7 @@ describe("runPlan", () => {
 			chat("a", { "board/pos": "200", ...addCommentLabels({}, "one", 1) }),
 			chat("b", { "board/pos": "100" }),
 		]);
-		const { deps } = renderDeps();
+		const { queryClient, deps } = renderDeps();
 
 		const pending = runPlan(moveNote(state, "a", 0, "b", null), deps);
 		await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
@@ -203,6 +207,9 @@ describe("runPlan", () => {
 		receiver.reject(new Error("too many labels"));
 
 		await expect(pending).resolves.toBe(false);
+		// The plan resolves on the receiver's rejection; the queued sources
+		// run after it.
+		await waitFor(() => expect(queryClient.isMutating()).toBe(0));
 		expect(spy).toHaveBeenCalledTimes(1);
 		expect(toast.error).toHaveBeenCalledWith("too many labels");
 		expect(toast).not.toHaveBeenCalled();
