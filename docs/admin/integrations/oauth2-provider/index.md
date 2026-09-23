@@ -53,9 +53,13 @@ Turning the provider off does not invalidate access tokens it already issued.
 Those tokens keep authenticating to the regular Coder API while the OAuth2 refresh and revocation endpoints return 404.
 Treat the setting as a way to stop new authorizations rather than as a way to revoke access, and revoke the tokens or delete the application before you disable the provider.
 
-## Creating OAuth2 Applications
+## Create OAuth2 applications
 
-### Method 1: Web UI
+<a id="creating-oauth2-applications"></a>
+
+### Create an application in the web UI
+
+<a id="method-1-web-ui"></a>
 
 1. Navigate to **Deployment Settings** > **OAuth2 Applications**.
 2. On the **Applications** tab, select **Add application**.
@@ -67,7 +71,9 @@ Treat the setting as a way to stop new authorizations rather than as a way to re
 
 Coder creates the application and takes you to its details page, which prompts you to generate a client secret.
 
-### Method 2: Management API
+### Create an application with the API
+
+<a id="method-2-management-api"></a>
 
 Create an application using the Coder API:
 
@@ -119,7 +125,7 @@ curl -X POST \
 
 The response includes `client_secret_full`, the plaintext secret. Save it now: later reads of this application return only a truncated version.
 
-Every client, whichever method you used to create its application, must complete PKCE to exchange a code for a token; refer to [PKCE Flow](./integration-patterns.md#pkce-flow-required) before you start integrating.
+Every client, whichever method you used to create its application, must complete PKCE (Proof Key for Code Exchange) to exchange a code for a token; refer to [PKCE Flow](./integration-patterns.md#pkce-flow-required) before you start integrating.
 
 ## Dynamic Client Registration
 

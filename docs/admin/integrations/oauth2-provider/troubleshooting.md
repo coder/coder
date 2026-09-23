@@ -27,7 +27,7 @@ blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`). The same cause
 answers `server_error` on `POST /oauth2/authorize`. Use
 `GET /api/v2/oauth2-provider/apps/{app}` to see every registered redirect
 URI, then update the application with a corrected `redirect_uris` list as
-shown under [Management API](./index.md#method-2-management-api). Refer to
+shown under [Management API](./index.md#create-an-application-with-the-api). Refer to
 [Callback URL schemes](./callback-url-schemes.md) for which values are accepted.
 
 The `coderd` log records the application ID and the stored value. The response
@@ -72,7 +72,7 @@ dropped. Authorize again to negotiate a scope it still supports; the stored
 scope is not something the client can change by requesting a different one.
 
 The exchange also re-checks the code's scope against the application's
-registered `scope`, which can change during the ten minutes a code stays valid.
+registered `scope`, which can change during the 10 minutes a code stays valid.
 Two more descriptions can open the `error_description` here:
 
 - `scope is no longer allowed by this app's registered scopes`: the allowlist narrowed after the code was issued and no longer covers the code's scope.
@@ -95,7 +95,7 @@ token keeps its granted scope until it expires, which can be up to the
 configured refresh lifetime; revoke the token to cut a live session.
 
 Codes issued before the upgrade that added scope columns carry `coder:all`, recorded as an unrestricted grant.
-For an application with a narrower `scope` allowlist, those codes are refused with `scope is no longer allowed by this app's registered scopes` until they expire, which takes at most ten minutes.
+For an application with a narrower `scope` allowlist, those codes are refused with `scope is no longer allowed by this app's registered scopes` until they expire, which takes at most 10 minutes.
 Authorizing again issues a code within the current allowlist.
 
 ### "invalid_scope" for a refresh that names a scope
