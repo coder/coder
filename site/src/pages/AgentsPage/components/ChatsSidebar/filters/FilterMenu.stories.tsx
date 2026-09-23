@@ -53,7 +53,6 @@ const activeFilters: AgentSidebarFilters = {
 	timeRange: "30d",
 	prStatuses: ["draft", "open"],
 	chatStatuses: ["unread"],
-	attributes: ["shared_with_me", "shared_with_others"],
 };
 
 export const Defaults: Story = {

@@ -100,7 +100,6 @@ const defaultSidebarFilters: AgentSidebarFilters = {
 	chatStatuses: ["unread", "read"],
 	sources: ["created_by_me", "shared_with_me"],
 	timeRange: "all",
-	attributes: [],
 };
 
 const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
@@ -340,15 +339,6 @@ describe("ChatsSidebar filters", () => {
 			prStatuses: ["open"],
 		});
 
-		await user.click(
-			screen.getByRole("menuitemcheckbox", { name: "Has an error" }),
-		);
-
-		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
-			...defaultSidebarFilters,
-			attributes: ["has_error"],
-		});
-
 		await user.click(screen.getByRole("menuitemcheckbox", { name: "Unread" }));
 
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
@@ -364,7 +354,6 @@ describe("ChatsSidebar filters", () => {
 						...defaultSidebarFilters,
 						prStatuses: ["open"],
 						chatStatuses: ["unread"],
-						attributes: ["has_error"],
 					}}
 					onSidebarFiltersChange={onSidebarFiltersChange}
 				/>
@@ -379,7 +368,6 @@ describe("ChatsSidebar filters", () => {
 			...defaultSidebarFilters,
 			prStatuses: [],
 			chatStatuses: ["unread"],
-			attributes: ["has_error"],
 		});
 
 		await user.click(
@@ -389,7 +377,6 @@ describe("ChatsSidebar filters", () => {
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
 			...defaultSidebarFilters,
 			prStatuses: ["open"],
-			attributes: ["has_error"],
 		});
 	});
 
@@ -408,7 +395,6 @@ describe("ChatsSidebar filters", () => {
 						chatStatuses: ["unread"],
 						sources: ["shared_with_me"],
 						timeRange: "7d",
-						attributes: ["shared_with_others"],
 					}}
 					onSidebarFiltersChange={onSidebarFiltersChange}
 				/>

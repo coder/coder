@@ -18,12 +18,10 @@ import {
 import { menuItemClass } from "#/components/DropdownMenu/menuClasses";
 import {
 	AGENT_ARCHIVE_STATUS_ORDER,
-	AGENT_CHAT_ATTRIBUTE_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
 	AGENT_PR_STATUS_ORDER,
 	AGENT_TIME_RANGE_ORDER,
 	type AgentArchiveStatusFilter,
-	type AgentChatAttributeFilter,
 	type AgentPRStatusFilter,
 	type AgentSidebarFilters,
 	type AgentSidebarGroupBy,
@@ -73,12 +71,6 @@ const TIME_RANGE_LABELS: Record<AgentTimeRangeFilter, string> = {
 	all: "All",
 };
 
-const ATTRIBUTE_LABELS: Record<AgentChatAttributeFilter, string> = {
-	shared_with_me: "Shared with me",
-	shared_with_others: "Shared with others",
-	has_error: "Has an error",
-};
-
 const PR_STATUS_LABELS: Record<AgentPRStatusFilter, string> = {
 	draft: "PR: draft",
 	open: "PR: open",
@@ -124,7 +116,6 @@ const hasActiveFilters = (filters: AgentSidebarFilters): boolean => {
 		filters.groupBy !== DEFAULT_AGENT_SIDEBAR_FILTERS.groupBy ||
 		filters.timeRange !== DEFAULT_AGENT_SIDEBAR_FILTERS.timeRange ||
 		filters.prStatuses.length > 0 ||
-		filters.attributes.length > 0 ||
 		!haveSameSelections(
 			filters.chatStatuses,
 			DEFAULT_AGENT_SIDEBAR_FILTERS.chatStatuses,
@@ -212,24 +203,6 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 		}
 	};
 
-	const setAttribute = (
-		attribute: AgentChatAttributeFilter,
-		checked: boolean,
-	) => {
-		const selected = new Set(filters.attributes);
-		if (checked) {
-			selected.add(attribute);
-		} else {
-			selected.delete(attribute);
-		}
-		onFiltersChange({
-			...filters,
-			attributes: AGENT_CHAT_ATTRIBUTE_ORDER.filter((value) =>
-				selected.has(value),
-			),
-		});
-	};
-
 	const setPRStatus = (status: AgentPRStatusFilter, checked: boolean) => {
 		const selected = new Set(filters.prStatuses);
 		if (checked) {
@@ -251,12 +224,6 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 	};
 
 	const advancedOptions: readonly AdvancedFilterOption[] = [
-		...AGENT_CHAT_ATTRIBUTE_ORDER.map((attribute) => ({
-			key: `attribute-${attribute}`,
-			label: ATTRIBUTE_LABELS[attribute],
-			checked: filters.attributes.includes(attribute),
-			setChecked: (checked: boolean) => setAttribute(attribute, checked),
-		})),
 		{
 			key: "unread",
 			label: "Unread",

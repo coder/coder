@@ -21,11 +21,6 @@ export const AGENT_TIME_RANGE_ORDER = [
 	"30d",
 	"all",
 ] as const;
-export const AGENT_CHAT_ATTRIBUTE_ORDER = [
-	"shared_with_me",
-	"shared_with_others",
-	"has_error",
-] as const;
 
 export type AgentArchiveStatusFilter =
 	(typeof AGENT_ARCHIVE_STATUS_ORDER)[number];
@@ -34,12 +29,10 @@ export type AgentPRStatusFilter = ChatListPRStatusFilter;
 export type AgentSidebarGroupBy = "date" | "chat_status";
 export type AgentSourceFilter = (typeof AGENT_SOURCE_ORDER)[number];
 export type AgentTimeRangeFilter = (typeof AGENT_TIME_RANGE_ORDER)[number];
-export type AgentChatAttributeFilter =
-	(typeof AGENT_CHAT_ATTRIBUTE_ORDER)[number];
 
 /**
- * `timeRange` and `attributes` are URL state only; the chats search API has
- * no matching terms, so they are not applied to the chat list query.
+ * `timeRange` is URL state only; the chats search API has no matching term,
+ * so it is not applied to the chat list query.
  */
 export type AgentSidebarFilters = Readonly<{
 	archiveStatus: AgentArchiveStatusFilter;
@@ -48,7 +41,6 @@ export type AgentSidebarFilters = Readonly<{
 	chatStatuses: readonly AgentChatStatusFilter[];
 	sources: readonly AgentSourceFilter[];
 	timeRange: AgentTimeRangeFilter;
-	attributes: readonly AgentChatAttributeFilter[];
 }>;
 
 type AgentSidebarFiltersResult = readonly [
@@ -63,7 +55,6 @@ export const DEFAULT_AGENT_SIDEBAR_FILTERS: AgentSidebarFilters = {
 	chatStatuses: AGENT_CHAT_STATUS_ORDER,
 	sources: ["created_by_me", "shared_with_me"],
 	timeRange: "all",
-	attributes: [],
 };
 
 const clearSidebarFilterParams = (searchParams: URLSearchParams) => {
@@ -73,7 +64,6 @@ const clearSidebarFilterParams = (searchParams: URLSearchParams) => {
 	searchParams.delete("chat_status");
 	searchParams.delete("source");
 	searchParams.delete("time_range");
-	searchParams.delete("attributes");
 };
 
 const isTimeRange = (value: string): value is AgentTimeRangeFilter =>
@@ -113,10 +103,6 @@ const writeSidebarFilters = (
 	if (filters.timeRange !== DEFAULT_AGENT_SIDEBAR_FILTERS.timeRange) {
 		searchParams.set("time_range", filters.timeRange);
 	}
-
-	if (filters.attributes.length > 0) {
-		searchParams.set("attributes", filters.attributes.join(","));
-	}
 };
 
 export const getAgentSidebarFilters = (
@@ -139,12 +125,6 @@ export const getAgentSidebarFilters = (
 		rawSources.includes(source),
 	);
 	const rawTimeRange = searchParams.get("time_range") ?? "";
-	const rawAttributes = (searchParams.get("attributes") ?? "")
-		.split(",")
-		.filter(Boolean);
-	const attributes = AGENT_CHAT_ATTRIBUTE_ORDER.filter((attribute) =>
-		rawAttributes.includes(attribute),
-	);
 
 	const filters: AgentSidebarFilters = {
 		archiveStatus:
@@ -163,7 +143,6 @@ export const getAgentSidebarFilters = (
 		timeRange: isTimeRange(rawTimeRange)
 			? rawTimeRange
 			: DEFAULT_AGENT_SIDEBAR_FILTERS.timeRange,
-		attributes,
 	};
 
 	const setFilters = (next: AgentSidebarFilters) => {

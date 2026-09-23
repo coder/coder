@@ -13,7 +13,6 @@ const defaultFilters: AgentSidebarFilters = {
 	chatStatuses: ["unread", "read"],
 	sources: ["created_by_me", "shared_with_me"],
 	timeRange: "all",
-	attributes: [],
 };
 
 const archivedFilters: AgentSidebarFilters = {
@@ -23,7 +22,6 @@ const archivedFilters: AgentSidebarFilters = {
 	chatStatuses: ["unread"],
 	sources: ["created_by_me"],
 	timeRange: "7d",
-	attributes: ["shared_with_me", "has_error"],
 };
 
 const renderFilters = (route = "/agents") => {
@@ -63,12 +61,11 @@ describe(getAgentSidebarFilters.name, () => {
 			},
 		},
 		{
-			name: "parses time_range and attributes, dropping unknown values",
-			route: "/agents?time_range=15d&attributes=has_error,bogus,shared_with_me",
+			name: "parses time_range",
+			route: "/agents?time_range=15d",
 			expected: {
 				...defaultFilters,
 				timeRange: "15d",
-				attributes: ["shared_with_me", "has_error"],
 			},
 		},
 		{
@@ -91,7 +88,7 @@ describe(getAgentSidebarFilters.name, () => {
 
 	it("omits default values when writing filters", async () => {
 		const { result, getLocationSnapshot } = await renderFilters(
-			"/agents?archived=archived&group_by=chat_status&pr_status=draft&chat_status=unread&time_range=1d&attributes=has_error",
+			"/agents?archived=archived&group_by=chat_status&pr_status=draft&chat_status=unread&time_range=1d",
 		);
 
 		act(() => {
@@ -106,7 +103,6 @@ describe(getAgentSidebarFilters.name, () => {
 		expect(search.get("chat_status")).toEqual(null);
 		expect(search.get("source")).toEqual(null);
 		expect(search.get("time_range")).toEqual(null);
-		expect(search.get("attributes")).toEqual(null);
 	});
 
 	it("writes archived status filter", async () => {
@@ -145,6 +141,5 @@ describe(getAgentSidebarFilters.name, () => {
 		expect(search.get("chat_status")).toBe("unread");
 		expect(search.get("source")).toBe("created_by_me");
 		expect(search.get("time_range")).toBe("7d");
-		expect(search.get("attributes")).toBe("shared_with_me,has_error");
 	});
 });
