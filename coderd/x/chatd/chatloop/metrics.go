@@ -3,6 +3,7 @@ package chatloop
 import (
 	"context"
 	"errors"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/prometheus/client_golang/prometheus"
@@ -22,7 +23,66 @@ const (
 	CompactionResultSuccess = "success"
 	CompactionResultError   = "error"
 	CompactionResultTimeout = "timeout"
+
+	// Label values for StageAnomaliesTotal.
+	// StageAnomalyNegativeElapsed is a stage whose measured duration
+	// was negative and was not observed.
+	StageAnomalyNegativeElapsed = "negative_elapsed"
+	// StageAnomalyInvertedWindow is a stage reconstructed from
+	// timestamps whose end preceded its start and was not observed.
+	StageAnomalyInvertedWindow = "inverted_window"
+	// StageAnomalyMissingTimestamp is a stage reconstructed from
+	// timestamps one of which was unset, and was not observed.
+	StageAnomalyMissingTimestamp = "missing_timestamp"
+	// StageAnomalyFutureStart is a stage whose explicit start was ahead
+	// of this replica's clock; the span was started now instead.
+	StageAnomalyFutureStart = "future_start"
+	// StageAnomalyStaleAnchor is a turn whose trigger timestamp did not
+	// follow the previous turn's anchor on the same runner; the anchor
+	// was clamped to the previous one.
+	StageAnomalyStaleAnchor = "stale_anchor"
 )
+
+// observedStages is the set of stages observed into
+// StageDurationSeconds. It holds the wait, connect, model-call, tool,
+// and commit stages; the stages that only describe chatd's own work
+// inside a step (generation_step, prepare, thinking, compaction) are
+// span-only.
+var observedStages = map[Stage]struct{}{
+	StageChatTurn:         {},
+	StageQueueWait:        {},
+	StageCapacityWait:     {},
+	StageAcquisition:      {},
+	StageMCPConnect:       {},
+	StageStream:           {},
+	StageTimeToFirstToken: {},
+	StageProviderAttempt:  {},
+	StageToolCall:         {},
+	StageCommit:           {},
+	StageRetryBackoff:     {},
+}
+
+// modelStages is the set of stages observed into
+// ModelStageDurationSeconds: the stages whose duration is the
+// provider's work on a model.
+var modelStages = map[Stage]struct{}{
+	StageTimeToFirstToken: {},
+	StageStream:           {},
+	StageProviderAttempt:  {},
+}
+
+// stageDurationBuckets are the edges of both stage histograms, dense
+// between 100ms and 10s and sparse out to an hour.
+var stageDurationBuckets = []float64{0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 300, 1800, 3600}
+
+// MetricsOptions configures which optional metric families NewMetrics
+// registers.
+type MetricsOptions struct {
+	// StageMetrics registers the chat lifecycle stage families. When
+	// false they are still constructed, against no registerer, so every
+	// recorder can be called; they never appear in a scrape.
+	StageMetrics bool
+}
 
 // Metrics holds Prometheus metrics for the chatd subsystem.
 type Metrics struct {
@@ -33,6 +93,9 @@ type Metrics struct {
 	ToolResultTruncatedTotal  *prometheus.CounterVec
 	ToolErrorsTotal           *prometheus.CounterVec
 	TTFTSeconds               *prometheus.HistogramVec
+	StageDurationSeconds      *prometheus.HistogramVec
+	ModelStageDurationSeconds *prometheus.HistogramVec
+	StageAnomaliesTotal       *prometheus.CounterVec
 	CompactionTotal           *prometheus.CounterVec
 	StepsTotal                *prometheus.CounterVec
 	StreamRetriesTotal        *prometheus.CounterVec
@@ -43,9 +106,19 @@ type Metrics struct {
 }
 
 // NewMetrics creates a new Metrics instance registered with the
-// given registerer.
+// given registerer, with the stage metric families enabled.
 func NewMetrics(reg prometheus.Registerer) *Metrics {
+	return NewMetricsWithOptions(reg, MetricsOptions{StageMetrics: true})
+}
+
+// NewMetricsWithOptions creates a new Metrics instance registered with
+// the given registerer.
+func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metrics {
 	factory := promauto.With(reg)
+	stageFactory := factory
+	if !opts.StageMetrics {
+		stageFactory = promauto.With(nil)
+	}
 	return &Metrics{
 		Chats: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: metricsNamespace,
@@ -93,6 +166,26 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Help:      "Time-to-first-token: wall time from LLM request to first streamed chunk.",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		}, []string{"provider", "model"}),
+		StageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "stage_duration_seconds",
+			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap, so this is a stage-time profile, not a partition of the turn. scope separates stages inside a chat turn from detached background work; chat_kind is empty without a known chat. Observed: chat_turn, queue_wait, capacity_wait, acquisition, mcp_connect, stream, time_to_first_token, provider_attempt, tool_call, commit, retry_backoff; other stages are span-only. Registered only with the chat-stage-metrics experiment.",
+			Buckets:   stageDurationBuckets,
+		}, []string{"stage", "scope", "chat_kind"}),
+		ModelStageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "model_stage_duration_seconds",
+			Help:      "Wall time of the stages that are a provider's work on a model: time_to_first_token (request open to first content part, successful windows only), stream (open to close), and provider_attempt (one HTTP round trip, closed on response headers). Also observed on stage_duration_seconds. provider_type is the configured AI provider type (for example bedrock), not the wire protocol other chatd metrics report as provider. Registered only with the chat-stage-metrics experiment.",
+			Buckets:   stageDurationBuckets,
+		}, []string{"stage", "provider_type", "chat_kind", "model"}),
+		StageAnomaliesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "stage_anomalies_total",
+			Help:      "Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed and inverted_window (end before start, clock skew), missing_timestamp (unset start or end), future_start (start ahead of this replica's clock, span started now), stale_anchor (turn anchor clamped to the previous turn's anchor). Registered only with the chat-stage-metrics experiment.",
+		}, []string{"reason"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -143,6 +236,42 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 // Useful for tests and when metrics collection is not desired.
 func NopMetrics() *Metrics {
 	return NewMetrics(prometheus.NewRegistry())
+}
+
+// RecordStageDuration observes one chat lifecycle stage duration.
+// chatKind is empty when the stage was recorded without a known chat.
+// Stages outside observedStages are dropped silently; negative
+// durations of observed stages are dropped and counted as an anomaly.
+// Stages in modelStages whose model is known are additionally observed
+// on ModelStageDurationSeconds. No-op when m is nil.
+func (m *Metrics) RecordStageDuration(stage Stage, scope Scope, chatKind ChatKind, model StageModel, elapsed time.Duration) {
+	if m == nil {
+		return
+	}
+	if _, ok := observedStages[stage]; !ok {
+		return
+	}
+	if elapsed < 0 {
+		m.RecordStageAnomaly(StageAnomalyNegativeElapsed)
+		return
+	}
+	seconds := elapsed.Seconds()
+	m.StageDurationSeconds.WithLabelValues(string(stage), string(scope), string(chatKind)).Observe(seconds)
+	if model.Model == "" {
+		return
+	}
+	if _, modelStage := modelStages[stage]; modelStage {
+		m.ModelStageDurationSeconds.WithLabelValues(string(stage), model.ProviderType, string(chatKind), model.Model).Observe(seconds)
+	}
+}
+
+// RecordStageAnomaly counts a stage observation that was dropped, by
+// reason. No-op when m is nil.
+func (m *Metrics) RecordStageAnomaly(reason string) {
+	if m == nil {
+		return
+	}
+	m.StageAnomaliesTotal.WithLabelValues(reason).Inc()
 }
 
 // RecordCompaction classifies and records a compaction attempt.
