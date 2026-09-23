@@ -1,12 +1,12 @@
 import { cn } from "cn";
 import type { FC, ReactNode } from "react";
 
-interface SidebarGroupProps {
+type SidebarGroupProps = {
 	label: string;
 	/** Whether this group contains the current route. */
 	active?: boolean;
 	children: ReactNode;
-}
+};
 
 /**
  * Always-expanded group of sidebar links under a static heading. The

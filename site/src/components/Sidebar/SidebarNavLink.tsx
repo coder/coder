@@ -2,12 +2,12 @@ import { cn } from "cn";
 import type { FC, ReactNode } from "react";
 import { NavLink } from "react-router";
 
-interface SidebarNavLinkProps {
+type SidebarNavLinkProps = {
 	href: string;
 	children: ReactNode;
 	/** Match the route exactly instead of by prefix. */
 	end?: boolean;
-}
+};
 
 /**
  * Leaf link inside a SidebarGroup, hanging off its connecting line.

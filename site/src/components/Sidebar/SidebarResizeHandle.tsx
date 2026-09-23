@@ -12,22 +12,22 @@ import { COLLAPSED_WIDTH, EXPANDED_WIDTH } from "./useSidebarResize";
 /** Pointer travel in px below which a press and release counts as a click. */
 const CLICK_DEAD_ZONE = 3;
 
-interface DragState {
+type DragState = {
 	startX: number;
 	startLeft: number;
 	/** Whether the pointer has left the click dead zone. */
 	moved: boolean;
 	/** Width last previewed on the container. */
 	width: number;
-}
+};
 
-interface SidebarResizeHandleProps {
+type SidebarResizeHandleProps = {
 	/** The sidebar column whose width the drag previews live. */
 	containerRef: RefObject<HTMLElement | null>;
 	collapsed: boolean;
 	onCollapse: () => void;
 	onExpand: () => void;
-}
+};
 
 /**
  * Hit area on the sidebar's right edge that reveals a 2px line on hover,

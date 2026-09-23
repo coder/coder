@@ -16,17 +16,17 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-interface WorkspaceSettingsLink {
+type WorkspaceSettingsLink = {
 	label: string;
 	/** Route segment under the settings base, empty for the index page. */
 	segment: string;
 	visible: boolean;
-}
+};
 
-interface WorkspaceSettingsGroup {
+type WorkspaceSettingsGroup = {
 	label: string;
 	items: WorkspaceSettingsLink[];
-}
+};
 
 /** Pinned header for the workspace settings sidebar. */
 export const WorkspaceSettingsSidebarHeader: FC = () => (
@@ -35,11 +35,11 @@ export const WorkspaceSettingsSidebarHeader: FC = () => (
 	</SidebarHeader>
 );
 
-interface WorkspaceSettingsSidebarViewProps {
+type WorkspaceSettingsSidebarViewProps = {
 	workspace: Workspace;
 	/** Sharing is only offered to users who can share the workspace. */
 	canShareWorkspace: boolean;
-}
+};
 
 /**
  * Navigation for the workspace settings area: the workspace's template

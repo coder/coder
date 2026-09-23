@@ -26,7 +26,7 @@ function persistCollapsed(key: string, collapsed: boolean): void {
 	}
 }
 
-interface UseSidebarResizeReturn {
+type UseSidebarResizeReturn = {
 	width: number;
 	collapsed: boolean;
 	/**
@@ -40,7 +40,7 @@ interface UseSidebarResizeReturn {
 	collapse: () => void;
 	/** Toggle collapsed/expanded state. */
 	toggle: () => void;
-}
+};
 
 /**
  * Two-state sidebar width persisted per `storageKey`. Two environmental

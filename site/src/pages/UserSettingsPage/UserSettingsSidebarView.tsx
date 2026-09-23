@@ -16,16 +16,16 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-interface UserSettingsLink {
+type UserSettingsLink = {
 	label: string;
 	href: string;
 	visible: boolean;
-}
+};
 
-interface UserSettingsGroup {
+type UserSettingsGroup = {
 	label: string;
 	items: UserSettingsLink[];
-}
+};
 
 const isRouteActive = (pathname: string, href: string) =>
 	pathname === href || pathname.startsWith(`${href}/`);
@@ -40,13 +40,13 @@ export const UserSettingsSidebarHeader: FC = () => (
 	</SidebarHeader>
 );
 
-interface UserSettingsSidebarViewProps {
+type UserSettingsSidebarViewProps = {
 	user: User;
 	/** Schedule page is entitlement gated. */
 	showSchedulePage: boolean;
-	/** OAuth2 applications page is behind an experiment or dev builds. */
+	/** OAuth2 applications page is only offered when the provider is enabled. */
 	showOAuth2Page: boolean;
-}
+};
 
 /**
  * Navigation for the user settings area: the user's avatar, name, and

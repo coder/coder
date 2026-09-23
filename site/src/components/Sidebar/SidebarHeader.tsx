@@ -27,14 +27,14 @@ const SidebarCollapseToggle: FC = () => {
 	);
 };
 
-interface SidebarHeaderProps {
+type SidebarHeaderProps = {
 	/**
 	 * Leading content, such as a title. It sits in a 40px row and should
 	 * bleed 4px left (`-ml-1`) with 8px of inner padding if it has a hover
 	 * surface, so its icon lands 16px from the sidebar edge.
 	 */
 	children?: ReactNode;
-}
+};
 
 /**
  * Pinned 56px header for collapsible settings sidebars: leading content

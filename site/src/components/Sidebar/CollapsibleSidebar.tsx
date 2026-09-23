@@ -8,7 +8,7 @@ import { COLLAPSED_WIDTH, useSidebarResize } from "./useSidebarResize";
 /** Height of the sticky dashboard navbar the sidebar sits beneath. */
 const NAVBAR_HEIGHT = 72;
 
-interface CollapsibleSidebarProps {
+type CollapsibleSidebarProps = {
 	children: ReactNode;
 	className?: string;
 	/** Accessible name of the navigation, also titling the mobile drawer. */
@@ -26,7 +26,7 @@ interface CollapsibleSidebarProps {
 	 * bottom-pinned bar such as the deployment banner.
 	 */
 	bottomInset?: number;
-}
+};
 
 /**
  * Sticky sidebar column beneath the dashboard navbar that collapses to a
