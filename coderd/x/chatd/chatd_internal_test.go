@@ -3831,3 +3831,44 @@ func expectLiveWorkspace(db *dbmock.MockStore, workspaceID uuid.UUID) {
 		Return(database.Workspace{ID: workspaceID}, nil).
 		AnyTimes()
 }
+
+func TestServerOrganizationName(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CachesResolvedName", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db, logger: slogtest.Make(t, nil)}
+		orgID := uuid.New()
+		db.EXPECT().GetOrganizationByID(gomock.Any(), orgID).
+			Return(database.Organization{ID: orgID, Name: "acme"}, nil).Times(1)
+
+		require.Equal(t, "acme", server.organizationName(t.Context(), orgID))
+		require.Equal(t, "acme", server.organizationName(t.Context(), orgID))
+	})
+
+	t.Run("FailedLookupIsNotCached", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+		orgID := uuid.New()
+		db.EXPECT().GetOrganizationByID(gomock.Any(), orgID).
+			Return(database.Organization{}, xerrors.New("boom")).Times(1)
+		db.EXPECT().GetOrganizationByID(gomock.Any(), orgID).
+			Return(database.Organization{ID: orgID, Name: "acme"}, nil).Times(1)
+
+		require.Equal(t, "", server.organizationName(t.Context(), orgID))
+		require.Equal(t, "acme", server.organizationName(t.Context(), orgID))
+	})
+
+	t.Run("NilIDSkipsTheStore", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db, logger: slogtest.Make(t, nil)}
+
+		require.Equal(t, "", server.organizationName(t.Context(), uuid.Nil))
+	})
+}
