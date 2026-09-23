@@ -173,6 +173,50 @@ The admin `PUT` also validates the stored name, so a self-registered client whos
 - Review [Security considerations and limitations](./security.md) before deploying to production
 - Check [External Authentication](../../external-auth/index.md) for configuring Coder as an OAuth2 client
 
+## Moved sections
+
+This page used to be a single page with all of the sections below. If you
+followed an old link here, use the pointer next to the section you were
+looking for.
+
+<a id="integration-patterns"></a>
+<a id="client-authentication-methods"></a>
+<a id="standard-oauth2-flow"></a>
+<a id="pkce-flow-required"></a>
+<a id="discovery-endpoints"></a>
+<a id="standards-compliance"></a>
+
+- Integration Patterns, Client Authentication Methods, Standard OAuth2 Flow, PKCE Flow, Discovery Endpoints, and Standards Compliance moved to [Integration patterns](./integration-patterns.md).
+
+<a id="scopes"></a>
+
+- Scopes moved to [Scopes](./scopes.md).
+
+<a id="token-management"></a>
+<a id="refresh-tokens"></a>
+<a id="revoke-a-token"></a>
+<a id="revoke-access"></a>
+<a id="delete-an-application"></a>
+
+- Token Management, Refresh Tokens, Revoke a Token, Revoke Access, and Delete an Application moved to [Token management](./token-management.md).
+
+<a id="callback-url-schemes"></a>
+
+- Callback URL schemes moved to [Callback URL schemes](./callback-url-schemes.md).
+
+<a id="common-issues"></a>
+
+- Common Issues moved to [Troubleshooting](./troubleshooting.md).
+
+<a id="security-considerations"></a>
+<a id="limitations"></a>
+
+- Security Considerations and Limitations moved to [Security and limitations](./security.md).
+
+<a id="testing-and-development"></a>
+
+- Testing and Development is no longer part of the docs. See the [OAuth2 test scripts README](../../../../scripts/oauth2/README.md).
+
 ## Feedback
 
 Report issues and feedback through [GitHub Issues](https://github.com/coder/coder/issues) with the `oauth2` label.
