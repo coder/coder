@@ -514,9 +514,12 @@ func (p *Server) maybeGenerateChatTitle(
 }
 
 // Quickgen caps leave room for adaptive thinking, which counts toward the cap
-// on models that think by default (Claude 5+). Validators bound the output
-// itself, and models that do not think stop once the object is complete.
-const titleMaxOutputTokens = int64(2048)
+// on models that think by default (Claude 5+). Keep them at or below 1024:
+// for older Claude models with a configured effort, fantasy derives a
+// budget_tokens thinking budget from the cap and enables thinking once it
+// reaches 1024, and Anthropic rejects thinking with tool-mode generation's
+// forced tool_choice.
+const titleMaxOutputTokens = int64(1024)
 
 func titleObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 	return resolved.newObjectCall("propose_title", "Propose a short chat title.", titleMaxOutputTokens)
@@ -1060,7 +1063,7 @@ const (
 	// Cap a single turn so one long message cannot dominate the budget.
 	summaryTranscriptPerMessageMaxRunes = 4000
 	// Includes thinking headroom; see titleMaxOutputTokens.
-	summaryMaxOutputTokens = 2048
+	summaryMaxOutputTokens = 1024
 	// Reject pathologically long or verbose summaries.
 	summaryMaxRunes             = 750
 	summaryHeadlineMaxRunes     = 200

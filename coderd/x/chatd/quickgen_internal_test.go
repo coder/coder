@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/google/uuid"
@@ -1018,6 +1019,63 @@ func TestGenerateStructuredTitleWithUsage_FallsBackToTextWhenToolChoiceRejected(
 	require.Equal(t, "Failed workspace logs", title)
 	require.Equal(t, []bool{true, false}, textCallTemperatures,
 		"text-mode generation should also retry without a rejected temperature")
+}
+
+// Budget thinking would reject the forced tool_choice of tool-mode generation,
+// so no configured effort may turn it on for older Claude quickgen models.
+func TestQuickgenCallsKeepBudgetThinkingOff(t *testing.T) {
+	t.Parallel()
+
+	calls := map[string]func(resolvedModelCall) fantasy.ObjectCall{
+		"title":   titleObjectCall,
+		"summary": summaryObjectCall,
+		"label":   turnStatusLabelObjectCall,
+	}
+	efforts := []fantasyanthropic.Effort{
+		fantasyanthropic.EffortMinimal,
+		fantasyanthropic.EffortLow,
+		fantasyanthropic.EffortMedium,
+		fantasyanthropic.EffortHigh,
+		fantasyanthropic.EffortXHigh,
+		fantasyanthropic.EffortMax,
+	}
+	for name, newCall := range calls {
+		for _, effort := range efforts {
+			t.Run(name+"/"+string(effort), func(t *testing.T) {
+				t.Parallel()
+
+				requests := make(chan *chattest.AnthropicRequest, 1)
+				serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+					select {
+					case requests <- req:
+					default:
+					}
+					return chattest.AnthropicResponse{Error: &chattest.ErrorResponse{
+						StatusCode: http.StatusBadRequest,
+						Type:       "invalid_request_error",
+						Message:    "request captured",
+					}}
+				})
+				client, err := fantasyanthropic.New(
+					fantasyanthropic.WithAPIKey("test-key"),
+					fantasyanthropic.WithBaseURL(serverURL),
+				)
+				require.NoError(t, err)
+				model, err := client.LanguageModel(t.Context(), "claude-haiku-4-5")
+				require.NoError(t, err)
+
+				call := newCall(resolvedModelCall{providerOptions: fantasy.ProviderOptions{
+					fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{Effort: &effort},
+				}})
+				call.Prompt = fantasy.Prompt{fantasy.NewUserMessage("fix the login bug")}
+				_, err = generateObject[generatedTitle](t.Context(), model, call)
+				require.Error(t, err)
+
+				req := testutil.RequireReceive(t.Context(), t, requests)
+				require.Empty(t, req.Thinking, "max_tokens %d enabled budget thinking", req.MaxTokens)
+			})
+		}
+	}
 }
 
 func TestGenerateStructuredTitleWithUsage_TruncatesOverlongTitle(t *testing.T) {
