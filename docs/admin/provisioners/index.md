@@ -354,7 +354,7 @@ will use in concert with the Helm chart for deploying the control plane.
 ## Example: Running an external provisioner on a VM
 
 ```sh
-curl -L https://coder.com/install.sh | sh
+curl -fsSL https://coder.com/install.sh | sh
 export CODER_URL=https://coder.example.com
 export CODER_SESSION_TOKEN=your_token
 coder provisioner start

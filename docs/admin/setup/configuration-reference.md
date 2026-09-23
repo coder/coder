@@ -433,7 +433,7 @@ These options change the behavior of how clients interact with the Coder. Client
 
 ### CLI upgrade message
 
-The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.
+The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -fsSL https://coder.com/install.sh | sh'.
 
 - Environment variable: `CODER_CLI_UPGRADE_MESSAGE`
 - CLI flag: [`--cli-upgrade-message`](../../reference/cli/server.md#--cli-upgrade-message)

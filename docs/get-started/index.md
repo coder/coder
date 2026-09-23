@@ -166,7 +166,7 @@ Install the `coder` CLI to get started:
 1. Install Coder:
 
    ```sh
-   curl -L https://coder.com/install.sh | sh
+   curl -fsSL https://coder.com/install.sh | sh
    ```
 
    - For standalone binaries, system packages, or other alternate installation

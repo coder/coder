@@ -3839,7 +3839,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "CLI Upgrade Message",
-			Description: "The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.",
+			Description: "The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -fsSL https://coder.com/install.sh | sh'.",
 			Flag:        "cli-upgrade-message",
 			Env:         "CODER_CLI_UPGRADE_MESSAGE",
 			YAML:        "cliUpgradeMessage",
