@@ -652,32 +652,19 @@ jobs:
           # index.yaml is shared by every release, so two releases publishing
           # concurrently would each merge only their own charts and the last
           # writer would drop the other's entries. The if-generation-match
-          # precondition turns that into a failed upload that we retry against
-          # the fresh index.
+          # precondition makes the loser fail instead; re-running the job
+          # merges against the fresh index.
           index_url=gs://helm.coder.com/v2/index.yaml
-          index_generation() {
-            gsutil stat "$index_url" | awk '/^ *Generation:/ {print $2}'
-          }
-          published=false
-          for attempt in $(seq 1 10); do
-            rm -f build/helm/index.yaml
-            before="$(index_generation)"
-            gsutil cp "$index_url" build/helm/index.yaml
-            after="$(index_generation)"
-            if [[ $before != "$after" ]]; then
-              echo "index.yaml changed while downloading (generation $before -> $after), retrying"
-              continue
-            fi
-            helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
-            if gsutil -h "Cache-Control:no-cache,max-age=0" -h "x-goog-if-generation-match:${before}" cp build/helm/index.yaml "$index_url"; then
-              published=true
-              break
-            fi
-            echo "index.yaml upload lost a race on attempt $attempt (generation $before), retrying"
-            sleep "$((RANDOM % 5 + 1))"
-          done
-          if [[ $published != true ]]; then
-            echo "failed to publish index.yaml after repeated generation mismatches" >&2
+          generation="$(gsutil stat "$index_url" | awk '/^ *Generation:/ {print $2}')"
+          gsutil cp "$index_url" build/helm/index.yaml
+          after="$(gsutil stat "$index_url" | awk '/^ *Generation:/ {print $2}')"
+          if [[ $generation != "$after" ]]; then
+            echo "::error::index.yaml changed while downloading (generation $generation -> $after); another release is publishing. Re-run this job." >&2
+            exit 1
+          fi
+          helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
+          if ! gsutil -h "Cache-Control:no-cache,max-age=0" -h "x-goog-if-generation-match:${generation}" cp build/helm/index.yaml "$index_url"; then
+            echo "::error::index.yaml was modified by another release since it was read (generation $generation). Re-run this job to merge against the current index." >&2
             exit 1
           fi
 
