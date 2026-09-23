@@ -59,7 +59,7 @@ func TestUpdatePublishesAfterCommit(t *testing.T) {
 	createIdx := publishedOn(f, coderdpubsub.ChatStateUpdateChannel(created.Chat.ID))
 	require.Len(t, createIdx, 1, "create published one chat:update")
 
-	require.NoError(t, m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error { return nil }))
+	mustUpdate(ctx, t, m, func(_ *chatstate.Tx, _ database.Store) error { return nil })
 
 	updIdx := publishedOn(f, coderdpubsub.ChatStateUpdateChannel(created.Chat.ID))
 	require.Len(t, updIdx, 2, "no-op Update still publishes a chat:update")
@@ -87,7 +87,7 @@ func TestUpdatePublishesOneFinalChatUpdateForTransitionBundle(t *testing.T) {
 	// chatstate.StateR0 -> chatstate.StateW (FinishTurn) ->
 	// chatstate.StateXW (SetArchived true) -> chatstate.StateW
 	// (SetArchived false).
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := tx.FinishTurn(chatstate.FinishTurnInput{}); err != nil {
 			return err
 		}
@@ -98,7 +98,7 @@ func TestUpdatePublishesOneFinalChatUpdateForTransitionBundle(t *testing.T) {
 			return err
 		}
 		return nil
-	}))
+	})
 
 	updIdx := publishedOn(f, coderdpubsub.ChatStateUpdateChannel(created.Chat.ID))
 	require.Equal(t, baseUpdates+1, len(updIdx),
@@ -123,7 +123,7 @@ func TestUpdateAppliesTransitionBundleSequentially(t *testing.T) {
 	created := createTestChat(t, f)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 
-	err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := tx.FinishTurn(chatstate.FinishTurnInput{}); err != nil {
 			return err
 		}
@@ -153,7 +153,7 @@ func TestFailedUpdatePublishesNothing(t *testing.T) {
 	beforeChat := f.readChat(ctx, t, created.Chat.ID)
 
 	sentinel := xerrors.New("forced failure")
-	err := m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error { return sentinel })
+	_, err := m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error { return sentinel })
 	require.ErrorIs(t, err, sentinel)
 	require.Equal(t, publishedBefore, len(f.Pub.channels), "failed update publishes nothing")
 
@@ -187,10 +187,10 @@ func TestChatUpdateMessagePayloadShape(t *testing.T) {
 	// Acquire ownership so worker_id and runner_id are present.
 	worker := uuid.New()
 	runner := uuid.New()
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: worker, RunnerID: runner})
 		return err
-	}))
+	})
 
 	// Find the last chat:update message.
 	idx := publishedOn(f, channel)
@@ -270,10 +270,11 @@ func TestOwnershipNotificationUsesDatabaseHeartbeatStaleness(t *testing.T) {
 	// Acquire ownership; this writes a fresh heartbeat.
 	worker := uuid.New()
 	runner := uuid.New()
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: worker, RunnerID: runner})
 		return err
-	}))
+	})
+
 	hb, err := f.DB.GetChatHeartbeat(ctx, database.GetChatHeartbeatParams{
 		ChatID:   created.Chat.ID,
 		RunnerID: runner,
@@ -305,7 +306,7 @@ func TestOwnershipNotificationUsesDatabaseHeartbeatStaleness(t *testing.T) {
 	// Run a no-op Update. The chat is runnable (chatstate.StateR0)
 	// and the heartbeat is stale, so post-commit logic must publish
 	// exactly one chat:ownership hint.
-	require.NoError(t, m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error { return nil }))
+	mustUpdate(ctx, t, m, func(_ *chatstate.Tx, _ database.Store) error { return nil })
 
 	ownershipAfter := f.Pub.ownershipPublishCount()
 	require.Equal(t, ownershipBefore+1, ownershipAfter,
@@ -327,7 +328,7 @@ func TestUpdateContextCancellationPublishesNothing(t *testing.T) {
 	publishedBefore := len(f.Pub.channels)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error { return nil })
+	_, err := m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error { return nil })
 	require.Error(t, err)
 	require.Equal(t, publishedBefore, len(f.Pub.channels),
 		"caller-aborted update publishes nothing")

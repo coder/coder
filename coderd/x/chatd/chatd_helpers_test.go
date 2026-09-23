@@ -19,10 +19,17 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func mustUpdate(ctx context.Context, t *testing.T, m *chatstate.ChatMachine, fn func(*chatstate.Tx, database.Store) error) {
+	t.Helper()
+	_, err := m.Update(ctx, fn)
+	require.NoError(t, err)
+}
 
 type anthropicRequestRecorder struct {
 	mu       sync.Mutex

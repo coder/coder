@@ -262,7 +262,7 @@ func (w *chatWorker) acquireCandidate(
 ) (bool, error) {
 	runnerID := uuid.New()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := store.GetChatByID(ctx, chatID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return errSkipAcquire
@@ -324,7 +324,7 @@ func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownCleanupTimeout)
 	defer cancel()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := store.GetChatByID(cleanupCtx, chatID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return errSkipAcquire

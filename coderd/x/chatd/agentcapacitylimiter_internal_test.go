@@ -50,10 +50,10 @@ func (f admissionFixture) occupy(t *testing.T, chatID uuid.UUID) {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	machine := chatstate.NewChatMachine(f.db, f.ps, chatID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
 		return err
-	}))
+	})
 }
 
 func (f admissionFixture) occupiedRoot(t *testing.T) database.Chat {
@@ -194,7 +194,7 @@ func TestAdmission_ConcurrentAdmitNeverOverAdmits(t *testing.T) {
 	for _, chat := range chats {
 		wg.Go(func() {
 			machine := chatstate.NewChatMachine(f.db, f.ps, chat.ID)
-			err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 				ok, err := a.Admit(ctx, store, chat)
 				if err != nil {
 					return err

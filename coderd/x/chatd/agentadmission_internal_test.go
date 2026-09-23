@@ -175,13 +175,13 @@ func TestWorker_MessageBumpSendsChatToQueueBack(t *testing.T) {
 	require.NoError(t, err)
 
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, older.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(t, "move me", f.user.ID, f.model.ID, f.apiKey.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
 		})
 		return err
-	}))
+	})
 
 	rows, err := f.db.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
 		StaleSeconds: 30,

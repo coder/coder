@@ -305,7 +305,9 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	}
 
 	var committed database.Chat
-	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	// Keep the in-transaction reload: committedStateAfterUpdateError needs the
+	// committed chat even on a commit-time error, when Update returns zero.
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := loadChatForTask(ctx, store, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
@@ -442,7 +444,9 @@ func (s *taskStarter) cancelRequiresAction(
 	reason string,
 ) error {
 	var committed database.Chat
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	// Keep the in-transaction reload: committedStateAfterUpdateError needs the
+	// committed chat even on a commit-time error, when Update returns zero.
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := loadChatForTask(ctx, store, input, database.ChatStatusRequiresAction, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
@@ -477,7 +481,7 @@ func (s *taskStarter) cancelRequiresAction(
 func (s *taskStarter) StartAbandon(ctx context.Context, input chatWorkerTaskStartInput) error {
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	mismatch := false
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {

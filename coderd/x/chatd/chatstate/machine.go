@@ -144,20 +144,25 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 //
 // Callbacks that return an error roll back the transaction (rolling
 // back the automatic snapshot bump) and publish nothing.
+//
+// On success Update returns the post-transition chat it already loads to
+// build the publish message, so callers can use it instead of issuing a
+// redundant read on the same row.
 func (m *ChatMachine) Update(
 	ctx context.Context,
 	fn func(*Tx, database.Store) error,
-) error {
+) (database.Chat, error) {
 	if m.store == nil {
-		return xerrors.New("chatstate: ChatMachine has nil store")
+		return database.Chat{}, xerrors.New("chatstate: ChatMachine has nil store")
 	}
 	if m.publisher == nil {
-		return xerrors.New("chatstate: ChatMachine has nil publisher")
+		return database.Chat{}, xerrors.New("chatstate: ChatMachine has nil publisher")
 	}
 
 	buffer := NewPublishBuffer(m.publisher)
 	defer buffer.Discard()
 
+	var final database.Chat
 	err := m.store.InTx(func(store database.Store) error {
 		if _, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -177,6 +182,7 @@ func (m *ChatMachine) Update(
 		if err != nil {
 			return err
 		}
+		final = chat
 		if err := buffer.Publish(
 			coderdpubsub.ChatStateUpdateChannel(chat.ID),
 			buildChatUpdateMessage(chat),
@@ -200,9 +206,12 @@ func (m *ChatMachine) Update(
 		return nil
 	}, nil)
 	if err != nil {
-		return err
+		return database.Chat{}, err
 	}
-	return buffer.Flush()
+	if err := buffer.Flush(); err != nil {
+		return database.Chat{}, err
+	}
+	return final, nil
 }
 
 // Lock locks the chat row with FOR NO KEY UPDATE and runs fn in a

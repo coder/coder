@@ -1544,7 +1544,7 @@ func (p *Server) SendMessage(
 
 	var result SendMessageResult
 	machine := p.newChatMachine(opts.ChatID)
-	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	refreshed, updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -1610,23 +1610,14 @@ func (p *Server) SendMessage(
 		result.InsertedMessages = sendResult.InsertedMessages
 
 		// File-link errors must roll back the message.
-		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
-			return err
-		}
-		// Capture the post-transition chat inside the same
-		// transaction so the returned chat and the watch event
-		// reflect the snapshot bump and status change produced by
-		// the transition itself.
-		refreshed, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("reload chat after send: %w", err)
-		}
-		result.Chat = refreshed
-		return nil
+		return chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts))
 	})
 	if updateErr != nil {
 		return SendMessageResult{}, updateErr
 	}
+	// The returned chat reflects the snapshot bump and status change
+	// produced by the transition itself.
+	result.Chat = refreshed
 
 	// Sidebar watch event keeps the chat list in sync. Stream side
 	// effects are handled by chat:update consumers.
@@ -1895,7 +1886,7 @@ func (p *Server) EditMessage(
 		editedCutoffT time.Time
 	)
 	machine := p.newChatMachine(opts.ChatID)
-	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	refreshed, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -1989,23 +1980,15 @@ func (p *Server) EditMessage(
 		inserted = append(inserted, editResult.SuffixMessages...)
 		result.InsertedMessages = inserted
 		result.DeletedMessageIDs = editResult.DeletedMessageIDs
-		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
-			return err
-		}
-		// Capture the post-edit chat inside the same transaction so
-		// the returned chat and the debug-cleanup cutoff use the
-		// snapshot bump and updated_at stamped by the transition.
-		refreshed, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("reload chat after edit: %w", err)
-		}
-		result.Chat = refreshed
-		editedCutoffT = refreshed.UpdatedAt
-		return nil
+		return chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts))
 	})
 	if err != nil {
 		return EditMessageResult{}, err
 	}
+	// The returned chat carries the snapshot bump and updated_at stamped
+	// by the transition; use it for the result and the debug-cleanup cutoff.
+	result.Chat = refreshed
+	editedCutoffT = refreshed.UpdatedAt
 
 	// Sidebar watch event keeps the chat list responsive. Stream
 	// side effects are handled by chat:update consumers.
@@ -2133,7 +2116,7 @@ func (p *Server) DeleteQueued(
 	}
 
 	machine := p.newChatMachine(chatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
 		})
@@ -2156,13 +2139,9 @@ func (p *Server) PromoteQueued(
 		return PromoteQueuedResult{}, xerrors.New("chat_id is required")
 	}
 
-	var (
-		result      PromoteQueuedResult
-		refreshChat database.Chat
-		refreshedOK bool
-	)
+	var result PromoteQueuedResult
 	machine := p.newChatMachine(opts.ChatID)
-	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	refreshed, updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2180,24 +2159,15 @@ func (p *Server) PromoteQueued(
 		if promoteResult.InsertedMessage != nil {
 			result.PromotedMessage = *promoteResult.InsertedMessage
 		}
-		// Capture the chat inside the transaction so the watch event
-		// published below uses the snapshot bump and status change
-		// produced by the transition itself.
-		refreshed, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("reload chat after promote: %w", err)
-		}
-		refreshChat = refreshed
-		refreshedOK = true
 		return nil
 	})
 	if updateErr != nil {
 		return PromoteQueuedResult{}, updateErr
 	}
 
-	if refreshedOK {
-		p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
-	}
+	// The returned chat carries the snapshot bump and status change
+	// produced by the transition itself.
+	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
 	return result, nil
 }
 
@@ -2264,12 +2234,8 @@ func (p *Server) SubmitToolResults(
 		}
 	}
 
-	var (
-		statusConflict *ToolResultStatusConflictError
-		refreshChat    database.Chat
-		refreshedOK    bool
-	)
-	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	var statusConflict *ToolResultStatusConflictError
+	refreshed, updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		locked, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2306,12 +2272,6 @@ func (p *Server) SubmitToolResults(
 			}
 			return xerrors.Errorf("complete requires action: %w", err)
 		}
-		refreshed, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("reload chat after tool results: %w", err)
-		}
-		refreshChat = refreshed
-		refreshedOK = true
 		return nil
 	})
 	if updateErr != nil {
@@ -2321,9 +2281,7 @@ func (p *Server) SubmitToolResults(
 		return translateToolResultValidationError(updateErr)
 	}
 
-	if refreshedOK {
-		p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
-	}
+	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
 	return nil
 }
 
@@ -2378,22 +2336,13 @@ func (p *Server) InterruptChat(
 		return chat, xerrors.New("chat_id is required")
 	}
 
-	var refreshed database.Chat
 	machine := p.newChatMachine(chat.ID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	refreshed, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		if _, err := tx.Interrupt(chatstate.InterruptInput{
 			Reason: "Tool execution interrupted by user",
 		}); err != nil {
 			return err
 		}
-		// Capture the post-interrupt chat inside the transaction so
-		// the returned chat and the watch event reflect the snapshot
-		// bump and status change produced by the transition itself.
-		latest, err := store.GetChatByID(ctx, chat.ID)
-		if err != nil {
-			return xerrors.Errorf("reload chat after interrupt: %w", err)
-		}
-		refreshed = latest
 		return nil
 	})
 	if err != nil {
@@ -2428,7 +2377,7 @@ func (p *Server) CompactChat(
 
 	var refreshed database.Chat
 	machine := p.newChatMachine(chat.ID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		lockedChat, err := store.GetChatByID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2485,7 +2434,7 @@ func (p *Server) ClearChat(
 
 	var refreshed database.Chat
 	machine := p.newChatMachine(chat.ID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		lockedChat, err := store.GetChatByID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2550,20 +2499,11 @@ func (p *Server) ReconcileInvalidStateChat(
 		return chat, xerrors.New("chat_id is required")
 	}
 
-	var refreshed database.Chat
 	machine := p.newChatMachine(chat.ID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	refreshed, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		if _, err := tx.ReconcileInvalidState(chatstate.ReconcileInvalidStateInput{}); err != nil {
 			return err
 		}
-		// Capture the post-reconcile chat inside the transaction so
-		// the returned chat and the watch event reflect the snapshot
-		// bump and status change produced by the transition itself.
-		latest, err := store.GetChatByID(ctx, chat.ID)
-		if err != nil {
-			return xerrors.Errorf("reload chat after reconcile: %w", err)
-		}
-		refreshed = latest
 		return nil
 	})
 	if err != nil {

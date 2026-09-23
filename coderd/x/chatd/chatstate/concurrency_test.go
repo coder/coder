@@ -130,7 +130,7 @@ func TestLockLocksChatRow(t *testing.T) {
 	var updateErr error
 	var updateWG sync.WaitGroup
 	updateWG.Go(func() {
-		updateErr = updateMachine.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error {
+		_, updateErr = updateMachine.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error {
 			close(updateEntered)
 			return nil
 		})
@@ -206,7 +206,7 @@ func TestConcurrentUpdatesSerializeOnChatRow(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-			errs[i] = m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error { return nil })
+			_, errs[i] = m.Update(ctx, func(_ *chatstate.Tx, _ database.Store) error { return nil })
 		}()
 	}
 	wg.Wait()
