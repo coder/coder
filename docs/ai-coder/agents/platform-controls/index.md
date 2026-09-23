@@ -154,18 +154,18 @@ Refer to [Spend management](./spend-management.md) for details.
 
 ### Turn and payload limits
 
-Coder bounds each chat turn and the data a chat can carry with deployment-wide limits.
+These deployment-wide limits apply to every chat.
 The defaults suit most deployments, and you can change any of them with a server flag, environment variable, or YAML key.
-Setting a limit to 0 restores its default rather than removing the limit:
+Each value must be at least 1, and the server fails to start if a value is 0 or negative:
 
-| Limit                                        | Default      | Setting                                                                                                                           |
-|----------------------------------------------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| Model and tool steps per turn                | 1200         | [`CODER_CHAT_MAX_STEPS_PER_TURN`](../../../admin/setup/configuration-reference.md#max-steps-per-turn)                             |
-| Retries of a transient model error per turn  | 25           | [`CODER_CHAT_MAX_GENERATION_RETRIES`](../../../admin/setup/configuration-reference.md#max-generation-retries)                     |
-| Queued messages per chat                     | 20           | [`CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-queued-messages-per-chat)         |
-| Attachments per chat                         | 50           | [`CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-attachments-per-chat)                 |
-| System, plan mode, and custom prompt size    | 128&nbsp;KiB | [`CODER_CHAT_MAX_PROMPT_BYTES`](../../../admin/setup/configuration-reference.md#max-prompt-bytes)                                 |
-| Concurrent virtual desktop recording uploads | 25           | [`CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS`](../../../admin/setup/configuration-reference.md#max-concurrent-recording-uploads) |
+| Limit                                                         | Default      | Setting                                                                                                                           |
+|---------------------------------------------------------------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| Steps (model responses) per chat turn                         | 1200         | [`CODER_CHAT_MAX_STEPS_PER_TURN`](../../../admin/setup/configuration-reference.md#max-steps-per-turn)                             |
+| Consecutive retries after a failed model generation           | 25           | [`CODER_CHAT_MAX_GENERATION_RETRIES`](../../../admin/setup/configuration-reference.md#max-generation-retries)                     |
+| Queued messages per chat                                      | 20           | [`CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-queued-messages-per-chat)         |
+| Files linked to a chat                                        | 50           | [`CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-attachments-per-chat)                 |
+| System prompt, plan mode instructions, and custom prompt size | 128&nbsp;KiB | [`CODER_CHAT_MAX_PROMPT_BYTES`](../../../admin/setup/configuration-reference.md#max-prompt-bytes)                                 |
+| Concurrent virtual desktop recording uploads per server       | 25           | [`CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS`](../../../admin/setup/configuration-reference.md#max-concurrent-recording-uploads) |
 
 The concurrent agent pools described above are licensing limits, not deployment settings.
 

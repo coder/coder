@@ -27,29 +27,28 @@ import (
 // threshold settings.
 const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 
-// Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
-// of a chat turn or the payloads chatd stores and can be raised or
-// lowered per deployment.
+// Defaults for the chat limits in [ChatConfig].
 const (
-	// DefaultChatMaxStepsPerTurn is the number of model and tool steps a
-	// single turn may run before it is stopped.
+	// DefaultChatMaxStepsPerTurn is the default maximum number of steps in
+	// a chat turn.
 	DefaultChatMaxStepsPerTurn = 1200
-	// DefaultChatMaxGenerationRetries is the number of times a turn
-	// retries a model call that failed with a transient provider error.
+	// DefaultChatMaxGenerationRetries is the default maximum number of
+	// consecutive retries after a model generation fails with a transient
+	// error.
 	DefaultChatMaxGenerationRetries = 25
-	// DefaultChatMaxQueuedMessagesPerChat is the number of user messages
-	// that may wait in a chat's queue while a turn is running.
+	// DefaultChatMaxQueuedMessagesPerChat is the default maximum number of
+	// messages that can be queued in a chat.
 	DefaultChatMaxQueuedMessagesPerChat = 20
-	// DefaultChatMaxAttachmentsPerChat is the number of most recent
-	// attachments a chat keeps. Linking a file past the cap deletes the
-	// oldest files on the chat; a single batch larger than the cap is
-	// rejected.
+	// DefaultChatMaxAttachmentsPerChat is the default maximum number of
+	// files linked to a chat.
 	DefaultChatMaxAttachmentsPerChat = 50
-	// DefaultChatMaxPromptBytes bounds the deployment system prompt, plan
-	// mode instructions, and per-user custom prompts.
+	// DefaultChatMaxPromptBytes is the default maximum size in bytes of the
+	// deployment system prompt, the plan mode instructions, and each
+	// user's custom prompt.
 	DefaultChatMaxPromptBytes = 128 * 1024
-	// DefaultChatMaxConcurrentRecordingUploads is the number of virtual
-	// desktop recordings chatd stores concurrently.
+	// DefaultChatMaxConcurrentRecordingUploads is the default maximum
+	// number of virtual desktop recordings that each Coder server stores
+	// at the same time.
 	DefaultChatMaxConcurrentRecordingUploads = 25
 )
 

@@ -19766,27 +19766,27 @@ const docTemplate = `{
                     "$ref": "#/definitions/serpent.URL"
                 },
                 "max_attachments_per_chat": {
-                    "description": "MaxAttachmentsPerChat is the number of most recent attachments a\nchat keeps; older files are removed when new ones are linked.",
+                    "description": "MaxAttachmentsPerChat is the maximum number of files linked to a\nchat.",
                     "type": "integer"
                 },
                 "max_concurrent_recording_uploads": {
-                    "description": "MaxConcurrentRecordingUploads bounds the virtual desktop recordings\nchatd stores concurrently.",
+                    "description": "MaxConcurrentRecordingUploads is the maximum number of virtual\ndesktop recordings that each Coder server stores at the same time.",
                     "type": "integer"
                 },
                 "max_generation_retries": {
-                    "description": "MaxGenerationRetries bounds how many times a turn retries a model\ncall that failed with a transient provider error.",
+                    "description": "MaxGenerationRetries is the maximum number of consecutive retries\nafter a model generation fails with a transient error.",
                     "type": "integer"
                 },
                 "max_prompt_bytes": {
-                    "description": "MaxPromptBytes bounds the deployment system prompt, plan mode\ninstructions, and per-user custom prompts.",
+                    "description": "MaxPromptBytes is the maximum size in bytes of the deployment system\nprompt, the plan mode instructions, and each user's custom prompt.",
                     "type": "integer"
                 },
                 "max_queued_messages_per_chat": {
-                    "description": "MaxQueuedMessagesPerChat bounds the user messages waiting in a\nchat's queue while a turn runs.",
+                    "description": "MaxQueuedMessagesPerChat is the maximum number of messages that can\nbe queued in a chat.",
                     "type": "integer"
                 },
                 "max_steps_per_turn": {
-                    "description": "MaxStepsPerTurn bounds the model and tool steps one turn may run.",
+                    "description": "MaxStepsPerTurn is the maximum number of steps in a chat turn.",
                     "type": "integer"
                 },
                 "stream_silence_timeout": {

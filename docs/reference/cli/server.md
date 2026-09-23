@@ -1799,7 +1799,7 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 | YAML        | <code>chat.maxStepsPerTurn</code>           |
 | Default     | <code>1200</code>                           |
 
-Maximum number of model and tool steps a single agent chat turn may run before Coder stops the turn. Set to 0 to use the default.
+Maximum number of steps in a chat turn. Each model response is one step; compaction summaries, advisor calls, and retried attempts do not count. A turn that reaches the limit runs the tools from the last response, then ends without an error. Must be at least 1.
 
 ### --chat-max-generation-retries
 
@@ -1810,7 +1810,7 @@ Maximum number of model and tool steps a single agent chat turn may run before C
 | YAML        | <code>chat.maxGenerationRetries</code>          |
 | Default     | <code>25</code>                                 |
 
-Maximum number of times a chat turn retries a model call that failed with a transient provider error, such as a rate limit or an overloaded response, before the turn fails. Set to 0 to use the default.
+Maximum number of consecutive retries after a model generation fails with a transient error, such as a rate limit, an overloaded provider, or a stream that stops sending data. The count resets after each successful step. When the retries run out, the chat moves to the error state and shows the provider error. Advisor calls and the generation of chat titles, summaries, and turn status labels use the same limit. Must be at least 1.
 
 ### --chat-max-queued-messages-per-chat
 
@@ -1821,7 +1821,7 @@ Maximum number of times a chat turn retries a model call that failed with a tran
 | YAML        | <code>chat.maxQueuedMessagesPerChat</code>            |
 | Default     | <code>20</code>                                       |
 
-Maximum number of user messages that can wait in a chat's queue while a turn is running. Set to 0 to use the default.
+Maximum number of messages that can be queued in a chat. Sending a message to a chat whose queue is full fails with HTTP 429. Must be at least 1.
 
 ### --chat-max-attachments-per-chat
 
@@ -1832,7 +1832,7 @@ Maximum number of user messages that can wait in a chat's queue while a turn is 
 | YAML        | <code>chat.maxAttachmentsPerChat</code>           |
 | Default     | <code>50</code>                                   |
 
-Number of most recent attachments a chat keeps, counting uploads and files the agent attaches from the workspace. Older attachments are removed when the cap is reached, and a single message cannot include more files than the cap. Set to 0 to use the default.
+Maximum number of files linked to a chat, including user uploads, files the agent attaches, and desktop recordings and their thumbnails. Linking a file beyond the limit permanently deletes the chat's earliest-uploaded files, and earlier messages show them as expired. A message that includes more files than the limit is rejected with HTTP 400. Must be at least 1.
 
 ### --chat-max-prompt-bytes
 
@@ -1843,7 +1843,7 @@ Number of most recent attachments a chat keeps, counting uploads and files the a
 | YAML        | <code>chat.maxPromptBytes</code>          |
 | Default     | <code>131072</code>                       |
 
-Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. Set to 0 to use the default.
+Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. Saving a longer prompt fails with HTTP 400. Lowering the limit does not affect prompts that are already saved. Must be at least 1.
 
 ### --chat-max-concurrent-recording-uploads
 
@@ -1854,7 +1854,7 @@ Maximum size in bytes of the deployment system prompt, the plan mode instruction
 | YAML        | <code>chat.maxConcurrentRecordingUploads</code>           |
 | Default     | <code>25</code>                                           |
 
-Maximum number of virtual desktop recordings the chat daemon stores concurrently. Each upload buffers the whole recording in memory, so this bounds the daemon's peak memory use for recordings. Set to 0 to use the default.
+Maximum number of virtual desktop recordings that each Coder server stores at the same time. Each upload holds the recording and its thumbnail in memory, up to 110 MB. Additional recordings wait for a free slot and are discarded if none frees up within 90 seconds. Must be at least 1.
 
 ### --chat-stream-silence-timeout
 

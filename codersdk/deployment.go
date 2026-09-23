@@ -4386,7 +4386,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Max Steps Per Turn",
-			Description: "Maximum number of model and tool steps a single agent chat turn may run before Coder stops the turn. Set to 0 to use the default.",
+			Description: "Maximum number of steps in a chat turn. Each model response is one step; compaction summaries, advisor calls, and retried attempts do not count. A turn that reaches the limit runs the tools from the last response, then ends without an error. Must be at least 1.",
 			Flag:        "chat-max-steps-per-turn",
 			Env:         "CODER_CHAT_MAX_STEPS_PER_TURN",
 			Value:       &c.AI.Chat.MaxStepsPerTurn,
@@ -4396,7 +4396,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Max Generation Retries",
-			Description: "Maximum number of times a chat turn retries a model call that failed with a transient provider error, such as a rate limit or an overloaded response, before the turn fails. Set to 0 to use the default.",
+			Description: "Maximum number of consecutive retries after a model generation fails with a transient error, such as a rate limit, an overloaded provider, or a stream that stops sending data. The count resets after each successful step. When the retries run out, the chat moves to the error state and shows the provider error. Advisor calls and the generation of chat titles, summaries, and turn status labels use the same limit. Must be at least 1.",
 			Flag:        "chat-max-generation-retries",
 			Env:         "CODER_CHAT_MAX_GENERATION_RETRIES",
 			Value:       &c.AI.Chat.MaxGenerationRetries,
@@ -4406,7 +4406,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Max Queued Messages Per Chat",
-			Description: "Maximum number of user messages that can wait in a chat's queue while a turn is running. Set to 0 to use the default.",
+			Description: "Maximum number of messages that can be queued in a chat. Sending a message to a chat whose queue is full fails with HTTP 429. Must be at least 1.",
 			Flag:        "chat-max-queued-messages-per-chat",
 			Env:         "CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT",
 			Value:       &c.AI.Chat.MaxQueuedMessagesPerChat,
@@ -4416,7 +4416,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Max Attachments Per Chat",
-			Description: "Number of most recent attachments a chat keeps, counting uploads and files the agent attaches from the workspace. Older attachments are removed when the cap is reached, and a single message cannot include more files than the cap. Set to 0 to use the default.",
+			Description: "Maximum number of files linked to a chat, including user uploads, files the agent attaches, and desktop recordings and their thumbnails. Linking a file beyond the limit permanently deletes the chat's earliest-uploaded files, and earlier messages show them as expired. A message that includes more files than the limit is rejected with HTTP 400. Must be at least 1.",
 			Flag:        "chat-max-attachments-per-chat",
 			Env:         "CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT",
 			Value:       &c.AI.Chat.MaxAttachmentsPerChat,
@@ -4426,7 +4426,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Max Prompt Bytes",
-			Description: "Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. Set to 0 to use the default.",
+			Description: "Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. Saving a longer prompt fails with HTTP 400. Lowering the limit does not affect prompts that are already saved. Must be at least 1.",
 			Flag:        "chat-max-prompt-bytes",
 			Env:         "CODER_CHAT_MAX_PROMPT_BYTES",
 			Value:       &c.AI.Chat.MaxPromptBytes,
@@ -4436,7 +4436,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Max Concurrent Recording Uploads",
-			Description: "Maximum number of virtual desktop recordings the chat daemon stores concurrently. Each upload buffers the whole recording in memory, so this bounds the daemon's peak memory use for recordings. Set to 0 to use the default.",
+			Description: "Maximum number of virtual desktop recordings that each Coder server stores at the same time. Each upload holds the recording and its thumbnail in memory, up to 110 MB. Additional recordings wait for a free slot and are discarded if none frees up within 90 seconds. Must be at least 1.",
 			Flag:        "chat-max-concurrent-recording-uploads",
 			Env:         "CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS",
 			Value:       &c.AI.Chat.MaxConcurrentRecordingUploads,
@@ -4943,8 +4943,7 @@ type AIBridgeProxyConfig struct {
 	APIDumpDir          serpent.String      `json:"api_dump_dir" typescript:",notnull"`
 }
 
-// ChatConfig configures Coder Agents chats. A zero limit selects the
-// matching DefaultChat* constant.
+// ChatConfig configures Coder Agents chats.
 type ChatConfig struct {
 	AcquireBatchSize     serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
 	DebugLoggingEnabled  serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
@@ -4954,22 +4953,22 @@ type ChatConfig struct {
 	HookEnabled          serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
 	HookAllowInsecure    serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
 	StreamSilenceTimeout serpent.Duration `json:"stream_silence_timeout" typescript:",notnull"`
-	// MaxStepsPerTurn bounds the model and tool steps one turn may run.
+	// MaxStepsPerTurn is the maximum number of steps in a chat turn.
 	MaxStepsPerTurn serpent.Int64 `json:"max_steps_per_turn" typescript:",notnull"`
-	// MaxGenerationRetries bounds how many times a turn retries a model
-	// call that failed with a transient provider error.
+	// MaxGenerationRetries is the maximum number of consecutive retries
+	// after a model generation fails with a transient error.
 	MaxGenerationRetries serpent.Int64 `json:"max_generation_retries" typescript:",notnull"`
-	// MaxQueuedMessagesPerChat bounds the user messages waiting in a
-	// chat's queue while a turn runs.
+	// MaxQueuedMessagesPerChat is the maximum number of messages that can
+	// be queued in a chat.
 	MaxQueuedMessagesPerChat serpent.Int64 `json:"max_queued_messages_per_chat" typescript:",notnull"`
-	// MaxAttachmentsPerChat is the number of most recent attachments a
-	// chat keeps; older files are removed when new ones are linked.
+	// MaxAttachmentsPerChat is the maximum number of files linked to a
+	// chat.
 	MaxAttachmentsPerChat serpent.Int64 `json:"max_attachments_per_chat" typescript:",notnull"`
-	// MaxPromptBytes bounds the deployment system prompt, plan mode
-	// instructions, and per-user custom prompts.
+	// MaxPromptBytes is the maximum size in bytes of the deployment system
+	// prompt, the plan mode instructions, and each user's custom prompt.
 	MaxPromptBytes serpent.Int64 `json:"max_prompt_bytes" typescript:",notnull"`
-	// MaxConcurrentRecordingUploads bounds the virtual desktop recordings
-	// chatd stores concurrently.
+	// MaxConcurrentRecordingUploads is the maximum number of virtual
+	// desktop recordings that each Coder server stores at the same time.
 	MaxConcurrentRecordingUploads serpent.Int64 `json:"max_concurrent_recording_uploads" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
@@ -5101,9 +5100,8 @@ func (c *DeploymentValues) Validate() error {
 		{"chat-max-prompt-bytes", c.AI.Chat.MaxPromptBytes.Value()},
 		{"chat-max-concurrent-recording-uploads", c.AI.Chat.MaxConcurrentRecordingUploads.Value()},
 	} {
-		// Zero is accepted and resolves to the default at runtime.
-		if limit.value < 0 || limit.value > math.MaxInt32 {
-			return xerrors.Errorf("--%s (%d) must be between 0 and %d", limit.flag, limit.value, math.MaxInt32)
+		if limit.value < 1 || limit.value > math.MaxInt32 {
+			return xerrors.Errorf("--%s (%d) must be between 1 and %d", limit.flag, limit.value, math.MaxInt32)
 		}
 	}
 

@@ -2047,8 +2047,7 @@ export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 
 // From codersdk/deployment.go
 /**
- * ChatConfig configures Coder Agents chats. A zero limit selects the
- * matching DefaultChat* constant.
+ * ChatConfig configures Coder Agents chats.
  */
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
@@ -2060,32 +2059,32 @@ export interface ChatConfig {
 	readonly hook_allow_insecure: boolean;
 	readonly stream_silence_timeout: number;
 	/**
-	 * MaxStepsPerTurn bounds the model and tool steps one turn may run.
+	 * MaxStepsPerTurn is the maximum number of steps in a chat turn.
 	 */
 	readonly max_steps_per_turn: number;
 	/**
-	 * MaxGenerationRetries bounds how many times a turn retries a model
-	 * call that failed with a transient provider error.
+	 * MaxGenerationRetries is the maximum number of consecutive retries
+	 * after a model generation fails with a transient error.
 	 */
 	readonly max_generation_retries: number;
 	/**
-	 * MaxQueuedMessagesPerChat bounds the user messages waiting in a
-	 * chat's queue while a turn runs.
+	 * MaxQueuedMessagesPerChat is the maximum number of messages that can
+	 * be queued in a chat.
 	 */
 	readonly max_queued_messages_per_chat: number;
 	/**
-	 * MaxAttachmentsPerChat is the number of most recent attachments a
-	 * chat keeps; older files are removed when new ones are linked.
+	 * MaxAttachmentsPerChat is the maximum number of files linked to a
+	 * chat.
 	 */
 	readonly max_attachments_per_chat: number;
 	/**
-	 * MaxPromptBytes bounds the deployment system prompt, plan mode
-	 * instructions, and per-user custom prompts.
+	 * MaxPromptBytes is the maximum size in bytes of the deployment system
+	 * prompt, the plan mode instructions, and each user's custom prompt.
 	 */
 	readonly max_prompt_bytes: number;
 	/**
-	 * MaxConcurrentRecordingUploads bounds the virtual desktop recordings
-	 * chatd stores concurrently.
+	 * MaxConcurrentRecordingUploads is the maximum number of virtual
+	 * desktop recordings that each Coder server stores at the same time.
 	 */
 	readonly max_concurrent_recording_uploads: number;
 	/**
@@ -4687,63 +4686,52 @@ export const DefaultChatDebugRetentionDays = 30;
 
 // From codersdk/chats.go
 /**
- * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
- * of a chat turn or the payloads chatd stores and can be raised or
- * lowered per deployment.
- * DefaultChatMaxAttachmentsPerChat is the number of most recent
- * attachments a chat keeps. Linking a file past the cap deletes the
- * oldest files on the chat; a single batch larger than the cap is
- * rejected.
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxAttachmentsPerChat is the default maximum number of
+ * files linked to a chat.
  */
 export const DefaultChatMaxAttachmentsPerChat = 50;
 
 // From codersdk/chats.go
 /**
- * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
- * of a chat turn or the payloads chatd stores and can be raised or
- * lowered per deployment.
- * DefaultChatMaxConcurrentRecordingUploads is the number of virtual
- * desktop recordings chatd stores concurrently.
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxConcurrentRecordingUploads is the default maximum
+ * number of virtual desktop recordings that each Coder server stores
+ * at the same time.
  */
 export const DefaultChatMaxConcurrentRecordingUploads = 25;
 
 // From codersdk/chats.go
 /**
- * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
- * of a chat turn or the payloads chatd stores and can be raised or
- * lowered per deployment.
- * DefaultChatMaxGenerationRetries is the number of times a turn
- * retries a model call that failed with a transient provider error.
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxGenerationRetries is the default maximum number of
+ * consecutive retries after a model generation fails with a transient
+ * error.
  */
 export const DefaultChatMaxGenerationRetries = 25;
 
 // From codersdk/chats.go
 /**
- * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
- * of a chat turn or the payloads chatd stores and can be raised or
- * lowered per deployment.
- * DefaultChatMaxPromptBytes bounds the deployment system prompt, plan
- * mode instructions, and per-user custom prompts.
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxPromptBytes is the default maximum size in bytes of the
+ * deployment system prompt, the plan mode instructions, and each
+ * user's custom prompt.
  */
 export const DefaultChatMaxPromptBytes = 131072;
 
 // From codersdk/chats.go
 /**
- * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
- * of a chat turn or the payloads chatd stores and can be raised or
- * lowered per deployment.
- * DefaultChatMaxQueuedMessagesPerChat is the number of user messages
- * that may wait in a chat's queue while a turn is running.
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxQueuedMessagesPerChat is the default maximum number of
+ * messages that can be queued in a chat.
  */
 export const DefaultChatMaxQueuedMessagesPerChat = 20;
 
 // From codersdk/chats.go
 /**
- * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
- * of a chat turn or the payloads chatd stores and can be raised or
- * lowered per deployment.
- * DefaultChatMaxStepsPerTurn is the number of model and tool steps a
- * single turn may run before it is stopped.
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxStepsPerTurn is the default maximum number of steps in
+ * a chat turn.
  */
 export const DefaultChatMaxStepsPerTurn = 1200;
 
