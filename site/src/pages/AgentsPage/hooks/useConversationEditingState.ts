@@ -62,10 +62,6 @@ export function useConversationEditingState(deps: {
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
 		readonly ChatMessagePart[]
 	>([]);
-	// editingTarget as a history message ID; null when the target is not a
-	// history row.
-	const editingMessageId =
-		editingTarget?.kind === "history" ? editingTarget.id : null;
 
 	const handleBeginEdit = (
 		target: EditingTarget,
@@ -232,7 +228,6 @@ export function useConversationEditingState(deps: {
 		initialEditorState,
 		remountKey,
 		editingTarget,
-		editingMessageId,
 		editingFileBlocks,
 		handleBeginEdit,
 		handleCancelEdit: restoreDraftBeforeEdit,
