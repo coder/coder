@@ -982,6 +982,44 @@ func TestGenerateStructuredTitleWithUsage_DropsRejectedTemperature(t *testing.T)
 		"generation should retry without temperature after the model rejects it")
 }
 
+// Mirrors Claude Opus 5.5, which rejects both the forced tool_choice of
+// tool-mode object generation and the temperature parameter.
+func TestGenerateStructuredTitleWithUsage_FallsBackToTextWhenToolChoiceRejected(t *testing.T) {
+	t.Parallel()
+
+	var textCallTemperatures []bool
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			return nil, &fantasy.ProviderError{
+				Title:      "bad request",
+				Message:    `tool_choice: type "tool" and "any" are not supported for this model.`,
+				StatusCode: http.StatusBadRequest,
+			}
+		},
+		GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+			textCallTemperatures = append(textCallTemperatures, call.Temperature != nil)
+			if call.Temperature != nil {
+				return nil, newTemperatureRejectedError()
+			}
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{fantasy.TextContent{Text: `{"title":"Failed workspace logs"}`}},
+			}, nil
+		},
+	}
+
+	title, _, err := generateStructuredTitleWithUsage(
+		t.Context(),
+		model,
+		titleObjectCall(resolvedModelCall{}),
+		titleGenerationPrompt,
+		"summarize failed workspace build logs",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Failed workspace logs", title)
+	require.Equal(t, []bool{true, false}, textCallTemperatures,
+		"text-mode generation should also retry without a rejected temperature")
+}
+
 func TestGenerateStructuredTitleWithUsage_TruncatesOverlongTitle(t *testing.T) {
 	t.Parallel()
 
