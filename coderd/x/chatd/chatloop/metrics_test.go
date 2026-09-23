@@ -30,6 +30,7 @@ func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
 	m.ToolErrorsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", "test")
 	m.MessageCount.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.PromptSizeBytes.WithLabelValues("anthropic", "claude-sonnet-4-5")
+	m.ResponseSizeBytes.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.TTFTSeconds.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.StepsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.StreamRetriesTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", string(codersdk.ChatErrorKindTimeout))
@@ -41,6 +42,7 @@ func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
 		"coderd_chatd_chats":                  dto.MetricType_GAUGE,
 		"coderd_chatd_message_count":          dto.MetricType_HISTOGRAM,
 		"coderd_chatd_prompt_size_bytes":      dto.MetricType_HISTOGRAM,
+		"coderd_chatd_response_size_bytes":    dto.MetricType_HISTOGRAM,
 		"coderd_chatd_tool_result_size_bytes": dto.MetricType_HISTOGRAM,
 		"coderd_chatd_ttft_seconds":           dto.MetricType_HISTOGRAM,
 		"coderd_chatd_compaction_total":       dto.MetricType_COUNTER,
@@ -75,6 +77,7 @@ func TestNopMetrics_DoesNotPanic(t *testing.T) {
 	m.Chats.WithLabelValues("waiting").Dec()
 	m.MessageCount.WithLabelValues("anthropic", "claude-sonnet-4-5").Observe(10)
 	m.PromptSizeBytes.WithLabelValues("openai", "gpt-5").Observe(4096)
+	m.ResponseSizeBytes.WithLabelValues("openai", "gpt-5").Observe(2048)
 	m.ToolResultSizeBytes.WithLabelValues("anthropic", "claude-sonnet-4-5", "execute").Observe(512)
 	m.ToolErrorsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", "execute").Inc()
 	m.TTFTSeconds.WithLabelValues("anthropic", "claude-sonnet-4-5").Observe(0.5)
