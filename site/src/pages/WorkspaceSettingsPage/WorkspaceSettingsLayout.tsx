@@ -62,9 +62,10 @@ export const WorkspaceSettingsLayout: FC = () => {
 						permissions: permissionsQuery.data,
 					}}
 				>
-					<div className="flex flex-row min-h-screen">
+					<div className="flex flex-1 flex-row">
 						<div className="relative z-30 border-0 border-r border-solid border-border">
 							<CollapsibleSidebar
+								label="Workspace settings"
 								storageKey="workspace-settings-sidebar-width"
 								header={<WorkspaceSettingsSidebarHeader />}
 								bottomInset={isBannerVisible ? DEPLOYMENT_BANNER_HEIGHT : 0}

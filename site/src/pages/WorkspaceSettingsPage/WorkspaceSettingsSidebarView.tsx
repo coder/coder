@@ -1,3 +1,4 @@
+import type { FC } from "react";
 import { useLocation } from "react-router";
 import type { Workspace } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -28,7 +29,7 @@ interface WorkspaceSettingsGroup {
 }
 
 /** Pinned header for the workspace settings sidebar. */
-export const WorkspaceSettingsSidebarHeader: React.FC = () => (
+export const WorkspaceSettingsSidebarHeader: FC = () => (
 	<SidebarHeader>
 		<SidebarHeaderTitle>Workspace settings</SidebarHeaderTitle>
 	</SidebarHeader>
@@ -45,7 +46,7 @@ interface WorkspaceSettingsSidebarViewProps {
  * icon, name, and owner above always-expanded groups of links. The
  * collapsed rail shows the template icon, which re-expands the sidebar.
  */
-export const WorkspaceSettingsSidebarView: React.FC<
+export const WorkspaceSettingsSidebarView: FC<
 	WorkspaceSettingsSidebarViewProps
 > = ({ workspace, canShareWorkspace }) => {
 	const { pathname } = useLocation();

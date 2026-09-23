@@ -1,14 +1,12 @@
 import { cn } from "cn";
 import type { FC, ReactNode } from "react";
-import { Link, NavLink } from "react-router";
+import { NavLink } from "react-router";
 
 interface SidebarNavLinkProps {
 	href: string;
 	children: ReactNode;
 	/** Match the route exactly instead of by prefix. */
 	end?: boolean;
-	/** Overrides NavLink matching for pages reachable from several URLs. */
-	activeOverride?: boolean;
 }
 
 /**
@@ -20,35 +18,24 @@ export const SidebarNavLink: FC<SidebarNavLinkProps> = ({
 	href,
 	children,
 	end,
-	activeOverride,
 }) => {
-	// Rows keep 8px of inner padding, start 4px right of the connecting
-	// line so the hover surface never touches it, and stop 8px short of
-	// the sidebar edge.
-	const baseClass =
-		"relative flex items-center h-8 px-2 -mr-1 text-sm rounded-md font-medium text-content-secondary no-underline hover:bg-surface-secondary hover:text-content-primary transition-colors";
-	// The marker is a short 2px bar over the connecting line, 5px left of
-	// the row (4px gap plus the 1px line), centered on the row.
-	const activeClass =
-		"font-semibold text-content-primary before:absolute before:-left-[5px] before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-content-primary";
-
-	if (activeOverride !== undefined) {
-		return (
-			<Link
-				to={href}
-				aria-current={activeOverride ? "page" : undefined}
-				className={cn(baseClass, activeOverride && activeClass)}
-			>
-				{children}
-			</Link>
-		);
-	}
-
 	return (
 		<NavLink
 			to={href}
 			end={end}
-			className={({ isActive }) => cn(baseClass, isActive && activeClass)}
+			className={({ isActive }) =>
+				cn(
+					// Rows keep 8px of inner padding, start 4px right of the
+					// connecting line so the hover surface never touches it, and
+					// stop 8px short of the sidebar edge.
+					"relative flex items-center h-8 px-2 -mr-1 text-sm rounded-md font-medium text-content-secondary no-underline hover:bg-surface-secondary hover:text-content-primary transition-colors",
+					// The marker is a short 2px bar over the connecting line, 5px
+					// left of the row (4px gap plus the 1px line), centered on the
+					// row.
+					isActive &&
+						"font-semibold text-content-primary before:absolute before:-left-[5px] before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-content-primary",
+				)
+			}
 		>
 			{children}
 		</NavLink>

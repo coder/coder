@@ -29,9 +29,9 @@ const SidebarCollapseToggle: FC = () => {
 
 interface SidebarHeaderProps {
 	/**
-	 * Leading content: a title or a section switcher. It sits in a 40px row
-	 * and should bleed 4px left (`-ml-1`) with 8px of inner padding if it
-	 * has a hover surface, so its icon lands 16px from the sidebar edge.
+	 * Leading content, such as a title. It sits in a 40px row and should
+	 * bleed 4px left (`-ml-1`) with 8px of inner padding if it has a hover
+	 * surface, so its icon lands 16px from the sidebar edge.
 	 */
 	children?: ReactNode;
 }
@@ -61,7 +61,7 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({ children }) => {
 	);
 };
 
-/** Plain header title for sidebars without a section switcher. */
+/** Plain text title for the sidebar header. */
 export const SidebarHeaderTitle: FC<{ children: ReactNode }> = ({
 	children,
 }) => (

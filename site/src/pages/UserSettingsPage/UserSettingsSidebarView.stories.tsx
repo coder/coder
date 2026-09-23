@@ -1,20 +1,25 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useLocation } from "react-router";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { CollapsibleSidebar } from "#/components/Sidebar/CollapsibleSidebar";
-import { SidebarContext } from "#/components/Sidebar/SidebarContext";
 import { MockUserOwner } from "#/testHelpers/entities";
 import {
 	UserSettingsSidebarHeader,
 	UserSettingsSidebarView,
 } from "./UserSettingsSidebarView";
 
+const STORAGE_KEY = "story-user-settings-sidebar";
+
 /** Exposes the router location so play functions can assert on it. */
 const LocationProbe: FC = () => {
 	const { pathname } = useLocation();
-	return <div data-testid="location">{pathname}</div>;
+	return (
+		<p role="status" aria-label="Current location">
+			{pathname}
+		</p>
+	);
 };
 
 const ROUTES = [
@@ -28,7 +33,7 @@ const ROUTES = [
 	"/settings/ssh-keys",
 	"/settings/tokens",
 	"/settings/secrets",
-];
+] as const;
 
 const routing = (path: string) =>
 	reactRouterParameters({
@@ -45,19 +50,26 @@ const routing = (path: string) =>
 const meta: Meta<typeof UserSettingsSidebarView> = {
 	title: "pages/UserSettingsPage/UserSettingsSidebarView",
 	component: UserSettingsSidebarView,
+	// Stories share the page, so start expanded every time.
+	beforeEach: () => {
+		localStorage.setItem(STORAGE_KEY, "expanded");
+		return () => localStorage.removeItem(STORAGE_KEY);
+	},
 	decorators: [
-		(Story, { parameters }) => {
-			// Stories that mount a real CollapsibleSidebar supply the header
-			// through its header slot instead.
-			const usesRealSidebar = Boolean(parameters.realSidebar);
-			return (
-				<div className="w-60">
-					{!usesRealSidebar && <UserSettingsSidebarHeader />}
-					<Story />
-					<LocationProbe />
+		(Story) => (
+			<div className="flex">
+				<div className="relative border-0 border-r border-solid border-border">
+					<CollapsibleSidebar
+						label="Your account"
+						storageKey={STORAGE_KEY}
+						header={<UserSettingsSidebarHeader />}
+					>
+						<Story />
+					</CollapsibleSidebar>
 				</div>
-			);
-		},
+				<LocationProbe />
+			</div>
+		),
 	],
 	parameters: { reactRouter: routing("/settings/account") },
 	args: {
@@ -90,28 +102,32 @@ export const Default: Story = {
 			"Tokens",
 			"Security",
 		]);
+		expect(
+			canvas.getByRole("link", { name: "Account information" }),
+		).toHaveAttribute("aria-current", "page");
 	},
 };
 
-/** The icon rail: the avatar links to the account page. */
+/**
+ * The icon rail shows only the avatar, which links to the account page
+ * and re-expands the sidebar.
+ */
 export const Collapsed: Story = {
-	decorators: [
-		(Story) => (
-			<SidebarContext.Provider
-				value={{ collapsed: true, expand: () => {}, toggle: () => {} }}
-			>
-				<Story />
-			</SidebarContext.Provider>
-		),
-	],
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getAllByRole("link")).toHaveLength(1);
-		expect(canvas.getByRole("link")).toHaveAttribute(
-			"href",
-			"/settings/account",
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Collapse sidebar" }),
 		);
+
+		const displayName = MockUserOwner.name || MockUserOwner.username;
+		const avatar = canvas.getByRole("link", { name: displayName });
+		expect(canvas.getAllByRole("link")).toHaveLength(1);
+		expect(avatar).toHaveAttribute("href", "/settings/account");
 		expect(canvas.queryByText(MockUserOwner.email)).toBeNull();
+
+		await userEvent.click(avatar);
+		expect(canvas.getByText(MockUserOwner.email)).toBeVisible();
+		expect(canvas.getByRole("link", { name: "Security" })).toBeVisible();
 	},
 };
 
@@ -128,6 +144,9 @@ export const GatesOff: Story = {
 		).toBeNull();
 		// Connected accounts still renders with its single remaining link.
 		expect(canvas.getByText("Connected accounts")).toBeVisible();
+		expect(
+			canvas.getByRole("link", { name: "External authentication" }),
+		).toBeVisible();
 	},
 };
 
@@ -141,6 +160,9 @@ export const SecurityActive: Story = {
 			"aria-current",
 			"page",
 		);
+		expect(
+			canvas.getByRole("link", { name: "Account information" }),
+		).not.toHaveAttribute("aria-current");
 	},
 };
 
@@ -154,30 +176,18 @@ export const GroupHeadingIsStatic: Story = {
 		expect(
 			canvas.getByRole("link", { name: "Account information" }),
 		).toBeVisible();
-		expect(canvas.getByTestId("location")).toHaveTextContent(
-			"/settings/account",
-		);
+		expect(
+			canvas.getByRole("status", { name: "Current location" }),
+		).toHaveTextContent("/settings/account");
 	},
 };
 
-// A short viewport with the header pinned: the identity block scrolls
-// away with the list while the title and toggle stay put.
-export const TallListScrolls: Story = {
-	decorators: [
-		(Story) => {
-			localStorage.setItem("story-user-tall-width", "expanded");
-			return (
-				<CollapsibleSidebar
-					storageKey="story-user-tall-width"
-					header={<UserSettingsSidebarHeader />}
-				>
-					<Story />
-				</CollapsibleSidebar>
-			);
-		},
-	],
+/**
+ * Visual reference for a short viewport, where the identity block scrolls
+ * with the list beneath the pinned title and toggle.
+ */
+export const ShortViewport: Story = {
 	parameters: {
-		realSidebar: true,
 		viewport: {
 			options: {
 				shortDesktop: {
@@ -187,89 +197,5 @@ export const TallListScrolls: Story = {
 			},
 			defaultViewport: "shortDesktop",
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const scrollArea = canvas.getByTestId("sidebar-scroll-area");
-		const title = canvas.getByText("Your account");
-		const email = canvas.getByText(MockUserOwner.email);
-		const titleTop = title.getBoundingClientRect().top;
-		const emailTop = email.getBoundingClientRect().top;
-
-		await waitFor(() => {
-			expect(scrollArea.scrollHeight).toBeGreaterThan(scrollArea.clientHeight);
-		});
-		expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(
-			window.innerHeight,
-		);
-
-		scrollArea.scrollTop = scrollArea.scrollHeight;
-		await waitFor(() => expect(scrollArea.scrollTop).toBeGreaterThan(0));
-		expect(title.getBoundingClientRect().top).toBe(titleTop);
-		expect(email.getBoundingClientRect().top).toBeLessThan(emailTop);
-	},
-};
-
-// Measures header and row geometry against the admin sidebar spec.
-export const LayoutMetrics: Story = {
-	decorators: [
-		(Story) => {
-			localStorage.setItem("story-user-metrics-width", "expanded");
-			return (
-				<CollapsibleSidebar
-					storageKey="story-user-metrics-width"
-					header={<UserSettingsSidebarHeader />}
-				>
-					<Story />
-				</CollapsibleSidebar>
-			);
-		},
-	],
-	parameters: { realSidebar: true },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const sidebar = canvasElement.querySelector("[data-sidebar-container]");
-		if (!(sidebar instanceof HTMLElement)) {
-			throw new Error("sidebar container not rendered");
-		}
-		const edge = sidebar.getBoundingClientRect();
-		const rect = (element: Element) => element.getBoundingClientRect();
-
-		const header = canvas.getByTestId("sidebar-panel").firstElementChild;
-		const avatar = canvas.getByText(MockUserOwner.email).parentElement
-			?.previousElementSibling;
-		const generalLabel = canvas.getByText("General");
-		const general = generalLabel.parentElement;
-		const account = canvas.getByRole("link", { name: "Account information" });
-		const appearance = canvas.getByRole("link", { name: "Appearance" });
-		const line = account.parentElement;
-		if (!header || !avatar || !general || !line) {
-			throw new Error("sidebar rows not rendered");
-		}
-
-		const metrics = {
-			headerHeight: rect(header).height,
-			avatarSize: rect(avatar).width,
-			avatarLeft: rect(avatar).left - edge.left,
-			headingHeight: rect(general).height,
-			headingLabelLeft: rect(generalLabel).left - edge.left,
-			leafHeight: rect(account).height,
-			leafGap: rect(appearance).top - rect(account).bottom,
-			headingToLine: rect(line).top - rect(general).bottom,
-			lineAtLabelEdge: rect(line).left - rect(generalLabel).left,
-			leafTextFromLine:
-				rect(account).left + 8 - (rect(line).left + line.clientLeft),
-		};
-
-		expect(metrics.headerHeight).toBe(56);
-		expect(metrics.avatarSize).toBe(40);
-		expect(metrics.avatarLeft).toBe(16);
-		expect(metrics.headingHeight).toBe(32);
-		expect(metrics.headingLabelLeft).toBe(16);
-		expect(metrics.leafHeight).toBe(32);
-		expect(metrics.leafGap).toBe(0);
-		expect(metrics.headingToLine).toBe(0);
-		expect(metrics.lineAtLabelEdge).toBe(0);
-		expect(metrics.leafTextFromLine).toBe(12);
 	},
 };

@@ -1,64 +1,180 @@
-import { type FC, useCallback, useState } from "react";
+import { cn } from "cn";
+import {
+	type FC,
+	type KeyboardEvent,
+	type PointerEvent,
+	type RefObject,
+	useRef,
+	useState,
+} from "react";
+import { COLLAPSED_WIDTH, EXPANDED_WIDTH } from "./useSidebarResize";
+
+/** Pointer travel in px below which a press and release counts as a click. */
+const CLICK_DEAD_ZONE = 3;
+
+interface DragState {
+	startX: number;
+	startLeft: number;
+	/** Whether the pointer has left the click dead zone. */
+	moved: boolean;
+	/** Width last previewed on the container. */
+	width: number;
+}
 
 interface SidebarResizeHandleProps {
-	onDragStart: (e: React.PointerEvent) => undefined | (() => void);
+	/** The sidebar column whose width the drag previews live. */
+	containerRef: RefObject<HTMLElement | null>;
+	collapsed: boolean;
+	onCollapse: () => void;
+	onExpand: () => void;
 }
 
 /**
- * An invisible hit area on the sidebar's right edge. On hover,
- * a 2px line appears spanning the full height of the border.
- * The line stays visible while dragging.
+ * Hit area on the sidebar's right edge that reveals a 2px line on hover,
+ * focus, and while dragging. A drag previews the width directly on the
+ * container and snaps to the collapsed or expanded state on release; a
+ * click toggles. Keyboard users move between the two states with the
+ * arrow keys, matching the other vertical separators in the app.
  */
 export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
-	onDragStart,
+	containerRef,
+	collapsed,
+	onCollapse,
+	onExpand,
 }) => {
-	const [hovered, setHovered] = useState(false);
-	const [dragging, setDragging] = useState(false);
+	const [resizing, setResizing] = useState(false);
+	const dragRef = useRef<DragState | null>(null);
 
-	const handleMouseEnter = useCallback(() => {
-		setHovered(true);
-	}, []);
+	const handlePointerDown = (e: PointerEvent<HTMLDivElement>) => {
+		const container = containerRef.current;
+		if (e.button !== 0 || !container) {
+			return;
+		}
+		// Stops the browser from starting a text selection with the drag.
+		e.preventDefault();
+		dragRef.current = {
+			startX: e.clientX,
+			startLeft: container.getBoundingClientRect().left,
+			moved: false,
+			width: collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH,
+		};
+		setResizing(true);
+		// Capture keeps move and release events flowing to this element
+		// even when the pointer leaves it or the window.
+		e.currentTarget.setPointerCapture?.(e.pointerId);
+	};
 
-	const handleMouseLeave = useCallback(() => {
-		setHovered(false);
-	}, []);
+	const handlePointerMove = (e: PointerEvent<HTMLDivElement>) => {
+		const drag = dragRef.current;
+		const container = containerRef.current;
+		if (!drag || !container) {
+			return;
+		}
+		if (!drag.moved) {
+			if (Math.abs(e.clientX - drag.startX) < CLICK_DEAD_ZONE) {
+				return;
+			}
+			drag.moved = true;
+			// Only suppress the width transition once this is a real drag,
+			// so a click still animates through React state.
+			container.style.transition = "none";
+		}
+		drag.width = Math.max(
+			COLLAPSED_WIDTH,
+			Math.min(e.clientX - drag.startLeft, EXPANDED_WIDTH),
+		);
+		container.style.width = `${drag.width}px`;
+	};
 
-	const handlePointerDown = useCallback(
-		(e: React.PointerEvent) => {
-			setDragging(true);
+	// pointerup commits the gesture. pointercancel, and the implicit capture
+	// release that follows every end, only tear it down; the release after a
+	// pointerup finds no drag and is a no-op.
+	const finishDrag = (e: PointerEvent<HTMLDivElement>, commit: boolean) => {
+		const drag = dragRef.current;
+		if (!drag) {
+			return;
+		}
+		dragRef.current = null;
+		setResizing(false);
+		if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+			e.currentTarget.releasePointerCapture?.(e.pointerId);
+		}
 
-			const onPointerUp = () => {
-				setDragging(false);
-				setHovered(false);
-				document.removeEventListener("pointerup", onPointerUp);
-			};
+		if (!drag.moved) {
+			if (!commit) {
+				return;
+			}
+			if (collapsed) {
+				onExpand();
+			} else {
+				onCollapse();
+			}
+			return;
+		}
 
-			document.addEventListener("pointerup", onPointerUp);
-			onDragStart(e);
-		},
-		[onDragStart],
-	);
+		const container = containerRef.current;
+		if (!container) {
+			return;
+		}
+		// Snap in the direction of the drag, or back to the current state when
+		// the gesture was canceled or clamped at the edge it started from. The
+		// transition comes back so the snap animates.
+		let shouldCollapse = collapsed;
+		if (commit) {
+			shouldCollapse = collapsed
+				? drag.width <= COLLAPSED_WIDTH
+				: drag.width < EXPANDED_WIDTH;
+		}
+		container.style.transition = "";
+		container.style.width = `${shouldCollapse ? COLLAPSED_WIDTH : EXPANDED_WIDTH}px`;
+		if (shouldCollapse !== collapsed) {
+			if (shouldCollapse) {
+				onCollapse();
+			} else {
+				onExpand();
+			}
+		}
+	};
 
-	const visible = hovered || dragging;
+	const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+		switch (e.key) {
+			case "ArrowLeft":
+			case "Home":
+				e.preventDefault();
+				onCollapse();
+				break;
+			case "ArrowRight":
+			case "End":
+				e.preventDefault();
+				onExpand();
+				break;
+		}
+	};
 
 	return (
 		<div
 			role="separator"
+			aria-orientation="vertical"
 			aria-label="Resize sidebar"
-			aria-valuenow={0}
+			aria-valuemin={COLLAPSED_WIDTH}
+			aria-valuemax={EXPANDED_WIDTH}
+			aria-valuenow={collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH}
 			tabIndex={0}
 			onPointerDown={handlePointerDown}
-			onMouseEnter={handleMouseEnter}
-			onMouseLeave={handleMouseLeave}
-			className="absolute top-0 -right-2 h-full w-4 cursor-col-resize z-10"
+			onPointerMove={handlePointerMove}
+			onPointerUp={(e) => finishDrag(e, true)}
+			onPointerCancel={(e) => finishDrag(e, false)}
+			onLostPointerCapture={(e) => finishDrag(e, false)}
+			onKeyDown={handleKeyDown}
+			className="group absolute top-0 -right-2 z-10 h-full w-4 cursor-col-resize touch-none select-none outline-hidden"
 		>
 			<div
-				className="absolute top-0 h-full w-[2px] rounded-full bg-border"
-				style={{
-					left: 7,
-					opacity: visible ? 1 : 0,
-					transition: "opacity 150ms",
-				}}
+				className={cn(
+					"absolute top-0 left-[7px] h-full w-0.5 rounded-full bg-border",
+					"opacity-0 transition-opacity duration-150",
+					"group-hover:opacity-100 group-focus-visible:opacity-100",
+					resizing && "opacity-100",
+				)}
 			/>
 		</div>
 	);

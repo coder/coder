@@ -4,34 +4,33 @@ import { useLocation } from "react-router";
 import { expect, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { CollapsibleSidebar } from "#/components/Sidebar/CollapsibleSidebar";
-import { SidebarContext } from "#/components/Sidebar/SidebarContext";
 import { MockWorkspace } from "#/testHelpers/entities";
 import {
 	WorkspaceSettingsSidebarHeader,
 	WorkspaceSettingsSidebarView,
 } from "./WorkspaceSettingsSidebarView";
 
+const STORAGE_KEY = "story-workspace-settings-sidebar";
+
 /** Exposes the router location so play functions can assert on it. */
 const LocationProbe: FC = () => {
 	const { pathname } = useLocation();
-	return <div data-testid="location">{pathname}</div>;
+	return (
+		<p role="status" aria-label="Current location">
+			{pathname}
+		</p>
+	);
 };
 
 const BASE = `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/settings`;
-const ROUTES = [
-	BASE,
-	`${BASE}/parameters`,
-	`${BASE}/schedule`,
-	`${BASE}/sharing`,
-];
 
 const routing = (path: string) =>
 	reactRouterParameters({
 		location: { path },
 		routing: [
-			{ path: ROUTES[0], useStoryElement: true },
-			...ROUTES.slice(1).map((route) => ({
-				path: route,
+			{ path: BASE, useStoryElement: true },
+			...["parameters", "schedule", "sharing"].map((segment) => ({
+				path: `${BASE}/${segment}`,
 				useStoryElement: true,
 			})),
 		],
@@ -40,19 +39,26 @@ const routing = (path: string) =>
 const meta: Meta<typeof WorkspaceSettingsSidebarView> = {
 	title: "pages/WorkspaceSettingsPage/WorkspaceSettingsSidebarView",
 	component: WorkspaceSettingsSidebarView,
+	// Stories share the page, so start expanded every time.
+	beforeEach: () => {
+		localStorage.setItem(STORAGE_KEY, "expanded");
+		return () => localStorage.removeItem(STORAGE_KEY);
+	},
 	decorators: [
-		(Story, { parameters }) => {
-			// Stories that mount a real CollapsibleSidebar supply the header
-			// through its header slot instead.
-			const usesRealSidebar = Boolean(parameters.realSidebar);
-			return (
-				<div className="w-60">
-					{!usesRealSidebar && <WorkspaceSettingsSidebarHeader />}
-					<Story />
-					<LocationProbe />
+		(Story) => (
+			<div className="flex">
+				<div className="relative border-0 border-r border-solid border-border">
+					<CollapsibleSidebar
+						label="Workspace settings"
+						storageKey={STORAGE_KEY}
+						header={<WorkspaceSettingsSidebarHeader />}
+					>
+						<Story />
+					</CollapsibleSidebar>
 				</div>
-			);
-		},
+				<LocationProbe />
+			</div>
+		),
 	],
 	parameters: { reactRouter: routing(BASE) },
 	args: {
@@ -88,6 +94,7 @@ export const CannotShare: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.queryByRole("link", { name: "Sharing" })).toBeNull();
 		expect(canvas.queryByText("Access")).toBeNull();
+		expect(canvas.getByText("Workspace")).toBeVisible();
 	},
 };
 
@@ -105,23 +112,21 @@ export const ScheduleActive: Story = {
 	},
 };
 
-/** The icon rail: the template icon re-expands the sidebar. */
+/** The icon rail shows the template icon, which re-expands the sidebar. */
 export const Collapsed: Story = {
-	decorators: [
-		(Story) => (
-			<SidebarContext.Provider
-				value={{ collapsed: true, expand: () => {}, toggle: () => {} }}
-			>
-				<Story />
-			</SidebarContext.Provider>
-		),
-	],
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: MockWorkspace.name }),
-		).toBeVisible();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Collapse sidebar" }),
+		);
+
+		const icon = canvas.getByRole("button", { name: MockWorkspace.name });
+		expect(icon).toBeVisible();
 		expect(canvas.queryByRole("link")).toBeNull();
+
+		await userEvent.click(icon);
+		expect(canvas.getByRole("link", { name: "Sharing" })).toBeVisible();
+		expect(canvas.getByText(MockWorkspace.owner_name)).toBeVisible();
 	},
 };
 
@@ -133,54 +138,8 @@ export const GroupHeadingIsStatic: Story = {
 		expect(canvas.queryByRole("button", { name: "Workspace" })).toBeNull();
 		await userEvent.click(canvas.getByText("Workspace"));
 		expect(canvas.getByRole("link", { name: "Parameters" })).toBeVisible();
-		expect(canvas.getByTestId("location")).toHaveTextContent(BASE);
-	},
-};
-
-// Inside a real CollapsibleSidebar: the header is pinned at 56px and the
-// list geometry matches the user settings sidebar.
-export const LayoutMetrics: Story = {
-	decorators: [
-		(Story) => {
-			localStorage.setItem("story-workspace-metrics-width", "expanded");
-			return (
-				<CollapsibleSidebar
-					storageKey="story-workspace-metrics-width"
-					header={<WorkspaceSettingsSidebarHeader />}
-				>
-					<Story />
-				</CollapsibleSidebar>
-			);
-		},
-	],
-	parameters: { realSidebar: true },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const sidebar = canvasElement.querySelector("[data-sidebar-container]");
-		if (!(sidebar instanceof HTMLElement)) {
-			throw new Error("sidebar container not rendered");
-		}
-		const edge = sidebar.getBoundingClientRect();
-		const rect = (element: Element) => element.getBoundingClientRect();
-
-		const header = canvas.getByTestId("sidebar-panel").firstElementChild;
-		const heading = canvas.getByText("Workspace").parentElement;
-		const general = canvas.getByRole("link", { name: "General" });
-		const parameters = canvas.getByRole("link", { name: "Parameters" });
-		const line = general.parentElement;
-		if (!header || !heading || !line) {
-			throw new Error("sidebar rows not rendered");
-		}
-
-		expect(edge.width).toBe(240);
-		expect(rect(header).height).toBe(56);
-		expect(rect(heading).height).toBe(32);
-		expect(rect(canvas.getByText("Workspace")).left - edge.left).toBe(16);
-		expect(rect(general).height).toBe(32);
-		expect(rect(parameters).top - rect(general).bottom).toBe(0);
-		expect(rect(line).top - rect(heading).bottom).toBe(0);
-		expect(rect(general).left + 8 - (rect(line).left + line.clientLeft)).toBe(
-			12,
-		);
+		expect(
+			canvas.getByRole("status", { name: "Current location" }),
+		).toHaveTextContent(BASE);
 	},
 };

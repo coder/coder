@@ -17,9 +17,10 @@ const Layout: FC = () => {
 		<>
 			<title>{pageTitle("Settings")}</title>
 
-			<div className="flex flex-row min-h-screen">
+			<div className="flex flex-1 flex-row">
 				<div className="relative z-30 border-0 border-r border-solid border-border">
 					<CollapsibleSidebar
+						label="Your account"
 						storageKey="user-settings-sidebar-width"
 						header={<UserSettingsSidebarHeader />}
 						bottomInset={isBannerVisible ? DEPLOYMENT_BANNER_HEIGHT : 0}
