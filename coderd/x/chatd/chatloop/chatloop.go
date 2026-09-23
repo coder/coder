@@ -67,8 +67,9 @@ type PersistedStep struct {
 	// Runtime is the wall-clock duration from opening to consuming the
 	// model stream.
 	Runtime time.Duration
-	// ProviderResponseID is the provider's ID for the response, when the
-	// provider reports one.
+	// ProviderResponseID is the response ID the model endpoint reported, if
+	// any. Through the AI Gateway, Anthropic Messages responses carry the
+	// gateway's interception ID instead of the upstream message ID.
 	ProviderResponseID string
 	// BatchRuntime is the union of billed local-tool execution intervals.
 	// Parallel calls count once and serial calls count from their own start.
@@ -1015,7 +1016,7 @@ func processStepStream(
 	return result, nil
 }
 
-// providerResponseID returns the provider's response ID from a finish part.
+// providerResponseID returns the response ID from a finish part.
 // Anthropic and Bedrock report the message ID as the part ID, and the OpenAI
 // Responses API reports it in provider metadata. Chat Completions providers
 // report neither.
