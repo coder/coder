@@ -156,6 +156,8 @@ type AgentChatInputProps = {
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
+	// A paused chat appends new sends to its queue.
+	isChatPaused?: boolean;
 	// Editing state, owned by the parent.
 	editingKind?: EditingTarget["kind"];
 	onCancelEdit?: () => void;
@@ -393,6 +395,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	isChatPaused = false,
 	editingKind,
 	onCancelEdit,
 	userPromptHistory = [],
@@ -929,7 +932,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
-		// An empty composer sends the queue head.
+		// An empty composer sends the queue head unless the head is under edit.
 		if (
 			!text &&
 			!hasUploadedAttachments &&
@@ -939,6 +942,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			!isLoading &&
 			!hasActiveUploads &&
 			queuedMessages.length > 0 &&
+			!queuedMessages[0].editing_since &&
 			onPromoteQueuedMessage
 		) {
 			void onPromoteQueuedMessage(queuedMessages[0].id);
@@ -1079,7 +1083,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		applyCycleValue(nextPrompt);
 	};
 
-	const sendButtonLabel = isEditingMessage ? "Save Edit" : "Send";
+	let sendButtonLabel = "Send";
+	if (isEditingMessage) {
+		sendButtonLabel = "Save Edit";
+	} else if (isChatPaused) {
+		sendButtonLabel = "Queue";
+	}
 	const sendShortcutLabel =
 		sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
 			? "Cmd/Ctrl+Enter"
