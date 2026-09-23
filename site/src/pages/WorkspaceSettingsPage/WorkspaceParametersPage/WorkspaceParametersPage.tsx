@@ -31,7 +31,22 @@ const WorkspaceParametersPage: FC = () => {
 	const { permissions, workspace } = useWorkspaceSettings();
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
-	const templateVersionId = searchParams.get("templateVersionId") ?? undefined;
+	const requestedTemplateVersionId =
+		searchParams.get("templateVersionId") ?? undefined;
+
+	const canChangeVersions = Boolean(permissions?.updateWorkspaceVersion);
+
+	// When the template requires the active version and the user is not allowed
+	// to pin versions, the only build they can ever submit is one against the
+	// active version, so edit the parameters against it. Otherwise a new version
+	// that adds a validation the current values do not satisfy would leave the
+	// user unable to fix those values, and therefore unable to start their
+	// workspace at all.
+	const forcedActiveVersion =
+		workspace.template_require_active_version && !canChangeVersions;
+	const templateVersionId = forcedActiveVersion
+		? workspace.template_active_version_id
+		: requestedTemplateVersionId;
 
 	const [confirmingRestart, setConfirmingRestart] = useState<{
 		open: boolean;
@@ -209,8 +224,6 @@ const WorkspaceParametersPage: FC = () => {
 		},
 	});
 
-	const canChangeVersions = Boolean(permissions?.updateWorkspaceVersion);
-
 	const handleSubmit = (values: {
 		rich_parameter_values: WorkspaceBuildParameter[];
 	}) => {
@@ -310,7 +323,7 @@ const WorkspaceParametersPage: FC = () => {
 					templateVersionId={templateVersionId}
 					workspace={workspace}
 					autofillParameters={autofillParameters}
-					canChangeVersions={canChangeVersions}
+					updatesToActiveVersion={forcedActiveVersion && workspace.outdated}
 					parameters={sortedParams}
 					diagnostics={latestResponse?.diagnostics ?? []}
 					isSubmitting={
