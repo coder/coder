@@ -379,7 +379,7 @@ coderd_chatd_model_stage_duration_seconds{stage="",provider_type="",chat_kind=""
 # HELP coderd_chatd_prompt_size_bytes Estimated byte size of the prompt per LLM request.
 # TYPE coderd_chatd_prompt_size_bytes histogram
 coderd_chatd_prompt_size_bytes{provider="",model=""} 0
-# HELP coderd_chatd_stage_anomalies_total Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed and inverted_window (end before start, clock skew), missing_timestamp (unset start or end), future_start (start ahead of this replica's clock, span started now), stale_anchor (turn anchor clamped to the previous turn's anchor). Registered only with the chat-stage-metrics experiment.
+# HELP coderd_chatd_stage_anomalies_total Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed, inverted_window (end before start), missing_timestamp (unset start or end), future_start (start ahead of this clock, span started now), stale_anchor (turn anchor clamped to the previous one), nonpositive_turn (turn accounting not emitted), overattributed (categories summed past the turn). Registered only with the chat-stage-metrics experiment.
 # TYPE coderd_chatd_stage_anomalies_total counter
 coderd_chatd_stage_anomalies_total{reason=""} 0
 # HELP coderd_chatd_stage_duration_seconds Wall time spent in each chat lifecycle stage. Stages overlap, so this is a stage-time profile, not a partition of the turn. scope separates stages inside a chat turn from detached background work; chat_kind is empty without a known chat. Observed: chat_turn, queue_wait, capacity_wait, acquisition, mcp_connect, stream, time_to_first_token, provider_attempt, tool_call, commit, retry_backoff; other stages are span-only. Registered only with the chat-stage-metrics experiment.
@@ -403,6 +403,15 @@ coderd_chatd_tool_result_truncated_total{provider="",model="",tool_name=""} 0
 # HELP coderd_chatd_ttft_seconds Time-to-first-token: wall time from LLM request to the first streamed content part. Attempts that fail before a content part arrives are not observed.
 # TYPE coderd_chatd_ttft_seconds histogram
 coderd_chatd_ttft_seconds{provider="",model=""} 0
+# HELP coderd_chatd_turn_outcomes_total Total chat turns by outcome (completed, interrupted, error, abandoned); every closed turn is counted exactly once, and completed turns are the ones whose time partition is recorded. Registered only with the chat-stage-metrics experiment.
+# TYPE coderd_chatd_turn_outcomes_total counter
+coderd_chatd_turn_outcomes_total{outcome="",chat_kind=""} 0
+# HELP coderd_chatd_turn_time_seconds_total Accumulated wall time of finished chat turns split into disjoint categories that sum to the turn duration, added once per turn per category when the turn ends. Divide by turns_total for mean seconds per turn. Only turns that finished normally are counted. Registered only with the chat-stage-metrics experiment.
+# TYPE coderd_chatd_turn_time_seconds_total counter
+coderd_chatd_turn_time_seconds_total{category="",chat_kind=""} 0
+# HELP coderd_chatd_turns_total Total chat turns whose time partition was recorded in turn_time_seconds_total. Only turns that finished normally are counted. Registered only with the chat-stage-metrics experiment.
+# TYPE coderd_chatd_turns_total counter
+coderd_chatd_turns_total{chat_kind=""} 0
 # HELP coderd_db_query_counts_total Total number of queries labelled by HTTP route, method, and query name.
 # TYPE coderd_db_query_counts_total counter
 coderd_db_query_counts_total{route="",method="",query=""} 0
