@@ -653,7 +653,7 @@ export const ScopeToggle: Story = {
 					scopeToggle: {
 						label: "Include shared workspaces",
 						chipKey: "user",
-						pillLabel: "include shared",
+						pillLabels: { on: "include shared", off: "hide shared" },
 					},
 					getOptions: async (query) => filterOptions(ownerOptions, query),
 				},

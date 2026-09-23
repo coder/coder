@@ -17,7 +17,7 @@ const scopedOwnerCategory: FilterCategory = {
 	scopeToggle: {
 		label: "Include shared workspaces",
 		chipKey: "user",
-		pillLabel: "include shared",
+		pillLabels: { on: "include shared", off: "hide shared" },
 	},
 };
 
@@ -287,7 +287,7 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it("removing the scope pill narrows the applied chip", async () => {
+	it("removing the scope pill flips the applied chip's scope", async () => {
 		const user = userEvent.setup();
 		const onChange = vi.fn();
 		render(
@@ -301,10 +301,30 @@ describe("FilterCombobox", () => {
 		await user.click(
 			screen.getByRole("button", { name: "Remove include shared" }),
 		);
-
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
 		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Remove hide shared" }),
+		);
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+	});
+
+	it("hides the scope pill without an Owner chip", () => {
+		render(
+			<FilterComboboxHarness
+				categories={[scopedOwnerCategory]}
+				initialValue=""
+				onChange={vi.fn()}
+			/>,
+		);
+
+		expect(
+			screen.queryByRole("button", { name: /Remove (include|hide) shared/ }),
+		).not.toBeInTheDocument();
 	});
 
 	it("removes a selected inline option", async () => {

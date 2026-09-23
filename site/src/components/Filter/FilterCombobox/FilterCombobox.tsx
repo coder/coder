@@ -6,6 +6,7 @@ import {
 	SearchIcon,
 } from "lucide-react";
 import {
+	Fragment,
 	type ReactNode,
 	useEffect,
 	useId,
@@ -27,7 +28,7 @@ import {
 	coarsePointerMediaQuery,
 	mobileViewportMediaQuery,
 } from "#/utils/mobile";
-import { chipDisplay, chipToken } from "./filterQuery";
+import { chipDisplay, chipToken, parseChipToken } from "./filterQuery";
 import {
 	FilterComboboxChip,
 	FilterComboboxChips,
@@ -50,6 +51,9 @@ import { useFilterCombobox } from "./useFilterCombobox";
  * State lives in `useFilterCombobox`.
  */
 const CATEGORY_HOVER_DELAY_MS = 300;
+
+const labelOnlyChipClassName =
+	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
 
 const flyoutPanelClassName =
 	"relative flex w-(--radix-popover-trigger-width) max-w-full shrink-0 flex-col rounded-md border border-border bg-surface-primary shadow-md sm:absolute sm:left-[calc(100%-0.25rem)] sm:z-10 sm:w-max sm:min-w-40 sm:self-start";
@@ -274,8 +278,27 @@ export function FilterCombobox({
 						<SearchIcon aria-hidden className="size-icon-sm" />
 					</InputGroupAddon>
 					<FilterComboboxChips>
-						{chipValues.map((token) => {
+						{chipValues.map((token, index) => {
 							const display = chipDisplay(token, categories);
+							// The scope pill follows the last chip its category owns.
+							const scopeCategory = categories.find((category) => {
+								if (!category.scopeToggle) {
+									return false;
+								}
+								const keys = [category.key, category.scopeToggle.chipKey];
+								return (
+									parseChipToken(token, keys) !== null &&
+									!chipValues
+										.slice(index + 1)
+										.some((later) => parseChipToken(later, keys) !== null)
+								);
+							});
+							const scopePillLabel =
+								scopeCategory?.scopeToggle &&
+								(scopeWidened(scopeCategory.key)
+									? scopeCategory.scopeToggle.pillLabels.on
+									: scopeCategory.scopeToggle.pillLabels.off
+								).toLowerCase();
 							const inlineOption = mainInlineOptions.find(
 								({ categoryKey, option }) => {
 									const optionToken =
@@ -296,31 +319,26 @@ export function FilterCombobox({
 							).toLowerCase();
 							const displayText = prefix ? chipToken(prefix, value) : value;
 							return (
-								<FilterComboboxChip
-									key={token}
-									value={token}
-									removeLabel={`Remove ${displayText}`}
-									className={
-										labelOnly
-											? "text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary"
-											: undefined
-									}
-								>
-									<ChipLabel prefix={prefix} value={value} />
-								</FilterComboboxChip>
+								<Fragment key={token}>
+									<FilterComboboxChip
+										value={token}
+										removeLabel={`Remove ${displayText}`}
+										className={labelOnly ? labelOnlyChipClassName : undefined}
+									>
+										<ChipLabel prefix={prefix} value={value} />
+									</FilterComboboxChip>
+									{scopeCategory && scopePillLabel && (
+										<FilterComboboxChip
+											removeLabel={`Remove ${scopePillLabel}`}
+											onRemove={() => actions.toggleScope(scopeCategory.key)}
+											className={labelOnlyChipClassName}
+										>
+											{scopePillLabel}
+										</FilterComboboxChip>
+									)}
+								</Fragment>
 							);
 						})}
-						{categories.map((category) =>
-							category.scopeToggle && scopeWidened(category.key) ? (
-								<FilterComboboxChip
-									key={`${category.key}-scope`}
-									removeLabel={`Remove ${category.scopeToggle.pillLabel.toLowerCase()}`}
-									onRemove={() => actions.toggleScope(category.key)}
-								>
-									{category.scopeToggle.pillLabel.toLowerCase()}
-								</FilterComboboxChip>
-							) : null,
-						)}
 						{activeCategory && committedFreeText.length > 0 && (
 							<Badge
 								variant="outline"
