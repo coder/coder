@@ -11,6 +11,16 @@ const ownerCategory: FilterCategory = {
 	getOptions: async () => [{ label: "alice", value: "alice" }],
 };
 
+const scopedOwnerCategory: FilterCategory = {
+	...ownerCategory,
+	chipKeys: ["owner", "user"],
+	scopeToggle: {
+		label: "Include shared workspaces",
+		chipKey: "user",
+		chipSuffix: "+shared",
+	},
+};
+
 const statusCategory: FilterCategory = {
 	key: "status",
 	label: "Status",
@@ -222,6 +232,52 @@ describe("FilterCombobox", () => {
 		await user.keyboard("{ArrowRight}");
 		await screen.findByRole("option", { name: "alice" });
 		await user.keyboard("{ArrowDown}{Enter}");
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
+	it("commits options under the scope toggle key while it is on", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<FilterComboboxHarness
+				categories={[scopedOwnerCategory]}
+				onChange={onChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Toggle filters" }));
+		await user.keyboard("{ArrowRight}");
+		await user.click(
+			await screen.findByRole("switch", { name: "Include shared workspaces" }),
+		);
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+	});
+
+	it("rewrites the applied chip when the scope toggle changes", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<FilterComboboxHarness
+				categories={[scopedOwnerCategory]}
+				initialValue="user:alice"
+				onChange={onChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Toggle filters" }));
+		await user.keyboard("{ArrowRight}");
+		const toggle = await screen.findByRole("switch", {
+			name: "Include shared workspaces",
+		});
+		expect(toggle).toBeChecked();
+		await user.click(toggle);
+
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
 		);

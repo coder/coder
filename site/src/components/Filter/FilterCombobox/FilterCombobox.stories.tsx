@@ -638,6 +638,39 @@ export const KeyboardHighlightClosesFlyout: Story = {
 	},
 };
 
+// A category scope toggle sits above the option list; the applied chip shows
+// the widened scope.
+export const ScopeToggle: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alice"
+			categories={[
+				{
+					key: "owner",
+					label: "Owner",
+					icon: <UserIcon />,
+					chipKeys: ["owner", "user"],
+					scopeToggle: {
+						label: "Include shared workspaces",
+						chipKey: "user",
+						chipSuffix: "+shared",
+					},
+					getOptions: async (query) => filterOptions(ownerOptions, query),
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Toggle filters" }),
+		);
+		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
+		await body.findByRole("switch", { name: "Include shared workspaces" });
+	},
+};
+
 // Escape closes the popup without clearing the committed chips.
 export const DismissOnEscape: Story = {
 	render: () => <FilterComboboxHarness initialQuery="owner:me" />,

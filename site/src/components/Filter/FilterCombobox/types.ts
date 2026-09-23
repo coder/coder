@@ -40,4 +40,16 @@ export type FilterCategory = {
 	inlineOptionIcons?: boolean;
 	/** Selecting an option replaces another selected option from this category. */
 	inlineOptionsExclusive?: boolean;
+	/**
+	 * Switch shown above the category's options. While on, options commit under
+	 * `chipKey` instead of the category key, e.g. Owner committing `user:alice`
+	 * (owned by or shared with alice) instead of `owner:alice`. `chipKey` must
+	 * also be listed in `chipKeys` so it parses as this category's chip.
+	 */
+	scopeToggle?: {
+		label: string;
+		chipKey: string;
+		/** Appended to the chip value while the toggle is on, e.g. `+shared`. */
+		chipSuffix: string;
+	};
 };

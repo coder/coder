@@ -21,6 +21,7 @@ import {
 	InputGroupAddon,
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
+import { Switch } from "#/components/Switch/Switch";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	coarsePointerMediaQuery,
@@ -96,6 +97,8 @@ export function FilterCombobox({
 		mainInlineOptions,
 		chipValues,
 		highlightedItem,
+		scopeWidened,
+		optionChipKey,
 		typeaheadError,
 		actions,
 	} = useFilterCombobox({
@@ -112,9 +115,19 @@ export function FilterCombobox({
 	const mobileOverlay = isMobile && open;
 	// Category previewed in the pointer flyout. Distinct from `activeCategoryKey`,
 	// which is the committed drill-in state shared with keyboard navigation.
-	const [flyoutCategoryKey, setFlyoutCategoryKey] = useState<string | null>(
-		null,
-	);
+	// Reset whenever the menu opens or closes so a dismissed flyout does not
+	// reappear next time.
+	const [flyout, setFlyout] = useState<{
+		categoryKey: string | null;
+		menuOpen: boolean;
+	}>({ categoryKey: null, menuOpen: open });
+	if (flyout.menuOpen !== open) {
+		setFlyout({ categoryKey: null, menuOpen: open });
+	}
+	const flyoutCategoryKey =
+		flyout.menuOpen === open ? flyout.categoryKey : null;
+	const setFlyoutCategoryKey = (categoryKey: string | null) =>
+		setFlyout({ categoryKey, menuOpen: open });
 	const categoryRows = useRef(new Map<string, HTMLDivElement>());
 	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const cancelHoverSwitch = () => {
@@ -328,6 +341,8 @@ export function FilterCombobox({
 									: placeholder
 							}
 							onFocus={actions.onInputFocus}
+							// A click on the already focused input reopens a dismissed menu.
+							onClick={actions.onInputFocus}
 							onKeyDown={actions.onInputKeyDown}
 						/>
 					</FilterComboboxChips>
@@ -371,6 +386,9 @@ export function FilterCombobox({
 									activeOptions={activeOptions}
 									activeOptionsError={activeOptionsError}
 									selectedTokens={chipValues}
+									chipKey={optionChipKey(activeCategoryKey)}
+									scopeWidened={scopeWidened(activeCategoryKey)}
+									onToggleScope={actions.toggleScope}
 									inputValue={inputValue}
 									onInputValueChange={actions.onInputValueChange}
 									retryActiveOptions={actions.retryActiveOptions}
@@ -407,6 +425,9 @@ export function FilterCombobox({
 									activeOptions={activeOptions}
 									activeOptionsError={activeOptionsError}
 									selectedTokens={chipValues}
+									chipKey={optionChipKey(activeCategoryKey)}
+									scopeWidened={scopeWidened(activeCategoryKey)}
+									onToggleScope={actions.toggleScope}
 									inputValue={inputValue}
 									onInputValueChange={actions.onInputValueChange}
 									retryActiveOptions={actions.retryActiveOptions}
@@ -421,6 +442,9 @@ export function FilterCombobox({
 										offset={panelOffset}
 										options={flyoutOptions}
 										selectedTokens={chipValues}
+										chipKey={optionChipKey(flyoutCategory.key)}
+										scopeWidened={scopeWidened(flyoutCategory.key)}
+										onToggleScope={actions.toggleScope}
 										onMouseEnter={cancelHoverSwitch}
 										onSelectOption={selectFlyoutOption}
 									/>
@@ -687,11 +711,45 @@ function FlyoutSearch({ label, value, onChange }: FlyoutSearchProps) {
 	);
 }
 
+type FlyoutScopeToggleProps = Readonly<{
+	categoryKey: string;
+	label: string;
+	checked: boolean;
+	onToggle: (categoryKey: string) => void;
+}>;
+
+function FlyoutScopeToggle({
+	categoryKey,
+	label,
+	checked,
+	onToggle,
+}: FlyoutScopeToggleProps) {
+	const id = useId();
+	return (
+		<div className="-mx-2 -mb-2 mt-2 flex items-center gap-2 border-t border-border px-3 py-2.5">
+			<Switch
+				id={id}
+				size="sm"
+				checked={checked}
+				onCheckedChange={() => onToggle(categoryKey)}
+				// Keep focus in the combobox input so keyboard navigation continues.
+				onMouseDown={(event) => event.preventDefault()}
+			/>
+			<label htmlFor={id} className="text-sm text-content-primary">
+				{label}
+			</label>
+		</div>
+	);
+}
+
 type HoverCategoryPanelProps = Readonly<{
 	category: FilterCategory;
 	offset: number;
 	options: readonly FilterOption[];
 	selectedTokens: readonly string[];
+	chipKey: string;
+	scopeWidened: boolean;
+	onToggleScope: (categoryKey: string) => void;
 	onMouseEnter: () => void;
 	onSelectOption: (token: string) => void;
 }>;
@@ -701,6 +759,9 @@ function HoverCategoryPanel({
 	offset,
 	options,
 	selectedTokens,
+	chipKey,
+	scopeWidened,
+	onToggleScope,
 	onMouseEnter,
 	onSelectOption,
 }: HoverCategoryPanelProps) {
@@ -738,7 +799,7 @@ function HoverCategoryPanel({
 			)}
 			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
 				{filteredOptions.map((option) => {
-					const token = option.token ?? chipToken(category.key, option.value);
+					const token = option.token ?? chipToken(chipKey, option.value);
 					const selected = selectedTokens.includes(token);
 					return (
 						<button
@@ -761,6 +822,14 @@ function HoverCategoryPanel({
 					);
 				})}
 			</div>
+			{category.scopeToggle && (
+				<FlyoutScopeToggle
+					categoryKey={category.key}
+					label={category.scopeToggle.label}
+					checked={scopeWidened}
+					onToggle={onToggleScope}
+				/>
+			)}
 		</div>
 	);
 }
@@ -774,6 +843,9 @@ type CategoryOptionsListProps = Readonly<{
 	activeOptions: readonly FilterOption[] | undefined;
 	activeOptionsError: boolean;
 	selectedTokens: readonly string[];
+	chipKey: string;
+	scopeWidened: boolean;
+	onToggleScope: (categoryKey: string) => void;
 	inputValue: string;
 	onInputValueChange: (value: string) => void;
 	retryActiveOptions: () => void;
@@ -789,6 +861,9 @@ function CategoryOptionsList({
 	activeOptions,
 	activeOptionsError,
 	selectedTokens,
+	chipKey,
+	scopeWidened,
+	onToggleScope,
 	inputValue,
 	onInputValueChange,
 	retryActiveOptions,
@@ -850,8 +925,7 @@ function CategoryOptionsList({
 			)}
 			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
 				{activeOptions.map((option) => {
-					const item =
-						option.token ?? chipToken(activeCategoryKey, option.value);
+					const item = option.token ?? chipToken(chipKey, option.value);
 					const selected = selectedTokens.includes(item);
 					return (
 						<FilterComboboxItem
@@ -874,6 +948,14 @@ function CategoryOptionsList({
 					);
 				})}
 			</FilterComboboxList>
+			{activeCategory?.scopeToggle && (
+				<FlyoutScopeToggle
+					categoryKey={activeCategory.key}
+					label={activeCategory.scopeToggle.label}
+					checked={scopeWidened}
+					onToggle={onToggleScope}
+				/>
+			)}
 		</div>
 	);
 }
