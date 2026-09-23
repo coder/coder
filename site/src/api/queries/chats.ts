@@ -17,7 +17,6 @@ import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
 } from "./chatMessageEdits";
-import { chatProjectsFamilyKey } from "./chatProjectsKeys";
 import { organizationsPermissions } from "./organizations";
 
 const chatCollectionsKey = ["chats", "collections"] as const;
@@ -48,7 +47,6 @@ export type ChatListStatusFilter = "read" | "unread";
 type ChatListParams = Readonly<{
 	archived: boolean;
 	prStatuses: readonly ChatListPRStatusFilter[];
-	projectId?: string;
 	status: ChatListStatusFilter | "all";
 	sources: readonly TypesGen.ChatListSource[];
 }>;
@@ -56,7 +54,6 @@ type ChatListParams = Readonly<{
 export type ChatListInput = Readonly<{
 	archived?: boolean;
 	prStatuses?: readonly ChatListPRStatusFilter[];
-	projectId?: string;
 	chatStatus?: ChatListStatusFilter;
 	sources?: readonly TypesGen.ChatListSource[];
 }>;
@@ -1100,7 +1097,6 @@ const canonicalizeChatSources = (
 export const toChatListParams = (input?: ChatListInput): ChatListParams => ({
 	archived: input?.archived ?? false,
 	prStatuses: canonicalizeChatListPRStatuses(input?.prStatuses ?? []),
-	projectId: input?.projectId,
 	status: input?.chatStatus ?? "all",
 	sources: canonicalizeChatSources(input?.sources ?? []),
 });
@@ -1148,7 +1144,6 @@ export const infiniteChats = (input?: ChatListInput) => {
 			return API.experimental.getChats({
 				limit,
 				offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
-				project_id: params.projectId,
 				q,
 			});
 		},
@@ -1404,7 +1399,7 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 	},
 });
 
-export const updateChatProject = (queryClient: QueryClient) => ({
+export const moveChatToProject = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, projectId }: UpdateChatProjectVariables) =>
 		API.experimental.updateChat(chatId, {
 			project_id:
@@ -1435,7 +1430,7 @@ export const updateChatProject = (queryClient: QueryClient) => ({
 	},
 	onError: (
 		_error: unknown,
-		{ chatId }: UpdateChatProjectVariables,
+		{ chatId, projectId }: UpdateChatProjectVariables,
 		context:
 			| {
 					previousChat?: TypesGen.Chat;
@@ -1447,12 +1442,17 @@ export const updateChatProject = (queryClient: QueryClient) => ({
 		if (previousChat) {
 			updateInfiniteChatsCache(queryClient, (chats) =>
 				chats.map((chat) =>
-					chat.id === chatId
+					chat.id === chatId && chat.project_id === (projectId ?? undefined)
 						? { ...chat, project_id: previousChat.project_id }
 						: chat,
 				),
 			);
-			patchChatEntity(queryClient, chatId, () => previousChat);
+			patchChatEntity(queryClient, chatId, (chat) => {
+				if (!chat || chat.project_id !== (projectId ?? undefined)) {
+					return chat;
+				}
+				return { ...chat, project_id: previousChat.project_id };
+			});
 		}
 	},
 	onSettled: async (
@@ -1464,7 +1464,6 @@ export const updateChatProject = (queryClient: QueryClient) => ({
 			invalidateChatListQueries(queryClient),
 			invalidateChatEntity(queryClient, chatId),
 			invalidateChatsByWorkspace(queryClient),
-			queryClient.invalidateQueries({ queryKey: chatProjectsFamilyKey }),
 		]);
 	},
 });

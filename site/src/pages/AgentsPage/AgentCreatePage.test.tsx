@@ -1,9 +1,15 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import type { FC, PropsWithChildren, ReactNode } from "react";
+import type { ComponentProps, FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router";
+import {
+	MemoryRouter,
+	Route,
+	Routes,
+	useLocation,
+	useNavigate,
+} from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
@@ -14,15 +20,21 @@ import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockEntitlements,
-	MockOrganization,
+	MockOrganization2,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import AgentCreatePage from "./AgentCreatePage";
+import type {
+	AgentCreateForm,
+	CreateChatOptions,
+} from "./components/AgentCreateForm";
 
 const { mountedLockedOrganizationIds } = vi.hoisted(() => ({
 	mountedLockedOrganizationIds: [] as Array<string | undefined>,
 }));
+
+type MockAgentCreateFormProps = ComponentProps<typeof AgentCreateForm>;
 
 vi.mock("./components/AgentCreateForm", () => ({
 	AgentCreateForm: ({
@@ -31,16 +43,7 @@ vi.mock("./components/AgentCreateForm", () => ({
 		lockedOrganizationId,
 		header,
 		footer,
-	}: {
-		onCreateChat: (options: {
-			message: string;
-			organizationId: string;
-		}) => Promise<void>;
-		isCreating: boolean;
-		lockedOrganizationId?: string;
-		header?: ReactNode;
-		footer?: ReactNode;
-	}) => {
+	}: MockAgentCreateFormProps) => {
 		mountedLockedOrganizationIds.push(lockedOrganizationId);
 		return (
 			<div>
@@ -52,8 +55,9 @@ vi.mock("./components/AgentCreateForm", () => ({
 					onClick={() =>
 						onCreateChat({
 							message: "Create this chat",
-							organizationId: MockDefaultOrganization.id,
-						})
+							organizationId:
+								lockedOrganizationId ?? MockDefaultOrganization.id,
+						} satisfies CreateChatOptions)
 					}
 				>
 					Create chat
@@ -85,19 +89,37 @@ vi.mock("#/contexts/useWebpushNotifications", () => ({
 	useWebpushNotifications: () => ({ subscribed: false }),
 }));
 
-const LocationDisplay: FC = () => {
+type LocationDisplayProps = Record<string, never>;
+
+const LocationDisplay: FC<LocationDisplayProps> = () => {
 	const location = useLocation();
 	return <output>{location.pathname}</output>;
 };
 
-const projectPath = `/agents/projects/${MockChatProject.id}`;
+let navigateBack: (() => void) | undefined;
 
-const Wrapper: FC<
-	PropsWithChildren<{
-		experiments: TypesGen.Experiment[];
-		initialEntry?: string;
-	}>
-> = ({ children, experiments, initialEntry = projectPath }) => {
+type NavigationBackProps = Record<string, never>;
+
+const NavigationBack: FC<NavigationBackProps> = () => {
+	const navigate = useNavigate();
+	navigateBack = () => navigate(-1);
+	return null;
+};
+
+type WrapperProps = PropsWithChildren<{
+	experiments: TypesGen.Experiment[];
+	initialEntry?: string;
+	initialEntries?: string[];
+	initialIndex?: number;
+}>;
+
+const Wrapper: FC<WrapperProps> = ({
+	children,
+	experiments,
+	initialEntry = `/agents/projects/${MockChatProject.id}`,
+	initialEntries,
+	initialIndex,
+}) => {
 	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
@@ -112,13 +134,17 @@ const Wrapper: FC<
 					canViewOrganizationSettings: false,
 				}}
 			>
-				<MemoryRouter initialEntries={[initialEntry]}>
+				<MemoryRouter
+					initialEntries={initialEntries ?? [initialEntry]}
+					initialIndex={initialIndex}
+				>
 					<Routes>
 						<Route path="/agents" element={children} />
 						<Route path="/agents/projects/:projectId" element={children} />
 						<Route path="/agents/:agentId" element={<div />} />
 					</Routes>
 					<LocationDisplay />
+					<NavigationBack />
 				</MemoryRouter>
 			</DashboardContext.Provider>
 		</QueryClientProvider>
@@ -126,8 +152,8 @@ const Wrapper: FC<
 };
 
 afterEach(() => {
-	server.resetHandlers();
 	mountedLockedOrganizationIds.length = 0;
+	navigateBack = undefined;
 });
 
 describe("AgentCreatePage project assignment", () => {
@@ -135,7 +161,7 @@ describe("AgentCreatePage project assignment", () => {
 		const user = userEvent.setup();
 		const nonDefaultProject = {
 			...MockChatProject,
-			organization_id: MockOrganization.id,
+			organization_id: MockOrganization2.id,
 		};
 		let projectRequested = false;
 		let requestBody: unknown;
@@ -163,7 +189,7 @@ describe("AgentCreatePage project assignment", () => {
 		// on mount, so it must never render against a provisional one.
 		await waitFor(() => {
 			expect(screen.getByTestId("locked-organization")).toHaveTextContent(
-				MockOrganization.id,
+				MockOrganization2.id,
 			);
 		});
 		expect(mountedLockedOrganizationIds).not.toContain(undefined);
@@ -171,7 +197,7 @@ describe("AgentCreatePage project assignment", () => {
 
 		await waitFor(() => {
 			expect(requestBody).toMatchObject({
-				organization_id: MockOrganization.id,
+				organization_id: MockOrganization2.id,
 				project_id: MockChatProject.id,
 			});
 		});
@@ -290,6 +316,69 @@ describe("AgentCreatePage project frame", () => {
 		expect(screen.getByText(MockChatProject.description)).toBeInTheDocument();
 	});
 
+	it("keeps the edit target aligned after browser history navigation", async () => {
+		const user = userEvent.setup();
+		const projectA = {
+			...MockChatProject,
+			id: "project-a",
+			name: "Alpha",
+			description: "Alpha description",
+		};
+		const projectB = {
+			...MockChatProject,
+			id: "project-b",
+			name: "Beta",
+			description: "Beta description",
+		};
+		let patchedProjectId: string | undefined;
+		let requestBody: unknown;
+		server.use(
+			http.get("/api/experimental/chats/projects/:projectId", ({ params }) =>
+				HttpResponse.json(
+					params.projectId === projectA.id ? projectA : projectB,
+				),
+			),
+			http.patch(
+				"/api/experimental/chats/projects/:projectId",
+				async ({ params, request }) => {
+					patchedProjectId = String(params.projectId);
+					requestBody = await request.json();
+					return HttpResponse.json(projectB);
+				},
+			),
+		);
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntries={[
+					`/agents/projects/${projectB.id}`,
+					`/agents/projects/${projectA.id}`,
+				]}
+				initialIndex={1}
+			>
+				<AgentCreatePage />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Edit project" }),
+		);
+		act(() => navigateBack?.());
+		await user.click(
+			await screen.findByRole("button", { name: "Edit project" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(patchedProjectId).toBe(projectB.id);
+			expect(requestBody).toEqual({
+				name: projectB.name,
+				description: projectB.description,
+			});
+		});
+	});
+
 	it("edits the project from the composer", async () => {
 		const user = userEvent.setup();
 		let requestBody: unknown;
@@ -315,7 +404,10 @@ describe("AgentCreatePage project frame", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Edit project" }),
 		);
-		const nameInput = screen.getByLabelText("Name");
+		const dialog = await screen.findByRole("dialog", {
+			name: "Edit project",
+		});
+		const nameInput = within(dialog).getByRole("textbox", { name: /Name/ });
 		await user.clear(nameInput);
 		await user.type(nameInput, "Renamed");
 		await user.click(screen.getByRole("button", { name: "Save" }));

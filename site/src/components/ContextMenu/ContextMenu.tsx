@@ -7,6 +7,7 @@
  */
 
 import { cn } from "cn";
+import { ChevronRightIcon } from "lucide-react";
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui";
 import {
 	menuContentClass,
@@ -67,6 +68,7 @@ export const ContextMenuSubTrigger: React.FC<
 			{...props}
 		>
 			{children}
+			<ChevronRightIcon className="ml-auto" />
 		</ContextMenuPrimitive.SubTrigger>
 	);
 };

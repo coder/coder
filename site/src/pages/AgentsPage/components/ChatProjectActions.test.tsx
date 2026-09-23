@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -21,7 +21,9 @@ import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import { ChatProjectActions } from "./ChatProjectActions";
 
-const Wrapper: FC<PropsWithChildren> = ({ children }) => {
+type WrapperProps = PropsWithChildren;
+
+const Wrapper: FC<WrapperProps> = ({ children }) => {
 	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
@@ -44,7 +46,10 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
-afterEach(() => server.resetHandlers());
+const chatInProjectOrganization = {
+	...MockChat,
+	organization_id: MockChatProject.organization_id,
+};
 
 describe("ChatProjectActions", () => {
 	it("assigns the selected project with a chat PATCH request", async () => {
@@ -64,14 +69,11 @@ describe("ChatProjectActions", () => {
 
 		render(
 			<Wrapper>
-				<ChatProjectActions chat={MockChat} menu="dropdown" />
+				<ChatProjectActions chat={chatInProjectOrganization} menu="dropdown" />
 			</Wrapper>,
 		);
 
-		const moveToProject = screen.getByRole("menuitem", {
-			name: "Move to project",
-		});
-		await user.click(moveToProject);
+		await user.click(screen.getByRole("menuitem", { name: "Move to project" }));
 		await user.keyboard("{ArrowRight}");
 		const projectItem = await screen.findByRole("menuitem", {
 			name: MockChatProject.name,
@@ -82,6 +84,68 @@ describe("ChatProjectActions", () => {
 		await waitFor(() => {
 			expect(requestURL).toContain(`/api/v2/chats/${MockChat.id}`);
 			expect(requestBody).toEqual({ project_id: MockChatProject.id });
+		});
+	});
+
+	it("does not offer projects owned by another user", async () => {
+		const user = userEvent.setup();
+		const otherUsersProject = {
+			...MockChatProject,
+			id: "other-users-project",
+			owner_id: "other-user",
+			name: "Other user's project",
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject, otherUsersProject]),
+			),
+		);
+
+		render(
+			<Wrapper>
+				<ChatProjectActions chat={chatInProjectOrganization} menu="dropdown" />
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("menuitem", { name: "Move to project" }));
+		await user.keyboard("{ArrowRight}");
+		await screen.findByRole("menuitem", { name: MockChatProject.name });
+		expect(
+			screen.queryByRole("menuitem", { name: otherUsersProject.name }),
+		).toBeNull();
+	});
+
+	it("clears the project with the nil UUID", async () => {
+		const user = userEvent.setup();
+		let requestBody: unknown;
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.patch("*", async ({ request }) => {
+				requestBody = await request.json();
+				return new HttpResponse(null, { status: 204 });
+			}),
+		);
+
+		render(
+			<Wrapper>
+				<ChatProjectActions chat={chatInProjectOrganization} menu="dropdown" />
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("menuitem", { name: "Move to project" }));
+		await user.keyboard("{ArrowRight}");
+		const noProject = await screen.findByRole("menuitem", {
+			name: "No project",
+		});
+		noProject.focus();
+		await user.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(requestBody).toEqual({
+				project_id: "00000000-0000-0000-0000-000000000000",
+			});
 		});
 	});
 
@@ -102,7 +166,7 @@ describe("ChatProjectActions", () => {
 
 		render(
 			<Wrapper>
-				<ChatProjectActions chat={MockChat} menu="dropdown" />
+				<ChatProjectActions chat={chatInProjectOrganization} menu="dropdown" />
 			</Wrapper>,
 		);
 

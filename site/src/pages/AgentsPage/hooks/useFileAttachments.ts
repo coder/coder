@@ -48,8 +48,9 @@ type PersistedAttachment = {
  * Only attachments matching `currentOrgId` are returned. Entries for other
  * organizations stay in storage so an organization change the user did not
  * ask for, such as opening a project in another organization, cannot
- * discard their drafts; they are restored when that organization is active
- * again.
+ * discard their completed drafts; they are restored when that organization is
+ * active again. Uploads still in progress when the organization changes are
+ * discarded.
  */
 function restorePersistedAttachments(currentOrgId: string): {
 	attachments: File[];
@@ -161,10 +162,9 @@ function removePersistedAttachment(fileId: string) {
 	}
 }
 
-function clearPersistedAttachments(organizationId: string | null) {
+function clearPersistedAttachments(organizationId: string) {
 	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
-	if (!stored || organizationId === null) {
-		localStorage.removeItem(persistedAttachmentsStorageKey);
+	if (!stored) {
 		return;
 	}
 	try {
@@ -559,7 +559,8 @@ export function useFileAttachments(
 		setTextContents(new Map());
 		setUploadStates(new Map());
 		setAttachments([]);
-		if (persist) {
+		if (persist && stateOrgId !== null) {
+			// Nothing was adopted when the organization scope was unknown.
 			clearPersistedAttachments(stateOrgId);
 		}
 	};

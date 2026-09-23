@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { chatProjects } from "#/api/queries/chatProjects";
-import { updateChatProject } from "#/api/queries/chats";
+import { moveChatToProject } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import {
 	ContextMenuItem,
@@ -35,12 +35,12 @@ export const ChatProjectActions: FC<ChatProjectActionsProps> = ({
 		...chatProjects(chat.organization_id),
 		enabled: experiments.includes("chat-projects"),
 	});
-	const updateProjectBase = updateChatProject(queryClient);
-	const updateProjectMutation = useMutation({
-		...updateProjectBase,
+	const moveChatBase = moveChatToProject(queryClient);
+	const moveChatMutation = useMutation({
+		...moveChatBase,
 		onError: (error, variables, context) => {
-			updateProjectBase.onError(error, variables, context);
-			toast.error(getErrorMessage(error, "Failed to update project."));
+			moveChatBase.onError(error, variables, context);
+			toast.error(getErrorMessage(error, "Failed to move chat."));
 		},
 	});
 
@@ -49,7 +49,7 @@ export const ChatProjectActions: FC<ChatProjectActionsProps> = ({
 	}
 
 	const selectProject = (projectId: string | null) => {
-		updateProjectMutation.mutate({ chatId: chat.id, projectId });
+		moveChatMutation.mutate({ chatId: chat.id, projectId });
 	};
 	const Sub = menu === "dropdown" ? DropdownMenuSub : ContextMenuSub;
 	const SubTrigger =
@@ -61,12 +61,12 @@ export const ChatProjectActions: FC<ChatProjectActionsProps> = ({
 	return (
 		<Sub>
 			<SubTrigger disabled={projectsQuery.isLoading}>
-				<FolderInputIcon className="size-3.5" />
+				<FolderInputIcon />
 				Move to project
 			</SubTrigger>
 			<SubContent>
 				<Item
-					disabled={updateProjectMutation.isPending}
+					disabled={moveChatMutation.isPending}
 					onSelect={() => selectProject(null)}
 				>
 					No project
@@ -86,15 +86,17 @@ export const ChatProjectActions: FC<ChatProjectActionsProps> = ({
 						</Item>
 					</>
 				) : (
-					projectsQuery.data?.map((project) => (
-						<Item
-							key={project.id}
-							disabled={updateProjectMutation.isPending}
-							onSelect={() => selectProject(project.id)}
-						>
-							{project.name}
-						</Item>
-					))
+					(projectsQuery.data ?? [])
+						.filter((project) => project.owner_id === chat.owner_id)
+						.map((project) => (
+							<Item
+								key={project.id}
+								disabled={moveChatMutation.isPending}
+								onSelect={() => selectProject(project.id)}
+							>
+								{project.name}
+							</Item>
+						))
 				)}
 			</SubContent>
 		</Sub>
