@@ -19615,6 +19615,9 @@
 				"description": {
 					"type": "string"
 				},
+				"icon": {
+					"type": "string"
+				},
 				"id": {
 					"type": "string",
 					"format": "uuid"
@@ -20373,6 +20376,9 @@
 			"required": ["name", "organization_id"],
 			"properties": {
 				"description": {
+					"type": "string"
+				},
+				"icon": {
 					"type": "string"
 				},
 				"name": {
@@ -27875,6 +27881,9 @@
 			"type": "object",
 			"properties": {
 				"description": {
+					"type": "string"
+				},
+				"icon": {
 					"type": "string"
 				},
 				"name": {

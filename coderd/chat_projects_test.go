@@ -25,7 +25,13 @@ func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModel(t, client)
 
-	project := createChatProject(t, client, firstUser.OrganizationID, "Project One")
+	project, err := client.CreateChatProject(ctx, codersdk.CreateChatProjectRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Name:           "Project One",
+		Icon:           "  /emojis/1f525.png  ",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "/emojis/1f525.png", project.Icon)
 	otherOrganization := dbgen.Organization(t, db, database.Organization{IsDefault: false})
 	_ = dbgen.ChatProject(t, db, database.ChatProject{
 		OrganizationID: otherOrganization.ID,
@@ -46,13 +52,22 @@ func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 
 	updatedName := "Renamed Project"
 	updatedDescription := "Updated description"
+	updatedIcon := "  https://example.com/project.png  "
 	updated, err := client.UpdateChatProject(ctx, project.ID, codersdk.UpdateChatProjectRequest{
 		Name:        &updatedName,
 		Description: &updatedDescription,
+		Icon:        &updatedIcon,
 	})
 	require.NoError(t, err)
 	require.Equal(t, updatedName, updated.Name)
 	require.Equal(t, updatedDescription, updated.Description)
+	require.Equal(t, "https://example.com/project.png", updated.Icon)
+
+	updatedName = "Renamed Again"
+	updated, err = client.UpdateChatProject(ctx, project.ID, codersdk.UpdateChatProjectRequest{Name: &updatedName})
+	require.NoError(t, err)
+	require.Equal(t, updatedName, updated.Name)
+	require.Equal(t, "https://example.com/project.png", updated.Icon)
 
 	_, err = client.CreateChatProject(ctx, codersdk.CreateChatProjectRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -181,6 +196,9 @@ func TestChatProjectFieldLimits(t *testing.T) {
 	project := createChatProject(t, client, firstUser.OrganizationID, strings.Repeat("n", 64))
 	longDescription := strings.Repeat("d", 1025)
 	_, err = client.UpdateChatProject(ctx, project.ID, codersdk.UpdateChatProjectRequest{Description: &longDescription})
+	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
+	longIcon := strings.Repeat("🔥", 257)
+	_, err = client.UpdateChatProject(ctx, project.ID, codersdk.UpdateChatProjectRequest{Icon: &longIcon})
 	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
 }
 

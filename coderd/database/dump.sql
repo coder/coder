@@ -2137,12 +2137,16 @@ CREATE TABLE chat_projects (
     description text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    icon text DEFAULT ''::text NOT NULL,
     CONSTRAINT chat_projects_description_length CHECK ((length(description) <= 1024)),
+    CONSTRAINT chat_projects_icon_length CHECK ((length(icon) <= 256)),
     CONSTRAINT chat_projects_name_length CHECK ((length(name) <= 64)),
     CONSTRAINT chat_projects_name_not_blank CHECK ((length(btrim(name)) > 0))
 );
 
 COMMENT ON TABLE chat_projects IS 'Organization-scoped projects that group agent chats.';
+
+COMMENT ON COLUMN chat_projects.icon IS 'URL or path to an icon representing the chat project (max 256 characters).';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1

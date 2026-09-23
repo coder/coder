@@ -7620,7 +7620,7 @@ func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) er
 }
 
 const getChatProjectByID = `-- name: GetChatProjectByID :one
-SELECT id, organization_id, owner_id, name, description, created_at, updated_at
+SELECT id, organization_id, owner_id, name, description, created_at, updated_at, icon
 FROM chat_projects
 WHERE id = $1::uuid
 `
@@ -7636,12 +7636,13 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
 	)
 	return i, err
 }
 
 const getChatProjectsByOrganizationID = `-- name: GetChatProjectsByOrganizationID :many
-SELECT id, organization_id, owner_id, name, description, created_at, updated_at
+SELECT id, organization_id, owner_id, name, description, created_at, updated_at, icon
 FROM chat_projects
 WHERE organization_id = $1::uuid
 ORDER BY lower(name)
@@ -7664,6 +7665,7 @@ func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organi
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Icon,
 		); err != nil {
 			return nil, err
 		}
@@ -7679,15 +7681,16 @@ func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organi
 }
 
 const insertChatProject = `-- name: InsertChatProject :one
-INSERT INTO chat_projects (id, organization_id, owner_id, name, description)
+INSERT INTO chat_projects (id, organization_id, owner_id, name, description, icon)
 VALUES (
     COALESCE($1::uuid, gen_random_uuid()),
     $2::uuid,
     $3::uuid,
     $4::text,
-    $5::text
+    $5::text,
+    $6::text
 )
-RETURNING id, organization_id, owner_id, name, description, created_at, updated_at
+RETURNING id, organization_id, owner_id, name, description, created_at, updated_at, icon
 `
 
 type InsertChatProjectParams struct {
@@ -7696,6 +7699,7 @@ type InsertChatProjectParams struct {
 	OwnerID        uuid.UUID     `db:"owner_id" json:"owner_id"`
 	Name           string        `db:"name" json:"name"`
 	Description    string        `db:"description" json:"description"`
+	Icon           string        `db:"icon" json:"icon"`
 }
 
 func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjectParams) (ChatProject, error) {
@@ -7705,6 +7709,7 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		arg.OwnerID,
 		arg.Name,
 		arg.Description,
+		arg.Icon,
 	)
 	var i ChatProject
 	err := row.Scan(
@@ -7715,6 +7720,7 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
 	)
 	return i, err
 }
@@ -7724,19 +7730,26 @@ UPDATE chat_projects
 SET
     name = $1::text,
     description = $2::text,
+    icon = $3::text,
     updated_at = now()
-WHERE id = $3::uuid
-RETURNING id, organization_id, owner_id, name, description, created_at, updated_at
+WHERE id = $4::uuid
+RETURNING id, organization_id, owner_id, name, description, created_at, updated_at, icon
 `
 
 type UpdateChatProjectByIDParams struct {
 	Name        string    `db:"name" json:"name"`
 	Description string    `db:"description" json:"description"`
+	Icon        string    `db:"icon" json:"icon"`
 	ID          uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error) {
-	row := q.db.QueryRowContext(ctx, updateChatProjectByID, arg.Name, arg.Description, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateChatProjectByID,
+		arg.Name,
+		arg.Description,
+		arg.Icon,
+		arg.ID,
+	)
 	var i ChatProject
 	err := row.Scan(
 		&i.ID,
@@ -7746,6 +7759,7 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
 	)
 	return i, err
 }
