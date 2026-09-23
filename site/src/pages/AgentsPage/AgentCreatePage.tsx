@@ -2,7 +2,7 @@ import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorMessage, isApiError } from "#/api/errors";
 import {
 	archiveChat,
 	createChat,
@@ -27,6 +27,9 @@ import { buildAgentChatPath } from "./utils/navigation";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
+const isConflictError = (error: unknown) =>
+	isApiError(error) && error.response.status === 409;
+
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
@@ -50,6 +53,22 @@ const AgentCreatePage: FC = () => {
 				);
 			},
 		});
+	};
+	// Resolves true when the chat already holds the first message. A
+	// failed send can still commit server-side; the chat then left the
+	// idle state and archiving it returns 409.
+	const archiveChatAfterFailedSend = async (chatId: string) => {
+		try {
+			await archiveMutation.mutateAsync(chatId);
+		} catch (error) {
+			if (isConflictError(error)) {
+				return true;
+			}
+			toast.error(
+				getErrorMessage(error, "Failed to clean up the unused chat."),
+			);
+		}
+		return false;
 	};
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
@@ -150,15 +169,22 @@ const AgentCreatePage: FC = () => {
 					chatId: createdChat.id,
 					req: firstMessageReq,
 				};
+				let sendFailed = false;
+				let sendError: unknown;
 				try {
 					await sendFirstMessageMutation.mutateAsync(firstMessage);
 				} catch (error) {
-					// Without the message the fresh chat is an empty shell,
-					// so archive it and stay on the composer with the draft
-					// intact; a retry re-creates the chat and re-uploads.
-					archiveUnusedChat(createdChat.id);
-					toast.error(getErrorMessage(error, "Failed to send the message."));
-					throw error;
+					sendFailed = true;
+					sendError = error;
+				}
+				// Without the message the fresh chat is an empty shell, so
+				// archive it and stay on the composer with the draft intact;
+				// a retry re-creates the chat and re-uploads.
+				if (sendFailed && !(await archiveChatAfterFailedSend(createdChat.id))) {
+					toast.error(
+						getErrorMessage(sendError, "Failed to send the message."),
+					);
+					throw sendError;
 				}
 			}
 		}
