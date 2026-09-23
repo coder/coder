@@ -525,8 +525,9 @@ func generateCompactionSummary(
 	if timeout == 0 {
 		timeout = DefaultStreamSilenceTimeout
 	}
-	// NopMetrics: TTFT is an assistant-generation metric, so the summary
-	// stream must not record into it.
+	// NopMetrics and NopStageTracer: time to first token is an
+	// assistant-generation measurement, so the summary stream records
+	// neither the TTFT histogram nor a time_to_first_token stage.
 	streamSummaryText := func() (string, error) {
 		attempt, err := guardedStream(
 			summaryCtx,
@@ -538,6 +539,8 @@ func generateCompactionSummary(
 				return model.Stream(attemptCtx, call)
 			},
 			NopMetrics(),
+			NopStageTracer(),
+			StageModel{},
 		)
 		if err != nil {
 			return "", xerrors.Errorf("stream summary text: %w", wrapProviderStreamError(options.ResolvedProvider, err))
