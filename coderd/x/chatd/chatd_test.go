@@ -2027,6 +2027,92 @@ func TestCreateChatWithoutInitialUserContent(t *testing.T) {
 	}
 }
 
+// TestSendMessageFirstUserTurnFallbackTitle verifies that the first
+// message on a chat created without initial content persists the
+// fallback title in the send itself, independent of title generation.
+func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
+	t.Parallel()
+
+	const text = "investigate the flaky workspace upload tests today"
+
+	setup := func(t *testing.T, title string) (context.Context, database.Store, *chatd.Server, database.Chat) {
+		t.Helper()
+		db, ps := dbtestutil.NewDB(t)
+		server := newTestServer(t, db, ps, uuid.New())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          title,
+			ModelConfigID:  model.ID,
+		})
+		require.NoError(t, err)
+		return ctx, db, server, chat
+	}
+	send := func(ctx context.Context, t *testing.T, server *chatd.Server, chatID uuid.UUID) chatd.SendMessageResult {
+		t.Helper()
+		result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:  chatID,
+			Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)},
+		})
+		require.NoError(t, err)
+		require.False(t, result.Queued)
+		return result
+	}
+
+	t.Run("PlaceholderTitle", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle)
+
+		result := send(ctx, t, server, chat.ID)
+		require.True(t, result.FirstUserTurn)
+		require.Equal(t, chatprompt.FallbackTitle(text), result.Chat.Title)
+
+		stored, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chatprompt.FallbackTitle(text), stored.Title)
+	})
+
+	t.Run("ExistingTitle", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, server, chat := setup(t, "custom title")
+
+		result := send(ctx, t, server, chat.ID)
+		require.False(t, result.FirstUserTurn)
+
+		stored, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "custom title", stored.Title)
+	})
+
+	t.Run("PriorVisibleMessage", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle)
+
+		send(ctx, t, server, chat.ID)
+		// Reset to an idle chat that still carries the placeholder
+		// title but already has a user-visible message.
+		_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+			ID:    chat.ID,
+			Title: chatprompt.DefaultChatTitle,
+		})
+		require.NoError(t, err)
+		_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusWaiting,
+		})
+		require.NoError(t, err)
+
+		result := send(ctx, t, server, chat.ID)
+		require.False(t, result.FirstUserTurn)
+
+		stored, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chatprompt.DefaultChatTitle, stored.Title)
+	})
+}
+
 func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	t.Parallel()
 
