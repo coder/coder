@@ -93,10 +93,6 @@ const buildEditing = (
 	initialEditorState: undefined,
 	remountKey: 0,
 	editingTarget: null as EditingTarget | null,
-	editingMessageId:
-		overrides.editingTarget?.kind === "history"
-			? overrides.editingTarget.id
-			: null,
 	editingFileBlocks: [] as readonly ChatMessagePart[],
 	handleBeginHistoryEdit: fn(),
 	handleCancelEdit: fn(),

@@ -76,27 +76,24 @@ const QueuedMessageActionButton: FC<QueuedMessageActionButtonProps> = ({
 	onClick,
 }) => (
 	<Tooltip>
-		{/* A disabled button receives no pointer events, so the span hosts the tooltip. */}
 		<TooltipTrigger asChild>
-			<span className="inline-flex">
-				<Button
-					variant="subtle"
-					size="icon"
-					aria-label={label}
-					disabled={disabled}
-					onClick={onClick}
-					className={cn(
-						"size-6 rounded text-content-secondary hover:bg-surface-tertiary",
-						destructive
-							? "hover:text-content-destructive"
-							: "hover:text-content-primary",
-					)}
-				>
-					<Spinner className="h-3.5 w-3.5" loading={busy}>
-						{icon}
-					</Spinner>
-				</Button>
-			</span>
+			<Button
+				variant="subtle"
+				size="icon"
+				aria-label={label}
+				disabled={disabled}
+				onClick={onClick}
+				className={cn(
+					"size-6 rounded text-content-secondary hover:bg-surface-tertiary",
+					destructive
+						? "hover:text-content-destructive"
+						: "hover:text-content-primary",
+				)}
+			>
+				<Spinner className="h-3.5 w-3.5" loading={busy}>
+					{icon}
+				</Spinner>
+			</Button>
 		</TooltipTrigger>
 		<TooltipContent side="top">{tooltip ?? label}</TooltipContent>
 	</Tooltip>
