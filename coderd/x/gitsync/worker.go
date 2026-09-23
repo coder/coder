@@ -94,15 +94,6 @@ type Worker struct {
 // WorkerOption configures a Worker.
 type WorkerOption func(*Worker)
 
-// WithTickTimeout sets the maximum duration for a single tick.
-func WithTickTimeout(d time.Duration) WorkerOption {
-	return func(w *Worker) {
-		if d > 0 {
-			w.tickTimeout = d
-		}
-	}
-}
-
 // NewWorker creates a Worker with default batch size and interval.
 func NewWorker(
 	store Store,

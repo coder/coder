@@ -1,9 +1,12 @@
 package chatloop
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
+	"image"
+	"image/png"
 	"iter"
 	"runtime"
 	"slices"
@@ -505,7 +508,7 @@ func TestExclusiveToolPolicy_MixedBatchErrors(t *testing.T) {
 	requireToolResultErrorMessage(
 		t,
 		results[0],
-		"advisor must be called alone, without other tools in the same batch. Retry with only the advisor call.",
+		"advisor must be called alone, without other tools in the same batch. If you need more information to feed into the advisor call, execute the other tools first, then retry with only the advisor call.",
 	)
 	requireToolResultErrorMessage(
 		t,
@@ -559,12 +562,12 @@ func TestExclusiveToolPolicy_MultipleExclusive(t *testing.T) {
 	requireToolResultErrorMessage(
 		t,
 		results[0],
-		"advisor must be called alone, without other tools in the same batch. Retry with only the advisor call.",
+		"advisor must be called alone, without other tools in the same batch. If you need more information to feed into the advisor call, execute the other tools first, then retry with only the advisor call.",
 	)
 	requireToolResultErrorMessage(
 		t,
 		results[1],
-		"advisor must be called alone, without other tools in the same batch. Retry with only the advisor call.",
+		"advisor must be called alone, without other tools in the same batch. If you need more information to feed into the advisor call, execute the other tools first, then retry with only the advisor call.",
 	)
 }
 
@@ -1445,6 +1448,63 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 		require.Contains(t, textOutput.Text, "hello")
 		require.Contains(t, textOutput.Text, "world")
 	})
+}
+
+func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
+	t.Parallel()
+
+	var pngData bytes.Buffer
+	require.NoError(t, png.Encode(&pngData, image.NewRGBA(image.Rect(0, 0, 1, 1))))
+
+	for _, tc := range []struct {
+		name      string
+		mediaType string
+		data      []byte
+		// wantMediaType is empty when the media is rejected and only text survives.
+		wantMediaType string
+		wantText      string
+	}{
+		{name: "OversizedMediaKeepsText", mediaType: "image/png", data: make([]byte, codersdk.MaxChatFileSizeBytes+1), wantText: "Ran Playwright code\n[image/png content omitted"},
+		{name: "NonImageBytesDeclaredAsImageKeepsText", mediaType: "image/png", data: []byte("<html>not an image</html>"), wantText: "Ran Playwright code\n[image omitted: payload declared as image/png is text/html"},
+		{name: "ImageTypeFollowsBytes", mediaType: "image/jpeg", data: pngData.Bytes(), wantMediaType: "image/png", wantText: "Ran Playwright code"},
+		{name: "NonImageMediaPassesThrough", mediaType: "audio/mpeg", data: []byte{1, 2, 3}, wantMediaType: "audio/mpeg", wantText: "Ran Playwright code"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tool := fantasy.NewAgentTool("screenshot", "takes a screenshot",
+				func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+					return fantasy.ToolResponse{Type: "media", Data: tc.data, MediaType: tc.mediaType, Content: "Ran Playwright code"}, nil
+				},
+			)
+			result := executeSingleTool(
+				context.Background(),
+				map[string]fantasy.AgentTool{"screenshot": tool},
+				fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "screenshot", Input: "{}"},
+				NewMetrics(prometheus.NewRegistry()),
+				slog.Make(),
+				"openai", "model",
+				map[string]bool{},
+				[]string{"screenshot"},
+				nil,
+				map[string]struct{}{},
+				nil,
+				defaultToolResultBytes,
+				nil,
+			)
+
+			switch out := result.Result.(type) {
+			case fantasy.ToolResultOutputContentMedia:
+				require.Equal(t, tc.wantMediaType, out.MediaType)
+				require.Equal(t, tc.wantText, out.Text)
+			case fantasy.ToolResultOutputContentText:
+				require.Empty(t, tc.wantMediaType, "media rejected: %s", out.Text)
+				require.Contains(t, out.Text, tc.wantText)
+			default:
+				t.Fatalf("unexpected result %T", out)
+			}
+		})
+	}
 }
 
 func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {

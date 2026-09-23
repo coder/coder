@@ -43,7 +43,6 @@ func TestBuildCommitStepMessages_AssistantTextAndReasoning(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 1)
-	require.Equal(t, []int{0}, got.VisibleIndexes)
 
 	msg := got.Messages[0]
 	require.Equal(t, database.ChatMessageRoleAssistant, msg.Role)
@@ -82,7 +81,6 @@ func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T
 	})
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 2)
-	require.Equal(t, []int{0, 1}, got.VisibleIndexes)
 	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got.Messages[0].RuntimeMs)
 	require.False(t, got.Messages[1].RuntimeMs.Valid)
 
@@ -132,6 +130,7 @@ func TestBuildCommitStepMessages_BatchRuntimeBillsDedicatedUsageRow(t *testing.T
 
 	stamp := got.Messages[2]
 	require.Equal(t, database.ChatMessageRoleTool, stamp.Role)
+	// The usage record is model-only bookkeeping, never published to clients.
 	require.Equal(t, database.ChatMessageVisibilityModel, stamp.Visibility)
 	require.Equal(t, sql.NullInt64{Int64: 10000, Valid: true}, stamp.RuntimeMs)
 	stampParts, err := chatprompt.ParseContent(database.ChatMessage{
@@ -143,9 +142,6 @@ func TestBuildCommitStepMessages_BatchRuntimeBillsDedicatedUsageRow(t *testing.T
 	require.Len(t, stampParts, 1)
 	require.Equal(t, toolBatchUsagePartType, stampParts[0].Type)
 	require.JSONEq(t, `{"billed_ms":10000,"billed_calls":2}`, string(stampParts[0].Result))
-	// The usage record is model-only bookkeeping, never published to
-	// clients.
-	require.Equal(t, []int{0, 1}, got.VisibleIndexes)
 }
 
 func TestBuildCommitStepMessages_BatchAttachmentAssistantRowStaysNull(t *testing.T) {
@@ -304,17 +300,17 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 		toolCallID:     "summary-1",
 		toolName:       "chat_summarized",
 		compaction: compactionOutcome{
-			SystemSummary:    "system summary",
-			SummaryReport:    "user report",
-			ThresholdPercent: 70,
-			UsagePercent:     81.5,
-			ContextTokens:    815,
-			ContextLimit:     1000,
-			Runtime:          1500 * time.Millisecond,
+			SystemSummary:          "system summary",
+			SummaryReport:          "user report",
+			ThresholdPercent:       70,
+			UsagePercent:           81.5,
+			ContextTokens:          815,
+			ContextLimit:           1000,
+			Runtime:                1500 * time.Millisecond,
+			EstimatedContextTokens: 5,
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, 1, got.HiddenCount)
 	require.Len(t, got.Messages, 3)
 
 	require.Equal(t, database.ChatMessageRoleUser, got.Messages[0].Role)
@@ -340,7 +336,7 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	resultPart := parseMessageParts(t, got.Messages[2].Role, got.Messages[2].Content)[0]
 	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, resultPart.Type)
 	require.Equal(t, "summary-1", resultPart.ToolCallID)
-	require.JSONEq(t, `{"summary":"user report","source":"automatic","threshold_percent":70,"usage_percent":81.5,"context_tokens":815,"context_limit_tokens":1000}`, string(resultPart.Result))
+	require.JSONEq(t, `{"summary":"user report","source":"automatic","threshold_percent":70,"usage_percent":81.5,"context_tokens":815,"context_limit_tokens":1000,"estimated_context_tokens":5}`, string(resultPart.Result))
 }
 
 // A compaction that never reached the summary model call carries no
@@ -449,13 +445,14 @@ func TestBuildCompactionMessages_ManualSource(t *testing.T) {
 		toolCallID:     "summary-1",
 		toolName:       "chat_summarized",
 		compaction: compactionOutcome{
-			SystemSummary:    "system summary",
-			SummaryReport:    "user report",
-			Source:           chatloop.CompactionSourceManual,
-			ThresholdPercent: 70,
-			UsagePercent:     10,
-			ContextTokens:    100,
-			ContextLimit:     1000,
+			SystemSummary:          "system summary",
+			SummaryReport:          "user report",
+			Source:                 chatloop.CompactionSourceManual,
+			ThresholdPercent:       70,
+			UsagePercent:           10,
+			EstimatedContextTokens: 5,
+			ContextTokens:          100,
+			ContextLimit:           1000,
 		},
 	})
 	require.NoError(t, err)
@@ -464,7 +461,7 @@ func TestBuildCompactionMessages_ManualSource(t *testing.T) {
 	callPart := parseMessageParts(t, got.Messages[1].Role, got.Messages[1].Content)[0]
 	require.JSONEq(t, `{"source":"manual","threshold_percent":70}`, string(callPart.Args))
 	resultPart := parseMessageParts(t, got.Messages[2].Role, got.Messages[2].Content)[0]
-	require.JSONEq(t, `{"summary":"user report","source":"manual","threshold_percent":70,"usage_percent":10,"context_tokens":100,"context_limit_tokens":1000}`, string(resultPart.Result))
+	require.JSONEq(t, `{"summary":"user report","source":"manual","threshold_percent":70,"usage_percent":10,"context_tokens":100,"context_limit_tokens":1000,"estimated_context_tokens":5}`, string(resultPart.Result))
 }
 
 // TestDecisionForcedCompaction verifies the manual compaction request

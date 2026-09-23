@@ -43,12 +43,12 @@ const AgentSettingsUserAgentsPage: FC = () => {
 	);
 };
 
-interface AgentSettingsUserAgentsPageContentProps {
+type AgentSettingsUserAgentsPageContentProps = {
 	organizations: readonly TypesGen.Organization[];
 	selectedOrganization: TypesGen.Organization | undefined;
 	organizationId: string;
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
-}
+};
 
 const AgentSettingsUserAgentsPageContent: FC<
 	AgentSettingsUserAgentsPageContentProps

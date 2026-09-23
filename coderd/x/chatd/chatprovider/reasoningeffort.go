@@ -123,7 +123,7 @@ func applyReasoningEffort(
 			}
 		}
 	case fantasyanthropic.Name, fantasybedrock.Name:
-		providerEffort := fantasyanthropic.Effort(*effort)
+		providerEffort := fantasyanthropic.Effort(anthropicReasoningEffort(model.ModelID(), *effort))
 		providerOptions := ensureProviderOptions[fantasyanthropic.ProviderOptions](options, fantasyanthropic.Name)
 		providerOptions.Effort = &providerEffort
 	case fantasygoogle.Name:
@@ -186,6 +186,18 @@ func openAIReasoningEffort(modelID, effort string) string {
 	}
 	switch effort {
 	case codersdk.ChatModelReasoningEffortNone, codersdk.ChatModelReasoningEffortMinimal:
+		return codersdk.ChatModelReasoningEffortLow
+	}
+	return effort
+}
+
+// anthropicReasoningEffort maps the global reasoning effort scale onto what an
+// Anthropic model accepts. Claude Opus 5.5 always runs adaptive thinking and
+// rejects the thinking: {type: "disabled"} that fantasy sends for none with
+// HTTP 400, so none starts at low.
+func anthropicReasoningEffort(modelID, effort string) string {
+	if effort == codersdk.ChatModelReasoningEffortNone &&
+		strings.Contains(strings.ToLower(modelID), "claude-opus-5-5") {
 		return codersdk.ChatModelReasoningEffortLow
 	}
 	return effort

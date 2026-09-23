@@ -145,7 +145,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		arg.FuzzyDisplayName,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
-		arg.HasAITask,
+		arg.UseClassicParameterFlow,
 		arg.AgentsAllowed,
 		arg.AuthorID,
 		arg.AuthorUsername,
@@ -340,11 +340,11 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
 		arg.UsingActive,
-		arg.HasAITask,
 		arg.HasExternalAgent,
 		arg.Shared,
 		arg.SharedWithUserID,
 		arg.SharedWithGroupID,
+		arg.UserID,
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,
@@ -387,7 +387,6 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.TemplateDisplayName,
 			&i.TemplateIcon,
 			&i.TemplateDescription,
-			&i.TaskID,
 			&i.GroupACLDisplayInfo,
 			&i.UserACLDisplayInfo,
 			&i.TemplateVersionID,
@@ -1233,6 +1232,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, a
 			&i.AIBridgeInterception.AgentFirewallSequenceNumber,
 			&i.AIBridgeInterception.ErrorType,
 			&i.AIBridgeInterception.ErrorMessage,
+			&i.AIBridgeInterception.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -1323,6 +1323,8 @@ func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, organiza
 			&i.OrganizationID,
 			&i.GroupACL,
 			&i.UserACL,
+			&i.SigningSecret,
+			&i.SigningSecretKeyID,
 		); err != nil {
 			return nil, err
 		}

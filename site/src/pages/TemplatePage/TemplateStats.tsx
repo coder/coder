@@ -8,10 +8,10 @@ import {
 	formatTemplateBuildTime,
 } from "#/utils/templates";
 
-interface TemplateStatsProps {
+type TemplateStatsProps = {
 	template: Template;
 	activeVersion: TemplateVersion;
-}
+};
 
 export const TemplateStats: FC<TemplateStatsProps> = ({
 	template,

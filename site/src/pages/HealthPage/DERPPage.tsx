@@ -31,11 +31,11 @@ type BooleanKeys<T> = {
 	[K in keyof T]: T[K] extends boolean | null ? K : never;
 }[keyof T];
 
-interface FlagInfo {
+type FlagInfo = {
 	label: string;
 	description: string;
 	invert?: boolean;
-}
+};
 
 const flagDescriptions: Record<BooleanKeys<NetcheckReport>, FlagInfo> = {
 	UDP: {
@@ -92,10 +92,10 @@ const flagDescriptions: Record<BooleanKeys<NetcheckReport>, FlagInfo> = {
 	},
 };
 
-interface FlagGroup {
+type FlagGroup = {
 	title: string;
 	flags: BooleanKeys<NetcheckReport>[];
-}
+};
 
 const flagGroups: FlagGroup[] = [
 	{

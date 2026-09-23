@@ -1,4 +1,10 @@
 /**
+ * Matches viewports below the `sm` Tailwind breakpoint (< 640 px), a
+ * reasonable proxy for a mobile / touch device with a virtual keyboard.
+ */
+export const mobileViewportMediaQuery = "(max-width: 639px)";
+
+/**
  * Returns `true` when the viewport width is at or below the `sm`
  * Tailwind breakpoint (< 640 px), which is a reasonable proxy for a
  * mobile / touch device where auto-focusing an input would cause the
@@ -7,8 +13,6 @@
 export const isMobileViewport = (): boolean => {
 	return window.matchMedia(mobileViewportMediaQuery).matches;
 };
-
-export const mobileViewportMediaQuery = "(max-width: 639px)";
 
 export const coarsePointerMediaQuery = "(pointer: coarse)";
 

@@ -31,7 +31,7 @@ import { WorkspaceHelpPopover } from "./WorkspaceHelpPopover";
 import { WorkspacesButton } from "./WorkspacesButton";
 
 type TemplateQuery = UseQueryResult<Template[]>;
-interface WorkspacesPageViewProps {
+type WorkspacesPageViewProps = {
 	error: unknown;
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
@@ -54,7 +54,7 @@ interface WorkspacesPageViewProps {
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
 	chatsByWorkspace?: Record<string, string>;
-}
+};
 
 export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	workspaces,

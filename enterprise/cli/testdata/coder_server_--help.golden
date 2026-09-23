@@ -223,6 +223,11 @@ Configure the background chat processing daemon.
           Force chat debug logging on for every chat, bypassing the runtime
           admin and user opt-in settings.
 
+      --chat-stream-silence-timeout duration, $CODER_CHAT_STREAM_SILENCE_TIMEOUT (default: 10m0s)
+          Maximum time to wait for the next streamed part from the chat model
+          before the attempt is canceled and retried. This also bounds the time
+          to first token. Set to 0 to disable. Must be no more than 24h.
+
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
@@ -694,6 +699,13 @@ OAUTH2 / GITHUB OPTIONS:
           Base URL of a GitHub Enterprise deployment to use for Login with
           GitHub.
 
+OAUTH2 / PROVIDER OPTIONS: 
+      --oauth2-provider-enable bool, $CODER_OAUTH2_PROVIDER_ENABLE (default: false)
+          Enable the OAuth 2.1 authorization server, which lets external
+          applications (such as MCP clients) obtain tokens for Coder on behalf
+          of users. Disabled by default. When disabled, the OAuth2 endpoints and
+          discovery documents return 404.
+
 OIDC OPTIONS: 
       --oidc-group-auto-create bool, $CODER_OIDC_GROUP_AUTO_CREATE (default: false)
           Automatically creates missing groups from a user's groups claim.
@@ -803,6 +815,11 @@ OIDC OPTIONS:
 PROVISIONING OPTIONS: 
 Tune the behavior of the provisioner, which is responsible for creating,
 updating, and deleting workspace resources.
+
+      --provisioner-disable-module-cache bool, $CODER_PROVISIONER_DISABLE_MODULE_CACHE (default: false)
+          Disable the reuse of Terraform modules cached at template import for
+          all templates. Modules are re-downloaded on every workspace build.
+          Individual templates cannot opt back in.
 
       --provisioner-force-cancel-interval duration, $CODER_PROVISIONER_FORCE_CANCEL_INTERVAL (default: 10m0s)
           Time to force cancel provisioning tasks that are stuck.

@@ -2,11 +2,11 @@ import { cn } from "cn";
 import type React from "react";
 import type { FC, ReactNode } from "react";
 
-interface PageHeaderProps {
+type PageHeaderProps = {
 	actions?: ReactNode;
 	className?: string;
 	children?: ReactNode;
-}
+};
 
 export const PageHeader: FC<PageHeaderProps> = ({
 	children,
@@ -32,7 +32,7 @@ export const PageHeader: FC<PageHeaderProps> = ({
 	);
 };
 
-type PageHeaderTitleProps = React.ComponentPropsWithRef<"h1">;
+type PageHeaderTitleProps = React.ComponentProps<"h1">;
 
 export const PageHeaderTitle: FC<PageHeaderTitleProps> = ({
 	children,
@@ -52,7 +52,7 @@ export const PageHeaderTitle: FC<PageHeaderTitleProps> = ({
 	);
 };
 
-type PageHeaderSubtitleProps = React.ComponentPropsWithRef<"h2">;
+type PageHeaderSubtitleProps = React.ComponentProps<"h2">;
 
 export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
 	children,
@@ -72,7 +72,7 @@ export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
 	);
 };
 
-type PageHeaderCaptionProps = React.ComponentPropsWithRef<"span">;
+type PageHeaderCaptionProps = React.ComponentProps<"span">;
 
 export const PageHeaderCaption: FC<PageHeaderCaptionProps> = ({
 	children,

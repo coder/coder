@@ -5,12 +5,12 @@ import {
 	type TemplateAutostartRequirementDaysValue,
 } from "#/utils/schedule";
 
-interface TemplateScheduleAutostartProps {
+type TemplateScheduleAutostartProps = {
 	enabled: boolean;
 	value: TemplateAutostartRequirementDaysValue[];
 	isSubmitting: boolean;
 	onChange: (value: TemplateAutostartRequirementDaysValue[]) => void;
-}
+};
 
 export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
 	value,
@@ -60,10 +60,10 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
 	);
 };
 
-interface AutostartHelperTextProps {
+type AutostartHelperTextProps = {
 	allowed?: boolean;
 	days: TemplateAutostartRequirementDaysValue[];
-}
+};
 
 const AutostartHelperText: FC<AutostartHelperTextProps> = ({
 	allowed,

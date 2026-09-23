@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
-	"net/http"
 	"regexp"
 	"slices"
 	"strconv"
@@ -13,7 +11,6 @@ import (
 
 	"charm.land/fantasy"
 
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -39,33 +36,9 @@ type WorkspaceMCPTool struct {
 	// calls the original tool name. info.Name is the sanitized, provider-safe
 	// name shown to the model, so the two can differ when the server or tool
 	// name contains characters outside the provider's allowed set.
-	routingName     string
-	getConn         func(context.Context) (workspacesdk.AgentConn, error)
-	providerOpts    fantasy.ProviderOptions
-	invalidateCache func()
-}
-
-// NewWorkspaceMCPTool creates a single tool wrapper from an MCPToolInfo
-// discovered on a workspace agent. Each tool proxies calls back through the
-// agent connection. The optional invalidateCache callback is invoked when
-// CallMCPTool returns a 404 error, indicating that the server was removed and
-// the chat's cached tool list should be dropped.
-//
-// The model-facing name is sanitized to the provider-safe character set and
-// length so a server or tool name containing a character such as "@" cannot
-// produce an invalid tool name that the provider rejects. The unsanitized name
-// is retained as routingName so the workspace agent can still route the call to
-// the original server and tool.
-//
-// Prefer NewWorkspaceMCPTools when building a set of tools, because that path
-// also disambiguates names that collide after sanitization. This single-tool
-// constructor cannot detect collisions on its own.
-func NewWorkspaceMCPTool(
-	tool workspacesdk.MCPToolInfo,
-	getConn func(context.Context) (workspacesdk.AgentConn, error),
-	invalidateCache func(),
-) *WorkspaceMCPTool {
-	return buildWorkspaceMCPTool(tool, sanitizeModelToolName(tool.Name), getConn, invalidateCache)
+	routingName  string
+	getConn      func(context.Context) (workspacesdk.AgentConn, error)
+	providerOpts fantasy.ProviderOptions
 }
 
 // NewWorkspaceMCPTools builds wrappers for a set of workspace MCP tools.
@@ -81,7 +54,6 @@ func NewWorkspaceMCPTool(
 func NewWorkspaceMCPTools(
 	infos []workspacesdk.MCPToolInfo,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
-	invalidateCache func(),
 ) []fantasy.AgentTool {
 	sorted := slices.Clone(infos)
 	slices.SortFunc(sorted, func(a, b workspacesdk.MCPToolInfo) int {
@@ -91,7 +63,7 @@ func NewWorkspaceMCPTools(
 	seen := make(map[string]struct{}, len(sorted))
 	for _, info := range sorted {
 		modelName := uniqueModelToolName(sanitizeModelToolName(info.Name), seen)
-		tools = append(tools, buildWorkspaceMCPTool(info, modelName, getConn, invalidateCache))
+		tools = append(tools, buildWorkspaceMCPTool(info, modelName, getConn))
 	}
 	return tools
 }
@@ -100,7 +72,6 @@ func buildWorkspaceMCPTool(
 	tool workspacesdk.MCPToolInfo,
 	modelName string,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
-	invalidateCache func(),
 ) *WorkspaceMCPTool {
 	required := tool.Required
 	if required == nil {
@@ -114,9 +85,8 @@ func buildWorkspaceMCPTool(
 			Required:    required,
 			Parallel:    true,
 		},
-		routingName:     tool.Name,
-		getConn:         getConn,
-		invalidateCache: invalidateCache,
+		routingName: tool.Name,
+		getConn:     getConn,
 	}
 }
 
@@ -201,15 +171,6 @@ func (t *WorkspaceMCPTool) Run(
 		Arguments: args,
 	})
 	if err != nil {
-		// If the agent returns a 404 (ErrUnknownServer), the
-		// server was removed or renamed. Invalidate the chat's
-		// cached tool list so the next turn refetches.
-		var coderErr *codersdk.Error
-		if errors.As(err, &coderErr) && coderErr.StatusCode() == http.StatusNotFound {
-			if t.invalidateCache != nil {
-				t.invalidateCache()
-			}
-		}
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 
@@ -226,11 +187,8 @@ func (t *WorkspaceMCPTool) SetProviderOptions(
 	t.providerOpts = opts
 }
 
-// convertMCPToolResponse translates a workspace agent MCP tool
-// response into a fantasy.ToolResponse. Text content blocks are
-// collected and joined; binary content (image/media) is returned
-// only when no text is available, matching the mcpclient
-// conversion strategy.
+// fantasy permits one media payload per response, so only the first eligible
+// binary block is kept alongside the text.
 func convertMCPToolResponse(
 	resp workspacesdk.CallMCPToolResponse,
 ) fantasy.ToolResponse {
@@ -244,7 +202,7 @@ func convertMCPToolResponse(
 		case "text":
 			textParts = append(textParts, strings.ToValidUTF8(c.Text, "\uFFFD"))
 		case "image", "audio":
-			if c.Data == "" {
+			if c.Data == "" || c.MediaType == "" {
 				continue
 			}
 			data, err := base64.StdEncoding.DecodeString(c.Data)
@@ -255,8 +213,13 @@ func convertMCPToolResponse(
 				continue
 			}
 			if binaryResult == nil {
+				responseType := c.Type
+				if c.Type == "audio" {
+					// chatloop only recognizes "image" and "media".
+					responseType = "media"
+				}
 				r := fantasy.ToolResponse{
-					Type:      c.Type,
+					Type:      responseType,
 					Data:      data,
 					MediaType: c.MediaType,
 					IsError:   resp.IsError,
@@ -268,19 +231,11 @@ func convertMCPToolResponse(
 		}
 	}
 
-	// Prefer text content. Only fall back to binary when no
-	// text was collected.
-	if len(textParts) > 0 {
-		r := fantasy.NewTextResponse(
-			strings.Join(textParts, "\n"),
-		)
-		r.IsError = resp.IsError
-		return r
-	}
 	if binaryResult != nil {
+		binaryResult.Content = strings.Join(textParts, "\n")
 		return *binaryResult
 	}
-	r := fantasy.NewTextResponse("")
+	r := fantasy.NewTextResponse(strings.Join(textParts, "\n"))
 	r.IsError = resp.IsError
 	return r
 }

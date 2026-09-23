@@ -159,7 +159,7 @@ func TestStoreChatAttachment_NoWorkspace(t *testing.T) {
 	server := &Server{db: db}
 
 	attachment, err := server.storeChatAttachment(context.Background(), database.Chat{}, "build.log", "build.log", []byte("build output"))
-	require.ErrorContains(t, err, "no workspace is associated")
+	require.ErrorContains(t, err, "this tool requires a workspace")
 	require.Equal(t, chattool.AttachmentMetadata{}, attachment)
 }
 

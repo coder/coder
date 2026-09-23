@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 )
 
 // @Summary Get workspace build
@@ -51,7 +52,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace := httpmw.WorkspaceParam(r)
 
-	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild}, allLatestBuildRelated())
+	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild}, wsrelated.AllLatestBuild())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -190,7 +191,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceBuildsData(ctx, workspaceBuilds, allLatestBuildRelated())
+	data, err := api.workspaceBuildsData(ctx, workspaceBuilds, wsrelated.AllLatestBuild())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -200,6 +201,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	apiBuilds, err := api.convertWorkspaceBuilds(
+		wsrelated.AllLatestBuild(),
 		workspaceBuilds,
 		[]database.Workspace{workspace},
 		data.jobs,
@@ -281,7 +283,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild}, allLatestBuildRelated())
+	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild}, wsrelated.AllLatestBuild())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -1117,7 +1119,7 @@ type workspaceBuildsData struct {
 // computed with window functions over pending jobs and provisioner daemons and
 // are comparatively expensive. Otherwise, it uses the cheaper
 // GetProvisionerJobsByIDs and leaves QueuePosition and QueueSize zero.
-func (api *API) provisionerJobsByIDs(ctx context.Context, jobIDs []uuid.UUID, cfg jobRelated) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+func (api *API) provisionerJobsByIDs(ctx context.Context, jobIDs []uuid.UUID, cfg wsrelated.Job) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	if cfg.QueuePosition {
 		return api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
 			IDs:             jobIDs,
@@ -1140,7 +1142,7 @@ func (api *API) provisionerJobsByIDs(ctx context.Context, jobIDs []uuid.UUID, cf
 	return jobs, nil
 }
 
-func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild, cfg latestBuildRelated) (workspaceBuildsData, error) {
+func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild, cfg wsrelated.LatestBuild) (workspaceBuildsData, error) {
 	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
 		jobIDs = append(jobIDs, build.JobID)
@@ -1290,7 +1292,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	}
 
 	var statuses []database.WorkspaceAppStatus
-	if cfg.appStatuses() {
+	if cfg.AppStatuses() {
 		appIDs := make([]uuid.UUID, 0)
 		for _, app := range apps {
 			appIDs = append(appIDs, app.ID)
@@ -1390,6 +1392,7 @@ func newWorkspaceBuildIndex(
 }
 
 func (api *API) convertWorkspaceBuilds(
+	cfg wsrelated.LatestBuild,
 	workspaceBuilds []database.WorkspaceBuild,
 	workspaces []database.Workspace,
 	jobs []database.GetProvisionerJobsByIDsWithQueuePositionRow,
@@ -1431,7 +1434,7 @@ func (api *API) convertWorkspaceBuilds(
 	apiBuilds := []codersdk.WorkspaceBuild{}
 	for _, build := range workspaceBuilds {
 		job, exists := jobByID[build.JobID]
-		if !exists {
+		if !exists && cfg.Job != nil {
 			return nil, xerrors.New("build job not found")
 		}
 		workspace, exists := workspaceByID[build.WorkspaceID]
@@ -1439,7 +1442,7 @@ func (api *API) convertWorkspaceBuilds(
 			return nil, xerrors.New("workspace not found")
 		}
 		templateVersion, exists := templateVersionByID[build.TemplateVersionID]
-		if !exists {
+		if !exists && cfg.TemplateVersion {
 			return nil, xerrors.New("template version not found")
 		}
 
@@ -1467,9 +1470,9 @@ func (api *API) convertWorkspaceBuild(
 	index *workspaceBuildIndex,
 	templateVersion database.TemplateVersion,
 ) (codersdk.WorkspaceBuild, error) {
-	matchedProvisioners := db2sdk.MatchedProvisioners(index.daemonsByJobID[job.ProvisionerJob.ID], job.ProvisionerJob.CreatedAt, provisionerdserver.StaleInterval)
+	matchedProvisioners := db2sdk.MatchedProvisioners(index.daemonsByJobID[build.JobID], job.ProvisionerJob.CreatedAt, provisionerdserver.StaleInterval)
 
-	resources := index.resourcesByJobID[job.ProvisionerJob.ID]
+	resources := index.resourcesByJobID[build.JobID]
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	resourceAgentsMinOrder := map[uuid.UUID]int32{} // map[resource.ID]minOrder
 	for _, resource := range resources {

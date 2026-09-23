@@ -128,7 +128,7 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Success 200 "Returns HTML authorization page"
 // @Success 302 "Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)"
 // @Failure 400 "HTML error page. The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback"
-// @Failure 500 "HTML error page. The app's registered callback URL is not usable"
+// @Failure 500 "HTML error page. One of the app's registered redirect URIs is not usable"
 // @Router /oauth2/authorize [get]
 func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 	return oauth2provider.ShowAuthorizePage(api.AccessURL, api.Logger)
@@ -149,7 +149,7 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param resource query string false "RFC 8707 resource indicator: an absolute URI without a fragment"
 // @Success 302 "Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1)"
 // @Failure 400 {object} codersdk.OAuth2Error "The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback"
-// @Failure 500 {object} codersdk.OAuth2Error "The app's registered callback URL is not usable"
+// @Failure 500 {object} codersdk.OAuth2Error "One of the app's registered redirect URIs is not usable"
 // @Router /oauth2/authorize [post]
 func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 	return oauth2provider.ProcessAuthorize(api.Database, api.Logger)
@@ -166,6 +166,8 @@ func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param refresh_token formData string false "Refresh token, required if grant_type=refresh_token"
 // @Param grant_type formData codersdk.OAuth2ProviderGrantType true "Grant type"
 // @Success 200 {object} codersdk.OAuth2TokenResponse
+// @Failure 400 {object} codersdk.OAuth2Error "invalid_request: client_secret in the URL query string, or a missing or malformed parameter"
+// @Failure 413 {object} codersdk.OAuth2Error "Request body exceeds 4 MiB"
 // @Router /oauth2/tokens [post]
 func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {
 	return oauth2provider.Tokens(api.Database, api.DeploymentValues.Sessions, api.Logger)
@@ -185,11 +187,17 @@ func (api *API) deleteOAuth2ProviderAppTokens() http.HandlerFunc {
 // @Summary Revoke OAuth2 tokens (RFC 7009).
 // @ID oauth2-token-revocation
 // @Accept x-www-form-urlencoded
+// @Produce json
 // @Tags Enterprise
-// @Param client_id formData string true "Client ID for authentication"
+// @Param Authorization header string false "HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both." example(Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=)
+// @Param client_id formData string false "Client ID, required unless sent as the HTTP Basic username"
+// @Param client_secret formData string false "Client secret, required for a confidential client unless sent as the HTTP Basic password. Public clients (token_endpoint_auth_method=none) send no secret."
 // @Param token formData string true "The token to revoke"
 // @Param token_type_hint formData string false "Hint about token type (access_token or refresh_token)"
-// @Success 200 "Token successfully revoked"
+// @Success 200 "Token successfully revoked. A 200 does not confirm that the token existed or belonged to the client"
+// @Failure 400 {object} codersdk.OAuth2Error "invalid_request: a missing client_id or token, credentials in both the Authorization header and the body, client_secret in the URL query string, or a malformed token"
+// @Failure 401 {object} codersdk.OAuth2Error "invalid_client: the client is unknown, or a confidential client did not present a valid secret"
+// @Failure 413 {object} codersdk.OAuth2Error "Request body exceeds 4 MiB"
 // @Router /oauth2/revoke [post]
 func (api *API) revokeOAuth2Token() http.HandlerFunc {
 	return oauth2provider.RevokeToken(api.Database, api.Logger)
@@ -222,6 +230,7 @@ func (api *API) oauth2ProtectedResourceMetadata() http.HandlerFunc {
 // @Tags Enterprise
 // @Param request body codersdk.OAuth2ClientRegistrationRequest true "Client registration request"
 // @Success 201 {object} codersdk.OAuth2ClientRegistrationResponse
+// @Failure 413 {object} codersdk.OAuth2Error "Request body exceeds 4 MiB"
 // @Router /oauth2/register [post]
 func (api *API) postOAuth2ClientRegistration() http.HandlerFunc {
 	return oauth2provider.CreateDynamicClientRegistration(api.Database, api.AccessURL, api.Auditor.Load(), api.Logger)
@@ -335,6 +344,7 @@ func (api *API) oauth2ClientConfiguration() http.HandlerFunc {
 // @Param client_id path string true "Client ID"
 // @Param request body codersdk.OAuth2ClientRegistrationRequest true "Client update request"
 // @Success 200 {object} codersdk.OAuth2ClientConfiguration
+// @Failure 413 {object} codersdk.OAuth2Error "Request body exceeds 4 MiB"
 // @Router /oauth2/clients/{client_id} [put]
 func (api *API) putOAuth2ClientConfiguration() http.HandlerFunc {
 	return oauth2provider.UpdateClientConfiguration(api.Database, api.Auditor.Load(), api.Logger)

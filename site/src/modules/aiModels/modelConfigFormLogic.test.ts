@@ -1302,12 +1302,43 @@ describe("isFieldConflictDisabled", () => {
 });
 
 describe("provider-scoped general fields", () => {
-	const form = formWith({ openaiConfig: { useResponsesApi: "true" } });
+	const form = formWith({
+		openaiConfig: { useResponsesApi: "true", reasoningModel: "true" },
+	});
+
+	it.each(["openai", "bedrock"])(
+		"serializes reasoning overrides for %s",
+		(provider) => {
+			for (const value of ["true", "false"]) {
+				const result = buildModelConfigFromForm(
+					provider,
+					formWith({
+						openaiConfig: { useResponsesApi: "true", reasoningModel: value },
+					}),
+				);
+				expect(result.modelConfig?.openai_config).toEqual({
+					...(provider === "openai" ? { use_responses_api: true } : {}),
+					reasoning_model: value === "true",
+				});
+			}
+		},
+	);
+
+	it("omits unset reasoning overrides", () => {
+		const result = buildModelConfigFromForm(
+			"bedrock",
+			formWith({
+				openaiConfig: { useResponsesApi: "true", reasoningModel: "" },
+			}),
+		);
+		expect(result.modelConfig).toBeUndefined();
+	});
 
 	it("serializes a scoped general field for its provider", () => {
 		const result = buildModelConfigFromForm("openai", form);
 		expect(result.modelConfig?.openai_config).toEqual({
 			use_responses_api: true,
+			reasoning_model: true,
 		});
 	});
 
@@ -1319,6 +1350,22 @@ describe("provider-scoped general fields", () => {
 	// azure resolves to the openai option schema, so scoping must gate on the
 	// raw provider type.
 	it("omits a scoped general field for an aliased provider", () => {
+		const result = buildModelConfigFromForm("azure", form);
+		expect(result.modelConfig).toBeUndefined();
+	});
+});
+
+describe("provider-scoped provider fields", () => {
+	const form = formWith({ openai: { reasoningMode: "pro" } });
+
+	it("serializes a scoped provider field for its provider", () => {
+		const result = buildModelConfigFromForm("openai", form);
+		expect(result.modelConfig?.provider_options?.openai).toEqual({
+			reasoning_mode: "pro",
+		});
+	});
+
+	it("omits a scoped provider field for an aliased provider", () => {
 		const result = buildModelConfigFromForm("azure", form);
 		expect(result.modelConfig).toBeUndefined();
 	});

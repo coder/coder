@@ -201,11 +201,11 @@ export const PaginationChangesQueryKey: Story = {
 		queries: [
 			...meta.parameters.queries,
 			{
-				key: workspacesKey({ q: "", limit: 25, offset: 0 }),
+				key: workspacesKey({ q: "user:me", limit: 25, offset: 0 }),
 				data: { workspaces: makePage("page1"), count: 50 },
 			},
 			{
-				key: workspacesKey({ q: "", limit: 25, offset: 25 }),
+				key: workspacesKey({ q: "user:me", limit: 25, offset: 25 }),
 				data: { workspaces: makePage("page2"), count: 50 },
 			},
 		],
@@ -254,7 +254,7 @@ export const EmptyWithoutTemplates: Story = {
 				data: [],
 			},
 			{
-				key: workspacesKey({ q: "", limit: 25, offset: 0 }),
+				key: workspacesKey({ q: "user:me", limit: 25, offset: 0 }),
 				data: { workspaces: [], count: 0 },
 			},
 		],

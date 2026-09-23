@@ -160,6 +160,172 @@ func TestAIProviderSettings_Roundtrip(t *testing.T) {
 	require.Equal(t, orig, got)
 }
 
+func TestAIProviderRequest_ValidateAPIKeys(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name            string
+		keys            []string
+		wantCreateField string
+		wantUpdateField string
+		wantDetail      string
+	}{
+		{name: "Omitted"},
+		{name: "Empty", keys: []string{}},
+		{name: "One", keys: []string{"key-1"}},
+		{name: "Five", keys: []string{"key-1", "key-2", "key-3", "key-4", "key-5"}},
+		{
+			name:            "Six",
+			keys:            []string{"key-1", "key-2", "key-3", "key-4", "key-5", "key-6"},
+			wantCreateField: "api_keys",
+			wantUpdateField: "api_keys",
+			wantDetail:      "api_keys must contain at most 5 keys",
+		},
+		{
+			name:            "Duplicate",
+			keys:            []string{"key-1", "key-2", "key-1"},
+			wantCreateField: "api_keys[2]",
+			wantUpdateField: "api_keys[2].api_key",
+			wantDetail:      "duplicate key already provided at api_keys[0]",
+		},
+		{
+			name:            "DuplicateAfterDifferentKey",
+			keys:            []string{"key-1", "key-2", "key-2"},
+			wantCreateField: "api_keys[2]",
+			wantUpdateField: "api_keys[2].api_key",
+			wantDetail:      "duplicate key already provided at api_keys[1]",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			create := codersdk.CreateAIProviderRequest{
+				Type:    codersdk.AIProviderTypeOpenAI,
+				Name:    "keys",
+				BaseURL: "https://api.openai.com/v1",
+				APIKeys: tc.keys,
+			}
+			createValidations := create.Validate()
+			if tc.wantCreateField == "" {
+				require.Empty(t, createValidations)
+			} else {
+				require.Len(t, createValidations, 1)
+				require.Equal(t, tc.wantCreateField, createValidations[0].Field)
+				require.Equal(t, tc.wantDetail, createValidations[0].Detail)
+				for _, key := range tc.keys {
+					require.NotContains(t, createValidations[0].Detail, key)
+				}
+			}
+
+			muts := make([]codersdk.AIProviderKeyMutation, 0, len(tc.keys))
+			for _, key := range tc.keys {
+				muts = append(muts, codersdk.AIProviderKeyMutation{APIKey: new(key)})
+			}
+			update := codersdk.UpdateAIProviderRequest{APIKeys: &muts}
+			updateValidations := update.Validate()
+			if tc.wantUpdateField == "" {
+				require.Empty(t, updateValidations)
+			} else {
+				require.Len(t, updateValidations, 1)
+				require.Equal(t, tc.wantUpdateField, updateValidations[0].Field)
+				require.Equal(t, tc.wantDetail, updateValidations[0].Detail)
+				for _, key := range tc.keys {
+					require.NotContains(t, updateValidations[0].Detail, key)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateAIProviderKeyUniqueness(t *testing.T) {
+	t.Parallel()
+
+	seen := map[string]int{"key-1": 1}
+	require.Empty(t, codersdk.ValidateAIProviderKeyUniqueness("key-2", "api_keys[2]", seen))
+	require.Equal(t, map[string]int{"key-1": 1}, seen)
+
+	require.Equal(t, []codersdk.ValidationError{{
+		Field:  "api_keys[3]",
+		Detail: "duplicate key already provided at api_keys[1]",
+	}}, codersdk.ValidateAIProviderKeyUniqueness("key-1", "api_keys[3]", seen))
+	require.Equal(t, map[string]int{"key-1": 1}, seen)
+}
+
+func TestAIProviderRequest_ValidateBedrockCredentials(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		key        *string
+		secret     *string
+		wantField  string
+		wantDetail string
+	}{
+		{name: "Omitted"},
+		{name: "Empty", key: new(""), secret: new("")},
+		{name: "EmptyKey", key: new("")},
+		{name: "EmptySecret", secret: new("")},
+		{name: "Paired", key: new("key"), secret: new("longer-secret")},
+		{
+			name:       "MissingKey",
+			secret:     new("secret"),
+			wantField:  "settings.access_key",
+			wantDetail: "access_key_secret is set, but access_key is missing or empty",
+		},
+		{
+			name:       "MissingSecret",
+			key:        new("key"),
+			wantField:  "settings.access_key_secret",
+			wantDetail: "access_key is set, but access_key_secret is missing or empty",
+		},
+		{
+			name:       "ClearedKey",
+			key:        new(""),
+			secret:     new("secret"),
+			wantField:  "settings.access_key",
+			wantDetail: "access_key_secret is set, but access_key is missing or empty",
+		},
+		{
+			name:       "ClearedSecret",
+			key:        new("key"),
+			secret:     new(""),
+			wantField:  "settings.access_key_secret",
+			wantDetail: "access_key is set, but access_key_secret is missing or empty",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			settings := codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{
+				Region:          "us-east-1",
+				Model:           "model",
+				SmallFastModel:  "small-model",
+				AccessKey:       tc.key,
+				AccessKeySecret: tc.secret,
+			}}
+			create := codersdk.CreateAIProviderRequest{
+				Type: codersdk.AIProviderTypeBedrock, Name: "bedrock",
+				BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/", Settings: settings,
+			}
+			var want []codersdk.ValidationError
+			if tc.wantField != "" {
+				want = []codersdk.ValidationError{{
+					Field: tc.wantField, Detail: tc.wantDetail,
+				}}
+			}
+			require.Equal(t, want, create.Validate())
+			require.Equal(t, want, settings.Bedrock.ValidateCredentials())
+
+			update := codersdk.UpdateAIProviderRequest{Settings: &settings}
+			if tc.key == nil || tc.secret == nil {
+				// Omitted credentials are merged from storage by the API.
+				require.Empty(t, update.Validate())
+			} else {
+				require.Equal(t, want, update.Validate())
+			}
+		})
+	}
+}
+
 func TestAIProviderRequest_ValidateRoleARN(t *testing.T) {
 	t.Parallel()
 

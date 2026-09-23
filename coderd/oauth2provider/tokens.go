@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"slices"
@@ -24,6 +25,12 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+)
+
+// Shared by the token and revocation endpoints.
+const (
+	errMsgClientSecretInQuery   = "client_secret was sent in the URL query string; send it in the request body or the Authorization header, and rotate the secret that was exposed" //nolint:gosec // G101: message text, not a hardcoded credential.
+	errMsgConflictingClientAuth = "Conflicting client credentials between Authorization header and request body"
 )
 
 var (
@@ -138,7 +145,9 @@ func narrowAccessScope(ctx context.Context, logger slog.Logger, phase string, ap
 func scopeStringToAPIKeyScopes(scope string) (database.APIKeyScopes, error) {
 	names := strings.Fields(scope)
 	if len(names) == 0 {
-		return nil, xerrors.Errorf("'%s': %w", scope, errUnmintableScope)
+		// Fixed message rather than an echo: CHECK (scope <> '') admits a
+		// whitespace-only value, which names nothing worth reporting back.
+		return nil, xerrors.Errorf("the grant names no scope: %w", errUnmintableScope)
 	}
 
 	scopes := make(database.APIKeyScopes, 0, len(names))
@@ -186,17 +195,9 @@ func extractTokenRequest(r *http.Request, logger slog.Logger, primary *url.URL, 
 		Scope:        p.String(vals, "", "scope"),
 	}
 
-	// RFC 6749 §2.3.1: confidential clients may authenticate via HTTP Basic.
-	if user, pass, ok := r.BasicAuth(); ok && user != "" {
-		if req.ClientID != "" && req.ClientID != user {
-			return codersdk.OAuth2TokenRequest{}, nil, errConflictingClientAuth
-		}
-		if req.ClientSecret != "" && req.ClientSecret != pass {
-			return codersdk.OAuth2TokenRequest{}, nil, errConflictingClientAuth
-		}
-
-		req.ClientID = user
-		req.ClientSecret = pass
+	req.ClientID, req.ClientSecret, err = mergeBasicClientAuth(r, req.ClientID, req.ClientSecret)
+	if err != nil {
+		return codersdk.OAuth2TokenRequest{}, nil, err
 	}
 
 	// Grant-specific required checks that can be satisfied via HTTP Basic.
@@ -247,16 +248,110 @@ func extractTokenRequest(r *http.Request, logger slog.Logger, primary *url.URL, 
 			slog.F("params", ignored))
 	}
 
+	if name, ok := repeatedParameter(p, vals); ok {
+		return codersdk.OAuth2TokenRequest{}, p.Errors, repeatedParameterError{name: name}
+	}
 	if len(p.Errors) > 0 {
 		return codersdk.OAuth2TokenRequest{}, p.Errors, xerrors.Errorf("invalid query params: %w", p.Errors)
 	}
 	return req, nil, nil
 }
 
-// writeTokenError renders an RFC 6749 §5.2 error body. Descriptions can quote
-// what the client sent, so they are confined and capped here rather than at each
-// call site, leaving the guarantee with the endpoint.
-func writeTokenError(ctx context.Context, rw http.ResponseWriter, status int, code codersdk.OAuth2ErrorCode, description string) {
+// mergeBasicClientAuth combines a confidential client's HTTP Basic
+// credentials (RFC 6749 §2.3.1) with the form client_id and client_secret.
+// Without a Basic header, or with an empty Basic username, the form values
+// pass through unchanged. Otherwise each form field must be empty or equal
+// to its header counterpart, or the result is errConflictingClientAuth. An
+// empty Basic password still counts as a presented password, so a form
+// secret beside it is a conflict.
+func mergeBasicClientAuth(r *http.Request, clientID, clientSecret string) (mergedID, mergedSecret string, err error) {
+	user, pass, ok := r.BasicAuth()
+	if !ok || user == "" {
+		return clientID, clientSecret, nil
+	}
+	if clientID != "" && clientID != user {
+		return "", "", errConflictingClientAuth
+	}
+	if clientSecret != "" && clientSecret != pass {
+		return "", "", errConflictingClientAuth
+	}
+	return user, pass, nil
+}
+
+// clientSecretInQuery reports whether the URL query carries a client_secret
+// with a value, which OAuth 2.1 §2.4.1 forbids. An empty value counts as
+// omitted (RFC 6749 §3.2), and every value is checked because the first of a
+// repeated parameter may be the empty one.
+func clientSecretInQuery(vals url.Values) bool {
+	return slices.ContainsFunc(vals["client_secret"], func(v string) bool {
+		return v != ""
+	})
+}
+
+// repeatedParameterError names a parameter the endpoint read that arrived more
+// than once. It is answered before the per-field dispatch, because a repeat
+// leaves the same validation error as a genuine failure of that field.
+type repeatedParameterError struct {
+	name string
+}
+
+func (e repeatedParameterError) Error() string {
+	return fmt.Sprintf("parameter %s provided more than once", e.name)
+}
+
+// repeatedParameter returns the first parameter the parser judged repeated: a
+// non-empty first value followed by another. An empty first value counts as
+// absent, so ?code=&code= is a missing code, not a repeated one.
+func repeatedParameter(p *httpapi.QueryParamParser, vals url.Values) (string, bool) {
+	for _, name := range slices.Sorted(maps.Keys(p.Parsed)) {
+		if vals.Get(name) != "" && len(vals[name]) > 1 {
+			return name, true
+		}
+	}
+	return "", false
+}
+
+// requestSource identifies the sender of a refused request.
+func requestSource(r *http.Request) []slog.Field {
+	return []slog.Field{
+		slog.F("remote_addr", r.RemoteAddr),
+		slog.F("user_agent", r.Header.Get("User-Agent")),
+	}
+}
+
+// authenticateClient checks a client secret and confirms it belongs to the
+// app named by client_id. That id arrives unverified, so without the app
+// check a valid secret for one app could issue a token for another. It
+// returns the matched secret row. Every authentication failure returns
+// errBadSecret so the response does not reveal which step failed; a
+// datastore failure returns the underlying error. Callers skip it for public
+// clients, which have no secret and are bound by PKCE and the token's app id
+// instead.
+func authenticateClient(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, clientSecret string) (database.OAuth2ProviderAppSecret, error) {
+	secret, err := ParseFormattedSecret(clientSecret)
+	if err != nil {
+		return database.OAuth2ProviderAppSecret{}, errBadSecret
+	}
+	//nolint:gocritic // OAuth2 system context, users cannot read secrets
+	dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(secret.Prefix))
+	if errors.Is(err, sql.ErrNoRows) {
+		return database.OAuth2ProviderAppSecret{}, errBadSecret
+	}
+	if err != nil {
+		return database.OAuth2ProviderAppSecret{}, err
+	}
+	if !apikey.ValidateHash(dbSecret.HashedSecret, secret.Secret) {
+		return database.OAuth2ProviderAppSecret{}, errBadSecret
+	}
+	if dbSecret.AppID != app.ID {
+		return database.OAuth2ProviderAppSecret{}, errBadSecret
+	}
+	return dbSecret, nil
+}
+
+// writeRefusal renders an RFC 6749 §5.2 error body for the token and
+// revocation endpoints.
+func writeRefusal(ctx context.Context, rw http.ResponseWriter, status int, code codersdk.OAuth2ErrorCode, description string) {
 	// Sanitized before the cap, so the bound is on what the client receives.
 	httpapi.WriteOAuth2Error(ctx, rw, status, code, capErrorDescription(sanitizeErrorDescription(description)))
 }
@@ -269,6 +364,13 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
 
+		if clientSecretInQuery(r.URL.Query()) {
+			logger.Warn(ctx, "oauth2 token request refused: client_secret in the URL query string",
+				append(requestSource(r), slog.F("app_id", app.ID))...)
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgClientSecretInQuery)
+			return
+		}
+
 		primary, alternates, err := registeredRedirectURIs(app)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -280,8 +382,20 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 
 		req, validationErrs, err := extractTokenRequest(r, logger, primary, alternates, app)
 		if err != nil {
+			// ExtractOAuth2ProviderAppWithOAuth2Errors bounds the body, but it
+			// parses the form only when client_id is absent from the query
+			// string. When it is present, extractTokenRequest performs the first
+			// read and the bound trips here rather than in the middleware.
+			if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok {
+				httpapi.WriteOAuth2RequestTooLarge(ctx, rw, maxBytesErr.Limit)
+				return
+			}
 			if errors.Is(err, errConflictingClientAuth) {
-				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")
+				writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgConflictingClientAuth)
+				return
+			}
+			if repeated, ok := errors.AsType[repeatedParameterError](err); ok {
+				writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, fmt.Sprintf("Parameter %s was provided more than once", repeated.name))
 				return
 			}
 
@@ -289,16 +403,16 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
 				return validationError.Field == "grant_type"
 			}) {
-				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, "The grant type is missing or unsupported")
+				writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, "The grant type is missing or unsupported")
 				return
 			}
 
-			// Check for missing required parameters for authorization_code grant
+			// Report the first required parameter that is missing, by name.
 			for _, field := range []string{"code", "client_id", "client_secret"} {
 				if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
 					return validationError.Field == field
 				}) {
-					writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, fmt.Sprintf("Missing required parameter: %s", field))
+					writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, fmt.Sprintf("Missing required parameter: %s", field))
 					return
 				}
 			}
@@ -311,12 +425,12 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 				return validationError.Field == "code_verifier"
 			}) {
 				// Spelled out: §5.2 excludes the section sign.
-				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The code_verifier parameter must be 43 to 128 characters from the unreserved character set [A-Za-z0-9-._~] (RFC 7636 section 4.1)")
+				writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The code_verifier parameter must be 43 to 128 characters from the unreserved character set [A-Za-z0-9-._~] (RFC 7636 section 4.1)")
 				return
 			}
 
 			// Generic invalid request for other validation errors
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The request is missing required parameters or is otherwise malformed")
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The request is missing required parameters or is otherwise malformed")
 			return
 		}
 
@@ -330,28 +444,34 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			token, err = authorizationCodeGrant(ctx, db, logger, app, lifetimes, req)
 		default:
 			// This should handle truly invalid grant types
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, fmt.Sprintf("The grant type %q is not supported", req.GrantType))
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, fmt.Sprintf("The grant type %q is not supported", req.GrantType))
 			return
 		}
 
 		if errors.Is(err, errBadSecret) {
-			writeTokenError(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
+			// A missing, wrong, or foreign secret is what a replayed stolen token
+			// looks like, so the refusal is logged. The request body stays out of
+			// the log: the caller never proved its credential, and the token it
+			// sent should not be recorded.
+			logger.Warn(ctx, "oauth2 token request refused: client authentication failed",
+				slog.F("grant_type", req.GrantType), slog.F("app_id", app.ID))
+			writeRefusal(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
 			return
 		}
 		if errors.Is(err, errBadCode) {
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The authorization code is invalid or expired")
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The authorization code is invalid or expired")
 			return
 		}
 		if errors.Is(err, errInvalidPKCE) {
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The PKCE code verifier is invalid")
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The PKCE code verifier is invalid")
 			return
 		}
 		if errors.Is(err, errInvalidResource) {
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidTarget, "The resource parameter is invalid")
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidTarget, "The resource parameter is invalid")
 			return
 		}
 		if errors.Is(err, errBadToken) {
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
 			return
 		}
 		// invalid_grant, not invalid_scope (RFC 6749 §5.2): all three report a
@@ -361,17 +481,17 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 		// reaches it.
 		if errors.Is(err, errUnmintableScope) || errors.Is(err, errStaleScope) ||
 			errors.Is(err, errNoGrantableScope) {
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
 			return
 		}
 		// invalid_scope for these: the refresh named them itself, so the
 		// client can fix it by asking differently.
 		if errors.Is(err, errUnknownScope) || errors.Is(err, errScopeNotGranted) {
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
 			return
 		}
 		if errors.Is(err, errCoverageUndecidable) {
-			writeTokenError(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated")
+			writeRefusal(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated")
 			return
 		}
 		if err != nil {
@@ -411,37 +531,24 @@ func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeI
 	}
 }
 
+// singleUseTxOptions names the isolation level the single-use deletes need.
+// At READ COMMITTED a second delete waits for the first to commit and then
+// removes nothing; higher levels raise a serialization error instead.
+// Built per call because InTx writes to the options it receives.
+func singleUseTxOptions() *database.TxOptions {
+	return &database.TxOptions{Isolation: sql.LevelReadCommitted}
+}
+
 func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.Logger, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
 	// A public client has no secret to validate, and its token references
 	// none. PKCE and the dbCode.AppID check are what bind the exchange to the
 	// client instead.
 	var appSecretID uuid.NullUUID
 	if !app.IsPublic() {
-		secret, err := ParseFormattedSecret(req.ClientSecret)
-		if err != nil {
-			return codersdk.OAuth2TokenResponse{}, errBadSecret
-		}
-		//nolint:gocritic // OAuth2 system context, users cannot read secrets
-		dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(secret.Prefix))
-		if errors.Is(err, sql.ErrNoRows) {
-			return codersdk.OAuth2TokenResponse{}, errBadSecret
-		}
+		dbSecret, err := authenticateClient(ctx, db, app, req.ClientSecret)
 		if err != nil {
 			return codersdk.OAuth2TokenResponse{}, err
 		}
-
-		equalSecret := apikey.ValidateHash(dbSecret.HashedSecret, secret.Secret)
-		if !equalSecret {
-			return codersdk.OAuth2TokenResponse{}, errBadSecret
-		}
-
-		// The secret must belong to the app named by client_id, which arrives
-		// unverified in the request. Otherwise a valid secret for one app
-		// could issue a token for another.
-		if dbSecret.AppID != app.ID {
-			return codersdk.OAuth2TokenResponse{}, errBadSecret
-		}
-
 		appSecretID = uuid.NullUUID{UUID: dbSecret.ID, Valid: true}
 	}
 
@@ -585,6 +692,8 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 		// token, so a later failure leaves the code redeemable.
 		_, err := tx.DeleteOAuth2ProviderAppCodeByID(ctx, dbCode.ID)
 		if errors.Is(err, sql.ErrNoRows) {
+			logger.Warn(ctx, "oauth2 code redemption refused: code already used",
+				slog.F("app_id", app.ID), slog.F("code_id", dbCode.ID))
 			return errBadCode
 		}
 		if err != nil {
@@ -625,7 +734,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
 		}
 		return nil
-	}, nil)
+	}, singleUseTxOptions())
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
@@ -641,6 +750,12 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 }
 
 func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logger, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
+	if !app.IsPublic() {
+		if _, err := authenticateClient(ctx, db, app, req.ClientSecret); err != nil {
+			return codersdk.OAuth2TokenResponse{}, err
+		}
+	}
+
 	// Validate the token.
 	token, err := ParseFormattedSecret(req.RefreshToken)
 	if err != nil {
@@ -687,15 +802,10 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
-	// Grab the user roles so we can perform the refresh as the user.
-	//nolint:gocritic // OAuth2 system context, need to read the previous API key
-	prevKey, err := db.GetAPIKeyByID(dbauthz.AsSystemOAuth2(ctx), dbToken.APIKeyID)
-	if err != nil {
-		return codersdk.OAuth2TokenResponse{}, err
-	}
-
+	// The token row carries the user id, so the previous key is not read
+	// before the delete below decides which of two refreshes proceeds.
 	// ScopeAll for the same reason as in authorizationCodeGrant.
-	actor, _, err := httpmw.UserRBACSubject(ctx, db, prevKey.UserID, rbac.ScopeAll)
+	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbToken.UserID, rbac.ScopeAll)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, xerrors.Errorf("fetch user actor: %w", err)
 	}
@@ -712,9 +822,9 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 	}
 
 	// Generate the new API key.
-	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", prevKey.UserID, app.ID)
+	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", dbToken.UserID, app.ID)
 	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
-		UserID:          prevKey.UserID,
+		UserID:          dbToken.UserID,
 		LoginType:       database.LoginTypeOAuth2ProviderApp,
 		DefaultLifetime: lifetimes.DefaultDuration.Value(),
 		Scopes:          scopes,
@@ -735,7 +845,18 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
-		err = tx.DeleteAPIKeyByID(ctx, prevKey.ID) // This cascades to the token.
+		// RFC 6749 §10.4: the presented refresh token is invalidated so that a
+		// second use of it can be detected. Only one of two concurrent
+		// refreshes can delete this row; the other waits for this transaction
+		// to commit, finds nothing, and is refused. A failure below rolls the
+		// delete back, so the old key stays usable.
+		_, err := tx.DeleteAPIKeyByIDReturningRow(ctx, dbToken.APIKeyID) // This cascades to the token.
+		if errors.Is(err, sql.ErrNoRows) {
+			// The one place a second use of a refresh token is visible.
+			logger.Warn(ctx, "oauth2 refresh refused: refresh token already used",
+				slog.F("app_id", app.ID), slog.F("api_key_id", dbToken.APIKeyID))
+			return errBadToken
+		}
 		if err != nil {
 			return xerrors.Errorf("delete oauth2 app token: %w", err)
 		}
@@ -766,7 +887,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
 		}
 		return nil
-	}, nil)
+	}, singleUseTxOptions())
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}

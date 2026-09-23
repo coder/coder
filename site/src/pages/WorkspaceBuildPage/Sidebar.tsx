@@ -1,10 +1,7 @@
 import { cn } from "cn";
-import type { FC, HTMLAttributes } from "react";
+import type { ComponentProps, FC } from "react";
 
-export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
-	children,
-	...attrs
-}) => {
+export const Sidebar: FC<ComponentProps<"nav">> = ({ children, ...attrs }) => {
 	return (
 		<nav
 			className={cn(
@@ -18,9 +15,9 @@ export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
 	);
 };
 
-interface SidebarItemProps extends HTMLAttributes<HTMLElement> {
+type SidebarItemProps = ComponentProps<"button"> & {
 	active?: boolean;
-}
+};
 
 export const SidebarItem: FC<SidebarItemProps> = ({
 	children,
@@ -43,7 +40,7 @@ export const SidebarItem: FC<SidebarItemProps> = ({
 	);
 };
 
-export const SidebarCaption: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const SidebarCaption: FC<ComponentProps<"div">> = ({
 	children,
 	className,
 	...attrs

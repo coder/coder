@@ -15,3 +15,4 @@ welcome!
 | Heroku                                                                            | Unofficial | [Docs: Deploy Coder on Heroku](https://github.com/coder/packages/blob/main/heroku/README.md) |
 | Render                                                                            | Unofficial | [Docs: Deploy Coder on Render](https://github.com/coder/packages/blob/main/render/README.md) |
 | Snapcraft                                                                         | Unofficial | [Get it from the Snap Store](https://snapcraft.io/coder)                                     |
+| Easypanel                                                                         | Unofficial | [Deploy Coder on Easypanel](https://easypanel.io/templates/coder)                            |

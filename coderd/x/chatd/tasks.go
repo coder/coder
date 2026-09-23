@@ -25,10 +25,8 @@ import (
 
 const (
 	postCommitWatchPublishTimeout = 10 * time.Second
-	// defaultTaskTimeout must exceed chatloop's stream-silence guard so
-	// silent provider streams fail through chat-specific retry handling
-	// before the runner retries the whole task.
-	defaultTaskTimeout = 15 * time.Minute
+	defaultTaskTimeout            = 15 * time.Minute
+	taskTimeoutMargin             = 5 * time.Minute
 )
 
 var (
@@ -156,9 +154,19 @@ func runTaskWithRetry(
 
 func taskAttemptContext(ctx context.Context, clock quartz.Clock, kind taskKind) (context.Context, func()) {
 	attemptCtx, cancelCause := context.WithCancelCause(ctx)
+	tag := "task-timeout-" + string(kind)
 	timer := clock.AfterFunc(defaultTaskTimeout, func() {
 		cancelCause(errTaskTimeout)
-	}, "chatworker", "task-timeout-"+string(kind))
+	}, "chatworker", tag)
+	// A silent stream must fail through the silence guard rather than the
+	// watchdog, and a healthy long stream must not be cut off.
+	attemptCtx = chatloop.WithStreamWatchdog(attemptCtx, func(silence time.Duration) {
+		if silence < 0 {
+			timer.Stop()
+			return
+		}
+		timer.Reset(max(defaultTaskTimeout, silence+taskTimeoutMargin), "chatworker", tag)
+	})
 	return attemptCtx, func() {
 		timer.Stop()
 		cancelCause(nil)
@@ -175,9 +183,8 @@ func executeTaskSafely(ctx context.Context, fn func(context.Context) error) (err
 }
 
 type interruptionOutcome struct {
-	Chat           database.Chat
-	Kind           runnerActionKind
-	WatchEventKind codersdk.ChatWatchEventKind
+	Chat database.Chat
+	Kind runnerActionKind
 }
 
 type taskStarter struct {
@@ -335,9 +342,8 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	return s.runAfterInterruptionOutcome(ctx, interruptionOutcome{
-		Chat:           committed,
-		Kind:           runnerActionKindFinishInterruption,
-		WatchEventKind: codersdk.ChatWatchEventKindStatusChange,
+		Chat: committed,
+		Kind: runnerActionKindFinishInterruption,
 	})
 }
 

@@ -83,7 +83,7 @@ export const MultiMemberSelect: FC<MemberAutocompleteProps> = ({
 	);
 };
 
-type UsersTable<T extends SelectedUser> = {
+type UsersTableProps<T extends SelectedUser> = {
 	error: unknown;
 	onChange: (user: T, checked: boolean) => void;
 	selected: readonly T[];
@@ -95,7 +95,7 @@ const UsersTable = <T extends SelectedUser>({
 	onChange,
 	selected,
 	users,
-}: UsersTable<T>) => {
+}: UsersTableProps<T>) => {
 	if (error) {
 		return (
 			<div className="p-3">
@@ -234,14 +234,14 @@ const TableLoader: FC = () => {
 	);
 };
 
-interface UserRowProps<T extends SelectedUser> {
+type UserRowProps<T extends SelectedUser> = {
 	checked: boolean;
 	children?: ReactNode;
 	isFirst: boolean;
 	isLast: boolean;
 	onChange: (user: T, checked: boolean) => void;
 	user: T;
-}
+};
 
 const UserRow = <T extends SelectedUser>({
 	checked,

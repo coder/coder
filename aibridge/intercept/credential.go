@@ -26,14 +26,17 @@ const (
 
 // Hint placeholders for credentials with no static key value to mask: a pool
 // before failover selects a key, and a key resolved dynamically at request time.
+//
+// Hints are persisted to aibridge_interceptions.credential_hint, a
+// VARCHAR(15), so every value here must be at most 15 characters.
 const (
-	hintFailoverKey     = "<failover key>"
-	hintBedrockChainKey = "<aws chain>"
+	hintFailoverKey = "<failover key>"
+	hintAWSChainKey = "<aws chain>"
 )
 
 // Credential is the per-request upstream authentication for an interception:
 //   - BYOK: a user-supplied secret.
-//   - Bedrock: AWS Bedrock credentials, used to sign requests.
+//   - AWSSigV4: AWS credentials, used to sign requests.
 //   - CentralizedPool: a provider-managed key pool with failover.
 type Credential interface {
 	Kind() CredentialKind
@@ -57,22 +60,23 @@ func (b BYOK) AuthHeader() string { return b.Header }
 func (b BYOK) Hint() string       { return utils.MaskSecret(b.Secret) }
 func (b BYOK) Length() int        { return len(b.Secret) }
 
-// Bedrock authenticates with AWS Bedrock: requests are signed (so there is no
-// auth header) using either static credentials (when an access key is set) or
-// the AWS default credential chain. There is no key pool or failover.
-type Bedrock struct {
+// AWSSigV4 authenticates with AWS SigV4 request signing: requests are signed
+// (so there is no auth header) using either static credentials (when an access
+// key is set) or the AWS default credential chain. There is no key pool or
+// failover. It covers every AWS-signed upstream, not just Bedrock.
+type AWSSigV4 struct {
 	AccessKey string
 }
 
-func (Bedrock) Kind() CredentialKind { return CredentialKindCentralized }
-func (Bedrock) AuthHeader() string   { return "" }
-func (b Bedrock) Length() int        { return len(b.AccessKey) }
+func (AWSSigV4) Kind() CredentialKind { return CredentialKindCentralized }
+func (AWSSigV4) AuthHeader() string   { return "" }
+func (c AWSSigV4) Length() int        { return len(c.AccessKey) }
 
-func (b Bedrock) Hint() string {
-	if b.AccessKey == "" {
-		return hintBedrockChainKey
+func (c AWSSigV4) Hint() string {
+	if c.AccessKey == "" {
+		return hintAWSChainKey
 	}
-	return utils.MaskSecret(b.AccessKey)
+	return utils.MaskSecret(c.AccessKey)
 }
 
 // CentralizedPool authenticates with a provider-managed key pool and fails over
@@ -114,7 +118,7 @@ func (c *CentralizedPool) NextKey(w *keypool.Walker) (*keypool.Key, *keypool.Err
 
 var (
 	_ Credential = BYOK{}
-	_ Credential = Bedrock{}
+	_ Credential = AWSSigV4{}
 	_ Credential = &CentralizedPool{}
 )
 

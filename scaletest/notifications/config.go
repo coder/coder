@@ -26,8 +26,14 @@ type Config struct {
 	// DialTimeout is how long to wait for websocket connection.
 	DialTimeout time.Duration `json:"dial_timeout"`
 
-	// ExpectedNotificationsIDs is the list of notification template IDs to expect.
-	ExpectedNotificationsIDs map[uuid.UUID]struct{} `json:"-"`
+	// IsTemplateAdmin marks a runner that watches for and counts notifications.
+	// Regular users leave it false and only hold a websocket connection open.
+	IsTemplateAdmin bool `json:"-"`
+
+	// ExpectedDeletions is how many TemplateTemplateDeleted notifications a
+	// template admin waits for (one per template deletion). It is ignored unless
+	// IsTemplateAdmin is set, in which case it must be at least 1.
+	ExpectedDeletions int `json:"-"`
 
 	Metrics *Metrics `json:"-"`
 
@@ -66,6 +72,10 @@ func (c Config) Validate() error {
 
 	if c.NotificationTimeout <= 0 {
 		return xerrors.New("notification_timeout must be greater than 0")
+	}
+
+	if c.IsTemplateAdmin && c.ExpectedDeletions < 1 {
+		return xerrors.New("expected_deletions must be at least 1 for a template admin")
 	}
 
 	if c.SMTPApiURL != "" && c.SMTPRequestTimeout <= 0 {

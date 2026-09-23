@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	MockNoPermissions,
@@ -57,12 +57,12 @@ type Story = StoryObj<typeof WorkspacesFilterHarness>;
 const PLACEHOLDER = "Search and filter workspaces…";
 
 export const Default: Story = {
-	args: { initialQuery: "owner:me" },
+	args: { initialQuery: "user:me" },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The default `owner:me` renders as a committed chip, not free text.
+		// The default `user:me` renders as a committed chip, not free text.
 		await expect(
-			canvas.getByRole("button", { name: "Remove owner:me" }),
+			canvas.getByRole("button", { name: "Remove user:me" }),
 		).toBeVisible();
 	},
 };
@@ -81,21 +81,36 @@ export const SelectStatusOption: Story = {
 	},
 };
 
-export const OrdinaryUserOmitsOwnerFilter: Story = {
-	args: { initialQuery: "" },
+// Regression guard: a user who cannot list others still gets User and Owner
+// categories (scoped to themselves), so `user` stays a chip key and the
+// category list is browsable instead of `user:me` collapsing into free text.
+export const OrdinaryUserKeepsUserChip: Story = {
+	args: { initialQuery: "user:me" },
 	parameters: { permissions: MockNoPermissions },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await expect(
+			canvas.getByRole("button", { name: "Remove user:me" }),
+		).toBeVisible();
 
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Toggle filters" }),
 		);
+		// Categories browse normally (User and Owner included) rather than being
+		// masked by free-text search.
+		await waitFor(() => {
+			expect(body.getByRole("option", { name: /^User/ })).toBeVisible();
+			expect(body.getByRole("option", { name: /^Owner/ })).toBeVisible();
+			expect(body.getByRole("option", { name: /running/i })).toBeVisible();
+		});
 	},
 };
 
 export const WithFilterError: Story = {
 	args: {
-		initialQuery: "owner:me",
+		initialQuery: "user:me",
 		error: mockApiError({
 			message: "Invalid filter query.",
 			validations: [

@@ -11,11 +11,11 @@ import {
 import { useZoomShortcuts } from "../../hooks/useZoomShortcuts";
 import { DesktopToolbar, type ScaleMode } from "./DesktopToolbar";
 
-interface DesktopPanelProps {
+type DesktopPanelProps = {
 	chatId: string;
 	/** When true the panel is the active sidebar tab. */
 	isVisible?: boolean;
-}
+};
 
 export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 	// Delay the VNC connection until the desktop tab is first selected.
@@ -107,7 +107,7 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 	);
 };
 
-export interface DesktopPanelViewProps {
+export type DesktopPanelViewProps = {
 	status: DesktopConnectionStatus;
 	reconnect: () => void;
 	attach: (container: HTMLElement) => void;
@@ -117,7 +117,7 @@ export interface DesktopPanelViewProps {
 	onTakeControl: () => void;
 	onReleaseControl: () => void;
 	onPopOut?: () => void;
-}
+};
 
 export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	status,
