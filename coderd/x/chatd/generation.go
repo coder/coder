@@ -124,7 +124,10 @@ type generationOutcome struct {
 type generationActionKind string
 
 const (
-	generationActionExecuteLocalTools   generationActionKind = "execute_local_tools"
+	// generationActionExecuteLocalTools shares its value with the stage
+	// tracer, which classifies a step's own time as tool execution by
+	// this generation_action.
+	generationActionExecuteLocalTools   generationActionKind = chatloop.GenerationActionExecuteLocalTools
 	generationActionEnterRequiresAction generationActionKind = "enter_requires_action"
 	generationActionFinishTurn          generationActionKind = "finish_turn"
 	generationActionCompact             generationActionKind = "compact"
@@ -553,7 +556,7 @@ func (s *taskStarter) runGenerationStep(
 		return input, false, s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
 
-	stepSpan.SetAttributes(attribute.String(chatloop.AttrGenerationAction, string(decision.kind)))
+	stepSpan.SetGenerationAction(string(decision.kind))
 	var actionErr error
 	switch decision.kind {
 	case generationActionEnterRequiresAction:
