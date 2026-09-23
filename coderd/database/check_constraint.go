@@ -32,6 +32,7 @@ const (
 	CheckChatProjectMemoriesDescriptionLength                CheckConstraint = "chat_project_memories_description_length"                  // chat_project_memories
 	CheckChatProjectMemoriesNameFormat                       CheckConstraint = "chat_project_memories_name_format"                         // chat_project_memories
 	CheckChatProjectsDescriptionLength                       CheckConstraint = "chat_projects_description_length"                          // chat_projects
+	CheckChatProjectsIconLength                              CheckConstraint = "chat_projects_icon_length"                                 // chat_projects
 	CheckChatProjectsNameLength                              CheckConstraint = "chat_projects_name_length"                                 // chat_projects
 	CheckChatProjectsNameNotBlank                            CheckConstraint = "chat_projects_name_not_blank"                              // chat_projects
 	CheckChatUsageLimitConfigDefaultLimitMicrosCheck         CheckConstraint = "chat_usage_limit_config_default_limit_micros_check"        // chat_usage_limit_config

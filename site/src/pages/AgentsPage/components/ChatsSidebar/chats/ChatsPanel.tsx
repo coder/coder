@@ -58,6 +58,7 @@ import {
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
 import { ProjectFolders } from "./ProjectFolders";
+import { SidebarGroupHeading } from "./SidebarGroupHeading";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const UNREAD_SECTION_KEY = "Unread";
@@ -412,7 +413,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		? "No agents match these filters"
 		: isViewingArchived
 			? "No archived agents"
-			: "No agents yet";
+			: "Your chats will appear here";
 	const clearResultFilters = () => {
 		onSidebarFiltersChange({
 			...sidebarFilters,
@@ -498,28 +499,23 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				)}
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
-				<div className="mx-2 pt-6 mb-1.5">
-					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
-						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
-							{chatsHeadingLabel}
-						</h2>
-						<div className="flex items-center gap-1">
-							{onOpenSearchDialog && (
-								<Button
-									variant="subtle"
-									size="icon"
-									aria-label="Search chats"
-									onClick={onOpenSearchDialog}
-									className="size-7 sm:hidden"
-								>
-									<SearchIcon />
-								</Button>
-							)}
-							<FilterPopover
-								filters={sidebarFilters}
-								onFiltersChange={onSidebarFiltersChange}
-							/>
-						</div>
+				<div className="mx-2 mb-1 pt-5">
+					<div className="flex h-7 items-center justify-end gap-1 pr-1">
+						{onOpenSearchDialog && (
+							<Button
+								variant="subtle"
+								size="icon"
+								aria-label="Search chats"
+								onClick={onOpenSearchDialog}
+								className="size-7 sm:hidden"
+							>
+								<SearchIcon />
+							</Button>
+						)}
+						<FilterPopover
+							filters={sidebarFilters}
+							onFiltersChange={onSidebarFiltersChange}
+						/>
 					</div>
 				</div>
 				<ScrollArea
@@ -585,9 +581,12 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 									{isProjectsLoading && (
 										<Skeleton className="mb-3 ml-2.5 h-3.5 w-20" />
 									)}
+									<SidebarGroupHeading label={chatsHeadingLabel} />
 									{isShowingEmptyState ? (
-										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-											<p className="m-0">{emptyStateMessage}</p>
+										<div className="rounded-lg border border-dashed border-border-default px-4 py-10 text-center text-xs text-content-secondary">
+											<p className="m-0 text-content-disabled">
+												{emptyStateMessage}
+											</p>
 											{hasAppliedResultFilters && (
 												<button
 													type="button"
@@ -601,11 +600,14 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 									) : (
 										<>
 											{pinnedChats.length > 0 && (
-												<div className="not-first:mt-3">
+												<div className="not-first:mt-2">
 													<ChatSectionHeader
 														label={PINNED_SECTION_KEY}
 														count={pinnedChats.length}
 														expanded={!collapsedSections[PINNED_SECTION_KEY]}
+														hasUnread={pinnedChats.some(
+															(chat) => chat.has_unread,
+														)}
 														onToggle={() => toggleSection(PINNED_SECTION_KEY)}
 														testId={getSectionToggleTestId(PINNED_SECTION_KEY)}
 													/>
@@ -650,10 +652,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 												</div>
 											)}
 											{sharedWithYouChats.length > 0 && (
-												<div className="not-first:mt-3">
+												<div className="not-first:mt-2">
 													<ChatSectionHeader
 														label={SHARED_WITH_YOU_SECTION_KEY}
 														count={sharedWithYouChats.length}
+														hasUnread={sharedWithYouChats.some(
+															(chat) => chat.has_unread,
+														)}
 														expanded={
 															!collapsedSections[SHARED_WITH_YOU_SECTION_KEY]
 														}
@@ -677,10 +682,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 												const isSectionExpanded =
 													!collapsedSections[section.key];
 												return (
-													<div key={section.key} className="not-first:mt-3">
+													<div key={section.key} className="not-first:mt-2">
 														<ChatSectionHeader
 															label={section.label}
 															count={section.chats.length}
+															hasUnread={section.chats.some(
+																(chat) => chat.has_unread,
+															)}
 															expanded={isSectionExpanded}
 															onToggle={() => toggleSection(section.key)}
 															testId={getSectionToggleTestId(section.key)}

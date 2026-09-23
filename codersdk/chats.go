@@ -164,6 +164,7 @@ type ChatProject struct {
 	OwnerID        uuid.UUID `json:"owner_id" format:"uuid"`
 	Name           string    `json:"name"`
 	Description    string    `json:"description"`
+	Icon           string    `json:"icon"`
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt      time.Time `json:"updated_at" format:"date-time"`
 }
@@ -173,12 +174,14 @@ type CreateChatProjectRequest struct {
 	OrganizationID uuid.UUID `json:"organization_id" validate:"required" format:"uuid"`
 	Name           string    `json:"name" validate:"required"`
 	Description    string    `json:"description"`
+	Icon           string    `json:"icon"`
 }
 
 // UpdateChatProjectRequest updates a chat project.
 type UpdateChatProjectRequest struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
+	Icon        *string `json:"icon,omitempty"`
 }
 
 // ChatProjectMemory is a durable memory shared by chats in a project.

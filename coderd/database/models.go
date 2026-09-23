@@ -5289,6 +5289,8 @@ type ChatProject struct {
 	Description    string    `db:"description" json:"description"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	// URL or path to an icon representing the chat project (max 256 characters).
+	Icon string `db:"icon" json:"icon"`
 }
 
 // Organization-scoped durable memories for chat projects.

@@ -2,8 +2,6 @@ import { cn } from "cn";
 import {
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
-	FolderIcon,
-	FolderOpenIcon,
 	PlusIcon,
 	SquarePenIcon,
 } from "lucide-react";
@@ -26,8 +24,11 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { shortRelativeTime } from "#/utils/time";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { ChatTreeNode } from "../tree/ChatTreeNode";
+import { ProjectIcon } from "./ProjectIcon";
+import { SidebarGroupHeading } from "./SidebarGroupHeading";
 
 const getProjectFolderToggleTestId = (projectId: string) =>
 	`agents-project-folder-toggle-${projectId}`;
@@ -63,26 +64,28 @@ export const ProjectFolders: FC<ProjectFoldersProps> = ({
 	const location = useLocation();
 
 	return (
-		<div className="mb-3">
-			<div className="group/header mb-1 ml-2.5 mr-2 flex h-7 items-center text-xs font-medium text-content-secondary">
-				<span className="min-w-0 flex-1 truncate">Projects</span>
-				<Button
-					variant="subtle"
-					size="icon"
-					className="size-7 min-w-0"
-					aria-label="New project"
-					onClick={onCreate}
-				>
-					<PlusIcon className="size-3.5" />
-				</Button>
-			</div>
+		<div className="mb-4">
+			<SidebarGroupHeading
+				label="Projects"
+				action={
+					<Button
+						variant="subtle"
+						size="icon"
+						className="size-7 min-w-0 text-content-secondary hover:text-content-primary"
+						aria-label="New project"
+						onClick={onCreate}
+					>
+						<PlusIcon className="size-3.5" />
+					</Button>
+				}
+			/>
 			{Boolean(error) && (
 				<FolderError
 					message={getErrorMessage(error, "Failed to load projects.")}
 					onRetry={onRetry}
 				/>
 			)}
-			{projects.length > 0 && (
+			{projects.length > 0 ? (
 				<div className="flex flex-col gap-0.5">
 					{projects.map((project) => (
 						<ProjectFolder
@@ -97,6 +100,17 @@ export const ProjectFolders: FC<ProjectFoldersProps> = ({
 						/>
 					))}
 				</div>
+			) : (
+				!error && (
+					<button
+						type="button"
+						className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-default bg-transparent px-3 py-3.5 font-sans text-[13px] text-content-primary hover:bg-surface-tertiary/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+						onClick={onCreate}
+					>
+						<PlusIcon aria-hidden="true" className="size-3.5" />
+						Add project
+					</button>
+				)
 			)}
 		</div>
 	);
@@ -124,6 +138,20 @@ type ProjectFolderProps = {
 	readonly onDelete: () => void;
 };
 
+/** Most recent activity in the folder: its newest chat, else the project. */
+const getFolderActivityAt = (
+	project: ChatProject,
+	chats: readonly Chat[],
+): string => {
+	let latest = project.updated_at;
+	for (const chat of chats) {
+		if (chat.updated_at > latest) {
+			latest = chat.updated_at;
+		}
+	}
+	return latest;
+};
+
 const ProjectFolder: FC<ProjectFolderProps> = ({
 	project,
 	chats,
@@ -137,12 +165,11 @@ const ProjectFolder: FC<ProjectFolderProps> = ({
 		pathname: buildAgentProjectPath(project.id),
 		search: locationSearch,
 	};
-	const FolderGlyph = expanded ? FolderOpenIcon : FolderIcon;
 	const row = (
-		<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
+		<div className="group relative flex h-8 items-center gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary has-data-[state=open]:bg-surface-tertiary hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
 			<button
 				type="button"
-				className="flex size-6 shrink-0 cursor-pointer appearance-none items-center justify-center rounded border-0 bg-transparent p-0 text-current focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+				className="flex size-5 shrink-0 cursor-pointer appearance-none items-center justify-center rounded border-0 bg-transparent p-0 text-current focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 				aria-expanded={expanded}
 				aria-label={`${expanded ? "Collapse" : "Expand"} ${project.name}`}
 				data-testid={getProjectFolderToggleTestId(project.id)}
@@ -158,39 +185,47 @@ const ProjectFolder: FC<ProjectFolderProps> = ({
 			</button>
 			<NavLink
 				to={projectPath}
-				className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] text-content-primary no-underline"
+				className="flex h-full min-w-0 flex-1 items-center gap-2 text-[13px] text-content-primary no-underline"
 			>
-				<FolderGlyph aria-hidden="true" className="size-4 shrink-0" />
+				<ProjectIcon icon={project.icon} />
 				<span className="min-w-0 flex-1 truncate">{project.name}</span>
 			</NavLink>
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button
-						variant="subtle"
-						size="icon"
-						className="size-6 min-w-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
-						aria-label={`Open project actions for ${project.name}`}
-					>
-						<EllipsisVerticalIcon className="size-3.5" />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end">
-					<DropdownMenuItem asChild>
-						<Link to={projectPath}>
-							<SquarePenIcon />
-							New chat
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuSeparator />
-					<DropdownMenuItem onSelect={onEdit}>Edit project</DropdownMenuItem>
-					<DropdownMenuItem
-						className="text-content-destructive focus:text-content-destructive"
-						onSelect={onDelete}
-					>
-						Delete project
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
+			<div className="relative flex h-6 w-7 shrink-0 items-center justify-end">
+				<span
+					data-pixel="ignore"
+					className="text-xs tabular-nums text-content-secondary/50 group-has-data-[state=open]:hidden [@media(hover:hover)]:group-hover:hidden"
+				>
+					{shortRelativeTime(getFolderActivityAt(project, chats))}
+				</span>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="subtle"
+							size="icon"
+							className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary opacity-0 hover:text-content-primary focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:hover)]:group-hover:opacity-100"
+							aria-label={`Open project actions for ${project.name}`}
+						>
+							<EllipsisVerticalIcon className="size-3.5" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem asChild>
+							<Link to={projectPath}>
+								<SquarePenIcon />
+								New chat
+							</Link>
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem onSelect={onEdit}>Edit project</DropdownMenuItem>
+						<DropdownMenuItem
+							className="text-content-destructive focus:text-content-destructive"
+							onSelect={onDelete}
+						>
+							Delete project
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</div>
 		</div>
 	);
 
@@ -216,9 +251,11 @@ const ProjectFolder: FC<ProjectFolderProps> = ({
 				</ContextMenuContent>
 			</ContextMenu>
 			{expanded && (
-				<div className="ml-3 flex flex-col gap-0.5 border-0 border-l border-solid border-border-default pl-1">
+				// The guide line sits under the chevron's center (4px row
+				// padding plus half of the 20px chevron slot).
+				<div className="ml-3.5 mt-0.5 flex flex-col gap-0.5 border-0 border-l border-solid border-border-default pl-1.5">
 					{chats.length === 0 ? (
-						<p className="m-0 px-2 py-1 text-xs text-content-secondary">
+						<p className="m-0 px-2 py-1.5 text-xs text-content-secondary">
 							No chats yet
 						</p>
 					) : (
