@@ -68,13 +68,9 @@ import (
 const (
 	chatStreamBatchSize = 256
 
-	// maxChatRequestBodyBytes caps JSON bodies that carry dynamic tool
-	// schemas or tool results, which are unrelated to the prompt limit.
+	// maxChatRequestBodyBytes is the maximum JSON body size for chat
+	// creation and tool result requests.
 	maxChatRequestBodyBytes = 256 * 1024
-	// chatPromptRequestEnvelopeBytes covers the JSON field names and
-	// quoting around a prompt so a small prompt limit cannot reject
-	// structurally valid bodies.
-	chatPromptRequestEnvelopeBytes = 1024
 
 	defaultChatContextCompressionThreshold = int32(70)
 	// Large-context models (1M) compact earlier; 70% of a 1M window
@@ -4453,7 +4449,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var req codersdk.UpdateChatSystemPromptRequest
-	if !httpapi.ReadLimit(ctx, rw, r, api.chatPromptRequestBodyLimit(), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.maxPromptRequestBodyBytes(), &req) {
 		return
 	}
 	sanitizedPrompt := codersdk.SanitizePromptText(req.SystemPrompt)
@@ -4607,7 +4603,7 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var req codersdk.UpdateChatPlanModeInstructionsRequest
-	if !httpapi.ReadLimit(ctx, rw, r, api.chatPromptRequestBodyLimit(), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.maxPromptRequestBodyBytes(), &req) {
 		return
 	}
 
@@ -5953,7 +5949,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var params codersdk.UserChatCustomPrompt
-	if !httpapi.ReadLimit(ctx, rw, r, api.chatPromptRequestBodyLimit(), &params) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.maxPromptRequestBodyBytes(), &params) {
 		return
 	}
 
@@ -6626,13 +6622,11 @@ func createChatInputFromParts(
 	return content, pasteData, nil
 }
 
-// chatPromptRequestBodyLimit bounds JSON bodies that carry a prompt. It
-// allows twice the prompt limit so payloads padded with characters that
-// sanitize away still decode, plus the envelope allowance. The product
-// is computed in int64 because the limit may be up to MaxInt32 and int
-// is 32 bits on some release targets.
-func (api *API) chatPromptRequestBodyLimit() int64 {
-	return 2*int64(api.chatLimits.MaxPromptBytes) + chatPromptRequestEnvelopeBytes
+// maxPromptRequestBodyBytes allows twice the prompt limit for JSON escaping
+// and characters that sanitization removes, but never less than
+// maxChatRequestBodyBytes, so small limits still return the 400 length error.
+func (api *API) maxPromptRequestBodyBytes() int64 {
+	return max(maxChatRequestBodyBytes, 2*int64(api.chatLimits.MaxPromptBytes))
 }
 
 func (api *API) writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) bool {
