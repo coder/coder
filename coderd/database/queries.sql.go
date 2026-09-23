@@ -7317,10 +7317,10 @@ WITH acquired AS (
             LIMIT
                 $1::int
         )
-    RETURNING chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch, reported_at
+    RETURNING chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
 )
 SELECT
-    acquired.chat_id, acquired.url, acquired.pull_request_state, acquired.changes_requested, acquired.additions, acquired.deletions, acquired.changed_files, acquired.refreshed_at, acquired.stale_at, acquired.created_at, acquired.updated_at, acquired.git_branch, acquired.git_remote_origin, acquired.pull_request_title, acquired.pull_request_draft, acquired.author_login, acquired.author_avatar_url, acquired.base_branch, acquired.pr_number, acquired.commits, acquired.approved, acquired.reviewer_count, acquired.head_branch, acquired.reported_at,
+    acquired.chat_id, acquired.url, acquired.pull_request_state, acquired.changes_requested, acquired.additions, acquired.deletions, acquired.changed_files, acquired.refreshed_at, acquired.stale_at, acquired.created_at, acquired.updated_at, acquired.git_branch, acquired.git_remote_origin, acquired.pull_request_title, acquired.pull_request_draft, acquired.author_login, acquired.author_avatar_url, acquired.base_branch, acquired.pr_number, acquired.commits, acquired.approved, acquired.reviewer_count, acquired.head_branch,
     c.owner_id
 FROM
     acquired
@@ -7352,7 +7352,6 @@ type AcquireStaleChatDiffStatusesRow struct {
 	Approved         sql.NullBool   `db:"approved" json:"approved"`
 	ReviewerCount    sql.NullInt32  `db:"reviewer_count" json:"reviewer_count"`
 	HeadBranch       sql.NullString `db:"head_branch" json:"head_branch"`
-	ReportedAt       time.Time      `db:"reported_at" json:"reported_at"`
 	OwnerID          uuid.UUID      `db:"owner_id" json:"owner_id"`
 }
 
@@ -7389,7 +7388,6 @@ func (q *sqlQuerier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal 
 			&i.Approved,
 			&i.ReviewerCount,
 			&i.HeadBranch,
-			&i.ReportedAt,
 			&i.OwnerID,
 		); err != nil {
 			return nil, err
@@ -8679,13 +8677,13 @@ func (q *sqlQuerier) GetChatDiffStatusSummary(ctx context.Context) (GetChatDiffS
 
 const getChatDiffStatusesByChatID = `-- name: GetChatDiffStatusesByChatID :many
 SELECT
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch, reported_at
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
 FROM
     chat_diff_statuses
 WHERE
     chat_id = $1::uuid
 ORDER BY
-    reported_at DESC,
+    updated_at DESC,
     git_remote_origin,
     git_branch
 `
@@ -8723,7 +8721,6 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatID(ctx context.Context, chatID uui
 			&i.Approved,
 			&i.ReviewerCount,
 			&i.HeadBranch,
-			&i.ReportedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -8740,13 +8737,13 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatID(ctx context.Context, chatID uui
 
 const getChatDiffStatusesByChatIDs = `-- name: GetChatDiffStatusesByChatIDs :many
 SELECT
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch, reported_at
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
 FROM
     chat_diff_statuses
 WHERE
     chat_id = ANY($1::uuid[])
 ORDER BY
-    reported_at DESC,
+    updated_at DESC,
     git_remote_origin,
     git_branch
 `
@@ -8784,7 +8781,6 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds [
 			&i.Approved,
 			&i.ReviewerCount,
 			&i.HeadBranch,
-			&i.ReportedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -10408,7 +10404,7 @@ SELECT DISTINCT ON (c.id)
 FROM chats c
 LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
 WHERE c.updated_at > $1
-ORDER BY c.id, cds.reported_at DESC NULLS LAST, cds.git_remote_origin, cds.git_branch
+ORDER BY c.id, cds.updated_at DESC NULLS LAST, cds.git_remote_origin, cds.git_branch
 `
 
 type GetChatsUpdatedAfterRow struct {
@@ -14042,7 +14038,7 @@ SET
     refreshed_at = EXCLUDED.refreshed_at,
     stale_at = EXCLUDED.stale_at
 RETURNING
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch, reported_at
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
 `
 
 type UpsertChatDiffStatusParams struct {
@@ -14118,7 +14114,6 @@ func (q *sqlQuerier) UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDif
 		&i.Approved,
 		&i.ReviewerCount,
 		&i.HeadBranch,
-		&i.ReportedAt,
 	)
 	return i, err
 }
@@ -14144,10 +14139,9 @@ SET
         ELSE chat_diff_statuses.url
     END,
     stale_at = EXCLUDED.stale_at,
-    reported_at = NOW(),
     updated_at = NOW()
 RETURNING
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch, reported_at
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
 `
 
 type UpsertChatDiffStatusReferenceParams struct {
@@ -14191,7 +14185,6 @@ func (q *sqlQuerier) UpsertChatDiffStatusReference(ctx context.Context, arg Upse
 		&i.Approved,
 		&i.ReviewerCount,
 		&i.HeadBranch,
-		&i.ReportedAt,
 	)
 	return i, err
 }
