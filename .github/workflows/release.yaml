@@ -21,7 +21,11 @@ on:
 permissions:
   contents: read
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+# Releases share helm.coder.com/v2/index.yaml, so never publish two at once.
+# Pending runs queue behind the active one; GitHub keeps only the newest
+# pending run per group, so dispatch a third release only after the second
+# has started.
+concurrency: ${{ github.workflow }}
 
 env:
   # Use `inputs` (vs `github.event.inputs`) to ensure that booleans are actual
