@@ -204,6 +204,11 @@ func maybeWriteManualTitleTimeoutErr(ctx context.Context, rw http.ResponseWriter
 	return false
 }
 
+var chatDaemonUnavailableResponse = codersdk.Response{
+	Message: "AI Gateway must be enabled for Coder Agents functionality. Please contact your deployment administrator.",
+	Detail:  "Set CODER_AI_GATEWAY_ENABLED=true (or ai-gateway-enabled in deployment YAML) to enable.",
+}
+
 // requireChatDaemon reports whether the chat daemon exists, writing a 503
 // Service Unavailable with a remediation message when it does not. The
 // daemon is nil when the in-memory AI Gateway is disabled by deployment
@@ -213,11 +218,14 @@ func (api *API) requireChatDaemon(ctx context.Context, rw http.ResponseWriter) b
 	if api.chatDaemon != nil {
 		return true
 	}
-	httpapi.Write(ctx, rw, http.StatusServiceUnavailable, codersdk.Response{
-		Message: "AI Gateway must be enabled for Coder Agents functionality. Please contact your deployment administrator.",
-		Detail:  "Set CODER_AI_GATEWAY_ENABLED=true (or ai-gateway-enabled in deployment YAML) to enable.",
-	})
+	httpapi.Write(ctx, rw, http.StatusServiceUnavailable, chatDaemonUnavailableResponse)
 	return false
+}
+
+// ChatDaemon returns the chat daemon, or nil when it is not running. See
+// requireChatDaemon.
+func (api *API) ChatDaemon() *chatd.Server {
+	return api.chatDaemon
 }
 
 func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.ChatConfigEventKind, entityID uuid.UUID) {
@@ -1528,6 +1536,61 @@ func (api *API) createChat(
 	chatFiles := api.fetchChatFileMetadata(ownerCtx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
 	return response, nil
+}
+
+// CreateChatAsUser creates a root chat as userID with the validation, the
+// errors, and the audit entry of POST /api/v2/chats. It is for in-process
+// callers that act for a user without an HTTP request. ctx does not need an
+// RBAC actor. Validation failures implement httperror.Responder.
+func (api *API) CreateChatAsUser(ctx context.Context, userID uuid.UUID, req codersdk.CreateChatRequest) (codersdk.Chat, error) {
+	if api.chatDaemon == nil {
+		return codersdk.Chat{}, httperror.NewResponseError(http.StatusServiceUnavailable, chatDaemonUnavailableResponse)
+	}
+	actor, status, err := httpmw.UserRBACSubject(ctx, api.Database, userID, rbac.ScopeAll)
+	if err != nil {
+		return codersdk.Chat{}, xerrors.Errorf("load user authorization: %w", err)
+	}
+	// The API key middleware rejects HTTP callers that are not active.
+	if status != database.UserStatusActive {
+		return codersdk.Chat{}, xerrors.Errorf("user %s is %s, not active", userID, status)
+	}
+	ctx = dbauthz.As(ctx, actor)
+
+	auditor := api.Auditor.Load()
+	if auditor == nil {
+		return codersdk.Chat{}, xerrors.New("auditor is not configured")
+	}
+
+	// The audit entry reads the status from a StatusWriter. Responses go to a
+	// recorder so that the entry records the status that postChats would.
+	rw := httptest.NewRecorder()
+	sw := &tracing.StatusWriter{ResponseWriter: rw}
+	auditReq, err := http.NewRequestWithContext(
+		httpmw.WithRequestID(ctx, uuid.New()),
+		http.MethodPost,
+		"http://localhost/internal/chat/create",
+		nil,
+	)
+	if err != nil {
+		return codersdk.Chat{}, xerrors.Errorf("create audit request: %w", err)
+	}
+	aReq, commitAudit := audit.InitRequest[database.Chat](sw, &audit.RequestParams{
+		Audit:          *auditor,
+		Log:            api.Logger,
+		Request:        auditReq,
+		Action:         database.AuditActionCreate,
+		OrganizationID: req.OrganizationID,
+	})
+	aReq.UserID = userID
+	defer commitAudit()
+
+	chat, err := api.createChat(ctx, aReq, userID, req)
+	if err != nil {
+		api.writeCreateChatError(ctx, sw, err)
+		return codersdk.Chat{}, err
+	}
+	sw.WriteHeader(http.StatusCreated)
+	return chat, nil
 }
 
 // writeCreateChatError writes the HTTP response for an error from createChat.

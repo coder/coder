@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -1863,6 +1864,87 @@ func TestPostChats(t *testing.T) {
 	})
 }
 
+func TestCreateChatAsUser(t *testing.T) {
+	t.Parallel()
+
+	mAudit := audit.NewMock()
+	client, api := newChatClientWithAPI(t, func(opts *coderdtest.Options) {
+		opts.Auditor = mAudit
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	createChatModel(t, client)
+
+	helloRequest := func(organizationID uuid.UUID) codersdk.CreateChatRequest {
+		return codersdk.CreateChatRequest{
+			OrganizationID: organizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello from CreateChatAsUser",
+			}},
+		}
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := api.CreateChatAsUser(ctx, member.ID, helloRequest(firstUser.OrganizationID))
+		require.NoError(t, err)
+		require.Equal(t, member.ID, chat.OwnerID)
+		require.Equal(t, codersdk.ChatClientTypeAPI, chat.ClientType)
+		require.Equal(t, "hello from CreateChatAsUser", chat.Title)
+
+		got, err := memberClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, got.ID)
+
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionCreate,
+			ResourceType:   database.ResourceTypeChat,
+			ResourceID:     chat.ID,
+			UserID:         member.ID,
+			OrganizationID: firstUser.OrganizationID,
+			StatusCode:     http.StatusCreated,
+		}))
+	})
+
+	t.Run("ValidationError", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+		_, err := api.CreateChatAsUser(ctx, member.ID, helloRequest(uuid.Nil))
+		responder, ok := httperror.IsResponder(err)
+		require.True(t, ok, "want a responder error, got %v", err)
+		status, resp := responder.Response()
+		require.Equal(t, http.StatusBadRequest, status)
+		require.Equal(t, "organization_id is required.", resp.Message)
+	})
+
+	t.Run("SuspendedUser", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		_, err := client.UpdateUserStatus(ctx, member.ID.String(), codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		_, err = api.CreateChatAsUser(ctx, member.ID, helloRequest(firstUser.OrganizationID))
+		require.ErrorContains(t, err, "not active")
+
+		chats, err := api.Database.GetChats(dbauthz.AsSystemRestricted(ctx), database.GetChatsParams{
+			OwnedOnly: true,
+			ViewerID:  member.ID,
+		})
+		require.NoError(t, err)
+		require.Empty(t, chats)
+	})
+}
+
 func TestPostChats_OwnerID(t *testing.T) {
 	t.Parallel()
 
@@ -3542,7 +3624,7 @@ func TestWatchChats(t *testing.T) {
 		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
-		chatDaemon := api.ChatDaemonForTest()
+		chatDaemon := api.ChatDaemon()
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModel(t, client)
 
