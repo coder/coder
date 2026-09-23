@@ -30,11 +30,16 @@ export const boardChatsKey = [
 // Limit 0 means the server default, not unlimited.
 const PAGE = 200;
 
-const allChats = async (): Promise<Chat[]> => {
+const allChats = async (signal: AbortSignal): Promise<Chat[]> => {
 	const q = getChatListQueryString(params);
 	const chats: Chat[] = [];
 	for (let offset = 0; ; offset += PAGE) {
-		const page = await API.experimental.getChats({ limit: PAGE, offset, q });
+		// Aborted when the query is cancelled: a cancelled request left
+		// running answered a later identical request with its older body.
+		const page = await API.experimental.getChats(
+			{ limit: PAGE, offset, q },
+			signal,
+		);
 		chats.push(...page);
 		if (page.length < PAGE) return chats;
 	}
@@ -46,14 +51,15 @@ const allChats = async (): Promise<Chat[]> => {
 export const boardChats = () =>
 	infiniteQueryOptions({
 		queryKey: boardChatsKey,
-		queryFn: async ({ client }) => {
-			const chats = await allChats();
-			const pending = client.isMutating({
-				predicate: (m) => m.options.scope?.id === boardWriteScope.id,
-			});
-			if (!pending) return chats;
-			// Queued writes are built from the cached labels, and the response
-			// may predate them. The refetch after the queue drains syncs them.
+		queryFn: async ({ client, signal }) => {
+			const settledBefore = settledWrites;
+			const chats = await allChats(signal);
+			if (!isBoardWriting(client) && settledWrites === settledBefore) {
+				return chats;
+			}
+			// The board's labels are authoritative while it writes: this
+			// response may predate a queued write or one that landed while it
+			// was in flight. The refresh after the last write syncs them.
 			const cached = new Map(
 				client
 					.getQueryData<{ pages: Chat[][] }>(boardChatsKey)
@@ -82,14 +88,30 @@ type UpdateChatLabelsVariables = {
 // newer write cannot land after it. onMutate still patches at once.
 export const boardWriteScope = { id: "chat-board-write" };
 
+/** Whether a board write is queued or in flight. */
+export const isBoardWriting = (client: QueryClient) =>
+	client.isMutating({
+		predicate: (m) => m.options.scope?.id === boardWriteScope.id,
+	}) > 0;
+
+// Counts settled board writes, so a list response can tell whether one
+// landed while it was in flight.
+let settledWrites = 0;
+
+// The list is refreshed once the board has been quiet this long, so a
+// burst of label writes costs one refetch instead of one per write.
+const REFRESH_DELAY_MS = 1500;
+let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+
 // Labels replace the whole map server-side, so callers pass the complete
 // desired map. The caches are patched before the request so board drags
-// settle instantly; the settled invalidation corrects any divergence.
+// settle instantly; the refresh after the last write corrects any
+// divergence.
 export const updateChatLabels = (queryClient: QueryClient) => ({
 	scope: boardWriteScope,
 	mutationFn: async ({ chatId, labels, after }: UpdateChatLabelsVariables) => {
-		// A skipped write sends nothing; the settled refetch reverts its
-		// optimistic patch.
+		// A skipped write sends nothing; the refresh after the last write
+		// reverts its optimistic patch.
 		if (
 			after &&
 			!(await after.then(
@@ -102,7 +124,12 @@ export const updateChatLabels = (queryClient: QueryClient) => ({
 		return API.experimental.updateChat(chatId, { labels });
 	},
 
-	onMutate: ({ chatId, labels }: UpdateChatLabelsVariables) => {
+	onMutate: async ({ chatId, labels }: UpdateChatLabelsVariables) => {
+		clearTimeout(refreshTimer);
+		// A board refetch in flight may predate this write. Cancelling aborts
+		// it and rolls the cache back to where it started, then the patch
+		// applies on top; the refresh after the last write replaces it.
+		await queryClient.cancelQueries({ queryKey: boardChatsKey, exact: true });
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) => (chat.id === chatId ? { ...chat, labels } : chat)),
 		);
@@ -116,7 +143,12 @@ export const updateChatLabels = (queryClient: QueryClient) => ({
 		_error: unknown,
 		{ chatId }: UpdateChatLabelsVariables,
 	) => {
-		void invalidateChatListQueries(queryClient);
+		settledWrites += 1;
+		clearTimeout(refreshTimer);
+		refreshTimer = setTimeout(
+			() => void invalidateChatListQueries(queryClient),
+			REFRESH_DELAY_MS,
+		);
 		void invalidateChatEntity(queryClient, chatId);
 	},
 });

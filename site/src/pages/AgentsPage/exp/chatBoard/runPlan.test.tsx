@@ -257,7 +257,7 @@ describe("runPlan", () => {
 		expect(toast).not.toHaveBeenCalled();
 	});
 
-	it("patches the board and sidebar caches before the request settles, then invalidates", async () => {
+	it("patches the board and sidebar caches before the request settles, then refreshes once quiet", async () => {
 		const request: Deferred<void> = createDeferred();
 		vi.spyOn(API.experimental, "updateChat").mockReturnValue(request.promise);
 		const primary = chat("p", { "board/column": "Inbox" });
@@ -290,9 +290,13 @@ describe("runPlan", () => {
 		).toEqual(written);
 		expect(queryClient.getQueryState(boardChatsKey)?.isInvalidated).toBe(false);
 
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 		request.resolve();
 		await pending;
+		expect(queryClient.getQueryState(boardChatsKey)?.isInvalidated).toBe(false);
 
+		vi.runOnlyPendingTimers();
+		vi.useRealTimers();
 		expect(queryClient.getQueryState(boardChatsKey)?.isInvalidated).toBe(true);
 	});
 });

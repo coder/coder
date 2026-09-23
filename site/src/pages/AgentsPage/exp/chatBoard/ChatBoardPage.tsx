@@ -34,7 +34,12 @@ import { BoardColumns } from "./BoardColumns";
 import { BoardHeader } from "./BoardHeader";
 import { BoardWindows } from "./BoardWindows";
 import type { Plan } from "./boardApi";
-import { boardChats, boardWriteScope, updateChatLabels } from "./boardChats";
+import {
+	boardChats,
+	boardWriteScope,
+	isBoardWriting,
+	updateChatLabels,
+} from "./boardChats";
 import {
 	boardCollision,
 	type DropTarget,
@@ -176,6 +181,22 @@ const ChatBoardPage: FC = () => {
 		storage.emptyColumns,
 	);
 	const boardState = { cards: allCards, columns, storage };
+	// A column first seen in the labels is saved at the end of the order.
+	// Unsaved columns follow their newest card, so a move would reorder them.
+	// Skipped while writing: a rename or delete saves the order before its
+	// label patch lands, and the old name would be saved back.
+	const unsavedColumns = columns
+		.map((column) => column.name)
+		.filter((name) => !storage.columnOrder.includes(name));
+	if (
+		chatsQuery.data !== undefined &&
+		unsavedColumns.length > 0 &&
+		!isBoardWriting(queryClient)
+	) {
+		updateStorage({
+			columnOrder: [...storage.columnOrder, ...unsavedColumns],
+		});
+	}
 	// An active search must not fall back to unfiltered cards when results
 	// are unavailable; the body below shows the loading or error state then.
 	const matchingIds = searchActive

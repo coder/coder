@@ -34,6 +34,55 @@ describe("ChatBoardPage", () => {
 		localStorage.clear();
 	});
 
+	it("saves columns first seen in the labels at the end of the column order", async () => {
+		const inColumn = (id: string, column: string, pos: string): Chat => ({
+			...MockChat,
+			id,
+			labels: { "board/column": column, "board/pos": pos },
+		});
+		mockChats(
+			() =>
+				Promise.resolve([
+					inColumn("a", "Review", "300"),
+					inColumn("b", "Doing", "200"),
+				]),
+			() => Promise.resolve([]),
+		);
+		renderWithAuth(<ChatBoardPage />);
+		await screen.findAllByRole("article");
+
+		const key = Object.keys(localStorage).find((k) =>
+			k.startsWith("agents.board."),
+		);
+		expect(
+			JSON.parse(localStorage.getItem(key ?? "") ?? "{}").columnOrder,
+		).toEqual(["Inbox", "Review", "Doing"]);
+	});
+
+	it("renaming a column with cards leaves no column under the old name", async () => {
+		const user = userEvent.setup();
+		mockChats(
+			() =>
+				Promise.resolve([
+					{ ...MockChat, labels: { "board/column": "Review" } },
+				]),
+			() => Promise.resolve([]),
+		);
+		vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+		renderWithAuth(<ChatBoardPage />);
+		await screen.findByRole("article");
+
+		await user.click(screen.getByRole("button", { name: "Review" }));
+		const input = screen.getByRole("textbox", { name: "Review column name" });
+		await user.clear(input);
+		await user.type(input, "Done{Enter}");
+
+		await screen.findByRole("region", { name: "Done column" });
+		expect(
+			screen.queryByRole("region", { name: "Review column" }),
+		).not.toBeInTheDocument();
+	});
+
 	it("shows the search error instead of an unfiltered board", async () => {
 		const user = userEvent.setup();
 		mockChats(

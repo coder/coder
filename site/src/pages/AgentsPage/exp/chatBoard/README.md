@@ -40,7 +40,8 @@ Design rules that came out of building it:
 Stages
 
 - I can create, rename, reorder and delete columns. A default "Inbox" column
-  always exists and holds chats nobody has sorted yet.
+  always exists and holds chats nobody has sorted yet. A column first seen
+  in the labels is saved at the end of my column order.
 - I can drag a card between columns and to an exact position within a
   column, and it stays there.
 
@@ -120,9 +121,10 @@ snapshot the previous maps of every touched chat so they can be undone.
 - `runPlan.ts` is the executor: applies one `Plan` through injected write,
   rename and storage functions (error toast, undo). `boardChats.ts` holds
   the board's all-chats query and the label mutation that patches the
-  caches before the request. While a board write is queued, a refetch
-  keeps the board's labels; the refetch after the last write brings the
-  server's.
+  caches before the request. Writes run one at a time in call order. A
+  write aborts a board refetch in flight, and a refetch that overlaps a
+  write keeps the board's labels. The list refreshes once the label writes
+  have been quiet for a moment.
 - `boardDrag.ts` maps a dnd-kit collision to a drop target and a drop to
   a command; `windows.ts` is pure window geometry and list edits.
 - `ChatBoardPage.tsx` owns state and mutations; `BoardHeader.tsx`,
@@ -139,7 +141,7 @@ snapshot the previous maps of every touched chat so they can be undone.
 - The assistant is not told when its snapshot is stale on return.
 - Concurrent edits from two browsers are last write wins.
 - If a transfer's receiver is rejected, an edit to a source chat made before
-  the board's writes finish and it refetches saves the source without the
+  the refresh after the board's last write saves the source without the
   transferred data.
 - Notes have no id of their own: the list keys them by timestamp, so notes
   stored without one fall back to display order.
