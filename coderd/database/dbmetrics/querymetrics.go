@@ -584,9 +584,9 @@ func (m queryMetricsStore) DeleteCustomRole(ctx context.Context, arg database.De
 	return r0
 }
 
-func (m queryMetricsStore) DeleteEmptyAIBridgeTokenUsageHourly(ctx context.Context) error {
+func (m queryMetricsStore) DeleteEmptyAIBridgeTokenUsageHourly(ctx context.Context, emptyHourlyIds []int64) error {
 	start := time.Now()
-	r0 := m.s.DeleteEmptyAIBridgeTokenUsageHourly(ctx)
+	r0 := m.s.DeleteEmptyAIBridgeTokenUsageHourly(ctx, emptyHourlyIds)
 	m.queryLatencies.WithLabelValues("DeleteEmptyAIBridgeTokenUsageHourly").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteEmptyAIBridgeTokenUsageHourly").Inc()
 	return r0
@@ -712,7 +712,7 @@ func (m queryMetricsStore) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx conte
 	return r0
 }
 
-func (m queryMetricsStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime []uuid.UUID) (int64, error) {
+func (m queryMetricsStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime []uuid.UUID) (database.DeleteOldAIBridgeRecordsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteOldAIBridgeRecords(ctx, beforeTime)
 	m.queryLatencies.WithLabelValues("DeleteOldAIBridgeRecords").Observe(time.Since(start).Seconds())
@@ -4968,7 +4968,7 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	return r0, r1
 }
 
-func (m queryMetricsStore) LockOldAIBridgeInterceptionsForPurge(ctx context.Context, beforeTime time.Time) ([]uuid.UUID, error) {
+func (m queryMetricsStore) LockOldAIBridgeInterceptionsForPurge(ctx context.Context, beforeTime database.LockOldAIBridgeInterceptionsForPurgeParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockOldAIBridgeInterceptionsForPurge(ctx, beforeTime)
 	m.queryLatencies.WithLabelValues("LockOldAIBridgeInterceptionsForPurge").Observe(time.Since(start).Seconds())

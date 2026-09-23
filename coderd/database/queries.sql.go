@@ -1203,7 +1203,7 @@ WITH
     WHERE h.effective_group_id = d.effective_group_id AND h.hour = d.hour
       AND h.initiator_id = d.initiator_id AND h.provider = d.provider
       AND h.provider_name = d.provider_name AND h.model = d.model AND h.client = d.client
-    RETURNING 1
+    RETURNING h.id, h.usage_count
   ),
   user_prompts AS (
     DELETE FROM aibridge_user_prompts
@@ -1221,16 +1221,21 @@ SELECT (
   (SELECT COUNT(*) FROM token_usages) +
   (SELECT COUNT(*) FROM user_prompts) +
   (SELECT COUNT(*) FROM interceptions)
-)::bigint as total_deleted
-FROM (SELECT COUNT(*) FROM hourly_decrements) AS applied_hourly_decrements
+)::bigint AS total_deleted,
+COALESCE((SELECT array_agg(id) FILTER (WHERE usage_count = 0) FROM hourly_decrements), '{}')::bigint[] AS empty_hourly_ids
 `
 
-// Cumulative count.
-func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, lockedIds []uuid.UUID) (int64, error) {
+type DeleteOldAIBridgeRecordsRow struct {
+	TotalDeleted   int64   `db:"total_deleted" json:"total_deleted"`
+	EmptyHourlyIds []int64 `db:"empty_hourly_ids" json:"empty_hourly_ids"`
+}
+
+// Cumulative count and emptied usage-hour IDs.
+func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, lockedIds []uuid.UUID) (DeleteOldAIBridgeRecordsRow, error) {
 	row := q.db.QueryRowContext(ctx, deleteOldAIBridgeRecords, pq.Array(lockedIds))
-	var total_deleted int64
-	err := row.Scan(&total_deleted)
-	return total_deleted, err
+	var i DeleteOldAIBridgeRecordsRow
+	err := row.Scan(&i.TotalDeleted, pq.Array(&i.EmptyHourlyIds))
+	return i, err
 }
 
 const getAIBridgeChatCost = `-- name: GetAIBridgeChatCost :one
@@ -2765,11 +2770,16 @@ func (q *sqlQuerier) LockAIBridgeInterceptionForUsage(ctx context.Context, id uu
 const lockOldAIBridgeInterceptionsForPurge = `-- name: LockOldAIBridgeInterceptionsForPurge :many
 SELECT id FROM aibridge_interceptions
 WHERE started_at < $1::timestamptz
-ORDER BY id FOR UPDATE
+ORDER BY started_at, id LIMIT $2::int FOR UPDATE
 `
 
-func (q *sqlQuerier) LockOldAIBridgeInterceptionsForPurge(ctx context.Context, beforeTime time.Time) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, lockOldAIBridgeInterceptionsForPurge, beforeTime)
+type LockOldAIBridgeInterceptionsForPurgeParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) LockOldAIBridgeInterceptionsForPurge(ctx context.Context, arg LockOldAIBridgeInterceptionsForPurgeParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, lockOldAIBridgeInterceptionsForPurge, arg.BeforeTime, arg.LimitCount)
 	if err != nil {
 		return nil, err
 	}
@@ -2855,11 +2865,12 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 }
 
 const deleteEmptyAIBridgeTokenUsageHourly = `-- name: DeleteEmptyAIBridgeTokenUsageHourly :exec
-DELETE FROM aibridge_token_usage_hourly WHERE usage_count = 0
+DELETE FROM aibridge_token_usage_hourly
+WHERE id = ANY($1::bigint[]) AND usage_count = 0
 `
 
-func (q *sqlQuerier) DeleteEmptyAIBridgeTokenUsageHourly(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deleteEmptyAIBridgeTokenUsageHourly)
+func (q *sqlQuerier) DeleteEmptyAIBridgeTokenUsageHourly(ctx context.Context, emptyHourlyIds []int64) error {
+	_, err := q.db.ExecContext(ctx, deleteEmptyAIBridgeTokenUsageHourly, pq.Array(emptyHourlyIds))
 	return err
 }
 

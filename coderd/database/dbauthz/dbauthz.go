@@ -2309,11 +2309,11 @@ func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCusto
 	return q.db.DeleteCustomRole(ctx, arg)
 }
 
-func (q *querier) DeleteEmptyAIBridgeTokenUsageHourly(ctx context.Context) error {
+func (q *querier) DeleteEmptyAIBridgeTokenUsageHourly(ctx context.Context, emptyHourlyIDs []int64) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeInterception); err != nil {
 		return err
 	}
-	return q.db.DeleteEmptyAIBridgeTokenUsageHourly(ctx)
+	return q.db.DeleteEmptyAIBridgeTokenUsageHourly(ctx, emptyHourlyIDs)
 }
 
 func (q *querier) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) (int64, error) {
@@ -2435,9 +2435,9 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 	return q.db.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
 }
 
-func (q *querier) DeleteOldAIBridgeRecords(ctx context.Context, lockedIDs []uuid.UUID) (int64, error) {
+func (q *querier) DeleteOldAIBridgeRecords(ctx context.Context, lockedIDs []uuid.UUID) (database.DeleteOldAIBridgeRecordsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeInterception); err != nil {
-		return -1, err
+		return database.DeleteOldAIBridgeRecordsRow{}, err
 	}
 	return q.db.DeleteOldAIBridgeRecords(ctx, lockedIDs)
 }
@@ -7114,7 +7114,7 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 	return q.db.LockChatByID(ctx, id)
 }
 
-func (q *querier) LockOldAIBridgeInterceptionsForPurge(ctx context.Context, beforeTime time.Time) ([]uuid.UUID, error) {
+func (q *querier) LockOldAIBridgeInterceptionsForPurge(ctx context.Context, beforeTime database.LockOldAIBridgeInterceptionsForPurgeParams) ([]uuid.UUID, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeInterception); err != nil {
 		return nil, err
 	}

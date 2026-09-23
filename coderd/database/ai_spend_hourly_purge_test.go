@@ -48,7 +48,7 @@ func TestDeleteOldAIBridgeRecordsHourly(t *testing.T) {
 	add(recent.ID, at, sql.NullInt64{Int64: 300, Valid: true})
 
 	err := db.InTx(func(tx database.Store) error {
-		lockedIDs, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, cutoff)
+		lockedIDs, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, database.LockOldAIBridgeInterceptionsForPurgeParams{BeforeTime: cutoff, LimitCount: 10000})
 		if err != nil {
 			return err
 		}
@@ -56,8 +56,8 @@ func TestDeleteOldAIBridgeRecordsHourly(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		require.EqualValues(t, 4, deleted)
-		return tx.DeleteEmptyAIBridgeTokenUsageHourly(ctx)
+		require.EqualValues(t, 4, deleted.TotalDeleted)
+		return tx.DeleteEmptyAIBridgeTokenUsageHourly(ctx, deleted.EmptyHourlyIds)
 	}, nil)
 	require.NoError(t, err)
 
@@ -71,9 +71,9 @@ func TestDeleteOldAIBridgeRecordsHourly(t *testing.T) {
 	var groups int
 	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM aibridge_token_usage_hourly").Scan(&groups))
 	require.Equal(t, 1, groups)
-	var deleted int64
+	var deleted database.DeleteOldAIBridgeRecordsRow
 	err = db.InTx(func(tx database.Store) error {
-		lockedIDs, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, cutoff)
+		lockedIDs, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, database.LockOldAIBridgeInterceptionsForPurgeParams{BeforeTime: cutoff, LimitCount: 10000})
 		if err != nil {
 			return err
 		}
@@ -81,17 +81,18 @@ func TestDeleteOldAIBridgeRecordsHourly(t *testing.T) {
 		return err
 	}, nil)
 	require.NoError(t, err)
-	require.Zero(t, deleted)
+	require.Zero(t, deleted.TotalDeleted)
 	require.NoError(t, db.DeleteGroupByID(ctx, group.ID))
 	err = db.InTx(func(tx database.Store) error {
-		lockedIDs, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, cutoff.Add(time.Second))
+		lockedIDs, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, database.LockOldAIBridgeInterceptionsForPurgeParams{BeforeTime: cutoff.Add(time.Second), LimitCount: 10000})
 		if err != nil {
 			return err
 		}
-		if _, err := tx.DeleteOldAIBridgeRecords(ctx, lockedIDs); err != nil {
+		result, err := tx.DeleteOldAIBridgeRecords(ctx, lockedIDs)
+		if err != nil {
 			return err
 		}
-		return tx.DeleteEmptyAIBridgeTokenUsageHourly(ctx)
+		return tx.DeleteEmptyAIBridgeTokenUsageHourly(ctx, result.EmptyHourlyIds)
 	}, nil)
 	require.NoError(t, err)
 	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM aibridge_token_usage_hourly").Scan(&groups))
@@ -111,7 +112,7 @@ func TestDeleteOldAIBridgeRecordsExcludesNewlyInsertedInterceptions(t *testing.T
 	}, nil)
 	addedID := uuid.New()
 	require.NoError(t, db.InTx(func(tx database.Store) error {
-		ids, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, cutoff)
+		ids, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, database.LockOldAIBridgeInterceptionsForPurgeParams{BeforeTime: cutoff, LimitCount: 10000})
 		if err != nil {
 			return err
 		}

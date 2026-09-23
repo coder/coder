@@ -70,14 +70,15 @@ func TestAIBridgeHourlyWideDimensions(t *testing.T) {
 	require.Len(t, rows, 1)
 	require.EqualValues(t, 123, rows[0].CostMicros)
 	require.NoError(t, db.InTx(func(tx database.Store) error {
-		ids, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, at.Add(-24*time.Hour))
+		ids, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, database.LockOldAIBridgeInterceptionsForPurgeParams{BeforeTime: at.Add(-24 * time.Hour), LimitCount: 10000})
 		if err != nil {
 			return err
 		}
-		if _, err := tx.DeleteOldAIBridgeRecords(ctx, ids); err != nil {
+		result, err := tx.DeleteOldAIBridgeRecords(ctx, ids)
+		if err != nil {
 			return err
 		}
-		return tx.DeleteEmptyAIBridgeTokenUsageHourly(ctx)
+		return tx.DeleteEmptyAIBridgeTokenUsageHourly(ctx, result.EmptyHourlyIds)
 	}, nil))
 	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM aibridge_token_usage_hourly WHERE effective_group_id = $1", group.ID).Scan(&groups))
 	require.Zero(t, groups)

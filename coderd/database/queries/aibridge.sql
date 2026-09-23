@@ -262,7 +262,7 @@ FROM
 -- name: LockOldAIBridgeInterceptionsForPurge :many
 SELECT id FROM aibridge_interceptions
 WHERE started_at < @before_time::timestamptz
-ORDER BY id FOR UPDATE;
+ORDER BY started_at, id LIMIT @limit_count::int FOR UPDATE;
 
 -- name: DeleteOldAIBridgeRecords :one
 WITH
@@ -308,7 +308,7 @@ WITH
     WHERE h.effective_group_id = d.effective_group_id AND h.hour = d.hour
       AND h.initiator_id = d.initiator_id AND h.provider = d.provider
       AND h.provider_name = d.provider_name AND h.model = d.model AND h.client = d.client
-    RETURNING 1
+    RETURNING h.id, h.usage_count
   ),
   user_prompts AS (
     DELETE FROM aibridge_user_prompts
@@ -320,15 +320,15 @@ WITH
     WHERE id IN (SELECT id FROM to_delete)
     RETURNING 1
   )
--- Cumulative count.
+-- Cumulative count and emptied usage-hour IDs.
 SELECT (
   (SELECT COUNT(*) FROM model_thoughts) +
   (SELECT COUNT(*) FROM tool_usages) +
   (SELECT COUNT(*) FROM token_usages) +
   (SELECT COUNT(*) FROM user_prompts) +
   (SELECT COUNT(*) FROM interceptions)
-)::bigint as total_deleted
-FROM (SELECT COUNT(*) FROM hourly_decrements) AS applied_hourly_decrements;
+)::bigint AS total_deleted,
+COALESCE((SELECT array_agg(id) FILTER (WHERE usage_count = 0) FROM hourly_decrements), '{}')::bigint[] AS empty_hourly_ids;
 
 -- name: CountAIBridgeSessions :one
 SELECT

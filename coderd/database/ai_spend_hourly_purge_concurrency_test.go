@@ -71,12 +71,13 @@ func TestDeleteOldAIBridgeRecordsConcurrentWithIngestion(t *testing.T) {
 			purgeDone := make(chan error, 1)
 			purge := func() {
 				purgeDone <- db.InTx(func(tx database.Store) error {
-					lockedIDs, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, cutoff)
+					lockedIDs, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, database.LockOldAIBridgeInterceptionsForPurgeParams{BeforeTime: cutoff, LimitCount: 10000})
 					if err == nil {
-						_, err = tx.DeleteOldAIBridgeRecords(ctx, lockedIDs)
-					}
-					if err == nil {
-						err = tx.DeleteEmptyAIBridgeTokenUsageHourly(ctx)
+						result, deleteErr := tx.DeleteOldAIBridgeRecords(ctx, lockedIDs)
+						err = deleteErr
+						if err == nil && len(result.EmptyHourlyIds) > 0 {
+							err = tx.DeleteEmptyAIBridgeTokenUsageHourly(ctx, result.EmptyHourlyIds)
+						}
 					}
 					purgeReady <- err
 					if err != nil {

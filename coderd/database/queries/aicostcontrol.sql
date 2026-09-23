@@ -534,7 +534,8 @@ WITH dimensions AS (
 SELECT COUNT(*) FROM inserted;
 
 -- name: DeleteEmptyAIBridgeTokenUsageHourly :exec
-DELETE FROM aibridge_token_usage_hourly WHERE usage_count = 0;
+DELETE FROM aibridge_token_usage_hourly
+WHERE id = ANY(@empty_hourly_ids::bigint[]) AND usage_count = 0;
 
 -- name: ListOrganizationAISpendUsers :many
 -- Whole UTC hours use historical group attribution; the two disjoint edge
