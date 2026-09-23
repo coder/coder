@@ -2728,6 +2728,7 @@ func (p *Server) generateManualTitleCandidate(
 		pasteText,
 		resolved.model.LanguageModel(),
 		titleObjectCall(resolved),
+		p.chatLimits.MaxGenerationRetries,
 	)
 	finishDebugRun(err)
 	if err != nil {
@@ -4501,6 +4502,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 		status,
 		assistantText,
 		*runResult.StatusLabelCall,
+		p.chatLimits.MaxGenerationRetries,
 		logger,
 		p.existingDebugService(),
 		runResult.TriggerMessageID,
@@ -4728,7 +4730,7 @@ func (p *Server) generateAndStoreChatSummary(
 
 	summaryCtx, cancelGen := context.WithTimeout(ctx, chatSummaryGenerateTimeout)
 	defer cancelGen()
-	summary, _, genErr := generateChatSummary(summaryCtx, resolved.model.LanguageModel(), summaryObjectCall(resolved), transcript)
+	summary, _, genErr := generateChatSummary(summaryCtx, resolved.model.LanguageModel(), summaryObjectCall(resolved), p.chatLimits.MaxGenerationRetries, transcript)
 
 	if genErr != nil {
 		logger.Warn(ctx, "failed to generate chat summary",

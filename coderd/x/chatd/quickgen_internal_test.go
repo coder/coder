@@ -715,6 +715,7 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 		nil,
 		model,
 		titleObjectCall(resolvedModelCall{}),
+		codersdk.DefaultChatMaxGenerationRetries,
 	)
 	require.NoError(t, err)
 	require.Equal(t, "Refresh title", title)
@@ -753,6 +754,7 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 		nil,
 		model,
 		titleObjectCall(resolvedModelCall{}),
+		codersdk.DefaultChatMaxGenerationRetries,
 	)
 	require.NoError(t, err)
 }
@@ -788,6 +790,7 @@ func Test_generateManualTitle_ErrorsOnEmptyNormalizedTitle(t *testing.T) {
 		nil,
 		model,
 		titleObjectCall(resolvedModelCall{}),
+		codersdk.DefaultChatMaxGenerationRetries,
 	)
 	require.ErrorContains(t, err, "generated title was empty")
 }
@@ -929,6 +932,7 @@ func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *
 		t.Context(),
 		model.LanguageModel(),
 		titleObjectCall(resolvedModelCall{}),
+		codersdk.DefaultChatMaxGenerationRetries,
 		titleGenerationPrompt,
 		"summarize failed workspace build logs",
 	)
@@ -974,6 +978,7 @@ func TestGenerateStructuredTitleWithUsage_DropsRejectedTemperature(t *testing.T)
 		t.Context(),
 		model,
 		titleObjectCall(resolvedModelCall{}),
+		codersdk.DefaultChatMaxGenerationRetries,
 		titleGenerationPrompt,
 		"summarize failed workspace build logs",
 	)
@@ -1012,6 +1017,7 @@ func TestGenerateStructuredTitleWithUsage_FallsBackToTextWhenToolChoiceRejected(
 		t.Context(),
 		model,
 		titleObjectCall(resolvedModelCall{}),
+		codersdk.DefaultChatMaxGenerationRetries,
 		titleGenerationPrompt,
 		"summarize failed workspace build logs",
 	)
@@ -1095,6 +1101,7 @@ func TestGenerateStructuredTitleWithUsage_TruncatesOverlongTitle(t *testing.T) {
 		t.Context(),
 		model,
 		titleObjectCall(resolvedModelCall{}),
+		codersdk.DefaultChatMaxGenerationRetries,
 		titleGenerationPrompt,
 		"re-capture UI evidence for a Coder pull request",
 	)
@@ -1198,7 +1205,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			},
 		}
 
-		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), codersdk.DefaultChatMaxGenerationRetries, turnStatusLabelPrompt, "done")
 		require.NoError(t, err)
 		require.Equal(t, "Submitted PR", label)
 	})
@@ -1209,7 +1216,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		server, requests := newOpenAICompatStructuredOutputServer(t, "propose_turn_status_label", `{"label":"Submitted PR"}`)
 		model := openAICompatTestModel(t, server.URL)
 
-		label, err := generateStructuredTurnStatusLabel(t.Context(), model.LanguageModel(), turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model.LanguageModel(), turnStatusLabelObjectCall(resolvedModelCall{}), codersdk.DefaultChatMaxGenerationRetries, turnStatusLabelPrompt, "done")
 		require.NoError(t, err)
 		require.Equal(t, "Submitted PR", label)
 		require.Len(t, requests, 1)
@@ -1236,7 +1243,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			},
 		}
 
-		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), codersdk.DefaultChatMaxGenerationRetries, turnStatusLabelPrompt, "done")
 		require.NoError(t, err)
 		require.Equal(t, "Submitted PR", label)
 		require.Equal(t, []bool{true, false}, sawTemperature,
@@ -1258,7 +1265,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			},
 		}
 
-		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
+		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), codersdk.DefaultChatMaxGenerationRetries, turnStatusLabelPrompt, "done")
 		require.ErrorContains(t, err, "JSON schema is invalid")
 		require.Equal(t, 1, calls,
 			"bad requests unrelated to temperature should not trigger a second attempt")
@@ -1275,7 +1282,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			},
 		}
 
-		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
+		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), codersdk.DefaultChatMaxGenerationRetries, turnStatusLabelPrompt, "done")
 		require.ErrorContains(t, err, "generated turn status label was invalid")
 	})
 
@@ -1283,7 +1290,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		t.Parallel()
 
 		model := &chattest.FakeModel{}
-		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "  ")
+		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), codersdk.DefaultChatMaxGenerationRetries, turnStatusLabelPrompt, "  ")
 		require.ErrorContains(t, err, "turn status label input was empty")
 	})
 }
