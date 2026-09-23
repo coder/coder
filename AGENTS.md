@@ -71,6 +71,7 @@ Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live
 - **New resources:** scope every new resource to an organization (`organization_id` column, organization-scoped RBAC and routes), never deployment-wide.
 - **OAuth2:** return RFC-compliant errors such as `writeOAuth2Error(...)`. Public endpoints that need system access use `dbauthz.AsSystemRestricted`.
 - **Chatd:** when a change affects the documented architecture, do not edit the architecture document yourself. Leave TODO items in the affected sections; the human PR author writes the actual updates.
+  - When you review a PR, treat changes to that document as the owner's work. TODOs are notes for the author, so flag any that the PR adds to the architecture document.
 - **Public API:** add the required Swagger annotations for new public HTTP endpoints.
 - **Transactions:** keep `InTx` work on the transaction handle. Prefer explicit database-to-SDK converters.
 - **Concurrent tests:** call `t.Parallel()`, use unique identifiers, and do not use `time.Sleep` to mask timing problems.
