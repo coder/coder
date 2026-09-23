@@ -3221,6 +3221,8 @@ describe("mergeWatchedChatSummary", () => {
 		{ field: "base_branch", to: "release" },
 		{ field: "head_branch", to: "feature-renamed" },
 		{ field: "reviewer_count", to: 2 },
+		{ field: "author_login", to: "new-author" },
+		{ field: "author_avatar_url", to: "https://example.com/a.png" },
 	])("adopts diff status when only $field changes", ({ field, to }) => {
 		const cachedDiffStatus = {
 			chat_id: "chat-1",
@@ -3474,8 +3476,17 @@ describe("mergeWatchedChatSummary", () => {
 					remote_origin: "https://github.com/o/r.git",
 					git_branch: "feature-a",
 				},
-				// The server sends only chat_id when the ref has no row.
-				status: { chat_id: "chat-1" } as TypesGen.ChatDiffStatus,
+				// The server sends a zero-valued status when the ref has no
+				// row: only the required fields survive serialization.
+				status: {
+					chat_id: "chat-1",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 0,
+					changed_files: 0,
+				},
 			},
 		});
 
