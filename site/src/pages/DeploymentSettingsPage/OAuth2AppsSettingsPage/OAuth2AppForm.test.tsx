@@ -66,7 +66,7 @@ describe("OAuth2AppForm", () => {
 		});
 	});
 
-	it("submits edited dynamically registered client values", async () => {
+	it("submits only the changed fields when a name is edited", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 		const app = {
