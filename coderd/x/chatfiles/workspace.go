@@ -108,13 +108,26 @@ func WorkspaceUploadDir(homeDir, chatID string) string {
 	return filepath.Join(WorkspaceChatDir(homeDir, chatID), WorkspaceUploadFilesSubdir)
 }
 
+// compoundUploadExts are multi-dot extensions kept intact when adding a
+// collision suffix, so a second archive.tar.gz becomes archive_2.tar.gz.
+var compoundUploadExts = []string{".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".d.ts", ".min.js"}
+
+func uploadNameExt(name string) string {
+	for _, ext := range compoundUploadExts {
+		if len(name) >= len(ext) && strings.EqualFold(name[len(name)-len(ext):], ext) {
+			return name[len(name)-len(ext):]
+		}
+	}
+	return path.Ext(name)
+}
+
 // AddCollisionSuffix inserts a `_<n>` suffix before the extension when n > 1.
 func AddCollisionSuffix(name string, n int) string {
 	if n <= 1 {
 		return name
 	}
 	suffix := "_" + strconv.Itoa(n)
-	ext := path.Ext(name)
+	ext := uploadNameExt(name)
 	stem := strings.TrimSuffix(name, ext)
 	if stem == "" {
 		stem = name

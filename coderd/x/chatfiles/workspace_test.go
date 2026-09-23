@@ -109,7 +109,12 @@ func TestAddCollisionSuffix(t *testing.T) {
 		{name: "second", in: "foo.zip", n: 2, want: "foo_2.zip"},
 		{name: "tenth", in: "foo.zip", n: 10, want: "foo_10.zip"},
 		{name: "no_extension", in: "Dockerfile", n: 3, want: "Dockerfile_3"},
-		{name: "multi_dot", in: "archive.tar.gz", n: 2, want: "archive.tar_2.gz"},
+		{name: "multi_dot", in: "archive.tar.gz", n: 2, want: "archive_2.tar.gz"},
+		{name: "compound_bz2", in: "archive.tar.bz2", n: 3, want: "archive_3.tar.bz2"},
+		{name: "compound_mixed_case", in: "Archive.TAR.Gz", n: 2, want: "Archive_2.TAR.Gz"},
+		{name: "compound_min_js", in: "app.min.js", n: 2, want: "app_2.min.js"},
+		{name: "unlisted_multi_dot", in: "notes.v1.txt", n: 2, want: "notes.v1_2.txt"},
+		{name: "only_compound_extension", in: ".tar.gz", n: 2, want: ".tar.gz_2"},
 		{name: "only_extension", in: ".env", n: 2, want: ".env_2"},
 	}
 	for _, tt := range tests {
@@ -128,4 +133,12 @@ func TestAddCollisionSuffix(t *testing.T) {
 	got = chatfiles.AddCollisionSuffix(longStem, 2)
 	require.LessOrEqual(t, len(got), chatfiles.MaxWorkspaceUploadFileNameBytes)
 	require.True(t, strings.HasSuffix(got, "_2.zip"))
+
+	longCompound := strings.Repeat("a", chatfiles.MaxWorkspaceUploadFileNameBytes-len(".tar.gz")) + ".tar.gz"
+	got = chatfiles.AddCollisionSuffix(longCompound, 2)
+	require.LessOrEqual(t, len(got), chatfiles.MaxWorkspaceUploadFileNameBytes)
+	require.True(t, strings.HasSuffix(got, "_2.tar.gz"))
+	sanitized, err := chatfiles.SanitizeWorkspaceUploadName(got)
+	require.NoError(t, err)
+	require.Equal(t, got, sanitized)
 }
