@@ -179,16 +179,18 @@ const validationSchema = (isPublicClient: boolean) =>
 		icon: iconValidator,
 	});
 
-export const OAuth2AppForm: FC<OAuth2AppFormProps> = (props) => {
-	const {
-		app,
-		clientType,
-		error,
-		isUpdating,
-		defaultValues,
-		disabled,
-		onIconChange,
-	} = props;
+// app and onSubmit stay together in submit so that checking app also
+// narrows the type of onSubmit.
+export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
+	clientType,
+	error,
+	isUpdating,
+	defaultValues,
+	disabled,
+	onIconChange,
+	...submit
+}) => {
+	const { app } = submit;
 	const didSubmit = useRef(false);
 	const isPublicClient = clientType === "public";
 	// A stored list that no longer passes validation disables Update on load.
@@ -232,17 +234,17 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = (props) => {
 				name: values.name.trim(),
 				...(scopeChanged ? { scope } : {}),
 			};
-			if (props.app === undefined) {
-				await props.onSubmit({ ...request, redirect_uris: redirectURIs });
+			if (submit.app === undefined) {
+				await submit.onSubmit({ ...request, redirect_uris: redirectURIs });
 				return;
 			}
 			// An untouched list is also left out, so a copy loaded before another
 			// admin changed the list does not overwrite their change.
-			const stored = props.app.redirect_uris;
+			const stored = submit.app.redirect_uris;
 			const redirectURIsChanged =
 				redirectURIs.length !== stored.length ||
 				redirectURIs.some((uri, index) => uri !== stored[index]);
-			await props.onSubmit(
+			await submit.onSubmit(
 				redirectURIsChanged
 					? { ...request, redirect_uris: redirectURIs }
 					: request,
