@@ -181,7 +181,7 @@ func (p *Server) buildTurnEnvironment(
 		mcpConfigs, err = p.effectiveMCPServerConfigs(ctx, chat)
 		return err
 	})
-	if p.inlineMCPServersEnabled() {
+	if p.callerSuppliedMCPServersEnabled() || !p.internalMCPServers.Empty() {
 		g.Go(func() error {
 			var err error
 			inlineMCPServers, mcpLoadFailures, err = p.loadInlineMCPServers(ctx, chat)
@@ -612,6 +612,7 @@ func (p *Server) buildTurnEnvironment(
 				inlineMCPConnectServers,
 				chatprovider.CoderHeaders(chat),
 				p.mcpHTTPClient,
+				p.internalMCPServers,
 			)
 			return nil
 		})
