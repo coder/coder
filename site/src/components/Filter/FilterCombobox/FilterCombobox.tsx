@@ -99,6 +99,7 @@ export function FilterCombobox({
 		filteringCategories,
 		browseCategoryOptions,
 		valueSuggestions,
+		scopeSuggestions,
 		inlineOptions,
 		mainInlineOptions,
 		chipValues,
@@ -219,12 +220,14 @@ export function FilterCombobox({
 	const mainPanelProps = {
 		listedCategories,
 		valueSuggestions,
+		scopeSuggestions,
 		inlineOptions,
 		typeaheadError,
 		registerCategoryRow,
 		onSelectCategory: selectCategory,
 		onHoverCategory: updateFlyoutCategory,
 		onToggleInlineOption: actions.toggleInlineOption,
+		onSelectScopeSuggestion: actions.selectScopeSuggestion,
 		onSelectSuggestion: actions.selectValueSuggestion,
 		onRetry: actions.retryTypeahead,
 	};
@@ -555,6 +558,13 @@ type ValueSuggestion = {
 	option: Pick<FilterOption, "label" | "startIcon">;
 };
 
+type ScopeSuggestion = {
+	categoryKey: string;
+	categoryLabel: string;
+	label: string;
+	selected: boolean;
+};
+
 const groupByCategoryLabel = <T extends { categoryLabel: string }>(
 	items: readonly T[],
 ): Array<[string, T[]]> => {
@@ -573,6 +583,7 @@ const groupByCategoryLabel = <T extends { categoryLabel: string }>(
 type MainPanelProps = Readonly<{
 	listedCategories: readonly FilterCategory[];
 	valueSuggestions: readonly ValueSuggestion[];
+	scopeSuggestions: readonly ScopeSuggestion[];
 	inlineOptions: readonly InlineOption[];
 	typeaheadError: boolean;
 	embedded?: boolean;
@@ -586,6 +597,7 @@ type MainPanelProps = Readonly<{
 	onSelectCategory: (categoryKey: string) => void;
 	onHoverCategory: (categoryKey: string | null, immediate?: boolean) => void;
 	onToggleInlineOption: (token: string) => void;
+	onSelectScopeSuggestion: (categoryKey: string) => void;
 	onSelectSuggestion: (token: string) => void;
 	onRetry: () => void;
 }>;
@@ -593,6 +605,7 @@ type MainPanelProps = Readonly<{
 function MainPanel({
 	listedCategories,
 	valueSuggestions,
+	scopeSuggestions,
 	inlineOptions,
 	typeaheadError,
 	embedded = false,
@@ -601,12 +614,14 @@ function MainPanel({
 	onSelectCategory,
 	onHoverCategory,
 	onToggleInlineOption,
+	onSelectScopeSuggestion,
 	onSelectSuggestion,
 	onRetry,
 }: MainPanelProps) {
 	const isEmpty =
 		listedCategories.length === 0 &&
 		valueSuggestions.length === 0 &&
+		scopeSuggestions.length === 0 &&
 		inlineOptions.length === 0 &&
 		!typeaheadError;
 
@@ -671,6 +686,25 @@ function MainPanel({
 							</FilterComboboxItem>
 						);
 					})}
+				</FilterComboboxGroup>
+			))}
+			{scopeSuggestions.map((suggestion) => (
+				<FilterComboboxGroup key={`${suggestion.categoryKey}-scope`}>
+					<FilterComboboxLabel>{suggestion.categoryLabel}</FilterComboboxLabel>
+					<FilterComboboxItem
+						className={cn(
+							OPTION_ITEM_CLASS,
+							suggestion.selected && "text-content-primary",
+						)}
+						// No colon, so the value never parses as a chip token.
+						value={`scope-toggle-${suggestion.categoryKey}`}
+						onSelect={() => onSelectScopeSuggestion(suggestion.categoryKey)}
+					>
+						<OptionRowContent
+							label={suggestion.label}
+							selected={suggestion.selected}
+						/>
+					</FilterComboboxItem>
 				</FilterComboboxGroup>
 			))}
 			{groupByCategoryLabel(valueSuggestions).map(

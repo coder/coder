@@ -586,26 +586,29 @@ export const TypedInlinePrefix: Story = {
 	},
 };
 
+const scopedOwnerCategories: FilterCategory[] = [
+	{
+		key: "owner",
+		label: "Owner",
+		icon: <UserIcon />,
+		chipKeys: ["owner", "user"],
+		scopeToggle: {
+			label: "Include shared workspaces",
+			chipKey: "user",
+			pillLabel: "include shared",
+			defaultValue: "me",
+		},
+		getOptions: async (query) => filterOptions(ownerOptions, query),
+	},
+];
+
 // A category scope toggle sits below the option list; the applied chip is
 // followed by an include shared pill while the toggle is on.
 export const ScopeToggle: Story = {
 	render: () => (
 		<FilterComboboxHarness
 			initialQuery="user:alice"
-			categories={[
-				{
-					key: "owner",
-					label: "Owner",
-					icon: <UserIcon />,
-					chipKeys: ["owner", "user"],
-					scopeToggle: {
-						label: "Include shared workspaces",
-						chipKey: "user",
-						pillLabel: "include shared",
-					},
-					getOptions: async (query) => filterOptions(ownerOptions, query),
-				},
-			]}
+			categories={scopedOwnerCategories}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -616,6 +619,26 @@ export const ScopeToggle: Story = {
 		);
 		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
 		await body.findByRole("switch", { name: "Include shared workspaces" });
+	},
+};
+
+// Typing part of the toggle's pill label offers the toggle as a row.
+export const ScopeToggleTypedSuggestion: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="owner:alice"
+			categories={scopedOwnerCategories}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "shared");
+		await within(canvasElement.ownerDocument.body).findByRole("option", {
+			name: "Include shared workspaces",
+		});
 	},
 };
 

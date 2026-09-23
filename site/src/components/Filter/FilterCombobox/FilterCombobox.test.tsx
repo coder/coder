@@ -18,6 +18,7 @@ const scopedOwnerCategory: FilterCategory = {
 		label: "Include shared workspaces",
 		chipKey: "user",
 		pillLabel: "include shared",
+		defaultValue: "me",
 	},
 };
 
@@ -340,5 +341,34 @@ describe("FilterCombobox", () => {
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
 		);
+	});
+
+	it("turns the scope toggle on from typed text and clears the text", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			initialValue: "owner:alice",
+		});
+
+		await user.click(input);
+		await user.type(input, "shared");
+		await user.click(
+			await screen.findByRole("option", { name: "Include shared workspaces" }),
+		);
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+		expect(input).toHaveValue("");
+	});
+
+	it("applies the scope default when picked from typed text without a chip", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory]);
+
+		await user.click(input);
+		await user.type(input, "sha");
+		await user.click(
+			await screen.findByRole("option", { name: "Include shared workspaces" }),
+		);
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("user:me"));
 	});
 });

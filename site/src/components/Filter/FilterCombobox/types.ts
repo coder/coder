@@ -55,5 +55,10 @@ export type FilterCategory = {
 		label: string;
 		chipKey: string;
 		pillLabel: string;
+		/**
+		 * Value applied under `chipKey` when the toggle is picked from typed
+		 * search while the category has no chip, e.g. `me`.
+		 */
+		defaultValue: string;
 	};
 };
