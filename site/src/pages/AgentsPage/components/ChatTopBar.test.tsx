@@ -95,4 +95,36 @@ describe("ChatTopBar PR chip", () => {
 			within(menu).getByRole("menuitem", { name: /PR #456/ }),
 		).toHaveAttribute("href", "https://github.com/coder/coder/pull/456");
 	});
+
+	it("names the repository when two origins carry the same PR", async () => {
+		const user = userEvent.setup();
+
+		// The PR number repeats across repositories, so only the
+		// repository names keep the entries apart.
+		const forked = {
+			...MockChatDiffStatus,
+			remote_origin: "https://github.com/coder/other-project.git",
+			git_branch: "feat/two",
+			url: "https://github.com/coder/other-project/pull/123",
+		};
+		renderTopBar({
+			...MockChat,
+			diff_statuses: [MockChatDiffStatus, forked],
+		});
+
+		await user.click(screen.getByRole("button", { name: /2 PRs/ }));
+		const menu = await screen.findByRole("menu");
+
+		expect(
+			within(menu).getByRole("menuitem", { name: /coder\/coder · PR #123/ }),
+		).toHaveAttribute("href", "https://github.com/coder/coder/pull/123");
+		expect(
+			within(menu).getByRole("menuitem", {
+				name: /coder\/other-project · PR #123/,
+			}),
+		).toHaveAttribute(
+			"href",
+			"https://github.com/coder/other-project/pull/123",
+		);
+	});
 });
