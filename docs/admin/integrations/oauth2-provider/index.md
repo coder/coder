@@ -101,10 +101,10 @@ curl -X PUT \
 
 `name` is required on every `PUT`, and `icon` is cleared if you leave it out.
 `redirect_uris` replaces the stored list when present and keeps it when omitted.
-`scope` is kept when omitted; refer to [Scopes](./integration.md#scopes) for how to change it.
+`scope` is kept when omitted; refer to [Scopes](./scopes.md) for how to change it.
 
 Add an optional `scope` field to restrict which scopes the application's clients may request.
-Refer to [Scopes](./integration.md#scopes) for how the allowlist is applied and how to change it later.
+Refer to [Scopes](./scopes.md) for how the allowlist is applied and how to change it later.
 
 Generate a client secret:
 
@@ -165,7 +165,10 @@ The admin `PUT` also validates the stored name, so a self-registered client whos
 
 ## Next Steps
 
-- Review the [integration reference](./integration.md) for client authentication methods, the PKCE flow, scopes, discovery endpoints, and token management
+- Review [Integration patterns](./integration-patterns.md) for client authentication methods, the PKCE flow, and discovery endpoints
+- Review [Scopes](./scopes.md) for how access is bounded
+- Review [Token management](./token-management.md) for refresh, revocation, and deletion
+- Review [Callback URL schemes](./callback-url-schemes.md) for accepted redirect URIs
 - Check [Common issues](./troubleshooting.md) if a request fails
 - Review [Security considerations and limitations](./security.md) before deploying to production
 - Check [External Authentication](../../external-auth/index.md) for configuring Coder as an OAuth2 client

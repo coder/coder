@@ -848,9 +848,24 @@
 							"path": "./admin/integrations/oauth2-provider/index.md",
 							"children": [
 								{
-									"title": "OAuth2 Provider Integration Reference",
-									"description": "Client authentication methods, the PKCE flow, scopes, discovery endpoints, and token management.",
-									"path": "./admin/integrations/oauth2-provider/integration.md"
+									"title": "OAuth2 Provider Integration Patterns",
+									"description": "Client authentication methods, the standard flow, the required PKCE flow, and discovery endpoints.",
+									"path": "./admin/integrations/oauth2-provider/integration-patterns.md"
+								},
+								{
+									"title": "OAuth2 Provider Scopes",
+									"description": "How access tokens are bounded by scope, and how to set an application's scope allowlist.",
+									"path": "./admin/integrations/oauth2-provider/scopes.md"
+								},
+								{
+									"title": "OAuth2 Provider Token Management",
+									"description": "Refresh an access token, revoke a token, and delete an OAuth2 application.",
+									"path": "./admin/integrations/oauth2-provider/token-management.md"
+								},
+								{
+									"title": "OAuth2 Provider Callback URL Schemes",
+									"description": "Which redirect URI schemes and hosts Coder accepts.",
+									"path": "./admin/integrations/oauth2-provider/callback-url-schemes.md"
 								},
 								{
 									"title": "OAuth2 Provider Troubleshooting",

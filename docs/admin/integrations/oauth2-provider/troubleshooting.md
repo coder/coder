@@ -4,8 +4,8 @@ title: OAuth2 provider troubleshooting
 
 This page collects the error conditions the OAuth2 provider returns, matched
 by the exact `error`, `error_description`, or log line you'll see. For how the
-provider works, see [OAuth2 provider](./index.md) and the
-[integration reference](./integration.md).
+provider works, see [OAuth2 provider](./index.md) and
+[Integration patterns](./integration-patterns.md).
 
 ## Common Issues
 
@@ -19,7 +19,7 @@ Refer to [Enable OAuth2 Provider](./index.md#enable-oauth2-provider).
 
 Ensure the redirect URI in your request exactly matches one of the redirect URIs registered for your application.
 The one exception is the port of a loopback `http://` redirect URI (`localhost`, `127.0.0.1`, `[::1]`), which may differ from the registered one.
-Refer to the note under [Client Authentication Methods](./integration.md#client-authentication-methods).
+Refer to the note under [Client Authentication Methods](./integration-patterns.md#client-authentication-methods).
 
 ### "Invalid Callback URL" on the consent page
 
@@ -30,7 +30,7 @@ answers `server_error` on `POST /oauth2/authorize`. Use
 `GET /api/v2/oauth2-provider/apps/{app}` to see every registered redirect
 URI, then update the application with a corrected `redirect_uris` list as
 shown under [Management API](./index.md#method-2-management-api). Refer to
-[Callback URL schemes](./integration.md#callback-url-schemes) for which values are accepted.
+[Callback URL schemes](./callback-url-schemes.md) for which values are accepted.
 
 The `coderd` log records the application ID and the stored value. The response
 does not, so a bad URL is never echoed back to a browser.
@@ -146,7 +146,7 @@ answer HTTP 401 with `error=invalid_client` when a confidential client does not
 authenticate. The usual causes are a `client_secret` that was omitted, a secret
 that belongs to a different client, or a secret that has since been deleted or
 rotated. Present the client's current secret, as HTTP Basic or as a form
-parameter, following [Refresh Tokens](./integration.md#refresh-tokens). The refresh token is
+parameter, following [Refresh Tokens](./token-management.md#refresh-tokens). The refresh token is
 not consumed and nothing is revoked by the refusal, so the retry needs no new
 authorization. If the secret was deleted, the tokens issued under it were
 revoked with it, and the client must authorize again. Public clients have no
@@ -158,7 +158,7 @@ secret and never receive this error for omitting one.
 `error=invalid_request` when `client_secret` appears in the URL query string.
 OAuth 2.1 section 2.4.1 allows the secret in the request body or the
 `Authorization` header only. Send it as a form parameter or as HTTP Basic,
-following [Client Authentication Methods](./integration.md#client-authentication-methods).
+following [Client Authentication Methods](./integration-patterns.md#client-authentication-methods).
 
 The rule covers `client_secret` only. Coder still reads `refresh_token`,
 `code`, and the revocation `token` from the query string. Send those in the

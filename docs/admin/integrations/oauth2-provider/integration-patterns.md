@@ -1,16 +1,17 @@
 ---
-title: OAuth2 provider integration reference
+title: OAuth2 provider integration patterns
 ---
 
-This page is the client-integration reference for Coder's OAuth2 provider: the
-supported client authentication methods, the authorization code and PKCE
-flows, scopes, discovery endpoints, token lifecycle operations, and which
-redirect URI schemes are accepted. For enabling the provider and creating an
-application, see [OAuth2 provider](./index.md).
+How a client authenticates to Coder's OAuth2 provider and completes an
+authorization: the supported client authentication methods, the standard
+authorization code flow, the required PKCE flow, and the discovery endpoints
+a client uses to find them. For enabling the provider and creating an
+application, see [OAuth2 provider](./index.md). For scopes, token refresh and
+revocation, and accepted redirect URI schemes, see
+[Scopes](./scopes.md), [Token management](./token-management.md), and
+[Callback URL schemes](./callback-url-schemes.md).
 
-## Integration Patterns
-
-### Client Authentication Methods
+## Client Authentication Methods
 
 Coder supports the following OAuth2 client authentication methods at the token endpoint (`/oauth2/tokens`):
 
@@ -37,7 +38,7 @@ If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_
 >
 > Which schemes a redirect URI may use is a separate restriction that
 > also differs by client type. See
-> [Callback URL schemes](#callback-url-schemes).
+> [Callback URL schemes](./callback-url-schemes.md).
 
 A client's type is fixed when it registers.
 An RFC 7592 update that would move a client between public and confidential is rejected with `invalid_client_metadata`, since the client either holds a secret that would stop being required or has none and no way to be issued one.
@@ -49,7 +50,7 @@ Coder reports `client_secret_basic` for those clients so that what it reports ma
 
 If client authentication fails, the token endpoint returns **HTTP 401** with an OAuth2 `invalid_client` error and a `WWW-Authenticate: Basic realm="coder"` response header.
 
-### Standard OAuth2 Flow
+## Standard OAuth2 Flow
 
 1. **Authorization Request**: Redirect users to Coder's authorization endpoint:
 
@@ -100,7 +101,7 @@ If client authentication fails, the token endpoint returns **HTTP 401** with an 
 > above is shown for reference but omits the mandatory `code_challenge`
 > parameter. See [PKCE Flow](#pkce-flow-required) for the complete flow.
 
-### PKCE Flow (Required)
+## PKCE Flow (Required)
 
 PKCE is **required** for all OAuth2 authorization code flows. Coder enforces
 PKCE in compliance with the OAuth 2.1 specification. Both public and
@@ -163,36 +164,6 @@ confidential clients must include PKCE parameters:
      "$CODER_URL/oauth2/tokens"
    ```
 
-## Scopes
-
-An access token is bounded by the scope negotiated when the user authorized it, on top of that user's own permissions. A token can never do more than its user can.
-
-Scope names come from the same vocabulary as [API key scopes](../../users/sessions-tokens.md#api-key-scopes): individual `resource:action` names such as `workspace:ssh`, and `coder:` composites such as `coder:workspaces.access` that stand for a set of them. `coder:all` records an unrestricted grant.
-
-A client asks for a scope with the `scope` parameter on the authorization request, space separated:
-
-```txt
-https://coder.example.com/oauth2/authorize?
-  client_id=your-client-id&
-  response_type=code&
-  scope=coder:workspaces.access&
-  code_challenge=$CODE_CHALLENGE&
-  code_challenge_method=S256&
-  redirect_uri=https://yourapp.example.com/callback
-```
-
-An application can carry a `scope` allowlist.
-The client may then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing.
-An application with no allowlist honors any requested scope, and a request that names no scope is granted `coder:all`.
-
-An application registered through [Dynamic Client Registration](./index.md#dynamic-client-registration) declares its allowlist in the `scope` field of its registration.
-An administrator sets one with the optional, space-separated `scope` field when [creating an application](../../../reference/api/enterprise.md#create-oauth2-application) through the management API.
-When [updating an application](../../../reference/api/enterprise.md#update-oauth2-application), omit `scope` to keep the current allowlist, send a new value to replace it, or send an empty string to clear it and make the application unrestricted.
-The stored value is not checked against the scopes this deployment offers; a name it does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](./troubleshooting.md#invalid_scope-returned-to-your-callback).
-The web UI does not yet set the allowlist.
-
-The consent page states the scope being granted before the user approves it. A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
-
 ## Discovery Endpoints
 
 Coder provides OAuth2 discovery endpoints for programmatic integration:
@@ -203,137 +174,6 @@ Coder provides OAuth2 discovery endpoints for programmatic integration:
 These endpoints return server capabilities and endpoint URLs according to [RFC 8414](https://datatracker.ietf.org/doc/html/rfc8414) and [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728).
 
 `token_endpoint_auth_methods_supported` lists every method the token endpoint accepts, including `none`. It is not gated on [Dynamic Client Registration](./index.md#dynamic-client-registration), since existing public clients still exchange tokens when new registrations are disabled. `registration_endpoint` is advertised only while Dynamic Client Registration is enabled, so that field, not this one, tells a client whether it can register a new public client.
-
-## Token Management
-
-### Refresh Tokens
-
-Refresh an expired access token.
-
-**Option A: HTTP Basic authentication (`client_secret_basic`)**
-
-```sh
-curl -X POST \
-  -u "$CLIENT_ID:$CLIENT_SECRET" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=refresh_token" \
-  -d "refresh_token=$REFRESH_TOKEN" \
-  "$CODER_URL/oauth2/tokens"
-```
-
-**Option B: Form parameters (`client_secret_post`)**
-
-```sh
-curl -X POST \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=refresh_token" \
-  -d "refresh_token=$REFRESH_TOKEN" \
-  -d "client_id=$CLIENT_ID" \
-  -d "client_secret=$CLIENT_SECRET" \
-  "$CODER_URL/oauth2/tokens"
-```
-
-**Option C: Public client (`none`)**
-
-```sh
-curl -X POST \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=refresh_token" \
-  -d "refresh_token=$REFRESH_TOKEN" \
-  -d "client_id=$CLIENT_ID" \
-  "$CODER_URL/oauth2/tokens"
-```
-
-### Revoke a Token
-
-Revoke one refresh token or access token through the
-[RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009) endpoint that
-`revocation_endpoint` advertises. A confidential client authenticates as it
-does on a refresh, with HTTP Basic as below or with `client_id` and
-`client_secret` form fields as in the refresh examples above. An omitted or
-wrong secret answers HTTP 401 with `error=invalid_client`:
-
-```sh
-curl -X POST \
-  -u "$CLIENT_ID:$CLIENT_SECRET" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "token=$REFRESH_TOKEN" \
-  "$CODER_URL/oauth2/revoke"
-```
-
-A public client sends `client_id` alone. Revoking a refresh token also ends the
-access token issued with it. A successful revocation returns HTTP 200, but that
-response does not confirm that the token existed or belonged to your client. A
-confidential client that fails to authenticate receives HTTP 401 with
-`error=invalid_client` and nothing is revoked.
-
-### Revoke Access
-
-Revoke all tokens for an application:
-
-```sh
-curl -X DELETE \
-  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
-  "$CODER_URL/oauth2/tokens?client_id=$CLIENT_ID"
-```
-
-This ends existing sessions but leaves the application registered, so it can authorize again.
-
-### Delete an Application
-
-Deleting an application is a separate operation from revoking its tokens.
-It removes the registration itself, so the client cannot authorize again without being registered anew.
-
-In the web UI, navigate to **Deployment Settings** > **OAuth2 Applications**, select the application on the **Applications** tab, then select **Delete**.
-This requires permission to delete OAuth2 applications.
-
-Or with the management API:
-
-```sh
-curl -X DELETE \
-  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
-  "$CODER_URL/api/v2/oauth2-provider/apps/$APP_ID"
-```
-
-This is also how you remove clients that registered themselves while dynamic client registration was enabled.
-Turning the setting off stops new registrations; it does not remove the ones already there.
-
-## Callback URL schemes
-
-Custom URI schemes (`myapp://`, `vscode://`, `jetbrains://`, etc.) are fully supported for native and desktop applications. The OS routes the redirect back to the registered application without requiring a running HTTP server.
-
-The out-of-band URN `urn:ietf:wg:oauth:2.0:oob` is accepted from either client type, for clients that display the authorization code for the user to copy rather than receiving it on a redirect. No other URN is accepted.
-
-The following schemes are blocked for security reasons: `javascript:`, `data:`, `file:`, `ftp:`.
-
-Public clients (`token_endpoint_auth_method: none`) additionally cannot register `mailto:`, `tel:`, or `sms:` redirect URIs, since those schemes hand off to another app rather than returning an authorization code to the client. Confidential clients are not subject to this restriction.
-
-A cleartext `http://` redirect URI is accepted only for a local host. A confidential client may use `localhost`, `127.0.0.1`, `::1`, or a `.localhost` subdomain such as `http://app.localhost/callback`. A public client is limited to `localhost`, `127.0.0.1`, and `::1`. Every other host must use `https://`, so that an authorization code is never delivered in the clear. The management API and Dynamic Client Registration apply the same rule, so an administrator cannot store a target that a client could not register for itself.
-
-These rules apply to every entry in `redirect_uris`, not only the first one.
-
-## Testing and Development
-
-Coder provides comprehensive test scripts for OAuth2 development:
-
-```sh
-# Navigate to the OAuth2 test scripts
-cd scripts/oauth2/
-
-# Run the full automated test suite
-./test-mcp-oauth2.sh
-
-# Create a test application for manual testing
-eval $(./setup-test-app.sh)
-
-# Run an interactive browser-based test
-./test-manual-flow.sh
-
-# Clean up when done
-./cleanup-test-app.sh
-```
-
-For more details on testing, see the [OAuth2 test scripts README](../../../../scripts/oauth2/README.md).
 
 ## Standards Compliance
 
@@ -349,6 +189,6 @@ pages.
 
 ## Next Steps
 
-- Review [Common issues](./troubleshooting.md) if a request fails
-- Review [Security considerations and limitations](./security.md)
-- Review the [API Reference](../../../reference/api/index.md) for complete endpoint documentation
+- Review [Scopes](./scopes.md) for how access is bounded
+- Review [Token management](./token-management.md) for refresh, revocation, and deletion
+- Check [Common issues](./troubleshooting.md) if a request fails
