@@ -1,4 +1,3 @@
-import { BotIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import type { QueryClient } from "react-query";
 import { roles } from "#/api/queries/roles";
@@ -64,6 +63,5 @@ export const getUserTypeFilterOptions = async (
 			label: "Service account",
 			value: "service_account",
 			token: "service_account:true",
-			startIcon: <BotIcon />,
 		},
 	].filter((option) => matches(option, query));
