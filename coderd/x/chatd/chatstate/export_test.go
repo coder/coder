@@ -100,6 +100,7 @@ var AllExecutionTransitions = []Transition{
 	TransitionEnterRequiresAction,
 	TransitionFinishInterruption,
 	TransitionFinishTurn,
+	TransitionPromoteQueuedBeforeStep,
 	TransitionFinishError,
 	TransitionCancelRequiresAction,
 	TransitionReconcileInvalidState,

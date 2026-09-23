@@ -126,6 +126,7 @@ const (
 	generationActionFinishTurn          generationActionKind = "finish_turn"
 	generationActionCompact             generationActionKind = "compact"
 	generationActionGenerateAssistant   generationActionKind = "generate_assistant"
+	generationActionPromoteQueued       generationActionKind = "promote_queued"
 )
 
 type generationFinishReason string
@@ -197,6 +198,17 @@ type generationDecisionInput struct {
 	compactionNeeded           bool
 	compactionThresholdPercent int32
 	compactionContextLimit     int64
+	queuedMessages             []database.ChatQueuedMessage
+}
+
+// generateOrPromoteQueued returns the decision for a model call. When
+// the queue holds a steer or interrupt row, the queued rows that are
+// due move into history first.
+func generateOrPromoteQueued(queue []database.ChatQueuedMessage) generationDecision {
+	if len(chatstate.StepDeliveryPrefix(queue)) > 0 {
+		return generationDecision{kind: generationActionPromoteQueued}
+	}
+	return generationDecision{kind: generationActionGenerateAssistant}
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
@@ -259,11 +271,11 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	case compactionStatusNeeded:
 		return generationDecision{kind: generationActionCompact}, nil
 	case compactionStatusAfterCompaction:
-		return generationDecision{kind: generationActionGenerateAssistant}, nil
+		return generateOrPromoteQueued(input.queuedMessages), nil
 	case compactionStatusStillOverLimit:
 		return generationDecision{}, terminalGeneration(errCompactionStillOverLimit)
 	case compactionStatusNotNeeded:
-		return generationDecision{kind: generationActionGenerateAssistant}, nil
+		return generateOrPromoteQueued(input.queuedMessages), nil
 	default:
 		return generationDecision{}, terminalGeneration(xerrors.New("unknown compaction status"))
 	}
@@ -433,7 +445,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	}
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	for {
-		chat, messages, err := loadGenerationState(ctx, machine, input)
+		chat, messages, queue, err := loadGenerationState(ctx, machine, input)
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
@@ -467,7 +479,9 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		cleanup := prepared.Cleanup
 		var decision generationDecision
 		if input.StopNudges.consume(stopNudgeKey(prepared.Messages)) {
-			decision = generationDecision{kind: generationActionGenerateAssistant}
+			// A stop nudge follows a complete assistant message, so no
+			// tool call is pending and due queued rows can go first.
+			decision = generateOrPromoteQueued(queue)
 		} else {
 			decision, err = retryGenerationPhase(ctx, s, "decide", func() (generationDecision, error) {
 				return decideGenerationAction(generationDecisionInput{
@@ -481,6 +495,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 					compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
 					compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
 					compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
+					queuedMessages:             queue,
 				})
 			})
 		}
@@ -511,6 +526,8 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			return s.finishGenerationTurn(ctx, machine, input, generationAttemptNotRequired)
 		case generationActionGenerateAssistant:
 			actionErr = s.generateAssistant(ctx, machine, input, prepared)
+		case generationActionPromoteQueued:
+			actionErr = s.promoteQueuedBeforeStep(ctx, machine, input, prepared)
 		case generationActionExecuteLocalTools:
 			actionErr = s.executeLocalTools(ctx, machine, input, prepared, decision)
 		case generationActionCompact:
@@ -559,13 +576,16 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	}
 }
 
+// loadGenerationState reads the chat, its messages, and its queue from
+// one snapshot.
 func loadGenerationState(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-) (database.Chat, []database.ChatMessage, error) {
+) (database.Chat, []database.ChatMessage, []database.ChatQueuedMessage, error) {
 	var chat database.Chat
 	var messages []database.ChatMessage
+	var queue []database.ChatQueuedMessage
 	err := machine.ReadLock(ctx, func(store database.Store) error {
 		loadedChat, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true})
 		if err != nil {
@@ -578,14 +598,19 @@ func loadGenerationState(
 		if err != nil {
 			return xerrors.Errorf("load chat messages: %w", err)
 		}
+		loadedQueue, err := store.GetChatQueuedMessagesByPosition(ctx, input.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load queued messages: %w", err)
+		}
 		chat = loadedChat
 		messages = loadedMessages
+		queue = loadedQueue
 		return nil
 	})
 	if err != nil {
-		return database.Chat{}, nil, normalizeTaskInfrastructureError(err, "lock chat for generation")
+		return database.Chat{}, nil, nil, normalizeTaskInfrastructureError(err, "lock chat for generation")
 	}
-	return chat, messages, nil
+	return chat, messages, queue, nil
 }
 
 func (*taskStarter) recordGenerationRetry(
@@ -1326,6 +1351,40 @@ func (s *taskStarter) enterRequiresAction(
 		Chat: committed,
 		Kind: runnerActionKindEnterRequiresAction,
 	})
+}
+
+// promoteQueuedBeforeStep moves the queued rows that are due before the
+// next model call into history. The history insert makes the runner
+// start a new generation task, and that task calls the model.
+func (s *taskStarter) promoteQueuedBeforeStep(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	prepared generationPrepared,
+) error {
+	var result chatstate.PromoteQueuedBeforeStepResult
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := loadChatForGeneration(ctx, store, input, generationAttemptNotRequired); err != nil {
+			return xerrors.Errorf("load chat for task: %w", err)
+		}
+		promoted, err := tx.PromoteQueuedBeforeStep(chatstate.PromoteQueuedBeforeStepInput{})
+		if err != nil {
+			return xerrors.Errorf("tx.PromoteQueuedBeforeStep: %w", err)
+		}
+		result = promoted
+		return nil
+	})
+	if err != nil {
+		return normalizeTaskTransitionError(err, "promote queued messages")
+	}
+	if len(result.PromotedMessages) > 0 {
+		s.routeStateHint(ctx, stateUpdateFromChat(result.Chat))
+		return nil
+	}
+	// The rows were deleted after the decision. Without a history or
+	// status change the runner starts no new task, so call the model
+	// here instead of stalling the chat.
+	return s.generateAssistant(ctx, machine, input, prepared)
 }
 
 // generationAttemptFence controls whether a terminal generation

@@ -37,6 +37,8 @@ const (
 	// scenarioInterrupt marks SendMessage cases driven by
 	// ChatBusyBehaviorInterrupt.
 	scenarioInterrupt scenario = "interrupt"
+	// scenarioSteer marks cases seeded with a steer queued message.
+	scenarioSteer scenario = "steer"
 	// scenarioMulti marks cases seeded with multiple queued
 	// messages so the post-mutation queue stays non-empty.
 	scenarioMulti scenario = "multi"
@@ -291,6 +293,13 @@ func applyFinishTurn(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededCha
 	return err
 }
 
+func applyPromoteQueuedBeforeStep(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+	t.Helper()
+	var err error
+	result.promoteQueuedBeforeStep, err = tx.PromoteQueuedBeforeStep(chatstate.PromoteQueuedBeforeStepInput{})
+	return err
+}
+
 func applyFinishError(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
 	var err error
@@ -354,6 +363,8 @@ func defaultApplier(tr chatstate.Transition) applierFn {
 		return applyFinishInterruption
 	case chatstate.TransitionFinishTurn:
 		return applyFinishTurn
+	case chatstate.TransitionPromoteQueuedBeforeStep:
+		return applyPromoteQueuedBeforeStep
 	case chatstate.TransitionFinishError:
 		return applyFinishError
 	case chatstate.TransitionCancelRequiresAction:
@@ -397,6 +408,7 @@ type transitionCaseResult struct {
 	enterRequiresAction     chatstate.EnterRequiresActionResult
 	finishInterruption      chatstate.FinishInterruptionResult
 	finishTurn              chatstate.FinishTurnResult
+	promoteQueuedBeforeStep chatstate.PromoteQueuedBeforeStepResult
 	finishError             chatstate.FinishErrorResult
 	cancelRequiresAction    chatstate.CancelRequiresActionResult
 	reconcileInvalidState   chatstate.ReconcileInvalidStateResult
@@ -913,6 +925,18 @@ func matrixCases() []transitionCaseSpec {
 		finishTurnCase(chatstate.StateR0, chatstate.StateW, queueShapeDefault),
 		finishTurnCase(chatstate.StateR1, chatstate.StateR0, queueShapeDefault),
 		finishTurnCase(chatstate.StateR1, chatstate.StateR1, queueShapeMulti),
+
+		// PromoteQueuedBeforeStep cases: R0 has nothing due and
+		// writes nothing. R1 promotes the due prefix, which empties
+		// the queue (steer only) or leaves the trailing queue row.
+		promoteQueuedBeforeStepCase(chatstate.StateR0, chatstate.StateR0, nil),
+		promoteQueuedBeforeStepCase(chatstate.StateR1, chatstate.StateR0, []database.ChatBusyBehavior{
+			database.ChatBusyBehaviorSteer,
+		}),
+		promoteQueuedBeforeStepCase(chatstate.StateR1, chatstate.StateR1, []database.ChatBusyBehavior{
+			database.ChatBusyBehaviorSteer,
+			database.ChatBusyBehaviorQueue,
+		}),
 
 		// FinishError cases.
 		finishErrorCase(chatstate.StateR0, chatstate.StateE0),
@@ -1926,6 +1950,40 @@ func finishTurnCase(from, want chatstate.ExecutionState, shape queueShape) trans
 		spec.scenario = scenarioMulti
 		spec.seed = func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
 			return seedStateMultiQueued(t, f, from)
+		}
+	}
+	return spec
+}
+
+// promoteQueuedBeforeStepCase seeds a running chat whose queue holds
+// one row for each entry of queue, in order. Every seeded queue must
+// have its last steer row first, so exactly one row is promoted when
+// the queue is not empty.
+func promoteQueuedBeforeStepCase(from, want chatstate.ExecutionState, queue []database.ChatBusyBehavior) transitionCaseSpec {
+	spec := transitionCaseSpec{
+		transition: chatstate.TransitionPromoteQueuedBeforeStep,
+		from:       from,
+		want:       want,
+		apply:      applyPromoteQueuedBeforeStep,
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, _ transitionCaseResult) {
+			afterHistory := activeHistoryIDs(ctx, t, f, seeded.chatID)
+			if len(queue) == 0 {
+				require.Equal(t, base.historyIDs, afterHistory)
+				return
+			}
+			added := newActiveMessageIDs(base, afterHistory)
+			require.Len(t, added, 1)
+			assertChatMessageText(t, requireChatMessageByID(ctx, t, f, added[0]), seeded.queuedMessageBodies[0])
+			assertQueueBodiesInOrder(ctx, t, f, seeded.chatID, seeded.queuedMessageBodies[1:])
+		},
+	}
+	if len(queue) > 0 {
+		spec.scenario = scenarioSteer
+		if len(queue) > 1 {
+			spec.scenario = scenarioMulti
+		}
+		spec.seed = func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
+			return seedRunningWithQueue(t, f, queue)
 		}
 	}
 	return spec

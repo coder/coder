@@ -2136,6 +2136,177 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	require.Equal(t, []uuid.UUID{modelConfigA.ID, modelConfigB.ID, modelConfigC.ID}, userModelConfigIDs)
 }
 
+// TestActiveServer_SteerDelivery checks that steer and interrupt messages
+// sent to a busy chat reach the next model call, after the queued
+// messages that were sent before them.
+func TestActiveServer_SteerDelivery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("steer during a tool call", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		h := startSteerTestChat(ctx, t, "read_file")
+		h.send(ctx, t, "queued one", database.ChatBusyBehaviorQueue)
+		h.send(ctx, t, "steer message", database.ChatBusyBehaviorSteer)
+		h.send(ctx, t, "queued two", database.ChatBusyBehaviorQueue)
+		close(h.releaseTool)
+
+		calls := h.waitForCalls(ctx, t)
+		require.Len(t, calls, 3)
+		requireOpenAIMessageOrder(t, calls[1], "tool output", "queued one", "steer message")
+		require.False(t, openAIMessagesContain(calls[1], "queued two"))
+		require.True(t, openAIMessagesContain(calls[2], "queued two"))
+	})
+
+	t.Run("interrupt behind a queued message", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		h := startSteerTestChat(ctx, t, "read_file")
+		h.send(ctx, t, "queued one", database.ChatBusyBehaviorQueue)
+		h.send(ctx, t, "interrupt message", database.ChatBusyBehaviorInterrupt)
+
+		calls := h.waitForCalls(ctx, t)
+		require.Len(t, calls, 2)
+		requireOpenAIMessageOrder(t, calls[1], "queued one", "interrupt message")
+	})
+
+	t.Run("interrupt in requires action", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		h := startSteerTestChat(ctx, t, "my_dynamic_tool")
+		h.send(ctx, t, "interrupt message", database.ChatBusyBehaviorInterrupt)
+
+		calls := h.waitForCalls(ctx, t)
+		require.Len(t, calls, 2)
+		requireOpenAIMessageOrder(t, calls[1], "Tool execution interrupted by user message", "interrupt message")
+	})
+}
+
+type steerTestChat struct {
+	db          database.Store
+	server      *chatd.Server
+	chat        database.Chat
+	modelID     uuid.UUID
+	releaseTool chan struct{}
+
+	mu    sync.Mutex
+	calls [][]chattest.OpenAIMessage
+}
+
+// startSteerTestChat starts a chat whose first model call requests
+// firstTool and whose later model calls answer with text. It returns
+// while the chat is busy: read_file blocks until releaseTool closes, and
+// any other tool is a dynamic tool that leaves the chat in
+// requires_action.
+func startSteerTestChat(ctx context.Context, t *testing.T, firstTool string) *steerTestChat {
+	t.Helper()
+	db, ps := dbtestutil.NewDB(t)
+	h := &steerTestChat{db: db, releaseTool: make(chan struct{})}
+	dynamic := firstTool != "read_file"
+	firstCall := chattest.OpenAIToolCallChunk(firstTool, `{"path":"/tmp/steer.txt"}`)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		h.mu.Lock()
+		h.calls = append(h.calls, slices.Clone(req.Messages))
+		first := len(h.calls) == 1
+		h.mu.Unlock()
+		if first {
+			return chattest.OpenAIStreamingResponse(firstCall)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+
+	toolStarted := make(chan struct{})
+	mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/steer.txt", int64(1), int64(0), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, _ string, _, _ int64, _ workspacesdk.ReadFileLinesLimits) (workspacesdk.ReadFileLinesResponse, error) {
+			close(toolStarted)
+			select {
+			case <-h.releaseTool:
+			case <-ctx.Done():
+				return workspacesdk.ReadFileLinesResponse{}, ctx.Err()
+			}
+			return workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 11, TotalLines: 1, LinesRead: 1, Content: "tool output"}, nil
+		}).MaxTimes(1)
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	h.server = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return mockConn, func() {}, nil
+		}
+	})
+	opts := chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		WorkspaceID:        uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:            uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:              "steer",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("start")},
+	}
+	if dynamic {
+		opts.DynamicTools = dynamicToolJSON(t, firstTool)
+	}
+	chat, err := h.server.CreateChat(ctx, opts)
+	require.NoError(t, err)
+	h.chat, h.modelID = chat, model.ID
+	if dynamic {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			got, err := db.GetChatByID(ctx, chat.ID)
+			return err == nil && got.Status == database.ChatStatusRequiresAction
+		}, testutil.IntervalFast)
+	} else {
+		testutil.TryReceive(ctx, t, toolStarted)
+	}
+	return h
+}
+
+func (h *steerTestChat) send(ctx context.Context, t *testing.T, text string, behavior database.ChatBusyBehavior) {
+	t.Helper()
+	result, err := h.server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        h.chat.ID,
+		CreatedBy:     h.chat.OwnerID,
+		ModelConfigID: h.modelID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)},
+		BusyBehavior:  behavior,
+	})
+	require.NoError(t, err)
+	require.True(t, result.Queued)
+	require.Equal(t, behavior, result.QueuedMessage.BusyBehavior)
+}
+
+// waitForCalls waits until the chat is idle and returns the messages of
+// every streamed model call.
+func (h *steerTestChat) waitForCalls(ctx context.Context, t *testing.T) [][]chattest.OpenAIMessage {
+	t.Helper()
+	waitForChatStatus(ctx, t, h.db, h.chat.ID, database.ChatStatusWaiting)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return slices.Clone(h.calls)
+}
+
+// requireOpenAIMessageOrder asserts that each text appears in messages
+// after the previous text.
+func requireOpenAIMessageOrder(t *testing.T, messages []chattest.OpenAIMessage, texts ...string) {
+	t.Helper()
+	contents := make([]string, 0, len(messages))
+	for _, msg := range messages {
+		contents = append(contents, msg.Content)
+	}
+	joined := strings.Join(contents, "\n")
+	rest := joined
+	for _, text := range texts {
+		idx := strings.Index(rest, text)
+		require.GreaterOrEqualf(t, idx, 0, "missing %q in order %q within %q", text, texts, joined)
+		rest = rest[idx+len(text):]
+	}
+}
+
 func TestEditMessageRejectsMissingMessage(t *testing.T) {
 	t.Parallel()
 

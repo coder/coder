@@ -283,6 +283,24 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, busyBehavi
 	})
 }
 
+// StepDeliveryPrefix returns the queued rows that are due before the
+// next model call: every row from the head up to and including the
+// last steer or interrupt row. It returns nil when the queue has no
+// steer or interrupt row. queue must be in position order.
+func StepDeliveryPrefix(queue []database.ChatQueuedMessage) []database.ChatQueuedMessage {
+	last := -1
+	for i, row := range queue {
+		switch row.BusyBehavior {
+		case database.ChatBusyBehaviorSteer, database.ChatBusyBehaviorInterrupt:
+			last = i
+		}
+	}
+	if last < 0 {
+		return nil
+	}
+	return queue[:last+1]
+}
+
 func (tx *Tx) messageFromQueuedRow(chat database.Chat, queued database.ChatQueuedMessage) (Message, error) {
 	modelConfigID, err := tx.resolveQueuedMessageModelConfigID(chat, queued)
 	if err != nil {
@@ -374,8 +392,12 @@ func (tx *Tx) SetArchived(input SetArchivedInput) (SetArchivedResult, error) {
 type SendMessageInput struct {
 	Message Message
 	// BusyBehavior controls how SendMessage behaves when the chat is
-	// currently busy (R*/I*/A*). From idle/error states queue and
-	// interrupt are equivalent.
+	// currently busy (R*/I*/A*). Queue and steer store a queued row and
+	// keep the current status. Interrupt also stops the running step,
+	// or cancels pending dynamic tool calls in requires_action. Queue
+	// rows wait for the end of the turn, while steer and interrupt rows
+	// are due before the next model call (see [StepDeliveryPrefix]).
+	// From idle/error states the three behaviors are equivalent.
 	BusyBehavior database.ChatBusyBehavior
 }
 
@@ -400,7 +422,7 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 		)
 	}
 	switch input.BusyBehavior {
-	case database.ChatBusyBehaviorQueue, database.ChatBusyBehaviorInterrupt:
+	case database.ChatBusyBehaviorQueue, database.ChatBusyBehaviorSteer, database.ChatBusyBehaviorInterrupt:
 		// ok
 	default:
 		// Reject unknown / empty BusyBehavior up front so an invalid
@@ -1338,6 +1360,73 @@ func (tx *Tx) EnterRequiresAction(_ EnterRequiresActionInput) (EnterRequiresActi
 	}
 	return EnterRequiresActionResult{
 		RequiresActionDeadlineAt: deadline,
+	}, nil
+}
+
+// PromoteQueuedBeforeStepInput configures [Tx.PromoteQueuedBeforeStep].
+type PromoteQueuedBeforeStepInput struct{}
+
+// PromoteQueuedBeforeStepResult is returned by [Tx.PromoteQueuedBeforeStep].
+type PromoteQueuedBeforeStepResult struct {
+	Chat             database.Chat
+	PromotedMessages []database.ChatMessage
+}
+
+// PromoteQueuedBeforeStep moves the queued rows that are due before
+// the next model call (see [StepDeliveryPrefix]) into history, in
+// queue order and in one insert. It writes nothing when no row is due.
+// The status stays running, so a pending manual compaction request
+// survives.
+func (tx *Tx) PromoteQueuedBeforeStep(_ PromoteQueuedBeforeStepInput) (PromoteQueuedBeforeStepResult, error) {
+	chat, from, err := tx.requireFromAllowed(TransitionPromoteQueuedBeforeStep)
+	if err != nil {
+		return PromoteQueuedBeforeStepResult{}, err
+	}
+	pendingAll, err := pendingAllToolCallIDs(tx.ctx, tx.store, chat)
+	if err != nil {
+		return PromoteQueuedBeforeStepResult{}, err
+	}
+	if len(pendingAll) > 0 {
+		return PromoteQueuedBeforeStepResult{}, newTransitionError(
+			TransitionPromoteQueuedBeforeStep, from,
+			"outstanding tool calls block queued promotion",
+		)
+	}
+	queue, err := tx.store.GetChatQueuedMessagesByPosition(tx.ctx, tx.chatID)
+	if err != nil {
+		return PromoteQueuedBeforeStepResult{}, xerrors.Errorf("get queued messages: %w", err)
+	}
+	due := StepDeliveryPrefix(queue)
+	if len(due) == 0 {
+		return PromoteQueuedBeforeStepResult{Chat: chat}, nil
+	}
+	msgs := make([]Message, 0, len(due))
+	for _, row := range due {
+		msg, err := tx.messageFromQueuedRow(chat, row)
+		if err != nil {
+			return PromoteQueuedBeforeStepResult{}, xerrors.Errorf("resolve queued message %d: %w", row.ID, err)
+		}
+		msgs = append(msgs, msg)
+	}
+	inserted, err := tx.insertMessages(msgs)
+	if err != nil {
+		return PromoteQueuedBeforeStepResult{}, xerrors.Errorf("insert promoted queued messages: %w", err)
+	}
+	for _, row := range due {
+		if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
+			ID:     row.ID,
+			ChatID: tx.chatID,
+		}); err != nil {
+			return PromoteQueuedBeforeStepResult{}, xerrors.Errorf("delete promoted queued message %d: %w", row.ID, err)
+		}
+	}
+	updated, err := tx.store.GetChatByID(tx.ctx, tx.chatID)
+	if err != nil {
+		return PromoteQueuedBeforeStepResult{}, xerrors.Errorf("reload chat: %w", err)
+	}
+	return PromoteQueuedBeforeStepResult{
+		Chat:             updated,
+		PromotedMessages: inserted,
 	}, nil
 }
 

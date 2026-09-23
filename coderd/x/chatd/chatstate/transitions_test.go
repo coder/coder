@@ -307,7 +307,6 @@ func setArchivedWrongDirectionCases() []setArchivedWrongDirectionCase {
 var invalidBusyBehaviors = []database.ChatBusyBehavior{
 	database.ChatBusyBehavior(""),
 	database.ChatBusyBehavior("not-a-real-mode"),
-	database.ChatBusyBehaviorSteer,
 }
 
 func runSetArchivedWrongDirectionCase(t *testing.T, tc setArchivedWrongDirectionCase) {
