@@ -1,15 +1,22 @@
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { createChat } from "#/api/queries/chats";
+import {
+	workspaceBuild,
+	workspaceBuildLogs,
+} from "#/api/queries/workspaceBuilds";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import {
+	type AgentCreateAutoSubmit,
 	AgentCreateForm,
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
@@ -18,6 +25,12 @@ import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
+import {
+	debugWorkspaceBuildLogsFileName,
+	debugWorkspaceBuildPrompt,
+	debugWorkspaceBuildSearchParam,
+	formatWorkspaceBuildLogsForDebug,
+} from "./utils/workspaceBuildDebug";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
@@ -25,12 +38,43 @@ const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
+
+	const debugBuildId = searchParams.get(debugWorkspaceBuildSearchParam);
+	const debugBuildQuery = useQuery({
+		...workspaceBuild(debugBuildId ?? ""),
+		enabled: debugBuildId !== null,
+	});
+	const debugBuildLogsQuery = useQuery({
+		...workspaceBuildLogs(debugBuildId ?? ""),
+		enabled: debugBuildId !== null,
+	});
+	const debugBuildError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
+	const autoSubmit: AgentCreateAutoSubmit | undefined =
+		debugBuildQuery.data && debugBuildLogsQuery.data
+			? {
+					message: debugWorkspaceBuildPrompt,
+					attachment: {
+						name: debugWorkspaceBuildLogsFileName(debugBuildQuery.data),
+						content: formatWorkspaceBuildLogsForDebug(
+							debugBuildQuery.data,
+							debugBuildLogsQuery.data,
+						),
+					},
+				}
+			: undefined;
+	// The form reads the auto-submitted message as its initial editor value,
+	// so it must not mount until the build and logs have loaded.
+	const isDebugBuildLoading =
+		debugBuildId !== null &&
+		autoSubmit === undefined &&
+		debugBuildError == null;
 
 	const handleCreateChat = async ({
 		message,
@@ -67,9 +111,14 @@ const AgentCreatePage: FC = () => {
 		if (model) {
 			localStorage.setItem(lastModelConfigIDStorageKey, model);
 		}
+		// Drop the debug deep link so returning to /agents from the new chat
+		// does not start another one.
+		const nextSearchParams = new URLSearchParams(location.search);
+		nextSearchParams.delete(debugWorkspaceBuildSearchParam);
 		navigate({
 			pathname: buildAgentChatPath({ chatId: createdChat.id }),
-			search: location.search,
+			search:
+				debugBuildId === null ? location.search : nextSearchParams.toString(),
 		});
 	};
 
@@ -103,18 +152,28 @@ const AgentCreatePage: FC = () => {
 				<ChimeButton enabled={chimeEnabled} onToggle={handleChimeToggle} />
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
-			<AgentCreateForm
-				onCreateChat={handleCreateChat}
-				isCreating={createMutation.isPending}
-				createError={createMutation.error}
-				canCreateChat={permissions.createChat}
-				canConfigureAgentSetup={permissions.editDeploymentConfig}
-				aiGatewayDisabled={aiGatewayDisabled}
-				workspaceCount={workspacesQuery.data?.count}
-				workspaceOptions={workspacesQuery.data?.workspaces ?? []}
-				workspacesError={workspacesQuery.error}
-				isWorkspacesLoading={workspacesQuery.isLoading}
-			/>{" "}
+			{debugBuildError != null && (
+				<div className="mx-auto w-full max-w-3xl px-4 pt-4">
+					<ErrorAlert error={debugBuildError} />
+				</div>
+			)}
+			{isDebugBuildLoading ? (
+				<Loader className="flex-1" label="Loading workspace build logs" />
+			) : (
+				<AgentCreateForm
+					onCreateChat={handleCreateChat}
+					isCreating={createMutation.isPending}
+					createError={createMutation.error}
+					canCreateChat={permissions.createChat}
+					canConfigureAgentSetup={permissions.editDeploymentConfig}
+					aiGatewayDisabled={aiGatewayDisabled}
+					workspaceCount={workspacesQuery.data?.count}
+					workspaceOptions={workspacesQuery.data?.workspaces ?? []}
+					workspacesError={workspacesQuery.error}
+					isWorkspacesLoading={workspacesQuery.isLoading}
+					autoSubmit={autoSubmit}
+				/>
+			)}
 		</>
 	);
 };

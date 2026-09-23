@@ -414,6 +414,9 @@ export const UnhealthyWithoutUpdatePermission: Story = {
 };
 
 export const FailedWithLogs: Story = {
+	parameters: {
+		permissions: Mocks.MockPermissions,
+	},
 	args: {
 		...Running.args,
 		workspace: {
@@ -429,6 +432,13 @@ export const FailedWithLogs: Story = {
 		},
 		buildLogs: makeFailedBuildLogs(),
 	},
+};
+
+export const FailedWithoutChatPermission: Story = {
+	parameters: {
+		permissions: Mocks.MockNoPermissions,
+	},
+	args: FailedWithLogs.args,
 };
 
 export const FailedWithRetry: Story = {

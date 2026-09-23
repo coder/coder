@@ -34,6 +34,16 @@ export const workspaceBuildByNumber = (
 	};
 };
 
+export const workspaceBuildKey = (workspaceBuildId: string) =>
+	["workspaceBuild", workspaceBuildId] as const;
+
+export function workspaceBuild(workspaceBuildId: string) {
+	return {
+		queryKey: workspaceBuildKey(workspaceBuildId),
+		queryFn: () => API.getWorkspaceBuild(workspaceBuildId),
+	} as const satisfies QueryOptions<WorkspaceBuild>;
+}
+
 export const workspaceBuildsKey = (workspaceId: string) => [
 	"workspaceBuilds",
 	workspaceId,

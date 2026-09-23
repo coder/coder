@@ -1,4 +1,4 @@
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
@@ -62,6 +62,20 @@ export type CreateChatOptions = {
 	mcpServerIds?: string[];
 	organizationId: string;
 	planMode?: TypesGen.ChatPlanMode;
+};
+
+/**
+ * A message the form sends on the user's behalf as soon as the send gate
+ * opens, with the attachment uploaded first. Deep links such as "Debug with
+ * Coder Agents" use it so the chat starts with the user's default model,
+ * organization, and MCP selection without any extra clicks.
+ */
+export type AgentCreateAutoSubmit = {
+	message: string;
+	attachment: {
+		name: string;
+		content: string;
+	};
 };
 
 /**
@@ -140,6 +154,7 @@ type AgentCreateFormProps = {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
+	autoSubmit?: AgentCreateAutoSubmit;
 };
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
@@ -153,15 +168,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	workspaceOptions,
 	workspacesError,
 	isWorkspacesLoading,
+	autoSubmit,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
-	const {
-		initialInputValue,
-		initialEditorState,
-		handleContentChange,
-		submitDraft,
-		resetDraft,
-	} = useEmptyStateDraft();
+	const draft = useEmptyStateDraft();
+	const { handleContentChange, submitDraft, resetDraft } = draft;
+	const initialInputValue = autoSubmit
+		? autoSubmit.message
+		: draft.initialInputValue;
+	const initialEditorState = autoSubmit ? undefined : draft.initialEditorState;
 	const [initialLastModelConfigID] = useState(() => {
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
@@ -561,6 +576,63 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
+	const isInputDisabled =
+		isCreating ||
+		isForbidden ||
+		!orgSelectionSettled ||
+		// Sending before adoption would omit persisted files not yet restored.
+		!organizationAdopted ||
+		workspaceValidationPending ||
+		isPersonalModelOverridesUnresolved ||
+		isMCPSelectionUnresolved ||
+		!hasModelOptions ||
+		Boolean(aiGatewayDisabled);
+
+	// Attachments added before organization adoption are discarded when the
+	// persisted set is restored, and adoption can repeat when permissions
+	// resolve to a different organization, so the file is keyed by the
+	// organization that owned the attachment state when it was added.
+	const [autoSubmitAttachment, setAutoSubmitAttachment] = useState<{
+		organizationId: string;
+		file: File;
+	} | null>(null);
+	const attachAutoSubmitFile = useEffectEvent(
+		(attachment: AgentCreateAutoSubmit["attachment"]) => {
+			const file = new File([attachment.content], attachment.name, {
+				type: "text/plain",
+			});
+			setAutoSubmitAttachment({ organizationId, file });
+			handleAttach([file]);
+		},
+	);
+	const activeAutoSubmitAttachment =
+		autoSubmitAttachment?.organizationId === organizationId
+			? autoSubmitAttachment
+			: null;
+	useEffect(() => {
+		if (autoSubmit && organizationAdopted && !activeAutoSubmitAttachment) {
+			attachAutoSubmitFile(autoSubmit.attachment);
+		}
+	}, [autoSubmit, organizationAdopted, activeAutoSubmitAttachment]);
+
+	const isAutoSubmitReady =
+		autoSubmit !== undefined &&
+		!isInputDisabled &&
+		activeAutoSubmitAttachment !== null &&
+		uploadStates.get(activeAutoSubmitAttachment.file)?.status === "uploaded";
+	const autoSubmitSentRef = useRef(false);
+	const sendAutoSubmit = useEffectEvent((message: string) => {
+		void handleSendWithAttachments(message);
+	});
+	// Send exactly once; a failed send leaves the message and attachment in
+	// the composer so the user can retry manually.
+	useEffect(() => {
+		if (autoSubmit && isAutoSubmitReady && !autoSubmitSentRef.current) {
+			autoSubmitSentRef.current = true;
+			sendAutoSubmit(autoSubmit.message);
+		}
+	}, [autoSubmit, isAutoSubmitReady]);
+
 	return (
 		<>
 			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-0 sm:h-full sm:flex-1 sm:items-center">
@@ -634,18 +706,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
-						isDisabled={
-							isCreating ||
-							isForbidden ||
-							!orgSelectionSettled ||
-							// Sending before adoption would omit persisted files not yet restored.
-							!organizationAdopted ||
-							workspaceValidationPending ||
-							isPersonalModelOverridesUnresolved ||
-							isMCPSelectionUnresolved ||
-							!hasModelOptions ||
-							Boolean(aiGatewayDisabled)
-						}
+						isDisabled={isInputDisabled}
 						isReadOnly={isForbidden}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
