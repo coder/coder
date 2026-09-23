@@ -20,18 +20,10 @@ describe("parseLastSeenRange", () => {
 		).toEqual({ start, end });
 	});
 
-	it("starts at the Unix epoch when only an end is set", () => {
-		expect(parseLastSeenRange({ last_seen_before: end.toISOString() })).toEqual(
-			{
-				start: new Date(0),
-				end,
-			},
-		);
-	});
-
 	it.each([
 		["no bounds", {}],
 		["only a start", { last_seen_after: start.toISOString() }],
+		["only an end", { last_seen_before: end.toISOString() }],
 		["an invalid date", { last_seen_after: "nope", last_seen_before: "x" }],
 		[
 			"a reversed range",
@@ -62,14 +54,16 @@ describe("withLastSeen", () => {
 		);
 	});
 
-	it("sends only the end for a range starting at the Unix epoch", () => {
+	it("sends the epoch start for Over presets so never seen users are excluded", () => {
 		expect(
 			withLastSeen("status:active", {
 				start: new Date(0),
 				end,
 				preset: "over_30d",
 			}),
-		).toBe(`status:active last_seen_before:"${end.toISOString()}"`);
+		).toBe(
+			`status:active last_seen_after:"1970-01-01T00:00:00.000Z" last_seen_before:"${end.toISOString()}"`,
+		);
 	});
 
 	it("clears the range for All time", () => {

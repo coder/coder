@@ -30,7 +30,7 @@ describe("UsersPage", () => {
 		await waitFor(() =>
 			expect(API.getUsers).toHaveBeenCalledWith(
 				expect.objectContaining({
-					q: 'status:active last_seen_before:"2025-12-12T12:00:00.000Z"',
+					q: 'status:active last_seen_after:"1970-01-01T00:00:00.000Z" last_seen_before:"2025-12-12T12:00:00.000Z"',
 				}),
 				expect.anything(),
 			),

@@ -23,9 +23,9 @@ export const ALL_TIME_PRESET_ID = "all_time";
 /** Search param holding the picked preset, so its range stays relative. */
 export const LAST_SEEN_PRESET_PARAM = "last_seen";
 
-// Start of "Over N days" ranges, which send only `last_seen_before` so users
-// who were never seen still match.
-const UNBOUNDED_START = new Date(0);
+// Start of "Over N days" ranges. Users who were never seen have a zero last
+// seen time, which is earlier, so they are excluded.
+const EPOCH = new Date(0);
 
 const lastDays = (days: number): QuickPreset => ({
 	id: `last_${days}d`,
@@ -40,7 +40,7 @@ const overDays = (days: number): QuickPreset => ({
 	id: `over_${days}d`,
 	label: `Over ${days} days`,
 	range: (now) => ({
-		start: UNBOUNDED_START,
+		start: EPOCH,
 		end: dayjs(now).subtract(days, "day").toDate(),
 	}),
 });
@@ -50,7 +50,7 @@ const allTime: QuickPreset = {
 	id: ALL_TIME_PRESET_ID,
 	label: "All time",
 	placeholder: "Last seen",
-	range: (now) => ({ start: UNBOUNDED_START, end: now }),
+	range: (now) => ({ start: EPOCH, end: now }),
 };
 
 export const lastSeenPresets: QuickPreset[] = [
@@ -76,15 +76,11 @@ const parseDate = (value: string | undefined): Date | undefined => {
 	return Number.isNaN(date.getTime()) ? undefined : date;
 };
 
-/**
- * The applied last seen range, or undefined if it is missing or invalid. A
- * range with only `last_seen_before` starts at the Unix epoch.
- */
+/** The applied last seen range, or undefined if it is missing or invalid. */
 export const parseLastSeenRange = (
 	values: FilterValues,
 ): Pick<DateTimeRangeValue, "start" | "end"> | undefined => {
-	const afterValue = values[LAST_SEEN_AFTER_KEY];
-	const start = afterValue ? parseDate(afterValue) : UNBOUNDED_START;
+	const start = parseDate(values[LAST_SEEN_AFTER_KEY]);
 	const end = parseDate(values[LAST_SEEN_BEFORE_KEY]);
 	if (!start || !end || start.getTime() >= end.getTime()) {
 		return undefined;
@@ -92,18 +88,13 @@ export const parseLastSeenRange = (
 	return { start, end };
 };
 
-const lastSeenFilterValues = (value: DateTimeRangeValue): FilterValues => {
-	if (value.preset === ALL_TIME_PRESET_ID) {
-		return {};
-	}
-	return {
-		[LAST_SEEN_AFTER_KEY]:
-			value.start.getTime() === UNBOUNDED_START.getTime()
-				? undefined
-				: value.start.toISOString(),
-		[LAST_SEEN_BEFORE_KEY]: value.end.toISOString(),
-	};
-};
+const lastSeenFilterValues = (value: DateTimeRangeValue): FilterValues =>
+	value.preset === ALL_TIME_PRESET_ID
+		? {}
+		: {
+				[LAST_SEEN_AFTER_KEY]: value.start.toISOString(),
+				[LAST_SEEN_BEFORE_KEY]: value.end.toISOString(),
+			};
 
 /** Replaces the last seen range in a filter query. */
 export const withLastSeen = (
