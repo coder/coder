@@ -67,20 +67,32 @@ const SCOPE_LABEL = "Allowed scopes";
 
 /**
  * narrowsAllowlist reports whether replacing the stored scope allowlist with
- * next can reject scopes the client could previously be granted. An empty
- * list means unrestricted, so imposing any list on it narrows and clearing
- * never does. The server compares what scopes grant rather than their names,
- * which this cannot reproduce; coder:all is the one name known to cover every
- * scope, so a list that contains it never narrows.
+ * next can reject a scope the client could previously be granted. The server
+ * ignores names outside the catalog and treats an empty stored value as
+ * unrestricted, so this does the same. coder:all covers every scope.
  */
-export const narrowsAllowlist = (stored: string[], next: string[]): boolean => {
-	if (next.length === 0 || next.includes("coder:all")) {
+export const narrowsAllowlist = (
+	stored: string,
+	next: readonly string[],
+	catalog: readonly string[],
+): boolean => {
+	if (next.length === 0) {
 		return false;
 	}
-	if (stored.length === 0) {
+	const nextGrantable = next.filter((scope) => catalog.includes(scope));
+	if (nextGrantable.includes("coder:all")) {
+		return false;
+	}
+	if (stored === "") {
 		return true;
 	}
-	return stored.some((scope) => !next.includes(scope));
+	const storedGrantable = stored
+		.split(" ")
+		.filter((scope) => catalog.includes(scope));
+	if (storedGrantable.length === 0) {
+		return false;
+	}
+	return storedGrantable.some((scope) => !nextGrantable.includes(scope));
 };
 
 // Mirror codersdk.ValidateRedirectURIShape.
@@ -287,7 +299,8 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	// why narrowing a self-registered application's allowlist can break it.
 	const narrowsSelfRegisteredScopes =
 		app?.dynamically_registered === true &&
-		narrowsAllowlist(form.initialValues.scope, form.values.scope);
+		scopesQuery.data !== undefined &&
+		narrowsAllowlist(app.scope, form.values.scope, scopesQuery.data.external);
 	const submitDisabled =
 		formDisabled || !form.isValid || (editing && !form.dirty);
 

@@ -944,50 +944,82 @@ describe("OAuth2AppForm", () => {
 });
 
 describe("narrowsAllowlist", () => {
+	const catalog = MockExternalAPIKeyScopes.external;
+
 	it.each([
 		{
 			label: "adding a scope to an existing list",
-			stored: ["workspace:ssh"],
+			stored: "workspace:ssh",
 			next: ["workspace:ssh", "workspace:read"],
 			narrows: false,
 		},
 		{
 			label: "removing a scope from an existing list",
-			stored: ["workspace:ssh", "workspace:read"],
+			stored: "workspace:ssh workspace:read",
 			next: ["workspace:read"],
 			narrows: true,
 		},
 		{
 			label: "clearing the list",
-			stored: ["workspace:ssh"],
+			stored: "workspace:ssh",
 			next: [],
 			narrows: false,
 		},
 		{
 			label: "imposing a list on an unrestricted app",
-			stored: [],
+			stored: "",
 			next: ["workspace:ssh"],
 			narrows: true,
 		},
 		{
+			label: "imposing a list of unknown names on an unrestricted app",
+			stored: "",
+			next: ["legacy:thing"],
+			narrows: true,
+		},
+		{
 			label: "replacing a scope with coder:all",
-			stored: ["workspace:ssh"],
+			stored: "workspace:ssh",
 			next: ["coder:all"],
 			narrows: false,
 		},
 		{
 			label: "imposing coder:all on an unrestricted app",
-			stored: [],
+			stored: "",
 			next: ["coder:all"],
 			narrows: false,
 		},
 		{
 			label: "keeping the same list",
-			stored: ["workspace:ssh"],
+			stored: "workspace:ssh",
 			next: ["workspace:ssh"],
 			narrows: false,
 		},
+		{
+			label: "removing a name the deployment does not offer",
+			stored: "workspace:ssh legacy:thing",
+			next: ["workspace:ssh"],
+			narrows: false,
+		},
+		{
+			label: "removing the only offered name",
+			stored: "workspace:ssh legacy:thing",
+			next: ["legacy:thing"],
+			narrows: true,
+		},
+		{
+			label: "replacing a list that grants nothing",
+			stored: "legacy:thing",
+			next: ["workspace:read"],
+			narrows: false,
+		},
+		{
+			label: "adding a scope to a whitespace-only list",
+			stored: "   ",
+			next: ["workspace:read"],
+			narrows: false,
+		},
 	])("returns $narrows when $label", ({ stored, next, narrows }) => {
-		expect(narrowsAllowlist(stored, next)).toBe(narrows);
+		expect(narrowsAllowlist(stored, next, catalog)).toBe(narrows);
 	});
 });
