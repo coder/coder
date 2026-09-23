@@ -7100,6 +7100,10 @@ export interface OrganizationAISpendFilter {
 	readonly period_start?: string;
 	readonly period_end?: string;
 	/**
+	 * UserID matches the user who initiated the intercepted request.
+	 */
+	readonly user_id?: string;
+	/**
 	 * ProviderName matches the configured provider name recorded on the
 	 * intercepted request.
 	 */

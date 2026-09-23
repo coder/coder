@@ -1396,7 +1396,7 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 // @Description Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists the providers and clients they spent through, and the response carries the user count, total spend, and unpriced usage count over every matching user.
 // @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
 // @Description An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead. The response echoes the applied bounds and, when retention is enabled, the start of the retention window.
-// @Description The optional provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.
+// @Description The optional user_id, provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.
 // @Description Unknown query parameters are rejected.
 // @Description Requires organization-level administrator permissions.
 // @ID list-organization-ai-spend-by-user
@@ -1406,6 +1406,7 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
 // @Param period_end query string false "Exclusive upper bound (RFC3339)" format(date-time)
+// @Param user_id query string false "Only include usage initiated by this user" format(uuid)
 // @Param provider_name query string false "Only include usage through this provider configuration name"
 // @Param model query string false "Only include usage of this model"
 // @Param client query string false "Only include usage from this client. Unknown matches usage without a recorded client."
@@ -1438,6 +1439,7 @@ func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request
 		})
 	}
 	// An empty dimension matches every request.
+	userID := parser.UUID(query, uuid.Nil, "user_id")
 	providerName := parser.String(query, "", "provider_name")
 	model := parser.String(query, "", "model")
 	client := parser.String(query, "", "client")
@@ -1454,6 +1456,7 @@ func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request
 		OrganizationID: org.ID,
 		PeriodStart:    period.start,
 		PeriodEnd:      period.end,
+		UserID:         userID,
 		ProviderName:   providerName,
 		Model:          model,
 		Client:         client,

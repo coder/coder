@@ -13,7 +13,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "#/pages/AIBridgePage/AIBridgeSetupAlert";
-import { type SpendFilterMenus, SpendFilters } from "./components/SpendFilters";
+import { SpendFilters } from "./components/SpendFilters";
 import {
 	type SpendReportQuery,
 	SpendUsersTable,
@@ -31,7 +31,11 @@ type SpendPageViewProps = {
 	period: DateTimeRangeValue;
 	minDate: Date | undefined;
 	onPeriodChange: (value: DateTimeRangeValue) => void;
-	filterMenus: SpendFilterMenus | undefined;
+	filterQuery: string;
+	onFilterQueryChange: (query: string) => void;
+	showDimensionFilters: boolean;
+	unknownUsername: string | undefined;
+	userLookupError: unknown;
 	reportQuery: SpendReportQuery;
 };
 
@@ -79,7 +83,11 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 	period,
 	minDate,
 	onPeriodChange,
-	filterMenus,
+	filterQuery,
+	onFilterQueryChange,
+	showDimensionFilters,
+	unknownUsername,
+	userLookupError,
 	reportQuery,
 }) => {
 	if (isOrganizationsLoading) {
@@ -131,13 +139,42 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 				organizations={organizations}
 				organization={organization}
 				onOrganizationChange={onOrganizationChange}
-				menus={filterMenus}
+				filterQuery={filterQuery}
+				onFilterQueryChange={onFilterQueryChange}
+				showDimensionFilters={showDimensionFilters}
 				now={now}
 				period={period}
 				minDate={minDate}
 				onPeriodChange={onPeriodChange}
 			/>
-			<SpendUsersTable reportQuery={reportQuery} />
+			<SpendReport
+				unknownUsername={unknownUsername}
+				userLookupError={userLookupError}
+				reportQuery={reportQuery}
+			/>
 		</>
 	);
+};
+
+type SpendReportProps = Pick<
+	SpendPageViewProps,
+	"unknownUsername" | "userLookupError" | "reportQuery"
+>;
+
+const SpendReport: FC<SpendReportProps> = ({
+	unknownUsername,
+	userLookupError,
+	reportQuery,
+}) => {
+	if (userLookupError != null) {
+		return <ErrorAlert error={userLookupError} />;
+	}
+	if (unknownUsername !== undefined) {
+		return (
+			<Alert severity="warning">
+				No member named {unknownUsername} in this organization.
+			</Alert>
+		);
+	}
+	return <SpendUsersTable reportQuery={reportQuery} />;
 };

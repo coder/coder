@@ -5,14 +5,16 @@ import {
 	aiSpendOrganizations,
 	paginatedOrganizationAISpend,
 } from "#/api/queries/aiBridge";
+import { organizationMembers } from "#/api/queries/organizations";
 import type { OrganizationAISpendFilter } from "#/api/typesGenerated";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
+import {
+	parseFilterQuery,
+	stringifyFilter,
+} from "#/components/Filter/filterQuery";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { useClientFilterMenu } from "#/pages/AIBridgePage/filters/ClientFilter";
-import { useModelFilterMenu } from "#/pages/AIBridgePage/filters/ModelFilter";
-import { useProviderFilterMenu } from "#/pages/AIBridgePage/filters/ProviderFilter";
 import { getAIBridgePermissions } from "#/pages/AIBridgePage/getAIBridgePermissions";
 import {
 	modelOrganizationSearchParam,
@@ -24,6 +26,7 @@ import { defaultSpendPeriod } from "./spendPeriod";
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
+const userSearchParam = "user";
 
 type SpendDimensions = Pick<
 	OrganizationAISpendFilter,
@@ -108,23 +111,33 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				model: searchParams.get("model") || undefined,
 			}
 		: {};
-	const filterMenus = {
-		provider: useProviderFilterMenu({
-			value: dimensions.provider_name,
-			onChange: (option) => setFilterParams({ provider_name: option?.value }),
-			enabled: isSpendAvailable && canFilterDimensions,
+	const username = searchParams.get(userSearchParam) || undefined;
+	const filterQuery = stringifyFilter({
+		user: username,
+		provider: dimensions.provider_name,
+		model: dimensions.model,
+		client: dimensions.client,
+	});
+
+	// The URL keeps the readable username; the report filters by user ID.
+	const userLookupQuery = useQuery({
+		...organizationMembers(organization?.id ?? "", {
+			q: `username:${username}`,
+			limit: 1,
 		}),
-		client: useClientFilterMenu({
-			value: dimensions.client,
-			onChange: (option) => setFilterParams({ client: option?.value }),
-			enabled: isSpendAvailable && canFilterDimensions,
-		}),
-		model: useModelFilterMenu({
-			value: dimensions.model,
-			onChange: (option) => setFilterParams({ model: option?.value }),
-			enabled: isSpendAvailable && canFilterDimensions,
-		}),
-	};
+		enabled:
+			isSpendAvailable && organization !== undefined && username !== undefined,
+	});
+	const filteredUserId =
+		username === undefined
+			? undefined
+			: userLookupQuery.data?.members.at(0)?.user_id;
+	const unknownUsername =
+		username !== undefined &&
+		userLookupQuery.isSuccess &&
+		filteredUserId === undefined
+			? username
+			: undefined;
 
 	// The default period lives in memory, not the URL, so a shared link
 	// resolves relative to the viewer's current time. It is fixed per mount so
@@ -148,6 +161,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	const spendFilter: OrganizationAISpendFilter = {
 		period_start: period.start.toISOString(),
 		period_end: period.end.toISOString(),
+		user_id: filteredUserId,
 		...dimensions,
 	};
 
@@ -163,7 +177,10 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		...paginatedOrganizationAISpend(organization?.id ?? "", spendFilter),
 		recordsPerPage: 10,
 		preventScrollReset: true,
-		enabled: isSpendAvailable && organization !== undefined,
+		enabled:
+			isSpendAvailable &&
+			organization !== undefined &&
+			(username === undefined || filteredUserId !== undefined),
 	});
 
 	// Retention is deployment-wide. Keep the last reported cutoff while the
@@ -196,7 +213,19 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				period={{ ...period, preset }}
 				minDate={minDate}
 				onPeriodChange={onPeriodChange}
-				filterMenus={canFilterDimensions ? filterMenus : undefined}
+				filterQuery={filterQuery}
+				showDimensionFilters={canFilterDimensions}
+				onFilterQueryChange={(query) => {
+					const params = parseFilterQuery(query);
+					setFilterParams({
+						[userSearchParam]: params.user,
+						provider_name: params.provider,
+						model: params.model,
+						client: params.client,
+					});
+				}}
+				unknownUsername={unknownUsername}
+				userLookupError={userLookupQuery.error}
 				reportQuery={reportQuery}
 			/>
 		</>

@@ -5551,6 +5551,14 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 				want   codersdk.OrganizationAISpendReport
 			}{
 				{
+					name:   "User",
+					filter: codersdk.OrganizationAISpendFilter{UserID: targetUser.ID},
+					want: codersdk.OrganizationAISpendReport{
+						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 1500, UnpricedUsageCount: 1},
+						Users: []codersdk.OrganizationAISpendUser{target},
+					},
+				},
+				{
 					name:   "ProviderName",
 					filter: codersdk.OrganizationAISpendFilter{ProviderName: "openai-prod"},
 					want: codersdk.OrganizationAISpendReport{

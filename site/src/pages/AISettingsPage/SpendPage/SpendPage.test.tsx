@@ -19,6 +19,7 @@ import {
 	MockOrganization2,
 	MockOrganizationAISpendReport,
 	MockOrganizationAISpendUser,
+	MockOrganizationMember,
 	MockUserMember,
 } from "#/testHelpers/entities";
 import { renderHookWithAuth } from "#/testHelpers/hooks";
@@ -125,6 +126,19 @@ const searchParam = (
 	key: string,
 ) => new URLSearchParams(router.state.location.search).get(key);
 
+const chooseFilter = async (
+	user: ReturnType<typeof userEvent.setup>,
+	category: string,
+	option: RegExp,
+) => {
+	const input = screen.getByRole("combobox", {
+		name: "Search and filter users…",
+	});
+	await user.click(input);
+	await user.type(input, `${category}:`);
+	await user.click(await screen.findByRole("option", { name: option }));
+};
+
 it("requests the default organization and switches organizations from the first page", async () => {
 	const user = userEvent.setup();
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
@@ -222,8 +236,7 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 
 	// Leave the refiltered report pending so its retention bound never arrives.
 	spendSpy.mockImplementationOnce(() => new Promise(() => {}));
-	await user.click(screen.getByRole("button", { name: "Select provider" }));
-	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
+	await chooseFilter(user, "provider", /OpenAI/);
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
 			MockOrganization.id,
@@ -311,8 +324,7 @@ it("applies the provider filter and resets pagination", async () => {
 	const user = userEvent.setup();
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
-	await user.click(screen.getByRole("button", { name: "Select provider" }));
-	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
+	await chooseFilter(user, "provider", /OpenAI/);
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
 			MockOrganization.id,
@@ -321,6 +333,42 @@ it("applies the provider filter and resets pagination", async () => {
 	);
 	expect(searchParam(router, "provider_name")).toBe("openai");
 	expect(searchParam(router, "page")).toBeNull();
+});
+
+it("filters spend to the user picked in search", async () => {
+	const user = userEvent.setup();
+	vi.spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+		members: [MockOrganizationMember],
+		count: 1,
+	});
+	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
+	await screen.findByRole("table", { name: "Spend by user" });
+	await chooseFilter(user, "user", new RegExp(MockOrganizationMember.username));
+	await waitFor(() =>
+		expect(spendSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			expect.objectContaining({
+				user_id: MockOrganizationMember.user_id,
+				offset: 0,
+			}),
+		),
+	);
+	expect(searchParam(router, "user")).toBe(MockOrganizationMember.username);
+	expect(searchParam(router, "page")).toBeNull();
+});
+
+it("requests no spend when the filtered user is not an organization member", async () => {
+	vi.spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+		members: [],
+		count: 0,
+	});
+	const { spendSpy } = renderSpend(`${initialSearch}&user=nobody`);
+	await screen.findByText(/No member named nobody/);
+	expect(API.getOrganizationPaginatedMembers).toHaveBeenCalledWith(
+		MockOrganization.id,
+		expect.objectContaining({ q: "username:nobody" }),
+	);
+	expect(spendSpy).not.toHaveBeenCalled();
 });
 
 it("requests the next page offset", async () => {

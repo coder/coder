@@ -3712,6 +3712,7 @@ WITH spend AS (
 			WHEN $8::text != '' THEN COALESCE(ai.client, 'Unknown') = $8::text
 			ELSE true
 		END
+		AND ($9::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR ai.initiator_id = $9)
 	GROUP BY ai.initiator_id
 )
 SELECT
@@ -3744,6 +3745,7 @@ type ListOrganizationAISpendUsersParams struct {
 	ProviderName   string    `db:"provider_name" json:"provider_name"`
 	Model          string    `db:"model" json:"model"`
 	Client         string    `db:"client" json:"client"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
 }
 
 type ListOrganizationAISpendUsersRow struct {
@@ -3777,6 +3779,7 @@ func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListO
 		arg.ProviderName,
 		arg.Model,
 		arg.Client,
+		arg.UserID,
 	)
 	if err != nil {
 		return nil, err

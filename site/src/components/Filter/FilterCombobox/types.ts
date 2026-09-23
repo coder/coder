@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 
 export type FilterOption = {
 	label: string;
+	/** Label used once the option is applied; defaults to `label`. */
+	appliedLabel?: string;
 	value: string;
 	startIcon?: ReactNode;
 	subtitle?: string;
@@ -21,6 +23,8 @@ export type FilterCategory = {
 	icon?: ReactNode;
 	/** Extra typed prefixes that enter this category, e.g. `user` for `owner`. */
 	aliases?: readonly string[];
+	/** Fixed text at the end of the category row instead of an options sample. */
+	hint?: string;
 	/**
 	 * Query keys this category owns for chip parsing. Defaults to `[key]`. A
 	 * category that commits several distinct boolean keys (e.g. Attributes
@@ -28,16 +32,26 @@ export type FilterCategory = {
 	 * round-trips them as chips instead of free text.
 	 */
 	chipKeys?: readonly string[];
-};
-
-/** Live resource preview row shown while typing free-text search. */
-export type SearchResult = {
-	label: string;
-	value: string;
-	startIcon?: ReactNode;
-	subtitle?: string;
-	/** Renders an avatar when `startIcon` is not provided. */
-	imageUrl?: string;
-	/** Opaque payload for `onSearchResultSelect`, e.g. a workspace URL path. */
-	href?: string;
+	/** Render this category's options as top-level toggle rows instead of a submenu. */
+	inlineOptions?: boolean;
+	/** Heading shown above top-level options. Defaults to `${label} is…`. */
+	inlineOptionsLabel?: string;
+	/** Keep option icons when rendering the category as top-level rows. */
+	inlineOptionIcons?: boolean;
+	/** Selecting an option replaces another selected option from this category. */
+	inlineOptionsExclusive?: boolean;
+	/**
+	 * Switch shown below the category's options, on by default. While on,
+	 * options commit under `chipKey` instead of the category key, e.g. Owner
+	 * committing `user:alice` (owned by or shared with alice) instead of
+	 * `owner:alice`. While the category has a chip, a pill after it shows
+	 * `pillLabels.on` or `pillLabels.off` and removing it flips the switch.
+	 * `chipKey` must also be listed in `chipKeys` so it parses as this
+	 * category's chip.
+	 */
+	scopeToggle?: {
+		label: string;
+		chipKey: string;
+		pillLabels: { on: string; off: string };
+	};
 };

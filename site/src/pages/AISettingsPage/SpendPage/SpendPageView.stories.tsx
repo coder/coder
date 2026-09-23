@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
-import { MockMenu } from "#/components/Filter/storyHelpers";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
@@ -50,7 +49,11 @@ const meta = {
 		},
 		minDate: new Date("2026-01-12T00:00:00Z"),
 		onPeriodChange: fn(),
-		filterMenus: { provider: MockMenu, client: MockMenu, model: MockMenu },
+		filterQuery: "",
+		onFilterQueryChange: fn(),
+		showDimensionFilters: true,
+		unknownUsername: undefined,
+		userLookupError: null,
 		reportQuery: mockReportQuery,
 	},
 } satisfies Meta<typeof SpendPageView>;
@@ -101,7 +104,22 @@ export const Loading: Story = {
 export const Users: Story = {};
 
 export const WithoutDimensionFilters: Story = {
-	args: { filterMenus: undefined },
+	args: { showDimensionFilters: false },
+};
+
+export const FilteredByUser: Story = {
+	args: { filterQuery: "user:alice model:claude-4" },
+};
+
+export const UnknownUser: Story = {
+	args: { filterQuery: "user:nobody", unknownUsername: "nobody" },
+};
+
+export const UserLookupError: Story = {
+	args: {
+		filterQuery: "user:alice",
+		userLookupError: new Error("Unable to look up the user"),
+	},
 };
 
 export const SingleOrganization: Story = {

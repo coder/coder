@@ -498,6 +498,8 @@ type OrganizationAISpendFilter struct {
 	// must be supplied together.
 	PeriodStart time.Time `json:"period_start,omitempty" format:"date-time"`
 	PeriodEnd   time.Time `json:"period_end,omitempty" format:"date-time"`
+	// UserID matches the user who initiated the intercepted request.
+	UserID uuid.UUID `json:"user_id,omitempty" format:"uuid"`
 	// ProviderName matches the configured provider name recorded on the
 	// intercepted request.
 	ProviderName string `json:"provider_name,omitempty"`
@@ -522,6 +524,9 @@ func (f OrganizationAISpendFilter) asRequestOption() RequestOption {
 		}
 		if f.Model != "" {
 			q.Set("model", f.Model)
+		}
+		if f.UserID != uuid.Nil {
+			q.Set("user_id", f.UserID.String())
 		}
 		if f.Client != "" {
 			q.Set("client", f.Client)

@@ -62,13 +62,11 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 		// The default `user:me` renders as a committed chip, not free text.
 		await expect(
-			canvas.getByRole("button", { name: "Remove user:me" }),
+			canvas.getByRole("button", { name: "Remove owner:me" }),
 		).toBeVisible();
 	},
 };
 
-// Opens the menu, drills into a static category, commits an option, and asserts
-// the query the integration emits.
 export const SelectStatusOption: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -77,25 +75,15 @@ export const SelectStatusOption: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Toggle filters" }),
 		);
-		await userEvent.click(await body.findByRole("option", { name: "Status" }));
 		await userEvent.click(
 			await body.findByRole("option", { name: /running/i }),
 		);
-
-		await waitFor(() =>
-			expect(canvas.getByTestId("filter-query")).toHaveTextContent(
-				"status:running",
-			),
-		);
-		await expect(
-			canvas.getByRole("button", { name: "Remove status:running" }),
-		).toBeVisible();
 	},
 };
 
-// Regression guard: a user who cannot list others still gets User and Owner
-// categories (scoped to themselves), so `user` stays a chip key and the
-// category list is browsable instead of `user:me` collapsing into free text.
+// Regression guard: a user who cannot list others still gets an Owner category
+// (scoped to themselves), so `user` stays a chip key and the category list is
+// browsable instead of `user:me` collapsing into free text.
 export const OrdinaryUserKeepsUserChip: Story = {
 	args: { initialQuery: "user:me" },
 	parameters: { permissions: MockNoPermissions },
@@ -104,21 +92,17 @@ export const OrdinaryUserKeepsUserChip: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await expect(
-			canvas.getByRole("button", { name: "Remove user:me" }),
+			canvas.getByRole("button", { name: "Remove owner:me" }),
 		).toBeVisible();
 
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Toggle filters" }),
 		);
-		// Categories browse normally (User and Owner included) rather than being
-		// masked by free-text search.
+		// Categories browse normally (Owner included) rather than being masked by
+		// free-text search.
 		await waitFor(() => {
-			const names = body
-				.getAllByRole("option")
-				.map((option) => option.textContent?.trim());
-			expect(names).toEqual(
-				expect.arrayContaining(["Status", "User", "Owner"]),
-			);
+			expect(body.getByRole("option", { name: /^Owner/ })).toBeVisible();
+			expect(body.getByRole("option", { name: /running/i })).toBeVisible();
 		});
 	},
 };

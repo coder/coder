@@ -527,6 +527,7 @@ WITH spend AS (
 			WHEN @client::text != '' THEN COALESCE(ai.client, 'Unknown') = @client::text
 			ELSE true
 		END
+		AND (@user_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR ai.initiator_id = @user_id)
 	GROUP BY ai.initiator_id
 )
 SELECT

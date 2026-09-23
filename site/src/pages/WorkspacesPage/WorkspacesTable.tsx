@@ -92,6 +92,7 @@ type WorkspacesTableProps = {
 	checkedWorkspaces: readonly Workspace[];
 	error?: unknown;
 	isUsingFilter: boolean;
+	onClearFilter: () => void;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	templates?: Template[];
 	canCreateTemplate: boolean;
@@ -105,6 +106,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	workspaces,
 	checkedWorkspaces,
 	isUsingFilter,
+	onClearFilter,
 	onCheckChange,
 	templates,
 	canCreateTemplate,
@@ -170,6 +172,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							<WorkspacesEmpty
 								templates={templates}
 								isUsingFilter={isUsingFilter}
+								onClearFilter={onClearFilter}
 								canCreateTemplate={canCreateTemplate}
 								canCreateWorkspace={canCreateWorkspace}
 							/>
