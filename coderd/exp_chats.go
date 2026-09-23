@@ -2760,6 +2760,24 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Chats created without an initial message have no stored effort,
+	// so apply the personal override postChats would have applied.
+	if reasoningEffort == nil && !chat.LastReasoningEffort.Valid {
+		overrideModelConfigID, overrideEffort, err := api.personalRootModelOverride(ctx, chat.OwnerID, chat.OrganizationID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to resolve chat model config.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if overrideEffort != nil &&
+			overrideModelConfigID == cmp.Or(modelConfigID, chat.LastModelConfigID) &&
+			chatprovider.IsValidReasoningEffort(*overrideEffort) {
+			reasoningEffort = overrideEffort
+		}
+	}
+
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
@@ -4353,73 +4371,85 @@ func (api *API) resolveCreateChatModelConfigID(
 		return *req.ModelConfigID, nil, 0, nil
 	}
 
-	personalOverridesEnabled, err := api.Database.GetChatPersonalModelOverridesEnabled(ctx)
+	overrideModelConfigID, overrideEffort, err := api.personalRootModelOverride(ctx, userID, req.OrganizationID)
 	if err != nil {
 		return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
 			Message: "Failed to resolve chat model config.",
 			Detail:  err.Error(),
 		}
 	}
-	if !personalOverridesEnabled {
-		id, status, resp := api.defaultCreateChatModelConfigID(ctx, req.OrganizationID)
-		return id, nil, status, resp
-	}
-
-	override, err := api.Database.GetChatUserModelOverride(ctx, database.GetChatUserModelOverrideParams{
-		UserID:         userID,
-		OrganizationID: req.OrganizationID,
-		Context:        string(codersdk.ChatPersonalModelOverrideContextRoot),
-	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
-			Message: "Failed to resolve chat model config.",
-			Detail:  err.Error(),
-		}
-	}
-	if err == nil {
-		switch codersdk.ChatPersonalModelOverrideMode(override.Mode) {
-		case codersdk.ChatPersonalModelOverrideModeChatDefault:
-		case codersdk.ChatPersonalModelOverrideModeModel:
-			if override.ModelConfigID.Valid {
-				_, reason, err := api.userCanUseChatModelConfig(
-					ctx,
-					userID,
-					req.OrganizationID,
-					override.ModelConfigID.UUID,
-				)
-				if err != nil {
-					return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
-						Message: "Failed to resolve chat model config.",
-						Detail:  err.Error(),
-					}
-				}
-				if reason == chatModelConfigAvailable {
-					var effort *string
-					if override.ReasoningEffort.Valid {
-						effort = &override.ReasoningEffort.String
-					}
-					return override.ModelConfigID.UUID, effort, 0, nil
-				}
-				api.Logger.Debug(
-					ctx,
-					"personal root model override is unavailable, using default model",
-					slog.F("user_id", userID),
-					slog.F("model_config_id", override.ModelConfigID.UUID),
-					slog.F("reason", reason),
-				)
-			}
-		default:
-			api.Logger.Warn(
-				ctx,
-				"unsupported personal root model override mode, using default model",
-				slog.F("user_id", userID),
-				slog.F("mode", override.Mode),
-			)
-		}
+	if overrideModelConfigID != uuid.Nil {
+		return overrideModelConfigID, overrideEffort, 0, nil
 	}
 
 	id, status, resp := api.defaultCreateChatModelConfigID(ctx, req.OrganizationID)
 	return id, nil, status, resp
+}
+
+// personalRootModelOverride returns the user's available personal root
+// model override and its reasoning effort, or uuid.Nil when personal
+// overrides are disabled or none applies.
+func (api *API) personalRootModelOverride(
+	ctx context.Context,
+	userID uuid.UUID,
+	organizationID uuid.UUID,
+) (uuid.UUID, *string, error) {
+	personalOverridesEnabled, err := api.Database.GetChatPersonalModelOverridesEnabled(ctx)
+	if err != nil {
+		return uuid.Nil, nil, err
+	}
+	if !personalOverridesEnabled {
+		return uuid.Nil, nil, nil
+	}
+
+	override, err := api.Database.GetChatUserModelOverride(ctx, database.GetChatUserModelOverrideParams{
+		UserID:         userID,
+		OrganizationID: organizationID,
+		Context:        string(codersdk.ChatPersonalModelOverrideContextRoot),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, nil, nil
+	}
+	if err != nil {
+		return uuid.Nil, nil, err
+	}
+	switch codersdk.ChatPersonalModelOverrideMode(override.Mode) {
+	case codersdk.ChatPersonalModelOverrideModeChatDefault:
+	case codersdk.ChatPersonalModelOverrideModeModel:
+		if override.ModelConfigID.Valid {
+			_, reason, err := api.userCanUseChatModelConfig(
+				ctx,
+				userID,
+				organizationID,
+				override.ModelConfigID.UUID,
+			)
+			if err != nil {
+				return uuid.Nil, nil, err
+			}
+			if reason == chatModelConfigAvailable {
+				var effort *string
+				if override.ReasoningEffort.Valid {
+					effort = &override.ReasoningEffort.String
+				}
+				return override.ModelConfigID.UUID, effort, nil
+			}
+			api.Logger.Debug(
+				ctx,
+				"personal root model override is unavailable, using default model",
+				slog.F("user_id", userID),
+				slog.F("model_config_id", override.ModelConfigID.UUID),
+				slog.F("reason", reason),
+			)
+		}
+	default:
+		api.Logger.Warn(
+			ctx,
+			"unsupported personal root model override mode, using default model",
+			slog.F("user_id", userID),
+			slog.F("mode", override.Mode),
+		)
+	}
+	return uuid.Nil, nil, nil
 }
 
 func (api *API) defaultCreateChatModelConfigID(

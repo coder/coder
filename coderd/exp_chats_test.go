@@ -15282,6 +15282,55 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 		require.Equal(t, ptr.Ref("high"), chat.LastReasoningEffort)
 	})
 
+	t.Run("EmptyCreateFirstMessageUsesSavedReasoningEffort", func(t *testing.T) {
+		reasoningModel, err := adminClient.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
+			AIProviderID: &overrideProvider.ID,
+			Model:        "claude-root-personal-empty-" + uuid.NewString(),
+			ContextLimit: &contextLimit,
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+					Default: ptr.Ref("medium"),
+					Max:     ptr.Ref("high"),
+				},
+			},
+		})
+		require.NoError(t, err)
+		err = adminClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.Me, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+			Mode:            codersdk.ChatPersonalModelOverrideModeModel,
+			ModelConfigID:   reasoningModel.ID.String(),
+			ReasoningEffort: ptr.Ref("high"),
+		})
+		require.NoError(t, err)
+
+		sendFirstMessage := func(modelConfigID *uuid.UUID) database.Chat {
+			t.Helper()
+			chat, err := adminClient.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
+			})
+			require.NoError(t, err)
+			require.Equal(t, reasoningModel.ID, chat.LastModelConfigID)
+			require.Nil(t, chat.LastReasoningEffort)
+
+			_, err = adminClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content:       []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "first message"}},
+				ModelConfigID: modelConfigID,
+			})
+			require.NoError(t, err)
+			storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+			require.NoError(t, err)
+			return storedChat
+		}
+
+		storedChat := sendFirstMessage(nil)
+		require.True(t, storedChat.LastReasoningEffort.Valid)
+		require.Equal(t, database.ChatReasoningEffortHigh, storedChat.LastReasoningEffort.ChatReasoningEffort)
+
+		// The override effort belongs to its model, so a send that
+		// targets another model must not inherit it.
+		storedChat = sendFirstMessage(ptr.Ref(defaultModel.ID))
+		require.False(t, storedChat.LastReasoningEffort.Valid)
+	})
+
 	t.Run("CrossOrgRootModelIsUnrepresentable", func(t *testing.T) {
 		org := dbgen.Organization(t, db, database.Organization{IsDefault: false})
 		orgModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
