@@ -337,7 +337,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		return
 	}
 	// Detach from request; bind to server so Close cancels it.
-	titleCtx, stopTitleCtx := p.inflightContext(ctx)
+	titleCtx, stopTitleCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopTitleCtx()
 		apiKeyID, err := p.ensureSyntheticAPIKeyID(titleCtx, chat.OwnerID)
