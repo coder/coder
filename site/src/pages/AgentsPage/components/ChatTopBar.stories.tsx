@@ -419,6 +419,34 @@ export const WithMultiplePRs: Story = {
 	},
 };
 
+// Both repositories carry PR #123, so the menu must name each
+// repository to keep the entries apart.
+const mockCrossOriginPRStatuses = [
+	mockPRStatuses[0],
+	{
+		...mockPRStatuses[1],
+		remote_origin: "https://github.com/coder/other-project.git",
+		url: "https://github.com/coder/other-project/pull/123",
+		pr_number: 123,
+		pull_request_title: "fix: resolve race condition in workspace builds",
+	},
+] as const;
+
+export const WithCrossOriginPRs: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			diff_statuses: mockCrossOriginPRStatuses,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Open the menu so the screenshot captures it.
+		await userEvent.click(canvas.getByRole("button", { name: /2 PRs/ }));
+		await within(document.body).findByRole("menu");
+	},
+};
+
 export const RenameChatItem: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
