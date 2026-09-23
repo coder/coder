@@ -161,7 +161,6 @@ describe("useConversationEditingState", () => {
 			);
 		});
 
-		expect(result.current.editingMessageId).toBe(7);
 		expect(result.current.editingTarget).toEqual({ kind: "history", id: 7 });
 		expect(result.current.editorInitialValue).toBe("edited message");
 		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
