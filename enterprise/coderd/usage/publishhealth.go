@@ -16,8 +16,8 @@ type PublishHealth struct {
 
 // PublishHealthSnapshot is a point-in-time copy of publisher health.
 type PublishHealthSnapshot struct {
-	LastPublishedAt time.Time
-	FailureStartedAt time.Time
+	LastPublishedAt               time.Time
+	FailureStartedAt              time.Time
 	LocalDatabaseFailureStartedAt time.Time
 }
 
