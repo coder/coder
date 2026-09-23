@@ -1,10 +1,24 @@
 import { act, renderHook } from "@testing-library/react";
-import { createRef } from "react";
+import { createRef, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
+import type { EditingTarget } from "../components/ChatConversation/types";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import { draftInputStorageKeyPrefix } from "../utils/draftStorage";
 import { useConversationEditingState } from "./useConversationEditingState";
+import {
+	type ComposerMode,
+	deriveComposerTarget,
+	type MarkerRequest,
+} from "./useQueuedMessageEdit";
+
+const idleMarker: MarkerRequest = { isPending: false, variables: undefined };
+
+const textContent = (
+	text: string,
+	fileBlocks: readonly ChatMessagePart[] = [],
+): readonly ChatMessagePart[] => [{ type: "text", text }, ...fileBlocks];
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -71,26 +85,75 @@ describe("useConversationEditingState", () => {
 		setMobileViewport(false);
 	});
 
+	// The harness owns composerMode and derives the target the way the page
+	// does: from the mode, the store marker and the marker request.
+	type ServerProps = {
+		serverMarkedID: number | null;
+		marker: MarkerRequest;
+	};
 	const renderEditing = (...args: [] | [string | undefined]) => {
 		const onSend = vi.fn().mockResolvedValue(undefined);
 		const chatInputRef = createRef<ChatMessageInputRef>();
 		const inputValueRef = { current: "" };
-		// createRef returns { current: null }, but we need it initialized
-		// to "" so the hook sees a string.
-		(inputValueRef as { current: string }).current = "";
+		const contents = new Map<string, readonly ChatMessagePart[]>();
+		const contentKey = (target: EditingTarget) => `${target.kind}:${target.id}`;
 
 		const resolvedChatID = args.length === 0 ? chatID : args[0];
+		const initialProps: ServerProps = {
+			serverMarkedID: null,
+			marker: idleMarker,
+		};
 
-		const hook = renderHook(() =>
-			useConversationEditingState({
-				chatID: resolvedChatID,
-				onSend,
-				chatInputRef,
-				inputValueRef,
-			}),
+		const hook = renderHook(
+			(props: ServerProps) => {
+				const [composerMode, setComposerMode] = useState<ComposerMode>();
+				const target = deriveComposerTarget(
+					composerMode,
+					props.serverMarkedID,
+					props.marker,
+					true,
+				);
+				const editing = useConversationEditingState({
+					chatID: resolvedChatID,
+					onSend,
+					chatInputRef,
+					inputValueRef,
+					composerMode,
+					setComposerMode,
+					target,
+					targetContent: target ? contents.get(contentKey(target)) : undefined,
+				});
+				return { ...editing, composerMode, setComposerMode };
+			},
+			{ initialProps },
 		);
 
-		return { ...hook, onSend, inputValueRef };
+		// Callers wrap this in act. A queued target is marked on the server
+		// first, as a settled begin request does on the page.
+		const beginEdit = (
+			target: EditingTarget,
+			text: string,
+			fileBlocks?: readonly ChatMessagePart[],
+		) => {
+			contents.set(contentKey(target), textContent(text, fileBlocks));
+			if (target.kind === "queued") {
+				hook.rerender({ serverMarkedID: target.id, marker: idleMarker });
+			}
+			hook.result.current.setComposerMode(target);
+		};
+		// The store marks a row, or none, with the latest marker request.
+		const markOnServer = (
+			id: number | null,
+			text = "queued text",
+			marker = idleMarker,
+		) => {
+			if (id !== null) {
+				contents.set(contentKey({ kind: "queued", id }), textContent(text));
+			}
+			hook.rerender({ serverMarkedID: id, marker });
+		};
+
+		return { ...hook, onSend, inputValueRef, beginEdit, markOnServer };
 	};
 
 	it("persists and removes drafts via handleContentChange", () => {
@@ -141,7 +204,7 @@ describe("useConversationEditingState", () => {
 	});
 
 	it("loads edit text into the composer and restores the prior draft on cancel without refocusing", () => {
-		const { result, unmount } = renderEditing();
+		const { result, unmount, beginEdit } = renderEditing();
 
 		// Simulate the user typing a draft via handleContentChange.
 		act(() => {
@@ -155,10 +218,7 @@ describe("useConversationEditingState", () => {
 		const remountKeyBefore = result.current.remountKey;
 
 		act(() => {
-			result.current.handleBeginEdit(
-				{ kind: "history", id: 7 },
-				"edited message",
-			);
+			beginEdit({ kind: "history", id: 7 }, "edited message");
 		});
 
 		expect(result.current.editingTarget).toEqual({ kind: "history", id: 7 });
@@ -179,7 +239,7 @@ describe("useConversationEditingState", () => {
 
 	it("does not force focus when replacing input values on mobile", () => {
 		setMobileViewport(true);
-		const { result, unmount } = renderEditing();
+		const { result, unmount, beginEdit } = renderEditing();
 		const mockInput = createMockChatInputHandle("draft before edit");
 		result.current.chatInputRef.current = mockInput.handle;
 
@@ -188,10 +248,7 @@ describe("useConversationEditingState", () => {
 		// edit and cancel flows. handleSendFromInput is the only
 		// path that calls focus and it skips on mobile viewports.
 		act(() => {
-			result.current.handleBeginEdit(
-				{ kind: "history", id: 7 },
-				"edited message",
-			);
+			beginEdit({ kind: "history", id: 7 }, "edited message");
 		});
 		expect(mockInput.focus).not.toHaveBeenCalled();
 
@@ -204,13 +261,10 @@ describe("useConversationEditingState", () => {
 
 	it("falls back to the persisted draft when history edit starts before hydration", () => {
 		localStorage.setItem(expectedKey, "persisted draft");
-		const { result, unmount } = renderEditing();
+		const { result, unmount, beginEdit } = renderEditing();
 
 		act(() => {
-			result.current.handleBeginEdit(
-				{ kind: "history", id: 7 },
-				"edited message",
-			);
+			beginEdit({ kind: "history", id: 7 }, "edited message");
 		});
 
 		act(() => {
@@ -225,7 +279,7 @@ describe("useConversationEditingState", () => {
 
 	it("prefers the live editor value over stale persisted draft state", () => {
 		localStorage.setItem(expectedKey, "stale persisted draft");
-		const { result, unmount } = renderEditing();
+		const { result, unmount, beginEdit } = renderEditing();
 
 		// Simulate the editor emitting a content change, which updates
 		// inputValueRef to the live value.
@@ -234,10 +288,7 @@ describe("useConversationEditingState", () => {
 		});
 
 		act(() => {
-			result.current.handleBeginEdit(
-				{ kind: "history", id: 7 },
-				"edited message",
-			);
+			beginEdit({ kind: "history", id: 7 }, "edited message");
 		});
 
 		act(() => {
@@ -249,14 +300,14 @@ describe("useConversationEditingState", () => {
 	});
 
 	it("can load the same edit text again after send", async () => {
-		const { result, onSend, unmount } = renderEditing();
+		const { result, onSend, unmount, beginEdit } = renderEditing();
 		const mockInput = createMockChatInputHandle();
 		result.current.chatInputRef.current = mockInput.handle;
 
 		const remountKeyBefore = result.current.remountKey;
 
 		act(() => {
-			result.current.handleBeginEdit({ kind: "history", id: 7 }, "hello");
+			beginEdit({ kind: "history", id: 7 }, "hello");
 		});
 
 		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
@@ -268,7 +319,7 @@ describe("useConversationEditingState", () => {
 		const remountKeyAfterSend = result.current.remountKey;
 
 		act(() => {
-			result.current.handleBeginEdit({ kind: "history", id: 7 }, "hello");
+			beginEdit({ kind: "history", id: 7 }, "hello");
 		});
 
 		// remountKey increments each time an edit is loaded, even for
@@ -283,13 +334,13 @@ describe("useConversationEditingState", () => {
 	});
 
 	it("forwards pending attachments through history-edit send", async () => {
-		const { result, onSend, unmount } = renderEditing();
+		const { result, onSend, unmount, beginEdit } = renderEditing();
 		const attachments: PendingAttachment[] = [
 			{ fileId: "file-1", mediaType: "image/png" },
 		];
 
 		act(() => {
-			result.current.handleBeginEdit({ kind: "history", id: 7 }, "hello");
+			beginEdit({ kind: "history", id: 7 }, "hello");
 		});
 
 		await act(async () => {
@@ -304,7 +355,7 @@ describe("useConversationEditingState", () => {
 	});
 
 	it("restores the edit draft and file-block seed when an edit submission fails", async () => {
-		const { result, onSend, unmount } = renderEditing();
+		const { result, onSend, unmount, beginEdit } = renderEditing();
 		const mockInput = createMockChatInputHandle("edited message");
 		const fileBlocks = [
 			{ type: "file", file_id: "file-1", media_type: "image/png" },
@@ -324,11 +375,10 @@ describe("useConversationEditingState", () => {
 		});
 
 		act(() => {
-			result.current.handleBeginEdit(
-				{ kind: "history", id: 7 },
-				"edited message",
-				fileBlocks,
-			);
+			beginEdit({ kind: "history", id: 7 }, "edited message", fileBlocks);
+		});
+		// The remounted editor echoes the loaded text with its serialized state.
+		act(() => {
 			result.current.handleContentChange("edited message", editorState, false);
 		});
 
@@ -599,7 +649,7 @@ describe("useConversationEditingState", () => {
 		});
 		localStorage.setItem(expectedKey, editorState);
 
-		const { result, unmount } = renderEditing();
+		const { result, unmount, beginEdit } = renderEditing();
 
 		expect(result.current.initialEditorState).toBe(editorState);
 		expect(result.current.editorInitialValue).toBe("my draft");
@@ -611,10 +661,7 @@ describe("useConversationEditingState", () => {
 
 		// Start editing a history message.
 		act(() => {
-			result.current.handleBeginEdit(
-				{ kind: "history", id: 42 },
-				"old message text",
-			);
+			beginEdit({ kind: "history", id: 42 }, "old message text");
 		});
 
 		expect(result.current.editingTarget).toEqual({ kind: "history", id: 42 });
@@ -635,7 +682,7 @@ describe("useConversationEditingState", () => {
 	it("returns undefined initialEditorState after edit then cancel with plain-text draft", () => {
 		localStorage.setItem(expectedKey, "plain text draft");
 
-		const { result, unmount } = renderEditing();
+		const { result, unmount, beginEdit } = renderEditing();
 
 		expect(result.current.initialEditorState).toBeUndefined();
 
@@ -648,7 +695,7 @@ describe("useConversationEditingState", () => {
 		});
 
 		act(() => {
-			result.current.handleBeginEdit({ kind: "history", id: 1 }, "editing");
+			beginEdit({ kind: "history", id: 1 }, "editing");
 		});
 
 		act(() => {
@@ -661,11 +708,11 @@ describe("useConversationEditingState", () => {
 	});
 
 	it("does not overwrite the persisted draft while editing a message", () => {
-		const { result, unmount } = renderEditing();
+		const { result, unmount, beginEdit } = renderEditing();
 
 		act(() => {
 			result.current.handleContentChange("draft", "draft", false);
-			result.current.handleBeginEdit({ kind: "history", id: 7 }, "old text");
+			beginEdit({ kind: "history", id: 7 }, "old text");
 		});
 		act(() => {
 			result.current.handleContentChange("edited text", "edited text", false);
@@ -673,5 +720,201 @@ describe("useConversationEditingState", () => {
 
 		expect(localStorage.getItem(expectedKey)).toBe("draft");
 		unmount();
+	});
+
+	describe("queued message editing", () => {
+		it("saving a queued row passes the queued target and restores the draft from before the edit", async () => {
+			localStorage.setItem(expectedKey, "draft");
+			const { result, onSend, unmount, beginEdit } = renderEditing();
+			const mockInput = createMockChatInputHandle("queued edit");
+			result.current.chatInputRef.current = mockInput.handle;
+			const attachments: PendingAttachment[] = [
+				{ fileId: "file-1", mediaType: "image/png" },
+			];
+
+			act(() => {
+				result.current.handleContentChange("draft", "draft", false);
+				beginEdit({ kind: "queued", id: 42 }, "queued text");
+			});
+
+			await act(async () => {
+				await result.current.handleSendFromInput("queued edit", attachments);
+			});
+
+			expect(onSend).toHaveBeenCalledWith("queued edit", attachments, {
+				kind: "queued",
+				id: 42,
+			});
+			expect(mockInput.clear).toHaveBeenCalled();
+			expect(mockInput.focus).toHaveBeenCalled();
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.editingFileBlocks).toEqual([]);
+			expect(result.current.editorInitialValue).toBe("draft");
+			expect(result.current.inputValueRef.current).toBe("draft");
+			expect(localStorage.getItem(expectedKey)).toBe("draft");
+			unmount();
+		});
+
+		// The row's text is "queued text"; the draft before the edit is "draft".
+		it.each([
+			[
+				"modified text stays as a new-message draft",
+				"queued edit",
+				"queued edit",
+				"draft",
+			],
+			[
+				"unmodified text gives way to the draft from before the edit and the composer counts as untouched",
+				"queued text",
+				"draft",
+				undefined,
+			],
+		])(
+			"when the server ends the edit and marks no other row, %s",
+			(_name, textWhileEditing, expectedDraft, expectedMode) => {
+				const { result, unmount, beginEdit, markOnServer } = renderEditing();
+
+				act(() => {
+					result.current.handleContentChange("draft", "draft", false);
+					beginEdit({ kind: "queued", id: 42 }, "queued text");
+				});
+				act(() => {
+					result.current.handleContentChange(
+						textWhileEditing,
+						textWhileEditing,
+						false,
+					);
+				});
+
+				markOnServer(null);
+
+				expect(result.current.editingTarget).toBeNull();
+				expect(result.current.composerMode).toBe(expectedMode);
+				expect(result.current.inputValueRef.current).toBe(expectedDraft);
+				expect(localStorage.getItem(expectedKey)).toBe(expectedDraft);
+				unmount();
+			},
+		);
+
+		it.each([
+			[
+				"modified text stays as a new-message draft and no edit opens",
+				"queued edit",
+				null,
+				"queued edit",
+			],
+			[
+				"unmodified text follows the edit to the newly marked row",
+				"queued text",
+				{ kind: "queued", id: 6 },
+				"other row",
+			],
+		])(
+			"when another client moves the edit to a different row, %s",
+			(_name, textWhileEditing, expectedTarget, expectedText) => {
+				const { result, unmount, beginEdit, markOnServer } = renderEditing();
+
+				act(() => {
+					result.current.handleContentChange("draft", "draft", false);
+					beginEdit({ kind: "queued", id: 42 }, "queued text");
+				});
+				act(() => {
+					result.current.handleContentChange(
+						textWhileEditing,
+						textWhileEditing,
+						false,
+					);
+				});
+
+				markOnServer(6, "other row");
+
+				expect(result.current.editingTarget).toEqual(expectedTarget);
+				expect(result.current.inputValueRef.current).toBe(expectedText);
+				unmount();
+			},
+		);
+
+		it("on reload, opens the marked row and keeps the saved draft for when the edit ends", () => {
+			localStorage.setItem(expectedKey, "saved draft");
+			const { result, unmount, markOnServer } = renderEditing();
+			expect(result.current.editingTarget).toBeNull();
+
+			// Reload: the store hydrates after the first render.
+			markOnServer(5, "run the migrations");
+
+			expect(result.current.editingTarget).toEqual({ kind: "queued", id: 5 });
+			expect(result.current.editorInitialValue).toBe("run the migrations");
+			expect(result.current.composerMode).toBeUndefined();
+
+			// The seed echo does not count as input; the composer stays untouched.
+			act(() => {
+				result.current.handleContentChange(
+					"run the migrations",
+					"run the migrations",
+					false,
+				);
+			});
+			expect(result.current.composerMode).toBeUndefined();
+
+			markOnServer(null);
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.editorInitialValue).toBe("saved draft");
+			unmount();
+		});
+
+		it("the first keystroke pins the edit to the marked row, so a later marker on another row does not open it", () => {
+			const { result, unmount, markOnServer } = renderEditing();
+			markOnServer(5);
+
+			act(() => {
+				result.current.handleContentChange(
+					"queued text!",
+					"queued text!",
+					false,
+				);
+			});
+			expect(result.current.editingTarget).toEqual({ kind: "queued", id: 5 });
+
+			markOnServer(null);
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.inputValueRef.current).toBe("queued text!");
+
+			markOnServer(6);
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.inputValueRef.current).toBe("queued text!");
+			unmount();
+		});
+
+		it("typing into an untouched composer keeps it on the draft when a row is marked later", () => {
+			const { result, unmount, markOnServer } = renderEditing();
+			act(() => {
+				result.current.handleContentChange("hi", "hi", false);
+			});
+
+			markOnServer(5);
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.inputValueRef.current).toBe("hi");
+			unmount();
+		});
+
+		it("Cancel restores the draft from before the edit and leaves the composer in draft mode", () => {
+			const { result, unmount, beginEdit } = renderEditing();
+			act(() => {
+				result.current.handleContentChange("draft", "draft", false);
+				beginEdit({ kind: "queued", id: 42 }, "queued text");
+			});
+			act(() => {
+				result.current.handleContentChange("queued edit", "queued edit", false);
+			});
+
+			act(() => {
+				result.current.handleCancelEdit();
+			});
+			expect(result.current.composerMode).toBe("draft");
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.editorInitialValue).toBe("draft");
+			expect(result.current.inputValueRef.current).toBe("draft");
+			unmount();
+		});
 	});
 });

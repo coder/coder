@@ -1,7 +1,9 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import isEqual from "lodash/isEqual";
+import { useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { isMobileViewport } from "#/utils/mobile";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
+import { getEditableContentPayload } from "../components/ChatConversation/messageParsing";
 import type { EditingTarget } from "../components/ChatConversation/types";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import {
@@ -9,8 +11,18 @@ import {
 	type ParsedDraft,
 	parseStoredDraft,
 } from "../utils/draftStorage";
+import type { ComposerMode } from "./useQueuedMessageEdit";
 
 export class BuiltInCommandPendingError extends Error {}
+
+/** The target whose text the editor holds, as loaded. */
+type LoadedTarget = {
+	target: EditingTarget;
+	text: string;
+	fileBlocks: readonly ChatMessagePart[];
+};
+
+const noFileBlocks: readonly ChatMessagePart[] = [];
 
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
@@ -22,8 +34,22 @@ export function useConversationEditingState(deps: {
 	) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	inputValueRef: React.RefObject<string>;
+	composerMode: ComposerMode;
+	setComposerMode: (mode: ComposerMode) => void;
+	// The row the composer edits and its content as the editor loads it.
+	target: EditingTarget | null;
+	targetContent: readonly ChatMessagePart[] | undefined;
 }) {
-	const { chatID, onSend, chatInputRef, inputValueRef } = deps;
+	const {
+		chatID,
+		onSend,
+		chatInputRef,
+		inputValueRef,
+		composerMode,
+		setComposerMode,
+		target,
+		targetContent,
+	} = deps;
 	const draftStorageKey = chatID
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
@@ -58,57 +84,96 @@ export function useConversationEditingState(deps: {
 		}
 	}, [editorInitialValue, inputValueRef]);
 
-	const [editingTarget, setEditingTarget] = useState<EditingTarget | null>(
-		null,
-	);
+	const [loadedTarget, setLoadedTarget] = useState<LoadedTarget | null>(null);
+	// The draft the user had before an edit opened; restored when the edit
+	// ends without sending.
 	const [draftBeforeEdit, setDraftBeforeEdit] = useState<ParsedDraft | null>(
 		null,
 	);
-	const [editingFileBlocks, setEditingFileBlocks] = useState<
-		readonly ChatMessagePart[]
-	>([]);
 
-	const handleBeginEdit = (
-		target: EditingTarget,
-		text: string,
-		fileBlocks?: readonly ChatMessagePart[],
-	) => {
-		if (editingTarget === null) {
-			// Read the current serialized editor state from localStorage
-			// (kept up-to-date by handleContentChange) rather than from
-			// the stale initialEditorState React state.
-			const currentEditorState = draftStorageKey
-				? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
-				: undefined;
-			setDraftBeforeEdit({
-				text: inputValueRef.current,
-				editorState: currentEditorState,
-			});
-		}
-		setEditingTarget(target);
+	const loadEditorText = (text: string, editorState: string | undefined) => {
 		setDraftState({
 			editorInitialValue: text,
-			initialEditorState: undefined,
+			initialEditorState: editorState,
 		});
-		serializedEditorStateRef.current = undefined;
+		serializedEditorStateRef.current = editorState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
-		setEditingFileBlocks(fileBlocks ?? []);
+	};
+
+	const persistDraft = () => {
+		if (!draftStorageKey) {
+			return;
+		}
+		const draft = serializedEditorStateRef.current ?? inputValueRef.current;
+		if (inputValueRef.current.trim()) {
+			try {
+				localStorage.setItem(draftStorageKey, draft);
+			} catch {
+				// QuotaExceededError, silently discard the draft.
+			}
+		} else {
+			localStorage.removeItem(draftStorageKey);
+		}
 	};
 
 	const restoreDraftBeforeEdit = () => {
-		const savedText = draftBeforeEdit?.text ?? "";
-		const savedState = draftBeforeEdit?.editorState;
-		setDraftState({
-			editorInitialValue: savedText,
-			initialEditorState: savedState,
-		});
-		serializedEditorStateRef.current = savedState;
-		setRemountKey((k) => k + 1);
-		inputValueRef.current = savedText;
-		setEditingTarget(null);
+		loadEditorText(draftBeforeEdit?.text ?? "", draftBeforeEdit?.editorState);
+		setLoadedTarget(null);
 		setDraftBeforeEdit(null);
-		setEditingFileBlocks([]);
+	};
+
+	// Loads the editor for a target change. The editor is uncontrolled, Lexical
+	// behind inputValueRef, so loading it is imperative work that belongs in a
+	// layout effect; it runs before paint. User actions that leave a target
+	// set loadedTarget themselves, so only server-driven changes reach the
+	// leave branch: dirty text stays as a new-message draft; clean text gives
+	// the draft back and the composer counts as untouched again, so it follows
+	// the row the server marks now.
+	const loadTargetIntoEditor = useEffectEvent(() => {
+		if (isEqual(target, loadedTarget?.target ?? null)) {
+			return;
+		}
+		const textModified =
+			loadedTarget !== null && inputValueRef.current !== loadedTarget.text;
+		if (target === null) {
+			if (textModified) {
+				setLoadedTarget(null);
+				setDraftBeforeEdit(null);
+				persistDraft();
+				setComposerMode("draft");
+			} else {
+				restoreDraftBeforeEdit();
+				setComposerMode(undefined);
+			}
+			return;
+		}
+		const { text, fileBlocks } = getEditableContentPayload(targetContent);
+		if (loadedTarget === null) {
+			// localStorage holds the serialized state handleContentChange
+			// persisted; the initialEditorState React state is stale.
+			setDraftBeforeEdit({
+				text: inputValueRef.current,
+				editorState: draftStorageKey
+					? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
+					: undefined,
+			});
+		} else if (textModified) {
+			setDraftBeforeEdit({
+				text: inputValueRef.current,
+				editorState: serializedEditorStateRef.current,
+			});
+		}
+		loadEditorText(text, undefined);
+		setLoadedTarget({ target, text, fileBlocks: fileBlocks ?? noFileBlocks });
+	});
+	useLayoutEffect(() => {
+		loadTargetIntoEditor();
+	}, [target]);
+
+	const handleCancelEdit = () => {
+		restoreDraftBeforeEdit();
+		setComposerMode("draft");
 	};
 
 	// Clears the composer for an in-flight edit and returns a rollback
@@ -116,41 +181,36 @@ export function useConversationEditingState(deps: {
 	const clearInputForEdit = (message: string) => {
 		const snapshot = {
 			editorState: serializedEditorStateRef.current,
-			fileBlocks: editingFileBlocks,
-			target: editingTarget,
+			loadedTarget,
 		};
 
-		chatInputRef.current?.clear();
 		inputValueRef.current = "";
-		setEditingTarget(null);
+		chatInputRef.current?.clear();
+		setLoadedTarget(null);
+		setComposerMode("draft");
 
 		return () => {
-			setDraftState({
-				editorInitialValue: message,
-				initialEditorState: snapshot.editorState,
-			});
-			serializedEditorStateRef.current = snapshot.editorState;
-			setRemountKey((k) => k + 1);
-			inputValueRef.current = message;
-			setEditingTarget(snapshot.target);
-			setEditingFileBlocks(snapshot.fileBlocks);
+			loadEditorText(message, snapshot.editorState);
+			setLoadedTarget(snapshot.loadedTarget);
+			if (snapshot.loadedTarget) {
+				setComposerMode(snapshot.loadedTarget.target);
+			}
 		};
 	};
 
 	// Clears all input and editing state after a successful send.
-	const finalizeSuccessfulSend = (target: EditingTarget | undefined) => {
+	const finalizeSuccessfulSend = (sentTarget: EditingTarget | undefined) => {
+		inputValueRef.current = "";
 		chatInputRef.current?.clear();
 		if (!isMobileViewport()) {
 			chatInputRef.current?.focus();
 		}
-		inputValueRef.current = "";
 		serializedEditorStateRef.current = undefined;
 		if (draftStorageKey) {
 			localStorage.removeItem(draftStorageKey);
 		}
-		if (target !== undefined) {
+		if (sentTarget !== undefined) {
 			setDraftBeforeEdit(null);
-			setEditingFileBlocks([]);
 		}
 	};
 
@@ -159,13 +219,13 @@ export function useConversationEditingState(deps: {
 		message: string,
 		attachments?: readonly PendingAttachment[],
 	) => {
-		const target = editingTarget ?? undefined;
-		const sendPromise = onSend(message, attachments, target);
+		const sendTarget = target ?? undefined;
+		const sendPromise = onSend(message, attachments, sendTarget);
 
 		// For edits, clear input immediately and prepare a rollback in
 		// case the send fails.
 		const rollback =
-			target !== undefined ? clearInputForEdit(message) : undefined;
+			sendTarget !== undefined ? clearInputForEdit(message) : undefined;
 
 		try {
 			await sendPromise;
@@ -177,7 +237,16 @@ export function useConversationEditingState(deps: {
 			throw error;
 		}
 
-		finalizeSuccessfulSend(target);
+		if (sendTarget?.kind === "queued") {
+			// A saved queued row does not start a turn; the pre-edit draft
+			// is restored.
+			restoreDraftBeforeEdit();
+			if (!isMobileViewport()) {
+				chatInputRef.current?.focus();
+			}
+			return;
+		}
+		finalizeSuccessfulSend(sendTarget);
 	};
 
 	const handleContentChange = (
@@ -185,12 +254,18 @@ export function useConversationEditingState(deps: {
 		serializedEditorState: string,
 		hasFileReferences: boolean,
 	) => {
+		// The editor seed echoes the text the ref already holds; anything
+		// else is user input.
+		const isUserInput = content !== inputValueRef.current;
 		inputValueRef.current = content;
 		serializedEditorStateRef.current = serializedEditorState;
+		if (isUserInput && composerMode === undefined) {
+			setComposerMode(target ?? "draft");
+		}
 
 		// Don't overwrite the persisted draft while editing a message.
 		// The original draft is saved in React state and should survive a cancel.
-		if (editingTarget !== null) {
+		if (target !== null) {
 			return;
 		}
 
@@ -229,10 +304,9 @@ export function useConversationEditingState(deps: {
 		editorInitialValue,
 		initialEditorState,
 		remountKey,
-		editingTarget,
-		editingFileBlocks,
-		handleBeginEdit,
-		handleCancelEdit: restoreDraftBeforeEdit,
+		editingTarget: target,
+		editingFileBlocks: loadedTarget?.fileBlocks ?? noFileBlocks,
+		handleCancelEdit,
 		handleSendFromInput,
 		handleContentChange,
 		handleLoadingDraftChange,
