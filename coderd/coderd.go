@@ -1039,6 +1039,13 @@ func New(options *Options) *API {
 	}
 
 	wsMetrics := httpmw.NewWSMetrics(options.PrometheusRegistry)
+	api.chatWorkspaceUploadsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "chat",
+		Name:      "workspace_upload_total",
+		Help:      "Total chat workspace file uploads by HTTP response status.",
+	}, []string{"status"})
+	options.PrometheusRegistry.MustRegister(api.chatWorkspaceUploadsTotal)
 	api.wsWatcher = httpapi.NewWSWatcher(options.Clock, wsMetrics.RecordProbe)
 
 	api.workspaceAppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
@@ -2245,6 +2252,8 @@ type API struct {
 	lifecycleMetrics         *agentapi.LifecycleMetrics
 	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
 	wsWatcher                *httpapi.WSWatcher
+
+	chatWorkspaceUploadsTotal *prometheus.CounterVec
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app

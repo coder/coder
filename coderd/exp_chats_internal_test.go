@@ -11,6 +11,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"testing/iotest"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -30,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestAuditedChatOperationalSettingWriteNoOpTransactionFailure(t *testing.T) {
@@ -766,5 +769,73 @@ func TestWriteWorkspaceAgentUploadError(t *testing.T) {
 
 		require.Equal(t, http.StatusBadGateway, rw.Code)
 		require.Contains(t, rw.Body.String(), "Failed to upload file to workspace agent")
+		require.NotContains(t, rw.Body.String(), "dial failed")
 	})
+}
+
+func TestChatWorkspaceUploadAgent(t *testing.T) {
+	t.Parallel()
+
+	alpha := database.WorkspaceAgent{ID: uuid.New(), Name: "alpha", DisplayOrder: 0}
+	beta := database.WorkspaceAgent{ID: uuid.New(), Name: "beta", DisplayOrder: 1}
+	agents := []database.WorkspaceAgent{beta, alpha}
+
+	tests := []struct {
+		name    string
+		agentID uuid.NullUUID
+		want    uuid.UUID
+	}{
+		{name: "Unbound", want: alpha.ID},
+		{name: "BoundAgentPreferred", agentID: uuid.NullUUID{UUID: beta.ID, Valid: true}, want: beta.ID},
+		{name: "StaleBindingFallsBack", agentID: uuid.NullUUID{UUID: uuid.New(), Valid: true}, want: alpha.ID},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := chatWorkspaceUploadAgent(database.Chat{AgentID: tt.agentID}, agents)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got.ID)
+		})
+	}
+}
+
+func TestWorkspaceUsageReader(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	var reports int
+	reader := &workspaceUsageReader{
+		r:      iotest.OneByteReader(strings.NewReader("abcd")),
+		clock:  clock,
+		report: func() { reports++ },
+	}
+	reader.reportNow()
+	require.Equal(t, 1, reports)
+
+	buf := make([]byte, 1)
+	read := func() {
+		t.Helper()
+		_, err := reader.Read(buf)
+		require.NoError(t, err)
+	}
+
+	read()
+	clock.Advance(chatWorkspaceUploadUsageInterval - time.Second)
+	read()
+	require.Equal(t, 1, reports, "reported before the interval elapsed")
+
+	clock.Advance(time.Second)
+	read()
+	require.Equal(t, 2, reports, "did not report once the interval elapsed")
+
+	read()
+	require.Equal(t, 2, reports)
+	require.EqualValues(t, 4, reader.bytesRead.Load())
+
+	clock.Advance(chatWorkspaceUploadUsageInterval)
+	n, err := reader.Read(buf)
+	require.Zero(t, n)
+	require.ErrorIs(t, err, io.EOF)
+	require.Equal(t, 2, reports, "empty reads must not count as usage")
 }

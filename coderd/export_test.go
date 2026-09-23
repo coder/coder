@@ -12,5 +12,5 @@ var ChatStartWorkspace = (*API).chatStartWorkspace
 // ChatStopWorkspace exposes chatStopWorkspace for external tests.
 var ChatStopWorkspace = (*API).chatStopWorkspace
 
-// ValidWorkspaceFileReference exposes validWorkspaceFileReference for tests.
-var ValidWorkspaceFileReference = validWorkspaceFileReference
+// NormalizeWorkspaceFileReference exposes normalizeWorkspaceFileReference for tests.
+var NormalizeWorkspaceFileReference = normalizeWorkspaceFileReference
