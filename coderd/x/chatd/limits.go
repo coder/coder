@@ -21,21 +21,9 @@ type Limits struct {
 	// MaxPromptBytes bounds the deployment system prompt, plan mode
 	// instructions, and per-user custom prompts.
 	MaxPromptBytes int
-	// MaxDynamicToolsPerChat bounds the client-provided dynamic tools a
-	// chat is created with.
-	MaxDynamicToolsPerChat int
-	// MaxToolOutputBytes bounds the command output the execute and
-	// process tools return to the model.
-	MaxToolOutputBytes int
 	// MaxConcurrentRecordingUploads bounds the virtual desktop recordings
 	// chatd stores concurrently.
 	MaxConcurrentRecordingUploads int
-	// DebugMaxTextRunes bounds each text, argument, and result field kept
-	// in chat debug records.
-	DebugMaxTextRunes int
-	// DebugMaxBodyBytes bounds accumulated streamed model output and each
-	// recorded provider HTTP body in chat debug runs.
-	DebugMaxBodyBytes int
 }
 
 // LimitsFromConfig resolves the configured chat limits, substituting
@@ -47,11 +35,7 @@ func LimitsFromConfig(cfg codersdk.ChatConfig) Limits {
 		MaxQueuedMessagesPerChat:      int(cfg.MaxQueuedMessagesPerChat.Value()),
 		MaxAttachmentsPerChat:         int(cfg.MaxAttachmentsPerChat.Value()),
 		MaxPromptBytes:                int(cfg.MaxPromptBytes.Value()),
-		MaxDynamicToolsPerChat:        int(cfg.MaxDynamicToolsPerChat.Value()),
-		MaxToolOutputBytes:            int(cfg.MaxToolOutputBytes.Value()),
 		MaxConcurrentRecordingUploads: int(cfg.MaxConcurrentRecordingUploads.Value()),
-		DebugMaxTextRunes:             int(cfg.DebugMaxTextRunes.Value()),
-		DebugMaxBodyBytes:             int(cfg.DebugMaxBodyBytes.Value()),
 	}.withDefaults()
 }
 
@@ -62,11 +46,7 @@ func (l Limits) withDefaults() Limits {
 		MaxQueuedMessagesPerChat:      limitOrDefault(l.MaxQueuedMessagesPerChat, codersdk.DefaultChatMaxQueuedMessagesPerChat),
 		MaxAttachmentsPerChat:         limitOrDefault(l.MaxAttachmentsPerChat, codersdk.DefaultChatMaxAttachmentsPerChat),
 		MaxPromptBytes:                limitOrDefault(l.MaxPromptBytes, codersdk.DefaultChatMaxPromptBytes),
-		MaxDynamicToolsPerChat:        limitOrDefault(l.MaxDynamicToolsPerChat, codersdk.DefaultChatMaxDynamicToolsPerChat),
-		MaxToolOutputBytes:            limitOrDefault(l.MaxToolOutputBytes, codersdk.DefaultChatMaxToolOutputBytes),
 		MaxConcurrentRecordingUploads: limitOrDefault(l.MaxConcurrentRecordingUploads, codersdk.DefaultChatMaxConcurrentRecordingUploads),
-		DebugMaxTextRunes:             limitOrDefault(l.DebugMaxTextRunes, codersdk.DefaultChatDebugMaxTextRunes),
-		DebugMaxBodyBytes:             limitOrDefault(l.DebugMaxBodyBytes, codersdk.DefaultChatDebugMaxBodyBytes),
 	}
 }
 

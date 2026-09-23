@@ -1051,8 +1051,6 @@ title: Schemas
   "chat": {
     "acquire_batch_size": 0,
     "debug_logging_enabled": true,
-    "debug_max_body_bytes": 0,
-    "debug_max_text_runes": 0,
     "hook_allow_insecure": true,
     "hook_enabled": true,
     "hook_secret": "string",
@@ -1072,12 +1070,10 @@ title: Schemas
     },
     "max_attachments_per_chat": 0,
     "max_concurrent_recording_uploads": 0,
-    "max_dynamic_tools_per_chat": 0,
     "max_generation_retries": 0,
     "max_prompt_bytes": 0,
     "max_queued_messages_per_chat": 0,
     "max_steps_per_turn": 0,
-    "max_tool_output_bytes": 0,
     "stream_silence_timeout": 0
   }
 }
@@ -2602,8 +2598,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "acquire_batch_size": 0,
   "debug_logging_enabled": true,
-  "debug_max_body_bytes": 0,
-  "debug_max_text_runes": 0,
   "hook_allow_insecure": true,
   "hook_enabled": true,
   "hook_secret": "string",
@@ -2623,12 +2617,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "max_attachments_per_chat": 0,
   "max_concurrent_recording_uploads": 0,
-  "max_dynamic_tools_per_chat": 0,
   "max_generation_retries": 0,
   "max_prompt_bytes": 0,
   "max_queued_messages_per_chat": 0,
   "max_steps_per_turn": 0,
-  "max_tool_output_bytes": 0,
   "stream_silence_timeout": 0
 }
 ```
@@ -2639,8 +2631,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------------------------------|----------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
 | `acquire_batch_size`               | integer                    | false    |              |                                                                                                                                   |
 | `debug_logging_enabled`            | boolean                    | false    |              |                                                                                                                                   |
-| `debug_max_body_bytes`             | integer                    | false    |              | Debug max body bytes bounds accumulated streamed model output and each recorded provider HTTP body in chat debug runs.            |
-| `debug_max_text_runes`             | integer                    | false    |              | Debug max text runes bounds each text, argument, and result field kept in chat debug records.                                     |
 | `hook_allow_insecure`              | boolean                    | false    |              |                                                                                                                                   |
 | `hook_enabled`                     | boolean                    | false    |              |                                                                                                                                   |
 | `hook_secret`                      | string                     | false    |              |                                                                                                                                   |
@@ -2648,12 +2638,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `hook_url`                         | [serpent.URL](#serpenturl) | false    |              |                                                                                                                                   |
 | `max_attachments_per_chat`         | integer                    | false    |              | Max attachments per chat is the number of most recent attachments a chat keeps; older files are removed when new ones are linked. |
 | `max_concurrent_recording_uploads` | integer                    | false    |              | Max concurrent recording uploads bounds the virtual desktop recordings chatd stores concurrently.                                 |
-| `max_dynamic_tools_per_chat`       | integer                    | false    |              | Max dynamic tools per chat bounds the client-provided dynamic tools a chat is created with.                                       |
 | `max_generation_retries`           | integer                    | false    |              | Max generation retries bounds how many times a turn retries a model call that failed with a transient provider error.             |
 | `max_prompt_bytes`                 | integer                    | false    |              | Max prompt bytes bounds the deployment system prompt, plan mode instructions, and per-user custom prompts.                        |
 | `max_queued_messages_per_chat`     | integer                    | false    |              | Max queued messages per chat bounds the user messages waiting in a chat's queue while a turn runs.                                |
 | `max_steps_per_turn`               | integer                    | false    |              | Max steps per turn bounds the model and tool steps one turn may run.                                                              |
-| `max_tool_output_bytes`            | integer                    | false    |              | Max tool output bytes bounds the command output the execute and process tools return to the model.                                |
 | `stream_silence_timeout`           | integer                    | false    |              |                                                                                                                                   |
 
 ## codersdk.ChatContext
@@ -7590,8 +7578,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "chat": {
         "acquire_batch_size": 0,
         "debug_logging_enabled": true,
-        "debug_max_body_bytes": 0,
-        "debug_max_text_runes": 0,
         "hook_allow_insecure": true,
         "hook_enabled": true,
         "hook_secret": "string",
@@ -7611,12 +7597,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         },
         "max_attachments_per_chat": 0,
         "max_concurrent_recording_uploads": 0,
-        "max_dynamic_tools_per_chat": 0,
         "max_generation_retries": 0,
         "max_prompt_bytes": 0,
         "max_queued_messages_per_chat": 0,
         "max_steps_per_turn": 0,
-        "max_tool_output_bytes": 0,
         "stream_silence_timeout": 0
       }
     },
@@ -8227,8 +8211,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "chat": {
       "acquire_batch_size": 0,
       "debug_logging_enabled": true,
-      "debug_max_body_bytes": 0,
-      "debug_max_text_runes": 0,
       "hook_allow_insecure": true,
       "hook_enabled": true,
       "hook_secret": "string",
@@ -8248,12 +8230,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "max_attachments_per_chat": 0,
       "max_concurrent_recording_uploads": 0,
-      "max_dynamic_tools_per_chat": 0,
       "max_generation_retries": 0,
       "max_prompt_bytes": 0,
       "max_queued_messages_per_chat": 0,
       "max_steps_per_turn": 0,
-      "max_tool_output_bytes": 0,
       "stream_silence_timeout": 0
     }
   },

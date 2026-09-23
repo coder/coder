@@ -48,21 +48,9 @@ const (
 	// DefaultChatMaxPromptBytes bounds the deployment system prompt, plan
 	// mode instructions, and per-user custom prompts.
 	DefaultChatMaxPromptBytes = 128 * 1024
-	// DefaultChatMaxDynamicToolsPerChat is the number of client-provided
-	// dynamic tools a chat may be created with.
-	DefaultChatMaxDynamicToolsPerChat = 250
-	// DefaultChatMaxToolOutputBytes is the number of bytes of command
-	// output the execute and process tools return to the model.
-	DefaultChatMaxToolOutputBytes = 32 * 1024
 	// DefaultChatMaxConcurrentRecordingUploads is the number of virtual
 	// desktop recordings chatd stores concurrently.
 	DefaultChatMaxConcurrentRecordingUploads = 25
-	// DefaultChatDebugMaxTextRunes bounds each text, argument, and result
-	// field kept in chat debug run records.
-	DefaultChatDebugMaxTextRunes = 10_000
-	// DefaultChatDebugMaxBodyBytes bounds accumulated streamed model
-	// output and each recorded provider HTTP body in chat debug runs.
-	DefaultChatDebugMaxBodyBytes = 50_000
 )
 
 // MaxChatFileSizeBytes is the upload-endpoint cap for chat
