@@ -297,7 +297,7 @@ func TestMaxResponseBodyRoundTripper(t *testing.T) {
 		for _, base := range []*http.Client{nil, NewHTTPClient(nil)} {
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
 			require.NoError(t, err)
-			resp, err := inlineHTTPClient(base).Do(req)
+			resp, err := inlineHTTPClient(base, nil).Do(req)
 			if resp != nil {
 				_ = resp.Body.Close()
 			}
