@@ -2,7 +2,7 @@ import { useFormik } from "formik";
 import { TriangleAlertIcon } from "lucide-react";
 import { type FC, useEffect, useRef } from "react";
 import { useQuery } from "react-query";
-import { Link } from "react-router";
+import { Link as RouterLink } from "react-router";
 import * as Yup from "yup";
 import { getErrorMessage } from "#/api/errors";
 import { getExternalScopes } from "#/api/queries/oauth2";
@@ -20,9 +20,11 @@ import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import { MultiSelectCombobox } from "#/components/MultiSelectCombobox/MultiSelectCombobox";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
+import { docs } from "#/utils/docs";
 import { getFormHelpers, iconValidator } from "#/utils/formUtils";
 import { RedirectURIsField } from "./components/RedirectURIsField";
 
@@ -281,8 +283,8 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 			: undefined;
 	const formDisabled = disabled || isUpdating;
 	const editing = Boolean(app);
-	// A self-registered client usually requests every scope it registered, so
-	// removing scopes fails its new authorizations instead of narrowing them.
+	// The Scopes section of docs/admin/integrations/oauth2-provider.md explains
+	// why narrowing a self-registered application's allowlist can break it.
 	const narrowsSelfRegisteredScopes =
 		app?.dynamically_registered === true &&
 		narrowsAllowlist(form.initialValues.scope, form.values.scope);
@@ -399,10 +401,12 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 					</div>
 					{narrowsSelfRegisteredScopes && (
 						<Alert severity="warning">
-							This self-registered application may continue requesting scopes
-							you remove from its allowlist, causing new authorizations to fail
-							with invalid_scope. Existing tokens retain their scopes. To
-							restrict this client, re-register it with fewer scopes.
+							A self-registered client that requests every advertised scope
+							fails new authorizations with invalid_scope once its allowlist is
+							narrower than that list. Existing tokens keep their scopes.{" "}
+							<Link href={docs("/admin/integrations/oauth2-provider#scopes")}>
+								Learn more
+							</Link>
 						</Alert>
 					)}
 					<MultiSelectCombobox
@@ -462,7 +466,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 
 				<div className="flex justify-end gap-4">
 					<Button variant="outline" asChild>
-						<Link to={BACK_HREF}>Cancel</Link>
+						<RouterLink to={BACK_HREF}>Cancel</RouterLink>
 					</Button>
 					<Button disabled={submitDisabled} type="submit">
 						<Spinner loading={isUpdating} />

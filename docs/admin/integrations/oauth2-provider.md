@@ -347,12 +347,13 @@ When [updating an application](../../reference/api/enterprise.md#update-oauth2-a
 The stored value is not checked against the scopes this deployment offers; a name it does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](#invalid_scope-returned-to-your-callback).
 
 Use caution when narrowing the scope allowlist of a self-registered application.
-Many clients, including popular MCP clients, request every scope Coder advertises in `scopes_supported` rather than selecting specific scopes.
+Many clients request every scope Coder advertises in `scopes_supported` rather than selecting specific scopes; MCP clients that rely on discovery commonly work this way.
 The allowlist is stored on the application and does not affect that advertised list, so the client continues requesting the full set.
-Coder rejects requests that exceed the allowlist rather than trimming their scopes, causing every new authorization attempt to fail with `invalid_scope`.
+Coder rejects requests that exceed the allowlist rather than trimming their scopes, so every new authorization attempt fails with `invalid_scope`.
 Previously issued tokens retain their scopes.
-To restrict such a client, re-register it with a narrower set of scopes.
-Clearing the allowlist resolves the failures but leaves the application unrestricted.
+Such a client cannot be restricted through its allowlist: narrowing it breaks the client, and clearing it leaves the application unrestricted.
+Only a client that can be configured to request fewer scopes can be narrowed, and whoever operates that client makes the change.
+An allowlist set by an administrator also does not hold against the client: the holder of the application's `registration_access_token` can replace or clear it at any time with `PUT /oauth2/clients/{client_id}`.
 The web UI warns before saving a narrower allowlist, and the application page indicates whether the application was self-registered or created by an administrator.
 
 The consent page states the scope being granted before the user approves it. A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
