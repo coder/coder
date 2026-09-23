@@ -61,9 +61,7 @@ export const UsersPageFilter: FC<UsersPageFilterProps> = ({
 				getOptions: (query) => getRoleFilterOptions(query, queryClient),
 			},
 			{
-				// FilterCombobox renders friendly chip labels only for the
-				// `attribute` key, so User type uses it for its
-				// `service_account:true|false` chips.
+				// FilterCombobox shows `attribute` chips as the option label only.
 				key: "attribute",
 				label: "User type",
 				aliases: ["type", "user_type"],
@@ -78,8 +76,7 @@ export const UsersPageFilter: FC<UsersPageFilterProps> = ({
 		[queryClient],
 	);
 
-	// The last seen range shares the `filter` query string with the combobox,
-	// so it is split out of the combobox value and merged back on every change.
+	// Keep the last seen keys, which the combobox value omits.
 	const handleChange = useCallback(
 		(query: string) => {
 			const values = parseFilterQuery(filter.query);

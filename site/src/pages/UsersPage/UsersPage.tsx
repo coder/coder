@@ -42,8 +42,8 @@ const UsersPage: React.FC = () => {
 	});
 
 	const lastSeenRange = parseLastSeenRange(useFilterResult.values);
-	// The URL stores resolved timestamps, so the preset label only shows while
-	// the URL range still matches the last picked preset.
+	// The URL only stores timestamps, so keep the picked preset to label the
+	// trigger while the range is unchanged.
 	const [lastPicked, setLastPicked] = useState<DateTimeRangeValue>();
 	const lastSeen: DateTimeRangeValue =
 		lastSeenRange === undefined

@@ -12,10 +12,7 @@ import {
 export const LAST_SEEN_AFTER_KEY = "last_seen_after";
 export const LAST_SEEN_BEFORE_KEY = "last_seen_before";
 
-/**
- * Query keys owned by the last seen picker. They share the `filter` query
- * string with the search combobox but never surface there as chips or text.
- */
+/** Query keys set by the last seen picker and hidden from the combobox. */
 export const LAST_SEEN_KEYS = [
 	LAST_SEEN_AFTER_KEY,
 	LAST_SEEN_BEFORE_KEY,
@@ -32,8 +29,7 @@ const lastDays = (days: number): QuickPreset => ({
 	}),
 });
 
-// "All time" applies no last seen filter. Its range only feeds the picker's
-// display; the page never sends it to the API.
+// Sends no last seen keys; the range is only for the picker display.
 const allTime: QuickPreset = {
 	id: ALL_TIME_PRESET_ID,
 	label: "All time",
@@ -64,10 +60,7 @@ const parseDate = (value: string | undefined): Date | undefined => {
 	return Number.isNaN(date.getTime()) ? undefined : date;
 };
 
-/**
- * The last seen range applied by the filter, or undefined when the filter has
- * no complete, valid range and every user matches.
- */
+/** The applied last seen range, or undefined if it is missing or invalid. */
 export const parseLastSeenRange = (
 	values: FilterValues,
 ): Pick<DateTimeRangeValue, "start" | "end"> | undefined => {
@@ -79,7 +72,6 @@ export const parseLastSeenRange = (
 	return { start, end };
 };
 
-/** Filter values for a picked range; "All time" clears both keys. */
 const lastSeenFilterValues = (value: DateTimeRangeValue): FilterValues =>
 	value.preset === ALL_TIME_PRESET_ID
 		? {}
@@ -88,10 +80,7 @@ const lastSeenFilterValues = (value: DateTimeRangeValue): FilterValues =>
 				[LAST_SEEN_BEFORE_KEY]: value.end.toISOString(),
 			};
 
-/**
- * Replaces the last seen range in a filter query, keeping every other chip
- * and the free-text search as typed.
- */
+/** Replaces the last seen range in a filter query. */
 export const withLastSeen = (
 	query: string,
 	value: DateTimeRangeValue,

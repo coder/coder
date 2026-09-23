@@ -41,10 +41,7 @@ type DateTimeRangePickerProps = {
 	now?: Date;
 	presets?: QuickPreset[];
 	size?: ButtonProps["size"];
-	/**
-	 * What the range filters, e.g. "Last seen". Prefixes the trigger's
-	 * accessible name so the applied range keeps its context.
-	 */
+	/** Prefixes the trigger's accessible name, e.g. "Last seen: Last 7 days". */
 	label?: string;
 };
 

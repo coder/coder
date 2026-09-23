@@ -3,10 +3,7 @@ import dayjs from "dayjs";
 export type QuickPreset = {
 	id: string;
 	label: string;
-	/**
-	 * Trigger text while this preset is applied, styled as a placeholder. For
-	 * presets that apply no filter, such as "All time". Defaults to `label`.
-	 */
+	/** Trigger text shown in secondary color while this preset is active. */
 	placeholder?: string;
 	range: (now: Date) => { start: Date; end: Date };
 };

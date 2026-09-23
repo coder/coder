@@ -6,7 +6,6 @@ import type { UserStatus } from "#/api/typesGenerated";
 import type { FilterOption } from "#/components/Filter/FilterCombobox/types";
 import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
 
-/** The slice of `QueryClient` the option loaders depend on. */
 type OptionsQueryClient = Pick<QueryClient, "fetchQuery">;
 
 const matches = (option: FilterOption, query: string): boolean => {
@@ -54,10 +53,9 @@ export const getRoleFilterOptions = async (
 		.filter((option) => matches(option, query));
 };
 
-/** Query keys the User type category owns for chip parsing. */
+/** Query keys shown as User type chips. */
 export const USER_TYPE_CHIP_KEYS: readonly string[] = ["service_account"];
 
-// Unselected matches every user, so a single option is enough.
 export const getUserTypeFilterOptions = async (
 	query: string,
 ): Promise<FilterOption[]> =>

@@ -404,8 +404,8 @@ export const useFilterCombobox = ({
 
 	// Category rows preview their options while the menu is open with an empty
 	// input. The empty-query key is shared with the category view, so entering a
-	// category reuses the cached result. Inline categories always load, since
-	// their applied chips render option labels even while the menu is closed.
+	// category reuses the cached result. Inline categories always load so their
+	// chips can show option labels while the menu is closed.
 	const previewsEnabled = isBrowsing && activeCategoryKey === null;
 	const previewOptions = useQueries({
 		queries: categories.map((category) =>
