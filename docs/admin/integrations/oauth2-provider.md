@@ -175,6 +175,8 @@ Coder supports the following OAuth2 client authentication methods at the token e
 
 Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
 
+Send `client_secret` in the request body or in the `Authorization` header. `POST /oauth2/tokens` and `POST /oauth2/revoke` reject a `client_secret` value in the URL query string with `invalid_request`, because OAuth 2.1 section 2.4.1 does not allow it there. Refer to ["invalid_request" for `client_secret` in the query string](#invalid_request-for-client_secret-in-the-query-string) for the exceptions and the log line to search for.
+
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
 
 Opening a public client on the **OAuth2 Applications** page shows no client secrets section, since a public client has no secret to display or generate.
@@ -618,6 +620,61 @@ not consumed and nothing is revoked by the refusal, so the retry needs no new
 authorization. If the secret was deleted, the tokens issued under it were
 revoked with it, and the client must authorize again. Public clients have no
 secret and never receive this error for omitting one.
+
+### "invalid_request" for `client_secret` in the query string
+
+`POST /oauth2/tokens` and `POST /oauth2/revoke` answer HTTP 400 with
+`error=invalid_request` when `client_secret` appears in the URL query string.
+OAuth 2.1 section 2.4.1 allows the secret in the request body or the
+`Authorization` header only. Send it as a form parameter or as HTTP Basic,
+following [Client Authentication Methods](#client-authentication-methods).
+
+The rule covers `client_secret` only. Coder still reads `refresh_token`,
+`code`, and the revocation `token` from the query string. Send those in the
+request body too, not in the query string.
+
+A `client_secret` with no value, as in `?client_secret=`, counts as absent
+under RFC 6749 section 3.2 and is not refused by this rule. `POST /oauth2/revoke`
+accepts such a request when the body authenticates. `POST /oauth2/tokens`
+answers 400 only when the body also carries a `client_secret`, because it reads
+the body copy and the empty URL copy as the same parameter sent twice, and the
+error says so. An empty query value alone never causes a 400: a request that
+authenticates with HTTP Basic and sends no secret in the body, or one from a
+public client, succeeds.
+
+A copy in the body does not excuse one in the URL: the request is refused on
+the query string alone, whatever the body holds. The refusal issues no token
+and revokes nothing, so the retry needs no new authorization.
+
+`GET /oauth2/authorize` is not rejected when its URL carries `client_secret`,
+because RFC 6749 section 3.1 requires that endpoint to ignore parameters it
+does not recognize. Coder ignores the value and logs a warning instead.
+
+Each refusal and the authorization warning write a log line containing
+`client_secret in the URL query string` with the `app_id`, `remote_addr`, and
+`user_agent` of the request. Search the Coder logs for that string to find the
+integration that sends the secret in the URL.
+
+The log line records that the parameter was present, not that its value was a
+valid secret. The check runs before client authentication, so anyone who knows
+the public `client_id` can produce the same line without credentials. Confirm
+with the client's owner that their integration sent the request before
+rotating.
+
+The check also runs after the `client_id` is resolved. A request with a
+missing, malformed, or unknown `client_id` is answered by that lookup first
+and writes no such line, so an absent line does not mean no integration is
+leaking.
+
+Rotate the secret that was in the URL. It is still valid, and a URL is
+recorded by reverse proxies, load balancers, CDN access logs, shell history,
+and client libraries. Coder does not log query strings, so an empty result
+when you search the Coder logs does not mean the secret stayed private.
+Deleting a secret also revokes the tokens issued under it, so the client has
+to authorize again.
+
+Earlier releases accepted the parameter in the query string. An integration
+that relied on that has to move it into the body or the header.
 
 ### "unsupported_response_type" returned to your callback
 
