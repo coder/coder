@@ -1238,7 +1238,8 @@ jobs:
           echo "Required checks have passed"
 
   check-build:
-    # This job runs make build to verify compilation on PRs.
+    # This job verifies compilation on PRs. It builds the slim binary for every
+    # supported platform and one fat binary, which covers the embed build tag.
     # The build doesn't get signed, and is not suitable for usage, unlike the
     # `build` job that runs on main.
     needs: changes
@@ -1275,7 +1276,7 @@ jobs:
           set -euxo pipefail
           ./.github/scripts/retry.sh -- go mod download
           make gen/mark-fresh
-          make -j build
+          make -j build-slim build/coder_linux_amd64
 
   build:
     # This builds and publishes ghcr.io/coder/coder-preview:main for each commit
