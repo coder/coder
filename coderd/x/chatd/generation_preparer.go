@@ -111,7 +111,7 @@ func (server *Server) prepareGeneration(
 		mcpConfigs, err = server.effectiveMCPServerConfigs(ctx, logger, chat)
 		return err
 	})
-	if server.inlineMCPServersEnabled() {
+	if server.callerSuppliedMCPServersEnabled() || !server.internalMCPServers.Empty() {
 		g.Go(func() error {
 			inlineMCPServers, mcpLoadFailures = server.loadInlineMCPServers(ctx, chat)
 			return nil
@@ -471,6 +471,7 @@ func (server *Server) prepareGeneration(
 				inlineMCPConnectServers,
 				chatprovider.CoderHeaders(chat),
 				server.mcpHTTPClient,
+				server.internalMCPServers,
 			)
 			return nil
 		})

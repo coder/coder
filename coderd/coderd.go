@@ -698,13 +698,14 @@ func New(options *Options) *API {
 		safedial.WithAllowedPrefixes(options.MCPAllowedPrivateCIDRs...),
 	)
 	api := &API{
-		ctx:           ctx,
-		cancel:        cancel,
-		DeploymentID:  depID,
-		ID:            uuid.New(),
-		Options:       options,
-		mcpHTTPClient: mcpHTTPClient,
-		RootHandler:   r,
+		ctx:                ctx,
+		cancel:             cancel,
+		DeploymentID:       depID,
+		ID:                 uuid.New(),
+		Options:            options,
+		mcpHTTPClient:      mcpHTTPClient,
+		internalMCPServers: mcpclient.NewInternalServers(),
+		RootHandler:        r,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -951,6 +952,7 @@ func New(options *Options) *API {
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				MCPHTTPClient:                  api.mcpHTTPClient,
+				InternalMCPServers:             api.internalMCPServers,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
 			})
@@ -2156,7 +2158,8 @@ type API struct {
 	DeploymentID string
 
 	*Options
-	mcpHTTPClient *http.Client
+	mcpHTTPClient      *http.Client
+	internalMCPServers *mcpclient.InternalServers
 	// ID is a uniquely generated ID on initialization.
 	// This is used to associate objects with a specific
 	// Coder API instance, like workspace agents to a

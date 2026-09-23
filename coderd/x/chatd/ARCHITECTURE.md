@@ -887,6 +887,7 @@ The generation goroutine supports:
 
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
+    - TODO: describe internal MCP servers. An inline MCP server with a `coder-internal://<host>` URL is served in process by a handler that coderd registered. Internal rows load even when the inline MCP servers experiment is off or caller-supplied tools are disabled, because only coderd code can attach them.
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
   - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
 - file links

@@ -248,18 +248,20 @@ func ConnectAll(
 // and header values are redacted from every string a model or a
 // non-owner chat viewer can see. Inline servers have no OAuth tokens or
 // OIDC identity, so those inputs are always empty. A nil httpClient
-// falls back to the default guarded client.
+// falls back to the default guarded client. Servers with a
+// coder-internal URL reach their handler in internal.
 func ConnectInline(
 	ctx context.Context,
 	logger slog.Logger,
 	servers []Server,
 	coderHeaders map[string]string,
 	httpClient *http.Client,
+	internal *InternalServers,
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	return connectAllWithHooks(
 		ctx, logger, servers, nil, uuid.Nil, nil, coderHeaders,
 		connectOptions{
-			httpClient: inlineHTTPClient(httpClient),
+			httpClient: inlineHTTPClient(httpClient, internal),
 			timeout:    connectTimeout,
 			kind:       connectionKindInline,
 		},
