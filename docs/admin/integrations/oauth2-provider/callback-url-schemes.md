@@ -2,8 +2,7 @@
 title: OAuth2 provider callback URL schemes
 ---
 
-Which redirect URI schemes and hosts Coder accepts, for both admin-created
-and self-registered applications.
+Which redirect URI schemes and hosts Coder accepts, for both admin-created and self-registered applications.
 
 Custom URI schemes (`myapp://`, `vscode://`, `jetbrains://`, etc.) are fully supported for native and desktop applications. The OS routes the redirect back to the registered application without requiring a running HTTP server.
 

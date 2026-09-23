@@ -2,9 +2,8 @@
 title: OAuth2 provider token management
 ---
 
-Refresh an access token, revoke a token or all of an application's tokens,
-and delete an application. For the authentication methods used in these
-requests, see [Client Authentication Methods](./integration-patterns.md#client-authentication-methods).
+Refresh an access token, revoke a token or all of an application's tokens, and delete an application.
+For the authentication methods used in these requests, refer to [Client Authentication Methods](./integration-patterns.md#client-authentication-methods).
 
 ## Refresh Tokens
 

@@ -176,9 +176,8 @@ The admin `PUT` also validates the stored name, so a self-registered client whos
 
 ## Moved sections
 
-This page used to be a single page with all of the sections below. If you
-followed an old link here, use the pointer next to the section you were
-looking for.
+This page used to be a single page with all of the sections below.
+If you followed an old link here, use the pointer next to the section you were looking for.
 
 <a id="integration-patterns"></a>
 <a id="client-authentication-methods"></a>
@@ -231,7 +230,7 @@ looking for.
 
 <a id="testing-and-development"></a>
 
-- Testing and Development is no longer part of the docs. See the [OAuth2 test scripts README](../../../../scripts/oauth2/README.md).
+- Testing and Development is no longer part of the docs. Refer to the [OAuth2 test scripts README](../../../../scripts/oauth2/README.md).
 
 ## Feedback
 
