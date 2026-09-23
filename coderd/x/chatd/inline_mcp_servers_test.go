@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -31,7 +32,8 @@ const chatInlineMCPSecret = "bot-secret-value"
 // tool. It records the headers of every request so tests can assert
 // what chatd sent.
 type chatInlineMCPServer struct {
-	url string
+	url     string
+	handler http.Handler
 
 	mu       sync.Mutex
 	requests []http.Header
@@ -40,6 +42,16 @@ type chatInlineMCPServer struct {
 func newChatInlineMCPServer(t *testing.T, name string, toolDescription string) *chatInlineMCPServer {
 	t.Helper()
 
+	recorder := newChatInlineMCPHandler(name, toolDescription)
+	ts := httptest.NewServer(recorder.handler)
+	t.Cleanup(ts.Close)
+	recorder.url = ts.URL
+	return recorder
+}
+
+// newChatInlineMCPHandler returns a chatInlineMCPServer that has a
+// handler but no listener, for use as an internal MCP server.
+func newChatInlineMCPHandler(name string, toolDescription string) *chatInlineMCPServer {
 	recorder := &chatInlineMCPServer{}
 	srv := newTestMCPServer(name)
 	srv.AddTool(&mcp.Tool{
@@ -62,14 +74,12 @@ func newChatInlineMCPServer(t *testing.T, name string, toolDescription string) *
 	})
 
 	handler := testMCPHTTPHandler(srv)
-	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	recorder.handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		recorder.mu.Lock()
 		recorder.requests = append(recorder.requests, r.Header.Clone())
 		recorder.mu.Unlock()
 		handler.ServeHTTP(rw, r)
-	}))
-	t.Cleanup(ts.Close)
-	recorder.url = ts.URL
+	})
 	return recorder
 }
 
@@ -243,6 +253,57 @@ func TestChatInlineMCPServers(t *testing.T) {
 				require.Empty(t, requests, "chatd must not connect when inline MCP servers are disabled")
 			})
 		}
+	})
+
+	t.Run("InternalServer", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		internal := newChatInlineMCPHandler("bot", "Echoes the input")
+		internalServers := mcpclient.NewInternalServers()
+		internalURL := internalServers.Register("bot", internal.handler)
+		callerSupplied := newChatInlineMCPServer(t, "caller", "Echoes the input")
+		model := newChatInlineMCPModel(t, "bot__echo")
+		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			withoutMCPToolSearch(cfg)
+			// The gates for caller-supplied servers do not apply to
+			// internal servers.
+			cfg.DisableCallerSuppliedTools = true
+			cfg.Experiments = slices.DeleteFunc(slices.Clone(cfg.Experiments), func(experiment codersdk.Experiment) bool {
+				return experiment == codersdk.ExperimentChatInlineMCPServers
+			})
+			cfg.InternalMCPServers = internalServers
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
+		})
+
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          "inline-mcp-internal",
+			ModelConfigID:  modelConfig.ID,
+			InlineMCPServers: []codersdk.InlineMCPServerRequest{
+				{Slug: "bot", URL: internalURL, ForwardCoderHeaders: true},
+				{Slug: "caller", URL: callerSupplied.url},
+			},
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("Echo something.")},
+		})
+		require.NoError(t, err)
+		waitForChatProcessed(ctx, t, db, chat.ID, server)
+
+		chatResult, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, chatResult.Status, chatLastErrorMessage(chatResult.LastError))
+
+		require.True(t, model.sawResult.Load(), "tool result must reach the second model call")
+		requests := internal.snapshot()
+		require.NotEmpty(t, requests)
+		for _, h := range requests {
+			require.Equal(t, user.ID.String(), h.Get(chatprovider.HeaderCoderOwnerID))
+			require.Equal(t, chat.ID.String(), h.Get(chatprovider.HeaderCoderChatID))
+		}
+		require.Empty(t, callerSupplied.snapshot(), "caller-supplied servers stay gated")
 	})
 
 	t.Run("PlanMode", func(t *testing.T) {

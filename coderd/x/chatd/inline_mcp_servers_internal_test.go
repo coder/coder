@@ -11,13 +11,18 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestLoadInlineMCPServers(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
-	server := &Server{db: db, logger: slogtest.Make(t, nil)}
+	server := &Server{
+		db:          db,
+		logger:      slogtest.Make(t, nil),
+		experiments: codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers},
+	}
 	user, org, model := seedInternalChatDeps(t, db)
 	newChat := func(chat database.Chat) database.Chat {
 		chat.OrganizationID = org.ID
