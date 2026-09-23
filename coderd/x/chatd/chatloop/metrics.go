@@ -34,8 +34,20 @@ const (
 	StageAnomalyNegativeElapsed  StageAnomaly = "negative_elapsed"
 	StageAnomalyInvertedWindow   StageAnomaly = "inverted_window"
 	StageAnomalyMissingTimestamp StageAnomaly = "missing_timestamp"
-	StageAnomalyFutureStart      StageAnomaly = "future_start"
-	StageAnomalyStaleAnchor      StageAnomaly = "stale_anchor"
+	// StageAnomalyFutureStart counts a stage whose explicit start was
+	// ahead of this replica's clock; the stage is measured from now.
+	StageAnomalyFutureStart StageAnomaly = "future_start"
+	// StageAnomalyStaleAnchor counts a turn whose trigger timestamp did
+	// not follow the previous turn's anchor on the same runner; the
+	// turn starts now and records no acquisition.
+	StageAnomalyStaleAnchor StageAnomaly = "stale_anchor"
+	// StageAnomalyNonPositiveTurn counts a finished turn whose duration
+	// was not positive; its accounting is not emitted.
+	StageAnomalyNonPositiveTurn StageAnomaly = "nonpositive_turn"
+	// StageAnomalyOverattributed counts a finished turn whose categories
+	// summed to more than its duration; the categories are emitted as
+	// measured, with no unattributed remainder.
+	StageAnomalyOverattributed StageAnomaly = "overattributed"
 )
 
 // observedStages get histogram samples; other stages are span-only.
@@ -80,6 +92,8 @@ type Metrics struct {
 	TTFTSeconds               *prometheus.HistogramVec
 	stageDurationSeconds      *prometheus.HistogramVec
 	modelStageDurationSeconds *prometheus.HistogramVec
+	TurnTimeSecondsTotal      *prometheus.CounterVec
+	TurnsTotal                *prometheus.CounterVec
 	TurnOutcomesTotal         *prometheus.CounterVec
 	stageAnomaliesTotal       *prometheus.CounterVec
 	CompactionTotal           *prometheus.CounterVec
@@ -166,17 +180,29 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Help:      "Wall time of the stages that are a provider's work on a model: stream (open to close) and provider_attempt (one HTTP round trip, closed on response headers). Time to first token per model is ttft_seconds. Failed stream and provider_attempt windows are observed. Observed only for turn-scoped stages, which are also observed on stage_duration_seconds; background-scoped model stages appear on stage_duration_seconds only. provider_type is the configured AI provider type (for example bedrock), not the wire protocol other chatd metrics report as provider. Registered only with the chat-stage-metrics experiment.",
 			Buckets:   stageDurationBuckets,
 		}, []string{"stage", "provider_type", "chat_kind", "model"}),
+		TurnTimeSecondsTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_time_seconds_total",
+			Help:      "Accumulated wall time of finished chat turns split into disjoint categories that sum to the turn duration, added once per turn per category when the turn ends. Divide by turns_total for mean seconds per turn. Only turns that finished normally are counted. Registered only with the chat-stage-metrics experiment.",
+		}, []string{"category", "chat_kind"}),
+		TurnsTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turns_total",
+			Help:      "Total chat turns whose time partition was recorded in turn_time_seconds_total. Only turns that finished normally are counted. Registered only with the chat-stage-metrics experiment.",
+		}, []string{"chat_kind"}),
 		TurnOutcomesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "turn_outcomes_total",
-			Help:      "Total closed chat turns by outcome: completed (the turn finished, including a turn that ends when the chat enters requires_action; the submitted tool result opens a new turn), interrupted (an interrupt request from a user, an API client, or a parent agent stopped it), error (a failure stopped it), abandoned (a newer prompt, such as a message edit, or runner exit closed it before it finished; an edit sent while the chat is interrupting can close the stopped turn as abandoned rather than interrupted). Every closed turn is counted exactly once. Registered only with the chat-stage-metrics experiment.",
+			Help:      "Total chat turns by outcome (completed, interrupted, error, abandoned); every closed turn is counted exactly once, and completed turns are the ones whose time partition is recorded. Registered only with the chat-stage-metrics experiment.",
 		}, []string{"outcome", "chat_kind"}),
 		stageAnomaliesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "stage_anomalies_total",
-			Help:      "Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed and inverted_window (end before start, clock skew), missing_timestamp (unset start or end), future_start (start ahead of this replica's clock, span started now), stale_anchor (trigger not after the previous turn's anchor, turn started now). Registered only with the chat-stage-metrics experiment.",
+			Help:      "Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed, inverted_window (end before start), missing_timestamp (unset start or end), future_start (start ahead of this clock, span started now), stale_anchor (trigger not after the previous turn's anchor, turn started now), nonpositive_turn (turn accounting not emitted), overattributed (categories summed past the turn). Registered only with the chat-stage-metrics experiment.",
 		}, []string{"reason"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
@@ -251,6 +277,8 @@ func (m *Metrics) recordStageDuration(stage Stage, scope Scope, chatKind ChatKin
 	}
 }
 
+// recordStageAnomaly counts a stage observation that was dropped,
+// adjusted, or emitted inconsistent, by reason. No-op when m is nil.
 func (m *Metrics) recordStageAnomaly(reason StageAnomaly) {
 	if m == nil {
 		return
@@ -258,7 +286,27 @@ func (m *Metrics) recordStageAnomaly(reason StageAnomaly) {
 	m.stageAnomaliesTotal.WithLabelValues(string(reason)).Inc()
 }
 
-// RecordTurnOutcome counts a closed turn by outcome.
+// RecordTurnCategory adds one category of a turn's time partition to
+// the category counter. Categories with no time are recorded as zero
+// so every category has a series. No-op when m is nil.
+func (m *Metrics) RecordTurnCategory(category Category, chatKind ChatKind, elapsed time.Duration) {
+	if m == nil || elapsed < 0 {
+		return
+	}
+	m.TurnTimeSecondsTotal.WithLabelValues(string(category), string(chatKind)).Add(elapsed.Seconds())
+}
+
+// RecordTurn counts one finished turn whose time partition was
+// recorded through RecordTurnCategory. No-op when m is nil.
+func (m *Metrics) RecordTurn(chatKind ChatKind) {
+	if m == nil {
+		return
+	}
+	m.TurnsTotal.WithLabelValues(string(chatKind)).Inc()
+}
+
+// RecordTurnOutcome counts one closed turn by outcome. No-op when m is
+// nil.
 func (m *Metrics) RecordTurnOutcome(outcome TurnOutcome, chatKind ChatKind) {
 	if m == nil {
 		return
