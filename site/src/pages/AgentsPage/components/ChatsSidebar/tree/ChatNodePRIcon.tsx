@@ -82,6 +82,10 @@ export const PRListTooltipContent: FC<PRListContentProps> = ({
 						className="flex items-center gap-1.5 text-left"
 					>
 						<Icon className={cn("size-3.5 shrink-0", config.className)} />
+						{/* The state reaches screen readers through the
+							link's description; icon labels are skipped there,
+							so the state rides as hidden text. */}
+						<span className="sr-only">{config.label}</span>
 						<span className="shrink-0 font-semibold">
 							PR {prNumber ? `#${prNumber}` : label}
 						</span>

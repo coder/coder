@@ -707,7 +707,9 @@ describe("ChatsSidebar PR icon", () => {
 			"aria-describedby",
 			tooltip.getAttribute("id") ?? "",
 		);
+		expect(link).toHaveAccessibleDescription(/Pull request open/);
 		expect(link).toHaveAccessibleDescription(/PR #1/);
+		expect(link).toHaveAccessibleDescription(/Pull request merged/);
 		expect(link).toHaveAccessibleDescription(/PR #2/);
 	});
 });
