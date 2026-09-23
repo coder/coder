@@ -1,5 +1,5 @@
-// Package xhttp contains small helpers extending the standard net/http
-// package for working with HTTP responses from external services.
+// Package xhttp contains small helpers that extend the standard net/http
+// package.
 package xhttp
 
 import "net/http"
