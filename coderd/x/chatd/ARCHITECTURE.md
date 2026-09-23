@@ -659,6 +659,14 @@ For every matching chat, it locks it, checks if the chat still meets the aforeme
 
 When a chat is successfully acquired, the acquisition loop requests the [Runner manager](#runner-manager) to spawn a chat runner for it.
 
+### Capacity wait
+
+The [Concurrent agent limiter](#concurrent-agent-limiter) can refuse an otherwise acquirable chat when its pool is full. The acquisition loop remembers, per chat, when this worker first saw the chat refused for capacity, together with the chat's history version at that refusal. When the same worker later acquires the chat at the same history version, it records a `capacity_wait` stage through `chatloop.StageTracer` from that first refusal to the acquisition, as a span and as an observation on `coderd_chatd_stage_duration_seconds`. Chats admitted on their first attempt record nothing, and a remembered refusal for an earlier history version is discarded rather than charged to the later prompt.
+
+The bookkeeping is local to the worker. The wait start is dropped when the worker skips the chat for a reason other than capacity (it is owned by a live runner, archived, or no longer runnable), and entries for chats that have left the candidate set are pruned only when the candidate batch is shorter than its limit, since a chat missing from a truncated batch may still be waiting. The map is touched only by the acquisition goroutine.
+
+Because the capacity limit is deployment-wide but the refusal history is per worker, the recorded wait is a lower bound. A chat refused on one replica and acquired by another is measured from the acquiring replica's first refusal, or not at all if that replica admitted it on its first attempt. A replica restart also discards its history.
+
 ### Load balancing
 
 The design doesn't attempt to distribute load between workers fairly. Whenever a chat needs an owner, all replicas race to acquire it. If there's a coder replica that has a lower latency to the database, it'll tend to acquire chats more frequently than other replicas.

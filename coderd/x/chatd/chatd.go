@@ -173,6 +173,8 @@ type Server struct {
 	db                 database.Store
 	logger             slog.Logger
 	modelConfigContext func(context.Context, uuid.UUID) (context.Context, error)
+	// organizationNames caches organization ID to name for stage span attributes.
+	organizationNames sync.Map
 
 	streamPartsDialer StreamPartsDialer
 
@@ -4865,6 +4867,39 @@ func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func(
 		stop()
 		cancel()
 	}
+}
+
+// organizationName returns the name of the organization with id for
+// use as a stage span attribute. Names are cached for the life of the
+// server, so a renamed organization keeps its old name until restart. A
+// failed lookup returns an empty name so the stage is still recorded,
+// and is retried on the next call.
+func (p *Server) organizationName(ctx context.Context, id uuid.UUID) string {
+	if id == uuid.Nil {
+		return ""
+	}
+	if cached, ok := p.organizationNames.Load(id); ok {
+		if name, ok := cached.(string); ok {
+			return name
+		}
+	}
+	//nolint:gocritic // Chatd reads the organization of a chat it does not own as the daemon subject.
+	org, err := p.db.GetOrganizationByID(dbauthz.AsChatd(ctx), id)
+	if err != nil {
+		p.logger.Debug(ctx, "resolve organization name for stage span attribute",
+			slog.F("organization_id", id), slog.Error(err))
+		return ""
+	}
+	p.organizationNames.Store(id, org.Name)
+	return org.Name
+}
+
+// chatKindAttr labels a chat as a subagent or a top-level chat.
+func chatKindAttr(chat database.Chat) chatloop.ChatKind {
+	if chat.ParentChatID.Valid {
+		return chatloop.ChatKindSubagent
+	}
+	return chatloop.ChatKindRoot
 }
 
 func (p *Server) goInflight(f func()) error {
