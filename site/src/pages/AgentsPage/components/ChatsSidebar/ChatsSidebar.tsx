@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { type FC, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useParams } from "react-router";
 import { toast } from "sonner";
@@ -13,9 +13,13 @@ import { userChatProviderConfigs } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	getDefaultOrganizationId,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsPanel } from "./chats/ChatsPanel";
+import type { ProjectDialogMode } from "./chats/ProjectFolders";
 import { ChatProjectDialog } from "./dialogs/ChatProjectDialog";
 import { ChatSearchDialog } from "./dialogs/ChatSearchDialog";
 import { RenameChatDialog } from "./dialogs/RenameChatDialog";
@@ -108,47 +112,72 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		currentUserId,
 	} = props;
 	const { organizations, experiments } = useDashboard();
-	const defaultOrganizationId =
-		organizations.find((organization) => organization.is_default)?.id ??
-		organizations[0]?.id ??
-		"";
+	const organizationId: string | undefined =
+		getDefaultOrganizationId(organizations) ?? organizations[0]?.id;
 	const chatProjectsEnabled = experiments.includes("chat-projects");
 	const queryClient = useQueryClient();
+	// The sidebar lists and creates projects in the default organization.
 	const projectsQuery = useQuery({
-		...chatProjects(defaultOrganizationId),
-		enabled: chatProjectsEnabled && Boolean(defaultOrganizationId),
+		...chatProjects(organizationId),
+		enabled: chatProjectsEnabled && organizationId !== undefined,
 	});
-	const projects = chatProjectsEnabled ? (projectsQuery.data ?? []) : [];
 	const createProjectMutation = useMutation(createChatProject(queryClient));
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
 	const deleteProjectMutation = useMutation(deleteChatProject(queryClient));
-	const [projectDialogProject, setProjectDialogProject] = useState<
-		TypesGen.ChatProject | null | undefined
-	>(undefined);
+	const [projectDialog, setProjectDialog] = useState<ProjectDialogMode | null>(
+		null,
+	);
+	const projectDialogTriggerRef = useRef<HTMLElement | null>(null);
 	const [projectPendingDelete, setProjectPendingDelete] =
 		useState<TypesGen.ChatProject | null>(null);
-	const handleProjectSubmit = async (
-		request:
-			| TypesGen.CreateChatProjectRequest
-			| TypesGen.UpdateChatProjectRequest,
-	) => {
-		if (projectDialogProject) {
-			await updateProjectMutation.mutateAsync({
-				projectId: projectDialogProject.id,
-				request,
-			});
+	const closeProjectDialog = () => {
+		setProjectDialog(null);
+		requestAnimationFrame(() => projectDialogTriggerRef.current?.focus());
+	};
+	const openProjectDialog = (dialog: ProjectDialogMode) => {
+		projectDialogTriggerRef.current =
+			document.activeElement instanceof HTMLElement
+				? document.activeElement
+				: null;
+		if (dialog.mode === "create") {
+			if (!organizationId) {
+				return;
+			}
+			createProjectMutation.reset();
+		} else {
+			updateProjectMutation.reset();
+		}
+		setProjectDialog(dialog);
+	};
+	const handleProjectSubmit = (request: {
+		name: string;
+		description: string;
+		icon: string;
+	}) => {
+		if (projectDialog?.mode === "edit") {
+			updateProjectMutation.mutate(
+				{ projectId: projectDialog.project.id, request },
+				{ onSuccess: closeProjectDialog },
+			);
 			return;
 		}
-		if ("organization_id" in request) {
-			await createProjectMutation.mutateAsync(request);
+		if (projectDialog?.mode === "create" && organizationId) {
+			createProjectMutation.mutate(
+				{ organization_id: organizationId, ...request },
+				{ onSuccess: closeProjectDialog },
+			);
 		}
 	};
 	const handleDeleteProject = () => {
 		if (!projectPendingDelete) {
 			return;
 		}
-		deleteProjectMutation.mutate(projectPendingDelete.id, {
-			onSuccess: () => setProjectPendingDelete(null),
+		const deletedId = projectPendingDelete.id;
+		deleteProjectMutation.mutate(deletedId, {
+			onSuccess: () =>
+				setProjectPendingDelete((current) =>
+					current?.id === deletedId ? null : current,
+				),
 			onError: (error) => {
 				toast.error(getErrorMessage(error, "Failed to delete project."));
 			},
@@ -187,16 +216,21 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	return (
 		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			<ChatsPanel
-				projects={projects}
+				chatProjectsEnabled={
+					chatProjectsEnabled && organizationId !== undefined
+				}
+				projects={
+					chatProjectsEnabled
+						? (projectsQuery.data ?? []).filter(
+								(project) => project.owner_id === currentUserId,
+							)
+						: []
+				}
 				isProjectsLoading={chatProjectsEnabled && projectsQuery.isLoading}
 				projectsError={chatProjectsEnabled ? projectsQuery.error : undefined}
 				onRetryProjects={() => void projectsQuery.refetch()}
-				onOpenProjectDialog={
-					chatProjectsEnabled ? setProjectDialogProject : undefined
-				}
-				onDeleteProject={
-					chatProjectsEnabled ? setProjectPendingDelete : undefined
-				}
+				onOpenProjectDialog={openProjectDialog}
+				onDeleteProject={setProjectPendingDelete}
 				chats={chats}
 				chatErrorReasons={chatErrorReasons}
 				modelConfigs={modelConfigs}
@@ -223,6 +257,9 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				onSidebarFiltersChange={onSidebarFiltersChange}
 				onCollapse={onCollapse}
 				activeChatId={activeChatId}
+				viewedProjectId={
+					sidebarView.panel === "chats" ? sidebarView.projectId : undefined
+				}
 				isSettingsPanel={isSettingsPanel}
 				isChatsActive={
 					!activeChatId &&
@@ -248,12 +285,23 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				recentChats={chats}
 			/>
 			<ChatProjectDialog
-				organizationId={defaultOrganizationId}
-				project={projectDialogProject}
-				open={projectDialogProject !== undefined}
+				project={
+					projectDialog?.mode === "edit" ? projectDialog.project : undefined
+				}
+				open={projectDialog !== null}
 				onOpenChange={(open) => {
-					if (!open) setProjectDialogProject(undefined);
+					if (!open) closeProjectDialog();
 				}}
+				isSubmitting={
+					projectDialog?.mode === "edit"
+						? updateProjectMutation.isPending
+						: createProjectMutation.isPending
+				}
+				error={
+					projectDialog?.mode === "edit"
+						? updateProjectMutation.error
+						: createProjectMutation.error
+				}
 				onSubmit={handleProjectSubmit}
 			/>
 			<DeleteDialog

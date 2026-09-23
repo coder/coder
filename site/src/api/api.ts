@@ -3246,7 +3246,6 @@ class ExperimentalApiMethods {
 		after_id?: string;
 		limit?: number;
 		offset?: number;
-		project_id?: string;
 		q?: string;
 	}): Promise<TypesGen.Chat[]> => {
 		const response = await this.axios.get<TypesGen.Chat[]>(

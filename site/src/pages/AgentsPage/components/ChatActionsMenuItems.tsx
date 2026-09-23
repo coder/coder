@@ -13,9 +13,9 @@ import type {
 	ContextMenuItem,
 	ContextMenuSeparator,
 } from "#/components/ContextMenu/ContextMenu";
-import {
+import type {
 	DropdownMenuItem,
-	type DropdownMenuSeparator,
+	DropdownMenuSeparator,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { ChatProjectActions } from "./ChatProjectActions";
@@ -72,6 +72,7 @@ type ChatActionsMenuItemsProps = {
 	readonly onArchiveAndDeleteWorkspace: () => void;
 	/** When omitted, the "Rename chat" item is hidden. */
 	readonly onOpenRenameDialog?: () => void;
+	readonly menu: "context" | "dropdown";
 	readonly Item: ItemComponent;
 	readonly Separator: SeparatorComponent;
 };
@@ -90,6 +91,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
 	onOpenRenameDialog,
+	menu,
 	Item,
 	Separator,
 }) => {
@@ -100,6 +102,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	const showPinAction =
 		!isArchived && !isChildChat && Boolean(onPinAgent && onUnpinAgent);
 	const showArchiveActions = !isArchived && !isChildChat;
+	const showProjectActions = !isChildChat;
 	const archiveBlockedHintId = useId();
 	const archiveBlockedDescribedBy = isArchiveBlocked
 		? archiveBlockedHintId
@@ -150,15 +153,13 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 						</Item>
 					)}
 					{subagentToggle}
-					<ChatProjectActions
-						chat={chat}
-						menu={Item === DropdownMenuItem ? "dropdown" : "context"}
-					/>
+					<ChatProjectActions chat={chat} menu={menu} />
 					{showArchiveActions && (
 						<>
-							{(onOpenRenameDialog || showPinAction || showSubagentsToggle) && (
-								<Separator />
-							)}
+							{(onOpenRenameDialog ||
+								showPinAction ||
+								showSubagentsToggle ||
+								showProjectActions) && <Separator />}
 							<Item
 								className="text-content-destructive focus:text-content-destructive"
 								aria-describedby={archiveBlockedDescribedBy}

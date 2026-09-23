@@ -57,7 +57,7 @@ import {
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
-import { ProjectFolders } from "./ProjectFolders";
+import { type ProjectDialogMode, ProjectFolders } from "./ProjectFolders";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const UNREAD_SECTION_KEY = "Unread";
@@ -65,12 +65,13 @@ const READ_SECTION_KEY = "Read";
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
 type ChatsPanelProps = {
+	readonly chatProjectsEnabled: boolean;
 	readonly projects: readonly ChatProject[];
 	readonly isProjectsLoading: boolean;
 	readonly projectsError?: unknown;
 	readonly onRetryProjects: () => void;
-	readonly onOpenProjectDialog?: (project: ChatProject | null) => void;
-	readonly onDeleteProject?: (project: ChatProject) => void;
+	readonly onOpenProjectDialog: (mode: ProjectDialogMode) => void;
+	readonly onDeleteProject: (project: ChatProject) => void;
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
@@ -100,6 +101,7 @@ type ChatsPanelProps = {
 	readonly onSidebarFiltersChange: (filters: AgentSidebarFilters) => void;
 	readonly onCollapse?: () => void;
 	readonly activeChatId: string | undefined;
+	readonly viewedProjectId: string | undefined;
 	readonly isSettingsPanel: boolean;
 	readonly isChatsActive: boolean;
 	readonly location: Location;
@@ -107,6 +109,7 @@ type ChatsPanelProps = {
 };
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
+	chatProjectsEnabled,
 	projects,
 	isProjectsLoading,
 	projectsError,
@@ -139,6 +142,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	onSidebarFiltersChange,
 	onCollapse,
 	activeChatId,
+	viewedProjectId,
 	isSettingsPanel,
 	isChatsActive,
 	location,
@@ -154,7 +158,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const [projectFolderOverrides, setProjectFolderOverrides] = useState<
 		Record<string, boolean>
 	>({});
-	const chatProjectsEnabled = Boolean(onOpenProjectDialog && onDeleteProject);
 
 	const chatTree = buildChatTree(chats);
 	const chatById = chatTree.chatById;
@@ -180,9 +183,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const unpinnedOwnedChats = unpinnedChats.filter(
 		(chat) => !chat.shared || chat.owner_id === currentUserId,
 	);
-	// Chats in a project render inside their folder and nowhere else. A chat
-	// whose project is not loaded (another organization, or a failed fetch)
-	// stays in the date sections so it never disappears.
+	// Owned, unpinned chats render in their folder. A chat whose project is not
+	// loaded stays in the sections below so it never disappears.
 	const loadedProjectIds = new Set(projects.map((project) => project.id));
 	const chatsByProjectId = new Map<string, Chat[]>();
 	const unfiledOwnedChats: Chat[] = [];
@@ -320,16 +322,15 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		}
 	}, [activeChatId]);
 
-	// The folder holding the active chat or the project being viewed opens
-	// by default. Arriving at a project clears a collapse the user made
-	// earlier so the folder opens again, while a collapse made while the
-	// project is active is respected until the next arrival.
+	// Folders default open for the active chat's project or the project page.
 	const activeProjectId =
 		(activeChatId ? chatById.get(activeChatId)?.project_id : undefined) ??
-		location.pathname.match(/^\/agents\/projects\/([^/]+)/)?.[1];
+		viewedProjectId;
 	const [seenActiveProjectId, setSeenActiveProjectId] =
 		useState(activeProjectId);
 	if (activeProjectId !== seenActiveProjectId) {
+		// Arriving at a project clears an earlier collapse. A collapse made while
+		// there remains until the next arrival.
 		setSeenActiveProjectId(activeProjectId);
 		if (activeProjectId && activeProjectId in projectFolderOverrides) {
 			setProjectFolderOverrides((prev) => {
@@ -339,12 +340,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			});
 		}
 	}
-	const expandedProjectIds = Object.fromEntries(
-		projects.map((project) => [
-			project.id,
-			projectFolderOverrides[project.id] ?? project.id === activeProjectId,
-		]),
-	);
 	const toggleProject = (projectId: string) => {
 		setProjectFolderOverrides((prev) => ({
 			...prev,
@@ -498,19 +493,31 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				)}
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
-				{onOpenProjectDialog && onDeleteProject && (
+				{chatProjectsEnabled && (
 					<ChatTreeContext value={chatTreeCtx}>
 						<ProjectFolders
 							projects={projects}
 							chatsByProjectId={chatsByProjectId}
-							expandedProjectIds={expandedProjectIds}
+							expandedProjectIds={Object.fromEntries(
+								projects.map((project) => [
+									project.id,
+									projectFolderOverrides[project.id] ??
+										project.id === activeProjectId,
+								]),
+							)}
 							onToggle={toggleProject}
-							onCreate={() => onOpenProjectDialog(null)}
-							onEdit={onOpenProjectDialog}
+							onOpenProjectDialog={onOpenProjectDialog}
 							onDelete={onDeleteProject}
 							isLoading={isProjectsLoading}
 							error={projectsError}
 							onRetry={onRetryProjects}
+							emptyMessage={
+								hasAppliedResultFilters
+									? "No chats match these filters"
+									: isViewingArchived
+										? "No archived chats"
+										: "No chats here"
+							}
 						/>
 					</ChatTreeContext>
 				)}

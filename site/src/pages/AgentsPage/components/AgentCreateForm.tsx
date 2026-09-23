@@ -226,10 +226,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// sends and persisted attachments cannot use an unpermitted org.
 	const orgSelectionSettled =
 		!showOrganizations || permittedOrgsQuery.data !== undefined;
-	// Keep an authoritative empty permission set distinct from pending data.
-	// A locked organization the user cannot use is also a denial, even when
-	// other organizations would be permitted.
-	const noPermittedOrgs =
+	const isOrgAccessDenied =
 		(showOrganizations && permittedOrgsQuery.data?.length === 0) ||
 		(orgSelectionSettled && Boolean(lockedOrganizationId) && !lockedOrg);
 	const selectedOrgIsPermitted =
@@ -290,14 +287,19 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	} | null>(null);
 	if (
 		orgSelectionSettled &&
-		!noPermittedOrgs &&
-		organizationId !== lastSettledOrg?.id
+		!isOrgAccessDenied &&
+		(organizationId !== lastSettledOrg?.id ||
+			Boolean(lockedOrganizationId) !== lastSettledOrg?.locked)
 	) {
 		const locked = Boolean(lockedOrganizationId);
+		const previousSettledOrg = lastSettledOrg;
 		setLastSettledOrg({ id: organizationId, locked });
-		if (lastSettledOrg !== null) {
+		if (
+			previousSettledOrg !== null &&
+			organizationId !== previousSettledOrg.id
+		) {
 			setUserMCPServerIds(null);
-			if (!locked && !lastSettledOrg.locked) {
+			if (!locked && !previousSettledOrg.locked) {
 				setSelectedWorkspaceId(null);
 			}
 		}
@@ -491,7 +493,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setUserSelectedModel(value);
 	};
 
-	const isForbidden = !canCreateChat || noPermittedOrgs;
+	const isForbidden = !canCreateChat || isOrgAccessDenied;
 
 	// Filter workspaces by the selected organization. We use
 	// client-side filtering of the full "owner:me" fetch rather
@@ -531,7 +533,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	} = useFileAttachments(
 		// Avoid restoring against effectiveOrg's fallback when no org is permitted;
 		// that would prune attachments persisted for other orgs.
-		orgSelectionSettled && !noPermittedOrgs
+		orgSelectionSettled && !isOrgAccessDenied
 			? organizationId || undefined
 			: undefined,
 		{
@@ -601,7 +603,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
 					{header}
 					{isForbidden ? (
-						<ChatAccessDeniedAlert />
+						<ChatAccessDeniedAlert
+							description={
+								lockedOrganizationId && !lockedOrg
+									? "You don't have permission to create chats in this project's organization."
+									: undefined
+							}
+						/>
 					) : createError ? (
 						isApiError(createError) &&
 						createError.response.status === 502 &&
@@ -717,7 +725,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						selectedWorkspaceId={effectiveWorkspaceId}
 						// Do not persist a workspace until its organization is authorized.
 						onWorkspaceChange={
-							orgSelectionSettled && !noPermittedOrgs
+							orgSelectionSettled && !isOrgAccessDenied
 								? handleWorkspaceChange
 								: undefined
 						}

@@ -250,6 +250,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
 						>
 							<ChatActionsMenuItems
+								menu="dropdown"
 								chat={chat}
 								hasWorkspace={hasWorkspace}
 								isArchiving={isArchivingThisChat}

@@ -4,7 +4,13 @@ import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 
-export const ChatAccessDeniedAlert: FC = () => {
+type ChatAccessDeniedAlertProps = {
+	readonly description?: string;
+};
+
+export const ChatAccessDeniedAlert: FC<ChatAccessDeniedAlertProps> = ({
+	description = "You don't have permission to use Coder Agents. Contact your Coder administrator, then refresh this page.",
+}) => {
 	const docsLink = docs("/ai-coder/agents/getting-started");
 
 	return (
@@ -18,8 +24,7 @@ export const ChatAccessDeniedAlert: FC = () => {
 		>
 			<AlertTitle>Permission required</AlertTitle>
 			<AlertDescription>
-				You don't have permission to use Coder Agents. Contact your Coder
-				administrator, then refresh this page.{" "}
+				{description}{" "}
 				<Link href={docsLink} target="_blank" rel="noreferrer">
 					View Docs
 				</Link>

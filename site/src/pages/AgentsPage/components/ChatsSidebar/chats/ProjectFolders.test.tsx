@@ -18,9 +18,9 @@ describe("ProjectFolders", () => {
 					chatsByProjectId={new Map()}
 					expandedProjectIds={{}}
 					onToggle={onToggle}
-					onCreate={vi.fn()}
-					onEdit={vi.fn()}
+					onOpenProjectDialog={vi.fn()}
 					onDelete={vi.fn()}
+					emptyMessage="No chats here"
 					error={new Error("Projects unavailable")}
 					onRetry={onRetry}
 				/>

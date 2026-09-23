@@ -1,9 +1,10 @@
-import { type FC, useState } from "react";
+import { PencilIcon } from "lucide-react";
+import { type FC, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage, isApiError } from "#/api/errors";
-import { chatProject } from "#/api/queries/chatProjects";
+import { chatProject, updateChatProject } from "#/api/queries/chatProjects";
 import { createChat } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -19,11 +20,9 @@ import {
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
+import { ChatProjectIcon } from "./components/ChatProjectIcon";
+import { ChatProjectDialog } from "./components/ChatsSidebar/dialogs/ChatProjectDialog";
 import { ChimeButton } from "./components/ChimeButton";
-import {
-	ProjectComposerFooter,
-	ProjectComposerHeader,
-} from "./components/ProjectComposerFrame";
 import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
@@ -39,13 +38,13 @@ const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();
-	const { projectId = "" } = useParams<{ projectId?: string }>();
+	const { projectId } = useParams<{ projectId?: string }>();
 	const { permissions } = useAuthenticated();
 	const { experiments } = useDashboard();
 	const chatProjectsEnabled = experiments.includes("chat-projects");
 	const projectQuery = useQuery({
 		...chatProject(projectId),
-		enabled: chatProjectsEnabled && Boolean(projectId),
+		enabled: chatProjectsEnabled && projectId !== undefined,
 	});
 	const selectedProject = projectQuery.data;
 	const isProjectMissing =
@@ -54,27 +53,26 @@ const AgentCreatePage: FC = () => {
 	// A cached project stays usable when a background refetch fails; only a
 	// lookup with nothing to show blocks the composer.
 	const projectLookupError =
-		projectId &&
+		projectId !== undefined &&
 		chatProjectsEnabled &&
 		!selectedProject &&
 		projectQuery.error &&
 		!isProjectMissing
 			? projectQuery.error
 			: undefined;
-	// The form binds attachments and remembered choices to its organization
-	// on mount, so it must not mount until the project's organization is known.
-	const isProjectLookupPending =
-		Boolean(projectId) &&
-		chatProjectsEnabled &&
-		!selectedProject &&
-		!projectLookupError;
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
+	// The mutation outlives project navigation, so only show its error under
+	// the project it was attempted for.
+	const attemptedProjectId = createMutation.variables?.project_id;
+	const selectedProjectId = selectedProject?.id;
+	const createError =
+		attemptedProjectId === selectedProjectId ? createMutation.error : undefined;
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
-	if (projectId && (!chatProjectsEnabled || isProjectMissing)) {
+	if (projectId !== undefined && (!chatProjectsEnabled || isProjectMissing)) {
 		return <Navigate to="/agents" replace />;
 	}
 
@@ -98,7 +96,7 @@ const AgentCreatePage: FC = () => {
 			}
 		}
 		const createRequest: TypesGen.CreateChatRequest = {
-			organization_id: selectedProject?.organization_id ?? organizationId,
+			organization_id: organizationId,
 			content,
 			workspace_id: workspaceId,
 			mcp_server_ids:
@@ -164,24 +162,44 @@ const AgentCreatePage: FC = () => {
 						</Button>
 					}
 				/>
-			) : isProjectLookupPending ? (
+			) : projectId !== undefined && chatProjectsEnabled && !selectedProject ? (
+				// The form must not mount until its organization is known because its
+				// attachments and remembered choices are organization-scoped.
 				<Loader label="Loading project" />
 			) : (
 				<AgentCreateForm
 					lockedOrganizationId={selectedProject?.organization_id}
 					header={
 						selectedProject && (
-							<ProjectComposerHeader project={selectedProject} />
+							<div className="mb-4 min-w-0 text-center">
+								<h1 className="m-0 flex items-center justify-center gap-2 break-words text-2xl font-semibold text-content-primary [overflow-wrap:anywhere]">
+									{selectedProject.icon && (
+										<ChatProjectIcon
+											project={selectedProject}
+											className="size-7"
+										/>
+									)}
+									<span className="min-w-0">{selectedProject.name}</span>
+								</h1>
+								{selectedProject.description && (
+									<p className="mx-auto mb-0 mt-2 max-w-xl break-words text-sm text-content-secondary [overflow-wrap:anywhere]">
+										{selectedProject.description}
+									</p>
+								)}
+							</div>
 						)
 					}
 					footer={
 						selectedProject && (
-							<ProjectComposerFooter project={selectedProject} />
+							<ProjectComposerFooter
+								key={selectedProject.id}
+								project={selectedProject}
+							/>
 						)
 					}
 					onCreateChat={handleCreateChat}
 					isCreating={createMutation.isPending}
-					createError={createMutation.error}
+					createError={createError}
 					canCreateChat={permissions.createChat}
 					canConfigureAgentSetup={permissions.editDeploymentConfig}
 					aiGatewayDisabled={aiGatewayDisabled}
@@ -192,6 +210,54 @@ const AgentCreatePage: FC = () => {
 				/>
 			)}
 		</>
+	);
+};
+
+type ProjectComposerFooterProps = {
+	readonly project: TypesGen.ChatProject;
+};
+
+const ProjectComposerFooter: FC<ProjectComposerFooterProps> = ({ project }) => {
+	const queryClient = useQueryClient();
+	const [isEditing, setIsEditing] = useState(false);
+	const editButtonRef = useRef<HTMLButtonElement>(null);
+	const updateProjectMutation = useMutation(updateChatProject(queryClient));
+	const closeDialog = () => {
+		setIsEditing(false);
+		requestAnimationFrame(() => editButtonRef.current?.focus());
+	};
+
+	return (
+		<div className="flex justify-center pt-2">
+			<Button
+				ref={editButtonRef}
+				variant="subtle"
+				size="sm"
+				className="text-content-secondary"
+				onClick={() => {
+					updateProjectMutation.reset();
+					setIsEditing(true);
+				}}
+			>
+				<PencilIcon />
+				Edit project
+			</Button>
+			<ChatProjectDialog
+				project={project}
+				open={isEditing}
+				onOpenChange={(open) => {
+					if (!open) closeDialog();
+				}}
+				isSubmitting={updateProjectMutation.isPending}
+				error={updateProjectMutation.error}
+				onSubmit={(request) => {
+					updateProjectMutation.mutate(
+						{ projectId: project.id, request },
+						{ onSuccess: closeDialog },
+					);
+				}}
+			/>
+		</div>
 	);
 };
 

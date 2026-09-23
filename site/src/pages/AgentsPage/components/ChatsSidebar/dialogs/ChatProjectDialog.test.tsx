@@ -13,41 +13,16 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => (
 );
 
 describe("ChatProjectDialog", () => {
-	it("submits a create request", async () => {
-		const user = userEvent.setup();
-		const onSubmit = vi.fn(async () => {});
-		render(
-			<ChatProjectDialog
-				organizationId="organization-1"
-				open
-				onOpenChange={vi.fn()}
-				onSubmit={onSubmit}
-			/>,
-			{ wrapper: Wrapper },
-		);
-
-		await user.type(screen.getByLabelText("Name"), "Launch");
-		await user.type(screen.getByLabelText("Description"), "Release work");
-		await user.type(screen.getByLabelText("Icon"), "/emojis/1f680.png");
-		await user.click(screen.getByRole("button", { name: "Save" }));
-
-		expect(onSubmit).toHaveBeenCalledWith({
-			organization_id: "organization-1",
-			name: "Launch",
-			description: "Release work",
-			icon: "/emojis/1f680.png",
-		});
-	});
-
 	it("submits the selected project's name, description, and icon", async () => {
 		const user = userEvent.setup();
-		const onSubmit = vi.fn(async () => {});
+		const onSubmit = vi.fn();
 		const project = { ...MockChatProject, icon: "/emojis/1f4c1.png" };
 		const { rerender } = render(
 			<ChatProjectDialog
-				organizationId={project.organization_id}
 				open={false}
 				onOpenChange={vi.fn()}
+				isSubmitting={false}
+				error={undefined}
 				onSubmit={onSubmit}
 			/>,
 			{ wrapper: Wrapper },
@@ -55,10 +30,11 @@ describe("ChatProjectDialog", () => {
 
 		rerender(
 			<ChatProjectDialog
-				organizationId={project.organization_id}
 				project={project}
 				open
 				onOpenChange={vi.fn()}
+				isSubmitting={false}
+				error={undefined}
 				onSubmit={onSubmit}
 			/>,
 		);

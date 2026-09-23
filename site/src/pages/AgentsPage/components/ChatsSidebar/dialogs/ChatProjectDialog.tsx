@@ -1,6 +1,7 @@
-import { type FC, useId, useState } from "react";
+import { useFormik } from "formik";
+import type { FC } from "react";
 import { getErrorMessage } from "#/api/errors";
-import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatProject } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -9,50 +10,51 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
-import { Input } from "#/components/Input/Input";
-import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
+import { getFormHelpers } from "#/utils/formUtils";
+
+type ChatProjectFormValues = {
+	name: string;
+	description: string;
+	icon: string;
+};
 
 type ChatProjectDialogProps = {
-	readonly organizationId: string;
-	readonly project?: TypesGen.ChatProject | null;
+	readonly project?: ChatProject;
 	readonly open: boolean;
 	readonly onOpenChange: (open: boolean) => void;
-	readonly onSubmit: (
-		request:
-			| TypesGen.CreateChatProjectRequest
-			| TypesGen.UpdateChatProjectRequest,
-	) => Promise<void>;
+	readonly isSubmitting: boolean;
+	readonly error: unknown;
+	readonly onSubmit: (values: ChatProjectFormValues) => void;
 };
 
 export const ChatProjectDialog: FC<ChatProjectDialogProps> = ({
-	organizationId,
 	project,
 	open,
 	onOpenChange,
+	isSubmitting,
+	error,
 	onSubmit,
 }) => {
-	const [isSaving, setIsSaving] = useState(false);
 	const handleOpenChange = (nextOpen: boolean) => {
-		if (!nextOpen && !isSaving) {
+		if (!nextOpen && !isSubmitting) {
 			onOpenChange(false);
 		}
 	};
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			{/* Radix unmounts the content when the dialog closes, so field
-			    state kept inside it resets on every open without remounting
-			    the dialog itself. */}
+			{/* Radix unmounts the content on close, so the form state below
+			    resets on every open without remounting the dialog itself. */}
 			<DialogContent>
 				<ChatProjectForm
-					organizationId={organizationId}
 					project={project}
-					isSaving={isSaving}
-					onSavingChange={setIsSaving}
-					onOpenChange={onOpenChange}
+					isSubmitting={isSubmitting}
+					error={error}
+					onCancel={() => handleOpenChange(false)}
 					onSubmit={onSubmit}
 				/>
 			</DialogContent>
@@ -60,106 +62,94 @@ export const ChatProjectDialog: FC<ChatProjectDialogProps> = ({
 	);
 };
 
-type ChatProjectFormProps = Omit<ChatProjectDialogProps, "open"> & {
-	readonly isSaving: boolean;
-	readonly onSavingChange: (saving: boolean) => void;
+type ChatProjectFormProps = {
+	readonly project?: ChatProject;
+	readonly isSubmitting: boolean;
+	readonly error: unknown;
+	readonly onCancel: () => void;
+	readonly onSubmit: (values: ChatProjectFormValues) => void;
 };
 
 const ChatProjectForm: FC<ChatProjectFormProps> = ({
-	organizationId,
 	project,
-	isSaving,
-	onSavingChange,
-	onOpenChange,
+	isSubmitting,
+	error,
+	onCancel,
 	onSubmit,
 }) => {
-	const nameId = useId();
-	const descriptionId = useId();
-	const [name, setName] = useState(project?.name ?? "");
-	const [description, setDescription] = useState(project?.description ?? "");
-	const [icon, setIcon] = useState(project?.icon ?? "");
-	const [error, setError] = useState<string>();
-	const isEditing = project !== null && project !== undefined;
-
-	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		const trimmedName = name.trim();
-		if (!trimmedName) {
-			return;
-		}
-		onSavingChange(true);
-		setError(undefined);
-		await onSubmit(
-			isEditing
-				? {
-						name: trimmedName,
-						description: description.trim(),
-						icon: icon.trim(),
-					}
-				: {
-						organization_id: organizationId,
-						name: trimmedName,
-						description: description.trim(),
-						icon: icon.trim(),
-					},
-		)
-			.then(() => {
-				onOpenChange(false);
-			})
-			.catch((submitError) => {
-				setError(getErrorMessage(submitError, "Failed to save project."));
+	const form = useFormik<ChatProjectFormValues>({
+		initialValues: {
+			name: project?.name ?? "",
+			description: project?.description ?? "",
+			icon: project?.icon ?? "",
+		},
+		validateOnMount: true,
+		validate: (values) =>
+			values.name.trim() ? {} : { name: "Name is required." },
+		onSubmit: (values) => {
+			onSubmit({
+				name: values.name.trim(),
+				description: values.description.trim(),
+				icon: values.icon.trim(),
 			});
-		onSavingChange(false);
-	};
+		},
+	});
+	const getFieldHelpers = getFormHelpers(form);
+	const nameField = getFieldHelpers("name", { maxLength: 64 });
+	const descriptionField = getFieldHelpers("description", { maxLength: 1024 });
+	const iconField = getFieldHelpers("icon", { maxLength: 256 });
 
 	return (
 		<>
 			<DialogHeader>
-				<DialogTitle>{isEditing ? "Edit project" : "New project"}</DialogTitle>
+				<DialogTitle>{project ? "Edit project" : "New project"}</DialogTitle>
 			</DialogHeader>
-			<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-				<div className="flex flex-col gap-2">
-					<Label htmlFor={nameId}>Name</Label>
-					<Input
-						id={nameId}
-						value={name}
-						onChange={(event) => setName(event.target.value)}
-						disabled={isSaving}
-						maxLength={64}
-						autoFocus
-					/>
-				</div>
-				<div className="flex flex-col gap-2">
-					<Label htmlFor={descriptionId}>Description</Label>
-					<Textarea
-						id={descriptionId}
-						value={description}
-						onChange={(event) => setDescription(event.target.value)}
-						disabled={isSaving}
-						maxLength={1024}
-					/>
-				</div>
-				<IconField
-					value={icon}
-					onChange={(event) => setIcon(event.target.value)}
-					onPickEmoji={setIcon}
-					disabled={isSaving}
-					maxLength={256}
+			<form className="flex flex-col gap-4" onSubmit={form.handleSubmit}>
+				<FormField
+					field={nameField}
+					label="Name"
+					required
+					disabled={isSubmitting}
+					maxLength={64}
+					autoFocus
 				/>
-				{error && (
-					<p className="m-0 text-sm text-content-destructive">{error}</p>
+				<FormField
+					field={descriptionField}
+					label="Description"
+					control={(props) => (
+						<Textarea
+							{...props}
+							name={descriptionField.name}
+							value={descriptionField.value}
+							onChange={descriptionField.onChange}
+							onBlur={descriptionField.onBlur}
+							disabled={isSubmitting}
+							maxLength={1024}
+						/>
+					)}
+				/>
+				<IconField
+					{...iconField}
+					disabled={isSubmitting}
+					maxLength={256}
+					onPickEmoji={(value) => form.setFieldValue("icon", value)}
+				/>
+				{Boolean(error) && (
+					<p className="m-0 text-sm text-content-destructive">
+						{getErrorMessage(error, "Failed to save project.")}
+					</p>
 				)}
 				<DialogFooter>
 					<Button
 						type="button"
 						variant="outline"
-						disabled={isSaving}
-						onClick={() => onOpenChange(false)}
+						disabled={isSubmitting}
+						onClick={onCancel}
 					>
 						Cancel
 					</Button>
-					<Button type="submit" disabled={!name.trim() || isSaving}>
-						<Spinner loading={isSaving} />
+					<Button type="submit" disabled={!form.isValid || isSubmitting}>
+						<Spinner loading={isSubmitting} />
 						Save
 					</Button>
 				</DialogFooter>

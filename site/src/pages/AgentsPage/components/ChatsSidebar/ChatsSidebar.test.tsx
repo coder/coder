@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import type { FC, PropsWithChildren } from "react";
@@ -19,6 +19,7 @@ import {
 	MockChatProject,
 	MockDefaultOrganization,
 	MockEntitlements,
+	MockOrganization2,
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -70,13 +71,13 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...overrides,
 });
 
-const Wrapper: FC<
-	PropsWithChildren<{
-		experiments?: TypesGen.Experiment[];
-		organizations?: TypesGen.Organization[];
-		initialEntry?: string;
-	}>
-> = ({
+type WrapperProps = PropsWithChildren<{
+	experiments?: TypesGen.Experiment[];
+	organizations?: TypesGen.Organization[];
+	initialEntry?: string;
+}>;
+
+const Wrapper: FC<WrapperProps> = ({
 	children,
 	experiments = [],
 	organizations = [MockDefaultOrganization],
@@ -134,9 +135,64 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	currentUserId: MockUserOwner.id,
 };
 
-afterEach(() => server.resetHandlers());
-
 describe("ChatsSidebar projects", () => {
+	it("does not show projects owned by another user", async () => {
+		const otherUsersProject = {
+			...MockChatProject,
+			id: "other-users-project",
+			owner_id: "other-user",
+			name: "Other user's project",
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject, otherUsersProject]),
+			),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await screen.findByRole("link", { name: MockChatProject.name });
+		expect(
+			screen.queryByRole("link", { name: otherUsersProject.name }),
+		).toBeNull();
+	});
+
+	it("returns focus to the project controls after closing dialogs", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+		);
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		const newProjectButton = await screen.findByRole("button", {
+			name: "New project",
+		});
+		await user.click(newProjectButton);
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+		await waitFor(() => expect(document.activeElement).toBe(newProjectButton));
+
+		const projectActionsButton = screen.getByRole("button", {
+			name: `Open project actions for ${MockChatProject.name}`,
+		});
+		await user.click(projectActionsButton);
+		await user.click(screen.getByRole("menuitem", { name: "Edit project" }));
+		await screen.findByRole("dialog", { name: "Edit project" });
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+		await waitFor(() =>
+			expect(document.activeElement).toBe(projectActionsButton),
+		);
+	});
+
 	it("creates a project when there are no chats", async () => {
 		const user = userEvent.setup();
 		let requestBody: unknown;
@@ -157,9 +213,13 @@ describe("ChatsSidebar projects", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "New project" }),
 		);
-		await user.type(screen.getByLabelText("Name"), "New project name");
+		const dialog = await screen.findByRole("dialog", { name: "New project" });
 		await user.type(
-			screen.getByLabelText("Description"),
+			within(dialog).getByRole("textbox", { name: /Name/ }),
+			"New project name",
+		);
+		await user.type(
+			within(dialog).getByRole("textbox", { name: "Description" }),
 			"Project description",
 		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
@@ -176,11 +236,7 @@ describe("ChatsSidebar projects", () => {
 
 	it("uses the first accessible organization when no default is available", async () => {
 		const user = userEvent.setup();
-		const nonDefaultOrganization = {
-			...MockDefaultOrganization,
-			id: "accessible-organization",
-			is_default: false,
-		};
+		const nonDefaultOrganization = MockOrganization2;
 		let requestBody: unknown;
 		server.use(
 			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
@@ -205,7 +261,11 @@ describe("ChatsSidebar projects", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "New project" }),
 		);
-		await user.type(screen.getByLabelText("Name"), "Accessible project");
+		const dialog = await screen.findByRole("dialog", { name: "New project" });
+		await user.type(
+			within(dialog).getByRole("textbox", { name: /Name/ }),
+			"Accessible project",
+		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
@@ -329,6 +389,7 @@ describe("ChatsSidebar projects", () => {
 						buildChat({
 							id: "project-chat",
 							title: "Project chat",
+							organization_id: MockChatProject.organization_id,
 							project_id: MockChatProject.id,
 						}),
 					]}
