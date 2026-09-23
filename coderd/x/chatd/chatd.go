@@ -208,6 +208,10 @@ type Server struct {
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
 
+	// thinkingDropBlock maps a chat ID to the model config ID whose
+	// requests send Anthropic's thinking drop_block control.
+	thinkingDropBlock sync.Map
+
 	// Configuration
 	inFlightChatStaleAfter time.Duration
 	streamSilenceTimeout   time.Duration

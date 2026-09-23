@@ -63,7 +63,12 @@ var bedrockSupportedBetaFlags = map[string]bool{
 	"tool-search-tool-2025-10-19": true,
 	// Supported on Claude Opus 4.5.
 	"tool-examples-2025-10-29": true,
+	// Supported on Claude Opus 5.5 and Claude Fable 5.1.
+	// Enables the thinking.block_binding body field.
+	bedrockBetaThinkingBinding: true,
 }
+
+const bedrockBetaThinkingBinding = "thinking-binding-controls-2026-08-01"
 
 // BedrockRuntime carries everything a Bedrock-backed interception needs: the
 // static Bedrock config plus the AWS credentials provider. The messages
@@ -562,6 +567,13 @@ func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 	}
 	i.reqPayload = updated
 
+	updated, err = i.reqPayload.removeUngatedThinkingBlockBinding(i.clientHeaders)
+	if err != nil {
+		i.logger.Warn(context.Background(), "failed to remove thinking block binding for Bedrock", slog.Error(err))
+		return
+	}
+	i.reqPayload = updated
+
 	// Adaptive-only models accept output_config but reject some of its
 	// sub-fields (currently: output_config.format). Strip those after the
 	// top-level pass has decided to keep output_config.
@@ -630,6 +642,13 @@ func filterBedrockBetaFlags(headers http.Header, model string) {
 		if trimmed == "context-management-2025-06-27" &&
 			!strings.Contains(model, "anthropic.claude-sonnet-4-5") &&
 			!strings.Contains(model, "anthropic.claude-haiku-4-5") {
+			continue
+		}
+
+		// thinking block binding is only enforced by Opus 5.5 and Fable 5.1.
+		if trimmed == bedrockBetaThinkingBinding &&
+			!strings.Contains(model, "anthropic.claude-opus-5-5") &&
+			!strings.Contains(model, "anthropic.claude-fable-5-1") {
 			continue
 		}
 

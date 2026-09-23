@@ -28,6 +28,7 @@ const (
 	messagesReqPathContextManagement         = "context_management"
 	messagesReqPathStream                    = "stream"
 	messagesReqPathThinking                  = "thinking"
+	messagesReqPathThinkingBlockBinding      = "thinking.block_binding"
 	messagesReqPathThinkingBudgetTokens      = "thinking.budget_tokens"
 	messagesReqPathThinkingType              = "thinking.type"
 	messagesReqPathToolChoice                = "tool_choice"
@@ -392,10 +393,10 @@ func (p RequestPayload) convertAdaptiveThinkingForBedrock() (RequestPayload, err
 	// https://platform.claude.com/docs/en/build-with-claude/extended-thinking#how-to-use-extended-thinking
 	budgetTokens := int64(float64(maxTokens) * ratio)
 	if budgetTokens < 1024 {
-		return p.set(messagesReqPathThinking, map[string]string{"type": constDisabled})
+		return p.replaceThinking(map[string]any{"type": constDisabled})
 	}
 
-	return p.set(messagesReqPathThinking, map[string]any{
+	return p.replaceThinking(map[string]any{
 		"type":          constEnabled,
 		"budget_tokens": budgetTokens,
 	})
@@ -417,7 +418,33 @@ func (p RequestPayload) convertEnabledThinkingForBedrock() (RequestPayload, erro
 	if gjson.GetBytes(p, messagesReqPathThinkingType).String() != constEnabled {
 		return p, nil
 	}
-	return p.set(messagesReqPathThinking, map[string]string{"type": constAdaptive})
+	return p.replaceThinking(map[string]any{"type": constAdaptive})
+}
+
+// replaceThinking sets the thinking object and keeps any
+// thinking.block_binding the caller sent.
+func (p RequestPayload) replaceThinking(thinking map[string]any) (RequestPayload, error) {
+	if binding := gjson.GetBytes(p, messagesReqPathThinkingBlockBinding); binding.Exists() {
+		thinking["block_binding"] = json.RawMessage(binding.Raw)
+	}
+	return p.set(messagesReqPathThinking, thinking)
+}
+
+// removeUngatedThinkingBlockBinding drops thinking.block_binding when the
+// already-filtered Anthropic-Beta header lacks the flag that enables it.
+// Bedrock rejects the field without the flag.
+func (p RequestPayload) removeUngatedThinkingBlockBinding(headers http.Header) (RequestPayload, error) {
+	if !gjson.GetBytes(p, messagesReqPathThinkingBlockBinding).Exists() {
+		return p, nil
+	}
+	if slices.Contains(headers.Values("Anthropic-Beta"), bedrockBetaThinkingBinding) {
+		return p, nil
+	}
+	out, err := sjson.DeleteBytes(p, messagesReqPathThinkingBlockBinding)
+	if err != nil {
+		return p, xerrors.Errorf("delete %s: %w", messagesReqPathThinkingBlockBinding, err)
+	}
+	return RequestPayload(out), nil
 }
 
 // removeBedrockUnsupportedOutputConfigSubFields drops sub-fields of

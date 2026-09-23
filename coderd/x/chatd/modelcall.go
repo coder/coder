@@ -64,8 +64,10 @@ func (e modelCallConfigParseError) Unwrap() error { return e.err }
 type resolvedModelCall struct {
 	model            chatprovider.Model
 	dbConfig         database.ChatModelConfig
+	clientCallConfig codersdk.ChatModelCallConfig
 	callConfig       codersdk.ChatModelCallConfig
 	providerOptions  fantasy.ProviderOptions
+	headers          map[string]string
 	resolvedProvider string
 	resolvedModel    string
 	route            aiGatewayModelRoute
@@ -106,6 +108,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	if err != nil {
 		return resolvedModelCall{}, modelCallConfigParseError{err: err}
 	}
+	out.clientCallConfig = clientCallConfig
 	if spec.fixedModel != nil {
 		out.callConfig = spec.fixedModel.callConfig
 	} else {
@@ -189,6 +192,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 func (r resolvedModelCall) newCall() fantasy.Call {
 	return fantasy.Call{
 		ProviderOptions:  r.providerOptions,
+		Headers:          r.headers,
 		MaxOutputTokens:  r.callConfig.MaxOutputTokens,
 		Temperature:      r.callConfig.Temperature,
 		TopP:             r.callConfig.TopP,

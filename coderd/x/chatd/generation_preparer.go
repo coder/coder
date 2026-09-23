@@ -128,6 +128,7 @@ func (server *Server) prepareGeneration(
 	// The chat config keeps driving compaction, sanitization, and debug
 	// attribution even when computer use swaps the resolved call below.
 	modelConfig := resolved.dbConfig
+	thinkingDropBlock := server.thinkingDropBlockEnabled(chat.ID, modelConfig.ID)
 
 	// Computer-use turns swap in a specialized model, so the substitution
 	// must happen before anything model-sensitive runs: file-part
@@ -161,6 +162,9 @@ func (server *Server) prepareGeneration(
 			)
 		}
 		resolved = cuResolved
+	}
+	if thinkingDropBlock {
+		resolved.applyThinkingDropBlock()
 	}
 	model := resolved.model
 	callConfig := resolved.callConfig
@@ -785,6 +789,7 @@ func (server *Server) prepareGeneration(
 		ModelConfigID:        modelConfig.ID,
 		CallTemplate:         resolved.newCall(),
 		ContextLimitFallback: modelConfig.ContextLimit,
+		ThinkingDropBlock:    thinkingDropBlock,
 		DynamicToolNames:     dynamicToolNames,
 		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
 		ExclusiveToolNames:   exclusiveToolNames,
