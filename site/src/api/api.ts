@@ -2914,49 +2914,42 @@ class ApiMethods {
 		templateId: string,
 		req: TypesGen.UpdateNotificationTemplateMethod,
 	) => {
-		const res = await this.axios.put<void>(
+		await this.axios.put(
 			`/api/v2/notifications/templates/${templateId}/method`,
 			req,
 		);
-		return res.data;
 	};
 
 	postTestNotification = async () => {
-		await this.axios.post<void>("/api/v2/notifications/test");
+		await this.axios.post("/api/v2/notifications/test");
 	};
 
 	createWebPushSubscription = async (
 		userId: string,
 		req: TypesGen.WebpushSubscription,
 	) => {
-		await this.axios.post<void>(
-			`/api/v2/users/${userId}/webpush/subscription`,
-			req,
-		);
+		await this.axios.post(`/api/v2/users/${userId}/webpush/subscription`, req);
 	};
 
 	deleteWebPushSubscription = async (
 		userId: string,
 		req: TypesGen.DeleteWebpushSubscription,
 	) => {
-		await this.axios.delete<void>(
-			`/api/v2/users/${userId}/webpush/subscription`,
-			{
-				data: req,
-			},
-		);
+		await this.axios.delete(`/api/v2/users/${userId}/webpush/subscription`, {
+			data: req,
+		});
 	};
 
 	requestOneTimePassword = async (
 		req: TypesGen.RequestOneTimePasscodeRequest,
 	) => {
-		await this.axios.post<void>("/api/v2/users/otp/request", req);
+		await this.axios.post("/api/v2/users/otp/request", req);
 	};
 
 	changePasswordWithOTP = async (
 		req: TypesGen.ChangePasswordWithOneTimePasscodeRequest,
 	) => {
-		await this.axios.post<void>("/api/v2/users/otp/change-password", req);
+		await this.axios.post("/api/v2/users/otp/change-password", req);
 	};
 
 	workspaceBuildTimings = async (workspaceBuildId: string) => {
@@ -3062,7 +3055,7 @@ class ApiMethods {
 	};
 
 	markAllInboxNotificationsAsRead = async () => {
-		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
+		await this.axios.put("/api/v2/notifications/inbox/mark-all-as-read");
 	};
 
 	getAIBridgeModels = async (
