@@ -5263,6 +5263,37 @@ func readFileResponseWithInputTokens(path string, inputTokens int) chattest.Anth
 	return chattest.AnthropicStreamingResponse(chunks...)
 }
 
+func TestActiveServer_PersistsAnthropicMessageID(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		if !req.Stream {
+			return chattest.AnthropicNonStreamingResponse("title")
+		}
+		chunks := chattest.AnthropicTextChunks("answer")
+		chunks[0].Message.ID = "msg_persisted"
+		return chattest.AnthropicStreamingResponse(chunks...)
+	})
+	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+	})
+
+	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	responseIDs := make(map[database.ChatMessageRole]sql.NullString)
+	for _, message := range messages {
+		responseIDs[message.Role] = message.ProviderResponseID
+	}
+	require.Equal(t, sql.NullString{String: "msg_persisted", Valid: true}, responseIDs[database.ChatMessageRoleAssistant])
+	require.False(t, responseIDs[database.ChatMessageRoleUser].Valid)
+}
+
 func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 	t.Parallel()
 
