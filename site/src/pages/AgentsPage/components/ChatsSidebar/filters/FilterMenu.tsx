@@ -264,33 +264,6 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 				className={cn(MOBILE_MENU_CLASS, "w-64 p-0")}
 			>
 				<div className="border-0 border-b border-solid border-border p-1">
-					<DropdownMenuSub>
-						<DropdownMenuSubTrigger>
-							<FilterRow
-								label="Grouped by"
-								value={GROUP_BY_LABELS[filters.groupBy]}
-							/>
-						</DropdownMenuSubTrigger>
-						<DropdownMenuSubContent className={MOBILE_MENU_CLASS}>
-							<DropdownMenuRadioGroup
-								value={filters.groupBy}
-								onValueChange={setGroupBy}
-							>
-								{GROUP_BY_ORDER.map((groupBy) => (
-									<DropdownMenuRadioItem
-										key={groupBy}
-										value={groupBy}
-										onSelect={keepMenuOpen}
-									>
-										{GROUP_BY_LABELS[groupBy]}
-									</DropdownMenuRadioItem>
-								))}
-							</DropdownMenuRadioGroup>
-						</DropdownMenuSubContent>
-					</DropdownMenuSub>
-				</div>
-
-				<div className="border-0 border-b border-solid border-border p-1">
 					<DropdownMenuPrimitive.RadioGroup
 						aria-label="State"
 						value={filters.archiveStatus}
@@ -407,6 +380,33 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 							))}
 						</div>
 					)}
+				</div>
+
+				<div className="border-0 border-b border-solid border-border p-1">
+					<DropdownMenuSub>
+						<DropdownMenuSubTrigger>
+							<FilterRow
+								label="Grouped by"
+								value={GROUP_BY_LABELS[filters.groupBy]}
+							/>
+						</DropdownMenuSubTrigger>
+						<DropdownMenuSubContent className={MOBILE_MENU_CLASS}>
+							<DropdownMenuRadioGroup
+								value={filters.groupBy}
+								onValueChange={setGroupBy}
+							>
+								{GROUP_BY_ORDER.map((groupBy) => (
+									<DropdownMenuRadioItem
+										key={groupBy}
+										value={groupBy}
+										onSelect={keepMenuOpen}
+									>
+										{GROUP_BY_LABELS[groupBy]}
+									</DropdownMenuRadioItem>
+								))}
+							</DropdownMenuRadioGroup>
+						</DropdownMenuSubContent>
+					</DropdownMenuSub>
 				</div>
 
 				<div className="p-1">
