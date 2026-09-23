@@ -1190,6 +1190,11 @@ type SendMessageResult struct {
 	// insert messages by promoting the previous queue head.
 	InsertedMessages []database.ChatMessage
 	Chat             database.Chat
+	// FirstUserTurn reports that the send inserted the first
+	// user-visible message into a chat still carrying
+	// chatprompt.DefaultChatTitle. The send already persisted the
+	// fallback title, so callers only schedule the async title upgrade.
+	FirstUserTurn bool
 }
 
 // EditMessageOptions controls user message edits via soft-delete and re-insert.
@@ -1594,6 +1599,18 @@ func (p *Server) SendMessage(
 			messageCreatedBy = lockedChat.OwnerID
 		}
 
+		firstUserTurn := false
+		if lockedChat.Title == chatprompt.DefaultChatTitle {
+			visible, err := store.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
+				ChatID:   opts.ChatID,
+				LimitVal: 1,
+			})
+			if err != nil {
+				return xerrors.Errorf("probe visible chat messages: %w", err)
+			}
+			firstUserTurn = len(visible) == 0
+		}
+
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
 		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
@@ -1623,6 +1640,24 @@ func (p *Server) SendMessage(
 		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
 			return err
 		}
+		if firstUserTurn && !result.Queued {
+			result.FirstUserTurn = true
+			// Persist the fallback title with the message so a failed
+			// async title call cannot leave the placeholder forever.
+			firstMessage := []database.ChatMessage{result.Message}
+			pasteText, err := titlePasteText(ctx, store, firstMessage)
+			if err != nil {
+				return err
+			}
+			if titleText, ok := titleInput(lockedChat, firstMessage, pasteText); ok {
+				if _, err := store.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+					ID:    opts.ChatID,
+					Title: chatprompt.FallbackTitle(titleText),
+				}); err != nil {
+					return xerrors.Errorf("update fallback chat title: %w", err)
+				}
+			}
+		}
 		// Capture the post-transition chat inside the same
 		// transaction so the returned chat and the watch event
 		// reflect the snapshot bump and status change produced by
@@ -1641,6 +1676,9 @@ func (p *Server) SendMessage(
 	// Sidebar watch event keeps the chat list in sync. Stream side
 	// effects are handled by chat:update consumers.
 	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
+	if result.FirstUserTurn && result.Chat.Title != chatprompt.DefaultChatTitle {
+		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindTitleChange, nil)
+	}
 	return result, nil
 }
 

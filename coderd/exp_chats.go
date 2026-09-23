@@ -1523,8 +1523,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// Kick off best-effort automatic title generation now that the
 	// chat and its initial user message are persisted. It runs
 	// detached so it never blocks the create response, and only acts
-	// on the first user turn.
-	api.chatDaemon.GenerateChatTitleAsync(ownerCtx, chat)
+	// on the first user turn. Empty creates title on their first send.
+	if len(contentBlocks) > 0 {
+		api.chatDaemon.GenerateChatTitleAsync(ownerCtx, chat)
+	}
 
 	chatFiles := api.fetchChatFileMetadata(ownerCtx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
@@ -2758,27 +2760,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Chats created without an initial message carry the placeholder
-	// title until their first message lands here. Decide eligibility
-	// before the send: SendMessage publishes the ownership hint, so a
-	// fast worker reply could land before an async history read and
-	// wrongly disqualify the first-user-turn check inside title
-	// generation, leaving the placeholder title forever. The probe is a
-	// single-row read so chats that keep the placeholder title do not
-	// pay for a full history load on every send.
-	titleEligible := false
-	if chat.Title == chatprompt.DefaultChatTitle {
-		visible, titleErr := api.Database.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
-			ChatID:   chatID,
-			LimitVal: 1,
-		})
-		titleEligible = titleErr == nil && len(visible) == 0
-		if titleErr != nil {
-			api.Logger.Debug(ctx, "failed to probe messages for automatic title generation",
-				slog.F("chat_id", chatID), slog.Error(titleErr))
-		}
-	}
-
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
@@ -2848,10 +2829,10 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The pre-send probe found no user-visible history, so the message
-	// just inserted is the chat's first user turn; system messages are
-	// invisible to title generation and need not be loaded.
-	if !sendResult.Queued && titleEligible {
+	// Pass the inserted message as the snapshot: SendMessage published
+	// the ownership hint, so a fresh history read could already contain
+	// the assistant reply and disqualify title generation.
+	if sendResult.FirstUserTurn {
 		api.chatDaemon.GenerateChatTitleForMessagesAsync(
 			ctx,
 			sendResult.Chat,

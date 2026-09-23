@@ -11112,6 +11112,35 @@ func TestPostChatMessages_TitleGenerationForEmptyCreatedChat(t *testing.T) {
 	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 }
 
+// TestPostChatMessages_FallbackTitleForEmptyCreatedChat verifies that
+// the first message on an empty-created chat persists the fallback
+// title even when automatic title generation fails.
+func TestPostChatMessages_FallbackTitleForEmptyCreatedChat(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _, api := newChatClientWithoutAIBridge(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelWithTitleFailure(t, client)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+	})
+	require.NoError(t, err)
+
+	const text = "summarize the failing upload integration tests for me"
+	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: text}},
+	})
+	require.NoError(t, err)
+	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+	refreshed, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, chatprompt.FallbackTitle(text), refreshed.Title)
+}
+
 func TestGetChatDiffStatus(t *testing.T) {
 	t.Parallel()
 
