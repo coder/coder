@@ -859,6 +859,17 @@ export const useFilterCombobox = ({
 			chipValues.length > 0
 		) {
 			event.preventDefault();
+			// A widened chip is followed by its scope pill, so the pill goes first.
+			const lastKey = chipKeyOf(chipValues[chipValues.length - 1]);
+			const widenedCategory = categories.find(
+				(category) =>
+					category.scopeToggle !== undefined &&
+					category.scopeToggle.chipKey === lastKey,
+			);
+			if (widenedCategory) {
+				toggleScope(widenedCategory.key);
+				return;
+			}
 			updateFromChips(chipValues.slice(0, -1));
 			return;
 		}

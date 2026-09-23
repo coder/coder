@@ -342,6 +342,21 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	it("removes the scope pill before its chip with Backspace", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			initialValue: "user:alice",
+		});
+
+		await user.click(input);
+		await user.keyboard("{Backspace}");
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+
+		await user.keyboard("{Backspace}");
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+	});
+
 	it("opens the Owner flyout with its toggle when typing shared", async () => {
 		const { user, onChange, input } = setup([scopedOwnerCategory], {
 			initialValue: "owner:alice",
