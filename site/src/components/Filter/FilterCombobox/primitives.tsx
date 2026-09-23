@@ -308,6 +308,8 @@ type FilterComboboxChipProps = ComponentProps<typeof Badge> & {
 	showRemove?: boolean;
 	/** Accessible name for the remove control. Defaults to `Remove ${value}`. */
 	removeLabel?: string;
+	/** Replaces the root's `onRemoveValue` for chips that are not query tokens. */
+	onRemove?: () => void;
 };
 
 export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
@@ -316,6 +318,7 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 	value,
 	showRemove = true,
 	removeLabel,
+	onRemove,
 	...props
 }) => {
 	const { onRemoveValue } = useFilterComboboxState();
@@ -349,7 +352,9 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 					onMouseDown={(event) => event.preventDefault()}
 					onClick={(event) => {
 						event.stopPropagation();
-						if (removeValue) {
+						if (onRemove) {
+							onRemove();
+						} else if (removeValue) {
 							onRemoveValue?.(removeValue);
 						}
 					}}

@@ -76,10 +76,7 @@ export const chipDisplay = (
 			category.chipKeys?.includes(key.toLowerCase()),
 	);
 	if (owner?.scopeToggle?.chipKey === key.toLowerCase()) {
-		return {
-			key: owner.key,
-			value: `${value} ${owner.scopeToggle.chipSuffix}`,
-		};
+		return { key: owner.key, value };
 	}
 	if (owner) {
 		return { key: owner.key, value: key.toLowerCase() };

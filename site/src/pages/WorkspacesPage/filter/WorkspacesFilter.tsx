@@ -62,7 +62,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				scopeToggle: {
 					label: "Include shared workspaces",
 					chipKey: "user",
-					chipSuffix: "+shared",
+					pillLabel: "include shared",
 				},
 				getOptions: canListUsers
 					? (query) => getUserFilterOptions(query, me, queryClient)

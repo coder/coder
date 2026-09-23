@@ -269,9 +269,9 @@ export const useFilterCombobox = ({
 		() => queryToChips(value, chipKeys),
 		[chipKeys, value],
 	);
-	// Scope toggles switched on for categories that currently have no chip.
-	// Once a chip exists its key is the source of truth.
-	const [widenedScopes, setWidenedScopes] = useState<ReadonlySet<string>>(
+	// Scope toggles are on by default. This tracks the ones switched off while
+	// the category has no chip; once a chip exists its key is the source of truth.
+	const [narrowedScopes, setNarrowedScopes] = useState<ReadonlySet<string>>(
 		() => new Set(),
 	);
 	const chipKeyOf = (token: string) => parseChipToken(token, chipKeys)?.key;
@@ -287,7 +287,7 @@ export const useFilterCombobox = ({
 		if (appliedKeys.includes(category.key)) {
 			return false;
 		}
-		return widenedScopes.has(category.key);
+		return !narrowedScopes.has(category.key);
 	};
 	// Query key the category's options commit under right now.
 	const optionChipKey = (category: FilterCategory) =>
@@ -604,12 +604,12 @@ export const useFilterCombobox = ({
 		const widened = isScopeWidened(category);
 		const fromKey = widened ? toggle.chipKey : category.key;
 		const toKey = widened ? category.key : toggle.chipKey;
-		setWidenedScopes((previous) => {
+		setNarrowedScopes((previous) => {
 			const next = new Set(previous);
 			if (widened) {
-				next.delete(category.key);
-			} else {
 				next.add(category.key);
+			} else {
+				next.delete(category.key);
 			}
 			return next;
 		});

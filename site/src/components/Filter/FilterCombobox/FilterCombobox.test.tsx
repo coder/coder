@@ -17,7 +17,7 @@ const scopedOwnerCategory: FilterCategory = {
 	scopeToggle: {
 		label: "Include shared workspaces",
 		chipKey: "user",
-		chipSuffix: "+shared",
+		pillLabel: "include shared",
 	},
 };
 
@@ -237,7 +237,7 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it("commits options under the scope toggle key while it is on", async () => {
+	it("commits options under the scope toggle key by default", async () => {
 		const user = userEvent.setup();
 		const onChange = vi.fn();
 		render(
@@ -249,9 +249,9 @@ describe("FilterCombobox", () => {
 
 		await user.click(screen.getByRole("button", { name: "Toggle filters" }));
 		await user.keyboard("{ArrowRight}");
-		await user.click(
+		expect(
 			await screen.findByRole("switch", { name: "Include shared workspaces" }),
-		);
+		).toBeChecked();
 		await user.click(await screen.findByRole("option", { name: "alice" }));
 
 		await waitFor(() =>
@@ -272,11 +272,35 @@ describe("FilterCombobox", () => {
 
 		await user.click(screen.getByRole("button", { name: "Toggle filters" }));
 		await user.keyboard("{ArrowRight}");
-		const toggle = await screen.findByRole("switch", {
-			name: "Include shared workspaces",
-		});
-		expect(toggle).toBeChecked();
-		await user.click(toggle);
+		await user.click(
+			await screen.findByRole("switch", { name: "Include shared workspaces" }),
+		);
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+
+		await user.click(
+			await screen.findByRole("switch", { name: "Include shared workspaces" }),
+		);
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+	});
+
+	it("removing the scope pill narrows the applied chip", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<FilterComboboxHarness
+				categories={[scopedOwnerCategory]}
+				initialValue="user:alice"
+				onChange={onChange}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Remove include shared" }),
+		);
 
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),

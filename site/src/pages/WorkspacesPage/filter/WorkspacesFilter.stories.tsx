@@ -62,7 +62,7 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 		// The default `user:me` renders as a committed chip, not free text.
 		await expect(
-			canvas.getByRole("button", { name: "Remove owner:me +shared" }),
+			canvas.getByRole("button", { name: "Remove owner:me" }),
 		).toBeVisible();
 	},
 };
@@ -92,7 +92,7 @@ export const OrdinaryUserKeepsUserChip: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await expect(
-			canvas.getByRole("button", { name: "Remove owner:me +shared" }),
+			canvas.getByRole("button", { name: "Remove owner:me" }),
 		).toBeVisible();
 
 		await userEvent.click(

@@ -284,12 +284,16 @@ export function FilterCombobox({
 								},
 							);
 							const labelOnly = inlineOption?.categoryKey === "attribute";
-							const prefix = labelOnly ? "" : display.key;
-							const value = labelOnly
-								? (inlineOption?.option.appliedLabel ??
-									inlineOption?.option.label ??
-									display.value)
-								: display.value;
+							// Applied tokens read as query syntax, so they are always
+							// lowercase even when the menu shows a display label.
+							const prefix = (labelOnly ? "" : display.key).toLowerCase();
+							const value = (
+								labelOnly
+									? (inlineOption?.option.appliedLabel ??
+										inlineOption?.option.label ??
+										display.value)
+									: display.value
+							).toLowerCase();
 							const displayText = prefix ? chipToken(prefix, value) : value;
 							return (
 								<FilterComboboxChip
@@ -306,6 +310,17 @@ export function FilterCombobox({
 								</FilterComboboxChip>
 							);
 						})}
+						{categories.map((category) =>
+							category.scopeToggle && scopeWidened(category.key) ? (
+								<FilterComboboxChip
+									key={`${category.key}-scope`}
+									removeLabel={`Remove ${category.scopeToggle.pillLabel.toLowerCase()}`}
+									onRemove={() => actions.toggleScope(category.key)}
+								>
+									{category.scopeToggle.pillLabel.toLowerCase()}
+								</FilterComboboxChip>
+							) : null,
+						)}
 						{activeCategory && committedFreeText.length > 0 && (
 							<Badge
 								variant="outline"
