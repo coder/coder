@@ -1041,6 +1041,34 @@ func TestResolveScriptOrder(t *testing.T) {
 	}, order.rules)
 }
 
+func TestResolveScriptOrderInfersStopPhaseFromScriptSelectors(t *testing.T) {
+	t.Parallel()
+
+	module := &tfjson.StateModule{Resources: []*tfjson.StateResource{
+		managedCoderScript("coder_script.archive", "archive"),
+		managedCoderScript("coder_script.shutdown", "shutdown"),
+		dataCoderScriptOrder(
+			"data.coder_script_order.order",
+			"order",
+			scriptOrderRuleAttributes{
+				Run:   []string{"coder_script.archive"},
+				After: []string{"coder_script.shutdown"},
+			},
+		),
+	}}
+	scripts := scriptOrderTestScripts(
+		"coder_agent.main", scriptOrderPhaseStop,
+		"coder_script.archive", "coder_script.shutdown",
+	)
+
+	order, err := resolveScriptOrder([]*tfjson.StateModule{module}, nil, scripts)
+	require.NoError(t, err)
+	require.Len(t, order.rules, 1)
+	require.Equal(t, scriptOrderPhaseStop, order.rules[0].phase)
+	require.Equal(t, "coder_agent.main", order.rules[0].runtimeAddress)
+	require.Empty(t, order.warnings)
+}
+
 func TestResolveScriptOrderFiltersModuleScriptsByPhase(t *testing.T) {
 	t.Parallel()
 
@@ -1324,10 +1352,11 @@ func TestResolveScriptOrderRejectsInvalidRules(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		rule     scriptOrderRuleAttributes
-		scripts  map[string]scriptOrderScript
-		contains []string
+		name      string
+		rule      scriptOrderRuleAttributes
+		resources []*tfjson.StateResource
+		scripts   map[string]scriptOrderScript
+		contains  []string
 	}{
 		{
 			name: "ScriptNotFound",
@@ -1431,19 +1460,37 @@ func TestResolveScriptOrderRejectsInvalidRules(t *testing.T) {
 			),
 			contains: []string{"run selector", "after selector", "coder_script.a", "depend on itself"},
 		},
+		{
+			name: "SelfDependencyAfterSelectorExpansion",
+			rule: scriptOrderRuleAttributes{
+				Run: []string{"coder_script.setup"}, After: []string{"coder_script.setup[0]"},
+			},
+			resources: []*tfjson.StateResource{
+				managedCoderScript("coder_script.setup[0]", "setup"),
+			},
+			scripts: scriptOrderTestScripts(
+				"coder_agent.main", scriptOrderPhaseStart, "coder_script.setup[0]",
+			),
+			contains: []string{
+				"run selector", "coder_script.setup", "after selector",
+				"coder_script.setup[0]", "depend on itself",
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			module := &tfjson.StateModule{Resources: []*tfjson.StateResource{
+			resources := []*tfjson.StateResource{
 				managedCoderScript("coder_script.a", "a"),
 				managedCoderScript("coder_script.b", "b"),
-				dataCoderScriptOrder(
-					"data.coder_script_order.order", "order", test.rule,
-				),
-			}}
+			}
+			resources = append(resources, test.resources...)
+			resources = append(resources, dataCoderScriptOrder(
+				"data.coder_script_order.order", "order", test.rule,
+			))
+			module := &tfjson.StateModule{Resources: resources}
 			order, err := resolveScriptOrder(
 				[]*tfjson.StateModule{module}, nil, test.scripts,
 			)
