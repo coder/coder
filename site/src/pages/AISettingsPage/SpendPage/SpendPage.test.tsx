@@ -239,12 +239,14 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 		.getAllByRole("radio", { name: /^Last \d+ (days|hours)$/ })
 		.map((preset) => preset.textContent ?? "");
 	for (const label of offered) {
+		const requestsBeforePreset = spendSpy.mock.calls.length;
 		await user.click(screen.getByRole("radio", { name: label }));
 		await waitFor(() =>
-			expect(spendSpy.mock.calls.length).toBeGreaterThan(requestsBeforePicking),
+			expect(spendSpy.mock.calls.length).toBeGreaterThan(requestsBeforePreset),
 		);
-		// The trigger now shows the applied preset; reopen it for the next one.
-		await user.click(screen.getByRole("button", { name: label }));
+		// The trigger shows the applied preset once the URL updates; reopen it
+		// for the next one.
+		await user.click(await screen.findByRole("button", { name: label }));
 	}
 	const presetRequests = spendSpy.mock.calls.slice(requestsBeforePicking);
 	expect(presetRequests).toHaveLength(offered.length);
