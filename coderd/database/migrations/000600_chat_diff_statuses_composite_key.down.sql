@@ -11,7 +11,7 @@ WHERE (chat_id, git_remote_origin, git_branch) IN (
             git_branch,
             ROW_NUMBER() OVER (
                 PARTITION BY chat_id
-                ORDER BY reported_at DESC, git_remote_origin, git_branch
+                ORDER BY updated_at DESC, git_remote_origin, git_branch
             ) AS rank
         FROM chat_diff_statuses
     ) ranked
@@ -23,6 +23,3 @@ ALTER TABLE chat_diff_statuses
 
 ALTER TABLE chat_diff_statuses
     ADD PRIMARY KEY (chat_id);
-
-ALTER TABLE chat_diff_statuses
-    DROP COLUMN reported_at;

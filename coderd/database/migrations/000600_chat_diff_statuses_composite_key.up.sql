@@ -7,9 +7,3 @@ ALTER TABLE chat_diff_statuses
 
 ALTER TABLE chat_diff_statuses
     ADD PRIMARY KEY (chat_id, git_remote_origin, git_branch);
-
-ALTER TABLE chat_diff_statuses
-    ADD COLUMN reported_at timestamp with time zone DEFAULT now() NOT NULL;
-
-UPDATE chat_diff_statuses
-SET reported_at = updated_at;
