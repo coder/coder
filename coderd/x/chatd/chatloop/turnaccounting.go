@@ -46,8 +46,9 @@ var TurnTimeCategories = []Category{
 
 // attributingStages are the stages that take time from the stage they
 // run inside and contribute their remaining time to a category. A
-// stage outside this set neither claims time from its parent nor lands
-// in a category, because such stages overlap the ones that do:
+// stage outside this set is still summed into the per-stage turn
+// totals, but it neither claims time from its parent nor lands in a
+// category, because such stages overlap the ones that do:
 // provider_attempt overlaps time_to_first_token, and thinking and
 // tool_call are reconstructed from timestamps inside a stream that is
 // already accounted for.
@@ -65,8 +66,8 @@ var attributingStages = map[Stage]struct{}{
 // recordedStageCategories maps the stages reconstructed from explicit
 // timestamps to their category. They run outside any attributing stage
 // and cannot nest, so their full duration is categorized. Recorded
-// stages absent from the map are not categorized. capacity_wait is
-// absent: it is a sub-window of acquisition, measured
+// stages absent from the map contribute to the per-stage totals only.
+// capacity_wait is absent: it is a sub-window of acquisition, measured
 // before the turn exists, and categorizing it would count that window
 // twice.
 var recordedStageCategories = map[Stage]Category{
@@ -98,14 +99,15 @@ func stageNodeFromContext(ctx context.Context) *stageNode {
 	return node
 }
 
-// TurnAccumulator sums the category times of one chat turn so they can
-// be emitted together when the turn ends, instead of arriving spread
-// over the turn as each stage ends.
+// TurnAccumulator sums the stage durations and the category times of
+// one chat turn so they can be emitted together when the turn ends,
+// instead of arriving spread over the turn as each stage ends.
 //
 // It is safe for concurrent use: parallel tool calls and the stages
 // under them end on different goroutines.
 type TurnAccumulator struct {
 	mu         sync.Mutex
+	stages     map[Stage]time.Duration
 	categories map[Category]time.Duration
 	model      StageModel
 	completed  bool
@@ -117,8 +119,20 @@ type TurnAccumulator struct {
 // reaches its finish transition emits nothing.
 func NewTurnAccumulator() *TurnAccumulator {
 	return &TurnAccumulator{
+		stages:     map[Stage]time.Duration{},
 		categories: map[Category]time.Duration{},
 	}
+}
+
+// addStage adds the time one occurrence of a stage took. A zero
+// elapsed still creates the stage's entry.
+func (a *TurnAccumulator) addStage(stage Stage, elapsed time.Duration) {
+	if a == nil || elapsed < 0 {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.stages[stage] += elapsed
 }
 
 func (a *TurnAccumulator) addCategory(category Category, elapsed time.Duration) {
@@ -180,6 +194,7 @@ func (a *TurnAccumulator) Invalidate() {
 
 // turnAccounting is the emittable state of one turn.
 type turnAccounting struct {
+	stages     map[Stage]time.Duration
 	categories map[Category]time.Duration
 	emit       bool
 }
@@ -191,8 +206,12 @@ func (a *TurnAccumulator) snapshot() turnAccounting {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	snapshot := turnAccounting{
+		stages:     make(map[Stage]time.Duration, len(a.stages)),
 		categories: make(map[Category]time.Duration, len(a.categories)),
 		emit:       a.completed && !a.invalid,
+	}
+	for stage, elapsed := range a.stages {
+		snapshot.stages[stage] = elapsed
 	}
 	for category, elapsed := range a.categories {
 		snapshot.categories[category] = elapsed
@@ -298,6 +317,16 @@ func (n *stageNode) category(state nodeState, err error) Category {
 	}
 }
 
+// addTurnStageTotal adds a finished stage to the per-stage totals of
+// the turn it ran in. The turn's own stage is skipped: its duration is
+// the denominator the other stages are compared against.
+func (s *StageSpan) addTurnStageTotal(elapsed time.Duration) {
+	if s.acc == nil || s.stage == StageChatTurn {
+		return
+	}
+	s.acc.addStage(s.stage, elapsed)
+}
+
 // report folds a finished stage into the turn it ran in. elapsed is
 // the stage's full duration; the category receives only the part not
 // spent inside a nested attributing stage.
@@ -342,14 +371,16 @@ func recordAttribution(ctx context.Context, stage Stage, elapsed time.Duration) 
 	if acc == nil {
 		return
 	}
+	acc.addStage(stage, elapsed)
 	acc.addCategory(recordedStageCategories[stage], elapsed)
 }
 
-// emitTurnAccounting records the category partition of one turn.
-// turnDuration is the turn's own wall time, and the categories that
-// did not add up to it become the unattributed remainder. Categories
-// that add up to more than the turn are emitted as measured, with no
-// unattributed time, and counted as an anomaly.
+// emitTurnAccounting observes the per-stage totals and the category
+// partition of one turn. turnDuration is the turn's own wall time, and
+// the categories that did not add up to it become the unattributed
+// remainder. Categories that add up to more than the turn are emitted
+// as measured, with no unattributed time, and counted as an anomaly:
+// the turn's shares then sum to more than 1.
 func (t *StageTracer) emitTurnAccounting(acc *TurnAccumulator, chatKind ChatKind, turnDuration time.Duration) {
 	if t == nil || t.metrics == nil {
 		return
@@ -365,6 +396,10 @@ func (t *StageTracer) emitTurnAccounting(acc *TurnAccumulator, chatKind ChatKind
 		t.RecordAnomaly(StageAnomalyNonPositiveTurn)
 		return
 	}
+	turnSeconds := turnDuration.Seconds()
+	for stage, elapsed := range snapshot.stages {
+		t.metrics.RecordTurnStage(stage, chatKind, elapsed)
+	}
 	var attributed time.Duration
 	for _, category := range TurnTimeCategories {
 		attributed += snapshot.categories[category]
@@ -377,6 +412,7 @@ func (t *StageTracer) emitTurnAccounting(acc *TurnAccumulator, chatKind ChatKind
 	snapshot.categories[CategoryUnattributed] = unattributed
 	t.metrics.RecordTurn(chatKind)
 	for _, category := range TurnTimeCategories {
-		t.metrics.RecordTurnCategory(category, chatKind, snapshot.categories[category])
+		elapsed := snapshot.categories[category]
+		t.metrics.RecordTurnCategory(category, chatKind, elapsed, elapsed.Seconds()/turnSeconds)
 	}
 }

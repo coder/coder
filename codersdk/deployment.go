@@ -5246,6 +5246,7 @@ const (
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
+	ExperimentChatStageMetricsFull      Experiment = "chat-stage-metrics-full"     // Observes every chat lifecycle stage and per-turn distributions at a higher series count.
 )
 
 func (e Experiment) DisplayName() string {
