@@ -89,9 +89,9 @@ type waitAgentArgs struct {
 }
 
 type messageAgentArgs struct {
-	ChatID    string `json:"chat_id"`
-	Message   string `json:"message"`
-	Interrupt bool   `json:"interrupt,omitempty"`
+	ChatID       string `json:"chat_id"`
+	Message      string `json:"message"`
+	BusyBehavior string `json:"busy_behavior,omitempty" enum:"queue,steer,interrupt"`
 }
 
 type interruptAgentArgs struct {
@@ -737,11 +737,14 @@ func (p *Server) subagentTools(
 			"message_agent",
 			"Send a follow-up message to a previously spawned child "+
 				"agent. If the agent is idle, it resumes work on the "+
-				"message. If it is busy, the message is queued behind its "+
-				"current work and any earlier queued messages; set interrupt "+
-				"to true for corrections, changed scope, or a handoff that "+
-				"returns the child's task to you, so its current work stops "+
-				"first. Interrupting does not clear earlier queued messages, "+
+				"message. If the agent is busy, busy_behavior controls when "+
+				"the message arrives: \"queue\" (default) after the agent's "+
+				"current turn, \"steer\" before the agent's next model call "+
+				"without stopping its work, \"interrupt\" after the agent's "+
+				"current step is stopped. Messages already queued for the "+
+				"agent arrive before it. Use \"interrupt\" for corrections, "+
+				"changed scope, or a handoff that returns the child's task "+
+				"to you. Interrupting does not clear earlier queued messages, "+
 				"and the tool result does not confirm the child has stopped. "+
 				"Use wait_agent to collect the child's response. A handoff is "+
 				"acknowledged only when wait_agent returns the child's response "+
@@ -756,6 +759,17 @@ func (p *Server) subagentTools(
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
+				var busyBehavior database.ChatBusyBehavior
+				switch args.BusyBehavior {
+				case "", string(database.ChatBusyBehaviorQueue):
+					busyBehavior = database.ChatBusyBehaviorQueue
+				case string(database.ChatBusyBehaviorSteer):
+					busyBehavior = database.ChatBusyBehaviorSteer
+				case string(database.ChatBusyBehaviorInterrupt):
+					busyBehavior = database.ChatBusyBehaviorInterrupt
+				default:
+					return fantasy.NewTextErrorResponse(`busy_behavior must be "queue", "steer", or "interrupt"`), nil
+				}
 
 				parent := currentChat()
 				var targetChatInfo *database.Chat
@@ -766,10 +780,6 @@ func (p *Server) subagentTools(
 						slog.F("chat_id", targetChatID),
 						slog.Error(lookupErr),
 					)
-				}
-				busyBehavior := database.ChatBusyBehaviorQueue
-				if args.Interrupt {
-					busyBehavior = database.ChatBusyBehaviorInterrupt
 				}
 				targetChat, err := p.sendSubagentMessage(
 					ctx,
@@ -783,7 +793,7 @@ func (p *Server) subagentTools(
 				}
 
 				interrupted := false
-				if args.Interrupt && targetChatInfo != nil {
+				if busyBehavior == database.ChatBusyBehaviorInterrupt && targetChatInfo != nil {
 					interrupted = targetChatInfo.Status == database.ChatStatusRunning
 				}
 				return toolJSONResponse(withSubagentType(map[string]any{

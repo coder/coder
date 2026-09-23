@@ -2979,6 +2979,51 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 	}
 }
 
+func TestMessageAgentBusyBehavior(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	user, org, model := seedInternalChatDeps(t, db)
+
+	tests := []struct {
+		busyBehavior string
+		wantQueued   []database.ChatBusyBehavior
+		wantStatus   database.ChatStatus
+	}{
+		{"", []database.ChatBusyBehavior{database.ChatBusyBehaviorQueue}, database.ChatStatusRunning},
+		{"steer", []database.ChatBusyBehavior{database.ChatBusyBehaviorSteer}, database.ChatStatusRunning},
+		{"interrupt", []database.ChatBusyBehavior{database.ChatBusyBehaviorInterrupt}, database.ChatStatusInterrupting},
+		{"bogus", nil, database.ChatStatusRunning},
+	}
+	for _, tt := range tests {
+		t.Run("BusyBehavior="+tt.busyBehavior, func(t *testing.T) {
+			t.Parallel()
+			ctx := chatdTestContext(t)
+			parent, child := createParentChildChats(ctx, t, server, user, org, model)
+			setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+
+			resp := runSubagentTool(ctx, t, server, parent, parent.LastModelConfigID, "message_agent", messageAgentArgs{
+				ChatID:       child.ID.String(),
+				Message:      "follow up",
+				BusyBehavior: tt.busyBehavior,
+			})
+			require.Equal(t, tt.wantQueued == nil, resp.IsError, resp.Content)
+
+			queued, err := db.GetChatQueuedMessages(ctx, child.ID)
+			require.NoError(t, err)
+			var gotQueued []database.ChatBusyBehavior
+			for _, row := range queued {
+				gotQueued = append(gotQueued, row.BusyBehavior)
+			}
+			require.Equal(t, tt.wantQueued, gotQueued)
+			storedChild, err := db.GetChatByID(ctx, child.ID)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantStatus, storedChild.Status)
+		})
+	}
+}
+
 func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	t.Parallel()
 
