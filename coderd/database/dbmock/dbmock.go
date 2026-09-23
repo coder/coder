@@ -1193,18 +1193,18 @@ func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx
 }
 
 // DeleteOldAIBridgeRecords mocks base method.
-func (m *MockStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
+func (m *MockStore) DeleteOldAIBridgeRecords(ctx context.Context, lockedIds []uuid.UUID) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOldAIBridgeRecords", ctx, beforeTime)
+	ret := m.ctrl.Call(m, "DeleteOldAIBridgeRecords", ctx, lockedIds)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteOldAIBridgeRecords indicates an expected call of DeleteOldAIBridgeRecords.
-func (mr *MockStoreMockRecorder) DeleteOldAIBridgeRecords(ctx, beforeTime any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeleteOldAIBridgeRecords(ctx, lockedIds any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldAIBridgeRecords", reflect.TypeOf((*MockStore)(nil).DeleteOldAIBridgeRecords), ctx, beforeTime)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldAIBridgeRecords", reflect.TypeOf((*MockStore)(nil).DeleteOldAIBridgeRecords), ctx, lockedIds)
 }
 
 // DeleteOldAuditLogConnectionEvents mocks base method.
@@ -7631,6 +7631,20 @@ func (mr *MockStoreMockRecorder) IncrementAIBridgeTokenUsageHourly(ctx, arg any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementAIBridgeTokenUsageHourly", reflect.TypeOf((*MockStore)(nil).IncrementAIBridgeTokenUsageHourly), ctx, arg)
 }
 
+// IncrementAIBridgeTokenUsageHourlyLocked mocks base method.
+func (m *MockStore) IncrementAIBridgeTokenUsageHourlyLocked(ctx context.Context, arg database.IncrementAIBridgeTokenUsageHourlyLockedParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IncrementAIBridgeTokenUsageHourlyLocked", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// IncrementAIBridgeTokenUsageHourlyLocked indicates an expected call of IncrementAIBridgeTokenUsageHourlyLocked.
+func (mr *MockStoreMockRecorder) IncrementAIBridgeTokenUsageHourlyLocked(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementAIBridgeTokenUsageHourlyLocked", reflect.TypeOf((*MockStore)(nil).IncrementAIBridgeTokenUsageHourlyLocked), ctx, arg)
+}
+
 // IncrementChatGenerationAttempt mocks base method.
 func (m *MockStore) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error) {
 	m.ctrl.T.Helper()
@@ -9355,6 +9369,20 @@ func (mr *MockStoreMockRecorder) ListWorkspaceAgentPortShares(ctx, workspaceID a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWorkspaceAgentPortShares", reflect.TypeOf((*MockStore)(nil).ListWorkspaceAgentPortShares), ctx, workspaceID)
 }
 
+// LockAIBridgeHourlyBucket mocks base method.
+func (m *MockStore) LockAIBridgeHourlyBucket(ctx context.Context, arg database.LockAIBridgeHourlyBucketParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockAIBridgeHourlyBucket", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LockAIBridgeHourlyBucket indicates an expected call of LockAIBridgeHourlyBucket.
+func (mr *MockStoreMockRecorder) LockAIBridgeHourlyBucket(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockAIBridgeHourlyBucket", reflect.TypeOf((*MockStore)(nil).LockAIBridgeHourlyBucket), ctx, arg)
+}
+
 // LockAIBridgeInterceptionForUsage mocks base method.
 func (m *MockStore) LockAIBridgeInterceptionForUsage(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -9398,6 +9426,21 @@ func (m *MockStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, 
 func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatByID", reflect.TypeOf((*MockStore)(nil).LockChatByID), ctx, id)
+}
+
+// LockOldAIBridgeInterceptionsForPurge mocks base method.
+func (m *MockStore) LockOldAIBridgeInterceptionsForPurge(ctx context.Context, beforeTime time.Time) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockOldAIBridgeInterceptionsForPurge", ctx, beforeTime)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockOldAIBridgeInterceptionsForPurge indicates an expected call of LockOldAIBridgeInterceptionsForPurge.
+func (mr *MockStoreMockRecorder) LockOldAIBridgeInterceptionsForPurge(ctx, beforeTime any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockOldAIBridgeInterceptionsForPurge", reflect.TypeOf((*MockStore)(nil).LockOldAIBridgeInterceptionsForPurge), ctx, beforeTime)
 }
 
 // LockProvisionerKeyByIDForShare mocks base method.

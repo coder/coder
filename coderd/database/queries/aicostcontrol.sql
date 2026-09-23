@@ -495,25 +495,43 @@ ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, 
 OFFSET @offset_opt
 LIMIT NULLIF(@limit_opt::int, 0);
 
--- name: IncrementAIBridgeTokenUsageHourly :exec
-INSERT INTO aibridge_token_usage_hourly (
-    organization_id, hour, effective_group_id, initiator_id, provider, provider_name, model, client,
-    cost_micros, unpriced_usage_count, usage_count
+-- name: LockAIBridgeHourlyBucket :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    (@effective_group_id::uuid)::text || (@initiator_id::uuid)::text ||
+    (extract(epoch FROM date_trunc('hour', @created_at::timestamptz, 'UTC'))::bigint)::text, 0
+));
+
+-- name: IncrementAIBridgeTokenUsageHourlyLocked :exec
+WITH dimensions AS (
+    SELECT g.organization_id, date_trunc('hour', @created_at::timestamptz, 'UTC') AS hour,
+        g.id AS effective_group_id, @initiator_id::uuid AS initiator_id,
+        @provider::text AS provider, @provider_name::text AS provider_name,
+        @model::text AS model, COALESCE(sqlc.narg('client')::text, 'Unknown') AS client,
+        COALESCE(sqlc.narg('cost_micros')::bigint, 0) AS cost_micros,
+        (sqlc.narg('cost_micros')::bigint IS NULL)::int::bigint AS unpriced_usage_count
+    FROM groups g WHERE g.id = @effective_group_id::uuid
+), updated AS (
+    UPDATE aibridge_token_usage_hourly h SET
+        cost_micros = h.cost_micros + d.cost_micros,
+        unpriced_usage_count = h.unpriced_usage_count + d.unpriced_usage_count,
+        usage_count = h.usage_count + 1
+    FROM dimensions d
+    WHERE h.organization_id = d.organization_id AND h.hour = d.hour
+        AND h.effective_group_id = d.effective_group_id AND h.initiator_id = d.initiator_id
+        AND h.provider = d.provider AND h.provider_name = d.provider_name
+        AND h.model = d.model AND h.client = d.client
+    RETURNING h.id
+), inserted AS (
+    INSERT INTO aibridge_token_usage_hourly (
+        organization_id, hour, effective_group_id, initiator_id, provider, provider_name, model, client,
+        cost_micros, unpriced_usage_count, usage_count
+    )
+    SELECT d.organization_id, d.hour, d.effective_group_id, d.initiator_id,
+        d.provider, d.provider_name, d.model, d.client, d.cost_micros, d.unpriced_usage_count, 1
+    FROM dimensions d WHERE NOT EXISTS (SELECT 1 FROM updated)
+    RETURNING id
 )
-SELECT g.organization_id,
-    date_trunc('hour', @created_at::timestamptz, 'UTC'),
-    g.id, @initiator_id::uuid, @provider::text, @provider_name::text, @model::text,
-    COALESCE(sqlc.narg('client')::text, 'Unknown'),
-    COALESCE(sqlc.narg('cost_micros')::bigint, 0),
-    CASE WHEN sqlc.narg('cost_micros')::bigint IS NULL THEN 1::bigint ELSE 0::bigint END,
-    1::bigint
-FROM groups g
-WHERE g.id = @effective_group_id::uuid
-ON CONFLICT (organization_id, hour, effective_group_id, initiator_id, provider, provider_name, model, client)
-DO UPDATE SET
-    cost_micros = aibridge_token_usage_hourly.cost_micros + EXCLUDED.cost_micros,
-    unpriced_usage_count = aibridge_token_usage_hourly.unpriced_usage_count + EXCLUDED.unpriced_usage_count,
-    usage_count = aibridge_token_usage_hourly.usage_count + EXCLUDED.usage_count;
+SELECT COUNT(*) FROM inserted;
 
 -- name: DeleteEmptyAIBridgeTokenUsageHourly :exec
 DELETE FROM aibridge_token_usage_hourly WHERE usage_count = 0;

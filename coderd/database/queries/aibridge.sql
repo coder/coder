@@ -259,14 +259,17 @@ FROM
     tool_aggregates tool_agg
 ;
 
+-- name: LockOldAIBridgeInterceptionsForPurge :many
+SELECT id FROM aibridge_interceptions
+WHERE started_at < @before_time::timestamptz
+ORDER BY id FOR UPDATE;
+
 -- name: DeleteOldAIBridgeRecords :one
 WITH
   -- We don't have FK relationships between the dependent tables and aibridge_interceptions, so we can't rely on DELETE CASCADE.
   to_delete AS (
     SELECT id, initiator_id, provider, provider_name, model, client FROM aibridge_interceptions
-    WHERE started_at < @before_time::timestamp with time zone
-    ORDER BY id
-    FOR UPDATE
+    WHERE id = ANY(@locked_ids::uuid[])
   ),
   model_thoughts AS (
     DELETE FROM aibridge_model_thoughts

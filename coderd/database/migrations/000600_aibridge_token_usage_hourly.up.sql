@@ -1,4 +1,5 @@
 CREATE TABLE aibridge_token_usage_hourly (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     organization_id UUID NOT NULL,
     hour TIMESTAMPTZ NOT NULL,
     effective_group_id UUID NOT NULL,
@@ -9,9 +10,11 @@ CREATE TABLE aibridge_token_usage_hourly (
     client TEXT NOT NULL,
     cost_micros BIGINT NOT NULL DEFAULT 0,
     unpriced_usage_count BIGINT NOT NULL DEFAULT 0 CHECK (unpriced_usage_count >= 0),
-    usage_count BIGINT NOT NULL DEFAULT 0 CHECK (usage_count >= 0),
-    PRIMARY KEY (organization_id, hour, effective_group_id, initiator_id, provider, provider_name, model, client)
+    usage_count BIGINT NOT NULL DEFAULT 0 CHECK (usage_count >= 0)
 );
+
+CREATE INDEX idx_aibridge_token_usage_hourly_org_hour
+    ON aibridge_token_usage_hourly (organization_id, hour);
 
 CREATE INDEX idx_aibridge_token_usage_hourly_group
     ON aibridge_token_usage_hourly (effective_group_id, hour);

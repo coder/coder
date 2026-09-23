@@ -48,7 +48,11 @@ func TestDeleteOldAIBridgeRecordsHourly(t *testing.T) {
 	add(recent.ID, at, sql.NullInt64{Int64: 300, Valid: true})
 
 	err := db.InTx(func(tx database.Store) error {
-		deleted, err := tx.DeleteOldAIBridgeRecords(ctx, cutoff)
+		lockedIDs, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, cutoff)
+		if err != nil {
+			return err
+		}
+		deleted, err := tx.DeleteOldAIBridgeRecords(ctx, lockedIDs)
 		if err != nil {
 			return err
 		}
@@ -67,12 +71,24 @@ func TestDeleteOldAIBridgeRecordsHourly(t *testing.T) {
 	var groups int
 	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM aibridge_token_usage_hourly").Scan(&groups))
 	require.Equal(t, 1, groups)
-	deleted, err := db.DeleteOldAIBridgeRecords(ctx, cutoff)
+	var deleted int64
+	err = db.InTx(func(tx database.Store) error {
+		lockedIDs, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, cutoff)
+		if err != nil {
+			return err
+		}
+		deleted, err = tx.DeleteOldAIBridgeRecords(ctx, lockedIDs)
+		return err
+	}, nil)
 	require.NoError(t, err)
 	require.Zero(t, deleted)
 	require.NoError(t, db.DeleteGroupByID(ctx, group.ID))
 	err = db.InTx(func(tx database.Store) error {
-		if _, err := tx.DeleteOldAIBridgeRecords(ctx, cutoff.Add(time.Second)); err != nil {
+		lockedIDs, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, cutoff.Add(time.Second))
+		if err != nil {
+			return err
+		}
+		if _, err := tx.DeleteOldAIBridgeRecords(ctx, lockedIDs); err != nil {
 			return err
 		}
 		return tx.DeleteEmptyAIBridgeTokenUsageHourly(ctx)
@@ -80,4 +96,39 @@ func TestDeleteOldAIBridgeRecordsHourly(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM aibridge_token_usage_hourly").Scan(&groups))
 	require.Zero(t, groups)
+}
+
+func TestDeleteOldAIBridgeRecordsExcludesNewlyInsertedInterceptions(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	user := dbgen.User(t, db, database.User{})
+	cutoff := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+	old := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: user.ID, StartedAt: cutoff.Add(-time.Hour),
+	}, nil)
+	addedID := uuid.New()
+	require.NoError(t, db.InTx(func(tx database.Store) error {
+		ids, err := tx.LockOldAIBridgeInterceptionsForPurge(ctx, cutoff)
+		if err != nil {
+			return err
+		}
+		require.Equal(t, []uuid.UUID{old.ID}, ids)
+		// Use a separate connection to insert an expired row after lock selection.
+		_, err = sqlDB.ExecContext(ctx,
+			"INSERT INTO aibridge_interceptions (id, initiator_id, provider, model, started_at) VALUES ($1, $2, $3, $4, $5)",
+			addedID, user.ID, "wire", "model", cutoff.Add(-time.Hour),
+		)
+		if err != nil {
+			return err
+		}
+		_, err = tx.DeleteOldAIBridgeRecords(ctx, ids)
+		return err
+	}, nil))
+	_, err := db.GetAIBridgeInterceptionByID(ctx, old.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetAIBridgeInterceptionByID(ctx, addedID)
+	require.NoError(t, err)
 }

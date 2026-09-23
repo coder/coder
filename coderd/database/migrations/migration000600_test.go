@@ -1,8 +1,11 @@
 package migrations_test
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -21,8 +24,17 @@ func testMigration000600AIBridgeTokenUsageHourly(t *testing.T, sqlDB *sql.DB, ne
 	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
 	user := dbgen.User(t, db, database.User{})
 	at := time.Date(2026, 3, 10, 9, 45, 0, 0, time.UTC)
+	wide := func(seed string) string {
+		var b string
+		for i := range 27 {
+			digest := sha256.Sum256([]byte(seed + strconv.Itoa(i)))
+			b += hex.EncodeToString(digest[:])
+		}
+		return b[:1700]
+	}
+	providerName, model := wide("provider"), wide("model")
 	intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-		InitiatorID: user.ID, Provider: "wire", ProviderName: "configured", Model: "model", StartedAt: at.Add(-24 * time.Hour),
+		InitiatorID: user.ID, Provider: "wire", ProviderName: providerName, Model: model, StartedAt: at.Add(-24 * time.Hour),
 	}, nil)
 	for _, cost := range []sql.NullInt64{{Int64: 100, Valid: true}, {Int64: 0, Valid: true}, {}} {
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
@@ -46,19 +58,19 @@ func testMigration000600AIBridgeTokenUsageHourly(t *testing.T, sqlDB *sql.DB, ne
 		t.Helper()
 		var orgID, groupID, userID uuid.UUID
 		var hour time.Time
-		var provider, providerName, model, client string
+		var provider, gotProviderName, gotModel, client string
 		var cost, unpriced, count int64
 		err := sqlDB.QueryRowContext(ctx,
 			"SELECT organization_id, effective_group_id, initiator_id, hour, provider, provider_name, model, client, cost_micros, unpriced_usage_count, usage_count FROM aibridge_token_usage_hourly",
-		).Scan(&orgID, &groupID, &userID, &hour, &provider, &providerName, &model, &client, &cost, &unpriced, &count)
+		).Scan(&orgID, &groupID, &userID, &hour, &provider, &gotProviderName, &gotModel, &client, &cost, &unpriced, &count)
 		require.NoError(t, err)
 		require.Equal(t, org.ID, orgID)
 		require.Equal(t, group.ID, groupID)
 		require.Equal(t, user.ID, userID)
 		require.True(t, at.Truncate(time.Hour).Equal(hour))
 		require.Equal(t, "wire", provider)
-		require.Equal(t, "configured", providerName)
-		require.Equal(t, "model", model)
+		require.Equal(t, providerName, gotProviderName)
+		require.Equal(t, model, gotModel)
 		require.Equal(t, "Unknown", client)
 		require.EqualValues(t, 100, cost)
 		require.EqualValues(t, 1, unpriced)

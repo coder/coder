@@ -1164,9 +1164,7 @@ WITH
   -- We don't have FK relationships between the dependent tables and aibridge_interceptions, so we can't rely on DELETE CASCADE.
   to_delete AS (
     SELECT id, initiator_id, provider, provider_name, model, client FROM aibridge_interceptions
-    WHERE started_at < $1::timestamp with time zone
-    ORDER BY id
-    FOR UPDATE
+    WHERE id = ANY($1::uuid[])
   ),
   model_thoughts AS (
     DELETE FROM aibridge_model_thoughts
@@ -1228,8 +1226,8 @@ FROM (SELECT COUNT(*) FROM hourly_decrements) AS applied_hourly_decrements
 `
 
 // Cumulative count.
-func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
-	row := q.db.QueryRowContext(ctx, deleteOldAIBridgeRecords, beforeTime)
+func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, lockedIds []uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, deleteOldAIBridgeRecords, pq.Array(lockedIds))
 	var total_deleted int64
 	err := row.Scan(&total_deleted)
 	return total_deleted, err
@@ -2764,6 +2762,35 @@ func (q *sqlQuerier) LockAIBridgeInterceptionForUsage(ctx context.Context, id uu
 	return id_2, err
 }
 
+const lockOldAIBridgeInterceptionsForPurge = `-- name: LockOldAIBridgeInterceptionsForPurge :many
+SELECT id FROM aibridge_interceptions
+WHERE started_at < $1::timestamptz
+ORDER BY id FOR UPDATE
+`
+
+func (q *sqlQuerier) LockOldAIBridgeInterceptionsForPurge(ctx context.Context, beforeTime time.Time) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, lockOldAIBridgeInterceptionsForPurge, beforeTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateAIBridgeInterceptionEnded = `-- name: UpdateAIBridgeInterceptionEnded :one
 UPDATE aibridge_interceptions
 	SET ended_at = $1::timestamptz,
@@ -3697,28 +3724,40 @@ func (q *sqlQuerier) GetUserEveryoneFallbackGroup(ctx context.Context, userID uu
 	return group_id, err
 }
 
-const incrementAIBridgeTokenUsageHourly = `-- name: IncrementAIBridgeTokenUsageHourly :exec
-INSERT INTO aibridge_token_usage_hourly (
-    organization_id, hour, effective_group_id, initiator_id, provider, provider_name, model, client,
-    cost_micros, unpriced_usage_count, usage_count
+const incrementAIBridgeTokenUsageHourlyLocked = `-- name: IncrementAIBridgeTokenUsageHourlyLocked :exec
+WITH dimensions AS (
+    SELECT g.organization_id, date_trunc('hour', $1::timestamptz, 'UTC') AS hour,
+        g.id AS effective_group_id, $2::uuid AS initiator_id,
+        $3::text AS provider, $4::text AS provider_name,
+        $5::text AS model, COALESCE($6::text, 'Unknown') AS client,
+        COALESCE($7::bigint, 0) AS cost_micros,
+        ($7::bigint IS NULL)::int::bigint AS unpriced_usage_count
+    FROM groups g WHERE g.id = $8::uuid
+), updated AS (
+    UPDATE aibridge_token_usage_hourly h SET
+        cost_micros = h.cost_micros + d.cost_micros,
+        unpriced_usage_count = h.unpriced_usage_count + d.unpriced_usage_count,
+        usage_count = h.usage_count + 1
+    FROM dimensions d
+    WHERE h.organization_id = d.organization_id AND h.hour = d.hour
+        AND h.effective_group_id = d.effective_group_id AND h.initiator_id = d.initiator_id
+        AND h.provider = d.provider AND h.provider_name = d.provider_name
+        AND h.model = d.model AND h.client = d.client
+    RETURNING h.id
+), inserted AS (
+    INSERT INTO aibridge_token_usage_hourly (
+        organization_id, hour, effective_group_id, initiator_id, provider, provider_name, model, client,
+        cost_micros, unpriced_usage_count, usage_count
+    )
+    SELECT d.organization_id, d.hour, d.effective_group_id, d.initiator_id,
+        d.provider, d.provider_name, d.model, d.client, d.cost_micros, d.unpriced_usage_count, 1
+    FROM dimensions d WHERE NOT EXISTS (SELECT 1 FROM updated)
+    RETURNING id
 )
-SELECT g.organization_id,
-    date_trunc('hour', $1::timestamptz, 'UTC'),
-    g.id, $2::uuid, $3::text, $4::text, $5::text,
-    COALESCE($6::text, 'Unknown'),
-    COALESCE($7::bigint, 0),
-    CASE WHEN $7::bigint IS NULL THEN 1::bigint ELSE 0::bigint END,
-    1::bigint
-FROM groups g
-WHERE g.id = $8::uuid
-ON CONFLICT (organization_id, hour, effective_group_id, initiator_id, provider, provider_name, model, client)
-DO UPDATE SET
-    cost_micros = aibridge_token_usage_hourly.cost_micros + EXCLUDED.cost_micros,
-    unpriced_usage_count = aibridge_token_usage_hourly.unpriced_usage_count + EXCLUDED.unpriced_usage_count,
-    usage_count = aibridge_token_usage_hourly.usage_count + EXCLUDED.usage_count
+SELECT COUNT(*) FROM inserted
 `
 
-type IncrementAIBridgeTokenUsageHourlyParams struct {
+type IncrementAIBridgeTokenUsageHourlyLockedParams struct {
 	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
 	InitiatorID      uuid.UUID      `db:"initiator_id" json:"initiator_id"`
 	Provider         string         `db:"provider" json:"provider"`
@@ -3729,8 +3768,8 @@ type IncrementAIBridgeTokenUsageHourlyParams struct {
 	EffectiveGroupID uuid.UUID      `db:"effective_group_id" json:"effective_group_id"`
 }
 
-func (q *sqlQuerier) IncrementAIBridgeTokenUsageHourly(ctx context.Context, arg IncrementAIBridgeTokenUsageHourlyParams) error {
-	_, err := q.db.ExecContext(ctx, incrementAIBridgeTokenUsageHourly,
+func (q *sqlQuerier) IncrementAIBridgeTokenUsageHourlyLocked(ctx context.Context, arg IncrementAIBridgeTokenUsageHourlyLockedParams) error {
+	_, err := q.db.ExecContext(ctx, incrementAIBridgeTokenUsageHourlyLocked,
 		arg.CreatedAt,
 		arg.InitiatorID,
 		arg.Provider,
@@ -3930,6 +3969,24 @@ func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListO
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockAIBridgeHourlyBucket = `-- name: LockAIBridgeHourlyBucket :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    ($1::uuid)::text || ($2::uuid)::text ||
+    (extract(epoch FROM date_trunc('hour', $3::timestamptz, 'UTC'))::bigint)::text, 0
+))
+`
+
+type LockAIBridgeHourlyBucketParams struct {
+	EffectiveGroupID uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
+	InitiatorID      uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) LockAIBridgeHourlyBucket(ctx context.Context, arg LockAIBridgeHourlyBucketParams) error {
+	_, err := q.db.ExecContext(ctx, lockAIBridgeHourlyBucket, arg.EffectiveGroupID, arg.InitiatorID, arg.CreatedAt)
+	return err
 }
 
 const upsertAIModelPrices = `-- name: UpsertAIModelPrices :exec

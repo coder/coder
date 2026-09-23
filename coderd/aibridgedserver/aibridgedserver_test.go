@@ -2887,6 +2887,12 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 			org := dbgen.Organization(t, rawDB, database.Organization{})
 			user := dbgen.User(t, rawDB, database.User{})
 			dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+			group := dbgen.Group(t, rawDB, database.Group{OrganizationID: org.ID})
+			dbgen.GroupMember(t, rawDB, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
+			_, err := rawDB.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+				GroupID: group.ID, SpendLimitMicros: 1_000_000_000,
+			})
+			require.NoError(t, err)
 
 			if tt.defaultSeed != nil {
 				require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
@@ -3210,8 +3216,10 @@ func TestRecordTokenUsageBudgetNotifications(t *testing.T) {
 			db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 			)
+			db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), intc.ID).Return(intc.ID, nil)
 			db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
 				Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+			db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 			db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
 				Return(database.AIUserDailySpend{}, nil)
 			db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
@@ -3305,8 +3313,10 @@ func TestRecordTokenUsageBudgetNotificationAcrossPeriodBoundary(t *testing.T) {
 	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 		func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 	)
+	db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), intc.ID).Return(intc.ID, nil)
 	db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
 		Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+	db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 	db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
 		Return(database.AIUserDailySpend{}, nil)
 
@@ -3406,9 +3416,11 @@ func TestRecordTokenUsageBudgetNotificationBestEffort(t *testing.T) {
 			db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 			)
+			db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), intc.ID).Return(intc.ID, nil)
 			// The token usage and spend are recorded before detection runs.
 			db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
 				Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+			db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 			db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
 				Return(database.AIUserDailySpend{}, nil)
 
@@ -3478,10 +3490,12 @@ func TestRecordTokenUsageBudgetNotificationZeroLimit(t *testing.T) {
 	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 		func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 	)
+	db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), intc.ID).Return(intc.ID, nil)
 	// The spend is still recorded; detection then short-circuits on the zero
 	// limit without reading spend or looking up the group.
 	db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
 		Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+	db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 	db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
 		Return(database.AIUserDailySpend{}, nil)
 
@@ -3598,8 +3612,10 @@ func TestRecordTokenUsageBudgetAdminNotification(t *testing.T) {
 			db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 			)
+			db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), intc.ID).Return(intc.ID, nil)
 			db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
 				Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+			db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 			db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
 				Return(database.AIUserDailySpend{}, nil)
 			db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).

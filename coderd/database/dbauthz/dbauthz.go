@@ -2435,11 +2435,11 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 	return q.db.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
 }
 
-func (q *querier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
+func (q *querier) DeleteOldAIBridgeRecords(ctx context.Context, lockedIDs []uuid.UUID) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeInterception); err != nil {
 		return -1, err
 	}
-	return q.db.DeleteOldAIBridgeRecords(ctx, beforeTime)
+	return q.db.DeleteOldAIBridgeRecords(ctx, lockedIDs)
 }
 
 func (q *querier) DeleteOldAuditLogConnectionEvents(ctx context.Context, threshold database.DeleteOldAuditLogConnectionEventsParams) error {
@@ -6041,7 +6041,7 @@ func (q *querier) HydrateAgentChatsContext(ctx context.Context, arg database.Hyd
 	return q.db.HydrateAgentChatsContext(ctx, arg)
 }
 
-func (q *querier) IncrementAIBridgeTokenUsageHourly(ctx context.Context, arg database.IncrementAIBridgeTokenUsageHourlyParams) error {
+func (q *querier) IncrementAIBridgeTokenUsageHourlyLocked(ctx context.Context, arg database.IncrementAIBridgeTokenUsageHourlyLockedParams) error {
 	group, err := q.db.GetGroupByID(ctx, arg.EffectiveGroupID)
 	if err != nil {
 		return err
@@ -6049,7 +6049,7 @@ func (q *querier) IncrementAIBridgeTokenUsageHourly(ctx context.Context, arg dat
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeInterception.InOrg(group.OrganizationID)); err != nil {
 		return err
 	}
-	return q.db.IncrementAIBridgeTokenUsageHourly(ctx, arg)
+	return q.db.IncrementAIBridgeTokenUsageHourlyLocked(ctx, arg)
 }
 
 func (q *querier) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error) {
@@ -7077,6 +7077,17 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
 }
 
+func (q *querier) LockAIBridgeHourlyBucket(ctx context.Context, arg database.LockAIBridgeHourlyBucketParams) error {
+	group, err := q.db.GetGroupByID(ctx, arg.EffectiveGroupID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeInterception.InOrg(group.OrganizationID)); err != nil {
+		return err
+	}
+	return q.db.LockAIBridgeHourlyBucket(ctx, arg)
+}
+
 func (q *querier) LockAIBridgeInterceptionForUsage(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionUpdate, id); err != nil {
 		return uuid.Nil, err
@@ -7101,6 +7112,13 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 		return uuid.Nil, err
 	}
 	return q.db.LockChatByID(ctx, id)
+}
+
+func (q *querier) LockOldAIBridgeInterceptionsForPurge(ctx context.Context, beforeTime time.Time) ([]uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeInterception); err != nil {
+		return nil, err
+	}
+	return q.db.LockOldAIBridgeInterceptionsForPurge(ctx, beforeTime)
 }
 
 func (q *querier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
@@ -9496,6 +9514,17 @@ func (q *querier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg dat
 
 func (q *querier) CountAuthorizedConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams, _ rbac.PreparedAuthorized) (int64, error) {
 	return q.CountConnectionLogs(ctx, arg)
+}
+
+func (q *querier) IncrementAIBridgeTokenUsageHourly(ctx context.Context, arg database.IncrementAIBridgeTokenUsageHourlyParams) error {
+	group, err := q.db.GetGroupByID(ctx, arg.EffectiveGroupID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeInterception.InOrg(group.OrganizationID)); err != nil {
+		return err
+	}
+	return q.db.IncrementAIBridgeTokenUsageHourly(ctx, arg)
 }
 
 func (q *querier) ListAuthorizedAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams, _ rbac.PreparedAuthorized) ([]string, error) {

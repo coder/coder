@@ -4950,6 +4950,7 @@ type APIKey struct {
 }
 
 type AibridgeTokenUsageHourly struct {
+	ID                 int64     `db:"id" json:"id"`
 	OrganizationID     uuid.UUID `db:"organization_id" json:"organization_id"`
 	Hour               time.Time `db:"hour" json:"hour"`
 	EffectiveGroupID   uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
