@@ -14,7 +14,7 @@ Coder supports the following OAuth2 client authentication methods at the token e
 - `client_secret_post`: Form-based authentication where `client_id` and `client_secret` are sent in the request body.
 - `none`: No client secret. The client is a public client and authenticates with PKCE alone (RFC 7591 §2, OAuth 2.1 §2.1). Available only through [Dynamic Client Registration](./index.md#dynamic-client-registration), which is disabled by default, since a client's type is set when it registers and apps created through the admin UI or API are always confidential.
 
-Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
+Coder supports both basic authentication and form-based authentication for compatibility; existing integrations using `client_secret_post` do not need to change.
 
 Send `client_secret` in the request body or in the `Authorization` header. `POST /oauth2/tokens` and `POST /oauth2/revoke` reject a `client_secret` value in the URL query string with `invalid_request`, because OAuth 2.1 section 2.4.1 does not allow it there. Refer to ["invalid_request" for `client_secret` in the query string](./troubleshooting.md#invalid_request-for-client_secret-in-the-query-string) for the exceptions and the log line to search for.
 
