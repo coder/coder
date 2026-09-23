@@ -1126,10 +1126,10 @@ const debugWorkspaceBuildRouter = reactRouterParameters({
 	routing: [agentsRouting, aiSettingsRouting],
 });
 
-// The create page waits for the failed build and its logs before mounting
-// the composer, so the build request never resolves here.
+// The build request never resolves, so the create page stays on its loader.
 export const DebugWorkspaceBuildLoading: Story = {
 	parameters: {
+		experiments: ["enable-ai-workspace-debug"],
 		reactRouter: debugWorkspaceBuildRouter,
 	},
 	beforeEach: () => {
@@ -1142,6 +1142,7 @@ export const DebugWorkspaceBuildLoading: Story = {
 
 export const DebugWorkspaceBuildLoadError: Story = {
 	parameters: {
+		experiments: ["enable-ai-workspace-debug"],
 		reactRouter: debugWorkspaceBuildRouter,
 	},
 	beforeEach: () => {

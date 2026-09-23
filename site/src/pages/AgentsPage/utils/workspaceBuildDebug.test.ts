@@ -82,7 +82,6 @@ describe("formatWorkspaceBuildLogsForDebug", () => {
 				"Template version: v1.2.3",
 				"Build: #7 (start, reason: initiator)",
 				"Build status: failed",
-				"Job status: failed",
 				"Job error: terraform plan: exit status 1",
 				"",
 				"Build logs:",

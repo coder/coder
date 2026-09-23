@@ -2,9 +2,8 @@ import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
 import { sanitizeChatFileName } from "./chatAttachments";
 
 /**
- * Search param on `/agents` that asks the create page to open a chat about a
- * failed workspace build. The value is the workspace build ID; the page fetches
- * the build and its logs itself so the link stays short and shareable.
+ * Search param on `/agents` carrying the ID of a failed workspace build. The
+ * create page fetches the build and logs itself so the link stays shareable.
  */
 export const debugWorkspaceBuildSearchParam = "debug_workspace_build";
 
@@ -22,8 +21,7 @@ export const debugWorkspaceBuildLogsFileName = (
 	);
 
 /**
- * Renders a build and its provisioner logs as plain text for a chat
- * attachment. Logs are grouped by stage, matching the build logs UI.
+ * Formats a build and its provisioner logs as the plain text chat attachment.
  */
 export const formatWorkspaceBuildLogsForDebug = (
 	build: WorkspaceBuild,
@@ -34,7 +32,6 @@ export const formatWorkspaceBuildLogsForDebug = (
 		`Template version: ${build.template_version_name}`,
 		`Build: #${build.build_number} (${build.transition}, reason: ${build.reason})`,
 		`Build status: ${build.status}`,
-		`Job status: ${build.job.status}`,
 	];
 	if (build.job.error_code) {
 		lines.push(`Job error code: ${build.job.error_code}`);

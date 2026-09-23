@@ -416,6 +416,7 @@ export const UnhealthyWithoutUpdatePermission: Story = {
 export const FailedWithLogs: Story = {
 	parameters: {
 		permissions: Mocks.MockPermissions,
+		experiments: ["enable-ai-workspace-debug"],
 	},
 	args: {
 		...Running.args,
@@ -437,6 +438,7 @@ export const FailedWithLogs: Story = {
 export const FailedWithoutChatPermission: Story = {
 	parameters: {
 		permissions: Mocks.MockNoPermissions,
+		experiments: ["enable-ai-workspace-debug"],
 	},
 	args: FailedWithLogs.args,
 };

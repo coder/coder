@@ -23644,7 +23644,8 @@ const docTemplate = `{
                 "ai-gateway-reverse-proxy",
                 "chat-advisor",
                 "chat-virtual-desktop",
-                "agent-lifecycle-hooks"
+                "agent-lifecycle-hooks",
+                "enable-ai-workspace-debug"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -23653,6 +23654,7 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
+                "ExperimentEnableAIWorkspaceDebug": "Lets users open a Coder Agents chat about a failed workspace build from the workspace page.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
@@ -23676,7 +23678,8 @@ const docTemplate = `{
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
-                "Enables chat lifecycle hook webhooks for agent chats."
+                "Enables chat lifecycle hook webhooks for agent chats.",
+                "Lets users open a Coder Agents chat about a failed workspace build from the workspace page."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -23692,7 +23695,8 @@ const docTemplate = `{
                 "ExperimentAIGatewayReverseProxy",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
-                "ExperimentAgentLifecycleHooks"
+                "ExperimentAgentLifecycleHooks",
+                "ExperimentEnableAIWorkspaceDebug"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

@@ -15,6 +15,7 @@ import { Loader } from "#/components/Loader/Loader";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	type AgentCreateAutoSubmit,
 	AgentCreateForm,
@@ -40,13 +41,16 @@ const AgentCreatePage: FC = () => {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
+	const { experiments } = useDashboard();
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
-	const debugBuildId = searchParams.get(debugWorkspaceBuildSearchParam);
+	const debugBuildId = experiments.includes("enable-ai-workspace-debug")
+		? searchParams.get(debugWorkspaceBuildSearchParam)
+		: null;
 	const debugBuildQuery = useQuery({
 		...workspaceBuild(debugBuildId ?? ""),
 		enabled: debugBuildId !== null,

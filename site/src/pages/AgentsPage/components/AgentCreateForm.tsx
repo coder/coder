@@ -65,10 +65,9 @@ export type CreateChatOptions = {
 };
 
 /**
- * A message the form sends on the user's behalf as soon as the send gate
- * opens, with the attachment uploaded first. Deep links such as "Debug with
- * Coder Agents" use it so the chat starts with the user's default model,
- * organization, and MCP selection without any extra clicks.
+ * A message the form sends on the user's behalf once the send gate opens,
+ * after uploading the attachment. Used by deep links such as the failed
+ * workspace build debug action.
  */
 export type AgentCreateAutoSubmit = {
 	message: string;
@@ -171,8 +170,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	autoSubmit,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
+	// An auto-submitted message is not the user's draft: it must neither be
+	// persisted as one nor clear the draft they left on the normal create page.
 	const draft = useEmptyStateDraft();
-	const { handleContentChange, submitDraft, resetDraft } = draft;
+	const handleContentChange = autoSubmit
+		? undefined
+		: draft.handleContentChange;
 	const initialInputValue = autoSubmit
 		? autoSubmit.message
 		: draft.initialInputValue;
@@ -530,7 +533,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	};
 
 	const handleSend = async (message: string, fileIDs?: string[]) => {
-		submitDraft();
+		if (!autoSubmit) {
+			draft.submitDraft();
+		}
 		await onCreateChat({
 			message,
 			fileIDs,
@@ -544,7 +549,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					: undefined,
 			planMode: planModeEnabled ? "plan" : undefined,
 		}).catch((err) => {
-			resetDraft();
+			draft.resetDraft();
 			throw err;
 		});
 	};
@@ -588,10 +593,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		!hasModelOptions ||
 		Boolean(aiGatewayDisabled);
 
-	// Attachments added before organization adoption are discarded when the
-	// persisted set is restored, and adoption can repeat when permissions
-	// resolve to a different organization, so the file is keyed by the
-	// organization that owned the attachment state when it was added.
+	// Attaching before organization adoption is lost when persisted attachments
+	// restore, and adoption can repeat when permissions resolve to another
+	// organization, so the attachment is keyed by the adopting organization.
 	const [autoSubmitAttachment, setAutoSubmitAttachment] = useState<{
 		organizationId: string;
 		file: File;

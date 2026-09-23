@@ -13,7 +13,7 @@ import {
 	MockDefaultOrganization,
 	MockUserPreferenceSettings,
 } from "#/testHelpers/entities";
-import { AgentCreateForm } from "./AgentCreateForm";
+import { AgentCreateForm, emptyInputStorageKey } from "./AgentCreateForm";
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({
@@ -111,6 +111,7 @@ afterEach(() => {
 describe("AgentCreateForm autoSubmit", () => {
 	it("uploads the attachment, then creates the chat once with the message and file", async () => {
 		mockFormQueries();
+		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
 		const upload = createDeferred<TypesGen.UploadChatFileResponse>();
 		const uploadChatFile = vi
 			.spyOn(API.experimental, "uploadChatFile")
@@ -140,6 +141,9 @@ describe("AgentCreateForm autoSubmit", () => {
 				model: defaultModel.id,
 			}),
 		);
+		expect(localStorage.getItem(emptyInputStorageKey)).toBe(
+			"draft the user typed earlier",
+		);
 	});
 
 	it("does not send when the attachment upload fails", async () => {
@@ -151,7 +155,6 @@ describe("AgentCreateForm autoSubmit", () => {
 
 		renderForm(onCreateChat);
 
-		// The failed upload keeps the attachment chip so the user can retry.
 		await screen.findByRole("button", {
 			name: "Remove workspace-build-logs.txt",
 		});

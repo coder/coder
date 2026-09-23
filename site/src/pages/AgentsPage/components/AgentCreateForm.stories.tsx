@@ -2191,8 +2191,8 @@ export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
 	},
 };
 
-// The debug deep link prefills the prompt and attaches the failed build's
-// logs; onCreateChat never resolves so the composer keeps the sent state.
+// onCreateChat never resolves so the prefilled prompt and attachment stay
+// visible.
 export const AutoSubmitWorkspaceBuildDebug: Story = {
 	args: {
 		...defaultArgs,

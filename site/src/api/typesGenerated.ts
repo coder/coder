@@ -5040,6 +5040,7 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "chat-advisor"
 	| "chat-virtual-desktop"
+	| "enable-ai-workspace-debug"
 	| "example"
 	| "mcp-server-http"
 	| "mcp-tool-search"
@@ -5056,6 +5057,7 @@ export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"chat-advisor",
 	"chat-virtual-desktop",
+	"enable-ai-workspace-debug",
 	"example",
 	"mcp-server-http",
 	"mcp-tool-search",
