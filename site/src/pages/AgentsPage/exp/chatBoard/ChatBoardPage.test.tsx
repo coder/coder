@@ -83,6 +83,32 @@ describe("ChatBoardPage", () => {
 		).not.toBeInTheDocument();
 	});
 
+	it("renaming the selected effort keeps it selected", async () => {
+		const user = userEvent.setup();
+		mockChats(
+			() =>
+				Promise.resolve([{ ...MockChat, labels: { "board/effort.0": "Q3" } }]),
+			() => Promise.resolve([]),
+		);
+		vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+		renderWithAuth(<ChatBoardPage />);
+		await screen.findByRole("article");
+
+		await user.click(screen.getByRole("button", { name: "Efforts" }));
+		await user.click(await screen.findByRole("menuitemradio", { name: /Q3/ }));
+		await user.click(screen.getByRole("button", { name: "Q3" }));
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Rename effort" }),
+		);
+		const input = screen.getByRole("textbox", { name: "Effort name" });
+		await user.clear(input);
+		await user.type(input, "Q4{Enter}");
+
+		expect(
+			await screen.findByRole("button", { name: "Q4" }),
+		).toBeInTheDocument();
+	});
+
 	it("shows the search error instead of an unfiltered board", async () => {
 		const user = userEvent.setup();
 		mockChats(
