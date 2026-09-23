@@ -3,10 +3,7 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { UserSettingsSidebarView } from "./UserSettingsSidebarView";
 
-/**
- * Wires the user settings sidebar to the signed-in user and the dashboard
- * entitlements and build info that gate optional pages.
- */
+/** Connects UserSettingsSidebarView to the current user and dashboard. */
 export const UserSettingsSidebar: FC = () => {
 	const { user } = useAuthenticated();
 	const { entitlements, buildInfo } = useDashboard();

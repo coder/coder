@@ -12,7 +12,7 @@ import {
 
 const STORAGE_KEY = "story-user-settings-sidebar";
 
-/** Exposes the router location so play functions can assert on it. */
+/** Renders the current path for assertions. */
 const LocationProbe: FC = () => {
 	const { pathname } = useLocation();
 	return (
@@ -50,7 +50,7 @@ const routing = (path: string) =>
 const meta: Meta<typeof UserSettingsSidebarView> = {
 	title: "pages/UserSettingsPage/UserSettingsSidebarView",
 	component: UserSettingsSidebarView,
-	// Stories share the page, so start expanded every time.
+	// Reset the persisted state per story.
 	beforeEach: () => {
 		localStorage.setItem(STORAGE_KEY, "expanded");
 		return () => localStorage.removeItem(STORAGE_KEY);
@@ -108,10 +108,7 @@ export const Default: Story = {
 	},
 };
 
-/**
- * The icon rail shows only the avatar, which links to the account page
- * and re-expands the sidebar.
- */
+/** Collapsed, only the avatar shows; clicking it expands. */
 export const Collapsed: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -142,7 +139,7 @@ export const GatesOff: Story = {
 		expect(
 			canvas.queryByRole("link", { name: "OAuth2 applications" }),
 		).toBeNull();
-		// Connected accounts still renders with its single remaining link.
+		// The group remains with one link.
 		expect(canvas.getByText("Connected accounts")).toBeVisible();
 		expect(
 			canvas.getByRole("link", { name: "External authentication" }),
@@ -166,8 +163,7 @@ export const SecurityActive: Story = {
 	},
 };
 
-// The group headings are labels, not controls: clicking one neither
-// navigates nor hides its links.
+// Group headings are not controls.
 export const GroupHeadingIsStatic: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -182,10 +178,7 @@ export const GroupHeadingIsStatic: Story = {
 	},
 };
 
-/**
- * Visual reference for a short viewport, where the identity block scrolls
- * with the list beneath the pinned title and toggle.
- */
+/** Short viewport: the identity block scrolls under the pinned header. */
 export const ShortViewport: Story = {
 	parameters: {
 		viewport: {

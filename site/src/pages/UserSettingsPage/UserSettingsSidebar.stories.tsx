@@ -37,7 +37,6 @@ const meta: Meta<typeof UserSettingsSidebar> = {
 export default meta;
 type Story = StoryObj<typeof UserSettingsSidebar>;
 
-// Explicit so the story does not depend on the fixture default.
 export const OAuth2ProviderEnabled: Story = {
 	parameters: { buildInfo: { oauth2_provider: true } },
 	play: async ({ canvasElement }) => {
@@ -48,8 +47,7 @@ export const OAuth2ProviderEnabled: Story = {
 	},
 };
 
-// The OAuth2 item follows the deployment flag, not the build type, so a
-// development build with the flag off still hides it.
+// Hidden when the flag is off, even on a devel build.
 export const OAuth2ProviderDisabled: Story = {
 	parameters: {
 		buildInfo: { version: "v2.99.99-devel+abcdef", oauth2_provider: false },

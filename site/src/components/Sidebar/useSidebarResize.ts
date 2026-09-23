@@ -6,8 +6,7 @@ import {
 } from "#/utils/mobile";
 
 export const EXPANDED_WIDTH = 240;
-// Icon center sits at nav-pl(12) + btn-px(12) + icon/2(8) = 32px.
-// Double that so the icon is horizontally centered when collapsed.
+// Twice the 32px icon center offset, so rail icons are centered.
 export const COLLAPSED_WIDTH = 64;
 
 function readCollapsed(key: string): boolean {
@@ -22,48 +21,30 @@ function persistCollapsed(key: string, collapsed: boolean): void {
 	try {
 		localStorage.setItem(key, collapsed ? "collapsed" : "expanded");
 	} catch {
-		// Silently ignore write failures.
+		// Storage may be unavailable.
 	}
 }
 
 type UseSidebarResizeReturn = {
 	width: number;
 	collapsed: boolean;
-	/**
-	 * Below the md breakpoint the expanded sidebar is a full-width drawer
-	 * over the content rather than a column beside it.
-	 */
+	/** Below md, where the expanded state is a drawer. */
 	mobile: boolean;
-	/** Force the sidebar to expand. */
 	expand: () => void;
-	/** Force the sidebar to collapse. */
 	collapse: () => void;
-	/** Toggle collapsed/expanded state. */
 	toggle: () => void;
 };
 
-/**
- * Two-state sidebar width persisted per `storageKey`. Two environmental
- * rules override the persisted choice without being persisted: the
- * sidebar starts and stays collapsed below the lg breakpoint, and below
- * md the expanded state is a drawer that never outlives the viewport
- * that opened it.
- */
+/** Collapsed state persisted per `storageKey`. Below lg it starts collapsed. */
 export function useSidebarResize(storageKey: string): UseSidebarResizeReturn {
 	const isNarrowViewport = useMediaQuery(belowLgViewportMediaQuery);
 	const mobile = useMediaQuery(belowMdViewportMediaQuery);
 
-	// Start collapsed on narrow viewports regardless of the persisted
-	// preference, so page content is not cut off on load.
 	const [collapsed, setCollapsed] = useState(
 		() => isNarrowViewport || readCollapsed(storageKey),
 	);
 
-	// Crossing the lg or md breakpoint in either direction recomputes the
-	// environmental state: shrinking collapses the column or closes the
-	// drawer, growing restores the persisted preference. The crossing is
-	// detected against the previous render's values, so the reset happens
-	// in render rather than an effect.
+	// Reset to the default for the viewport when crossing lg or md.
 	const [prevViewport, setPrevViewport] = useState({
 		narrow: isNarrowViewport,
 		mobile,
@@ -76,8 +57,7 @@ export function useSidebarResize(storageKey: string): UseSidebarResizeReturn {
 		setCollapsed(isNarrowViewport || readCollapsed(storageKey));
 	}
 
-	// Mobile drawer state is environmental and never written to storage,
-	// so leaving mobile restores the desktop preference.
+	// The mobile drawer state is not persisted.
 	const setCollapsedAndPersist = useCallback(
 		(next: boolean) => {
 			setCollapsed(next);

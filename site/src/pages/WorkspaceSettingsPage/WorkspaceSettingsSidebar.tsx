@@ -2,7 +2,7 @@ import type { FC } from "react";
 import { useWorkspaceSettings } from "./useWorkspaceSettings";
 import { WorkspaceSettingsSidebarView } from "./WorkspaceSettingsSidebarView";
 
-/** Wires the workspace settings sidebar to the layout's workspace context. */
+/** Connects WorkspaceSettingsSidebarView to the workspace settings context. */
 export const WorkspaceSettingsSidebar: FC = () => {
 	const { workspace, permissions } = useWorkspaceSettings();
 

@@ -13,7 +13,7 @@ import { SidebarNavLink } from "./SidebarNavLink";
 const STORAGE_KEY = "story-collapsible-sidebar";
 const LABEL = "Demo settings";
 
-/** Minimal nav content with a collapsed variant, as the real views have. */
+/** Nav content with a collapsed variant. */
 const DemoNav: FC = () => {
 	const { collapsed, expand } = useSidebarContext();
 	if (collapsed) {
@@ -36,7 +36,7 @@ const DemoNav: FC = () => {
 	);
 };
 
-/** Exposes the router location so play functions can assert on it. */
+/** Renders the current path for assertions. */
 const LocationProbe: FC = () => {
 	const { pathname } = useLocation();
 	return (
@@ -59,8 +59,7 @@ const meta: Meta<typeof CollapsibleSidebar> = {
 		),
 		children: <DemoNav />,
 	},
-	// Stories share the page, so seed the preference every time and clear
-	// it afterwards.
+	// Reset the persisted state per story.
 	beforeEach: () => {
 		localStorage.setItem(STORAGE_KEY, "expanded");
 		return () => localStorage.removeItem(STORAGE_KEY);
@@ -111,7 +110,7 @@ const expectCollapsed = async (canvas: ReturnType<typeof within>) => {
 	});
 };
 
-/** The header toggle switches variants and persists the choice. */
+/** The header toggle collapses, expands, and persists. */
 export const ToggleFromHeader: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -132,7 +131,7 @@ export const ToggleFromHeader: Story = {
 	},
 };
 
-/** A persisted collapsed preference wins on a wide viewport. */
+/** A persisted collapsed state is restored. */
 export const RestoresCollapsedPreference: Story = {
 	beforeEach: () => {
 		localStorage.setItem(STORAGE_KEY, "collapsed");
@@ -148,10 +147,7 @@ export const RestoresCollapsedPreference: Story = {
 	},
 };
 
-/**
- * The edge handle is a separator: a press and release inside the dead
- * zone toggles like a click, and a drag snaps in its direction.
- */
+/** Click toggles; drag snaps in its direction. */
 export const DragHandle: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -168,7 +164,7 @@ export const DragHandle: Story = {
 
 		expect(handle).toHaveAttribute("aria-valuenow", "240");
 
-		// Two pixels of travel is a click, not a drag.
+		// Under the dead zone, so a click.
 		await drag(240, 242);
 		await expectCollapsed(canvas);
 		expect(handle).toHaveAttribute("aria-valuenow", "64");
@@ -176,21 +172,21 @@ export const DragHandle: Story = {
 		await drag(64, 66);
 		await expectExpanded(canvas);
 
-		// Dragging left past the dead zone collapses.
+		// Drag left collapses.
 		await drag(240, 180);
 		await expectCollapsed(canvas);
 		expect(localStorage.getItem(STORAGE_KEY)).toBe("collapsed");
 
-		// Dragging right from the rail expands.
+		// Drag right expands.
 		await drag(64, 140);
 		await expectExpanded(canvas);
 		expect(localStorage.getItem(STORAGE_KEY)).toBe("expanded");
 
-		// A drag clamped at the edge it started from keeps the state.
+		// Drag clamped at the start edge is a no-op.
 		await drag(240, 400);
 		await expectExpanded(canvas);
 
-		// A canceled gesture never toggles, whether or not it moved.
+		// Canceled gestures never toggle.
 		await fireEvent.pointerDown(handle, { clientX: 240, pointerId: 1 });
 		await fireEvent.pointerCancel(handle, { clientX: 240, pointerId: 1 });
 		await expectExpanded(canvas);
@@ -202,7 +198,7 @@ export const DragHandle: Story = {
 	},
 };
 
-/** The handle is keyboard operable: arrows move between the two widths. */
+/** Arrow, Home, and End keys collapse and expand. */
 export const KeyboardHandle: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -224,21 +220,17 @@ export const KeyboardHandle: Story = {
 	},
 };
 
-/**
- * Below lg the sidebar starts collapsed despite the persisted preference,
- * and expanding it there is still a column beside the page, not a drawer.
- */
+/** Below lg it starts collapsed and expands inline, not as a drawer. */
 export const StartsCollapsedBelowLg: Story = {
 	parameters: {
 		viewport: { defaultViewport: "ipad" },
-		// Pixel ignores the Storybook viewport and has no named width between
-		// the md and lg breakpoints, so it cannot render this state.
+		// Pixel has no viewport width between md and lg.
 		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expectCollapsed(canvas);
-		// The environmental collapse is not written back to storage.
+		// Not persisted.
 		expect(localStorage.getItem(STORAGE_KEY)).toBe("expanded");
 
 		await userEvent.click(
@@ -249,15 +241,11 @@ export const StartsCollapsedBelowLg: Story = {
 	},
 };
 
-/**
- * Below md the expanded state is a modal drawer that closes on Escape,
- * outside clicks, and link clicks, returning focus to the rail toggle.
- * The drawer never writes to storage.
- */
+/** Below md it opens as a drawer that closes on Escape, outside, or link click. */
 export const MobileDrawer: Story = {
 	parameters: {
 		viewport: { defaultViewport: "iphone12" },
-		// Pixel ignores the Storybook viewport; its phone width is 390px too.
+		// Pixel ignores `viewport`; its phone width is also 390px.
 		layout: "fullscreen",
 		pixel: { matrix: { viewports: ["phone"] } },
 	},
@@ -296,21 +284,20 @@ export const MobileDrawer: Story = {
 		await userEvent.keyboard("{Escape}");
 		await expectClosed();
 
-		// The drawer's own toggle.
+		// Toggle.
 		drawer = await openDrawer();
 		await userEvent.click(
 			drawer.getByRole("button", { name: "Collapse sidebar" }),
 		);
 		await expectClosed();
 
-		// Outside click. The page is inert under the drawer, so user-event's
-		// pointer-events check is disabled for the press that dismisses it.
+		// Outside click. The page is inert, so skip user-event's pointer-events check.
 		await openDrawer();
 		const pageUser = userEvent.setup({ pointerEventsCheck: 0 });
 		await pageUser.click(canvas.getByText("Page content"));
 		await expectClosed();
 
-		// Following a link.
+		// Link click.
 		drawer = await openDrawer();
 		await userEvent.click(drawer.getByRole("link", { name: "Two" }));
 		await expectClosed();

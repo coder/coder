@@ -4,11 +4,6 @@ import type { FC, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
 import { useSidebarContext } from "./SidebarContext";
 
-/**
- * Icon button that collapses or expands the sidebar. Sized to a 40px
- * square so it lines up with the nav rows; when expanded it bleeds 8px
- * into the header padding so the icon ends 16px from the sidebar edge.
- */
 const SidebarCollapseToggle: FC = () => {
 	const { collapsed, toggle } = useSidebarContext();
 	return (
@@ -28,20 +23,11 @@ const SidebarCollapseToggle: FC = () => {
 };
 
 type SidebarHeaderProps = {
-	/**
-	 * Leading content, such as a title. It sits in a 40px row and should
-	 * bleed 4px left (`-ml-1`) with 8px of inner padding if it has a hover
-	 * surface, so its icon lands 16px from the sidebar edge.
-	 */
+	/** Leading content, such as a title. */
 	children?: ReactNode;
 };
 
-/**
- * Pinned 56px header for collapsible settings sidebars: leading content
- * beside the collapse toggle. When the sidebar is collapsed only the
- * toggle renders, placed at the left where the rail's icons are centered
- * (the panel stays 240px wide and is clipped to the 64px rail).
- */
+/** Sidebar header with the collapse toggle. Collapsed, only the toggle shows. */
 export const SidebarHeader: FC<SidebarHeaderProps> = ({ children }) => {
 	const { collapsed } = useSidebarContext();
 
@@ -61,7 +47,7 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({ children }) => {
 	);
 };
 
-/** Plain text title for the sidebar header. */
+/** Text title for SidebarHeader. */
 export const SidebarHeaderTitle: FC<{ children: ReactNode }> = ({
 	children,
 }) => (

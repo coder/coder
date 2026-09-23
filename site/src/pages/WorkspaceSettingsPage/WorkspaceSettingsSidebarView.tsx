@@ -18,7 +18,7 @@ import {
 
 type WorkspaceSettingsLink = {
 	label: string;
-	/** Route segment under the settings base, empty for the index page. */
+	/** Path under the settings base; empty for the index. */
 	segment: string;
 	visible: boolean;
 };
@@ -37,15 +37,10 @@ export const WorkspaceSettingsSidebarHeader: FC = () => (
 
 type WorkspaceSettingsSidebarViewProps = {
 	workspace: Workspace;
-	/** Sharing is only offered to users who can share the workspace. */
 	canShareWorkspace: boolean;
 };
 
-/**
- * Navigation for the workspace settings area: the workspace's template
- * icon, name, and owner above always-expanded groups of links. The
- * collapsed rail shows the template icon, which re-expands the sidebar.
- */
+/** Workspace settings navigation. Collapsed, it shows only the template icon. */
 export const WorkspaceSettingsSidebarView: FC<
 	WorkspaceSettingsSidebarViewProps
 > = ({ workspace, canShareWorkspace }) => {
@@ -109,7 +104,6 @@ export const WorkspaceSettingsSidebarView: FC<
 
 	return (
 		<div className="flex flex-col gap-4">
-			{/* The icon is inset 4px like the rows' text. */}
 			<div className="flex items-center gap-2 px-1 py-1">
 				{icon}
 				<div className="flex min-w-0 flex-1 flex-col">

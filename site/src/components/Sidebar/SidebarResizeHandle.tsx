@@ -9,33 +9,27 @@ import {
 } from "react";
 import { COLLAPSED_WIDTH, EXPANDED_WIDTH } from "./useSidebarResize";
 
-/** Pointer travel in px below which a press and release counts as a click. */
+/** Max pointer travel in px for a press to count as a click. */
 const CLICK_DEAD_ZONE = 3;
 
 type DragState = {
 	startX: number;
 	startLeft: number;
-	/** Whether the pointer has left the click dead zone. */
+	/** Past the click dead zone. */
 	moved: boolean;
-	/** Width last previewed on the container. */
+	/** Last previewed width. */
 	width: number;
 };
 
 type SidebarResizeHandleProps = {
-	/** The sidebar column whose width the drag previews live. */
+	/** Element whose width is previewed during a drag. */
 	containerRef: RefObject<HTMLElement | null>;
 	collapsed: boolean;
 	onCollapse: () => void;
 	onExpand: () => void;
 };
 
-/**
- * Hit area on the sidebar's right edge that reveals a 2px line on hover,
- * focus, and while dragging. A drag previews the width directly on the
- * container and snaps to the collapsed or expanded state on release; a
- * click toggles. Keyboard users move between the two states with the
- * arrow keys, matching the other vertical separators in the app.
- */
+/** Sidebar edge: click toggles, drag snaps on release, arrow keys resize. */
 export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 	containerRef,
 	collapsed,
@@ -50,7 +44,7 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 		if (e.button !== 0 || !container) {
 			return;
 		}
-		// Stops the browser from starting a text selection with the drag.
+		// Prevent text selection.
 		e.preventDefault();
 		dragRef.current = {
 			startX: e.clientX,
@@ -59,8 +53,6 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 			width: collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH,
 		};
 		setResizing(true);
-		// Capture keeps move and release events flowing to this element
-		// even when the pointer leaves it or the window.
 		e.currentTarget.setPointerCapture?.(e.pointerId);
 	};
 
@@ -75,8 +67,7 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 				return;
 			}
 			drag.moved = true;
-			// Only suppress the width transition once this is a real drag,
-			// so a click still animates through React state.
+			// Width follows the pointer without animating.
 			container.style.transition = "none";
 		}
 		drag.width = Math.max(
@@ -86,9 +77,7 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 		container.style.width = `${drag.width}px`;
 	};
 
-	// pointerup commits the gesture. pointercancel, and the implicit capture
-	// release that follows every end, only tear it down; the release after a
-	// pointerup finds no drag and is a no-op.
+	// Only pointerup commits; cancel and lost capture revert.
 	const finishDrag = (e: PointerEvent<HTMLDivElement>, commit: boolean) => {
 		const drag = dragRef.current;
 		if (!drag) {
@@ -116,9 +105,7 @@ export const SidebarResizeHandle: FC<SidebarResizeHandleProps> = ({
 		if (!container) {
 			return;
 		}
-		// Snap in the direction of the drag, or back to the current state when
-		// the gesture was canceled or clamped at the edge it started from. The
-		// transition comes back so the snap animates.
+		// Snap in the drag direction.
 		let shouldCollapse = collapsed;
 		if (commit) {
 			shouldCollapse = collapsed

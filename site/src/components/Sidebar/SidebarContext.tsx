@@ -2,9 +2,7 @@ import { createContext, useContext } from "react";
 
 type SidebarState = {
 	collapsed: boolean;
-	/** Force the sidebar to expand. */
 	expand: () => void;
-	/** Toggle collapsed/expanded state. */
 	toggle: () => void;
 };
 

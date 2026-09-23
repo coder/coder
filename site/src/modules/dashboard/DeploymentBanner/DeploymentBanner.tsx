@@ -16,14 +16,10 @@ const HIDE_DEPLOYMENT_BANNER_PATHS = [
 	/^\/@(?<username>[a-zA-Z0-9-]+)\/(?<workspace_name>[a-zA-Z0-9-]+)$/,
 ];
 
-/** Height of the rendered banner in px, matching its `h-9` class. */
+/** Banner height in px (`h-9`). */
 export const DEPLOYMENT_BANNER_HEIGHT = 36;
 
-/**
- * Whether the deployment banner renders for the current user and route.
- * Layouts that pin content to the viewport bottom use this to leave room
- * for it. The stats query is shared with the banner itself.
- */
+/** Whether the deployment banner shows for the current user and route. */
 export const useIsDeploymentBannerVisible = (): boolean => {
 	const { permissions } = useAuthenticated();
 	const deploymentStatsQuery = useQuery({

@@ -12,7 +12,7 @@ import {
 
 const STORAGE_KEY = "story-workspace-settings-sidebar";
 
-/** Exposes the router location so play functions can assert on it. */
+/** Renders the current path for assertions. */
 const LocationProbe: FC = () => {
 	const { pathname } = useLocation();
 	return (
@@ -39,7 +39,7 @@ const routing = (path: string) =>
 const meta: Meta<typeof WorkspaceSettingsSidebarView> = {
 	title: "pages/WorkspaceSettingsPage/WorkspaceSettingsSidebarView",
 	component: WorkspaceSettingsSidebarView,
-	// Stories share the page, so start expanded every time.
+	// Reset the persisted state per story.
 	beforeEach: () => {
 		localStorage.setItem(STORAGE_KEY, "expanded");
 		return () => localStorage.removeItem(STORAGE_KEY);
@@ -87,7 +87,7 @@ export const Default: Story = {
 	},
 };
 
-/** Without share permission the Access group disappears entirely. */
+/** Without share permission the Access group is hidden. */
 export const CannotShare: Story = {
 	args: { canShareWorkspace: false },
 	play: async ({ canvasElement }) => {
@@ -112,7 +112,7 @@ export const ScheduleActive: Story = {
 	},
 };
 
-/** The icon rail shows the template icon, which re-expands the sidebar. */
+/** Collapsed, only the template icon shows; clicking it expands. */
 export const Collapsed: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -130,8 +130,7 @@ export const Collapsed: Story = {
 	},
 };
 
-// Group headings are labels, not controls: clicking one neither
-// navigates nor hides its links.
+// Group headings are not controls.
 export const GroupHeadingIsStatic: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

@@ -30,10 +30,7 @@ type UserSettingsGroup = {
 const isRouteActive = (pathname: string, href: string) =>
 	pathname === href || pathname.startsWith(`${href}/`);
 
-/**
- * Pinned header for the user settings sidebar: a title beside the
- * collapse toggle. The user's identity scrolls with the list below.
- */
+/** Header for the user settings sidebar. */
 export const UserSettingsSidebarHeader: FC = () => (
 	<SidebarHeader>
 		<SidebarHeaderTitle>Your account</SidebarHeaderTitle>
@@ -42,17 +39,11 @@ export const UserSettingsSidebarHeader: FC = () => (
 
 type UserSettingsSidebarViewProps = {
 	user: User;
-	/** Schedule page is entitlement gated. */
 	showSchedulePage: boolean;
-	/** OAuth2 applications page is only offered when the provider is enabled. */
 	showOAuth2Page: boolean;
 };
 
-/**
- * Navigation for the user settings area: the user's avatar, name, and
- * email above always-expanded groups of links. The collapsed rail shows
- * the avatar, which opens the account page and re-expands the sidebar.
- */
+/** User settings navigation. Collapsed, it shows only the user's avatar. */
 export const UserSettingsSidebarView: FC<UserSettingsSidebarViewProps> = ({
 	user,
 	showSchedulePage,
@@ -136,7 +127,6 @@ export const UserSettingsSidebarView: FC<UserSettingsSidebarViewProps> = ({
 
 	return (
 		<div className="flex flex-col gap-4">
-			{/* The avatar is inset 4px like the rows' icons. */}
 			<div className="flex items-center gap-2 px-1 py-1">
 				<Avatar size="lg" fallback={user.username} src={user.avatar_url} />
 				<div className="flex min-w-0 flex-1 flex-col">

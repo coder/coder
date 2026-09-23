@@ -5,36 +5,23 @@ import { SidebarContext } from "./SidebarContext";
 import { SidebarResizeHandle } from "./SidebarResizeHandle";
 import { COLLAPSED_WIDTH, useSidebarResize } from "./useSidebarResize";
 
-/** Height of the sticky dashboard navbar the sidebar sits beneath. */
+/** Height of the dashboard navbar. */
 const NAVBAR_HEIGHT = 72;
 
 type CollapsibleSidebarProps = {
 	children: ReactNode;
 	className?: string;
-	/** Accessible name of the navigation, also titling the mobile drawer. */
+	/** Accessible name for the nav and the mobile drawer. */
 	label: string;
-	/** Key for the persisted collapsed preference, unique per sidebar. */
+	/** localStorage key for the collapsed state. */
 	storageKey: string;
-	/**
-	 * Content pinned above the scrolling nav list, inside the collapsing
-	 * clipper. Receives the sidebar context, so it can render its own
-	 * collapsed variant.
-	 */
+	/** Pinned above the scrolling nav list. */
 	header?: ReactNode;
-	/**
-	 * Space in px to leave free at the bottom of the viewport, for a
-	 * bottom-pinned bar such as the deployment banner.
-	 */
+	/** Px reserved at the bottom of the viewport, e.g. for the deployment banner. */
 	bottomInset?: number;
 };
 
-/**
- * Sticky sidebar column beneath the dashboard navbar that collapses to a
- * 64px icon rail. The width is persisted per `storageKey`, narrow
- * viewports start collapsed, and below the md breakpoint the expanded
- * state is a modal drawer over the page. Children read `SidebarContext`
- * to render their collapsed variant.
- */
+/** Sticky sidebar that collapses to a 64px icon rail, and opens as a drawer below md. */
 export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 	children,
 	className,
@@ -47,14 +34,9 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 		useSidebarResize(storageKey);
 	const containerRef = useRef<HTMLDivElement>(null);
 
-	// Below md the expanded sidebar is a drawer over the page while the
-	// icon rail keeps its place in the layout underneath. The rail keeps
-	// rendering the collapsed variant so its toggle can take focus back
-	// when the drawer closes; while the drawer is open the children are
-	// therefore mounted twice, once per variant.
+	// Below md the rail stays collapsed and the drawer shows the expanded nav.
 	const drawerOpen = mobile && !collapsed;
-	// The drawer has no Radix trigger, so remember which rail control
-	// opened it and hand focus back there when it closes.
+	// The rail control that opened the drawer, refocused when it closes.
 	const openerRef = useRef<HTMLElement | null>(null);
 	const railContext = useMemo(() => {
 		const rememberOpener = () => {
@@ -78,8 +60,6 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 		[expand, toggle],
 	);
 
-	// The header stays put; only the nav list scrolls, within its own
-	// scroll area so the page scrollbar never moves the sidebar.
 	const renderPanel = (variant: "rail" | "drawer") => (
 		<div
 			className={cn(
@@ -87,9 +67,6 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 				variant === "drawer" ? "w-full" : "w-[240px]",
 			)}
 		>
-			{/* Both the header and the list reserve a stable scrollbar gutter
-			    so the toggle stays put when the list starts to scroll (only
-			    matters with classic, non-overlay scrollbars). */}
 			<div className="overflow-hidden [scrollbar-gutter:stable]">{header}</div>
 			{header && <div className="h-px shrink-0 bg-border" />}
 			<nav
@@ -109,8 +86,6 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 	return (
 		<>
 			<SidebarContext.Provider value={railContext}>
-				{/* Non-clipping wrapper for positioning. The resize handle
-				    lives here so it isn't clipped by overflow-hidden. */}
 				<div
 					ref={containerRef}
 					className="relative shrink-0 sticky z-30 transition-[width] duration-150 ease-in-out"
@@ -120,10 +95,8 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 						height: `calc(100vh - ${NAVBAR_HEIGHT + bottomInset}px)`,
 					}}
 				>
-					{/* Clipping container for the nav content. */}
 					<div className="h-full overflow-hidden">{renderPanel("rail")}</div>
-					{/* Handle sits outside the overflow-hidden div so its right
-					    half isn't clipped. */}
+					{/* Outside the overflow-hidden panel so it isn't clipped. */}
 					{!mobile && (
 						<SidebarResizeHandle
 							containerRef={containerRef}
@@ -148,9 +121,7 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 						className="bottom-0 max-h-none bg-surface-primary"
 						style={{ top: NAVBAR_HEIGHT }}
 						aria-describedby={undefined}
-						// Following a link closes the drawer. Delegated here so views
-						// need no wiring; keyboard activation of a link dispatches a
-						// click as well.
+						// Close the drawer when a link is followed.
 						onClick={(event) => {
 							if (
 								event.target instanceof Element &&
