@@ -204,8 +204,9 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 		value.preset === undefined
 			? undefined
 			: quickPresets.find((preset) => preset.id === value.preset);
+	const isPlaceholder = activePreset?.placeholder !== undefined;
 	const triggerLabel =
-		activePreset?.triggerLabel ??
+		activePreset?.placeholder ??
 		activePreset?.label ??
 		formatCustomLabel(value.start, value.end);
 
@@ -232,7 +233,9 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 					<span className="size-icon-sm shrink-0">
 						<CalendarIcon strokeWidth={1.75} className="size-full p-0" />
 					</span>
-					<span>{triggerLabel}</span>
+					<span className={cn(isPlaceholder && "text-content-secondary")}>
+						{triggerLabel}
+					</span>
 					<ChevronDownIcon className="size-icon-sm" />
 				</Button>
 			</PopoverTrigger>

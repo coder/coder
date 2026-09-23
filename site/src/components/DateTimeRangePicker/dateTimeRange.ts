@@ -3,8 +3,11 @@ import dayjs from "dayjs";
 export type QuickPreset = {
 	id: string;
 	label: string;
-	/** Text shown on the picker trigger while applied; defaults to `label`. */
-	triggerLabel?: string;
+	/**
+	 * Trigger text while this preset is applied, styled as a placeholder. For
+	 * presets that apply no filter, such as "All time". Defaults to `label`.
+	 */
+	placeholder?: string;
 	range: (now: Date) => { start: Date; end: Date };
 };
 

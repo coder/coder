@@ -37,7 +37,7 @@ const lastDays = (days: number): QuickPreset => ({
 const allTime: QuickPreset = {
 	id: ALL_TIME_PRESET_ID,
 	label: "All time",
-	triggerLabel: "Last seen",
+	placeholder: "Last seen",
 	range: (now) => ({ start: new Date(0), end: now }),
 };
 
