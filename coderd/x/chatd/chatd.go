@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -173,6 +174,8 @@ type Server struct {
 	db                 database.Store
 	logger             slog.Logger
 	modelConfigContext func(context.Context, uuid.UUID) (context.Context, error)
+	// organizationNames caches organization ID to name for stage span attributes.
+	organizationNames sync.Map
 
 	streamPartsDialer StreamPartsDialer
 
@@ -2113,9 +2116,10 @@ func (p *Server) PromoteQueued(
 	}
 
 	var (
-		result      PromoteQueuedResult
-		refreshChat database.Chat
-		refreshedOK bool
+		result           PromoteQueuedResult
+		refreshChat      database.Chat
+		refreshedOK      bool
+		promotedQueuedAt time.Time
 	)
 	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
@@ -2135,6 +2139,7 @@ func (p *Server) PromoteQueued(
 		}
 		if promoteResult.InsertedMessage != nil {
 			result.PromotedMessage = *promoteResult.InsertedMessage
+			promotedQueuedAt = promoteResult.QueuedMessage.CreatedAt
 		}
 		// Capture the chat inside the transaction so the watch event
 		// published below uses the snapshot bump and status change
@@ -2153,6 +2158,17 @@ func (p *Server) PromoteQueued(
 
 	if refreshedOK {
 		p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
+	if !promotedQueuedAt.IsZero() {
+		var (
+			chatKind     chatloop.ChatKind
+			organization string
+		)
+		if refreshedOK {
+			chatKind = chatKindAttr(refreshChat)
+			organization = p.organizationName(ctx, refreshChat.OrganizationID)
+		}
+		p.recordQueueWait(ctx, opts.ChatID, chatKind, organization, promotedQueuedAt, p.stages.Now())
 	}
 	return result, nil
 }
@@ -4381,7 +4397,7 @@ func (p *Server) finalizeSuccessfulTurnStatusLabelWithAfterFunc(
 	logger slog.Logger,
 	afterFinalize func(context.Context, string),
 ) {
-	finalizeCtx, stopFinalizeCtx := p.inflightContext(ctx)
+	finalizeCtx, stopFinalizeCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopFinalizeCtx()
 		statusLabel := p.generateFinalTurnStatusLabel(finalizeCtx, chat, status, runResult, logger)
@@ -4467,7 +4483,7 @@ func (p *Server) setLastTurnSummaryAsync(
 	if chat.LastTurnSummary.Valid && strings.TrimSpace(chat.LastTurnSummary.String) == summary {
 		return
 	}
-	updateCtx, stopUpdateCtx := p.inflightContext(ctx)
+	updateCtx, stopUpdateCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopUpdateCtx()
 		p.updateLastTurnSummary(updateCtx, chat, chat.HistoryVersion, summary, logger)
@@ -4487,7 +4503,7 @@ func (p *Server) clearLastTurnSummaryAsync(
 	chat database.Chat,
 	logger slog.Logger,
 ) {
-	clearCtx, stopClearCtx := p.inflightContext(ctx)
+	clearCtx, stopClearCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopClearCtx()
 		p.updateLastTurnSummary(clearCtx, chat, chat.HistoryVersion, "", logger)
@@ -4582,7 +4598,7 @@ func (p *Server) maybeGenerateChatSummaryAsync(
 	if chat.ParentChatID.Valid {
 		return
 	}
-	ctx, cancel := p.inflightContext(ctx)
+	ctx, cancel := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer cancel()
 		p.generateAndStoreChatSummary(ctx, logger, chat)
@@ -4763,7 +4779,7 @@ func (p *Server) storeSubagentReportSummaryAsync(
 	chat database.Chat,
 	logger slog.Logger,
 ) {
-	summaryCtx, stopSummaryCtx := p.inflightContext(ctx)
+	summaryCtx, stopSummaryCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopSummaryCtx()
 		p.storeSubagentReportSummary(summaryCtx, chat, logger)
@@ -4859,12 +4875,69 @@ func (p *Server) Close() error {
 // must be called once the work completes to release the shutdown hook.
 // The caller is responsible for providing their own timeout.
 func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func()) {
-	ctx, cancel := context.WithCancel(context.WithoutCancel(reqCtx))
+	// Inflight work outlives the caller, so the caller's span and stage
+	// scope are stripped from the context: spans started on this context
+	// become their own roots instead of children that end after their
+	// parent, and their stages are recorded as background work.
+	detached := trace.ContextWithSpanContext(context.WithoutCancel(reqCtx), trace.SpanContext{})
+	detached = chatloop.ContextWithScope(detached, chatloop.ScopeBackground)
+	ctx, cancel := context.WithCancel(detached)
 	stop := context.AfterFunc(p.ctx, cancel)
 	return ctx, func() {
 		stop()
 		cancel()
 	}
+}
+
+// recordQueueWait emits the queue_wait stage for a message that sat
+// queued from queuedAt until promotedAt. The span context is stripped
+// from ctx so the stage is a standalone span rather than a child of
+// the span in ctx, and the scope, chat kind, and organization are set
+// explicitly because ctx does not carry the turn's. An empty chatKind
+// or organization records the stage without one.
+func (p *Server) recordQueueWait(ctx context.Context, chatID uuid.UUID, chatKind chatloop.ChatKind, organization string, queuedAt, promotedAt time.Time) {
+	standalone := trace.ContextWithSpanContext(ctx, trace.SpanContext{})
+	standalone = chatloop.ContextWithChatKind(standalone, chatKind)
+	standalone = chatloop.ContextWithOrganization(standalone, organization)
+	p.stages.RecordAs(standalone, chatloop.StageQueueWait, chatloop.ScopeTurn,
+		chatloop.StageModel{}, queuedAt, promotedAt, nil,
+		attribute.String(chatloop.AttrChatID, chatID.String()),
+	)
+}
+
+// inflightChatContext is inflightContext for work that belongs to a
+// known chat. The chat kind and organization are set on the returned
+// context so the stages of the detached work carry them.
+func (p *Server) inflightChatContext(reqCtx context.Context, chat database.Chat) (context.Context, func()) {
+	ctx, stop := p.inflightContext(reqCtx)
+	ctx = chatloop.ContextWithChatKind(ctx, chatKindAttr(chat))
+	ctx = chatloop.ContextWithOrganization(ctx, p.organizationName(ctx, chat.OrganizationID))
+	return ctx, stop
+}
+
+// organizationName returns the name of the organization with id for
+// use as a stage span attribute. Names are cached for the life of the
+// server, so a renamed organization keeps its old name until restart. A
+// failed lookup returns an empty name so the stage is still recorded,
+// and is retried on the next call.
+func (p *Server) organizationName(ctx context.Context, id uuid.UUID) string {
+	if id == uuid.Nil {
+		return ""
+	}
+	if cached, ok := p.organizationNames.Load(id); ok {
+		if name, ok := cached.(string); ok {
+			return name
+		}
+	}
+	//nolint:gocritic // Chatd reads the organization of a chat it does not own as the daemon subject.
+	org, err := p.db.GetOrganizationByID(dbauthz.AsChatd(ctx), id)
+	if err != nil {
+		p.logger.Debug(ctx, "resolve organization name for stage label",
+			slog.F("organization_id", id), slog.Error(err))
+		return ""
+	}
+	p.organizationNames.Store(id, org.Name)
+	return org.Name
 }
 
 func (p *Server) goInflight(f func()) error {

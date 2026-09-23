@@ -659,6 +659,14 @@ For every matching chat, it locks it, checks if the chat still meets the aforeme
 
 When a chat is successfully acquired, the acquisition loop requests the [Runner manager](#runner-manager) to spawn a chat runner for it.
 
+### Capacity wait
+
+The [Concurrent agent limiter](#concurrent-agent-limiter) can refuse an otherwise acquirable chat when its pool is full. The acquisition loop remembers, per chat, when this worker first saw the chat refused for capacity. When the same worker later acquires the chat, it records a `capacity_wait` lifecycle stage from that first refusal to the acquisition (see [Lifecycle tracing](#lifecycle-tracing)). Chats admitted on their first attempt record nothing.
+
+The bookkeeping is local to the worker. The wait start is dropped when the worker skips the chat for a reason other than capacity (it is owned by a live runner, archived, or no longer runnable), and entries for chats that have left the candidate set are pruned only when the candidate batch is shorter than its limit, since a chat missing from a truncated batch may still be waiting. The map is touched only by the acquisition goroutine.
+
+Because the capacity limit is deployment-wide but the refusal history is per worker, the recorded wait is a lower bound. A chat refused on one replica and acquired by another is measured from the acquiring replica's first refusal, or not at all if that replica admitted it on its first attempt. A replica restart also discards its history.
+
 ### Load balancing
 
 The design doesn't attempt to distribute load between workers fairly. Whenever a chat needs an owner, all replicas race to acquire it. If there's a coder replica that has a lower latency to the database, it'll tend to acquire chats more frequently than other replicas.
@@ -781,6 +789,55 @@ State updates processed by the loop come from:
 - right after being spawned, from a single database call the runner makes to fetch the initial state of the chat.
 
 The runner is responsible for subscribing to the `chat:update:{chat_id}` pubsub channel. During bootstrap, it must first subscribe to the channel and then fetch the initial state of the chat from the database to avoid missing any updates.
+
+### Lifecycle tracing
+
+The runner owns a `chat_turn` trace span for the turn it is running, implemented by `runnerTurnSpan` in `turn_trace.go`. The span and the stages inside it are emitted through `chatloop.StageTracer`, which produces an OpenTelemetry span and an observation on the `coderd_chatd_stage_duration_seconds{stage, scope, chat_kind}` histogram from a single `End` call, so wherever both exist the trace and metric durations cannot disagree. The stages that are the provider's work on a model (`time_to_first_token`, `stream`, and `provider_attempt`) are observed a second time on `coderd_chatd_model_stage_duration_seconds{stage, provider_type, chat_kind, model}`, the only stage family that carries the model, so the series count scales with the number of models only where the model explains the duration. Tracing is enabled by the `TracerProvider` server option. A nil provider disables spans without disabling the histogram. The stage metric families are registered only when the `chat-stage-metrics` experiment is enabled; spans are emitted either way.
+
+`chat_turn` is a standalone trace root. The HTTP request that triggered the turn ran on a different goroutine, and often a different replica, from the worker that runs it, and no trace context is persisted with the message, so there is nothing to parent the span to.
+
+#### Turn span lifecycle
+
+One `chat_turn` span covers one prompt, not one runner. A runner keeps ownership of a chat across queued-message promotions, and runners are also spawned for abandon, interrupt, and timeout tasks that run no turn, so the span is started lazily by the first generation task and replaced when the turn finishes.
+
+- Start: every iteration of the generation loop calls `Ensure`, which returns a context parented to the open turn and a `turnToken` identifying it. When no turn is open, `Ensure` starts one with its start timestamp backdated to the trigger time and records an `acquisition` stage from that instant to now, covering the time between the trigger and a worker picking the chat up. The trigger time is the later of the last user prompt's `created_at` and the chat's `compaction_requested_at`, so a turn started by `/compact` is anchored at the request rather than at the prompt before it. The anchor never precedes the anchor of the previous turn on the same runner: an older trigger is clamped to that anchor and counted under `coderd_chatd_stage_anomalies_total{reason="stale_anchor"}`. A prompt that lands while the previous turn is still running keeps its own trigger as the anchor.
+- Invalidate: a step that fails calls `Invalidate` with an outcome and the error. The first call is kept; the span stays open until the next `Ensure` on the runner closes it or the runner exits. The outcome is `interrupted` when the task context is done, `abandoned` for an expected exit without cancellation (a fence or history mismatch), and `error` otherwise. A retryable error does not invalidate the turn; the retry continues it.
+- Complete: after the `FinishTurn` transition commits, the generation step calls `Complete`. This marks the turn finished but leaves the span open. If the transition promoted a queued message, `FinishTurnResult.PromotedQueuedAt` carries that message's `created_at` to `Complete`.
+- Settle: when the step returns to the generation loop, after the step's own `generation_step` stage has ended, the loop calls `Settle`, which closes the span. Closing in two steps ensures the finishing step is counted inside the turn. If `Complete` recorded a promotion, `Settle` immediately opens the next turn anchored at the moment the promoted message was queued and records a `queue_wait` stage from that instant to the promotion. A turn opened this way records no `acquisition` stage, since the two windows would overlap.
+- Next prompt: if a new prompt starts a generation task while a finished or invalidated turn is still open, `Ensure` closes the old turn first and then opens a new one.
+- Runner exit: the runner ends whatever span is still open when it shuts down.
+
+When the span closes by any of these paths it carries exactly one `turn_outcome` attribute: the outcome `Invalidate` recorded when there is one; otherwise `completed` for a turn `Complete` marked finished, and `abandoned` for a turn closed before it finished. An invalidated turn's span ends with the invalidation error, so the trace root reports error status.
+
+The runner cancels the active task and spawns its replacement without waiting for the old goroutine to exit (see [Event processing](#event-processing)), so an old task can still be unwinding while the new one calls `Ensure` and rotates the turn. Each task carries the `turnToken` returned by its own `Ensure` call, and `Complete` and `Settle` do nothing when the token does not identify the open turn. A stale task therefore cannot close the turn that replaced its own.
+
+Queued messages can also be promoted outside a generation step, through `PromoteQueued`. That path records `queue_wait` as a standalone stage, since no turn exists yet to attach it to.
+
+Work detached from the turn, such as title, summary, and status label generation, runs on a context with the span context stripped and `scope=background`, so its stages start their own trace roots and are separable from turn-scoped stages in the histogram.
+
+#### Stages
+
+Every stage carries `scope` (`turn` or `background`) and `chat_kind` (`root` or `subagent`) as metric labels and span attributes; `chat_kind` is empty for stages recorded without a known chat. Every stage span additionally carries `organization_name` (the chat's organization, resolved once per organization and cached for the life of the server), and once the model is resolved, `provider_type`, `model`, and `reasoning_effort`; `prepare` is stamped with them when preparation resolves the model. Of these only `provider_type` and `model` are metric labels, and only on `coderd_chatd_model_stage_duration_seconds`. `provider_type` is the configured type of the model's AI provider (`bedrock`, `azure`, ...), the same value the AI Gateway metrics report under that label; the `provider` label on the pre-existing chatd metrics is the wire protocol the client speaks and differs from it for Bedrock and the OpenAI-compatible provider types. Like the AI Gateway and pre-existing chatd families, no chatd stage metric carries an organization label.
+
+The histogram observes `chat_turn`, `queue_wait`, `capacity_wait`, `acquisition`, `mcp_connect`, `stream`, `time_to_first_token`, `provider_attempt`, `tool_call`, `commit`, and `retry_backoff`. `generation_step`, `prepare`, `thinking`, and `compaction` are span-only.
+
+Live stages wrap a section of code and end when it returns:
+
+- `generation_step`: one iteration of the generation loop, from loading state to applying a transition. It carries `generation_action`; the attempt number is carried by the `commit` stage inside it, which observes it after the step increments it.
+- `prepare`: generation preparation, including model resolution and tool assembly.
+- `mcp_connect`: connecting to the configured MCP servers, inside `prepare`.
+- `provider_attempt`: one HTTP round trip to the model provider, emitted by the transport, so a retried request produces one stage per attempt. It ends when response headers arrive and is marked errored for HTTP status 400 and above.
+- `stream`: the provider stream, from opening the request to consuming the last part.
+- `time_to_first_token`: nested in `stream`, from opening the request to the first streamed part. It is observed for every attempt that produced a part or failed; a failed attempt, including one whose first part is an error part, ends it with the error. A stream released before any part arrives and without a failure closes this span with an error and records no histogram observation.
+- `retry_backoff`: the wait before retrying a failed LLM API call.
+- `commit`: the `CommitStep` transaction.
+- `compaction`: a compaction pass.
+
+Reconstructed stages are recorded after the fact from timestamps captured elsewhere:
+
+- `acquisition` and `queue_wait`: described above.
+- `thinking`: one per reasoning part, from the part's start to its completion timestamp in the persisted step.
+- `tool_call`: one per local tool call, from the tool billing recorder's start and completion stamps.
 
 ### Event shape
 

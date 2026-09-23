@@ -33,7 +33,7 @@ const (
 	// them, and was not observed.
 	StageAnomalyInvertedWindow = "inverted_window"
 	// StageAnomalyStaleAnchor is a turn whose trigger timestamp precedes
-	// the close of the previous turn; the anchor was clamped.
+	// the anchor of the previous turn; the anchor was clamped.
 	StageAnomalyStaleAnchor = "stale_anchor"
 )
 

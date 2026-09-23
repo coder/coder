@@ -53,6 +53,25 @@ const (
 	AttrHTTPHost          = "http_host"
 	AttrCompactionSource  = "compaction_source"
 	AttrScope             = "scope"
+	AttrTurnOutcome       = "turn_outcome"
+)
+
+// TurnOutcome is how a chat turn closed, set as the turn_outcome
+// attribute on the chat_turn span.
+type TurnOutcome string
+
+// TurnOutcome values.
+const (
+	// TurnOutcomeCompleted is a turn that finished normally.
+	TurnOutcomeCompleted TurnOutcome = "completed"
+	// TurnOutcomeInterrupted is a turn stopped by cancellation of the
+	// task running it.
+	TurnOutcomeInterrupted TurnOutcome = "interrupted"
+	// TurnOutcomeError is a turn stopped by a failure.
+	TurnOutcomeError TurnOutcome = "error"
+	// TurnOutcomeAbandoned is a turn closed before it finished without
+	// a failure or cancellation recorded against it.
+	TurnOutcomeAbandoned TurnOutcome = "abandoned"
 )
 
 // Scope is the `scope` label and span attribute of a stage. A stage is
