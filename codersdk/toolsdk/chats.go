@@ -725,9 +725,10 @@ var SendChatMessage = Tool[SendChatMessageArgs, SendChatMessageResponse]{
 				},
 				"busy_behavior": map[string]any{
 					"type":        "string",
-					"description": "What to do when the chat is already processing: \"queue\" (default) processes the message after the current run, \"interrupt\" stops the current run first.",
+					"description": "What to do when the chat is already processing: \"queue\" (default) delivers the message after the current turn, \"steer\" delivers it before the next model call without stopping the run, \"interrupt\" stops the current step first.",
 					"enum": []string{
 						string(codersdk.ChatBusyBehaviorQueue),
+						string(codersdk.ChatBusyBehaviorSteer),
 						string(codersdk.ChatBusyBehaviorInterrupt),
 					},
 				},
@@ -748,9 +749,9 @@ var SendChatMessage = Tool[SendChatMessageArgs, SendChatMessageResponse]{
 		switch busyBehavior {
 		case "":
 			busyBehavior = codersdk.ChatBusyBehaviorQueue
-		case codersdk.ChatBusyBehaviorQueue, codersdk.ChatBusyBehaviorInterrupt:
+		case codersdk.ChatBusyBehaviorQueue, codersdk.ChatBusyBehaviorSteer, codersdk.ChatBusyBehaviorInterrupt:
 		default:
-			return SendChatMessageResponse{}, xerrors.New(`busy_behavior must be "queue" or "interrupt"`)
+			return SendChatMessageResponse{}, xerrors.New(`busy_behavior must be "queue", "steer", or "interrupt"`)
 		}
 		resp, err := codersdk.NewExperimentalClient(deps.coderClient).CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{{

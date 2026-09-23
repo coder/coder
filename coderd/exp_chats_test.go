@@ -7982,6 +7982,48 @@ func TestSendMessageQueuesReasoningEffort(t *testing.T) {
 	require.False(t, storedChat.LastReasoningEffort.Valid)
 }
 
+func TestSendMessageSteerBusyBehavior(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfig := createChatModel(t, client)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    user.OrganizationID,
+		OwnerID:           user.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "steer",
+	})
+	_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+	send := func(behavior codersdk.ChatBusyBehavior) (codersdk.CreateChatMessageResponse, error) {
+		return client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+			BusyBehavior: behavior,
+		})
+	}
+
+	_, err = send("bogus")
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, `Must be "queue", "steer", or "interrupt".`, sdkErr.Detail)
+
+	resp, err := send(codersdk.ChatBusyBehaviorSteer)
+	require.NoError(t, err)
+	require.True(t, resp.Queued)
+	require.Equal(t, codersdk.ChatBusyBehaviorSteer, resp.QueuedMessage.BusyBehavior)
+	messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	require.Len(t, messages.QueuedMessages, 1)
+	require.Equal(t, codersdk.ChatBusyBehaviorSteer, messages.QueuedMessages[0].BusyBehavior)
+}
+
 func TestSendMessageQueuesEffectiveModelConfigID(t *testing.T) {
 	t.Parallel()
 

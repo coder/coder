@@ -2531,9 +2531,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)             |
-|----------------------|
-| `interrupt`, `queue` |
+| Value(s)                      |
+|-------------------------------|
+| `interrupt`, `queue`, `steer` |
 
 ## codersdk.ChatClientType
 
@@ -3338,6 +3338,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "queued_messages": [
     {
+      "busy_behavior": "queue",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -4653,6 +4654,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "busy_behavior": "queue",
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "content": [
     {
@@ -4719,11 +4721,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name              | Type                                                          | Required | Restrictions | Description |
 |-------------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `busy_behavior`   | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)        | false    |              |             |
 | `chat_id`         | string                                                        | false    |              |             |
 | `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
 | `created_at`      | string                                                        | false    |              |             |
 | `id`              | integer                                                       | false    |              |             |
 | `model_config_id` | string                                                        | false    |              |             |
+
+#### Enumerated Values
+
+| Property        | Value(s)                      |
+|-----------------|-------------------------------|
+| `busy_behavior` | `interrupt`, `queue`, `steer` |
 
 ## codersdk.ChatRetentionDaysResponse
 
@@ -4942,6 +4951,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "queued_messages": [
     {
+      "busy_behavior": "queue",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -5769,9 +5779,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Property        | Value(s)             |
-|-----------------|----------------------|
-| `busy_behavior` | `interrupt`, `queue` |
+| Property        | Value(s)                      |
+|-----------------|-------------------------------|
+| `busy_behavior` | `interrupt`, `queue`, `steer` |
 
 ## codersdk.CreateChatMessageResponse
 
@@ -5925,6 +5935,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "queued": true,
   "queued_message": {
+    "busy_behavior": "queue",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {

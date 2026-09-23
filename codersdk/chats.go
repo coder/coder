@@ -607,18 +607,22 @@ type UpdateChatRequest struct {
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
 }
 
-// ChatBusyBehavior controls what happens when a user sends a message
-// while the chat is already processing.
+// ChatBusyBehavior controls when a message sent to a busy chat reaches
+// the model. An idle chat receives the message at once for every value.
 type ChatBusyBehavior string
 
 const (
-	// ChatBusyBehaviorQueue queues the message for processing after
-	// the current run finishes.
+	// ChatBusyBehaviorQueue delivers the message when the current turn
+	// ends. Each queued message starts its own turn.
 	ChatBusyBehaviorQueue ChatBusyBehavior = "queue"
-	// ChatBusyBehaviorInterrupt queues the message and interrupts
-	// the active run. The partial assistant response is persisted
-	// before the queued message is promoted, preserving correct
-	// conversation order.
+	// ChatBusyBehaviorSteer delivers the message before the next model
+	// call of the running turn, without canceling the request in
+	// flight. Older queued messages are delivered with it, in order.
+	ChatBusyBehaviorSteer ChatBusyBehavior = "steer"
+	// ChatBusyBehaviorInterrupt cancels the model request in flight,
+	// keeps the partial response, and delivers the message before the
+	// next model call. Older queued messages are delivered with it, in
+	// order.
 	ChatBusyBehaviorInterrupt ChatBusyBehavior = "interrupt"
 )
 
@@ -635,7 +639,7 @@ type CreateChatMessageRequest struct {
 	Content       []ChatInputPart  `json:"content"`
 	ModelConfigID *uuid.UUID       `json:"model_config_id,omitempty" format:"uuid"`
 	MCPServerIDs  *[]uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
-	BusyBehavior  ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	BusyBehavior  ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,steer,interrupt"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`
@@ -1667,6 +1671,7 @@ type ChatQueuedMessage struct {
 	ChatID        uuid.UUID         `json:"chat_id" format:"uuid"`
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	Content       []ChatMessagePart `json:"content"`
+	BusyBehavior  ChatBusyBehavior  `json:"busy_behavior" enums:"queue,steer,interrupt"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
 }
 

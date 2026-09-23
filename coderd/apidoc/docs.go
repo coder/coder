@@ -19820,10 +19820,12 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "queue",
+                "steer",
                 "interrupt"
             ],
             "x-enum-varnames": [
                 "ChatBusyBehaviorQueue",
+                "ChatBusyBehaviorSteer",
                 "ChatBusyBehaviorInterrupt"
             ]
         },
@@ -21284,6 +21286,18 @@ const docTemplate = `{
         "codersdk.ChatQueuedMessage": {
             "type": "object",
             "properties": {
+                "busy_behavior": {
+                    "enum": [
+                        "queue",
+                        "steer",
+                        "interrupt"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatBusyBehavior"
+                        }
+                    ]
+                },
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -21855,6 +21869,7 @@ const docTemplate = `{
                 "busy_behavior": {
                     "enum": [
                         "queue",
+                        "steer",
                         "interrupt"
                     ],
                     "allOf": [

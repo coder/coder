@@ -1452,6 +1452,7 @@ describe("mutation invalidation scope", () => {
 		chat_id: chatId,
 		created_at: `2025-01-01T00:10:${String(id).padStart(2, "0")}Z`,
 		content: [{ type: "text" as const, text: `queued ${id}` }],
+		busy_behavior: "queue",
 	});
 
 	const editReq = {
@@ -4237,6 +4238,7 @@ describe("message upsert fan-out and history replacement", () => {
 			chat_id: "chat-1",
 			created_at: "2025-01-01T00:10:00.000Z",
 			content: [{ type: "text", text: "queued" }],
+			busy_behavior: "queue",
 		};
 		seedMessagePages(queryClient, {
 			pages: [

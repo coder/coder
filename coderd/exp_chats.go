@@ -2703,14 +2703,13 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 
 	busyBehavior := database.ChatBusyBehaviorQueue
 	switch req.BusyBehavior {
-	case codersdk.ChatBusyBehaviorInterrupt:
-		busyBehavior = database.ChatBusyBehaviorInterrupt
-	case codersdk.ChatBusyBehaviorQueue, "":
-		// Default to queue.
+	case "", codersdk.ChatBusyBehaviorQueue:
+	case codersdk.ChatBusyBehaviorSteer, codersdk.ChatBusyBehaviorInterrupt:
+		busyBehavior = database.ChatBusyBehavior(req.BusyBehavior)
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid busy_behavior value.",
-			Detail:  `Must be "queue" or "interrupt".`,
+			Detail:  `Must be "queue", "steer", or "interrupt".`,
 		})
 		return
 	}
