@@ -25,25 +25,6 @@ func TestBuffer_CreateEpisodeRejectsDuplicate(t *testing.T) {
 	require.ErrorIs(t, buffer.CreateEpisode(key), messagepartbuffer.ErrEpisodeExists)
 }
 
-func TestBuffer_RecordInterception(t *testing.T) {
-	t.Parallel()
-
-	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
-	defer buffer.Close()
-	key := testEpisodeKey()
-	require.False(t, buffer.InterceptionID(key).Valid)
-	require.ErrorIs(t, buffer.RecordInterception(key, uuid.New()), messagepartbuffer.ErrEpisodeNotFound)
-	require.NoError(t, buffer.CreateEpisode(key))
-	first, last := uuid.New(), uuid.New()
-	require.NoError(t, buffer.RecordInterception(key, first))
-	require.NoError(t, buffer.RecordInterception(key, last))
-	require.Equal(t, uuid.NullUUID{UUID: last, Valid: true}, buffer.InterceptionID(key))
-	require.NoError(t, buffer.CloseEpisode(key))
-	require.ErrorIs(t, buffer.RecordInterception(key, uuid.New()), messagepartbuffer.ErrEpisodeClosed)
-	buffer.Close()
-	require.ErrorIs(t, buffer.RecordInterception(key, uuid.New()), messagepartbuffer.ErrMessagePartBufferClosed)
-}
-
 func TestBuffer_AddPartAndGetParts(t *testing.T) {
 	t.Parallel()
 

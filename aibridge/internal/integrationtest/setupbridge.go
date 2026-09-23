@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
 	"go.opentelemetry.io/otel"
@@ -26,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
-	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 )
 
 const (
@@ -52,8 +50,6 @@ type bridgeConfig struct {
 	metrics          *metrics.Metrics
 	tracer           trace.Tracer
 	mcpProxy         mcp.ServerProxier
-	interceptionHook func(uuid.UUID)
-	recorderOverride aibridge.Recorder
 	// noMCPProxy leaves the proxier nil instead of falling back to
 	// NoopMCPManager, which is non-nil and reports zero tools.
 	noMCPProxy bool
@@ -177,9 +173,6 @@ func newBridgeTestServer(
 
 	mockRec := &testutil.MockRecorder{}
 	rec := aibridge.NewRecorder(cfg.logger, cfg.tracer, func(context.Context) (aibridge.Recorder, error) {
-		if cfg.recorderOverride != nil {
-			return cfg.recorderOverride, nil
-		}
 		return mockRec, nil
 	})
 
@@ -192,11 +185,7 @@ func newBridgeTestServer(
 	actorID, md := cfg.userID, cfg.metadata
 	srv := httptest.NewUnstartedServer(bridge)
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
-		base := aibcontext.AsActor(ctx, actorID, md)
-		if cfg.interceptionHook != nil {
-			base = agplaibridge.WithInterceptionRecordedHook(base, cfg.interceptionHook)
-		}
-		return base
+		return aibcontext.AsActor(ctx, actorID, md)
 	}
 	srv.Start()
 	t.Cleanup(srv.Close)

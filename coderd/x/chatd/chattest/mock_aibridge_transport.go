@@ -1,8 +1,6 @@
 package chattest
 
 import (
-	"bytes"
-	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -10,7 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/aibridge"
@@ -30,12 +27,6 @@ type RecordedRequest struct {
 	Source aibridge.Source
 	// APIKeyID is the delegated API key ID attached to request ctx.
 	APIKeyID string
-	// InterceptionID is the ID the mock reports through
-	// [aibridge.NotifyInterceptionRecorded] in place of a gateway
-	// interception record.
-	InterceptionID uuid.UUID
-	// Body is a copy of the request body forwarded to the target.
-	Body []byte
 }
 
 // MockAIBridgeTransportOption configures a [MockAIBridgeTransport].
@@ -107,25 +98,12 @@ func (rt mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	if !ok {
 		return nil, xerrors.New("mock aibridged transport requires WithDelegatedAPIKeyID on the request context")
 	}
-	var body []byte
-	if req.Body != nil {
-		var err error
-		body, err = io.ReadAll(req.Body)
-		_ = req.Body.Close()
-		if err != nil {
-			return nil, xerrors.Errorf("read request body: %w", err)
-		}
-	}
-	interceptionID := uuid.New()
-	aibridge.NotifyInterceptionRecorded(req.Context(), interceptionID)
 	rt.factory.mu.Lock()
 	rt.factory.requests = append(rt.factory.requests, RecordedRequest{
-		Request:        req.Clone(req.Context()),
-		ProviderName:   rt.providerName,
-		Source:         rt.source,
-		APIKeyID:       apiKeyID,
-		InterceptionID: interceptionID,
-		Body:           body,
+		Request:      req.Clone(req.Context()),
+		ProviderName: rt.providerName,
+		Source:       rt.source,
+		APIKeyID:     apiKeyID,
 	})
 	rt.factory.mu.Unlock()
 
@@ -143,8 +121,5 @@ func (rt mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	cloned := req.Clone(req.Context())
 	cloned.URL = &targetURL
 	cloned.Host = rt.factory.target.Host
-	if req.Body != nil {
-		cloned.Body = io.NopCloser(bytes.NewReader(body))
-	}
 	return rt.factory.transport.RoundTrip(cloned)
 }

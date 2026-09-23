@@ -2046,8 +2046,7 @@ CREATE TABLE chat_messages (
     revision bigint NOT NULL,
     reasoning_effort chat_reasoning_effort,
     search_tsv tsvector,
-    search_tsv_config chat_message_search_tsv_config,
-    aibridge_interception_id uuid
+    search_tsv_config chat_message_search_tsv_config
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
@@ -2055,8 +2054,6 @@ COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort 
 COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
 
 COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.';
-
-COMMENT ON COLUMN chat_messages.aibridge_interception_id IS 'AI Gateway interception (aibridge_interceptions.id) that produced this message. No foreign key because gateway retention is independent.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1

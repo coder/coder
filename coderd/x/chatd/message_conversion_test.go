@@ -26,7 +26,6 @@ func TestBuildCommitStepMessages_AssistantTextAndReasoning(t *testing.T) {
 	t.Parallel()
 
 	modelConfigID := uuid.New()
-	interceptionID := uuid.New()
 	startedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	completedAt := startedAt.Add(2 * time.Second)
 	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
@@ -38,9 +37,8 @@ func TestBuildCommitStepMessages_AssistantTextAndReasoning(t *testing.T) {
 				fantasy.ReasoningContent{Text: "thinking"},
 				fantasy.TextContent{Text: "hello"},
 			},
-			AIBridgeInterceptionID: uuid.NullUUID{UUID: interceptionID, Valid: true},
-			ReasoningStartedAt:     []time.Time{startedAt},
-			ReasoningCompletedAt:   []time.Time{completedAt},
+			ReasoningStartedAt:   []time.Time{startedAt},
+			ReasoningCompletedAt: []time.Time{completedAt},
 		},
 	})
 	require.NoError(t, err)
@@ -49,7 +47,6 @@ func TestBuildCommitStepMessages_AssistantTextAndReasoning(t *testing.T) {
 	msg := got.Messages[0]
 	require.Equal(t, database.ChatMessageRoleAssistant, msg.Role)
 	require.Equal(t, database.ChatMessageVisibilityBoth, msg.Visibility)
-	require.Equal(t, uuid.NullUUID{UUID: interceptionID, Valid: true}, msg.AIBridgeInterceptionID)
 	require.Equal(t, uuid.NullUUID{UUID: modelConfigID, Valid: true}, msg.ModelConfigID)
 	require.Equal(t, chatprompt.CurrentContentVersion, msg.ContentVersion)
 	parts := parseMessageParts(t, msg.Role, msg.Content)
@@ -79,16 +76,13 @@ func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T
 					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"/tmp"}`},
 				},
 			},
-			Runtime:                1500 * time.Millisecond,
-			AIBridgeInterceptionID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			Runtime: 1500 * time.Millisecond,
 		},
 	})
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 2)
 	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got.Messages[0].RuntimeMs)
 	require.False(t, got.Messages[1].RuntimeMs.Valid)
-	require.True(t, got.Messages[0].AIBridgeInterceptionID.Valid)
-	require.False(t, got.Messages[1].AIBridgeInterceptionID.Valid)
 
 	assistantParts := parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)
 	require.Len(t, assistantParts, 1)
@@ -245,10 +239,11 @@ func TestBuildCommitStepMessages_UsageRuntime(t *testing.T) {
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         slog.Make(),
 		step: stepData{
-			Content:      []fantasy.Content{fantasy.TextContent{Text: "usage"}},
-			Usage:        fantasy.Usage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120, ReasoningTokens: 3, CacheCreationTokens: 4, CacheReadTokens: 5},
-			ContextLimit: sql.NullInt64{Int64: 4096, Valid: true},
-			Runtime:      1500 * time.Millisecond,
+			Content:            []fantasy.Content{fantasy.TextContent{Text: "usage"}},
+			Usage:              fantasy.Usage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120, ReasoningTokens: 3, CacheCreationTokens: 4, CacheReadTokens: 5},
+			ContextLimit:       sql.NullInt64{Int64: 4096, Valid: true},
+			Runtime:            1500 * time.Millisecond,
+			ProviderResponseID: "msg_usage",
 		},
 	})
 	require.NoError(t, err)
@@ -262,6 +257,7 @@ func TestBuildCommitStepMessages_UsageRuntime(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 5, Valid: true}, msg.CacheReadTokens)
 	require.Equal(t, sql.NullInt64{Int64: 4096, Valid: true}, msg.ContextLimit)
 	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, msg.RuntimeMs)
+	require.Equal(t, sql.NullString{String: "msg_usage", Valid: true}, msg.ProviderResponseID)
 }
 
 func TestBuildCommitStepMessages_ToolTimestampsAndMCPConfigIDs(t *testing.T) {
@@ -299,14 +295,12 @@ func TestBuildCommitStepMessages_ToolTimestampsAndMCPConfigIDs(t *testing.T) {
 func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T) {
 	t.Parallel()
 
-	interceptionID := uuid.New()
 	modelConfigID := uuid.New()
 	got, err := buildCompactionMessages(buildCompactionMessagesInput{
-		aibridgeInterceptionID: uuid.NullUUID{UUID: interceptionID, Valid: true},
-		modelConfigID:          modelConfigID,
-		contentVersion:         chatprompt.CurrentContentVersion,
-		toolCallID:             "summary-1",
-		toolName:               "chat_summarized",
+		modelConfigID:  modelConfigID,
+		contentVersion: chatprompt.CurrentContentVersion,
+		toolCallID:     "summary-1",
+		toolName:       "chat_summarized",
 		compaction: compactionOutcome{
 			SystemSummary:          "system summary",
 			SummaryReport:          "user report",
@@ -316,6 +310,7 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 			ContextLimit:           1000,
 			Runtime:                1500 * time.Millisecond,
 			EstimatedContextTokens: 5,
+			ProviderResponseID:     "resp_summary",
 		},
 	})
 	require.NoError(t, err)
@@ -327,13 +322,13 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	require.Equal(t, uuid.NullUUID{UUID: modelConfigID, Valid: true}, got.Messages[0].ModelConfigID)
 	require.Equal(t, "system summary", parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)[0].Text)
 	require.False(t, got.Messages[0].RuntimeMs.Valid)
-	require.False(t, got.Messages[0].AIBridgeInterceptionID.Valid)
+	require.False(t, got.Messages[0].ProviderResponseID.Valid)
 
 	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[1].Role)
 	require.Equal(t, database.ChatMessageVisibilityUser, got.Messages[1].Visibility)
 	require.True(t, got.Messages[1].Compressed)
 	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got.Messages[1].RuntimeMs)
-	require.Equal(t, uuid.NullUUID{UUID: interceptionID, Valid: true}, got.Messages[1].AIBridgeInterceptionID)
+	require.Equal(t, sql.NullString{String: "resp_summary", Valid: true}, got.Messages[1].ProviderResponseID)
 	callPart := parseMessageParts(t, got.Messages[1].Role, got.Messages[1].Content)[0]
 	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, callPart.Type)
 	require.Equal(t, "summary-1", callPart.ToolCallID)
@@ -343,7 +338,7 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	require.Equal(t, database.ChatMessageVisibilityBoth, got.Messages[2].Visibility)
 	require.True(t, got.Messages[2].Compressed)
 	require.False(t, got.Messages[2].RuntimeMs.Valid)
-	require.False(t, got.Messages[2].AIBridgeInterceptionID.Valid)
+	require.False(t, got.Messages[2].ProviderResponseID.Valid)
 	resultPart := parseMessageParts(t, got.Messages[2].Role, got.Messages[2].Content)[0]
 	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, resultPart.Type)
 	require.Equal(t, "summary-1", resultPart.ToolCallID)
@@ -908,32 +903,6 @@ func TestBufferedPartsToPartialMessages_AttachesAttemptRuntime(t *testing.T) {
 	require.False(t, got[1].RuntimeMs.Valid)
 }
 
-func TestBufferedPartsToPartialMessages_StampsEachAssistantRow(t *testing.T) {
-	t.Parallel()
-
-	id := uuid.New()
-	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
-		parts: []messagepartbuffer.Part{
-			{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("before")},
-			{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageToolCall("call", "execute", json.RawMessage(`{}`))},
-			{Seq: 3, Role: codersdk.ChatMessageRoleTool, MessagePart: codersdk.ChatMessageToolResult("call", "execute", json.RawMessage(`"ok"`), false, false)},
-			{Seq: 4, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("after")},
-		},
-		modelConfigID:          uuid.New(),
-		logger:                 slog.Make(),
-		aibridgeInterceptionID: uuid.NullUUID{UUID: id, Valid: true},
-	})
-	require.NoError(t, err)
-	require.Len(t, got, 3)
-	for _, msg := range got {
-		if msg.Role == database.ChatMessageRoleAssistant {
-			require.Equal(t, uuid.NullUUID{UUID: id, Valid: true}, msg.AIBridgeInterceptionID)
-		} else {
-			require.False(t, msg.AIBridgeInterceptionID.Valid)
-		}
-	}
-}
-
 func TestBufferedPartsToPartialMessages_DropsRuntimeWithoutAssistantContent(t *testing.T) {
 	t.Parallel()
 
@@ -1053,17 +1022,15 @@ func TestBufferedPartsToPartialMessages_SynthesizesMissingToolResults(t *testing
 		{Seq: 5, Role: codersdk.ChatMessageRoleTool, MessagePart: withCreatedAt(codersdk.ChatMessageToolResult("call-2", "read_file", json.RawMessage(`{"ok":true}`), false, false), createdAt)},
 	}
 	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
-		parts:                  parts,
-		modelConfigID:          modelConfigID,
-		contentVersion:         chatprompt.CurrentContentVersion,
-		logger:                 slog.Make(),
-		interruptedAt:          createdAt,
-		aibridgeInterceptionID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		parts:          parts,
+		modelConfigID:  modelConfigID,
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		interruptedAt:  createdAt,
 	})
 	require.NoError(t, err)
 	require.Len(t, got, 3)
 	require.Equal(t, database.ChatMessageRoleAssistant, got[0].Role)
-	require.True(t, got[0].AIBridgeInterceptionID.Valid)
 	assistantParts := parseMessageParts(t, got[0].Role, got[0].Content)
 	require.Len(t, assistantParts, 4)
 	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, assistantParts[1].Type)
@@ -1074,13 +1041,11 @@ func TestBufferedPartsToPartialMessages_SynthesizesMissingToolResults(t *testing
 	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, assistantParts[3].Type)
 
 	require.Equal(t, database.ChatMessageRoleTool, got[1].Role)
-	require.False(t, got[1].AIBridgeInterceptionID.Valid)
 	toolParts := parseMessageParts(t, got[1].Role, got[1].Content)
 	require.Equal(t, "call-2", toolParts[0].ToolCallID)
 	require.Equal(t, createdAt, requireNotNilTime(t, toolParts[0].CreatedAt))
 
 	require.Equal(t, database.ChatMessageRoleTool, got[2].Role)
-	require.False(t, got[2].AIBridgeInterceptionID.Valid)
 	syntheticParts := parseMessageParts(t, got[2].Role, got[2].Content)
 	require.Len(t, syntheticParts, 1)
 	require.Equal(t, "call-1", syntheticParts[0].ToolCallID)

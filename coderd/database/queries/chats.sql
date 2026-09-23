@@ -941,7 +941,6 @@ inserted AS (
         chat_id,
         created_by,
         model_config_id,
-        aibridge_interception_id,
         reasoning_effort,
         role,
         content,
@@ -955,14 +954,14 @@ inserted AS (
         cache_read_tokens,
         context_limit,
         compressed,
-        runtime_ms
+        runtime_ms,
+        provider_response_id
     )
     SELECT
         allocated.id,
         @chat_id::uuid,
         NULLIF((@created_by::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
         NULLIF((@model_config_id::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
-        NULLIF((@aibridge_interception_id::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
         NULLIF((@reasoning_effort::text[])[allocated.ord], '')::chat_reasoning_effort,
         (@role::chat_message_role[])[allocated.ord],
         (@content::text[])[allocated.ord]::jsonb,
@@ -976,7 +975,8 @@ inserted AS (
         NULLIF((@cache_read_tokens::bigint[])[allocated.ord], 0),
         NULLIF((@context_limit::bigint[])[allocated.ord], 0),
         (@compressed::boolean[])[allocated.ord],
-        NULLIF((@runtime_ms::bigint[])[allocated.ord], 0)
+        NULLIF((@runtime_ms::bigint[])[allocated.ord], 0),
+        NULLIF((@provider_response_id::text[])[allocated.ord], '')
     FROM allocated
     RETURNING *
 )

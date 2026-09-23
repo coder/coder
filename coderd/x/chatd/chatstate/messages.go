@@ -18,23 +18,23 @@ import (
 // The state machine never reshapes a Message except to attach the
 // runtime `chat_id`.
 type Message struct {
-	Role                   database.ChatMessageRole
-	Content                pqtype.NullRawMessage
-	Visibility             database.ChatMessageVisibility
-	ModelConfigID          uuid.NullUUID
-	AIBridgeInterceptionID uuid.NullUUID
-	ReasoningEffort        database.NullChatReasoningEffort
-	CreatedBy              uuid.NullUUID
-	ContentVersion         int16
-	Compressed             bool
-	InputTokens            sql.NullInt64
-	OutputTokens           sql.NullInt64
-	TotalTokens            sql.NullInt64
-	ReasoningTokens        sql.NullInt64
-	CacheCreationTokens    sql.NullInt64
-	CacheReadTokens        sql.NullInt64
-	ContextLimit           sql.NullInt64
-	RuntimeMs              sql.NullInt64
+	Role                database.ChatMessageRole
+	Content             pqtype.NullRawMessage
+	Visibility          database.ChatMessageVisibility
+	ModelConfigID       uuid.NullUUID
+	ReasoningEffort     database.NullChatReasoningEffort
+	CreatedBy           uuid.NullUUID
+	ContentVersion      int16
+	Compressed          bool
+	InputTokens         sql.NullInt64
+	OutputTokens        sql.NullInt64
+	TotalTokens         sql.NullInt64
+	ReasoningTokens     sql.NullInt64
+	CacheCreationTokens sql.NullInt64
+	CacheReadTokens     sql.NullInt64
+	ContextLimit        sql.NullInt64
+	RuntimeMs           sql.NullInt64
+	ProviderResponseID  sql.NullString
 }
 
 // toInsertParams converts a batch of Messages into the parallel-array
@@ -46,29 +46,28 @@ type Message struct {
 func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMessagesParams {
 	n := len(messages)
 	params := database.InsertChatMessagesParams{
-		ChatID:                 chatID,
-		CreatedBy:              make([]uuid.UUID, n),
-		ModelConfigID:          make([]uuid.UUID, n),
-		AIBridgeInterceptionID: make([]uuid.UUID, n),
-		ReasoningEffort:        make([]string, n),
-		Role:                   make([]database.ChatMessageRole, n),
-		Content:                make([]string, n),
-		ContentVersion:         make([]int16, n),
-		Visibility:             make([]database.ChatMessageVisibility, n),
-		InputTokens:            make([]int64, n),
-		OutputTokens:           make([]int64, n),
-		TotalTokens:            make([]int64, n),
-		ReasoningTokens:        make([]int64, n),
-		CacheCreationTokens:    make([]int64, n),
-		CacheReadTokens:        make([]int64, n),
-		ContextLimit:           make([]int64, n),
-		Compressed:             make([]bool, n),
-		RuntimeMs:              make([]int64, n),
+		ChatID:              chatID,
+		CreatedBy:           make([]uuid.UUID, n),
+		ModelConfigID:       make([]uuid.UUID, n),
+		ReasoningEffort:     make([]string, n),
+		Role:                make([]database.ChatMessageRole, n),
+		Content:             make([]string, n),
+		ContentVersion:      make([]int16, n),
+		Visibility:          make([]database.ChatMessageVisibility, n),
+		InputTokens:         make([]int64, n),
+		OutputTokens:        make([]int64, n),
+		TotalTokens:         make([]int64, n),
+		ReasoningTokens:     make([]int64, n),
+		CacheCreationTokens: make([]int64, n),
+		CacheReadTokens:     make([]int64, n),
+		ContextLimit:        make([]int64, n),
+		Compressed:          make([]bool, n),
+		RuntimeMs:           make([]int64, n),
+		ProviderResponseID:  make([]string, n),
 	}
 	for i, m := range messages {
 		params.CreatedBy[i] = nullUUIDOrNil(m.CreatedBy)
 		params.ModelConfigID[i] = nullUUIDOrNil(m.ModelConfigID)
-		params.AIBridgeInterceptionID[i] = nullUUIDOrNil(m.AIBridgeInterceptionID)
 		if m.ReasoningEffort.Valid {
 			params.ReasoningEffort[i] = string(m.ReasoningEffort.ChatReasoningEffort)
 		}
@@ -91,6 +90,7 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		params.ContextLimit[i] = nullInt64Or(m.ContextLimit, 0)
 		params.Compressed[i] = m.Compressed
 		params.RuntimeMs[i] = nullInt64Or(m.RuntimeMs, 0)
+		params.ProviderResponseID[i] = m.ProviderResponseID.String
 	}
 	return params
 }

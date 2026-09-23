@@ -13,7 +13,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
@@ -733,7 +732,6 @@ func (s *taskStarter) generateAssistant(
 	}
 	defer attempt.closeEpisode()
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
-	runCtx = aibridge.WithInterceptionRecordedHook(runCtx, attempt.recordInterception)
 	outcome, err := chatloop.GenerateAssistant(runCtx, chatloop.GenerateAssistantOptions{
 		Model:                prepared.Model.LanguageModel(),
 		ErrorProvider:        prepared.ResolvedProvider,
@@ -761,11 +759,9 @@ func (s *taskStarter) generateAssistant(
 		return err
 	}
 	outcome.Step.Content = chathooks.ApplyAdmittedToolCalls(outcome.Step.Content, preflight)
-	step := stepDataFromPersisted(outcome.Step)
-	step.AIBridgeInterceptionID = attempt.interceptionID()
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:          prepared.ModelConfigID,
-		step:                   step,
+		step:                   stepDataFromPersisted(outcome.Step),
 		toolNameToConfigID:     prepared.ToolNameToConfigID,
 		logger:                 s.opts.Logger,
 		contentVersion:         chatprompt.CurrentContentVersion,
@@ -1059,7 +1055,6 @@ func (s *taskStarter) generateCompaction(
 	// debug run; without it startCompactionDebugRun finds no parent and
 	// skips debug instrumentation entirely.
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
-	runCtx = aibridge.WithInterceptionRecordedHook(runCtx, attempt.recordInterception)
 	outcome, err := chatloop.GenerateCompaction(runCtx, compactionOpts)
 	if err != nil {
 		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
@@ -1071,13 +1066,12 @@ func (s *taskStarter) generateCompaction(
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
 	messages, err := buildCompactionMessages(buildCompactionMessagesInput{
-		modelConfigID:          prepared.ModelConfigID,
-		toolCallID:             compactionOpts.ToolCallID,
-		toolName:               compactionOpts.ToolName,
-		compaction:             compactionOutcome(outcome),
-		aibridgeInterceptionID: attempt.interceptionID(),
-		contentVersion:         chatprompt.CurrentContentVersion,
-		pendingUserMessages:    prepared.Compaction.PendingUserRows,
+		modelConfigID:       prepared.ModelConfigID,
+		toolCallID:          compactionOpts.ToolCallID,
+		toolName:            compactionOpts.ToolName,
+		compaction:          compactionOutcome(outcome),
+		contentVersion:      chatprompt.CurrentContentVersion,
+		pendingUserMessages: prepared.Compaction.PendingUserRows,
 	})
 	if err != nil {
 		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
@@ -1153,8 +1147,6 @@ type generationAttempt struct {
 	// can bill the window the step would have reported. It is always
 	// non-nil when beginGenerationAttempt succeeds.
 	startModelInvocation func()
-	recordInterception   func(uuid.UUID)
-	interceptionID       func() uuid.NullUUID
 	// recordToolStart stamps an occurrence's actual start; serial calls may
 	// start after dispatch. It is always non-nil after beginGenerationAttempt.
 	recordToolStart func(callIndex int, startedAt time.Time)
@@ -1206,12 +1198,6 @@ func (s *taskStarter) beginGenerationAttempt(
 		},
 		startModelInvocation: func() {
 			_ = s.opts.MessagePartBuffer.StartModelInvocation(key)
-		},
-		recordInterception: func(id uuid.UUID) {
-			_ = s.opts.MessagePartBuffer.RecordInterception(key, id)
-		},
-		interceptionID: func() uuid.NullUUID {
-			return s.opts.MessagePartBuffer.InterceptionID(key)
 		},
 		recordToolStart: func(callIndex int, startedAt time.Time) {
 			_ = s.opts.MessagePartBuffer.RecordToolStart(key, callIndex, startedAt)
@@ -1606,6 +1592,7 @@ func stepDataFromPersisted(step chatloop.PersistedStep) stepData {
 		Usage:                step.Usage,
 		ContextLimit:         step.ContextLimit,
 		Runtime:              step.Runtime,
+		ProviderResponseID:   step.ProviderResponseID,
 		BatchRuntime:         step.BatchRuntime,
 		BatchBilledCalls:     step.BatchBilledCalls,
 		ToolCallCreatedAt:    step.ToolCallCreatedAt,

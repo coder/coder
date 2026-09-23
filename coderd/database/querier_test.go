@@ -12145,28 +12145,6 @@ func TestInsertChatMessages(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	t.Run("InterceptionIDPerMessage", func(t *testing.T) {
-		t.Parallel()
-
-		store, ctx, user, chat, _, model := setupChat(t)
-		interceptionID := uuid.New()
-		rows, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-			ChatID:                 chat.ID,
-			CreatedBy:              []uuid.UUID{user.ID, uuid.Nil},
-			ModelConfigID:          []uuid.UUID{model.ID, model.ID},
-			AIBridgeInterceptionID: []uuid.UUID{uuid.Nil, interceptionID},
-			Role:                   []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant},
-			Content:                []string{`"question"`, `"answer"`},
-			ContentVersion:         []int16{chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion},
-			Visibility:             []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
-			Compressed:             []bool{false, false},
-		})
-		require.NoError(t, err)
-		require.Len(t, rows, 2)
-		require.False(t, rows[0].AIBridgeInterceptionID.Valid)
-		require.Equal(t, uuid.NullUUID{UUID: interceptionID, Valid: true}, rows[1].AIBridgeInterceptionID)
-	})
-
 	t.Run("ModelSwitchUpdatesLastModelConfigID", func(t *testing.T) {
 		t.Parallel()
 
