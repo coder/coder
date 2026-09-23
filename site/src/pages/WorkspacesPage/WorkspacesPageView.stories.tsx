@@ -132,7 +132,7 @@ const allWorkspaces = [
 ];
 
 const defaultFilter = getDefaultFilterProps<{ filter: UseFilterResult }>({
-	query: "owner:me",
+	query: "user:me",
 	values: {
 		owner: MockUserOwner.username,
 		template: undefined,

@@ -501,46 +501,51 @@ LIMIT NULLIF(@limit_opt::int, 0);
 -- providers, clients, and models each user spent through and the count and
 -- totals over every matching user. It must keep the same joins and predicates as
 -- ExportOrganizationAISpend so both report the same token usage.
+WITH spend AS (
+	SELECT
+		ai.initiator_id AS user_id,
+		COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
+		COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
+		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
+		ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
+		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models
+	FROM aibridge_token_usages tu
+	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+	JOIN groups ON groups.id = tu.effective_group_id
+	WHERE groups.organization_id = @organization_id
+		AND tu.created_at >= @period_start::timestamptz
+		AND tu.created_at < @period_end::timestamptz
+		AND CASE
+			WHEN @provider_name::text != '' THEN ai.provider_name = @provider_name::text
+			ELSE true
+		END
+		AND CASE
+			WHEN @model::text != '' THEN ai.model = @model::text
+			ELSE true
+		END
+		AND CASE
+			WHEN @client::text != '' THEN COALESCE(ai.client, 'Unknown') = @client::text
+			ELSE true
+		END
+	GROUP BY ai.initiator_id
+)
 SELECT
-	ai.initiator_id AS user_id,
-	users.username AS username,
-	users.name AS name,
-	users.avatar_url AS avatar_url,
-	groups.organization_id AS organization_id,
-	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
-	COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
-	ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
-	ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
-	ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models,
-	COUNT(*) OVER ()::BIGINT AS count,
-	COALESCE(SUM(SUM(tu.cost_micros)) OVER (), 0)::BIGINT AS total_cost_micros,
-	COALESCE(SUM(COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)) OVER (), 0)::BIGINT AS total_unpriced_usage_count
-FROM aibridge_token_usages tu
-JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
-JOIN users ON users.id = ai.initiator_id
-JOIN groups ON groups.id = tu.effective_group_id
-WHERE groups.organization_id = @organization_id
-	AND tu.created_at >= @period_start::timestamptz
-	AND tu.created_at < @period_end::timestamptz
-	AND CASE
-		WHEN @provider_name::text != '' THEN ai.provider_name = @provider_name::text
-		ELSE true
-	END
-	AND CASE
-		WHEN @model::text != '' THEN ai.model = @model::text
-		ELSE true
-	END
-	AND CASE
-		WHEN @client::text != '' THEN COALESCE(ai.client, 'Unknown') = @client::text
-		ELSE true
-	END
-GROUP BY
-	ai.initiator_id,
+	spend.user_id,
 	users.username,
 	users.name,
 	users.avatar_url,
-	groups.organization_id
-ORDER BY cost_micros DESC, LOWER(users.username), ai.initiator_id
+	@organization_id::uuid AS organization_id,
+	spend.cost_micros,
+	spend.unpriced_usage_count,
+	spend.providers,
+	spend.clients,
+	spend.models,
+	COUNT(*) OVER ()::BIGINT AS count,
+	COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
+	COALESCE(SUM(spend.unpriced_usage_count) OVER (), 0)::BIGINT AS total_unpriced_usage_count
+FROM spend
+JOIN users ON users.id = spend.user_id
+ORDER BY cost_micros DESC, LOWER(users.username), spend.user_id
 LIMIT NULLIF(@limit_opt::int, 0)
 OFFSET @offset_opt::int;
 
