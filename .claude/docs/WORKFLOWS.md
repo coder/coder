@@ -30,7 +30,7 @@
 - Follow [Effective Go](https://go.dev/doc/effective_go) and [Go's Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
 - Create packages when used during implementation
 - Validate abstractions against implementations
-- **Test packages**: Use `package_test` naming (e.g., `identityprovider_test`) for black-box testing
+- **Test packages**: Use `package_test` naming (e.g., `oauth2provider_test`) for black-box testing
 
 ### Error Handling
 

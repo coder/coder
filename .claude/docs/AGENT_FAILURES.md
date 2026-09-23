@@ -92,10 +92,11 @@ shown below when adding new failures.
   the develop output. Check listeners with `lsof -iTCP:<port> -sTCP:LISTEN`.
 - Existing docs or tools: [Development Isolation Guide for Agents](DEV_ISOLATION.md)
   and `scripts/develop/main.go`.
-- Missing harness piece: There is no automatic per-worktree port allocator.
-- Proposed prevention: Assign each worktree a unique `CODER_DEV_PORT`,
-  `CODER_DEV_WEB_PORT`, `CODER_DEV_PROXY_PORT`, and
-  `CODER_DEV_PROMETHEUS_PORT` before starting the app.
+- Missing harness piece: The per-worktree port offset is opt-in, so default
+  runs still collide.
+- Proposed prevention: Start parallel worktrees with `--port-offset` or
+  `CODER_DEV_PORT_OFFSET=true`. If two paths hash to the same offset, set the
+  `CODER_DEV_*` port variables for one worktree.
 
 ## Symptom: Test using `time.Sleep`
 

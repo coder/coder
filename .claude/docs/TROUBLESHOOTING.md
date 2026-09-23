@@ -25,7 +25,7 @@
 
 1. **"package should be X_test"**
    - **Solution**: Use `package_test` naming for test files
-   - Example: `identityprovider_test` for black-box testing
+   - Example: `oauth2provider_test` for black-box testing
 
 2. **Race conditions in tests**
    - **Solution**: Use unique identifiers instead of hardcoded names
@@ -171,7 +171,7 @@ the same language-server operations differently.
 
 ### Go Compilation Errors
 
-**Error**: `package should be identityprovider_test`
+**Error**: `package should be oauth2provider_test`
 
 - **Cause**: Test package naming convention violation
 - **Solution**: Use `package_test` naming for black-box tests

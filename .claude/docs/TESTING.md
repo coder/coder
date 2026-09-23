@@ -54,7 +54,7 @@ dominate package wall time.
 ### Test Package Naming
 
 - **Black-box tests**: Default to a `package foo_test` test file (e.g.,
-  `identityprovider_test`). This is what the `testpackage` linter enforces.
+  `oauth2provider_test`). This is what the `testpackage` linter enforces.
 - **White-box / internal tests**: When a test needs to touch unexported
   symbols, put it in a file named `*_internal_test.go` with `package foo`.
   The `testpackage` linter's `skip-regexp` already exempts that filename
@@ -84,10 +84,12 @@ dominate package wall time.
 
 ```text
 coderd/
-├── oauth2.go                    # Implementation
-├── oauth2_test.go              # Main tests
-├── oauth2_test_helpers.go      # Test utilities
-└── oauth2_validation.go        # Validation logic
+├── oauth2.go                    # Route handlers that delegate to oauth2provider
+├── oauth2_test.go               # API-level tests
+└── oauth2provider/
+    ├── tokens.go                # Implementation
+    ├── tokens_test.go           # Black-box tests (package oauth2provider_test)
+    └── tokens_internal_test.go  # White-box tests (package oauth2provider)
 ```
 
 ### Test Categories
