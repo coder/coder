@@ -1,17 +1,17 @@
 import dayjs from "dayjs";
 
-export interface QuickPreset {
+export type QuickPreset = {
 	id: string;
 	label: string;
 	range: (now: Date) => { start: Date; end: Date };
-}
+};
 
-export interface DateTimeRangeValue {
+export type DateTimeRangeValue = {
 	start: Date;
 	end: Date;
 	/** Display metadata only; never sent to the API. */
 	preset?: string;
-}
+};
 
 export const DEFAULT_QUICK_PRESETS: QuickPreset[] = [
 	{
@@ -52,12 +52,12 @@ export const DEFAULT_QUICK_PRESETS: QuickPreset[] = [
 
 export type Meridiem = "AM" | "PM";
 
-interface ClockTime {
+type ClockTime = {
 	/** 12-hour clock hours, 1-12. */
 	hours: number;
 	minutes: number;
 	seconds: number;
-}
+};
 
 const TIME_PATTERN = /^(\d{1,2}):([0-5]\d)(?::([0-5]\d))?$/;
 

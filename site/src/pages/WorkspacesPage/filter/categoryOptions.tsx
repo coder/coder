@@ -11,8 +11,8 @@ import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator
 import { variantByStatusType } from "#/modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 
-// Owner suggestions are capped; the picker is a prefix search, not a full list.
-const OWNER_SUGGESTIONS_LIMIT = 25;
+// User suggestions are capped; the picker is a prefix search, not a full list.
+const USER_SUGGESTIONS_LIMIT = 25;
 
 /** The slice of `QueryClient` the option loaders depend on. */
 export type OptionsQueryClient = Pick<QueryClient, "fetchQuery">;
@@ -84,26 +84,26 @@ export const getTemplateFilterOptions = async (
 	}));
 };
 
-type OwnerIdentity = Readonly<{ username: string; avatar_url?: string }>;
+type UserIdentity = Readonly<{ username: string; avatar_url?: string }>;
 
-// The current user's own option. Commits the backend's per-session `owner:me`
-// sentinel, matching the page's `owner:me` fallback, rather than a static
-// `owner:<username>`.
-const selfOwnerOption = (me: OwnerIdentity): FilterOption => ({
+// The current user's own option. Commits the backend's per-session `me`
+// sentinel (`user:me` / `owner:me`), matching the page's fallback filter,
+// rather than a static `<username>`.
+const selfUserOption = (me: UserIdentity): FilterOption => ({
 	label: `${me.username} (you)`,
 	appliedLabel: "me",
 	value: "me",
 	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="sm" />,
 });
 
-// Users who cannot list other users still filter by themselves, so the Owner
-// category stays available (and `owner` stays a recognized chip key) with just
-// the "you" option.
-export const getSelfOwnerFilterOptions = async (
+// Users who cannot list other users still filter by themselves, so the User
+// and Owner categories stay available (and their keys stay recognized chip
+// keys) with just the "you" option.
+export const getSelfUserFilterOptions = async (
 	query: string,
-	me: OwnerIdentity,
+	me: UserIdentity,
 ): Promise<FilterOption[]> => {
-	const option = selfOwnerOption(me);
+	const option = selfUserOption(me);
 	const normalized = query.trim().toLowerCase();
 	if (
 		normalized.length === 0 ||
@@ -115,13 +115,14 @@ export const getSelfOwnerFilterOptions = async (
 	return [];
 };
 
-export const getOwnerFilterOptions = async (
+// Shared by the User and Owner categories: both take a username value.
+export const getUserFilterOptions = async (
 	query: string,
-	me: OwnerIdentity,
+	me: UserIdentity,
 	queryClient: OptionsQueryClient,
 ): Promise<FilterOption[]> => {
 	const usersRes = await queryClient.fetchQuery(
-		users({ q: query, limit: OWNER_SUGGESTIONS_LIMIT }),
+		users({ q: query, limit: USER_SUGGESTIONS_LIMIT }),
 	);
 	const options = usersRes.users
 		.filter((user) => user.username !== me.username)
@@ -133,7 +134,7 @@ export const getOwnerFilterOptions = async (
 			),
 		}));
 
-	return [selfOwnerOption(me), ...options];
+	return [selfUserOption(me), ...options];
 };
 
 type AttributeDefinition = {

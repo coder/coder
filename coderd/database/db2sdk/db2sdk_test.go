@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"reflect"
 	"testing"
 	"time"
@@ -318,6 +319,45 @@ func TestTemplateVersionParameter_BadDescription(t *testing.T) {
 	// if we feed it garbage data.
 	req.NoError(err)
 	req.NotEmpty(sdk.DescriptionPlaintext, "broke the markdown parser with %v", desc)
+}
+
+func TestOAuth2ProviderApp_ClientType(t *testing.T) {
+	t.Parallel()
+
+	accessURL := &url.URL{Scheme: "https", Host: "coder.example.com"}
+
+	tests := []struct {
+		name           string
+		dbClientType   string
+		wantClientType codersdk.OAuth2ClientType
+	}{
+		{
+			name:           "Confidential",
+			dbClientType:   "confidential",
+			wantClientType: codersdk.OAuth2ClientTypeConfidential,
+		},
+		{
+			name:           "Public",
+			dbClientType:   "public",
+			wantClientType: codersdk.OAuth2ClientTypePublic,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dbApp := database.OAuth2ProviderApp{
+				ID:          uuid.New(),
+				Name:        "test-app-" + tt.name,
+				CallbackURL: "https://example.com/callback",
+				ClientType:  tt.dbClientType,
+			}
+
+			sdkApp := db2sdk.OAuth2ProviderApp(accessURL, dbApp)
+
+			require.Equal(t, tt.wantClientType, sdkApp.ClientType)
+		})
+	}
 }
 
 func TestChatDebugRunSummary(t *testing.T) {

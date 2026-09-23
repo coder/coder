@@ -734,9 +734,10 @@ func LicensesEntitlements(
 		}
 	}
 
-	// Managed agent warnings are applied based on usage period. We only
-	// generate a warning if the license actually has managed agents.
-	// Note that agents are free when unlicensed.
+	// Managed agent usage is measured over the license usage period so
+	// the feature reports Actual. No warning is issued: nothing emits
+	// dc_managed_agents_v1 events anymore, so the count is historical and
+	// a warning could never clear.
 	agentLimit := entitlements.Features[codersdk.FeatureManagedAgentLimit]
 	if entitlements.HasLicense && agentLimit.UsagePeriod != nil {
 		// Calculate the amount of agents between the usage period start and
@@ -759,12 +760,6 @@ func LicensesEntitlements(
 		} else {
 			agentLimit.Actual = &managedAgentCount
 			entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, agentLimit)
-
-			// Only issue warnings if the feature is enabled.
-			if agentLimit.Enabled && agentLimit.Limit != nil && managedAgentCount >= *agentLimit.Limit {
-				entitlements.Warnings = append(entitlements.Warnings,
-					codersdk.LicenseManagedAgentLimitExceededWarningText)
-			}
 		}
 	}
 

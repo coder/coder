@@ -2,9 +2,11 @@ package codersdk
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +19,9 @@ import (
 // MaxAISpendLimitMicros is the highest AI spend limit that can be configured,
 // $1,000,000 per member per budget period.
 const MaxAISpendLimitMicros int64 = 1_000_000_000_000
+
+// MaxAISpendPeriodDays bounds explicit AI spend reporting windows.
+const MaxAISpendPeriodDays = 31
 
 // AIBudgetLimitSource identifies which tier produced the user's
 // effective budget limit.
@@ -225,6 +230,18 @@ type AIBridgeSessionThreadsTokenUsage struct {
 	Metadata              map[string]any `json:"metadata"`
 }
 
+// AIBridgeAttribution contains the attribution fields recorded for one
+// interception.
+type AIBridgeAttribution map[string]string
+
+// MarshalJSON encodes unknown attribution as an empty object.
+func (a AIBridgeAttribution) MarshalJSON() ([]byte, error) {
+	if a == nil {
+		return []byte("{}"), nil
+	}
+	return json.Marshal(map[string]string(a))
+}
+
 // AIBridgeThread represents a single thread within a session.
 // A thread groups interceptions by their thread_root_id.
 type AIBridgeThread struct {
@@ -237,7 +254,10 @@ type AIBridgeThread struct {
 	StartedAt      time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
-	AgenticActions []AIBridgeAgenticAction          `json:"agentic_actions"`
+	// Attribution contains attribution data from the root interception.
+	// Unknown attribution is serialized as an empty object.
+	Attribution    AIBridgeAttribution     `json:"attribution"`
+	AgenticActions []AIBridgeAgenticAction `json:"agentic_actions"`
 	// ErrorType is the categorized terminal upstream error from the root
 	// interception, or nil when the interception succeeded. See the
 	// aibridge_interception_error_type enum for possible values.
@@ -256,13 +276,18 @@ type AIBridgeThread struct {
 	AgentFirewallSequenceNumber *int32 `json:"agent_firewall_sequence_number,omitempty"`
 }
 
-// AIBridgeAgenticAction represents a tool call with associated
-// thinking blocks and token usage from one or more interceptions.
+// AIBridgeAgenticAction represents data from one interception, including
+// tool calls, thinking blocks, and token usage. Tool-less child interceptions
+// are represented as actions with an empty ToolCalls slice.
 type AIBridgeAgenticAction struct {
-	Model      string                           `json:"model"`
-	TokenUsage AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
-	Thinking   []AIBridgeModelThought           `json:"thinking"`
-	ToolCalls  []AIBridgeToolCall               `json:"tool_calls"`
+	InterceptionID uuid.UUID `json:"interception_id" format:"uuid"`
+	Model          string    `json:"model"`
+	// Attribution contains attribution data from this interception.
+	// Unknown attribution is serialized as an empty object.
+	Attribution AIBridgeAttribution              `json:"attribution"`
+	TokenUsage  AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
+	Thinking    []AIBridgeModelThought           `json:"thinking"`
+	ToolCalls   []AIBridgeToolCall               `json:"tool_calls"`
 }
 
 // AIBridgeModelThought represents a single thinking block from
@@ -395,6 +420,36 @@ func (c *Client) AIBridgeGetSessionThreads(ctx context.Context, sessionID string
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
+// AIBridgeListModelsFilter narrows the distinct models visible to the caller.
+// @typescript-ignore AIBridgeListModelsFilter
+type AIBridgeListModelsFilter struct {
+	// Limit defaults to 100, max is 1000.
+	Pagination Pagination
+	// Model keeps only identifiers starting with this literal prefix.
+	Model string
+}
+
+// AIBridgeListModels returns the distinct AI models visible to the caller.
+func (c *Client) AIBridgeListModels(ctx context.Context, filter AIBridgeListModelsFilter) ([]string, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/models", nil, filter.Pagination.asRequestOption(), func(r *http.Request) {
+		if filter.Model == "" {
+			return
+		}
+		q := r.URL.Query()
+		q.Set("model", filter.Model)
+		r.URL.RawQuery = q.Encode()
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var models []string
+	return models, ReadBodyAsJSON(res, &models)
+}
+
 // AIBridgeListClients returns the distinct AI clients visible to the caller.
 func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/clients", nil)
@@ -409,25 +464,176 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 	return clients, ReadBodyAsJSON(res, &clients)
 }
 
+// AIBridgeProvider is the display metadata for a configured AI provider,
+// used to filter AI Gateway sessions by provider_name. It carries no
+// configuration so it can be served to anyone who can read sessions.
+type AIBridgeProvider struct {
+	Name        string         `json:"name"`
+	Type        AIProviderType `json:"type"`
+	DisplayName string         `json:"display_name"`
+	Icon        string         `json:"icon"`
+}
+
+// AIBridgeListProviders returns the providers available for filtering AI
+// Gateway sessions, including disabled and deleted ones that past sessions
+// may still reference.
+func (c *Client) AIBridgeListProviders(ctx context.Context) ([]AIBridgeProvider, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/providers", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var providers []AIBridgeProvider
+	return providers, ReadBodyAsJSON(res, &providers)
+}
+
+// OrganizationAISpendFilter narrows the organization per-user AI spend
+// report. Zero values apply no filter: the period falls back to the current
+// budget period on the server, and an empty dimension matches all usage.
+type OrganizationAISpendFilter struct {
+	// PeriodStart and PeriodEnd bound the [PeriodStart, PeriodEnd) window and
+	// must be supplied together.
+	PeriodStart time.Time `json:"period_start,omitempty" format:"date-time"`
+	PeriodEnd   time.Time `json:"period_end,omitempty" format:"date-time"`
+	// ProviderName matches the configured provider name recorded on the
+	// intercepted request.
+	ProviderName string `json:"provider_name,omitempty"`
+	Model        string `json:"model,omitempty"`
+	// Client matches the client recorded on the intercepted request. Unknown
+	// matches usage without a recorded client.
+	Client string `json:"client,omitempty"`
+}
+
+// asRequestOption returns a function that can be used in (*Client).Request.
+func (f OrganizationAISpendFilter) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if !f.PeriodStart.IsZero() {
+			q.Set("period_start", f.PeriodStart.UTC().Format(time.RFC3339Nano))
+		}
+		if !f.PeriodEnd.IsZero() {
+			q.Set("period_end", f.PeriodEnd.UTC().Format(time.RFC3339Nano))
+		}
+		if f.ProviderName != "" {
+			q.Set("provider_name", f.ProviderName)
+		}
+		if f.Model != "" {
+			q.Set("model", f.Model)
+		}
+		if f.Client != "" {
+			q.Set("client", f.Client)
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+// OrganizationAISpendUser is one user's AI spend within an organization
+// report.
+type OrganizationAISpendUser struct {
+	UserID    uuid.UUID `json:"user_id" format:"uuid"`
+	Username  string    `json:"username"`
+	Name      string    `json:"name"`
+	AvatarURL string    `json:"avatar_url"`
+	// CostMicros is the user's priced spend over the period.
+	CostMicros int64 `json:"cost_micros"`
+	// UnpricedUsageCount is the number of the user's token usage records that
+	// carry no cost because their model had no price when they were recorded.
+	UnpricedUsageCount int64 `json:"unpriced_usage_count"`
+	// Providers are the provider types the user spent through, sorted.
+	Providers []string `json:"providers"`
+	// Clients are the clients the user spent through, sorted. Usage without a
+	// recorded client is reported as Unknown.
+	Clients []string `json:"clients"`
+	// Models are the models the user spent through, sorted.
+	Models []string `json:"models"`
+}
+
+// OrganizationAISpendTotals aggregates every user matching the report's
+// filter, not only the returned page.
+type OrganizationAISpendTotals struct {
+	// CostMicros is the priced spend of every matching user.
+	CostMicros int64 `json:"cost_micros"`
+	// UnpricedUsageCount is the number of token usage records without a cost
+	// across every matching user.
+	UnpricedUsageCount int64 `json:"unpriced_usage_count"`
+}
+
+// OrganizationAISpendReport is one page of per-user AI spend for an
+// organization over the applied period. Count and Totals cover every
+// matching user, not only the returned page.
+type OrganizationAISpendReport struct {
+	AISpendPeriodWindow
+	// RetentionStart is the oldest instant for which token usage is still
+	// retained. An explicit period must not start before it. Omitted when the
+	// deployment does not purge AI Gateway data.
+	RetentionStart *time.Time `json:"retention_start,omitempty" format:"date-time"`
+	// Count is the number of users with token usage matching the filter.
+	Count  int64                     `json:"count"`
+	Totals OrganizationAISpendTotals `json:"totals"`
+	// Users is the requested page, most expensive first.
+	Users []OrganizationAISpendUser `json:"users"`
+}
+
+// OrganizationAISpendDetailsFilter narrows organization AI spend.
+type OrganizationAISpendDetailsFilter struct {
+	PeriodStart  time.Time `json:"period_start,omitempty" format:"date-time"`
+	PeriodEnd    time.Time `json:"period_end,omitempty" format:"date-time"`
+	UserID       uuid.UUID `json:"user_id,omitempty" format:"uuid"`
+	GroupID      uuid.UUID `json:"group_id,omitempty" format:"uuid"`
+	ProviderName string    `json:"provider_name,omitempty"`
+	Model        string    `json:"model,omitempty"`
+}
+
+// asRequestOption returns a function that applies the filter's query
+// parameters to a request.
+func (f OrganizationAISpendDetailsFilter) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if !f.PeriodStart.IsZero() {
+			q.Set("period_start", f.PeriodStart.UTC().Format(time.RFC3339Nano))
+		}
+		if !f.PeriodEnd.IsZero() {
+			q.Set("period_end", f.PeriodEnd.UTC().Format(time.RFC3339Nano))
+		}
+		if f.UserID != uuid.Nil {
+			q.Set("user_id", f.UserID.String())
+		}
+		if f.GroupID != uuid.Nil {
+			q.Set("group_id", f.GroupID.String())
+		}
+		if f.ProviderName != "" {
+			q.Set("provider_name", f.ProviderName)
+		}
+		if f.Model != "" {
+			q.Set("model", f.Model)
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
 // per-provider AI spend for the organization over the requested period. Both
 // bounds are optional and interpreted as UTC, and zero values fall back to the
 // current budget period on the server. The caller is responsible for closing
 // the returned ReadCloser.
 func (c *Client) ExportOrganizationAISpend(ctx context.Context, organization uuid.UUID, opts AISpendPeriodWindow) (io.ReadCloser, error) {
+	return c.ExportOrganizationAISpendWithFilter(ctx, organization, OrganizationAISpendDetailsFilter{
+		PeriodStart: opts.PeriodStart,
+		PeriodEnd:   opts.PeriodEnd,
+	})
+}
+
+// ExportOrganizationAISpendWithFilter returns organization AI spend as CSV,
+// narrowed by the supplied filter. The caller is responsible for closing the
+// returned ReadCloser.
+func (c *Client) ExportOrganizationAISpendWithFilter(ctx context.Context, organization uuid.UUID, filter OrganizationAISpendDetailsFilter) (io.ReadCloser, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/ai/spend/export", organization.String()),
 		nil,
-		func(r *http.Request) {
-			q := r.URL.Query()
-			if !opts.PeriodStart.IsZero() {
-				q.Set("period_start", opts.PeriodStart.UTC().Format(time.RFC3339Nano))
-			}
-			if !opts.PeriodEnd.IsZero() {
-				q.Set("period_end", opts.PeriodEnd.UTC().Format(time.RFC3339Nano))
-			}
-			r.URL.RawQuery = q.Encode()
-		},
+		filter.asRequestOption(),
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("make request: %w", err)
@@ -437,6 +643,47 @@ func (c *Client) ExportOrganizationAISpend(ctx context.Context, organization uui
 		return nil, ReadBodyAsError(res)
 	}
 	return res.Body, nil
+}
+
+// OrganizationAISpendPage selects one page of the per-user report, which
+// pages by offset only. A zero Limit uses the server default.
+type OrganizationAISpendPage struct {
+	Limit  int `json:"limit,omitempty"`
+	Offset int `json:"offset,omitempty"`
+}
+
+func (p OrganizationAISpendPage) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if p.Limit > 0 {
+			q.Set("limit", strconv.Itoa(p.Limit))
+		}
+		if p.Offset > 0 {
+			q.Set("offset", strconv.Itoa(p.Offset))
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+// OrganizationAISpendUsers returns one page of per-user AI spend for the
+// organization matching the filter. It accounts for the same token usage as
+// ExportOrganizationAISpend over the same period.
+func (c *Client) OrganizationAISpendUsers(ctx context.Context, organization uuid.UUID, filter OrganizationAISpendFilter, page OrganizationAISpendPage) (OrganizationAISpendReport, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/ai/spend/users", organization.String()),
+		nil,
+		filter.asRequestOption(),
+		page.asRequestOption(),
+	)
+	if err != nil {
+		return OrganizationAISpendReport{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationAISpendReport{}, ReadBodyAsError(res)
+	}
+	var report OrganizationAISpendReport
+	return report, ReadBodyAsJSON(res, &report)
 }
 
 type GroupAIBudget struct {

@@ -1,9 +1,13 @@
 import { useFormik } from "formik";
 import { TriangleAlertIcon } from "lucide-react";
 import { type FC, useEffect, useRef } from "react";
+import { useQuery } from "react-query";
 import { Link } from "react-router";
 import * as Yup from "yup";
+import { getErrorMessage } from "#/api/errors";
+import { getExternalScopes } from "#/api/queries/oauth2";
 import type * as TypesGen from "#/api/typesGenerated";
+import { OAuth2AppNameMaxBytes } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -11,55 +15,116 @@ import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
+import { MultiSelectCombobox } from "#/components/MultiSelectCombobox/MultiSelectCombobox";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
-import {
-	getFormHelpers,
-	iconValidator,
-	nameValidator,
-	onChangeTrimmed,
-} from "#/utils/formUtils";
+import { getFormHelpers, iconValidator } from "#/utils/formUtils";
 
 type OAuth2AppFormValues = {
 	name: string;
 	callback_url: string;
 	icon: string;
+	scope: string[];
 };
+
+// The create page sends this as a POST and the edit page as a PUT, so it has
+// to satisfy both request types, and a field added to either is a type error
+// here rather than a silently missing field.
+type OAuth2AppFormRequest = TypesGen.PostOAuth2ProviderAppRequest &
+	TypesGen.PutOAuth2ProviderAppRequest;
 
 type OAuth2AppFormProps = {
 	app?: TypesGen.OAuth2ProviderApp;
-	onSubmit: (data: OAuth2AppFormValues) => void | Promise<void>;
+	onSubmit: (data: OAuth2AppFormRequest) => void | Promise<void>;
 	error?: unknown;
 	isUpdating: boolean;
-	defaultValues?: OAuth2AppFormValues;
+	defaultValues?: Partial<OAuth2AppFormValues>;
 	disabled: boolean;
 	onIconChange?: (icon: string) => void;
 };
 
 const BACK_HREF = "/deployment/oauth2-provider/apps";
+const SCOPE_LABEL = "Allowed scopes";
 
-const isHttpUrl = (value: string | undefined): boolean => {
+// Mirror codersdk.ValidateRedirectURIShape.
+// The server remains authoritative for URL syntax differences between parsers.
+// oxlint-disable-next-line eslint/no-script-url -- This blocklist rejects the scheme; it is never used as a navigation target.
+const DANGEROUS_CALLBACK_SCHEMES = ["javascript:", "data:", "file:", "ftp:"];
+
+const LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
+
+// A public client is held to RFC 8252 loopback. A confidential client may also
+// use a .localhost subdomain, which is how the server draws the line.
+const allowsCleartextHTTP = (hostname: string, isPublicClient: boolean) =>
+	LOOPBACK_HOSTS.includes(hostname) ||
+	(!isPublicClient && hostname.endsWith(".localhost"));
+
+const isValidCallbackURL = (
+	value: string | undefined,
+	isPublicClient: boolean,
+): boolean => {
 	if (!value) {
 		return false;
 	}
 	try {
 		const url = new URL(value);
-		return url.protocol === "http:" || url.protocol === "https:";
+		if (url.protocol === "urn:") {
+			return url.href === "urn:ietf:wg:oauth:2.0:oob";
+		}
+		if (DANGEROUS_CALLBACK_SCHEMES.includes(url.protocol)) {
+			return false;
+		}
+		const target = value.slice(value.indexOf(":") + 1);
+		if (!target.startsWith("/") || (!url.host && !url.pathname)) {
+			return false;
+		}
+		if (isPublicClient) {
+			if (
+				value.includes("#") ||
+				["mailto:", "tel:", "sms:"].includes(url.protocol)
+			) {
+				return false;
+			}
+		}
+		if (
+			url.protocol === "http:" &&
+			!allowsCleartextHTTP(url.hostname, isPublicClient)
+		) {
+			return false;
+		}
+		if (
+			(url.protocol === "http:" || url.protocol === "https:") &&
+			!/^https?:\/\/[^/\\\s]/i.test(value)
+		) {
+			return false;
+		}
+		return true;
 	} catch {
 		return false;
 	}
 };
 
-const validationSchema = Yup.object({
-	name: nameValidator("Name"),
-	callback_url: Yup.string()
-		.trim()
-		.required("Please enter a callback URL.")
-		.test("http-url", "Callback URL must be a valid URL.", (value) =>
-			isHttpUrl(value),
-		),
-	icon: iconValidator,
-});
+const validationSchema = (isPublicClient: boolean) =>
+	Yup.object({
+		name: Yup.string()
+			.trim()
+			.required("Please enter a name.")
+			.test(
+				"name-byte-length",
+				`Name cannot be longer than ${OAuth2AppNameMaxBytes} UTF-8 bytes.`,
+				(value) =>
+					new TextEncoder().encode(value).length <= OAuth2AppNameMaxBytes,
+			),
+		callback_url: Yup.string()
+			.trim()
+			.required("Please enter a callback URL.")
+			.test(
+				"valid-callback-url",
+				"Please enter a valid callback URL.",
+				(value) => isValidCallbackURL(value, isPublicClient),
+			),
+		icon: iconValidator,
+	});
 
 export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	app,
@@ -71,19 +136,40 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	onIconChange,
 }) => {
 	const didSubmit = useRef(false);
+	const isPublicClient = app?.client_type === "public";
+	// A stored callback that no longer passes validation disables Update on
+	// load. Show its error right away instead of waiting for the field to be
+	// touched, so the admin can see what to correct.
+	const storedCallbackInvalid =
+		app !== undefined && !isValidCallbackURL(app.callback_url, isPublicClient);
 	const form = useFormik<OAuth2AppFormValues>({
 		initialValues: {
 			name: app?.name ?? defaultValues?.name ?? "",
 			callback_url: app?.callback_url ?? defaultValues?.callback_url ?? "",
 			icon: app?.icon ?? defaultValues?.icon ?? "",
+			scope:
+				app?.scope.split(" ").filter(Boolean) ?? defaultValues?.scope ?? [],
 		},
-		validationSchema,
+		initialTouched: storedCallbackInvalid ? { callback_url: true } : undefined,
+		validationSchema: validationSchema(isPublicClient),
 		validateOnMount: true,
-		onSubmit: async (values) => {
+		onSubmit: async ({ scope: selectedScopes, ...values }) => {
 			didSubmit.current = true;
-			await onSubmit(values);
+			const scope = selectedScopes.join(" ");
+			// An untouched allowlist is left out of updates rather than echoed
+			// back. The form cannot round-trip a stored list exactly: a whitespace
+			// only list grants nothing but would resend as "" and lift the
+			// restriction, and a legacy list may exceed the current size limits.
+			const scopeChanged = !app || scope !== form.initialValues.scope.join(" ");
+			await onSubmit({
+				...values,
+				name: values.name.trim(),
+				callback_url: values.callback_url.trim(),
+				...(scopeChanged ? { scope } : {}),
+			});
 		},
 	});
+	const scopesQuery = useQuery(getExternalScopes());
 	const getFieldHelpers = getFormHelpers(form, error);
 	const iconField = getFieldHelpers("icon");
 	const formDisabled = disabled || isUpdating;
@@ -124,7 +210,6 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 					label="Name"
 					description="The name of your Coder app."
 					disabled={formDisabled}
-					onChange={onChangeTrimmed(form)}
 					autoFocus
 					required
 				/>
@@ -158,6 +243,68 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 								{iconField.helperText}
 							</span>
 						)
+					)}
+				</div>
+
+				<div className="flex flex-col gap-2">
+					<Label>{SCOPE_LABEL}</Label>
+					<div className="text-xs text-content-secondary">
+						Optional. Limits the scopes this application's tokens can be
+						granted. Empty means no restriction: tokens can be granted any
+						scope.
+					</div>
+					<MultiSelectCombobox
+						// cmdk generates the input's id and aria-labelledby itself, so
+						// the accessible name has to come from its own label prop.
+						commandProps={{ label: SCOPE_LABEL }}
+						value={form.values.scope.map((scope) => ({
+							value: scope,
+							label: scope,
+						}))}
+						options={
+							scopesQuery.data?.external.map((scope) => ({
+								value: scope,
+								label: scope,
+							})) ?? []
+						}
+						onChange={(options) => {
+							void form.setFieldValue(
+								"scope",
+								options.map((option) => option.value),
+							);
+						}}
+						disabled={
+							formDisabled || scopesQuery.isLoading || scopesQuery.isError
+						}
+						hidePlaceholderWhenSelected={!scopesQuery.isLoading}
+						placeholder={
+							scopesQuery.isLoading ? "Loading scopes..." : "Select scopes"
+						}
+						emptyIndicator={
+							<p className="text-center text-md text-content-primary">
+								No matching scopes
+							</p>
+						}
+					/>
+					{scopesQuery.isError && (
+						<div className="flex items-center gap-3">
+							<span className="text-xs text-content-destructive">
+								{getErrorMessage(
+									scopesQuery.error,
+									"Failed to load the list of scopes.",
+								)}
+							</span>
+							<Button
+								type="button"
+								variant="outline"
+								size="xs"
+								disabled={scopesQuery.isFetching}
+								onClick={() => void scopesQuery.refetch()}
+							>
+								<Spinner loading={scopesQuery.isFetching} />
+								Retry
+							</Button>
+						</div>
 					)}
 				</div>
 

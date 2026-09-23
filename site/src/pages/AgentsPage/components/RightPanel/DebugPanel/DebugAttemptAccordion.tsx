@@ -20,16 +20,16 @@ import {
 	safeJsonStringify,
 } from "./debugPanelUtils";
 
-interface DebugAttemptAccordionProps {
+type DebugAttemptAccordionProps = {
 	attempts: NormalizedAttempt[];
 	rawFallback?: string;
-}
+};
 
-interface JsonBlockProps {
+type JsonBlockProps = {
 	value: unknown;
 	emptyMessage: string;
 	copyLabel: string;
-}
+};
 
 const JsonBlock: FC<JsonBlockProps> = ({ value, emptyMessage, copyLabel }) => {
 	if (

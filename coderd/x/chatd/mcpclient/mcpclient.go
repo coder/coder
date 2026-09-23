@@ -467,7 +467,11 @@ func createTransport(
 	headers map[string]string,
 	baseHTTPClient *http.Client,
 ) (mcp.Transport, error) {
-	httpClient := httpClientWithHeaders(baseHTTPClient, headers)
+	signingSecret := ""
+	if cfg.ForwardCoderHeaders {
+		signingSecret = cfg.SigningSecret
+	}
+	httpClient := httpClientWithHeaders(baseHTTPClient, headers, signingSecret)
 
 	switch cfg.Transport {
 	case "sse":
@@ -878,12 +882,8 @@ func unwrapModelIntent(input string) string {
 	return input
 }
 
-// convertCallResult translates an MCP CallToolResult into a
-// fantasy.ToolResponse. The fantasy response model supports a
-// single content type per response, so we prioritize text. All
-// text items are collected first. Binary items (image, audio,
-// or embedded blob) are only returned when no text content is
-// available.
+// fantasy permits one media payload per response, so only the first eligible
+// binary block is kept alongside the text.
 func convertCallResult(
 	result *mcp.CallToolResult,
 ) fantasy.ToolResponse {
@@ -902,7 +902,7 @@ func convertCallResult(
 		case *mcp.ImageContent:
 			// The SDK decodes base64 payloads during unmarshal, so
 			// Data is raw bytes.
-			if binaryResult == nil {
+			if binaryResult == nil && len(c.Data) > 0 && c.MIMEType != "" {
 				r := fantasy.ToolResponse{
 					Type:      "image",
 					Data:      c.Data,
@@ -912,7 +912,7 @@ func convertCallResult(
 				binaryResult = &r
 			}
 		case *mcp.AudioContent:
-			if binaryResult == nil {
+			if binaryResult == nil && len(c.Data) > 0 && c.MIMEType != "" {
 				r := fantasy.ToolResponse{
 					Type:      "media",
 					Data:      c.Data,
@@ -931,7 +931,7 @@ func convertCallResult(
 					"[embedded resource with no contents]",
 				)
 			case c.Resource.Blob != nil:
-				if binaryResult == nil {
+				if binaryResult == nil && len(c.Resource.Blob) > 0 && c.Resource.MIMEType != "" {
 					blobType := "media"
 					if strings.HasPrefix(c.Resource.MIMEType, "image/") {
 						blobType = "image"
@@ -982,19 +982,13 @@ func convertCallResult(
 		}
 	}
 
-	// Prefer text content. Only fall back to binary when no
-	// text was collected.
-	if len(textParts) > 0 {
-		resp := fantasy.NewTextResponse(
-			strings.Join(textParts, "\n"),
-		)
-		resp.IsError = result.IsError
-		return resp
-	}
 	if binaryResult != nil {
+		binaryResult.Content = strings.Join(textParts, "\n")
 		return *binaryResult
 	}
-	return fantasy.NewTextResponse("")
+	resp := fantasy.NewTextResponse(strings.Join(textParts, "\n"))
+	resp.IsError = result.IsError
+	return resp
 }
 
 // RefreshResult contains the outcome of an OAuth2 token refresh

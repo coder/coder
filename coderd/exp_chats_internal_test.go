@@ -478,7 +478,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := validateChatModelConfigProviderModel(tt.provider, tt.model)
+			got := validateChatModelConfigProviderModel(tt.provider, tt.model, nil)
 			if tt.wantErr {
 				require.NotNil(t, got)
 				require.Contains(t, got.Response.Detail, tt.wantDetail)
@@ -703,4 +703,13 @@ func TestMaybeWriteManualTitleTimeoutErr(t *testing.T) {
 			require.Empty(t, resp.Detail, "translated copy must not leak the raw error detail")
 		})
 	}
+}
+
+func TestIsZeroChatModelCallConfigReasoningModel(t *testing.T) {
+	t.Parallel()
+	for _, value := range []bool{true, false} {
+		config := &codersdk.ChatModelCallConfig{OpenAIConfig: &codersdk.ChatModelOpenAIConfig{ReasoningModel: new(value)}}
+		require.False(t, isZeroChatModelCallConfig(config))
+	}
+	require.True(t, isZeroChatModelCallConfig(&codersdk.ChatModelCallConfig{OpenAIConfig: &codersdk.ChatModelOpenAIConfig{}}))
 }

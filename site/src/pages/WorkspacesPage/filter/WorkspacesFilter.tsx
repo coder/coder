@@ -4,6 +4,7 @@ import {
 	LayoutPanelTopIcon,
 	TagIcon,
 	UserIcon,
+	UserKeyIcon,
 } from "lucide-react";
 import { type FC, useCallback, useMemo } from "react";
 import { useQueryClient } from "react-query";
@@ -26,10 +27,10 @@ import {
 	ATTRIBUTE_CHIP_KEYS,
 	getAttributeFilterOptions,
 	getOrganizationFilterOptions,
-	getOwnerFilterOptions,
-	getSelfOwnerFilterOptions,
+	getSelfUserFilterOptions,
 	getStatusFilterOptions,
 	getTemplateFilterOptions,
+	getUserFilterOptions,
 } from "./categoryOptions";
 
 const WORKSPACE_PREVIEW_LIMIT = 5;
@@ -47,8 +48,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	const { permissions, user: me } = useAuthenticated();
 	// TODO(DEVEX-421 follow-up): `viewDeploymentConfig` is the wrong capability
 	// for listing users. It is carried over from the legacy page; replace it with
-	// a list-users capability check. Users without it still get an Owner category
-	// scoped to themselves (below) so `owner:me` keeps working.
+	// a list-users capability check. Users without it still get User and Owner
+	// categories scoped to themselves (below) so `user:me` keeps working.
 	const canListUsers = permissions.viewDeploymentConfig;
 	const canFilterDormant =
 		entitlements.features.advanced_template_scheduling.enabled;
@@ -56,19 +57,27 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	const navigate = useNavigate();
 
 	const categories = useMemo(() => {
+		// Always expose User and Owner so both stay recognized chip keys and the
+		// page's default `user:me` renders as a chip rather than free text.
+		// Users who cannot list others only see themselves.
+		const getUserOptions = canListUsers
+			? (query: string) => getUserFilterOptions(query, me, queryClient)
+			: (query: string) => getSelfUserFilterOptions(query, me);
 		const next: FilterCategory[] = [
-			// Always expose Owner so `owner` stays a recognized chip key and the
-			// page's default `owner:me` renders as a chip rather than free text.
-			// Users who cannot list others only see themselves.
 			{
 				key: "owner",
 				label: "Owner",
-				aliases: ["user"],
+				hint: "me",
+				icon: <UserKeyIcon />,
+				getOptions: getUserOptions,
+			},
+			{
+				// Workspaces the user owns or that are shared with them.
+				key: "user",
+				label: "User",
 				hint: "me",
 				icon: <UserIcon />,
-				getOptions: canListUsers
-					? (query) => getOwnerFilterOptions(query, me, queryClient)
-					: (query) => getSelfOwnerFilterOptions(query, me),
+				getOptions: getUserOptions,
 			},
 			{
 				key: "status",

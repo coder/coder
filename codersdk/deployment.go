@@ -738,6 +738,7 @@ type DeploymentValues struct {
 	DisableUserSecretFilePath               serpent.Bool                         `json:"disable_user_secret_file_path,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval               serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 	EnableTerraformDebugMode                serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
+	DynamicParametersFullEvaluation         serpent.Bool                         `json:"dynamic_parameters_full_evaluation,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule                  UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
 	WebTerminalRenderer                     serpent.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
 	// Deprecated: Use the per-template allow_workspace_renames setting instead.
@@ -976,7 +977,17 @@ type PprofConfig struct {
 }
 
 type OAuth2Config struct {
-	Github OAuth2GithubConfig `json:"github" typescript:",notnull"`
+	Github   OAuth2GithubConfig   `json:"github" typescript:",notnull"`
+	Provider OAuth2ProviderConfig `json:"provider" typescript:",notnull"`
+}
+
+// OAuth2ProviderConfig configures Coder's own OAuth 2.1 authorization server.
+// This is separate from the GitHub login integration. It is also distinct
+// from OAuth2ProviderSettings: this struct decides whether the server is on
+// at all, while OAuth2ProviderSettings holds runtime behavior such as
+// dynamic client registration that admins change while it runs.
+type OAuth2ProviderConfig struct {
+	Enable serpent.Bool `json:"enable" typescript:",notnull"`
 }
 
 type OAuth2GithubConfig struct {
@@ -1216,7 +1227,7 @@ type ExternalAuthConfig struct {
 	//
 	// Git clone makes use of this by parsing the URL from:
 	// 'Username for "https://github.com":'
-	// And sending it to the Coder server to match against the Regex.
+	// And sending it to the control plane to match against the Regex.
 	Regex string `json:"regex" yaml:"regex"`
 	// APIBaseURL is the base URL for provider REST API calls
 	// (e.g., "https://api.github.com" for GitHub). Derived from
@@ -1239,6 +1250,10 @@ type ProvisionerConfig struct {
 	DaemonPollJitter    serpent.Duration    `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval serpent.Duration    `json:"force_cancel_interval" typescript:",notnull"`
 	DaemonPSK           serpent.String      `json:"daemon_psk" typescript:",notnull"`
+	// DisableModuleCache disables the reuse of Terraform modules cached at
+	// template import for every template in the deployment. Templates cannot
+	// opt back in.
+	DisableModuleCache serpent.Bool `json:"disable_module_cache" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
@@ -1595,13 +1610,18 @@ communicating directly.`,
 		}
 		deploymentGroupOAuth2 = serpent.Group{
 			Name:        "OAuth2",
-			Description: `Configure login and user-provisioning with GitHub via oAuth2.`,
+			Description: `Configure OAuth2: GitHub login and user-provisioning, and Coder's own OAuth 2.1 authorization server.`,
 			YAML:        "oauth2",
 		}
 		deploymentGroupOAuth2GitHub = serpent.Group{
 			Parent: &deploymentGroupOAuth2,
 			Name:   "GitHub",
 			YAML:   "github",
+		}
+		deploymentGroupOAuth2Provider = serpent.Group{
+			Parent: &deploymentGroupOAuth2,
+			Name:   "Provider",
+			YAML:   "provider",
 		}
 		deploymentGroupOIDC = serpent.Group{
 			Name: "OIDC",
@@ -1930,7 +1950,7 @@ communicating directly.`,
 	}
 	aiGatewayInjectCoderMCPTools := serpent.Option{
 		Name:        "AI Gateway Inject Coder MCP tools",
-		Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Gateway requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+		Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Gateway requests (requires CODER_OAUTH2_PROVIDER_ENABLE and the \"mcp-server-http\" experiment to be enabled).",
 		Flag:        "ai-gateway-inject-coder-mcp-tools",
 		Env:         "CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS",
 		Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
@@ -2696,6 +2716,16 @@ communicating directly.`,
 			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "enterpriseBaseURL",
 		},
+		{
+			Name:        "OAuth2 Provider Enable",
+			Description: "Enable the OAuth 2.1 authorization server, which lets external applications (such as MCP clients) obtain tokens for Coder on behalf of users. Disabled by default. When disabled, the OAuth2 endpoints and discovery documents return 404.",
+			Flag:        "oauth2-provider-enable",
+			Env:         "CODER_OAUTH2_PROVIDER_ENABLE",
+			Value:       &c.OAuth2.Provider.Enable,
+			Group:       &deploymentGroupOAuth2Provider,
+			YAML:        "enable",
+			Default:     "false",
+		},
 		// OIDC settings.
 		{
 			Name:        "OIDC Allow Signups",
@@ -3216,6 +3246,16 @@ communicating directly.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name:        "Disable Terraform Module Cache",
+			Description: "Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.",
+			Flag:        "provisioner-disable-module-cache",
+			Env:         "CODER_PROVISIONER_DISABLE_MODULE_CACHE",
+			Default:     "false",
+			Value:       &c.Provisioner.DisableModuleCache,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "disableModuleCache",
+		},
+		{
 			Name:        "Provisioner Daemon Pre-shared Key (PSK)",
 			Description: "Pre-shared key to authenticate external provisioner daemons to Coder server.",
 			Flag:        "provisioner-daemon-psk",
@@ -3304,6 +3344,18 @@ communicating directly.`,
 			Value:       &c.EnableTerraformDebugMode,
 			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "enableTerraformDebugMode",
+		},
+		{
+			Name: "Dynamic Parameters Full Evaluation",
+			Description: "Evaluate every resource in a template when rendering dynamic parameters, " +
+				"instead of only the parameter, preset, and tag blocks and what they reference. " +
+				"Slower, and only needed if a template renders incorrectly with the default.",
+			Flag:    "dynamic-parameters-full-evaluation",
+			Env:     "CODER_DYNAMIC_PARAMETERS_FULL_EVALUATION",
+			Default: "false",
+			Value:   &c.DynamicParametersFullEvaluation,
+			Hidden:  true,
+			YAML:    "dynamicParametersFullEvaluation",
 		},
 		{
 			Name: "Additional CSP Policy",
@@ -4342,6 +4394,17 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "aiGatewayRoutingEnabled",
 			Hidden:      true,
 		},
+		{
+			Name:        "Chat: Stream Silence Timeout",
+			Description: "Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Set to 0 to disable. Must be no more than 24h.",
+			Flag:        "chat-stream-silence-timeout",
+			Env:         "CODER_CHAT_STREAM_SILENCE_TIMEOUT",
+			Value:       &c.AI.Chat.StreamSilenceTimeout,
+			Default:     (10 * time.Minute).String(),
+			Group:       &deploymentGroupChat,
+			YAML:        "streamSilenceTimeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
 		// AI Bridge Options (deprecated in favor of AI Gateway options)
 		{
 			Name:        "AI Bridge Enabled",
@@ -4820,13 +4883,14 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
-	HookURL             serpent.URL      `json:"hook_url" typescript:",notnull"`
-	HookSecret          serpent.String   `json:"hook_secret" typescript:",notnull"`
-	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
-	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
-	HookAllowInsecure   serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
+	AcquireBatchSize     serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled  serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
+	HookURL              serpent.URL      `json:"hook_url" typescript:",notnull"`
+	HookSecret           serpent.String   `json:"hook_secret" typescript:",notnull"`
+	HookTimeout          serpent.Duration `json:"hook_timeout" typescript:",notnull"`
+	HookEnabled          serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
+	HookAllowInsecure    serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
+	StreamSilenceTimeout serpent.Duration `json:"stream_silence_timeout" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -4940,6 +5004,10 @@ func (c *DeploymentValues) Validate() error {
 				return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
 			}
 		}
+	}
+
+	if timeout := c.AI.Chat.StreamSilenceTimeout.Value(); timeout < 0 || timeout > 24*time.Hour {
+		return xerrors.Errorf("chat stream silence timeout (%s) must be between 0 and 24h; set --chat-stream-silence-timeout to a valid duration", timeout)
 	}
 
 	// Gated on the builder being enabled and run here rather than as a per-option
@@ -5104,6 +5172,9 @@ type BuildInfoResponse struct {
 	DashboardURL string `json:"dashboard_url"`
 	// Telemetry is a boolean that indicates whether telemetry is enabled.
 	Telemetry bool `json:"telemetry"`
+	// OAuth2Provider reports whether the OAuth 2.1 authorization server is
+	// enabled. The dashboard uses it to show or hide OAuth2 navigation.
+	OAuth2Provider bool `json:"oauth2_provider"`
 
 	WorkspaceProxy bool `json:"workspace_proxy"`
 
@@ -5164,13 +5235,13 @@ const (
 	ExperimentAutoFillParameters        Experiment = "auto-fill-parameters"        // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
-	ExperimentOAuth2                    Experiment = "oauth2"                      // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
 	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
-	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
+	ExperimentNoNATSPubsub              Experiment = "no_nats_pubsub"              // Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
+	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
@@ -5186,18 +5257,18 @@ func (e Experiment) DisplayName() string {
 		return "SMTP and Webhook Notifications"
 	case ExperimentWorkspaceUsage:
 		return "Workspace Usage Tracking"
-	case ExperimentOAuth2:
-		return "OAuth2 Provider Functionality"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
-	case ExperimentNATSPubsub:
-		return "NATS Pubsub"
+	case ExperimentNoNATSPubsub:
+		return "No NATS Pubsub"
 	case ExperimentWorkspaceCapableLicensing:
 		return "Workspace-Capable Licensing"
 	case ExperimentAIGatewaySeatExclusion:
 		return "AI Gateway Seat Exclusion"
+	case ExperimentAIGatewayReverseProxy:
+		return "AI Gateway Reverse Proxy"
 	case ExperimentChatAdvisor:
 		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
@@ -5218,13 +5289,13 @@ var ExperimentsKnown = Experiments{
 	ExperimentAutoFillParameters,
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
-	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
 	ExperimentMCPToolSearch,
-	ExperimentNATSPubsub,
+	ExperimentNoNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
+	ExperimentAIGatewayReverseProxy,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,

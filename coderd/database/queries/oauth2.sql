@@ -4,6 +4,9 @@ SELECT * FROM oauth2_provider_apps ORDER BY (name, id) ASC;
 -- name: GetOAuth2ProviderAppByID :one
 SELECT * FROM oauth2_provider_apps WHERE id = $1;
 
+-- name: GetOAuth2ProviderAppByIDForUpdate :one
+SELECT * FROM oauth2_provider_apps WHERE id = $1 FOR UPDATE;
+
 -- name: InsertOAuth2ProviderApp :one
 INSERT INTO oauth2_provider_apps (
     id,

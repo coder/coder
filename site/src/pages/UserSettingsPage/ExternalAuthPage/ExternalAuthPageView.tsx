@@ -97,13 +97,13 @@ export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 	);
 };
 
-interface ExternalAuthRowProps {
+type ExternalAuthRowProps = {
 	app: ExternalAuthLinkProvider;
 	link?: ExternalAuthLink;
 	unlinked: number;
 	onUnlinkExternalAuth: () => void;
 	onValidateExternalAuth: () => void;
-}
+};
 
 const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 	app,

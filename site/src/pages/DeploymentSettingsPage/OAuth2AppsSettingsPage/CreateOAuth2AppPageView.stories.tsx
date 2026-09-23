@@ -2,7 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { externalScopesKey } from "#/api/queries/oauth2";
 import {
+	MockExternalAPIKeyScopes,
 	MockPermissions,
 	MockUserOwner,
 	mockApiError,
@@ -16,6 +18,7 @@ const meta = {
 	parameters: {
 		user: MockUserOwner,
 		permissions: MockPermissions,
+		queries: [{ key: externalScopesKey, data: MockExternalAPIKeyScopes }],
 		reactRouter: reactRouterParameters({
 			location: { path: "/deployment/oauth2-provider/apps/add" },
 			routing: [
@@ -80,20 +83,29 @@ export const WithValidationError: Story = {
 	},
 };
 
-export const InvalidName: Story = {
+export const InvalidCallbackURL: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const nameInput = await canvas.findByLabelText(/^name/i);
-		await userEvent.type(nameInput, "Foo@Application");
+		await userEvent.type(await canvas.findByLabelText(/^name/i), "test-app");
+		const callbackInput = canvas.getByLabelText(/callback url/i);
+		// oxlint-disable-next-line eslint/no-script-url -- Deliberately invalid input exercises callback URL rejection.
+		await userEvent.type(callbackInput, "javascript:alert(1)");
 		await userEvent.tab();
-		await expect(
-			await canvas.findByText(
-				/special characters \(e\.g\.: !, @, #\) are not supported/i,
-			),
-		).toBeVisible();
-		await expect(
-			canvas.getByRole("button", { name: /create application/i }),
-		).toBeDisabled();
+	},
+};
+
+export const DynamicallyRegisteredValues: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			await canvas.findByLabelText(/^name/i),
+			"VS Code Coder Extension",
+		);
+		await userEvent.type(
+			canvas.getByLabelText(/callback url/i),
+			"vscode://coder.coder-remote/oauth/callback",
+		);
+		await userEvent.tab();
 	},
 };
 

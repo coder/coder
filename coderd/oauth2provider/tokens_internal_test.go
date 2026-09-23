@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"slices"
 	"strings"
@@ -18,8 +19,11 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogjson"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // parseScopes parses a space-delimited scope string into a slice of scopes
@@ -80,12 +84,19 @@ func TestScopeStringToAPIKeyScopes(t *testing.T) {
 
 	// Unreachable through the NOT NULL column, but pinned: apikey.Generate reads
 	// an empty list as unrestricted, so anything but an error widens the grant.
+	// CHECK (scope <> '') admits every value here but the first.
 	t.Run("EmptyRejected", func(t *testing.T) {
 		t.Parallel()
 
-		for _, scope := range []string{"", "   "} {
+		var first string
+		for _, scope := range []string{"", "   ", "\t", "\n", " \t\r\n "} {
 			_, err := scopeStringToAPIKeyScopes(scope)
 			require.ErrorIs(t, err, errUnmintableScope, "scope %q", scope)
+			if first == "" {
+				first = err.Error()
+			}
+			assert.Equal(t, first, err.Error(),
+				"a scope naming nothing has nothing to echo, so the message cannot vary with it")
 		}
 	})
 }
@@ -903,6 +914,164 @@ func TestExtractTokenRequest_UnrecognizedParametersLogged(t *testing.T) {
 			require.Equal(t, []string{"audience", "nonce", `we"ird`}, entry.Fields.Params)
 			require.NotContains(t, logs.String(), "nonce-value")
 			require.NotContains(t, logs.String(), "audience-value")
+		})
+	}
+}
+
+// RFC 6749 §3.1 makes the authorization endpoint ignore a client_secret in its
+// URL, so the only trace of the misconfiguration is this warning. The consent
+// POST repeats the GET's query, so one flow logs once.
+func TestExtractAuthorizeParams_ClientSecretInQueryWarns(t *testing.T) {
+	t.Parallel()
+
+	const msg = "oauth2 authorization request carried client_secret in the URL query string"
+
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		t.Run(method, func(t *testing.T) {
+			t.Parallel()
+
+			app := database.OAuth2ProviderApp{ID: uuid.New(), CallbackURL: "http://localhost:3000/callback"}
+			query := url.Values{}
+			query.Set("response_type", "code")
+			query.Set("client_id", app.ID.String())
+			query.Set("redirect_uri", app.CallbackURL)
+			query.Set("code_challenge", strings.Repeat("a", pkceVerifierMinLength))
+			query.Set("client_secret", "secret-value")
+			req := httptest.NewRequest(method, "/oauth2/authorize?"+query.Encode(), nil)
+			req.Header.Set("User-Agent", "probe/1.0")
+
+			var logs bytes.Buffer
+			logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+			_, failure := extractAuthorizeParams(req, logger, app)
+			require.Nil(t, failure, "the secret must be ignored, not rejected")
+			require.NotContains(t, logs.String(), "secret-value")
+
+			type entry struct {
+				Level  string `json:"level"`
+				Msg    string `json:"msg"`
+				Fields struct {
+					AppID      string `json:"app_id"`
+					RemoteAddr string `json:"remote_addr"`
+					UserAgent  string `json:"user_agent"`
+				} `json:"fields"`
+			}
+			var warnings []entry
+			for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+				var e entry
+				require.NoError(t, json.Unmarshal([]byte(line), &e), line)
+				if e.Msg == msg {
+					warnings = append(warnings, e)
+				}
+			}
+			if method == http.MethodPost {
+				require.Empty(t, warnings, "the consent POST must not log a second time")
+				return
+			}
+			require.Len(t, warnings, 1)
+			require.Equal(t, "WARN", warnings[0].Level)
+			require.Equal(t, app.ID.String(), warnings[0].Fields.AppID)
+			require.Equal(t, req.RemoteAddr, warnings[0].Fields.RemoteAddr)
+			require.Equal(t, "probe/1.0", warnings[0].Fields.UserAgent)
+		})
+	}
+}
+
+// Every failure is errBadSecret so the caller cannot tell a malformed secret
+// from a valid one for the wrong app (RFC 6749 §5.2). The OtherAppsSecret row
+// covers the belongs-to-app check, the step a retyped copy of the check would
+// be most likely to lose.
+func TestAuthenticateClient(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	seed := func() (database.OAuth2ProviderApp, database.OAuth2ProviderAppSecret, string) {
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
+		secret, err := GenerateSecret()
+		require.NoError(t, err)
+		dbSecret := dbgen.OAuth2ProviderAppSecret(t, db, database.OAuth2ProviderAppSecret{
+			AppID:        app.ID,
+			SecretPrefix: []byte(secret.Prefix),
+			HashedSecret: secret.Hashed,
+		})
+		return app, dbSecret, secret.Formatted
+	}
+	app, dbSecret, formatted := seed()
+	_, _, otherFormatted := seed()
+
+	unknown, err := GenerateSecret()
+	require.NoError(t, err)
+	parsed, err := ParseFormattedSecret(formatted)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name   string
+		secret string
+		want   error
+	}{
+		{name: "Empty", secret: "", want: errBadSecret},
+		{name: "Malformed", secret: "not-a-secret", want: errBadSecret},
+		{name: "UnknownPrefix", secret: unknown.Formatted, want: errBadSecret},
+		{name: "WrongHash", secret: SecretIdentifier + "_" + parsed.Prefix + "_" + unknown.Secret, want: errBadSecret},
+		{name: "OtherAppsSecret", secret: otherFormatted, want: errBadSecret},
+		{name: "OwnSecret", secret: formatted},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			got, err := authenticateClient(ctx, db, app, test.secret)
+			if test.want != nil {
+				require.ErrorIs(t, err, test.want)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, dbSecret.ID, got.ID)
+		})
+	}
+}
+
+func TestMergeBasicClientAuth(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		basicUser  string
+		basicPass  string
+		bodyID     string
+		bodySecret string
+		wantID     string
+		wantSecret string
+		wantErr    error
+	}{
+		{name: "NoHeader", bodyID: "id", bodySecret: "s", wantID: "id", wantSecret: "s"},
+		{name: "HeaderOnly", basicUser: "id", basicPass: "s", wantID: "id", wantSecret: "s"},
+		{name: "HeaderAndMatchingBody", basicUser: "id", basicPass: "s", bodyID: "id", bodySecret: "s", wantID: "id", wantSecret: "s"},
+		// A header with an empty username is treated as no header at all.
+		{name: "HeaderEmptyUser", basicPass: "pass", bodyID: "id", bodySecret: "s", wantID: "id", wantSecret: "s"},
+		// An empty Basic password is still a presented password, so a body
+		// secret beside it is a conflict rather than a fallback.
+		{name: "HeaderEmptyPasswordBodySecret", basicUser: "id", bodySecret: "s", wantErr: errConflictingClientAuth},
+		{name: "ConflictingID", basicUser: "id", basicPass: "s", bodyID: "other", wantErr: errConflictingClientAuth},
+		{name: "ConflictingSecret", basicUser: "id", basicPass: "s", bodySecret: "other", wantErr: errConflictingClientAuth},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := &http.Request{Header: http.Header{}}
+			if test.basicUser != "" || test.basicPass != "" {
+				r.SetBasicAuth(test.basicUser, test.basicPass)
+			}
+			id, secret, err := mergeBasicClientAuth(r, test.bodyID, test.bodySecret)
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.wantID, id)
+			require.Equal(t, test.wantSecret, secret)
 		})
 	}
 }

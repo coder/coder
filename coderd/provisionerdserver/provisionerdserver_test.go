@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/url"
 	"slices"
@@ -950,6 +951,97 @@ func TestAcquireJob(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.JSONEq(t, string(want), string(got))
+		})
+	}
+}
+
+func TestAcquireJob_ModuleCache(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name                    string
+		deploymentDisablesCache bool
+		expectModulesFile       bool
+	}{
+		{name: "Enabled", expectModulesFile: true},
+		// The deployment setting wins even though the template does not opt out.
+		{name: "DeploymentDisabled", deploymentDisablesCache: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := coderdtest.DeploymentValues(t)
+			dv.Provisioner.DisableModuleCache = serpent.Bool(tc.deploymentDisablesCache)
+			srv, db, ps, pd := setup(t, false, &overrides{deploymentValues: dv})
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			user := dbgen.User(t, db, database.User{})
+			template := dbgen.Template(t, db, database.Template{
+				Provisioner:    database.ProvisionerTypeEcho,
+				OrganizationID: pd.OrganizationID,
+				CreatedBy:      user.ID,
+			})
+			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				OrganizationID: pd.OrganizationID,
+				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+				JobID:          uuid.New(),
+			})
+			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				OrganizationID: pd.OrganizationID,
+				ID:             version.JobID,
+				InitiatorID:    user.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				Type:           database.ProvisionerJobTypeTemplateVersionImport,
+				Input:          must(json.Marshal(provisionerdserver.TemplateVersionImportJob{TemplateVersionID: version.ID})),
+			})
+			moduleFile := dbgen.File(t, db, database.File{CreatedBy: user.ID, Hash: "modules"})
+			err := db.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+				JobID:             version.JobID,
+				CachedPlan:        []byte("{}"),
+				CachedModuleFiles: uuid.NullUUID{UUID: moduleFile.ID, Valid: true},
+				UpdatedAt:         dbtime.Now(),
+			})
+			require.NoError(t, err)
+
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				TemplateID:     template.ID,
+				OwnerID:        user.ID,
+				OrganizationID: pd.OrganizationID,
+			})
+			buildID := uuid.New()
+			buildJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				OrganizationID: pd.OrganizationID,
+				InitiatorID:    user.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				FileID:         dbgen.File(t, db, database.File{CreatedBy: user.ID, Hash: "build"}).ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				Input:          must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{WorkspaceBuildID: buildID})),
+				Tags:           pd.Tags,
+			})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				ID:                buildID,
+				WorkspaceID:       workspace.ID,
+				BuildNumber:       1,
+				JobID:             buildJob.ID,
+				TemplateVersionID: version.ID,
+				Transition:        database.WorkspaceTransitionStart,
+				Reason:            database.BuildReasonInitiator,
+				InitiatorID:       user.ID,
+			})
+
+			job, err := srv.AcquireJob(ctx, nil)
+			require.NoError(t, err)
+
+			got := job.GetWorkspaceBuild().GetMetadata().GetTemplateVersionModulesFile()
+			if tc.expectModulesFile {
+				require.Equal(t, moduleFile.ID.String(), got)
+				return
+			}
+			require.Empty(t, got, "cached modules must not be shipped to the build")
 		})
 	}
 }
@@ -5224,4 +5316,62 @@ func TestDownloadFile(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, moduleData, data)
 	})
+}
+
+func TestWorkspaceSessionTokenName(t *testing.T) {
+	t.Parallel()
+
+	ownerID, workspaceID := uuid.New(), uuid.New()
+
+	for _, tc := range []struct {
+		name              string
+		tokenName         string
+		expectOwnerID     string
+		expectWorkspaceID string
+		expectOK          bool
+	}{
+		{
+			name:              "valid",
+			tokenName:         provisionerdserver.WorkspaceSessionTokenName(ownerID, workspaceID),
+			expectOwnerID:     ownerID.String(),
+			expectWorkspaceID: workspaceID.String(),
+			expectOK:          true,
+		},
+		{
+			name:              "missing suffix",
+			tokenName:         fmt.Sprintf("%s_%s", ownerID, workspaceID),
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+		{
+			name:              "only one uuid",
+			tokenName:         fmt.Sprintf("%s_session_token", ownerID),
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+		{
+			name:              "invalid",
+			tokenName:         "invalid_invalid_session_token",
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+		{
+			name:              "empty",
+			tokenName:         "",
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ownerID, workspaceID, ok := provisionerdserver.ParseWorkspaceSessionTokenName(tc.tokenName)
+			require.Equal(t, tc.expectOwnerID, ownerID.String())
+			require.Equal(t, tc.expectWorkspaceID, workspaceID.String())
+			require.Equal(t, tc.expectOK, ok)
+		})
+	}
 }
