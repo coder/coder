@@ -87,6 +87,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				inlineOptions: true,
 				inlineOptionsLabel: "Workspace is…",
 				inlineOptionsExclusive: true,
+				inlineOptionsLabelOnly: true,
 				getOptions: (query) =>
 					getAttributeFilterOptions(query, { canFilterDormant }),
 			},

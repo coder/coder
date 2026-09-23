@@ -40,6 +40,8 @@ export type FilterCategory = {
 	inlineOptionIcons?: boolean;
 	/** Selecting an option replaces another selected option from this category. */
 	inlineOptionsExclusive?: boolean;
+	/** Applied chips show only the option label, without the category prefix. */
+	inlineOptionsLabelOnly?: boolean;
 	/**
 	 * Switch shown below the category's options, on by default. While on,
 	 * options commit under `chipKey` instead of the category key, e.g. Owner

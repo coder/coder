@@ -29,7 +29,7 @@ import {
 	coarsePointerMediaQuery,
 	mobileViewportMediaQuery,
 } from "#/utils/mobile";
-import { chipDisplay, chipToken, parseChipToken } from "./filterQuery";
+import { chipDisplay, chipToken } from "./filterQuery";
 import {
 	FilterComboboxChip,
 	FilterComboboxChips,
@@ -88,7 +88,6 @@ export function FilterCombobox({
 }: FilterComboboxProps) {
 	const {
 		open,
-		browseAll,
 		inputValue,
 		committedFreeText,
 		activeCategoryKey,
@@ -97,6 +96,7 @@ export function FilterCombobox({
 		activeOptionsError,
 		statusMessage,
 		listedCategories,
+		filteringCategories,
 		browseCategoryOptions,
 		valueSuggestions,
 		inlineOptions,
@@ -200,7 +200,6 @@ export function FilterCombobox({
 	);
 	// Typed text narrows the category rows, so there is no hover flyout and a
 	// click enters the category like Enter does.
-	const filteringCategories = !browseAll && inputValue.trim().length > 0;
 	const flyoutOptions =
 		activeCategoryKey === null &&
 		flyoutCategoryKey !== null &&
@@ -216,6 +215,38 @@ export function FilterCombobox({
 		updateFlyoutCategory(null, true);
 		actions.selectCategory(categoryKey);
 	};
+
+	const mainPanelProps = {
+		listedCategories,
+		valueSuggestions,
+		inlineOptions,
+		typeaheadError,
+		registerCategoryRow,
+		onSelectCategory: selectCategory,
+		onHoverCategory: updateFlyoutCategory,
+		onToggleInlineOption: actions.toggleInlineOption,
+		onSelectSuggestion: actions.selectValueSuggestion,
+		onRetry: actions.retryTypeahead,
+	};
+	const categoryOptionsList =
+		activeCategoryKey === null ? undefined : (
+			<CategoryOptionsList
+				embedded={isMobile}
+				offset={panelOffset}
+				category={activeCategory}
+				options={activeOptions}
+				optionsError={activeOptionsError}
+				previewCount={browseCategoryOptions.get(activeCategoryKey)?.length}
+				selectedTokens={chipValues}
+				chipKey={optionChipKey(activeCategoryKey)}
+				scopeWidened={scopeWidened(activeCategoryKey)}
+				onToggleScope={actions.toggleScope}
+				searchValue={inputValue}
+				onSearchChange={actions.onInputValueChange}
+				onRetry={actions.retryActiveOptions}
+				onSelectOption={actions.selectCategoryOption}
+			/>
+		);
 
 	return (
 		<>
@@ -286,40 +317,36 @@ export function FilterCombobox({
 					<FilterComboboxChips>
 						{chipValues.map((token, index) => {
 							const display = chipDisplay(token, categories);
-							// The scope pill follows the last chip its category owns.
-							const scopeCategory = categories.find((category) => {
-								if (!category.scopeToggle) {
-									return false;
-								}
-								const keys = [category.key, category.scopeToggle.chipKey];
-								return (
-									parseChipToken(token, keys) !== null &&
-									!chipValues
-										.slice(index + 1)
-										.some((later) => parseChipToken(later, keys) !== null)
-								);
-							});
-							const scopePillLabel =
-								scopeCategory?.scopeToggle && scopeWidened(scopeCategory.key)
-									? scopeCategory.scopeToggle.pillLabel.toLowerCase()
-									: undefined;
-							const inlineOption = mainInlineOptions.find(
-								({ categoryKey, option }) => {
-									const optionToken =
-										option.token ?? chipToken(categoryKey, option.value);
-									return optionToken === token;
-								},
+							const category = categories.find(
+								(entry) => entry.key === display.key,
 							);
-							const labelOnly = inlineOption?.categoryKey === "attribute";
+							// The scope pill follows the last chip its category owns.
+							const scopePillLabel =
+								category?.scopeToggle &&
+								scopeWidened(category.key) &&
+								!chipValues
+									.slice(index + 1)
+									.some(
+										(later) =>
+											chipDisplay(later, categories).key === category.key,
+									)
+									? category.scopeToggle.pillLabel.toLowerCase()
+									: undefined;
+							const labelOnly = category?.inlineOptionsLabelOnly === true;
+							const inlineOption = labelOnly
+								? mainInlineOptions.find(
+										({ categoryKey, option }) =>
+											(option.token ?? chipToken(categoryKey, option.value)) ===
+											token,
+									)
+								: undefined;
 							// Applied tokens read as query syntax, so they are always
 							// lowercase even when the menu shows a display label.
 							const prefix = (labelOnly ? "" : display.key).toLowerCase();
 							const value = (
-								labelOnly
-									? (inlineOption?.option.appliedLabel ??
-										inlineOption?.option.label ??
-										display.value)
-									: display.value
+								inlineOption?.option.appliedLabel ??
+								inlineOption?.option.label ??
+								display.value
 							).toLowerCase();
 							const displayText = prefix ? chipToken(prefix, value) : value;
 							return (
@@ -331,10 +358,10 @@ export function FilterCombobox({
 									>
 										<ChipLabel prefix={prefix} value={value} />
 									</FilterComboboxChip>
-									{scopeCategory && scopePillLabel && (
+									{category && scopePillLabel && (
 										<FilterComboboxChip
 											removeLabel={`Remove ${scopePillLabel}`}
-											onRemove={() => actions.toggleScope(scopeCategory.key)}
+											onRemove={() => actions.toggleScope(category.key)}
 											className={labelOnlyChipClassName}
 										>
 											{scopePillLabel}
@@ -398,42 +425,8 @@ export function FilterCombobox({
 							data-testid="filter-mobile-panel"
 							className="flex max-h-[min(24rem,var(--radix-popper-available-height))] w-(--radix-popover-trigger-width) max-w-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-surface-primary p-2 shadow-md"
 						>
-							{activeCategoryKey === null ? (
-								<MainPanel
-									embedded
-									listedCategories={listedCategories}
-									valueSuggestions={valueSuggestions}
-									inlineOptions={inlineOptions}
-									typeaheadError={typeaheadError}
-									drillIn
-									registerCategoryRow={registerCategoryRow}
-									onSelectCategory={selectCategory}
-									onHoverCategory={updateFlyoutCategory}
-									onToggleInlineOption={actions.toggleInlineOption}
-									onSelectSuggestion={actions.selectValueSuggestion}
-									onRetry={actions.retryTypeahead}
-								/>
-							) : (
-								<CategoryOptionsList
-									embedded
-									isMobile
-									offset={0}
-									activeCategory={activeCategory}
-									activeCategoryKey={activeCategoryKey}
-									activeOptions={activeOptions}
-									previewCount={
-										browseCategoryOptions.get(activeCategoryKey)?.length
-									}
-									activeOptionsError={activeOptionsError}
-									selectedTokens={chipValues}
-									chipKey={optionChipKey(activeCategoryKey)}
-									scopeWidened={scopeWidened(activeCategoryKey)}
-									onToggleScope={actions.toggleScope}
-									inputValue={inputValue}
-									onInputValueChange={actions.onInputValueChange}
-									retryActiveOptions={actions.retryActiveOptions}
-									onSelectOption={actions.selectCategoryOption}
-								/>
+							{categoryOptionsList ?? (
+								<MainPanel embedded drillIn {...mainPanelProps} />
 							)}
 						</div>
 					) : (
@@ -445,44 +438,15 @@ export function FilterCombobox({
 							}}
 						>
 							<MainPanel
-								listedCategories={listedCategories}
-								valueSuggestions={valueSuggestions}
-								inlineOptions={inlineOptions}
-								typeaheadError={typeaheadError}
 								drillIn={
 									isCoarsePointer ||
 									activeCategoryKey !== null ||
 									filteringCategories
 								}
-								registerCategoryRow={registerCategoryRow}
-								onSelectCategory={selectCategory}
-								onHoverCategory={updateFlyoutCategory}
-								onToggleInlineOption={actions.toggleInlineOption}
-								onSelectSuggestion={actions.selectValueSuggestion}
-								onRetry={actions.retryTypeahead}
+								{...mainPanelProps}
 							/>
-							{activeCategoryKey !== null ? (
-								<CategoryOptionsList
-									offset={panelOffset}
-									activeCategory={activeCategory}
-									activeCategoryKey={activeCategoryKey}
-									activeOptions={activeOptions}
-									previewCount={
-										browseCategoryOptions.get(activeCategoryKey)?.length
-									}
-									activeOptionsError={activeOptionsError}
-									selectedTokens={chipValues}
-									chipKey={optionChipKey(activeCategoryKey)}
-									scopeWidened={scopeWidened(activeCategoryKey)}
-									onToggleScope={actions.toggleScope}
-									inputValue={inputValue}
-									onInputValueChange={actions.onInputValueChange}
-									retryActiveOptions={actions.retryActiveOptions}
-									onSelectOption={actions.selectCategoryOption}
-								/>
-							) : (
-								flyoutCategory &&
-								flyoutOptions && (
+							{categoryOptionsList ??
+								(flyoutCategory && flyoutOptions && (
 									<HoverCategoryPanel
 										key={flyoutCategory.key}
 										category={flyoutCategory}
@@ -495,8 +459,7 @@ export function FilterCombobox({
 										onMouseEnter={cancelHoverSwitch}
 										onSelectOption={selectFlyoutOption}
 									/>
-								)
-							)}
+								))}
 						</div>
 					)}
 				</FilterComboboxContent>
@@ -539,6 +502,24 @@ function OptionIcon({ children }: { children: ReactNode }): ReactNode {
 	);
 }
 
+type OptionRowContentProps = Readonly<{
+	icon?: ReactNode;
+	label: ReactNode;
+	selected: boolean;
+}>;
+
+function OptionRowContent({ icon, label, selected }: OptionRowContentProps) {
+	return (
+		<>
+			{icon ? <OptionIcon>{icon}</OptionIcon> : null}
+			<span>{label}</span>
+			{selected && (
+				<CheckIcon aria-hidden className="ml-auto size-4 shrink-0" />
+			)}
+		</>
+	);
+}
+
 function ChipLabel({
 	prefix,
 	value,
@@ -574,16 +555,16 @@ type ValueSuggestion = {
 	option: Pick<FilterOption, "label" | "startIcon">;
 };
 
-const groupInlineOptions = (
-	options: readonly InlineOption[],
-): Array<[string, InlineOption[]]> => {
-	const groups = new Map<string, InlineOption[]>();
-	for (const option of options) {
-		const group = groups.get(option.categoryLabel);
+const groupByCategoryLabel = <T extends { categoryLabel: string }>(
+	items: readonly T[],
+): Array<[string, T[]]> => {
+	const groups = new Map<string, T[]>();
+	for (const item of items) {
+		const group = groups.get(item.categoryLabel);
 		if (group) {
-			group.push(option);
+			group.push(item);
 		} else {
-			groups.set(option.categoryLabel, [option]);
+			groups.set(item.categoryLabel, [item]);
 		}
 	}
 	return [...groups];
@@ -623,18 +604,6 @@ function MainPanel({
 	onSelectSuggestion,
 	onRetry,
 }: MainPanelProps) {
-	const valueSuggestionsByCategory = new Map<string, ValueSuggestion[]>();
-	for (const suggestion of valueSuggestions) {
-		const categorySuggestions = valueSuggestionsByCategory.get(
-			suggestion.categoryLabel,
-		);
-		if (categorySuggestions) {
-			categorySuggestions.push(suggestion);
-		} else {
-			valueSuggestionsByCategory.set(suggestion.categoryLabel, [suggestion]);
-		}
-	}
-
 	const isEmpty =
 		listedCategories.length === 0 &&
 		valueSuggestions.length === 0 &&
@@ -674,7 +643,7 @@ function MainPanel({
 					<ChevronRightIcon aria-hidden className="ml-auto shrink-0" />
 				</FilterComboboxItem>
 			))}
-			{groupInlineOptions(inlineOptions).map(([label, options]) => (
+			{groupByCategoryLabel(inlineOptions).map(([label, options]) => (
 				<FilterComboboxGroup
 					className="mt-2 border-t border-border pt-2 first:mt-0 first:border-t-0 first:pt-0"
 					key={label}
@@ -694,19 +663,17 @@ function MainPanel({
 								value={token}
 								onSelect={() => onToggleInlineOption(token)}
 							>
-								{showIcon && option.startIcon ? (
-									<OptionIcon>{option.startIcon}</OptionIcon>
-								) : null}
-								<span>{option.label}</span>
-								{selected && (
-									<CheckIcon aria-hidden className="ml-auto size-4 shrink-0" />
-								)}
+								<OptionRowContent
+									icon={showIcon ? option.startIcon : undefined}
+									label={option.label}
+									selected={selected}
+								/>
 							</FilterComboboxItem>
 						);
 					})}
 				</FilterComboboxGroup>
 			))}
-			{[...valueSuggestionsByCategory.entries()].map(
+			{groupByCategoryLabel(valueSuggestions).map(
 				([categoryLabel, suggestions]) => (
 					<FilterComboboxGroup key={categoryLabel}>
 						<FilterComboboxLabel>{categoryLabel}</FilterComboboxLabel>
@@ -720,13 +687,11 @@ function MainPanel({
 								value={suggestion.token}
 								onSelect={() => onSelectSuggestion(suggestion.token)}
 							>
-								{suggestion.option.startIcon ? (
-									<OptionIcon>{suggestion.option.startIcon}</OptionIcon>
-								) : null}
-								{suggestion.option.label}
-								{suggestion.selected && (
-									<CheckIcon aria-hidden className="ml-auto size-4 shrink-0" />
-								)}
+								<OptionRowContent
+									icon={suggestion.option.startIcon}
+									label={suggestion.option.label}
+									selected={suggestion.selected}
+								/>
 							</FilterComboboxItem>
 						))}
 					</FilterComboboxGroup>
@@ -800,6 +765,74 @@ function FlyoutScopeToggle({
 	);
 }
 
+type OptionsPanelProps = Readonly<{
+	category: FilterCategory | undefined;
+	/** Rendered inside the mobile panel instead of beside the main menu. */
+	embedded?: boolean;
+	offset: number;
+	/** Shown above the options when the category is searchable. */
+	search?: { value: string; onChange: (value: string) => void };
+	empty: boolean;
+	scopeWidened: boolean;
+	onToggleScope: (categoryKey: string) => void;
+	onMouseEnter?: () => void;
+	children: ReactNode;
+}>;
+
+// Shared shell for a category's options: search header, scrolling list, empty
+// state, and scope toggle footer.
+function OptionsPanel({
+	category,
+	embedded = false,
+	offset,
+	search,
+	empty,
+	scopeWidened,
+	onToggleScope,
+	onMouseEnter,
+	children,
+}: OptionsPanelProps) {
+	// A searchable panel is pinned to the top so its search field stays put.
+	const top = search ? 0 : offset;
+	return (
+		<div
+			onMouseEnter={onMouseEnter}
+			className={cn(
+				flyoutPanelClassName,
+				"p-2",
+				embedded &&
+					"min-h-0 flex-1 w-full rounded-none border-0 bg-transparent p-0 shadow-none",
+			)}
+			style={
+				embedded
+					? undefined
+					: {
+							top,
+							maxHeight: `min(20rem, calc(var(--radix-popper-available-height) - ${top}px))`,
+						}
+			}
+		>
+			{search && category && (
+				<FlyoutSearch
+					label={category.label}
+					value={search.value}
+					onChange={search.onChange}
+				/>
+			)}
+			{children}
+			{empty && <NoMatchingOptions />}
+			{category?.scopeToggle && (
+				<FlyoutScopeToggle
+					categoryKey={category.key}
+					label={category.scopeToggle.label}
+					checked={scopeWidened}
+					onToggle={onToggleScope}
+				/>
+			)}
+		</div>
+	);
+}
+
 type HoverCategoryPanelProps = Readonly<{
 	category: FilterCategory;
 	offset: number;
@@ -853,21 +886,15 @@ function HoverCategoryPanel({
 	}
 
 	return (
-		<div
+		<OptionsPanel
+			category={category}
+			offset={offset}
+			search={searchable ? { value: query, onChange: setQuery } : undefined}
+			empty={filteredOptions.length === 0}
+			scopeWidened={scopeWidened}
+			onToggleScope={onToggleScope}
 			onMouseEnter={onMouseEnter}
-			className={cn(flyoutPanelClassName, "p-2")}
-			style={{
-				top: searchable ? 0 : offset,
-				maxHeight: `min(20rem, calc(var(--radix-popper-available-height) - ${searchable ? 0 : offset}px))`,
-			}}
 		>
-			{searchable && (
-				<FlyoutSearch
-					label={category.label}
-					value={query}
-					onChange={setQuery}
-				/>
-			)}
 			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
 				{filteredOptions.map((option) => {
 					const token = option.token ?? chipToken(chipKey, option.value);
@@ -884,73 +911,55 @@ function HoverCategoryPanel({
 							onMouseDown={(event) => event.preventDefault()}
 							onClick={() => onSelectOption(token)}
 						>
-							{option.startIcon ? (
-								<OptionIcon>{option.startIcon}</OptionIcon>
-							) : null}
-							<span>{option.label}</span>
-							{selected && (
-								<CheckIcon aria-hidden className="ml-auto size-4 shrink-0" />
-							)}
+							<OptionRowContent
+								icon={option.startIcon}
+								label={option.label}
+								selected={selected}
+							/>
 						</button>
 					);
 				})}
-				{filteredOptions.length === 0 && <NoMatchingOptions />}
 			</div>
-			{category.scopeToggle && (
-				<FlyoutScopeToggle
-					categoryKey={category.key}
-					label={category.scopeToggle.label}
-					checked={scopeWidened}
-					onToggle={onToggleScope}
-				/>
-			)}
-		</div>
+		</OptionsPanel>
 	);
 }
 
 type CategoryOptionsListProps = Readonly<{
-	embedded?: boolean;
-	isMobile?: boolean;
+	/** Mobile drill-in: fills the panel and uses the main input as search. */
+	embedded: boolean;
 	offset: number;
-	activeCategory: FilterCategory | undefined;
-	activeCategoryKey: string | null;
-	activeOptions: readonly FilterOption[] | undefined;
+	category: FilterCategory | undefined;
+	options: readonly FilterOption[] | undefined;
+	optionsError: boolean;
 	/** Size of the category's unfiltered option list, when cached. */
 	previewCount: number | undefined;
-	activeOptionsError: boolean;
 	selectedTokens: readonly string[];
 	chipKey: string;
 	scopeWidened: boolean;
 	onToggleScope: (categoryKey: string) => void;
-	inputValue: string;
-	onInputValueChange: (value: string) => void;
-	retryActiveOptions: () => void;
+	searchValue: string;
+	onSearchChange: (value: string) => void;
+	onRetry: () => void;
 	onSelectOption: (token: string) => void;
 }>;
 
 function CategoryOptionsList({
-	embedded = false,
-	isMobile = false,
+	embedded,
 	offset,
-	activeCategory,
-	activeCategoryKey,
-	activeOptions,
+	category,
+	options,
+	optionsError,
 	previewCount,
-	activeOptionsError,
 	selectedTokens,
 	chipKey,
 	scopeWidened,
 	onToggleScope,
-	inputValue,
-	onInputValueChange,
-	retryActiveOptions,
+	searchValue,
+	onSearchChange,
+	onRetry,
 	onSelectOption,
 }: CategoryOptionsListProps) {
-	if (activeCategoryKey === null) {
-		return null;
-	}
-
-	if (activeOptionsError) {
+	if (optionsError) {
 		return (
 			<div
 				className={cn(
@@ -961,10 +970,9 @@ function CategoryOptionsList({
 				style={embedded ? undefined : { top: offset }}
 			>
 				<span>
-					Couldn&rsquo;t load {activeCategory ? activeCategory.label : "filter"}{" "}
-					options.
+					Couldn&rsquo;t load {category ? category.label : "filter"} options.
 				</span>
-				<Button size="sm" variant="outline" onClick={retryActiveOptions}>
+				<Button size="sm" variant="outline" onClick={onRetry}>
 					Retry
 				</Button>
 			</div>
@@ -972,43 +980,30 @@ function CategoryOptionsList({
 	}
 
 	// Decided from the unfiltered list so the search field stays mounted while
-	// results load or shrink. On mobile the main input is the search field.
+	// results load or shrink.
 	const searchable =
-		!isMobile &&
-		(previewCount ?? activeOptions?.length ?? 0) > SEARCHABLE_OPTION_COUNT;
-	if (
-		(activeOptions === undefined || activeOptions.length === 0) &&
-		!searchable
-	) {
+		!embedded &&
+		(previewCount ?? options?.length ?? 0) > SEARCHABLE_OPTION_COUNT;
+	if ((options === undefined || options.length === 0) && !searchable) {
 		return null;
 	}
 
 	return (
-		<div
-			className={cn(
-				flyoutPanelClassName,
-				"p-2",
-				embedded &&
-					"min-h-0 flex-1 w-full rounded-none border-0 bg-transparent p-0 shadow-none",
-			)}
-			style={
-				embedded
-					? undefined
-					: {
-							top: searchable ? 0 : offset,
-							maxHeight: `min(20rem, calc(var(--radix-popper-available-height) - ${searchable ? 0 : offset}px))`,
-						}
+		<OptionsPanel
+			category={category}
+			embedded={embedded}
+			offset={offset}
+			search={
+				searchable
+					? { value: searchValue, onChange: onSearchChange }
+					: undefined
 			}
+			empty={options?.length === 0}
+			scopeWidened={scopeWidened}
+			onToggleScope={onToggleScope}
 		>
-			{searchable && activeCategory && (
-				<FlyoutSearch
-					label={activeCategory.label}
-					value={inputValue}
-					onChange={onInputValueChange}
-				/>
-			)}
 			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
-				{activeOptions?.map((option) => {
+				{options?.map((option) => {
 					const item = option.token ?? chipToken(chipKey, option.value);
 					const selected = selectedTokens.includes(item);
 					return (
@@ -1021,26 +1016,15 @@ function CategoryOptionsList({
 							value={item}
 							onSelect={() => onSelectOption(item)}
 						>
-							{option.startIcon ? (
-								<OptionIcon>{option.startIcon}</OptionIcon>
-							) : null}
-							{option.label}
-							{selected && (
-								<CheckIcon aria-hidden className="ml-auto size-4 shrink-0" />
-							)}
+							<OptionRowContent
+								icon={option.startIcon}
+								label={option.label}
+								selected={selected}
+							/>
 						</FilterComboboxItem>
 					);
 				})}
 			</FilterComboboxList>
-			{activeOptions?.length === 0 && <NoMatchingOptions />}
-			{activeCategory?.scopeToggle && (
-				<FlyoutScopeToggle
-					categoryKey={activeCategory.key}
-					label={activeCategory.scopeToggle.label}
-					checked={scopeWidened}
-					onToggle={onToggleScope}
-				/>
-			)}
-		</div>
+		</OptionsPanel>
 	);
 }

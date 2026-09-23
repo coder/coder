@@ -404,7 +404,8 @@ export const useFilterCombobox = ({
 
 	// Category rows preview their options while the menu is open with an empty
 	// input. The empty-query key is shared with the category view, so entering a
-	// category reuses the cached result.
+	// category reuses the cached result. Inline options always load because
+	// applied chips take their labels from them.
 	const previewsEnabled = isBrowsing && activeCategoryKey === null;
 	const previewOptions = useQueries({
 		queries: categories.map((category) =>
@@ -412,7 +413,7 @@ export const useFilterCombobox = ({
 				category.key,
 				category.getOptions,
 				"",
-				previewsEnabled,
+				previewsEnabled || Boolean(category.inlineOptions),
 			),
 		),
 		combine: (results) => {
@@ -938,16 +939,16 @@ export const useFilterCombobox = ({
 
 	return {
 		open,
-		browseAll,
 		inputValue,
 		committedFreeText,
 		activeCategoryKey,
 		activeCategory,
 		activeOptions,
-		activeOptionsLoading,
 		activeOptionsError,
 		statusMessage,
 		listedCategories,
+		// Typed text is narrowing the category rows.
+		filteringCategories: categoryQuery.length > 0,
 		browseCategoryOptions: previewOptions.optionsByKey,
 		valueSuggestions,
 		inlineOptions,
@@ -977,7 +978,6 @@ export const useFilterCombobox = ({
 			retryActiveOptions,
 			retryTypeahead,
 			selectCategory,
-			leaveCategory,
 			selectCategoryOption,
 			toggleInlineOption,
 			toggleScope,
