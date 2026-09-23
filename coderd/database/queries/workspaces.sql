@@ -401,11 +401,14 @@ WHERE
 		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = @requester_id) THEN 0 ELSE 1 END ASC,
 		-- Workspaces you own should show up first.
 		CASE WHEN owner_username = (SELECT users.username FROM users WHERE users.id = @requester_id) THEN 0 ELSE 1 END ASC,
+		-- Running workspaces should show up first.
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
 			latest_build_transition = 'start'::workspace_transition) DESC,
+		-- Group workspaces by owner.
 		LOWER(owner_username) ASC,
+		-- Order workspaces by name.
 		LOWER(name) ASC
 	LIMIT
 		CASE
