@@ -229,7 +229,12 @@ export const KeyboardHandle: Story = {
  * and expanding it there is still a column beside the page, not a drawer.
  */
 export const StartsCollapsedBelowLg: Story = {
-	parameters: { viewport: { defaultViewport: "ipad" } },
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+		// Pixel ignores the Storybook viewport and has no named width between
+		// the md and lg breakpoints, so it cannot render this state.
+		pixel: { exclude: true },
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expectCollapsed(canvas);
@@ -250,7 +255,12 @@ export const StartsCollapsedBelowLg: Story = {
  * The drawer never writes to storage.
  */
 export const MobileDrawer: Story = {
-	parameters: { viewport: { defaultViewport: "iphone12" } },
+	parameters: {
+		viewport: { defaultViewport: "iphone12" },
+		// Pixel ignores the Storybook viewport; its phone width is 390px too.
+		layout: "fullscreen",
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
