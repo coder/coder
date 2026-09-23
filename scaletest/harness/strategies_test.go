@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/testutil"
 )
 
 //nolint:paralleltest // this tests uses timings to determine if it's working
@@ -49,10 +50,21 @@ func Test_LinearExecutionStrategy(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest // this tests uses timings to determine if it's working
 func Test_ConcurrentExecutionStrategy(t *testing.T) {
-	runs, fns := strategyTestData(10, func(_ context.Context, i int, _ io.Writer) error {
-		time.Sleep(1 * time.Second)
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Every run blocks until all of them have started, which only a
+	// strategy that runs them all at once can satisfy.
+	started := make(chan struct{}, 10)
+	release := make(chan struct{})
+	_, fns := strategyTestData(10, func(ctx context.Context, i int, _ io.Writer) error {
+		started <- struct{}{}
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 		if i%2 == 0 {
 			return xerrors.New("error")
 		}
@@ -60,27 +72,50 @@ func Test_ConcurrentExecutionStrategy(t *testing.T) {
 	})
 	strategy := harness.ConcurrentExecutionStrategy{}
 
-	startTime := time.Now()
-	runErrs, err := strategy.Run(context.Background(), fns)
-	require.NoError(t, err)
-	require.Len(t, runErrs, 5)
-
-	// Should've taken at least 900ms to run but less than 5 seconds.
-	require.True(t, time.Since(startTime) > 900*time.Millisecond)
-	require.True(t, time.Since(startTime) < 5*time.Second)
-
-	// All tests should've started within 500 ms of the start time.
-	endTime := startTime.Add(500 * time.Millisecond)
-	for _, run := range runs {
-		runStartTime := run.Result().StartedAt
-		require.WithinRange(t, runStartTime, startTime, endTime)
+	type result struct {
+		runErrs []error
+		err     error
 	}
+	resultC := make(chan result, 1)
+	go func() {
+		runErrs, err := strategy.Run(ctx, fns)
+		resultC <- result{runErrs, err}
+	}()
+
+	for range 10 {
+		testutil.RequireReceive(ctx, t, started)
+	}
+	close(release)
+
+	res := testutil.RequireReceive(ctx, t, resultC)
+	require.NoError(t, res.err)
+	require.Len(t, res.runErrs, 5)
 }
 
-//nolint:paralleltest // this tests uses timings to determine if it's working
 func Test_ParallelExecutionStrategy(t *testing.T) {
-	runs, fns := strategyTestData(10, func(_ context.Context, i int, _ io.Writer) error {
-		time.Sleep(1 * time.Second)
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Runs block until released, so the number in flight while blocked is
+	// exactly the concurrency the strategy allows.
+	var inFlight, maxInFlight atomic.Int64
+	started := make(chan struct{}, 10)
+	release := make(chan struct{})
+	_, fns := strategyTestData(10, func(ctx context.Context, i int, _ io.Writer) error {
+		cur := inFlight.Add(1)
+		defer inFlight.Add(-1)
+		for {
+			prev := maxInFlight.Load()
+			if cur <= prev || maxInFlight.CompareAndSwap(prev, cur) {
+				break
+			}
+		}
+		started <- struct{}{}
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 		if i%2 == 0 {
 			return xerrors.New("error")
 		}
@@ -90,39 +125,25 @@ func Test_ParallelExecutionStrategy(t *testing.T) {
 		Limit: 5,
 	}
 
-	startTime := time.Now()
-	time.Sleep(time.Millisecond)
-	runErrs, err := strategy.Run(context.Background(), fns)
-	require.NoError(t, err)
-	require.Len(t, runErrs, 5)
-
-	// Should've taken at least 1900ms to run but less than 8 seconds.
-	require.True(t, time.Since(startTime) > 1900*time.Millisecond)
-	require.True(t, time.Since(startTime) < 8*time.Second)
-
-	// Any five of the tests should've started within 500 ms of the start time.
-	endTime := startTime.Add(500 * time.Millisecond)
-	withinRange := 0
-	for _, run := range runs {
-		runStartTime := run.Result().StartedAt
-		if runStartTime.After(startTime) && runStartTime.Before(endTime) {
-			withinRange++
-		}
+	type result struct {
+		runErrs []error
+		err     error
 	}
-	require.Equal(t, 5, withinRange)
+	resultC := make(chan result, 1)
+	go func() {
+		runErrs, err := strategy.Run(ctx, fns)
+		resultC <- result{runErrs, err}
+	}()
 
-	// The other 5 tests should've started between 900ms and 1.5s after the
-	// start time.
-	startTime = startTime.Add(900 * time.Millisecond)
-	endTime = startTime.Add(600 * time.Millisecond)
-	withinRange = 0
-	for _, run := range runs {
-		runStartTime := run.Result().StartedAt
-		if runStartTime.After(startTime) && runStartTime.Before(endTime) {
-			withinRange++
-		}
+	for range 5 {
+		testutil.RequireReceive(ctx, t, started)
 	}
-	require.Equal(t, 5, withinRange)
+	close(release)
+
+	res := testutil.RequireReceive(ctx, t, resultC)
+	require.NoError(t, res.err)
+	require.Len(t, res.runErrs, 5)
+	require.EqualValues(t, 5, maxInFlight.Load())
 }
 
 //nolint:paralleltest // this tests uses timings to determine if it's working
