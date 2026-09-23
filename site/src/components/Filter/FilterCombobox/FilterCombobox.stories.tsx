@@ -657,7 +657,7 @@ export const KeyboardHighlightClosesFlyout: Story = {
 };
 
 // A category scope toggle sits below the option list; the applied chip is
-// followed by a pill for the toggle state.
+// followed by an include shared pill while the toggle is on.
 export const ScopeToggle: Story = {
 	render: () => (
 		<FilterComboboxHarness
@@ -671,7 +671,7 @@ export const ScopeToggle: Story = {
 					scopeToggle: {
 						label: "Include shared workspaces",
 						chipKey: "user",
-						pillLabels: { on: "include shared", off: "hide shared" },
+						pillLabel: "include shared",
 					},
 					getOptions: async (query) => filterOptions(ownerOptions, query),
 				},
@@ -687,29 +687,6 @@ export const ScopeToggle: Story = {
 		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
 		await body.findByRole("switch", { name: "Include shared workspaces" });
 	},
-};
-
-// With the scope toggle off, the pill beside the Owner chip reads hide shared.
-export const ScopeToggleOff: Story = {
-	render: () => (
-		<FilterComboboxHarness
-			initialQuery="owner:alice"
-			categories={[
-				{
-					key: "owner",
-					label: "Owner",
-					icon: <UserIcon />,
-					chipKeys: ["owner", "user"],
-					scopeToggle: {
-						label: "Include shared workspaces",
-						chipKey: "user",
-						pillLabels: { on: "include shared", off: "hide shared" },
-					},
-					getOptions: async (query) => filterOptions(ownerOptions, query),
-				},
-			]}
-		/>
-	),
 };
 
 // Escape closes the popup without clearing the committed chips.

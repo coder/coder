@@ -300,11 +300,9 @@ export function FilterCombobox({
 								);
 							});
 							const scopePillLabel =
-								scopeCategory?.scopeToggle &&
-								(scopeWidened(scopeCategory.key)
-									? scopeCategory.scopeToggle.pillLabels.on
-									: scopeCategory.scopeToggle.pillLabels.off
-								).toLowerCase();
+								scopeCategory?.scopeToggle && scopeWidened(scopeCategory.key)
+									? scopeCategory.scopeToggle.pillLabel.toLowerCase()
+									: undefined;
 							const inlineOption = mainInlineOptions.find(
 								({ categoryKey, option }) => {
 									const optionToken =

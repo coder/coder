@@ -45,13 +45,13 @@ export type FilterCategory = {
 	 * options commit under `chipKey` instead of the category key, e.g. Owner
 	 * committing `user:alice` (owned by or shared with alice) instead of
 	 * `owner:alice`. While the category has a chip, a pill after it shows
-	 * `pillLabels.on` or `pillLabels.off` and removing it flips the switch.
+	 * `pillLabel` while the switch is on, and removing the pill turns it off.
 	 * `chipKey` must also be listed in `chipKeys` so it parses as this
 	 * category's chip.
 	 */
 	scopeToggle?: {
 		label: string;
 		chipKey: string;
-		pillLabels: { on: string; off: string };
+		pillLabel: string;
 	};
 };
