@@ -3,8 +3,6 @@ package codersdk
 import (
 	"cmp"
 	"encoding/json"
-	"maps"
-	"slices"
 	"strings"
 	"unicode"
 
@@ -29,6 +27,8 @@ const (
 	// AppFamilySFTP only comes from history the sftp_mins column recorded.
 	AppFamilySFTP    AppFamilyName = "sftp"
 	AppFamilyUnknown AppFamilyName = "unknown"
+	// AppFamilyWorkspaceApp groups template apps, which no agent reports.
+	AppFamilyWorkspaceApp AppFamilyName = "workspace_app"
 )
 
 // AppNameOverflow sums the app names past the per-report cap.
@@ -74,7 +74,7 @@ var sessionApps = map[string]sessionApp{
 	// Zed speaks SSH, so it counts toward the SSH total.
 	"zed":              {AppFamilySSH, "Zed", "/icon/zed.svg"},
 	"ssh":              {AppFamilySSH, "SSH", "/icon/terminal.svg"},
-	"reconnecting_pty": {AppFamilyReconnectingPTY, "Web Terminal", ""},
+	"reconnecting_pty": {AppFamilyReconnectingPTY, "Web Terminal", "/icon/terminal.svg"},
 }
 
 // SessionCountApps pairs each count with its presentation, keyed by app name.
@@ -92,6 +92,13 @@ func SessionCountApps(counts map[string]int64) map[string]SessionCountApp {
 	return apps
 }
 
+// SessionAppPresentation returns an app's display name, icon, and family. An
+// unregistered name shows as itself under AppFamilyUnknown.
+func SessionAppPresentation(appName string) (displayName, icon string, family AppFamilyName) {
+	app := sessionApps[NormalizeAppName(appName)]
+	return cmp.Or(app.displayName, appName), app.icon, cmp.Or(app.family, AppFamilyUnknown)
+}
+
 // SessionCountAppFamilies returns a copy of the registry's app-to-family mapping.
 func SessionCountAppFamilies() map[string]AppFamilyName {
 	families := make(map[string]AppFamilyName, len(sessionApps))
@@ -107,27 +114,6 @@ func SumByFamily(byApp map[string]int64) map[AppFamilyName]int64 {
 	byFamily := make(map[AppFamilyName]int64)
 	for appName, value := range byApp {
 		byFamily[AppNameFamily(appName)] += value
-	}
-	return byFamily
-}
-
-// UnionByFamily folds per-app template IDs into the distinct set each family
-// was seen in, ordered by app name.
-func UnionByFamily(byApp map[string][]uuid.UUID) map[AppFamilyName][]uuid.UUID {
-	byFamily := make(map[AppFamilyName][]uuid.UUID, len(byApp))
-	seen := make(map[AppFamilyName]map[uuid.UUID]struct{}, len(byApp))
-	for _, appName := range slices.Sorted(maps.Keys(byApp)) {
-		family := AppNameFamily(appName)
-		if seen[family] == nil {
-			seen[family] = map[uuid.UUID]struct{}{}
-		}
-		for _, id := range byApp[appName] {
-			if _, ok := seen[family][id]; ok {
-				continue
-			}
-			seen[family][id] = struct{}{}
-			byFamily[family] = append(byFamily[family], id)
-		}
 	}
 	return byFamily
 }

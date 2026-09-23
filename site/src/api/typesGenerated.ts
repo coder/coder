@@ -1541,7 +1541,8 @@ export type AppFamilyName =
 	| "sftp"
 	| "ssh"
 	| "unknown"
-	| "vscode";
+	| "vscode"
+	| "workspace_app";
 
 export const AppFamilyNames: AppFamilyName[] = [
 	"jetbrains",
@@ -1550,6 +1551,7 @@ export const AppFamilyNames: AppFamilyName[] = [
 	"ssh",
 	"unknown",
 	"vscode",
+	"workspace_app",
 ];
 
 // From codersdk/deployment.go
@@ -9309,6 +9311,7 @@ export interface TemplateAppUsage {
 	readonly icon: string;
 	readonly seconds: number;
 	readonly times_used: number;
+	readonly family: AppFamilyName;
 }
 
 // From codersdk/insights.go

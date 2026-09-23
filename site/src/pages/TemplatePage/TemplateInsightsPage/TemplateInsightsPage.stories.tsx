@@ -109,6 +109,7 @@ export const Loaded: Story = {
 							icon: "/icon/code.svg",
 							seconds: 2513400,
 							times_used: 0,
+							family: "vscode",
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
@@ -118,6 +119,7 @@ export const Loaded: Story = {
 							icon: "/icon/intellij.svg",
 							seconds: 2013400,
 							times_used: 20,
+							family: "jetbrains",
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
@@ -127,6 +129,7 @@ export const Loaded: Story = {
 							icon: "/icon/terminal.svg",
 							seconds: 110400,
 							times_used: 0,
+							family: "reconnecting_pty",
 						},
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
@@ -136,6 +139,7 @@ export const Loaded: Story = {
 							icon: "/icon/terminal.svg",
 							seconds: 1020900,
 							times_used: 0,
+							family: "ssh",
 						},
 					],
 					parameters_usage: [

@@ -19172,7 +19172,8 @@ const docTemplate = `{
                 "ssh",
                 "reconnecting_pty",
                 "sftp",
-                "unknown"
+                "unknown",
+                "workspace_app"
             ],
             "x-enum-varnames": [
                 "AppFamilyVSCode",
@@ -19180,7 +19181,8 @@ const docTemplate = `{
                 "AppFamilySSH",
                 "AppFamilyReconnectingPTY",
                 "AppFamilySFTP",
-                "AppFamilyUnknown"
+                "AppFamilyUnknown",
+                "AppFamilyWorkspaceApp"
             ]
         },
         "codersdk.AppHostResponse": {
@@ -28531,7 +28533,15 @@ const docTemplate = `{
             "properties": {
                 "display_name": {
                     "type": "string",
-                    "example": "Visual Studio Code"
+                    "example": "VS Code"
+                },
+                "family": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AppFamilyName"
+                        }
+                    ],
+                    "example": "vscode"
                 },
                 "icon": {
                     "type": "string"
