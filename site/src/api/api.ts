@@ -423,6 +423,9 @@ export class ParameterValidationError extends Error {
 	}
 }
 
+type OrganizationAISpendParams = TypesGen.OrganizationAISpendFilter &
+	TypesGen.OrganizationAISpendPage;
+
 export type GetProvisionerJobsParams = {
 	status?: string;
 	limit?: number;
@@ -3062,7 +3065,9 @@ class ApiMethods {
 		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
 	};
 
-	getAIBridgeModels = async (options: SearchParamOptions) => {
+	getAIBridgeModels = async (
+		options: TypesGen.Pagination & { model?: string },
+	) => {
 		const url = getURLWithSearchParams(`${aiGatewayPath}/models`, options);
 
 		const response = await this.axios.get<string[]>(url);
@@ -3100,6 +3105,25 @@ class ApiMethods {
 		);
 		const response =
 			await this.axios.get<TypesGen.AIBridgeSessionThreadsResponse>(url);
+		return response.data;
+	};
+
+	getOrganizationAISpendUsers = async (
+		organizationId: string,
+		{ limit, offset, ...filter }: OrganizationAISpendParams,
+	): Promise<TypesGen.OrganizationAISpendReport> => {
+		// Like the Go SDK, a zero page value means the server default; the
+		// endpoint rejects an explicit limit=0.
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organizationId}/ai/spend/users`,
+			{
+				...filter,
+				limit: limit !== undefined && limit > 0 ? limit : undefined,
+				offset: offset !== undefined && offset > 0 ? offset : undefined,
+			},
+		);
+		const response =
+			await this.axios.get<TypesGen.OrganizationAISpendReport>(url);
 		return response.data;
 	};
 

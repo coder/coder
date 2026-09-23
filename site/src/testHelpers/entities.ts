@@ -4974,6 +4974,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	{
 		id: "1",
 		name: "foo",
+		redirect_uris: ["http://127.0.0.1:3001"],
 		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
 		scope: "",
@@ -4990,6 +4991,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 export const MockOAuth2ProviderAppPublic: TypesGen.OAuth2ProviderApp = {
 	id: "2",
 	name: "bar (public)",
+	redirect_uris: ["http://127.0.0.1:3002"],
 	callback_url: "http://127.0.0.1:3002",
 	icon: "/icon/github.svg",
 	scope: "",
@@ -5595,6 +5597,41 @@ export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	created_at: "2026-05-14T10:00:00Z",
 	updated_at: "2026-05-14T10:00:00Z",
 };
+
+export const MockOrganizationAISpendUser: TypesGen.OrganizationAISpendUser = {
+	user_id: MockUserOwner.id,
+	username: MockUserOwner.username,
+	name: "Test User",
+	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
+	cost_micros: 2_500_000,
+	unpriced_usage_count: 0,
+	providers: ["anthropic", "openai"],
+	clients: ["Claude Code", "Cursor"],
+	models: ["claude-opus-4-6", "gpt-5.4"],
+};
+
+export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
+	{
+		period_start: "2026-02-10T00:00:00Z",
+		period_end: "2026-03-12T00:00:00Z",
+		retention_start: "2026-01-11T15:30:00Z",
+		count: 2,
+		totals: { cost_micros: 3_500_000, unpriced_usage_count: 0 },
+		users: [
+			MockOrganizationAISpendUser,
+			{
+				...MockOrganizationAISpendUser,
+				user_id: "5e1a2b3c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
+				username: "alice",
+				name: "Alice Liddell",
+				avatar_url: "",
+				cost_micros: 1_000_000,
+				providers: ["anthropic"],
+				clients: ["Unknown"],
+				models: ["claude-opus-4-6"],
+			},
+		],
+	};
 
 export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderOpenAI,

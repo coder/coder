@@ -20,7 +20,7 @@ air-gapped with Kubernetes or Docker.
 
 ## Air-gapped container images
 
-The following instructions walk you through how to build a custom Coder server
+The following instructions walk you through how to build a custom control plane
 image for Docker or Kubernetes
 
 First, build and push a container image extending our official image with the

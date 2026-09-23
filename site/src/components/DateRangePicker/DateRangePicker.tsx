@@ -83,6 +83,13 @@ type DateRangePickerProps = {
 	now?: Date;
 	presets?: DateRangePreset[];
 	size?: ButtonProps["size"];
+	/**
+	 * Longest range the user can select, in inclusive days. Presets that
+	 * would exceed it are hidden.
+	 */
+	maxDays?: number;
+	/** Earliest selectable day. Presets that would start before it are hidden. */
+	minDate?: Date;
 };
 
 /**
@@ -91,13 +98,18 @@ type DateRangePickerProps = {
  * rounded up to the next hour (if it falls on today) or to the start of
  * the following day.
  */
-function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
+export function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
 	const currentTime = dayjs(now);
 	const start = dayjs(from).startOf("day").toDate();
 	const end = dayjs(to).isSame(currentTime, "day")
 		? currentTime.startOf("hour").add(1, "hour").toDate()
 		: dayjs(to).startOf("day").add(1, "day").toDate();
 	return { startDate: start, endDate: end };
+}
+
+function firstDayOnOrAfter(date: Date): Date {
+	const day = dayjs(date).startOf("day");
+	return (day.isSame(date) ? day : day.add(1, "day")).toDate();
 }
 
 /**
@@ -121,10 +133,47 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	now,
 	presets,
 	size = "sm",
+	maxDays,
+	minDate,
 }) => {
 	const [open, setOpen] = useState(false);
 	const currentTime = now ?? new Date();
-	const resolvedPresets = presets ?? buildDefaultPresets(now);
+
+	// maxDays counts local calendar days, but the committed boundary is an
+	// interval that APIs bound by exact duration, and a maximal range of local
+	// days that crosses a fall daylight-saving transition runs long by the
+	// shift (an hour, or half an hour in some zones). Allow one day less from
+	// such a start rather than trimming the committed range.
+	const selectableDaysFrom = (from: Date): number | undefined => {
+		if (maxDays === undefined) {
+			return undefined;
+		}
+		const lastDay = dayjs(from)
+			.add(maxDays - 1, "day")
+			.toDate();
+		const { startDate, endDate } = toBoundary(from, lastDay, currentTime);
+		return dayjs(endDate).diff(startDate, "hour", true) > maxDays * 24
+			? maxDays - 1
+			: maxDays;
+	};
+	const fitsMaxDays = (from: Date, to: Date): boolean => {
+		const limit = selectableDaysFrom(from);
+		return limit === undefined || dayjs(to).diff(from, "day") + 1 <= limit;
+	};
+
+	// Committed starts are local midnights, so a cutoff inside a day excludes
+	// that whole day rather than emitting a start before the cutoff.
+	const firstSelectableDay =
+		minDate === undefined ? undefined : firstDayOnOrAfter(minDate);
+	const resolvedPresets = (presets ?? buildDefaultPresets(now)).filter(
+		(preset) => {
+			const { from, to } = preset.range();
+			return (
+				(firstSelectableDay === undefined || from >= firstSelectableDay) &&
+				fitsMaxDays(from, to)
+			);
+		},
+	);
 
 	// Internal selection state kept separate from the committed value
 	// so the user can freely adjust the range before applying. This
@@ -148,8 +197,22 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 		setOpen(false);
 	};
 
-	const handleCalendarSelect = (range: DayPickerDateRange | undefined) => {
+	// The limit depends on the candidate's own start, which react-day-picker's
+	// max cannot express (and it treats a max of zero as unlimited), so the
+	// candidate is checked here and, like an over-long react-day-picker range,
+	// restarted from the clicked day.
+	const handleCalendarSelect = (
+		range: DayPickerDateRange | undefined,
+		triggerDate: Date,
+	) => {
 		if (!range) return;
+		if (range.from && range.to && !fitsMaxDays(range.from, range.to)) {
+			setSelection({
+				from: triggerDate,
+				to: selectableDaysFrom(triggerDate) === 1 ? triggerDate : undefined,
+			});
+			return;
+		}
 		setSelection(range);
 	};
 
@@ -177,9 +240,9 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 			<PopoverTrigger asChild>
 				<Button variant="outline" size={size}>
 					<CalendarIcon className="size-4 text-content-secondary" />
-					<span>{dayjs(value.startDate).format("MMM D, YYYY")}</span>
+					<span>{dayjs(committed.from).format("MMM D, YYYY")}</span>
 					<MoveRightIcon className="size-3.5 text-content-secondary" />
-					<span>{dayjs(value.endDate).format("MMM D, YYYY")}</span>
+					<span>{dayjs(committed.to).format("MMM D, YYYY")}</span>
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
@@ -245,7 +308,12 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 								selected={selection}
 								onSelect={handleCalendarSelect}
 								numberOfMonths={2}
-								disabled={{ after: currentTime }}
+								excludeDisabled
+								disabled={
+									firstSelectableDay === undefined
+										? { after: currentTime }
+										: [{ before: firstSelectableDay }, { after: currentTime }]
+								}
 								today={currentTime}
 							/>
 						</div>

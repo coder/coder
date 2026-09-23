@@ -305,6 +305,13 @@ export const StreamingInterruptPending: Story = {
 	},
 };
 
+export const StreamingInterruptPendingWithDraft: Story = {
+	args: {
+		...StreamingInterruptPending.args,
+		initialValue: "Also update the docs",
+	},
+};
+
 const longContent = Array.from(
 	{ length: 60 },
 	(_, i) =>
@@ -1356,6 +1363,23 @@ export const WithContextUsage: Story = {
 		await userEvent.hover(
 			within(canvasElement).getByRole("button", { name: /Context usage:/ }),
 		);
+	},
+};
+
+/** Streaming on a phone with a draft. */
+export const StreamingWithDraftMobile: Story = {
+	args: {
+		isStreaming: true,
+		onInterrupt: fn(),
+		isInterruptPending: false,
+		initialValue: "Also update the docs",
+		contextUsage: baseContextUsage,
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 };
 

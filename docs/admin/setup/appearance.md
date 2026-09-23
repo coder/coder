@@ -34,7 +34,7 @@ Site Owners may set the announcement banners.
 Example: Use multiple announcement banners for concurrent deployment-wide
 updates, such as maintenance or new feature rollout.
 
-![Multiple announcements](../../images/admin/setup/appearance/multiple-banners.PNG)
+![Multiple announcements](../../images/admin/setup/appearance/multiple-banners.png)
 
 Example: Adhere to government network classification requirements and notify
 users of which network their Coder deployment is on.
