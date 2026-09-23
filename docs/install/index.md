@@ -2,7 +2,7 @@
 title: Install Coder in your infrastructure
 ---
 
-A single CLI (`coder`) is used for both the Coder server and the client.
+A single CLI (`coder`) is used for both the control plane and the client.
 
 We support two release channels: mainline and stable - read the
 [Releases](./releases/index.md) page to learn more about which best suits your team.
@@ -63,9 +63,9 @@ This install guide is meant for **IT Administrators, DevOps, and Platform Teams*
 
 </div>
 
-## Starting the Coder Server
+## Starting the control plane
 
-To start the Coder server:
+To start the control plane:
 
 ```sh
 coder server
