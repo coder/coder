@@ -205,8 +205,23 @@ looking for.
 - Callback URL schemes moved to [Callback URL schemes](./callback-url-schemes.md).
 
 <a id="common-issues"></a>
+<a id="oauth2-endpoints-return-404"></a>
+<a id="invalid-redirect_uri"></a>
+<a id="invalid-callback-url-on-the-consent-page"></a>
+<a id="invalid_scope-returned-to-your-callback"></a>
+<a id="invalid_grant-for-a-scope-the-deployment-cannot-mint"></a>
+<a id="invalid_scope-for-a-refresh-that-names-a-scope"></a>
+<a id="invalid_client-for-a-refresh-or-a-revocation"></a>
+<a id="invalid_request-for-client_secret-in-the-query-string"></a>
+<a id="unsupported_response_type-returned-to-your-callback"></a>
+<a id="invalid_request-for-code_challenge_method"></a>
+<a id="invalid_request-for-a-rejected-parameter"></a>
+<a id="invalid_request-from-post-oauth2tokens-for-a-repeated-parameter"></a>
+<a id="invalid_target-for-a-rejected-resource"></a>
+<a id="pkce-verification-failed"></a>
+<a id="public-clients-may-not-use-the-mailtotelsms-scheme"></a>
 
-- Common Issues moved to [Troubleshooting](./troubleshooting.md).
+- Common Issues, and each of its error entries, moved to [Troubleshooting](./troubleshooting.md).
 
 <a id="security-considerations"></a>
 <a id="limitations"></a>
