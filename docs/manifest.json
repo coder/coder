@@ -845,7 +845,24 @@
 						{
 							"title": "OAuth2 Provider",
 							"description": "Use Coder as an OAuth2 authorization server so third-party apps can authenticate users.",
-							"path": "./admin/integrations/oauth2-provider.md"
+							"path": "./admin/integrations/oauth2-provider/index.md",
+							"children": [
+								{
+									"title": "OAuth2 Provider Integration Reference",
+									"description": "Client authentication methods, the PKCE flow, scopes, discovery endpoints, and token management.",
+									"path": "./admin/integrations/oauth2-provider/integration.md"
+								},
+								{
+									"title": "OAuth2 Provider Troubleshooting",
+									"description": "Diagnose and fix OAuth2 provider errors by their exact error code or message.",
+									"path": "./admin/integrations/oauth2-provider/troubleshooting.md"
+								},
+								{
+									"title": "OAuth2 Provider Security and Limitations",
+									"description": "Security considerations and current limitations of the OAuth2 provider.",
+									"path": "./admin/integrations/oauth2-provider/security.md"
+								}
+							]
 						},
 						{
 							"title": "Dev Containers",

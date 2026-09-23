@@ -1,0 +1,175 @@
+---
+title: OAuth2 provider
+---
+
+> [!NOTE]
+> The OAuth2 provider is generally available and off by default.
+> Set `CODER_OAUTH2_PROVIDER_ENABLE=true` to turn it on.
+> The `oauth2` experiment has been removed.
+
+Coder can act as an OAuth2 authorization server, allowing third-party applications to authenticate users through Coder and access the Coder API on their behalf. This enables integrations where external applications can leverage Coder's authentication and user management.
+
+## Requirements
+
+- Admin privileges in Coder
+- `CODER_OAUTH2_PROVIDER_ENABLE=true` set on the control plane
+- HTTPS recommended for production deployments
+
+## Enable OAuth2 Provider
+
+The provider is off by default.
+While it is off, the OAuth2 endpoints and discovery documents return 404 and the **OAuth2 Applications** page is hidden.
+Turn it on with the CLI flag:
+
+```sh
+coder server --oauth2-provider-enable
+```
+
+Or set the environment variable:
+
+```dotenv
+CODER_OAUTH2_PROVIDER_ENABLE=true
+```
+
+Or set it in the YAML configuration file:
+
+```yaml
+oauth2:
+  provider:
+    enable: true
+```
+
+For Kubernetes deployments that use the Helm chart, add the environment variable to `coder.env` in your values file:
+
+```yaml
+coder:
+  env:
+    - name: CODER_OAUTH2_PROVIDER_ENABLE
+      value: "true"
+```
+
+Existing applications, secrets, and user authorizations are kept while the provider is off and work again when you turn it on.
+Turning the provider off does not invalidate access tokens it already issued.
+Those tokens keep authenticating to the regular Coder API while the OAuth2 refresh and revocation endpoints return 404.
+Treat the setting as a way to stop new authorizations rather than as a way to revoke access, and revoke the tokens or delete the application before you disable the provider.
+
+## Creating OAuth2 Applications
+
+### Method 1: Web UI
+
+1. Navigate to **Deployment Settings** > **OAuth2 Applications**.
+2. On the **Applications** tab, select **Add application**.
+3. Fill in the application details:
+   - **Name**: Your application name
+   - **Callback URL**: `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop)
+   - **Icon**: Optional icon URL
+
+### Method 2: Management API
+
+Create an application using the Coder API:
+
+```sh
+curl -X POST \
+  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Application",
+    "redirect_uris": [
+      "https://myapp.example.com/callback",
+      "http://localhost:8080/callback"
+    ],
+    "icon": "https://myapp.example.com/icon.png"
+  }' \
+  "$CODER_URL/api/v2/oauth2-provider/apps"
+```
+
+`callback_url` is still accepted and still returned, but it is deprecated: it is equal to the first entry in `redirect_uris`. New scripts should send and read `redirect_uris` instead.
+
+Update an application with `PUT`. Fetch it first and edit the fields you want to change, then send the result back:
+
+```sh
+curl -X PUT \
+  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Application",
+    "redirect_uris": ["https://myapp.example.com/callback"],
+    "icon": "https://myapp.example.com/icon.png"
+  }' \
+  "$CODER_URL/api/v2/oauth2-provider/apps/$APP_ID"
+```
+
+`name` is required on every `PUT`, and `icon` is cleared if you leave it out.
+`redirect_uris` replaces the stored list when present and keeps it when omitted.
+`scope` is kept when omitted; refer to [Scopes](./integration.md#scopes) for how to change it.
+
+Add an optional `scope` field to restrict which scopes the application's clients may request.
+Refer to [Scopes](./integration.md#scopes) for how the allowlist is applied and how to change it later.
+
+Generate a client secret:
+
+```sh
+curl -X POST \
+  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  "$CODER_URL/api/v2/oauth2-provider/apps/$APP_ID/secrets"
+```
+
+## Dynamic Client Registration
+
+Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) lets a client register itself against `/oauth2/register` instead of an admin creating the application manually. It's **disabled by default**; an owner must turn it on before any client can self-register.
+
+Change the setting in the web UI:
+
+1. Navigate to **Deployment Settings** > **OAuth2 Applications**.
+2. Select the **Settings** tab.
+3. Select **Enable** or **Disable** next to **Dynamic Client Registration**.
+
+Enabling asks you to confirm first.
+Disabling does not.
+The tab is linkable directly at `https://$CODER_ACCESS_URL/deployment/oauth2-provider/apps?tab=settings`.
+
+Viewing the tab requires permission to view deployment configuration, and changing the setting requires permission to edit it.
+Without edit permission the button is present but inactive, and the page says why.
+
+Check or change the setting with the CLI:
+
+```sh
+coder oauth2-provider dcr enable
+coder oauth2-provider dcr disable
+```
+
+Or with the management API:
+
+```sh
+curl -X PUT \
+  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"dynamic_client_registration_enabled": true}' \
+  "$CODER_URL/api/v2/oauth2-provider/settings"
+```
+
+```sh
+curl -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  "$CODER_URL/api/v2/oauth2-provider/settings"
+```
+
+Disabling only blocks *new* self-registrations. Applications that already
+registered while it was enabled keep authorizing and exchanging tokens
+normally; disabling does not revoke or otherwise affect them.
+
+An application may list several `redirect_uris`, whether it registered itself or an admin created it.
+A request may present any of them, and the code it receives can only be exchanged with that same URI.
+The first entry is the primary callback: it is what the web UI shows for the application, and what a request that omits `redirect_uri` is sent to.
+An admin can edit the list through the management API, and a self-registered client can update its own list with its registration access token.
+The admin `PUT` also validates the stored name, so a self-registered client whose name has leading or trailing whitespace can only be updated with its registration access token.
+
+## Next Steps
+
+- Review the [integration reference](./integration.md) for client authentication methods, the PKCE flow, scopes, discovery endpoints, and token management
+- Check [Common issues](./troubleshooting.md) if a request fails
+- Review [Security considerations and limitations](./security.md) before deploying to production
+- Check [External Authentication](../../external-auth/index.md) for configuring Coder as an OAuth2 client
+
+## Feedback
+
+Report issues and feedback through [GitHub Issues](https://github.com/coder/coder/issues) with the `oauth2` label.
