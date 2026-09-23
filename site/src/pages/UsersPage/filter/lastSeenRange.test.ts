@@ -18,6 +18,15 @@ describe("parseLastSeenRange", () => {
 		).toEqual({ start, end });
 	});
 
+	it("starts at the Unix epoch when only an end is set", () => {
+		expect(parseLastSeenRange({ last_seen_before: end.toISOString() })).toEqual(
+			{
+				start: new Date(0),
+				end,
+			},
+		);
+	});
+
 	it.each([
 		["no bounds", {}],
 		["only a start", { last_seen_after: start.toISOString() }],
@@ -49,6 +58,16 @@ describe("withLastSeen", () => {
 		expect(withLastSeen(previous, { start, end })).toBe(
 			`role:owner last_seen_after:"${start.toISOString()}" last_seen_before:"${end.toISOString()}"`,
 		);
+	});
+
+	it("sends only the end for a range starting at the Unix epoch", () => {
+		expect(
+			withLastSeen("status:active", {
+				start: new Date(0),
+				end,
+				preset: "over_30d",
+			}),
+		).toBe(`status:active last_seen_before:"${end.toISOString()}"`);
 	});
 
 	it("clears the range for All time", () => {
