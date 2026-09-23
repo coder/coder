@@ -239,11 +239,13 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 				return;
 			}
 			// An untouched list is also left out, so a copy loaded before another
-			// admin changed the list does not overwrite their change.
-			const stored = submit.app.redirect_uris;
+			// admin changed the list does not overwrite their change. Compare
+			// against the loaded list, not the app prop: the prop refreshes after
+			// a save while the form keeps the loaded list.
+			const loaded = form.initialValues.redirect_uris;
 			const redirectURIsChanged =
-				redirectURIs.length !== stored.length ||
-				redirectURIs.some((uri, index) => uri !== stored[index]);
+				redirectURIs.length !== loaded.length ||
+				redirectURIs.some((uri, index) => uri !== loaded[index]);
 			await submit.onSubmit(
 				redirectURIsChanged
 					? { ...request, redirect_uris: redirectURIs }

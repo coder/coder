@@ -1,5 +1,6 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
+import { useState } from "react";
 import { API } from "#/api/api";
 import {
 	OAuth2RedirectURIMaxBytes,
@@ -373,39 +374,48 @@ describe("OAuth2AppForm", () => {
 
 	// The stored list is left out of an unrelated save. If another admin removed
 	// a URI after this form loaded, resending the loaded list would restore it.
-	it("omits redirect_uris and callback_url on a rename", async () => {
+	// The second save runs after the app prop refreshes to the server's list, as
+	// it does on the edit page, while the form still holds the loaded list.
+	it("omits redirect_uris and callback_url on repeated renames", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
-		const app = {
+		const loadedApp = {
 			...MockOAuth2ProviderApps[0],
 			redirect_uris: ["https://a.example.com/cb", "https://b.example.com/cb"],
 		};
+		const serverRedirectURIs = ["https://a.example.com/cb"];
+		const EditPage = () => {
+			const [app, setApp] = useState(loadedApp);
+			return (
+				<OAuth2AppForm
+					app={app}
+					clientType={app.client_type}
+					onSubmit={(req) => {
+						onSubmit(req);
+						setApp({ ...app, ...req, redirect_uris: serverRedirectURIs });
+					}}
+					isUpdating={false}
+					disabled={false}
+				/>
+			);
+		};
 
-		render(
-			<OAuth2AppForm
-				app={app}
-				clientType={app.client_type}
-				onSubmit={onSubmit}
-				isUpdating={false}
-				disabled={false}
-			/>,
-		);
+		render(<EditPage />);
 
-		await user.clear(screen.getByLabelText(/^name/i));
-		await user.type(screen.getByLabelText(/^name/i), "Renamed app");
-		await user.click(
-			screen.getByRole("button", { name: /update application/i }),
-		);
-
-		await waitFor(() => {
-			const call = onSubmit.mock.calls[0][0];
-			expect(call).toStrictEqual({
-				name: "Renamed app",
-				icon: app.icon,
-			});
-			expect(call).not.toHaveProperty("redirect_uris");
-			expect(call).not.toHaveProperty("callback_url");
-		});
+		for (const name of ["Renamed app", "Renamed again"]) {
+			await user.clear(screen.getByLabelText(/^name/i));
+			await user.type(screen.getByLabelText(/^name/i), name);
+			await user.click(
+				screen.getByRole("button", { name: /update application/i }),
+			);
+			await waitFor(() =>
+				expect(onSubmit).toHaveBeenLastCalledWith({
+					name,
+					icon: loadedApp.icon,
+				}),
+			);
+		}
+		expect(onSubmit).toHaveBeenCalledTimes(2);
 	});
 
 	it("edits an entry in place, keeping its position", async () => {
