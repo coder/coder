@@ -23,6 +23,7 @@ func TestValidateInlineMCPServers(t *testing.T) {
 		ToolAllowList: []string{"lookup"},
 	}
 	loopbackAllowed := []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}
+	longHeaderName := strings.Repeat("X", codersdk.MaxInlineMCPServerHeaderNameBytes+1)
 
 	tests := []struct {
 		name       string
@@ -70,6 +71,36 @@ func TestValidateInlineMCPServers(t *testing.T) {
 			},
 			wantField:  "inline_mcp_servers[1].slug",
 			wantDetail: "unique",
+		},
+		{
+			name:       "URLEmpty",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: ""}},
+			wantField:  "inline_mcp_servers[0].url",
+			wantDetail: "is required",
+		},
+		{
+			name:       "URLUnparseable",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: "https://mcp.example.com/%zz"}},
+			wantField:  "inline_mcp_servers[0].url",
+			wantDetail: "valid URL",
+		},
+		{
+			name:       "URLScheme",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: "ftp://mcp.example.com/mcp"}},
+			wantField:  "inline_mcp_servers[0].url",
+			wantDetail: "scheme",
+		},
+		{
+			name:       "URLMissingHost",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: "https:///mcp"}},
+			wantField:  "inline_mcp_servers[0].url",
+			wantDetail: "host is required",
+		},
+		{
+			name:       "URLFragment",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: "https://mcp.example.com/mcp#token"}},
+			wantField:  "inline_mcp_servers[0].url",
+			wantDetail: "fragment",
 		},
 		{
 			name:       "URLUserinfo",
@@ -121,6 +152,24 @@ func TestValidateInlineMCPServers(t *testing.T) {
 			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: valid.URL, Headers: map[string]string{"Mcp-Session-Id": "fixed-session"}}},
 			wantField:  "inline_mcp_servers[0].headers[Mcp-Session-Id]",
 			wantDetail: "reserved",
+		},
+		{
+			name:       "HeaderNameTooLong",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: valid.URL, Headers: map[string]string{longHeaderName: "header-value"}}},
+			wantField:  "inline_mcp_servers[0].headers[" + longHeaderName + "]",
+			wantDetail: "must not exceed",
+		},
+		{
+			name:       "HeaderNameInvalid",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: valid.URL, Headers: map[string]string{"Bad Header": "header-value"}}},
+			wantField:  "inline_mcp_servers[0].headers[Bad Header]",
+			wantDetail: "header name is invalid",
+		},
+		{
+			name:       "HeaderValueInvalid",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: valid.URL, Headers: map[string]string{"Authorization": "Bearer x\r\nX-Injected: 1"}}},
+			wantField:  "inline_mcp_servers[0].headers[Authorization]",
+			wantDetail: "header value is invalid",
 		},
 		{
 			name: "TooManyHeaders",
@@ -178,6 +227,30 @@ func TestValidateInlineMCPServers(t *testing.T) {
 			}},
 			wantField:  "inline_mcp_servers[0].tool_allow_list",
 			wantDetail: "at most",
+		},
+		{
+			name:       "EmptyToolName",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: valid.URL, ToolAllowList: []string{""}}},
+			wantField:  "inline_mcp_servers[0].tool_allow_list[0]",
+			wantDetail: "must not be empty",
+		},
+		{
+			name:       "ToolNameTooLong",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: valid.URL, ToolDenyList: []string{strings.Repeat("x", codersdk.MaxInlineMCPServerToolNameBytes+1)}}},
+			wantField:  "inline_mcp_servers[0].tool_deny_list[0]",
+			wantDetail: "must not exceed",
+		},
+		{
+			name:       "ToolNameNullByte",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: valid.URL, ToolAllowList: []string{"look\x00up"}}},
+			wantField:  "inline_mcp_servers[0].tool_allow_list[0]",
+			wantDetail: "null bytes",
+		},
+		{
+			name:       "DuplicateToolName",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: valid.URL, ToolDenyList: []string{"delete", "delete"}}},
+			wantField:  "inline_mcp_servers[0].tool_deny_list[1]",
+			wantDetail: "unique",
 		},
 		{
 			name:       "URLTooLong",
