@@ -5006,23 +5006,9 @@ export const MockOAuth2ProviderAppPublic: TypesGen.OAuth2ProviderApp = {
 	},
 };
 
-// Differs from MockOAuth2ProviderApps[0] only in how it was registered, so
-// tests can vary registration origin without also changing the client type.
 export const MockOAuth2ProviderAppDynamic: TypesGen.OAuth2ProviderApp = {
-	id: "3",
-	name: "baz (self-registered)",
-	redirect_uris: ["http://127.0.0.1:3003"],
-	callback_url: "http://127.0.0.1:3003",
-	icon: "/icon/github.svg",
-	scope: "",
-	client_type: "confidential",
+	...MockOAuth2ProviderApps[0],
 	dynamically_registered: true,
-	endpoints: {
-		authorization: "http://127.0.0.1:3003/oauth2/authorize",
-		token: "http://127.0.0.1:3003/oauth2/token",
-		device_authorization: "",
-		token_revoke: "http://127.0.0.1:3003/oauth2/revoke",
-	},
 };
 
 export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {

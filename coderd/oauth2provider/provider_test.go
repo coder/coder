@@ -284,6 +284,7 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 				require.Equal(t, test.callbackURL, updated.CallbackURL)
 				require.Equal(t, []string{test.callbackURL}, updated.RedirectURIs)
 				require.Equal(t, codersdk.OAuth2ClientTypePublic, updated.ClientType)
+				require.True(t, updated.DynamicallyRegistered)
 
 				// The edit replaces the registered URI rather than adding to it.
 				stored, err := db.GetOAuth2ProviderAppByID(ctx, appID)
@@ -291,35 +292,6 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 				require.Equal(t, []string{test.callbackURL}, stored.RedirectUris)
 			})
 		}
-	})
-
-	t.Run("RegistrationOrigin", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		oauth2providertest.EnableDCR(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		//nolint:gocritic // OAuth2 app management requires owner permission.
-		created, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-			Name:        testutil.GetRandomName(t),
-			CallbackURL: "https://example.com/callback",
-		})
-		require.NoError(t, err)
-		adminApp, err := client.OAuth2ProviderApp(ctx, created.ID)
-		require.NoError(t, err)
-		require.False(t, adminApp.DynamicallyRegistered)
-
-		registered, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
-			ClientName:   testutil.GetRandomName(t),
-			RedirectURIs: []string{"https://example.com/callback"},
-		})
-		require.NoError(t, err)
-		registeredID, err := uuid.Parse(registered.ClientID)
-		require.NoError(t, err)
-		dcrApp, err := client.OAuth2ProviderApp(ctx, registeredID)
-		require.NoError(t, err)
-		require.True(t, dcrApp.DynamicallyRegistered)
 	})
 
 	t.Run("DuplicateNames", func(t *testing.T) {
@@ -734,6 +706,33 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 
 		require.Equal(t, "coder:all workspace:read", admin.Scope)
 		require.Equal(t, admin.Scope, dcr.Scope)
+	})
+
+	t.Run("RegistrationOrigin", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		admin, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        testutil.GetRandomName(t),
+			CallbackURL: "https://example.com/callback",
+		})
+		require.NoError(t, err)
+		require.False(t, admin.DynamicallyRegistered)
+
+		registered, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+			ClientName:   testutil.GetRandomName(t),
+			RedirectURIs: []string{"https://example.com/callback"},
+		})
+		require.NoError(t, err)
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		dcr, err := client.OAuth2ProviderApp(ctx, uuid.MustParse(registered.ClientID))
+		require.NoError(t, err)
+		require.True(t, dcr.DynamicallyRegistered)
 	})
 }
 

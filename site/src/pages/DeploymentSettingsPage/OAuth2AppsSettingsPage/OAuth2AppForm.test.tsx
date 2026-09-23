@@ -66,7 +66,7 @@ describe("OAuth2AppForm", () => {
 		});
 	});
 
-	it("submits only the changed fields when a name is edited", async () => {
+	it("trims the edited name on update", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 		const app = {

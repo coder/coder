@@ -194,7 +194,7 @@ export const EditOAuth2AppPageView: FC = () => {
 					<div className="flex items-center gap-2">
 						<dt className="text-sm">Registration</dt>
 						<dd className="m-0 text-sm text-content-secondary">
-							{app.dynamically_registered ? "Self-registered" : "Admin created"}
+							{app.dynamically_registered ? "Self-registered" : "Admin-created"}
 						</dd>
 					</div>
 				</dl>

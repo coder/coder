@@ -487,8 +487,9 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 		Icon:         dbApp.Icon,
 		Scope:        rbac.CanonicalScopeList(dbApp.Scope.String),
 		ClientType:   codersdk.OAuth2ClientType(dbApp.ClientType),
-		// The column has no NOT NULL constraint, but every write path sets a
-		// value, so NULL is unexpected. Reading it as false is the safe choice.
+		// The column allows NULL, although every write path sets a value. A
+		// NULL reads as false, which keeps the client update guards closed but
+		// hides the scope narrowing warning for that app.
 		DynamicallyRegistered: dbApp.DynamicallyRegistered.Bool,
 		Endpoints: codersdk.OAuth2AppEndpoints{
 			Authorization: accessURL.ResolveReference(&url.URL{

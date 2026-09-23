@@ -65,11 +65,15 @@ type OAuth2AppFormProps = OAuth2AppFormSubmit & {
 const BACK_HREF = "/deployment/oauth2-provider/apps";
 const SCOPE_LABEL = "Allowed scopes";
 
+// Typed so a renamed scope fails to compile instead of silently not matching.
+const coderAll: TypesGen.APIKeyScope = "coder:all";
+
 /**
  * narrowsAllowlist reports whether replacing the stored scope allowlist with
- * next can reject a scope the client could previously be granted. The server
- * ignores names outside the catalog and treats an empty stored value as
- * unrestricted, so this does the same. coder:all covers every scope.
+ * next can reject a scope the client could previously be granted. It follows
+ * the server in ignoring names outside the catalog. It cannot see which scopes
+ * cover others beyond coder:all, so it may warn about a change the server
+ * would accept, but it never stays quiet about one the server would reject.
  */
 export const narrowsAllowlist = (
 	stored: string,
@@ -80,7 +84,7 @@ export const narrowsAllowlist = (
 		return false;
 	}
 	const nextGrantable = next.filter((scope) => catalog.includes(scope));
-	if (nextGrantable.includes("coder:all")) {
+	if (nextGrantable.includes(coderAll)) {
 		return false;
 	}
 	if (stored === "") {
