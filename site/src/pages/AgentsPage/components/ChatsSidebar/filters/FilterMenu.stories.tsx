@@ -70,6 +70,15 @@ export const WithActiveFilters: Story = {
 	},
 };
 
+export const Archived: Story = {
+	args: {
+		filters: { ...DEFAULT_AGENT_SIDEBAR_FILTERS, archiveStatus: "archived" },
+	},
+	play: async ({ canvasElement }) => {
+		await openMenu(canvasElement);
+	},
+};
+
 export const GroupedBySubmenu: Story = {
 	play: async ({ canvasElement }) => {
 		const menu = await openMenu(canvasElement);

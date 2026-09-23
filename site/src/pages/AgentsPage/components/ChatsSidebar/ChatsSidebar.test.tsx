@@ -215,10 +215,7 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("menuitem", { name: /State/ }));
-		await user.click(
-			await screen.findByRole("menuitemradio", { name: "Archived" }),
-		);
+		await user.click(screen.getByRole("menuitemradio", { name: "Archived" }));
 
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
 			...defaultSidebarFilters,

@@ -291,30 +291,27 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 				</div>
 
 				<div className="border-0 border-b border-solid border-border p-1">
-					<DropdownMenuSub>
-						<DropdownMenuSubTrigger>
-							<FilterRow
-								label="State"
-								value={ARCHIVE_STATUS_LABELS[filters.archiveStatus]}
-							/>
-						</DropdownMenuSubTrigger>
-						<DropdownMenuSubContent className={MOBILE_MENU_CLASS}>
-							<DropdownMenuRadioGroup
-								value={filters.archiveStatus}
-								onValueChange={setArchiveStatus}
+					<DropdownMenuPrimitive.RadioGroup
+						aria-label="State"
+						value={filters.archiveStatus}
+						onValueChange={setArchiveStatus}
+						className="mb-1 flex rounded-lg bg-surface-secondary p-0.5"
+					>
+						{AGENT_ARCHIVE_STATUS_ORDER.map((status) => (
+							<DropdownMenuPrimitive.RadioItem
+								key={status}
+								value={status}
+								onSelect={keepMenuOpen}
+								className={cn(
+									"flex flex-1 cursor-default select-none items-center justify-center rounded-md py-1 text-sm text-content-secondary outline-hidden transition-colors",
+									"focus:text-content-primary focus-visible:ring-2 focus-visible:ring-content-link",
+									"data-[state=checked]:bg-surface-tertiary data-[state=checked]:text-content-primary data-[state=checked]:shadow-sm",
+								)}
 							>
-								{AGENT_ARCHIVE_STATUS_ORDER.map((status) => (
-									<DropdownMenuRadioItem
-										key={status}
-										value={status}
-										onSelect={keepMenuOpen}
-									>
-										{ARCHIVE_STATUS_LABELS[status]}
-									</DropdownMenuRadioItem>
-								))}
-							</DropdownMenuRadioGroup>
-						</DropdownMenuSubContent>
-					</DropdownMenuSub>
+								{ARCHIVE_STATUS_LABELS[status]}
+							</DropdownMenuPrimitive.RadioItem>
+						))}
+					</DropdownMenuPrimitive.RadioGroup>
 
 					<DropdownMenuSub>
 						<DropdownMenuSubTrigger>
