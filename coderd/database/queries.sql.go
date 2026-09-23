@@ -11096,7 +11096,8 @@ inserted AS (
         cache_read_tokens,
         context_limit,
         compressed,
-        runtime_ms
+        runtime_ms,
+        provider_response_id
     )
     SELECT
         allocated.id,
@@ -11116,7 +11117,8 @@ inserted AS (
         NULLIF(($14::bigint[])[allocated.ord], 0),
         NULLIF(($15::bigint[])[allocated.ord], 0),
         ($16::boolean[])[allocated.ord],
-        NULLIF(($17::bigint[])[allocated.ord], 0)
+        NULLIF(($17::bigint[])[allocated.ord], 0),
+        NULLIF(($18::text[])[allocated.ord], '')
     FROM allocated
     RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 )
@@ -11143,6 +11145,7 @@ type InsertChatMessagesParams struct {
 	ContextLimit        []int64                 `db:"context_limit" json:"context_limit"`
 	Compressed          []bool                  `db:"compressed" json:"compressed"`
 	RuntimeMs           []int64                 `db:"runtime_ms" json:"runtime_ms"`
+	ProviderResponseID  []string                `db:"provider_response_id" json:"provider_response_id"`
 }
 
 type InsertChatMessagesRow struct {
@@ -11195,6 +11198,7 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 		pq.Array(arg.ContextLimit),
 		pq.Array(arg.Compressed),
 		pq.Array(arg.RuntimeMs),
+		pq.Array(arg.ProviderResponseID),
 	)
 	if err != nil {
 		return nil, err
