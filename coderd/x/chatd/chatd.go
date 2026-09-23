@@ -2997,7 +2997,8 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	var chatAutoArchiveRecords prometheus.Counter
 	if cfg.PrometheusRegistry != nil {
 		p.metrics = chatloop.NewMetricsWithOptions(cfg.PrometheusRegistry, chatloop.MetricsOptions{
-			StageMetrics: cfg.Experiments.Enabled(codersdk.ExperimentChatStageMetrics),
+			StageMetrics:     cfg.Experiments.Enabled(codersdk.ExperimentChatStageMetrics),
+			FullStageMetrics: cfg.Experiments.Enabled(codersdk.ExperimentChatStageMetricsFull),
 		})
 		chatAutoArchiveRecords = prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "coderd",

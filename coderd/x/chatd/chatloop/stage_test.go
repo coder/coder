@@ -2,7 +2,6 @@ package chatloop_test
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -557,51 +556,71 @@ func TestStageSpanEndWithoutObservation(t *testing.T) {
 func TestStageDurationBuckets(t *testing.T) {
 	t.Parallel()
 
-	// Alert thresholds are written against these edges, so the ladder
+	// Alert thresholds are written against these edges, so both ladders
 	// must contain them as round numbers rather than a generated ladder.
 	alertEdges := []float64{1, 5, 10, 30, 60, 300, 3600}
-	registry := prometheus.NewRegistry()
-	metrics := chatloop.NewMetrics(registry)
-	metrics.RecordStageDuration(chatloop.StageStream, chatloop.ScopeTurn, chatloop.ChatKindRoot,
-		chatloop.StageModel{ProviderType: "p", Model: "m"}, 45*time.Minute)
+	tests := []struct {
+		name        string
+		full        bool
+		wantBuckets int
+	}{
+		{name: "basic", wantBuckets: 12},
+		{name: "full", full: true, wantBuckets: 16},
+	}
+	var basicEdges []float64
+	for _, tt := range tests {
+		registry := prometheus.NewRegistry()
+		metrics := chatloop.NewMetricsWithOptions(registry, chatloop.MetricsOptions{StageMetrics: true, FullStageMetrics: tt.full})
+		metrics.RecordStageDuration(chatloop.StageStream, chatloop.ScopeTurn, chatloop.ChatKindRoot,
+			chatloop.StageModel{ProviderType: "p", Model: "m"}, 45*time.Minute)
 
-	families, err := registry.Gather()
-	require.NoError(t, err)
-	var buckets, modelBuckets []*dto.Bucket
-	for _, family := range families {
-		switch family.GetName() {
-		case "coderd_chatd_stage_duration_seconds":
-			require.Len(t, family.GetMetric(), 1)
-			buckets = family.GetMetric()[0].GetHistogram().GetBucket()
-		case "coderd_chatd_model_stage_duration_seconds":
-			require.Len(t, family.GetMetric(), 1)
-			modelBuckets = family.GetMetric()[0].GetHistogram().GetBucket()
+		families, err := registry.Gather()
+		require.NoError(t, err)
+		var buckets, modelBuckets []*dto.Bucket
+		for _, family := range families {
+			switch family.GetName() {
+			case "coderd_chatd_stage_duration_seconds":
+				require.Len(t, family.GetMetric(), 1)
+				buckets = family.GetMetric()[0].GetHistogram().GetBucket()
+			case "coderd_chatd_model_stage_duration_seconds":
+				require.Len(t, family.GetMetric(), 1)
+				modelBuckets = family.GetMetric()[0].GetHistogram().GetBucket()
+			}
 		}
-	}
-	require.Len(t, buckets, 12)
-	// Both histograms use the same ladder.
-	require.Len(t, modelBuckets, 12)
-	edges := make([]float64, 0, len(buckets))
-	for i, bucket := range buckets {
-		require.Equal(t, bucket.GetUpperBound(), modelBuckets[i].GetUpperBound())
-		edges = append(edges, bucket.GetUpperBound())
-	}
-	for _, want := range alertEdges {
-		require.Contains(t, edges, want, "bucket edge %v missing", want)
-	}
-	// A 45 minute turn lands in the 1800-3600 bucket, not the overflow.
-	for _, bucket := range buckets {
-		if bucket.GetUpperBound() < 3600 {
-			require.Zero(t, bucket.GetCumulativeCount(), "le=%v", bucket.GetUpperBound())
-		} else {
-			require.Equal(t, uint64(1), bucket.GetCumulativeCount(), "le=%v", bucket.GetUpperBound())
+		require.Len(t, buckets, tt.wantBuckets, tt.name)
+		// Both histograms use the same ladder.
+		require.Len(t, modelBuckets, tt.wantBuckets, tt.name)
+		edges := make([]float64, 0, len(buckets))
+		for i, bucket := range buckets {
+			require.Equal(t, bucket.GetUpperBound(), modelBuckets[i].GetUpperBound())
+			edges = append(edges, bucket.GetUpperBound())
+		}
+		for _, want := range alertEdges {
+			require.Contains(t, edges, want, "%s: bucket edge %v missing", tt.name, want)
+		}
+		// A 45 minute turn lands in the 1800-3600 bucket, not the overflow.
+		for _, bucket := range buckets {
+			if bucket.GetUpperBound() < 3600 {
+				require.Zero(t, bucket.GetCumulativeCount(), "%s: le=%v", tt.name, bucket.GetUpperBound())
+			} else {
+				require.Equal(t, uint64(1), bucket.GetCumulativeCount(), "%s: le=%v", tt.name, bucket.GetUpperBound())
+			}
+		}
+		if !tt.full {
+			basicEdges = edges
+			continue
+		}
+		// The full ladder is a superset of the basic one.
+		for _, edge := range basicEdges {
+			require.Contains(t, edges, edge, "full ladder missing basic edge %v", edge)
 		}
 	}
 }
 
-// TestStageMetricsEnabled covers which stage families are exposed with
-// and without the stage metrics option. Both settings must accept every
-// recorder call, since the tracer does not know the setting.
+// TestStageMetricsEnabled covers which stage families and stages each
+// combination of the stage metrics options exposes. Every setting must
+// accept every recorder call, since the tracer does not know the
+// setting.
 func TestStageMetricsEnabled(t *testing.T) {
 	t.Parallel()
 
@@ -615,11 +634,33 @@ func TestStageMetricsEnabled(t *testing.T) {
 		m.RecordStageAnomaly(chatloop.StageAnomalyInvertedWindow)
 	}
 
-	for _, enabled := range []bool{false, true} {
-		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
+	basicStages := []chatloop.Stage{chatloop.StageQueueWait, chatloop.StageTimeToFirstToken}
+	fullStages := []chatloop.Stage{chatloop.StagePrepare, chatloop.StageQueueWait, chatloop.StageThinking, chatloop.StageTimeToFirstToken}
+	basicModelStages := []chatloop.Stage{chatloop.StageTimeToFirstToken}
+	fullModelStages := []chatloop.Stage{chatloop.StageThinking, chatloop.StageTimeToFirstToken}
+	tests := []struct {
+		name            string
+		opts            chatloop.MetricsOptions
+		wantStages      []chatloop.Stage
+		wantModelStages []chatloop.Stage
+	}{
+		{name: "off", opts: chatloop.MetricsOptions{}},
+		// Full without the base option registers nothing.
+		{name: "full_only", opts: chatloop.MetricsOptions{FullStageMetrics: true}},
+		{
+			name: "basic", opts: chatloop.MetricsOptions{StageMetrics: true},
+			wantStages: basicStages, wantModelStages: basicModelStages,
+		},
+		{
+			name: "full", opts: chatloop.MetricsOptions{StageMetrics: true, FullStageMetrics: true},
+			wantStages: fullStages, wantModelStages: fullModelStages,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			metrics := chatloop.NewMetricsWithOptions(registry, chatloop.MetricsOptions{StageMetrics: enabled})
+			metrics := chatloop.NewMetricsWithOptions(registry, tt.opts)
 			record(metrics)
 
 			families, err := registry.Gather()
@@ -629,24 +670,24 @@ func TestStageMetricsEnabled(t *testing.T) {
 				byName[family.GetName()] = family
 			}
 
+			wantFamily := tt.wantStages != nil
 			_, hasDurations := byName["coderd_chatd_stage_duration_seconds"]
 			_, hasModelDurations := byName["coderd_chatd_model_stage_duration_seconds"]
 			_, hasAnomalies := byName["coderd_chatd_stage_anomalies_total"]
-			require.Equal(t, enabled, hasDurations)
-			require.Equal(t, enabled, hasModelDurations)
-			require.Equal(t, enabled, hasAnomalies)
-			if !enabled {
+			require.Equal(t, wantFamily, hasDurations)
+			require.Equal(t, wantFamily, hasModelDurations)
+			require.Equal(t, wantFamily, hasAnomalies)
+			if !wantFamily {
 				return
 			}
 
-			// prepare and thinking are span-only and never observed.
 			var stages []chatloop.Stage
 			for _, metric := range byName["coderd_chatd_stage_duration_seconds"].GetMetric() {
 				stages = append(stages, chatloop.Stage(labelValue(metric, "stage")))
 				require.Empty(t, labelValue(metric, "model"))
 			}
 			slices.Sort(stages)
-			require.Equal(t, []chatloop.Stage{chatloop.StageQueueWait, chatloop.StageTimeToFirstToken}, stages)
+			require.Equal(t, tt.wantStages, stages)
 
 			var modelStages []chatloop.Stage
 			for _, metric := range byName["coderd_chatd_model_stage_duration_seconds"].GetMetric() {
@@ -654,7 +695,8 @@ func TestStageMetricsEnabled(t *testing.T) {
 				require.Equal(t, model.ProviderType, labelValue(metric, "provider_type"))
 				require.Equal(t, model.Model, labelValue(metric, "model"))
 			}
-			require.Equal(t, []chatloop.Stage{chatloop.StageTimeToFirstToken}, modelStages)
+			slices.Sort(modelStages)
+			require.Equal(t, tt.wantModelStages, modelStages)
 
 			// The negative commit and the inverted window are counted
 			// even though commit itself would have been observed.

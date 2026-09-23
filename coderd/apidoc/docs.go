@@ -23645,7 +23645,8 @@ const docTemplate = `{
                 "chat-advisor",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks",
-                "chat-stage-metrics"
+                "chat-stage-metrics",
+                "chat-stage-metrics-full"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -23654,6 +23655,7 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                "ExperimentChatStageMetricsFull": "Observes every chat lifecycle stage and per-turn distributions at a higher series count.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -23679,7 +23681,8 @@ const docTemplate = `{
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats.",
-                "Exposes chat lifecycle stage durations as Prometheus metrics."
+                "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                "Observes every chat lifecycle stage and per-turn distributions at a higher series count."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -23696,7 +23699,8 @@ const docTemplate = `{
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks",
-                "ExperimentChatStageMetrics"
+                "ExperimentChatStageMetrics",
+                "ExperimentChatStageMetricsFull"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

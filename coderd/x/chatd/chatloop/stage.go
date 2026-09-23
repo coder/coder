@@ -410,6 +410,7 @@ func (s *StageSpan) End(err error) {
 	s.adoptTurnModel()
 	if elapsed, ok := s.closeSpan(err); ok {
 		s.tracer.observe(s.stage, s.scope, s.chatKind, s.model, elapsed)
+		s.addTurnStageTotal(elapsed)
 		s.report(elapsed, err)
 	}
 }

@@ -2,7 +2,6 @@ package chatloop
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -39,7 +38,7 @@ func newTurnFixture(t *testing.T) turnFixture {
 	})
 	registry := prometheus.NewRegistry()
 	clock := quartz.NewMock(t)
-	tracer := NewStageTracer(provider, NewMetrics(registry))
+	tracer := NewStageTracer(provider, NewMetricsWithOptions(registry, MetricsOptions{StageMetrics: true, FullStageMetrics: true}))
 	tracer.clock = clock
 	return turnFixture{tracer: tracer, clock: clock, spans: recorder, registry: registry}
 }
@@ -214,9 +213,35 @@ func TestTurnAccountingPartition(t *testing.T) {
 	require.InDelta(t, turnDuration.Seconds(), total, 0.001,
 		"the categories must partition the turn")
 
+	shares := fixture.categorySums(t, "coderd_chatd_turn_time_share")
+	require.Len(t, shares, len(TurnTimeCategories))
+	var shareTotal float64
+	for category, share := range shares {
+		require.InDelta(t, categories[category]/turnDuration.Seconds(), share, 0.001)
+		shareTotal += share
+	}
+	require.InDelta(t, 1, shareTotal, 0.001)
+
+	stages := fixture.stageSums(t, "coderd_chatd_turn_stage_seconds")
+	require.Equal(t, map[Stage]float64{
+		StageQueueWait:        2,
+		StageGenerationStep:   11 + 7 + 9 + 8,
+		StagePrepare:          2 + 1,
+		StageMCPConnect:       1,
+		StageStream:           7 + 3,
+		StageTimeToFirstToken: 3,
+		StageCommit:           1 + 1,
+		StageRetryBackoff:     6,
+		StageCompaction:       8,
+	}, stages)
+	require.NotContains(t, stages, StageChatTurn,
+		"the turn's own duration is the denominator, not a stage of itself")
+
 	// The turn families carry chat_kind and no model, effort, or
 	// organization label.
-	labels := fixture.labelsOf(t, "coderd_chatd_turn_time_seconds_total", "category", string(CategoryStreaming))
+	labels := fixture.labelsOf(t, "coderd_chatd_turn_stage_seconds", "stage", string(StageStream))
+	require.Equal(t, map[string]string{"stage": string(StageStream), "chat_kind": string(ChatKindRoot)}, labels)
+	labels = fixture.labelsOf(t, "coderd_chatd_turn_time_seconds_total", "category", string(CategoryStreaming))
 	require.Equal(t, map[string]string{"category": string(CategoryStreaming), "chat_kind": string(ChatKindRoot)}, labels)
 }
 
@@ -422,6 +447,10 @@ func TestTurnAccountingIgnoresWorkOutsideTheTurn(t *testing.T) {
 		acc.MarkCompleted()
 		turnSpan.End(nil)
 
+		stages := fixture.stageSums(t, "coderd_chatd_turn_stage_seconds")
+		require.NotContains(t, stages, StageStream)
+		require.NotContains(t, stages, StageTimeToFirstToken)
+		require.NotContains(t, stages, StageQueueWait)
 		categories := fixture.categorySums(t, "coderd_chatd_turn_time_seconds_total")
 		require.Zero(t, categories[CategoryStreaming])
 		require.Zero(t, categories[CategoryTimeToFirstToken])
@@ -478,6 +507,9 @@ func TestTurnAccountingCapacityWaitIsNotCategorized(t *testing.T) {
 	acc.MarkCompleted()
 	turnSpan.End(nil)
 
+	stages := fixture.stageSums(t, "coderd_chatd_turn_stage_seconds")
+	require.Equal(t, 3.0, stages[StageCapacityWait])
+	require.Equal(t, 5.0, stages[StageAcquisition])
 	categories := fixture.categorySums(t, "coderd_chatd_turn_time_seconds_total")
 	require.Equal(t, 5.0, categories[CategoryScheduling])
 	require.Equal(t, 0.0, categories[CategoryUnattributed])
@@ -508,6 +540,39 @@ func TestTurnAccountingClampsOwnTime(t *testing.T) {
 	require.Equal(t, 8.0, categories[CategoryPreparation])
 	require.Equal(t, 0.0, categories[CategoryChatdOverhead], "the step's own time is clamped at zero")
 	require.Equal(t, 1.0, fixture.anomalies(t)[StageAnomalyOverattributed])
+}
+
+func TestTurnAccountingZeroElapsedStageIsReported(t *testing.T) {
+	t.Parallel()
+	fixture := newTurnFixture(t)
+
+	acc := NewTurnAccumulator()
+	ctx := ContextWithTurnAccumulator(t.Context(), acc)
+	turnCtx, turnSpan := fixture.tracer.StartRootAt(ctx, StageChatTurn, fixture.clock.Now(), nil)
+	_, commit := fixture.tracer.Start(turnCtx, StageCommit)
+	commit.End(nil)
+	fixture.clock.Advance(time.Second)
+	acc.MarkCompleted()
+	turnSpan.End(nil)
+
+	// A stage that took no measurable time is still a stage the turn
+	// ran: one observation of zero seconds.
+	families, err := fixture.registry.Gather()
+	require.NoError(t, err)
+	var found bool
+	for _, family := range families {
+		if family.GetName() != "coderd_chatd_turn_stage_seconds" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			if metricLabel(metric, "stage") == string(StageCommit) {
+				found = true
+				require.Equal(t, uint64(1), metric.GetHistogram().GetSampleCount())
+				require.Zero(t, metric.GetHistogram().GetSampleSum())
+			}
+		}
+	}
+	require.True(t, found)
 }
 
 func TestTurnAccountingConcurrentStageEnds(t *testing.T) {
@@ -543,10 +608,9 @@ func TestTurnAccountingConcurrentStageEnds(t *testing.T) {
 	acc.MarkCompleted()
 	turnSpan.End(nil)
 
-	// Every commit's second reached the partition; a lost update under
-	// the concurrent ends would show as a smaller total.
-	categories := fixture.categorySums(t, "coderd_chatd_turn_time_seconds_total")
-	require.Equal(t, float64(workers), categories[CategoryPersistence])
+	stages := fixture.stageSums(t, "coderd_chatd_turn_stage_seconds")
+	require.Equal(t, float64(workers), stages[StageToolCall])
+	require.Equal(t, float64(workers), stages[StageCommit])
 }
 
 // anomalies returns the anomaly counter values keyed by reason.
@@ -650,27 +714,47 @@ func TestTurnAccountingStampsModelOnRoot(t *testing.T) {
 	require.NotContains(t, labels, "model", "the model is a span attribute on the turn, not a metric label")
 }
 
-// TestTurnMetricsEnabled covers that the turn families follow the stage
-// metrics option and that the recorders accept calls either way,
-// because emitTurnAccounting does not know the setting.
+// TestTurnMetricsEnabled covers which per-turn families the stage
+// metrics options expose. The recorders must accept calls under every
+// setting because emitTurnAccounting does not know the setting.
 func TestTurnMetricsEnabled(t *testing.T) {
 	t.Parallel()
 
-	turnFamilies := []string{
+	counterFamilies := []string{
 		"coderd_chatd_turn_outcomes_total",
 		"coderd_chatd_turn_time_seconds_total",
 		"coderd_chatd_turns_total",
 	}
-	for _, enabled := range []bool{false, true} {
-		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
+	turnFamilies := []string{
+		"coderd_chatd_turn_outcomes_total",
+		"coderd_chatd_turn_stage_seconds",
+		"coderd_chatd_turn_time_seconds",
+		"coderd_chatd_turn_time_seconds_total",
+		"coderd_chatd_turn_time_share",
+		"coderd_chatd_turns_total",
+	}
+	tests := []struct {
+		name string
+		opts MetricsOptions
+		want []string
+	}{
+		{name: "off", opts: MetricsOptions{}, want: nil},
+		// Full without the base option registers nothing.
+		{name: "full_only", opts: MetricsOptions{FullStageMetrics: true}, want: nil},
+		{name: "basic", opts: MetricsOptions{StageMetrics: true}, want: counterFamilies},
+		{name: "full", opts: MetricsOptions{StageMetrics: true, FullStageMetrics: true}, want: turnFamilies},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			metrics := NewMetricsWithOptions(registry, MetricsOptions{StageMetrics: enabled})
+			metrics := NewMetricsWithOptions(registry, tt.opts)
+			metrics.RecordTurnStage(StageStream, ChatKindRoot, time.Minute)
 			metrics.RecordTurn(ChatKindRoot)
 			metrics.RecordTurnOutcome(TurnOutcomeCompleted, ChatKindRoot)
 			metrics.RecordTurnOutcome(TurnOutcomeError, ChatKindRoot)
-			metrics.RecordTurnCategory(CategoryStreaming, ChatKindRoot, time.Minute)
-			metrics.RecordTurnCategory(CategoryScheduling, ChatKindRoot, 0)
+			metrics.RecordTurnCategory(CategoryStreaming, ChatKindRoot, time.Minute, 0.5)
+			metrics.RecordTurnCategory(CategoryScheduling, ChatKindRoot, 0, 0)
 
 			families, err := registry.Gather()
 			require.NoError(t, err)
@@ -683,12 +767,12 @@ func TestTurnMetricsEnabled(t *testing.T) {
 				}
 			}
 			slices.Sort(got)
-			if !enabled {
-				require.Empty(t, got)
+			require.Equal(t, tt.want, got)
+			if tt.want == nil {
 				return
 			}
-			require.Equal(t, turnFamilies, got)
-			// One turn, sixty seconds streaming, zero scheduling.
+			// The counters carry the same totals the histogram would:
+			// one turn, sixty seconds streaming, zero scheduling.
 			turns := byName["coderd_chatd_turns_total"].GetMetric()
 			require.Len(t, turns, 1)
 			require.Equal(t, float64(1), turns[0].GetCounter().GetValue())

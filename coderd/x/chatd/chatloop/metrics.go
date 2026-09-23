@@ -45,10 +45,10 @@ const (
 )
 
 // observedStages is the set of stages observed into
-// StageDurationSeconds. It holds the wait, connect, model-call, tool,
-// and commit stages; the stages that only describe chatd's own work
-// inside a step (generation_step, prepare, thinking, compaction) are
-// span-only.
+// StageDurationSeconds without FullStageMetrics. It holds the wait,
+// connect, model-call, tool, and commit stages; the stages that only
+// describe chatd's own work inside a step (generation_step, prepare,
+// thinking, compaction) are span-only.
 var observedStages = map[Stage]struct{}{
 	StageChatTurn:         {},
 	StageQueueWait:        {},
@@ -72,9 +72,26 @@ var modelStages = map[Stage]struct{}{
 	StageProviderAttempt:  {},
 }
 
+// fullModelStages holds the model-bound stages observed into
+// ModelStageDurationSeconds only with FullStageMetrics.
+var fullModelStages = map[Stage]struct{}{
+	StageThinking:   {},
+	StageCompaction: {},
+}
+
 // stageDurationBuckets are the edges of both stage histograms, dense
 // between 100ms and 10s and sparse out to an hour.
 var stageDurationBuckets = []float64{0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 300, 1800, 3600}
+
+// fullStageDurationBuckets is a superset of stageDurationBuckets that
+// adds edges at 50ms and between 20s and 10min, so a query written
+// against either ladder reads the same edges.
+var fullStageDurationBuckets = []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 30, 60, 120, 300, 600, 1800, 3600}
+
+// turnDurationBuckets are the edges for histograms of per-turn sums:
+// 1s to 1h. Sub-second resolution carries no information for a value
+// summed over a whole turn.
+var turnDurationBuckets = []float64{1, 2.5, 5, 10, 30, 60, 120, 300, 600, 1800, 3600}
 
 // MetricsOptions configures which optional metric families NewMetrics
 // registers.
@@ -83,6 +100,11 @@ type MetricsOptions struct {
 	// false they are still constructed, against no registerer, so every
 	// recorder can be called; they never appear in a scrape.
 	StageMetrics bool
+	// FullStageMetrics widens the stage families: every stage is
+	// observed on the stage histograms, both use the 16-edge ladder, and
+	// the per-turn distribution families are registered. It has no
+	// effect when StageMetrics is false.
+	FullStageMetrics bool
 }
 
 // Metrics holds Prometheus metrics for the chatd subsystem.
@@ -99,6 +121,9 @@ type Metrics struct {
 	TurnTimeSecondsTotal      *prometheus.CounterVec
 	TurnsTotal                *prometheus.CounterVec
 	TurnOutcomesTotal         *prometheus.CounterVec
+	TurnStageSeconds          *prometheus.HistogramVec
+	TurnTimeSeconds           *prometheus.HistogramVec
+	TurnTimeShare             *prometheus.HistogramVec
 	StageAnomaliesTotal       *prometheus.CounterVec
 	CompactionTotal           *prometheus.CounterVec
 	StepsTotal                *prometheus.CounterVec
@@ -107,10 +132,15 @@ type Metrics struct {
 	FindToolsEmptyTotal       prometheus.Counter
 	FindToolsMatchCount       prometheus.Histogram
 	FindToolsActivationsTotal prometheus.Counter
+
+	// full is whether every stage is observed and the per-turn
+	// distribution families are registered.
+	full bool
 }
 
 // NewMetrics creates a new Metrics instance registered with the
-// given registerer, with the stage metric families enabled.
+// given registerer, with the stage metric families enabled and the
+// full set disabled.
 func NewMetrics(reg prometheus.Registerer) *Metrics {
 	return NewMetricsWithOptions(reg, MetricsOptions{StageMetrics: true})
 }
@@ -123,7 +153,18 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 	if !opts.StageMetrics {
 		stageFactory = promauto.With(nil)
 	}
+	full := opts.StageMetrics && opts.FullStageMetrics
+	// fullFactory registers the per-turn distribution families.
+	fullFactory := stageFactory
+	if !full {
+		fullFactory = promauto.With(nil)
+	}
+	buckets := stageDurationBuckets
+	if full {
+		buckets = fullStageDurationBuckets
+	}
 	m := &Metrics{
+		full: full,
 		Chats: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -174,15 +215,15 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "stage_duration_seconds",
-			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap in wall time; this is a stage-time profile, not a partition of the turn. The scope label separates stages that run inside a chat turn from detached background work. The chat_kind label is empty for stages recorded without a known chat. Only the turn, wait, connect, model-call, tool, and commit stages are observed; the others are span-only.",
-			Buckets:   stageDurationBuckets,
+			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap in wall time; this is a stage-time profile, not a partition of the turn. The scope label separates stages that run inside a chat turn from detached background work. The chat_kind label is empty for stages recorded without a known chat. Without the chat-stage-metrics-full experiment only the turn, wait, connect, model-call, tool, and commit stages are observed; the others are span-only.",
+			Buckets:   buckets,
 		}, []string{"stage", "scope", "chat_kind"}),
 		ModelStageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "model_stage_duration_seconds",
-			Help:      "Wall time spent in the chat lifecycle stages that are a provider's work on a model: time_to_first_token, stream, and provider_attempt. Every observation here is also observed on stage_duration_seconds. provider_type is the configured type of the model's AI provider (for example bedrock), not the wire protocol the provider label of other chatd metrics reports. chat_kind is empty for stages recorded without a known chat.",
-			Buckets:   stageDurationBuckets,
+			Help:      "Wall time spent in the chat lifecycle stages that are a provider's work on a model: time_to_first_token, stream, and provider_attempt, plus thinking and compaction with the chat-stage-metrics-full experiment. Every observation here is also observed on stage_duration_seconds. provider_type is the configured type of the model's AI provider (for example bedrock), not the wire protocol the provider label of other chatd metrics reports. chat_kind is empty for stages recorded without a known chat.",
+			Buckets:   buckets,
 		}, []string{"stage", "provider_type", "chat_kind", "model"}),
 		TurnTimeSecondsTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
@@ -202,6 +243,27 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Name:      "turn_outcomes_total",
 			Help:      "Total chat turns by outcome (completed, interrupted, error, abandoned); every closed turn is counted exactly once, and completed turns are the ones whose time partition is recorded.",
 		}, []string{"outcome", "chat_kind"}),
+		TurnStageSeconds: fullFactory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_stage_seconds",
+			Help:      "Total wall time one chat turn spent in a stage, observed once per turn when the turn ends. Stages overlap, so these do not partition the turn. Only turns that finished normally are counted. Registered only with the chat-stage-metrics-full experiment.",
+			Buckets:   turnDurationBuckets,
+		}, []string{"stage", "chat_kind"}),
+		TurnTimeSeconds: fullFactory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_time_seconds",
+			Help:      "Wall time of one chat turn split into disjoint categories that sum to the turn duration, observed once per turn per category when the turn ends. Every category is observed, including the ones with no time. Only turns that finished normally are counted. Registered only with the chat-stage-metrics-full experiment.",
+			Buckets:   turnDurationBuckets,
+		}, []string{"category", "chat_kind"}),
+		TurnTimeShare: fullFactory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_time_share",
+			Help:      "Fraction of a chat turn's wall time in each disjoint category, observed once per turn per category when the turn ends. The shares of one turn sum to 1. Only turns that finished normally are counted. Registered only with the chat-stage-metrics-full experiment.",
+			Buckets:   prometheus.LinearBuckets(0, 0.05, 21),
+		}, []string{"category", "chat_kind"}),
 		StageAnomaliesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -263,10 +325,10 @@ func NopMetrics() *Metrics {
 
 // RecordStageDuration observes one chat lifecycle stage duration.
 // chatKind is empty when the stage was recorded without a known chat.
-// Negative durations are dropped and counted as an anomaly. Stages
-// outside observedStages are dropped silently. Stages in modelStages
-// whose model is known are additionally observed on
-// ModelStageDurationSeconds. No-op when m is nil.
+// Negative durations are dropped and counted as an anomaly. Without
+// full metrics, stages outside observedStages are dropped silently.
+// Stages in the model set whose model is known are additionally
+// observed on ModelStageDurationSeconds. No-op when m is nil.
 func (m *Metrics) RecordStageDuration(stage Stage, scope Scope, chatKind ChatKind, model StageModel, elapsed time.Duration) {
 	if m == nil {
 		return
@@ -275,15 +337,21 @@ func (m *Metrics) RecordStageDuration(stage Stage, scope Scope, chatKind ChatKin
 		m.RecordStageAnomaly(StageAnomalyNegativeElapsed)
 		return
 	}
-	if _, ok := observedStages[stage]; !ok {
-		return
+	if !m.full {
+		if _, ok := observedStages[stage]; !ok {
+			return
+		}
 	}
 	seconds := elapsed.Seconds()
 	m.StageDurationSeconds.WithLabelValues(string(stage), string(scope), string(chatKind)).Observe(seconds)
 	if model.Model == "" {
 		return
 	}
-	if _, modelStage := modelStages[stage]; modelStage {
+	_, modelStage := modelStages[stage]
+	if !modelStage && m.full {
+		_, modelStage = fullModelStages[stage]
+	}
+	if modelStage {
 		m.ModelStageDurationSeconds.WithLabelValues(string(stage), model.ProviderType, string(chatKind), model.Model).Observe(seconds)
 	}
 }
@@ -297,14 +365,27 @@ func (m *Metrics) RecordStageAnomaly(reason string) {
 	m.StageAnomaliesTotal.WithLabelValues(reason).Inc()
 }
 
-// RecordTurnCategory adds one category of a turn's time partition to
-// the category counter. Categories with no time are recorded as zero
-// so every category has a series. No-op when m is nil.
-func (m *Metrics) RecordTurnCategory(category Category, chatKind ChatKind, elapsed time.Duration) {
+// RecordTurnStage observes the total time one turn spent in a stage.
+// No-op when m is nil.
+func (m *Metrics) RecordTurnStage(stage Stage, chatKind ChatKind, elapsed time.Duration) {
+	if m == nil || elapsed < 0 {
+		return
+	}
+	m.TurnStageSeconds.WithLabelValues(string(stage), string(chatKind)).Observe(elapsed.Seconds())
+}
+
+// RecordTurnCategory records one category of a turn's time partition:
+// it adds the elapsed time to the category counter and observes the
+// elapsed time and its fraction of the turn on the per-turn histograms.
+// Categories with no time are recorded as zero so every category has a
+// series and the shares of a turn sum to 1. No-op when m is nil.
+func (m *Metrics) RecordTurnCategory(category Category, chatKind ChatKind, elapsed time.Duration, share float64) {
 	if m == nil || elapsed < 0 {
 		return
 	}
 	m.TurnTimeSecondsTotal.WithLabelValues(string(category), string(chatKind)).Add(elapsed.Seconds())
+	m.TurnTimeSeconds.WithLabelValues(string(category), string(chatKind)).Observe(elapsed.Seconds())
+	m.TurnTimeShare.WithLabelValues(string(category), string(chatKind)).Observe(share)
 }
 
 // RecordTurn counts one finished turn whose time partition was
