@@ -18,7 +18,6 @@ const scopedOwnerCategory: FilterCategory = {
 		label: "Include shared workspaces",
 		chipKey: "user",
 		pillLabel: "include shared",
-		defaultValue: "me",
 	},
 };
 
@@ -343,15 +342,16 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it("turns the scope toggle on from typed text and clears the text", async () => {
+	it("opens the Owner flyout with its toggle when typing shared", async () => {
 		const { user, onChange, input } = setup([scopedOwnerCategory], {
 			initialValue: "owner:alice",
+			skipHover: true,
 		});
 
 		await user.click(input);
 		await user.type(input, "shared");
 		await user.click(
-			await screen.findByRole("option", { name: "Include shared workspaces" }),
+			await screen.findByRole("switch", { name: "Include shared workspaces" }),
 		);
 
 		await waitFor(() =>
@@ -360,15 +360,18 @@ describe("FilterCombobox", () => {
 		expect(input).toHaveValue("");
 	});
 
-	it("applies the scope default when picked from typed text without a chip", async () => {
-		const { user, onChange, input } = setup([scopedOwnerCategory]);
+	it("clears the typed text when picking an owner from the scope flyout", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			skipHover: true,
+		});
 
 		await user.click(input);
 		await user.type(input, "sha");
-		await user.click(
-			await screen.findByRole("option", { name: "Include shared workspaces" }),
-		);
+		await user.click(await screen.findByRole("button", { name: "alice" }));
 
-		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("user:me"));
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+		expect(input).toHaveValue("");
 	});
 });

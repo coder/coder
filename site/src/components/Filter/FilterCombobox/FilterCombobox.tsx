@@ -97,9 +97,9 @@ export function FilterCombobox({
 		statusMessage,
 		listedCategories,
 		filteringCategories,
+		scopeMatchKey,
 		browseCategoryOptions,
 		valueSuggestions,
-		scopeSuggestions,
 		inlineOptions,
 		mainInlineOptions,
 		chipValues,
@@ -135,6 +135,15 @@ export function FilterCombobox({
 		flyout.menuOpen === open ? flyout.categoryKey : null;
 	const setFlyoutCategoryKey = (categoryKey: string | null) =>
 		setFlyout({ categoryKey, menuOpen: open });
+	// Typing a scope toggle label (e.g. `shared`) opens that category's flyout
+	// while its row is highlighted, so the toggle is visible.
+	const shownFlyoutKey =
+		flyoutCategoryKey ??
+		(!isCoarsePointer &&
+		scopeMatchKey !== null &&
+		highlightedItem === scopeMatchKey
+			? scopeMatchKey
+			: null);
 	const categoryRows = useRef(new Map<string, HTMLDivElement>());
 	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const cancelHoverSwitch = () => {
@@ -174,7 +183,7 @@ export function FilterCombobox({
 	};
 	// Side panels align with the row that opened them. Measured after commit so
 	// keyboard-entered categories line up too, not only pointer-hovered ones.
-	const panelCategoryKey = activeCategoryKey ?? flyoutCategoryKey;
+	const panelCategoryKey = activeCategoryKey ?? shownFlyoutKey;
 	const [panelOffset, setPanelOffset] = useState(0);
 	useLayoutEffect(() => {
 		setPanelOffset(
@@ -197,16 +206,22 @@ export function FilterCombobox({
 		updateFlyoutCategory(isCategoryRow ? highlighted : null, !isCategoryRow);
 	};
 	const flyoutCategory = categories.find(
-		(category) => category.key === flyoutCategoryKey,
+		(category) => category.key === shownFlyoutKey,
 	);
-	// Typed text narrows the category rows, so there is no hover flyout and a
-	// click enters the category like Enter does.
+	// Typed text narrows the category rows, so a click enters the category like
+	// Enter does and only a scope match gets a flyout.
 	const flyoutOptions =
 		activeCategoryKey === null &&
-		flyoutCategoryKey !== null &&
-		!filteringCategories
-			? browseCategoryOptions.get(flyoutCategoryKey)
+		shownFlyoutKey !== null &&
+		(!filteringCategories || shownFlyoutKey === scopeMatchKey)
+			? browseCategoryOptions.get(shownFlyoutKey)
 			: undefined;
+	// Toggling clears text typed to find the category, so the flyout is pinned
+	// open explicitly rather than through the scope match.
+	const toggleFlyoutScope = (categoryKey: string) => {
+		setFlyoutCategoryKey(categoryKey);
+		actions.toggleScope(categoryKey);
+	};
 	const selectFlyoutOption = (token: string) => {
 		actions.selectCategoryOption(token);
 		updateFlyoutCategory(null, true);
@@ -220,14 +235,12 @@ export function FilterCombobox({
 	const mainPanelProps = {
 		listedCategories,
 		valueSuggestions,
-		scopeSuggestions,
 		inlineOptions,
 		typeaheadError,
 		registerCategoryRow,
 		onSelectCategory: selectCategory,
 		onHoverCategory: updateFlyoutCategory,
 		onToggleInlineOption: actions.toggleInlineOption,
-		onSelectScopeSuggestion: actions.selectScopeSuggestion,
 		onSelectSuggestion: actions.selectValueSuggestion,
 		onRetry: actions.retryTypeahead,
 	};
@@ -458,7 +471,7 @@ export function FilterCombobox({
 										selectedTokens={chipValues}
 										chipKey={optionChipKey(flyoutCategory.key)}
 										scopeWidened={scopeWidened(flyoutCategory.key)}
-										onToggleScope={actions.toggleScope}
+										onToggleScope={toggleFlyoutScope}
 										onMouseEnter={cancelHoverSwitch}
 										onSelectOption={selectFlyoutOption}
 									/>
@@ -558,13 +571,6 @@ type ValueSuggestion = {
 	option: Pick<FilterOption, "label" | "startIcon">;
 };
 
-type ScopeSuggestion = {
-	categoryKey: string;
-	categoryLabel: string;
-	label: string;
-	selected: boolean;
-};
-
 const groupByCategoryLabel = <T extends { categoryLabel: string }>(
 	items: readonly T[],
 ): Array<[string, T[]]> => {
@@ -583,7 +589,6 @@ const groupByCategoryLabel = <T extends { categoryLabel: string }>(
 type MainPanelProps = Readonly<{
 	listedCategories: readonly FilterCategory[];
 	valueSuggestions: readonly ValueSuggestion[];
-	scopeSuggestions: readonly ScopeSuggestion[];
 	inlineOptions: readonly InlineOption[];
 	typeaheadError: boolean;
 	embedded?: boolean;
@@ -597,7 +602,6 @@ type MainPanelProps = Readonly<{
 	onSelectCategory: (categoryKey: string) => void;
 	onHoverCategory: (categoryKey: string | null, immediate?: boolean) => void;
 	onToggleInlineOption: (token: string) => void;
-	onSelectScopeSuggestion: (categoryKey: string) => void;
 	onSelectSuggestion: (token: string) => void;
 	onRetry: () => void;
 }>;
@@ -605,7 +609,6 @@ type MainPanelProps = Readonly<{
 function MainPanel({
 	listedCategories,
 	valueSuggestions,
-	scopeSuggestions,
 	inlineOptions,
 	typeaheadError,
 	embedded = false,
@@ -614,14 +617,12 @@ function MainPanel({
 	onSelectCategory,
 	onHoverCategory,
 	onToggleInlineOption,
-	onSelectScopeSuggestion,
 	onSelectSuggestion,
 	onRetry,
 }: MainPanelProps) {
 	const isEmpty =
 		listedCategories.length === 0 &&
 		valueSuggestions.length === 0 &&
-		scopeSuggestions.length === 0 &&
 		inlineOptions.length === 0 &&
 		!typeaheadError;
 
@@ -686,25 +687,6 @@ function MainPanel({
 							</FilterComboboxItem>
 						);
 					})}
-				</FilterComboboxGroup>
-			))}
-			{scopeSuggestions.map((suggestion) => (
-				<FilterComboboxGroup key={`${suggestion.categoryKey}-scope`}>
-					<FilterComboboxLabel>{suggestion.categoryLabel}</FilterComboboxLabel>
-					<FilterComboboxItem
-						className={cn(
-							OPTION_ITEM_CLASS,
-							suggestion.selected && "text-content-primary",
-						)}
-						// No colon, so the value never parses as a chip token.
-						value={`scope-toggle-${suggestion.categoryKey}`}
-						onSelect={() => onSelectScopeSuggestion(suggestion.categoryKey)}
-					>
-						<OptionRowContent
-							label={suggestion.label}
-							selected={suggestion.selected}
-						/>
-					</FilterComboboxItem>
 				</FilterComboboxGroup>
 			))}
 			{groupByCategoryLabel(valueSuggestions).map(

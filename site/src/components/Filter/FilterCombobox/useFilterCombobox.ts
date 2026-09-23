@@ -313,12 +313,30 @@ export const useFilterCombobox = ({
 
 	const categoryQuery =
 		activeCategoryKey !== null || browseAll ? "" : inputValue.trim();
+	// Typing the start of a word in a scope toggle's pill label (e.g. `sha` for
+	// `include shared`) finds its category, so the toggle is one step away.
+	const scopeQuery = categoryQuery.toLowerCase();
+	const scopeMatchedCategory =
+		scopeQuery.length < 3 || typedInlinePrefix !== null
+			? undefined
+			: submenuCategories.find((category) => {
+					const pillLabel = category.scopeToggle?.pillLabel.toLowerCase();
+					return (
+						pillLabel !== undefined &&
+						(pillLabel.startsWith(scopeQuery) ||
+							pillLabel.split(" ").some((word) => word.startsWith(scopeQuery)))
+					);
+				});
+	const matchedCategories = matchCategories(categoryQuery, submenuCategories);
 	const listedCategories =
 		!open || typedInlinePrefix !== null
 			? []
 			: categoryQuery.length === 0
 				? submenuCategories
-				: matchCategories(categoryQuery, submenuCategories);
+				: scopeMatchedCategory &&
+						!matchedCategories.includes(scopeMatchedCategory)
+					? [...matchedCategories, scopeMatchedCategory]
+					: matchedCategories;
 
 	const activeOptionsQuerySource = activeCategoryKey !== null ? inputValue : "";
 	const debouncedActiveOptionsQuery = useDebouncedValue(
@@ -480,34 +498,6 @@ export const useFilterCombobox = ({
 					chipValues,
 				);
 
-	// Typing part of a scope toggle's pill label (e.g. `shared`) offers the
-	// toggle as a row, like typing part of a status offers that status.
-	const hasCategoryChip = (category: FilterCategory) =>
-		chipValues.some((token) => {
-			const key = chipKeyOf(token);
-			return key === category.key || key === category.scopeToggle?.chipKey;
-		});
-	const scopeQuery =
-		typeaheadActive && !browseAll && typedInlinePrefix === null
-			? inputValue.trim().toLowerCase()
-			: "";
-	const scopeSuggestions =
-		scopeQuery.length === 0
-			? []
-			: categories.flatMap((category) =>
-					category.scopeToggle?.pillLabel.toLowerCase().includes(scopeQuery)
-						? [
-								{
-									categoryKey: category.key,
-									categoryLabel: category.label,
-									label: category.scopeToggle.label,
-									selected:
-										hasCategoryChip(category) && isScopeWidened(category),
-								},
-							]
-						: [],
-				);
-
 	// A rejected suggestion query must not leave the popup spinning forever;
 	// treat an error as "done loading" and surface it instead.
 	const suggestionsError =
@@ -533,7 +523,6 @@ export const useFilterCombobox = ({
 		!typeaheadError &&
 		listedCategories.length === 0 &&
 		inlineOptions.length === 0 &&
-		scopeSuggestions.length === 0 &&
 		valueSuggestions.length === 0;
 
 	const activeOptionsEmpty =
@@ -623,7 +612,12 @@ export const useFilterCombobox = ({
 		];
 	};
 
-	const toggleScope = (categoryKey: string, freeText?: string) => {
+	// Text typed to find a category in the main menu is filter search, so it is
+	// dropped once a filter is picked from that category's flyout.
+	const typedFilterText =
+		mode === "browsing" && !browseAll && inputValue.trim().length > 0;
+
+	const toggleScope = (categoryKey: string) => {
 		const category = categories.find((entry) => entry.key === categoryKey);
 		const toggle = category?.scopeToggle;
 		if (!category || !toggle) {
@@ -645,37 +639,12 @@ export const useFilterCombobox = ({
 			const parsed = parseChipToken(token, chipKeys);
 			return parsed?.key === fromKey ? chipToken(toKey, parsed.value) : token;
 		});
-		if (
-			freeText !== undefined ||
-			rewritten.some((token, index) => token !== chipValues[index])
-		) {
-			updateFromChips(rewritten, freeText);
+		if (typedFilterText) {
+			updateFromChips(rewritten, "");
+			dispatch({ type: "typeFreeText", value: "" });
+		} else if (rewritten.some((token, index) => token !== chipValues[index])) {
+			updateFromChips(rewritten);
 		}
-	};
-
-	// Picking the typed scope row flips the toggle and drops the typed text. With
-	// no chip for the category yet, it applies the toggle's default value so the
-	// wider scope takes effect.
-	const selectScopeSuggestion = (categoryKey: string) => {
-		const category = categories.find((entry) => entry.key === categoryKey);
-		const toggle = category?.scopeToggle;
-		if (!category || !toggle) {
-			return;
-		}
-		if (hasCategoryChip(category)) {
-			toggleScope(categoryKey, "");
-		} else {
-			setNarrowedScopes((previous) => {
-				const next = new Set(previous);
-				next.delete(category.key);
-				return next;
-			});
-			updateFromChips(
-				[...chipValues, chipToken(toggle.chipKey, toggle.defaultValue)],
-				"",
-			);
-		}
-		dispatch({ type: "typeFreeText", value: "" });
 	};
 
 	const selectValueSuggestion = (token: string) => {
@@ -697,7 +666,7 @@ export const useFilterCombobox = ({
 	};
 
 	const selectCategoryOption = (token: string) => {
-		updateFromChips(withOptionToken(token));
+		updateFromChips(withOptionToken(token), typedFilterText ? "" : undefined);
 		returnToCategories();
 	};
 
@@ -1006,9 +975,10 @@ export const useFilterCombobox = ({
 		listedCategories,
 		// Typed text is narrowing the category rows.
 		filteringCategories: categoryQuery.length > 0,
+		// Category found through its scope toggle label, whose flyout opens.
+		scopeMatchKey: scopeMatchedCategory?.key ?? null,
 		browseCategoryOptions: previewOptions.optionsByKey,
 		valueSuggestions,
-		scopeSuggestions,
 		inlineOptions,
 		mainInlineOptions,
 		chipValues,
@@ -1039,7 +1009,6 @@ export const useFilterCombobox = ({
 			selectCategoryOption,
 			toggleInlineOption,
 			toggleScope,
-			selectScopeSuggestion,
 			selectValueSuggestion,
 			onInputFocus: handleInputFocus,
 			onInputKeyDown: handleInputKeyDown,
