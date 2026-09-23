@@ -4,7 +4,7 @@ This guide documents the PR description style used in the Coder repository, base
 
 ## PR Title Format
 
-Format: `type(scope): description`. See [CONTRIBUTING.md](CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
+Format: `type(scope): description`. See [CONTRIBUTING.md](../../CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
 
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
 - Scopes must be a real path (directory or file stem) containing all changed files
@@ -141,7 +141,7 @@ Refs #[issue-number]
 
 - ❌ **Test plans** - Testing is handled through code review and CI
 - ❌ **"Benefits" sections** - Benefits should be clear from the description
-- ❌ **Implementation details** - Keep it high-level
+- ❌ **Line-by-line implementation walkthroughs** - Name the key change, as the bugfix example does, and leave the rest to the diff
 - ❌ **Marketing language** - Stay technical and factual
 - ❌ **Bullet lists of features** (unless it's a large refactor that needs enumeration)
 
@@ -182,7 +182,7 @@ Changes from https://github.com/upstream/repo/pull/XXX/
 
 ## Creating PRs as Draft
 
-**IMPORTANT**: Unless explicitly told otherwise, always create PRs as drafts using the `--draft` flag:
+Unless explicitly told otherwise, create PRs as drafts using the `--draft` flag:
 
 ```bash
 gh pr create --draft --title "..." --body "..."
@@ -213,30 +213,3 @@ Only create non-draft PRs when the user explicitly requests it or when following
 6. **Use soft wrapping** - Let GitHub wrap PR body prose naturally
 7. **No test plans** - Code review and CI handle testing
 8. **No benefits sections** - Benefits should be obvious from the technical description
-
-## Examples by Category
-
-### Performance Improvements
-
-Includes query timing metrics and explains the index solution
-
-### Bug Fixes
-
-Describes broken behavior then the fix in two sentences
-
-### Documentation
-
-- **Major rewrite**: Long form explaining inaccuracies and improvements
-- **Simple correction**: One sentence for simple correction
-
-### Features
-
-Simple statement of what was added and dependencies
-
-### Refactoring
-
-Explains why client-side sorting is now redundant
-
-### Configuration
-
-Adds guidelines with issue reference

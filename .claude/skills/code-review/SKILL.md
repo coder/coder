@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Reviews code changes for bugs, security issues, and quality problems
+description: Reviews code changes for bugs, security issues, and quality problems. Use for a single-pass review of a PR, branch, or local diff; for large PRs that span several subsystems, use deep-review.
 ---
 
 # Code Review Skill
@@ -94,6 +94,8 @@ GitHub Actions context variables (`github.*`, `inputs.*`) are always defined.
 
 - **Only comment when confident** - If you're not 80%+ sure it's a real issue,
   don't comment. Verify claims before posting.
-- **No speculation** - Avoid "might", "could", "consider". State facts or skip.
+- **No speculation about bugs** - For correctness and security issues, avoid
+  "might", "could", "consider"; state facts or skip. Design suggestions may be
+  phrased as questions ("Could we use X instead?").
 - **Verify technical claims** - Check documentation or code before asserting how
   something works. Don't guess at API behavior or syntax rules.

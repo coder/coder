@@ -136,7 +136,7 @@ shown below when adding new failures.
   or related annotations.
 - How to diagnose: Compare the new handler with nearby handlers and inspect
   generated API docs for the route.
-- Existing docs or tools: `AGENTS.md`, [Documentation Style Guide](DOCS_STYLE_GUIDE.md),
+- Existing docs or tools: `AGENTS.md`, [API Design Guardrails](WORKFLOWS.md#api-design-guardrails),
   and API generation checks.
 - Missing harness piece: Agents need a doc reminder that endpoint work includes
   docs unless the route is intentionally experimental.

@@ -20,8 +20,8 @@ Use the canonical docs for shared conventions and validation guidance:
 
 - PR title and description conventions:
   `.claude/docs/PR_STYLE_GUIDE.md`
-- Local validation commands and git hooks: `AGENTS.md` (Essential Commands and
-  Git Hooks sections)
+- Local validation commands and git hooks: `AGENTS.md` (Essential commands and
+  Workflow sections) and `.claude/docs/WORKFLOWS.md` (Git Hooks section)
 
 ## Body Formatting
 

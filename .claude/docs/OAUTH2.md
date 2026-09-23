@@ -8,7 +8,7 @@ When implementing standard protocols (OAuth2, OpenID Connect, etc.):
 
 1. **Fetch and Analyze Official RFCs**:
    - Always read the actual RFC specifications before implementation
-   - Use WebFetch tool to get current RFC content for compliance verification
+   - Fetch the current RFC text (for example, with your harness's web fetch tool) for compliance verification
    - Document RFC requirements in code comments
 
 2. **Default Values Matter**:

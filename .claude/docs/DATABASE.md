@@ -166,7 +166,7 @@ func TestDatabaseFunction(t *testing.T) {
 
 ### Schema Design
 
-1. **Use appropriate data types**: VARCHAR for strings, TIMESTAMP for times
+1. **Match existing column types**: `text` for strings, `timestamp with time zone` for times (see `coderd/database/dump.sql`)
 2. **Add constraints**: NOT NULL, UNIQUE, FOREIGN KEY as appropriate
 3. **Create indexes**: For frequently queried columns
 4. **Consider performance**: Normalize appropriately but avoid over-normalization
@@ -228,23 +228,11 @@ ORDER BY created_at DESC;
 
 ### Audit Patterns
 
-```go
-// Example: Auditable database operation
-func (q *sqlQuerier) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-    // Implementation here
-
-    // Audit the change
-    if auditor := audit.FromContext(ctx); auditor != nil {
-        auditor.Record(audit.UserUpdate{
-            UserID: arg.ID,
-            Old:    oldUser,
-            New:    newUser,
-        })
-    }
-
-    return newUser, nil
-}
-```
+Auditable resources are tracked field by field in `enterprise/audit/table.go`.
+When you add a column to an auditable type, add it there with an action and
+rerun `make gen`. HTTP handlers record audit entries with
+`audit.InitRequest[T]`; read a nearby handler such as `coderd/ai_providers.go`
+for the pattern.
 
 ## Debugging Database Issues
 

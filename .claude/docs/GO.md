@@ -7,7 +7,9 @@ declares. Check `go.mod` before writing code.
 
 ## Go LSP Navigation
 
-Use Go LSP tools first for backend code navigation:
+Use the Go language server when available for backend code navigation.
+Claude Code exposes it from `.mcp.json` under the tool names below;
+other harnesses name the same operations differently:
 
 - **Find definitions**: `mcp__go-language-server__definition symbolName`
 - **Find references**: `mcp__go-language-server__references symbolName`
@@ -120,14 +122,14 @@ directive version required in `go.mod`.
 | `atomic.LoadInt64` / `AddInt64` / `StoreInt64` etc.                 | `atomic.Int64` (also `Int32`, `Uint32`, `Uint64`, `Bool`, `Pointer[T]`) | 1.19      |
 | `crypto/rand.Read(buf)` + hex/base64 encode                         | `crypto/rand.Text()` (one call)                                         | 1.24      |
 | Checking `crypto/rand.Read` error                                   | don't: return is always nil                                             | 1.24      |
-| `time.Sleep` in tests                                               | `testing/synctest` (deterministic fake clock)                           | 1.24/1.25 |
+| `time.Sleep` in tests                                               | `quartz.NewMock(t)` (this repo's fake clock; see TESTING.md)            | n/a       |
 | `json:",omitempty"` on zero-value structs like `time.Time{}`        | `json:",omitzero"` (uses `IsZero()` method)                             | 1.24      |
 | `strings.Title`                                                     | `golang.org/x/text/cases`                                               | 1.18      |
 | `net.IP` in new code                                                | `net/netip.Addr` (immutable, comparable, lighter)                       | 1.18      |
 | `tools.go` with blank imports                                       | `tool` directive in `go.mod`                                            | 1.24      |
 | `runtime.SetFinalizer`                                              | `runtime.AddCleanup` (multiple per object, no pointer cycles)           | 1.24      |
 | `httputil.ReverseProxy.Director`                                    | `.Rewrite` hook + `ProxyRequest` (Director deprecated in 1.26)          | 1.20      |
-| `sql.NullString`, `sql.NullInt64`, etc.                             | `sql.Null[T]`                                                           | 1.22      |
+| `sql.NullString`, `sql.NullInt64`, etc. in hand-written code        | `sql.Null[T]` (sqlc-generated models keep `sql.NullString`; match them) | 1.22      |
 | Manual `ctx, cancel := context.WithCancel(…)` + `t.Cleanup(cancel)` | `t.Context()` (auto-canceled when test ends)                            | 1.24      |
 | `if d < 0 { d = -d }` on durations                                  | `d.Abs()` (handles `math.MinInt64`)                                     | 1.19      |
 | Implement only `TextMarshaler`                                      | also implement `TextAppender` for alloc-free marshaling                 | 1.24      |
@@ -204,13 +206,8 @@ integer type. Default source is `ChaCha8` (crypto-quality). No global
 
 ### `log/slog` (1.21)
 
-`slog.Info`, `slog.Warn`, `slog.Error`, `slog.Debug` with key-value
-pairs. `slog.With(attrs...)` for logger with preset fields.
-`slog.GroupAttrs` (1.25) for clean group creation. Implement
-`slog.Handler` for custom backends.
-
-**Note:** This project uses `cdr.dev/slog/v3`, not `log/slog`. The
-API is different. Read existing code for usage patterns.
+This project logs with `cdr.dev/slog/v3`, not `log/slog`. The API is
+different. Read existing code for usage patterns.
 
 ## Pitfalls
 

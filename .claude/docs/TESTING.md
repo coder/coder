@@ -160,7 +160,7 @@ When facing multiple failing tests or complex integration issues:
    - Test each fix individually before moving to next issue
    - Use `make lint` and `make gen` after database changes
    - Verify RFC compliance with actual specifications
-   - Run comprehensive test suites before considering complete
+   - Before handoff, run the affected packages' tests and the broader checks the changed area requires
 
 ## Test Data Management
 
@@ -210,6 +210,8 @@ tests := []struct {
 
 for _, tt := range tests {
     t.Run(tt.name, func(t *testing.T) {
+        t.Parallel()
+
         result, err := functionUnderTest(tt.input)
         if tt.wantErr {
             require.Error(t, err)
@@ -236,13 +238,14 @@ require.True(t, condition)
 ### Load Testing
 
 - Use `scaletest/` directory for load testing scenarios
-- Run `./scaletest/scaletest.sh` for performance testing
+- Run load scenarios with `coder exp scaletest` (see `cli/exp_scaletest.go`);
+  the runner template lives in `scaletest/templates/scaletest-runner/`
 
 ### Benchmarking
 
 ```go
 func BenchmarkFunction(b *testing.B) {
-    for i := 0; i < b.N; i++ {
+    for b.Loop() {
         // Function call to benchmark
         _ = functionUnderTest(input)
     }

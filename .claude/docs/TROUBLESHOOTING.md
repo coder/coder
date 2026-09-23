@@ -55,7 +55,7 @@
 
 1. **RFC compliance failures**
     - **Solution**: Verify against actual RFC specifications, not assumptions
-    - Use WebFetch tool to get current RFC content for compliance verification
+    - Fetch the current RFC text (for example, with your harness's web fetch tool) for compliance verification
     - Read the actual RFC specifications before implementation
 
 2. **Default value mismatches**
@@ -91,8 +91,8 @@
 
 ## Systematic Debugging Approach
 
-YOU MUST ALWAYS find the root cause of any issue you are debugging
-YOU MUST NEVER fix a symptom or add a workaround instead of finding a root cause, even if it is faster.
+Find the root cause of an issue before fixing it. Do not fix a symptom or
+add a workaround in place of a root-cause fix, even when the workaround is faster.
 
 ### Multi-Issue Problem Solving
 
@@ -118,7 +118,7 @@ When facing multiple failing tests or complex integration issues:
    - Verify Before Continuing: Did your test work? If not, form new hypothesis - don't add more fixes
    - Use `make lint` and `make gen` after database changes
    - Verify RFC compliance with actual specifications
-   - Run comprehensive test suites before considering complete
+   - Before handoff, run the affected packages' tests and the broader checks the changed area requires
 
 ## Debug Commands
 
@@ -132,6 +132,9 @@ When facing multiple failing tests or complex integration issues:
 | `go test -race ./...`                        | Run tests with race detector          |
 
 ### LSP Debugging
+
+These are the Claude Code tool names from `.mcp.json`; other harnesses name
+the same language-server operations differently.
 
 #### Go LSP (Backend)
 
@@ -201,16 +204,16 @@ When facing multiple failing tests or complex integration issues:
 
 ### During Development
 
-1. **Run tests frequently**: `make test`
-2. **Use LSP tools for navigation**: Avoid manual searching
+1. **Run targeted tests frequently**: `make test RUN=TestName`
+2. **Use a language server for symbol navigation when available**; use text search for strings, SQL, and config
 3. **Follow RFC specifications precisely**
 4. **Update audit tables when adding database fields**
 
 ### Before Committing
 
-1. **Run full test suite**: `make test`
+1. **Run the affected packages' tests**: `go test ./path/to/package`
 2. **Check linting**: `make lint`
-3. **Test with race detector**: `make test-race`
+3. **Run the race detector when the change touches concurrency**: `go test -race ./path/to/package`
 
 ## Getting Help
 
