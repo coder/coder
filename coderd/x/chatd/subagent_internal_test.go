@@ -85,6 +85,7 @@ type internalTestServerConfig struct {
 	experiments      codersdk.Experiments
 	transportFactory *atomic.Pointer[aibridge.TransportFactory]
 	limits           Limits
+	registry         prometheus.Registerer
 }
 
 type internalTestServerOpt func(*internalTestServerConfig)
@@ -110,6 +111,12 @@ func withInternalTestServerWorker() internalTestServerOpt {
 func withInternalTestServerExperiments(experiments codersdk.Experiments) internalTestServerOpt {
 	return func(cfg *internalTestServerConfig) {
 		cfg.experiments = experiments
+	}
+}
+
+func withInternalTestServerRegistry(registry prometheus.Registerer) internalTestServerOpt {
+	return func(cfg *internalTestServerConfig) {
+		cfg.registry = registry
 	}
 }
 
@@ -171,6 +178,7 @@ func newInternalTestServer(
 		ExperimentEvaluator:        evaluator,
 		AIBridgeTransportFactory:   cfg.transportFactory,
 		Limits:                     cfg.limits,
+		PrometheusRegistry:         cfg.registry,
 	})
 	require.NoError(t, err)
 	if cfg.startWorker {
