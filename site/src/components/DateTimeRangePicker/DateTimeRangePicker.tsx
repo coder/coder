@@ -230,13 +230,23 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 							: `${label}: ${triggerLabel}`
 					}
 				>
-					<span className="size-icon-sm shrink-0">
+					<span
+						className={cn(
+							"size-icon-sm shrink-0",
+							isPlaceholder && "text-content-secondary",
+						)}
+					>
 						<CalendarIcon strokeWidth={1.75} className="size-full p-0" />
 					</span>
 					<span className={cn(isPlaceholder && "text-content-secondary")}>
 						{triggerLabel}
 					</span>
-					<ChevronDownIcon className="size-icon-sm" />
+					<ChevronDownIcon
+						className={cn(
+							"size-icon-sm",
+							isPlaceholder && "text-content-secondary",
+						)}
+					/>
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
