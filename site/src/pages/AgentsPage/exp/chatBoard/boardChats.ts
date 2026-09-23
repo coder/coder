@@ -7,8 +7,10 @@ import {
 	getChatListQueryString,
 	invalidateChatEntity,
 	invalidateChatListQueries,
+	invalidateChatSearches,
 	patchChatEntity,
 	toChatListParams,
+	updateChatTitle,
 	updateInfiniteChatsCache,
 } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
@@ -62,25 +64,26 @@ type UpdateChatLabelsVariables = {
 	after?: Promise<unknown>;
 };
 
-// Label writes in flight per client. The list is invalidated only when the
-// last one settles: a response that predates a pending write would replace
-// its optimistic patch. Not `isMutating`: two writes settling in one tick
-// both see 2.
-const pending = new WeakMap<QueryClient, { count: number }>();
+// Board writes run one at a time in call order, so a map built before a
+// newer write cannot land after it. onMutate still patches at once.
+const boardWriteScope = { id: "chat-board-write" };
 
-const pendingFor = (queryClient: QueryClient) => {
-	let entry = pending.get(queryClient);
-	if (!entry) {
-		entry = { count: 0 };
-		pending.set(queryClient, entry);
-	}
-	return entry;
+// The list is refetched only after the last board write: a response that
+// predates a pending write would replace its optimistic patch. The settling
+// write still counts as pending, and the scope settles one at a time.
+const settleBoardWrite = (queryClient: QueryClient, chatId: string) => {
+	const pending = queryClient.isMutating({
+		predicate: (m) => m.options.scope?.id === boardWriteScope.id,
+	});
+	if (pending === 1) void invalidateChatListQueries(queryClient);
+	void invalidateChatEntity(queryClient, chatId);
 };
 
 // Labels replace the whole map server-side, so callers pass the complete
 // desired map. The caches are patched before the request so board drags
 // settle instantly; the settled invalidation corrects any divergence.
 export const updateChatLabels = (queryClient: QueryClient) => ({
+	scope: boardWriteScope,
 	mutationFn: async ({ chatId, labels, after }: UpdateChatLabelsVariables) => {
 		// A skipped write sends nothing; the settled refetch reverts its
 		// optimistic patch.
@@ -97,7 +100,6 @@ export const updateChatLabels = (queryClient: QueryClient) => ({
 	},
 
 	onMutate: async ({ chatId, labels }: UpdateChatLabelsVariables) => {
-		pendingFor(queryClient).count += 1;
 		// A list refetch already in flight carries pre-write labels. If it lands
 		// after the patch below it replaces the list, the board reverts, and
 		// the next write on this chat is built from the stale map. Initial loads
@@ -118,10 +120,21 @@ export const updateChatLabels = (queryClient: QueryClient) => ({
 		_data: unknown,
 		_error: unknown,
 		{ chatId }: UpdateChatLabelsVariables,
+	) => settleBoardWrite(queryClient, chatId),
+});
+
+// The stock title mutation refetches the list on settle unconditionally,
+// which would replace the optimistic labels of writes still queued behind
+// it.
+export const updateBoardChatTitle = (queryClient: QueryClient) => ({
+	...updateChatTitle(queryClient),
+	scope: boardWriteScope,
+	onSettled: (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: { chatId: string },
 	) => {
-		const inFlight = pendingFor(queryClient);
-		inFlight.count -= 1;
-		if (inFlight.count === 0) void invalidateChatListQueries(queryClient);
-		void invalidateChatEntity(queryClient, chatId);
+		settleBoardWrite(queryClient, chatId);
+		void invalidateChatSearches(queryClient);
 	},
 });

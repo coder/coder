@@ -136,8 +136,8 @@ snapshot the previous maps of every touched chat so they can be undone.
 - Multi pull request chats show the first pull request only.
 - The assistant is not told when its snapshot is stale on return.
 - Concurrent edits from two browsers are last write wins.
-- A second command on a chat while a transfer that touches it is still in
-  flight is last write wins, like any concurrent edit.
+- If a transfer's receiver is rejected, an edit to a source chat made before
+  the board refetches saves the source without the transferred data.
 - Notes have no id of their own: the list keys them by timestamp, so notes
   stored without one fall back to display order.
 - No Storybook stories: the experiment is off by default and not a Pixel
