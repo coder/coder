@@ -4,15 +4,8 @@ import {
 	MenuSkeleton,
 	type useFilter,
 } from "#/components/Filter/Filter";
-import {
-	type UseFilterMenuOptions,
-	useFilterMenu,
-} from "#/components/Filter/menu";
-import {
-	SelectFilter,
-	type SelectFilterOption,
-} from "#/components/Filter/SelectFilter";
-import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
+import type { UseFilterMenuResult } from "#/components/Filter/menu";
+import { SelectFilter } from "#/components/Filter/SelectFilter";
 import { docs } from "#/utils/docs";
 
 const userFilterQuery = {
@@ -21,38 +14,7 @@ const userFilterQuery = {
 	all: "",
 };
 
-export const useStatusFilterMenu = ({
-	value,
-	onChange,
-}: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
-	const statusOptions: SelectFilterOption[] = [
-		{
-			value: "active",
-			label: "Active",
-			startIcon: <StatusIndicatorDot variant="success" />,
-		},
-		{
-			value: "dormant",
-			label: "Dormant",
-			startIcon: <StatusIndicatorDot variant="warning" />,
-		},
-		{
-			value: "suspended",
-			label: "Suspended",
-			startIcon: <StatusIndicatorDot variant="inactive" />,
-		},
-	];
-	return useFilterMenu({
-		onChange,
-		value,
-		id: "status",
-		getSelectedOption: async () =>
-			statusOptions.find((option) => option.value === value) ?? null,
-		getOptions: async () => statusOptions,
-	});
-};
-
-type StatusFilterMenu = ReturnType<typeof useStatusFilterMenu>;
+type StatusFilterMenu = UseFilterMenuResult;
 
 const PRESET_FILTERS = [
 	{ query: userFilterQuery.active, name: "Active users" },

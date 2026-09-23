@@ -1,14 +1,20 @@
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { deploymentConfig } from "#/api/queries/deployment";
 import { groupsByUserId } from "#/api/queries/groups";
 import { paginatedUsers } from "#/api/queries/users";
+import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { useFilter } from "#/components/Filter/Filter";
-import { useStatusFilterMenu } from "#/components/Filter/UsersFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
+import {
+	ALL_TIME_PRESET_ID,
+	parseLastSeenRange,
+	withLastSeen,
+} from "./filter/lastSeenRange";
 import { UsersPageView } from "./UsersPageView";
 
 const UsersPage: React.FC = () => {
@@ -35,14 +41,25 @@ const UsersPage: React.FC = () => {
 		onUpdate: usersQuery.goToFirstPage,
 	});
 
-	const statusMenu = useStatusFilterMenu({
-		value: useFilterResult.values.status,
-		onChange: (option) =>
-			useFilterResult.update({
-				...useFilterResult.values,
-				status: option?.value,
-			}),
-	});
+	const lastSeenRange = parseLastSeenRange(useFilterResult.values);
+	// The URL stores resolved timestamps, so the preset label only shows while
+	// the URL range still matches the last picked preset.
+	const [lastPicked, setLastPicked] = useState<DateTimeRangeValue>();
+	const lastSeen: DateTimeRangeValue =
+		lastSeenRange === undefined
+			? { start: new Date(0), end: new Date(), preset: ALL_TIME_PRESET_ID }
+			: {
+					...lastSeenRange,
+					preset:
+						lastPicked?.start.getTime() === lastSeenRange.start.getTime() &&
+						lastPicked.end.getTime() === lastSeenRange.end.getTime()
+							? lastPicked.preset
+							: undefined,
+				};
+	const onLastSeenChange = (value: DateTimeRangeValue) => {
+		setLastPicked(value);
+		useFilterResult.update(withLastSeen(useFilterResult.query, value));
+	};
 
 	// Indicates if oidc roles are synced from the oidc idp.
 	// Assign 'false' if unknown.
@@ -61,7 +78,8 @@ const UsersPage: React.FC = () => {
 				filterProps={{
 					filter: useFilterResult,
 					error: usersQuery.error,
-					menus: { status: statusMenu },
+					lastSeen,
+					onLastSeenChange,
 				}}
 				usersQuery={usersQuery}
 				groupsByUserId={groupsByUserIdQuery.data}

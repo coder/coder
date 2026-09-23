@@ -41,6 +41,11 @@ type DateTimeRangePickerProps = {
 	now?: Date;
 	presets?: QuickPreset[];
 	size?: ButtonProps["size"];
+	/**
+	 * What the range filters, e.g. "Last seen". Prefixes the trigger's
+	 * accessible name so the applied range keeps its context.
+	 */
+	label?: string;
 };
 
 const INVALID_TIME_MESSAGE = "Enter a valid time, e.g. 09:30:00";
@@ -76,6 +81,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	now,
 	presets,
 	size = "sm",
+	label,
 }) => {
 	const currentTime = now ?? new Date();
 	const quickPresets = presets ?? DEFAULT_QUICK_PRESETS;
@@ -199,7 +205,9 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 			? undefined
 			: quickPresets.find((preset) => preset.id === value.preset);
 	const triggerLabel =
-		activePreset?.label ?? formatCustomLabel(value.start, value.end);
+		activePreset?.triggerLabel ??
+		activePreset?.label ??
+		formatCustomLabel(value.start, value.end);
 
 	const selectedQuickPickIndex = customExpanded
 		? quickPresets.length
@@ -211,7 +219,16 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size={size} className="group gap-2 pr-1.5">
+				<Button
+					variant="outline"
+					size={size}
+					className="group gap-2 pr-1.5"
+					aria-label={
+						label === undefined || label === triggerLabel
+							? undefined
+							: `${label}: ${triggerLabel}`
+					}
+				>
 					<span className="size-icon-sm shrink-0">
 						<CalendarIcon strokeWidth={1.75} className="size-full p-0" />
 					</span>
