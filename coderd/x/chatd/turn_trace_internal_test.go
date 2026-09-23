@@ -116,7 +116,7 @@ func TestRecordThinkingStages(t *testing.T) {
 
 	t.Run("PairsByIndex", func(t *testing.T) {
 		t.Parallel()
-		tracer, recorder := newStageTestTracer(t)
+		tracer, recorder, _ := newStageMetricsTracer(t)
 		starter := &taskStarter{server: &Server{stages: tracer}}
 		base := time.Now().Add(-time.Minute)
 
@@ -141,7 +141,7 @@ func TestRecordThinkingStages(t *testing.T) {
 
 	t.Run("StopsAtFirstUnpairedStart", func(t *testing.T) {
 		t.Parallel()
-		tracer, recorder := newStageTestTracer(t)
+		tracer, recorder, _ := newStageMetricsTracer(t)
 		starter := &taskStarter{server: &Server{stages: tracer}}
 		base := time.Now().Add(-time.Minute)
 
