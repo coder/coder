@@ -593,6 +593,7 @@ func bedrockModelSupportsAdaptiveThinking(model string) bool {
 func bedrockModelRequiresAdaptiveThinking(model string) bool {
 	return strings.Contains(model, "anthropic.claude-opus-4-7") ||
 		strings.Contains(model, "anthropic.claude-opus-4-8") ||
+		strings.Contains(model, "anthropic.claude-opus-5-5") ||
 		strings.Contains(model, "anthropic.claude-sonnet-5")
 }
 

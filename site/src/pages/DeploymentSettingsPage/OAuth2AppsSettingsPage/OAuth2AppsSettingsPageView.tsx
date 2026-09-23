@@ -5,6 +5,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import {
@@ -243,12 +244,24 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 				/>
 			</TableCell>
 			<TableCell className="min-w-0">
-				<span
-					className="block truncate text-content-secondary"
-					title={app.callback_url}
-				>
-					{app.callback_url}
-				</span>
+				<div className="flex items-center gap-2 min-w-0">
+					<span
+						className="block truncate text-content-secondary"
+						title={app.redirect_uris[0]}
+					>
+						{app.redirect_uris[0]}
+					</span>
+					{app.redirect_uris.length > 1 && (
+						<Badge
+							size="sm"
+							className="shrink-0"
+							title={app.redirect_uris.slice(1).join("\n")}
+							aria-label={`${app.redirect_uris.length - 1} more redirect URI${app.redirect_uris.length > 2 ? "s" : ""}`}
+						>
+							+{app.redirect_uris.length - 1}
+						</Badge>
+					)}
+				</div>
 			</TableCell>
 			<TableCell className="w-10 text-center">
 				<div className="flex justify-end items-center pr-4">

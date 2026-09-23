@@ -6119,6 +6119,12 @@ export interface MatchedProvisioners {
  */
 export const MaxAIModelPricesBytes = 1048576; // 1 MiB
 
+// From codersdk/aiproviders.go
+/**
+ * MaxAIProviderAPIKeys is the maximum number of API keys per AI provider.
+ */
+export const MaxAIProviderAPIKeys = 5;
+
 // From codersdk/aibridge.go
 /**
  * MaxAISpendLimitMicros is the highest AI spend limit that can be configured,
@@ -8065,6 +8071,10 @@ export interface PutOAuth2ProviderAppRequest {
 	 * must equal the first entry of redirect_uris.
 	 */
 	readonly callback_url?: string;
+	/**
+	 * Icon replaces the app's stored icon. Omitting it clears the stored
+	 * icon rather than leaving it unchanged.
+	 */
 	readonly icon: string;
 	/**
 	 * Scope replaces the app's current allowlist. Omit to leave the existing

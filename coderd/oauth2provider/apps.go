@@ -80,14 +80,15 @@ func emptyRedirectURIsDetail(fromCallback string) string {
 // the scheme, cannot be saved until a request sends a list that passes.
 func validateAppRedirectURIFields(uris []string, clientType codersdk.OAuth2ClientType, fromCallback string) []codersdk.ValidationError {
 	// A failure on the request's callback_url is reported against that field
-	// and without a list index, since the caller never sent a list.
+	// and without a row number, since the caller never sent a list. Rows are
+	// numbered from one to match the labels the web UI shows.
 	invalid := func(i int, uri, detail string) []codersdk.ValidationError {
 		if uri != "" && uri == fromCallback {
 			return []codersdk.ValidationError{{Field: "callback_url", Detail: "callback URL " + detail}}
 		}
 		return []codersdk.ValidationError{{
 			Field:  "redirect_uris",
-			Detail: fmt.Sprintf("redirect URI at index %d %s", i, detail),
+			Detail: fmt.Sprintf("redirect URI %d %s", i+1, detail),
 		}}
 	}
 	if len(uris) == 0 {
