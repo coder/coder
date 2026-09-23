@@ -9,6 +9,7 @@ import {
 } from "#/api/typesGenerated";
 import {
 	MockExternalAPIKeyScopes,
+	MockOAuth2ProviderAppDynamic,
 	MockOAuth2ProviderAppPublic,
 	MockOAuth2ProviderApps,
 } from "#/testHelpers/entities";
@@ -950,8 +951,8 @@ describe("OAuth2AppForm", () => {
 
 			render(
 				<OAuth2AppForm
-					app={{ ...MockOAuth2ProviderAppPublic, scope: "" }}
-					clientType="public"
+					app={{ ...MockOAuth2ProviderAppDynamic, scope: "" }}
+					clientType="confidential"
 					onSubmit={vi.fn()}
 					isUpdating={false}
 					disabled={false}
@@ -968,8 +969,8 @@ describe("OAuth2AppForm", () => {
 
 			render(
 				<OAuth2AppForm
-					app={{ ...MockOAuth2ProviderAppPublic, scope: "workspace:ssh" }}
-					clientType="public"
+					app={{ ...MockOAuth2ProviderAppDynamic, scope: "workspace:ssh" }}
+					clientType="confidential"
 					onSubmit={vi.fn()}
 					isUpdating={false}
 					disabled={false}
@@ -987,8 +988,8 @@ describe("OAuth2AppForm", () => {
 
 			render(
 				<OAuth2AppForm
-					app={{ ...MockOAuth2ProviderAppPublic, scope: "workspace:ssh" }}
-					clientType="public"
+					app={{ ...MockOAuth2ProviderAppDynamic, scope: "workspace:ssh" }}
+					clientType="confidential"
 					onSubmit={vi.fn()}
 					isUpdating={false}
 					disabled={false}

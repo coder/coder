@@ -5,7 +5,7 @@ import { externalScopesKey } from "#/api/queries/oauth2";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockExternalAPIKeyScopes,
-	MockOAuth2ProviderAppPublic,
+	MockOAuth2ProviderAppDynamic,
 	MockOAuth2ProviderApps,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -98,7 +98,7 @@ export const Disabled: Story = {
 export const SelfRegisteredScopesNarrowed: Story = {
 	args: {
 		app: {
-			...MockOAuth2ProviderAppPublic,
+			...MockOAuth2ProviderAppDynamic,
 			scope: "coder:workspaces.access workspace:ssh",
 		},
 	},

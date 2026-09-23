@@ -487,8 +487,8 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 		Icon:         dbApp.Icon,
 		Scope:        rbac.CanonicalScopeList(dbApp.Scope.String),
 		ClientType:   codersdk.OAuth2ClientType(dbApp.ClientType),
-		// The column is nullable for rows written before it existed. Those
-		// apps were created by an admin.
+		// The column has no NOT NULL constraint, but every write path sets a
+		// value, so NULL is unexpected. Reading it as false is the safe choice.
 		DynamicallyRegistered: dbApp.DynamicallyRegistered.Bool,
 		Endpoints: codersdk.OAuth2AppEndpoints{
 			Authorization: accessURL.ResolveReference(&url.URL{
