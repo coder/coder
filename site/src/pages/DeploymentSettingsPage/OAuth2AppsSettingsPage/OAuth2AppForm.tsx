@@ -63,6 +63,24 @@ type OAuth2AppFormProps = OAuth2AppFormSubmit & {
 const BACK_HREF = "/deployment/oauth2-provider/apps";
 const SCOPE_LABEL = "Allowed scopes";
 
+/**
+ * narrowsAllowlist reports whether replacing the stored scope allowlist with
+ * next can reject scopes the client could previously be granted. An empty
+ * list means unrestricted, so imposing any list on it narrows and clearing
+ * never does. The server compares what scopes grant rather than their names,
+ * which this cannot reproduce; coder:all is the one name known to cover every
+ * scope, so a list that contains it never narrows.
+ */
+export const narrowsAllowlist = (stored: string[], next: string[]): boolean => {
+	if (next.length === 0 || next.includes("coder:all")) {
+		return false;
+	}
+	if (stored.length === 0) {
+		return true;
+	}
+	return stored.some((scope) => !next.includes(scope));
+};
+
 // Mirror codersdk.ValidateRedirectURIShape.
 // The server remains authoritative for URL syntax differences between parsers.
 // oxlint-disable-next-line eslint/no-script-url -- This blocklist rejects the scheme; it is never used as a navigation target.
@@ -265,16 +283,9 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	const editing = Boolean(app);
 	// A self-registered client usually requests every scope it registered, so
 	// removing scopes fails its new authorizations instead of narrowing them.
-	// An empty stored allowlist means unrestricted, so imposing any list on it
-	// narrows too. Clearing the allowlist lifts the restriction and does not
-	// count.
 	const narrowsSelfRegisteredScopes =
 		app?.dynamically_registered === true &&
-		form.values.scope.length > 0 &&
-		(form.initialValues.scope.length === 0 ||
-			form.initialValues.scope.some(
-				(scope) => !form.values.scope.includes(scope),
-			));
+		narrowsAllowlist(form.initialValues.scope, form.values.scope);
 	const submitDisabled =
 		formDisabled || !form.isValid || (editing && !form.dirty);
 

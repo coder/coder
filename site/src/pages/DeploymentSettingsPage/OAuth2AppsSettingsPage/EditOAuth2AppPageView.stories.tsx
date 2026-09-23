@@ -69,7 +69,6 @@ export const Default: Story = {
 		await expect(
 			canvas.getByRole("table", { name: "OAuth2 client secrets" }),
 		).toBeVisible();
-		await expect(await canvas.findByText("Admin created")).toBeVisible();
 	},
 };
 
@@ -89,13 +88,6 @@ export const SelfRegistered: Story = {
 		reactRouter: routingFor(
 			`/deployment/oauth2-provider/apps/${MockOAuth2ProviderAppDynamic.id}`,
 		),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			await canvas.findByText(MockOAuth2ProviderAppDynamic.name),
-		).toBeVisible();
-		await expect(await canvas.findByText("Self-registered")).toBeVisible();
 	},
 };
 

@@ -108,3 +108,22 @@ export const SelfRegisteredScopesNarrowed: Story = {
 		);
 	},
 };
+
+export const SelfRegisteredScopesWidened: Story = {
+	args: {
+		app: {
+			...MockOAuth2ProviderAppDynamic,
+			scope: "coder:workspaces.access workspace:ssh",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", { name: /allowed scopes/i }),
+		);
+		await userEvent.click(
+			await within(canvasElement).findByRole("option", {
+				name: "workspace:read",
+			}),
+		);
+	},
+};

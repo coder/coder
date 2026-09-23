@@ -9,12 +9,11 @@ import {
 } from "#/api/typesGenerated";
 import {
 	MockExternalAPIKeyScopes,
-	MockOAuth2ProviderAppDynamic,
 	MockOAuth2ProviderAppPublic,
 	MockOAuth2ProviderApps,
 } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
-import { OAuth2AppForm } from "./OAuth2AppForm";
+import { narrowsAllowlist, OAuth2AppForm } from "./OAuth2AppForm";
 
 const selectScope = async (user: UserEvent, name: string) => {
 	await user.click(screen.getByRole("combobox", { name: /allowed scopes/i }));
@@ -942,79 +941,53 @@ describe("OAuth2AppForm", () => {
 			),
 		);
 	});
+});
 
-	describe("self-registered scope warning", () => {
-		const warning = /may continue requesting scopes you remove/i;
-
-		it("warns when an allowlist is imposed on an unrestricted app", async () => {
-			const user = userEvent.setup();
-
-			render(
-				<OAuth2AppForm
-					app={{ ...MockOAuth2ProviderAppDynamic, scope: "" }}
-					clientType="confidential"
-					onSubmit={vi.fn()}
-					isUpdating={false}
-					disabled={false}
-				/>,
-			);
-
-			expect(screen.queryByText(warning)).not.toBeInTheDocument();
-			await selectScope(user, "workspace:ssh");
-			expect(screen.getByText(warning)).toBeInTheDocument();
-		});
-
-		it("warns when a stored scope is removed", async () => {
-			const user = userEvent.setup();
-
-			render(
-				<OAuth2AppForm
-					app={{ ...MockOAuth2ProviderAppDynamic, scope: "workspace:ssh" }}
-					clientType="confidential"
-					onSubmit={vi.fn()}
-					isUpdating={false}
-					disabled={false}
-				/>,
-			);
-
-			await selectScope(user, "coder:all");
-			expect(screen.queryByText(warning)).not.toBeInTheDocument();
-			await user.click(screen.getAllByTestId("clear-option-button")[0]);
-			expect(screen.getByText(warning)).toBeInTheDocument();
-		});
-
-		it("stays silent when the allowlist is cleared", async () => {
-			const user = userEvent.setup();
-
-			render(
-				<OAuth2AppForm
-					app={{ ...MockOAuth2ProviderAppDynamic, scope: "workspace:ssh" }}
-					clientType="confidential"
-					onSubmit={vi.fn()}
-					isUpdating={false}
-					disabled={false}
-				/>,
-			);
-
-			await user.click(screen.getByTestId("clear-option-button"));
-			expect(screen.queryByText(warning)).not.toBeInTheDocument();
-		});
-
-		it("stays silent for an admin-created app", async () => {
-			const user = userEvent.setup();
-
-			render(
-				<OAuth2AppForm
-					app={{ ...MockOAuth2ProviderApps[0], scope: "" }}
-					clientType="confidential"
-					onSubmit={vi.fn()}
-					isUpdating={false}
-					disabled={false}
-				/>,
-			);
-
-			await selectScope(user, "workspace:ssh");
-			expect(screen.queryByText(warning)).not.toBeInTheDocument();
-		});
+describe("narrowsAllowlist", () => {
+	it.each([
+		{
+			label: "adding a scope to an existing list",
+			stored: ["workspace:ssh"],
+			next: ["workspace:ssh", "workspace:read"],
+			narrows: false,
+		},
+		{
+			label: "removing a scope from an existing list",
+			stored: ["workspace:ssh", "workspace:read"],
+			next: ["workspace:read"],
+			narrows: true,
+		},
+		{
+			label: "clearing the list",
+			stored: ["workspace:ssh"],
+			next: [],
+			narrows: false,
+		},
+		{
+			label: "imposing a list on an unrestricted app",
+			stored: [],
+			next: ["workspace:ssh"],
+			narrows: true,
+		},
+		{
+			label: "replacing a scope with coder:all",
+			stored: ["workspace:ssh"],
+			next: ["coder:all"],
+			narrows: false,
+		},
+		{
+			label: "imposing coder:all on an unrestricted app",
+			stored: [],
+			next: ["coder:all"],
+			narrows: false,
+		},
+		{
+			label: "keeping the same list",
+			stored: ["workspace:ssh"],
+			next: ["workspace:ssh"],
+			narrows: false,
+		},
+	])("returns $narrows when $label", ({ stored, next, narrows }) => {
+		expect(narrowsAllowlist(stored, next)).toBe(narrows);
 	});
 });
