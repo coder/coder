@@ -35,7 +35,7 @@ Load only the guidance relevant to the task:
 | New, moved, or restructured docs                    | [write-docs skill](.claude/skills/write-docs/SKILL.md)  |
 | Frontend                                            | [site/AGENTS.md](site/AGENTS.md)                        |
 
-For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRONTEND_PATTERNS.md). For chatd work, read [coderd/x/chatd/ARCHITECTURE.md](coderd/x/chatd/ARCHITECTURE.md). When the docs style guide and the content guidelines conflict, the content guidelines govern scope and routing.
+For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRONTEND_PATTERNS.md). For chatd work, read [coderd/x/chatd/ARCHITECTURE.md](coderd/x/chatd/ARCHITECTURE.md). When the docs style guide and the content guidelines conflict, the content guidelines govern scope and routing. Automated tooling checks a small subset of the style guide and Vale runs advisory, so read the guide and apply it; a clean `make lint/prose` is not conformance. [What the tooling checks, and what it doesn't](docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt) has the current numbers.
 
 ## Workflow
 
