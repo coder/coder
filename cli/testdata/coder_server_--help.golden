@@ -222,16 +222,6 @@ Configure the background chat processing daemon.
           Force chat debug logging on for every chat, bypassing the runtime
           admin and user opt-in settings.
 
-      --chat-debug-max-body-bytes int, $CODER_CHAT_DEBUG_MAX_BODY_BYTES (default: 50000)
-          Maximum number of bytes of streamed model output and of each recorded
-          provider HTTP request or response body kept in chat debug run records.
-          Set to 0 to use the default.
-
-      --chat-debug-max-text-runes int, $CODER_CHAT_DEBUG_MAX_TEXT_RUNES (default: 10000)
-          Maximum number of characters of each message part, tool argument, and
-          tool result kept in chat debug run records. Longer text is truncated.
-          Set to 0 to use the default.
-
       --chat-max-attachments-per-chat int, $CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT (default: 50)
           Number of most recent attachments a chat keeps, counting uploads and
           files the agent attaches from the workspace. Older attachments are
@@ -243,10 +233,6 @@ Configure the background chat processing daemon.
           concurrently. Each upload buffers the whole recording in memory, so
           this bounds the daemon's peak memory use for recordings. Set to 0 to
           use the default.
-
-      --chat-max-dynamic-tools-per-chat int, $CODER_CHAT_MAX_DYNAMIC_TOOLS_PER_CHAT (default: 250)
-          Maximum number of client-provided dynamic tools a chat can be created
-          with. Set to 0 to use the default.
 
       --chat-max-generation-retries int, $CODER_CHAT_MAX_GENERATION_RETRIES (default: 25)
           Maximum number of times a chat turn retries a model call that failed
@@ -265,11 +251,6 @@ Configure the background chat processing daemon.
       --chat-max-steps-per-turn int, $CODER_CHAT_MAX_STEPS_PER_TURN (default: 1200)
           Maximum number of model and tool steps a single agent chat turn may
           run before Coder stops the turn. Set to 0 to use the default.
-
-      --chat-max-tool-output-bytes int, $CODER_CHAT_MAX_TOOL_OUTPUT_BYTES (default: 32768)
-          Maximum number of bytes of workspace command output the execute and
-          process tools return to the model. Longer output is truncated. Set to
-          0 to use the default.
 
       --chat-stream-silence-timeout duration, $CODER_CHAT_STREAM_SILENCE_TIMEOUT (default: 10m0s)
           Maximum time to wait for the next streamed part from the chat model

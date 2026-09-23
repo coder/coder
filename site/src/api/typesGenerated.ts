@@ -2084,30 +2084,10 @@ export interface ChatConfig {
 	 */
 	readonly max_prompt_bytes: number;
 	/**
-	 * MaxDynamicToolsPerChat bounds the client-provided dynamic tools a
-	 * chat is created with.
-	 */
-	readonly max_dynamic_tools_per_chat: number;
-	/**
-	 * MaxToolOutputBytes bounds the command output the execute and
-	 * process tools return to the model.
-	 */
-	readonly max_tool_output_bytes: number;
-	/**
 	 * MaxConcurrentRecordingUploads bounds the virtual desktop recordings
 	 * chatd stores concurrently.
 	 */
 	readonly max_concurrent_recording_uploads: number;
-	/**
-	 * DebugMaxTextRunes bounds each text, argument, and result field kept
-	 * in chat debug records.
-	 */
-	readonly debug_max_text_runes: number;
-	/**
-	 * DebugMaxBodyBytes bounds accumulated streamed model output and each
-	 * recorded provider HTTP body in chat debug runs.
-	 */
-	readonly debug_max_body_bytes: number;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
@@ -4699,26 +4679,6 @@ export const DefaultChatAutoArchiveDays = 0;
 
 // From codersdk/chats.go
 /**
- * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
- * of a chat turn or the payloads chatd stores and can be raised or
- * lowered per deployment.
- * DefaultChatDebugMaxBodyBytes bounds accumulated streamed model
- * output and each recorded provider HTTP body in chat debug runs.
- */
-export const DefaultChatDebugMaxBodyBytes = 50000;
-
-// From codersdk/chats.go
-/**
- * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
- * of a chat turn or the payloads chatd stores and can be raised or
- * lowered per deployment.
- * DefaultChatDebugMaxTextRunes bounds each text, argument, and result
- * field kept in chat debug run records.
- */
-export const DefaultChatDebugMaxTextRunes = 10000;
-
-// From codersdk/chats.go
-/**
  * DefaultChatDebugRetentionDays is the default chat debug run retention
  * window, in days, applied when no site config row exists. Set the
  * config value to zero to disable the purge.
@@ -4746,16 +4706,6 @@ export const DefaultChatMaxAttachmentsPerChat = 50;
  * desktop recordings chatd stores concurrently.
  */
 export const DefaultChatMaxConcurrentRecordingUploads = 25;
-
-// From codersdk/chats.go
-/**
- * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
- * of a chat turn or the payloads chatd stores and can be raised or
- * lowered per deployment.
- * DefaultChatMaxDynamicToolsPerChat is the number of client-provided
- * dynamic tools a chat may be created with.
- */
-export const DefaultChatMaxDynamicToolsPerChat = 250;
 
 // From codersdk/chats.go
 /**
@@ -4796,16 +4746,6 @@ export const DefaultChatMaxQueuedMessagesPerChat = 20;
  * single turn may run before it is stopped.
  */
 export const DefaultChatMaxStepsPerTurn = 1200;
-
-// From codersdk/chats.go
-/**
- * Defaults for the chat limits in [ChatConfig]. Each bounds one aspect
- * of a chat turn or the payloads chatd stores and can be raised or
- * lowered per deployment.
- * DefaultChatMaxToolOutputBytes is the number of bytes of command
- * output the execute and process tools return to the model.
- */
-export const DefaultChatMaxToolOutputBytes = 32768;
 
 // From codersdk/chats.go
 /**

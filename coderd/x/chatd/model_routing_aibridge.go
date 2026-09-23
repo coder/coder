@@ -162,7 +162,7 @@ func (p *Server) newModel(
 		providerAuth: route.ProviderAuth,
 	})
 	if opts.RecordHTTP {
-		baseRT = &chatdebug.RecordingTransport{Base: baseRT, MaxBodyBytes: p.limits().DebugMaxBodyBytes}
+		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
 
 	config := fantasyConfigForAIBridge(route.Provider.Type, req.ModelName)

@@ -1318,10 +1318,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.UnsafeDynamicTools) > api.chatLimits.MaxDynamicToolsPerChat {
+	if len(req.UnsafeDynamicTools) > 250 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Too many dynamic tools.",
-			Detail:  fmt.Sprintf("Maximum %d dynamic tools per chat.", api.chatLimits.MaxDynamicToolsPerChat),
+			Detail:  "Maximum 250 dynamic tools per chat.",
 		})
 		return
 	}

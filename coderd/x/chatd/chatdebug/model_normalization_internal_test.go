@@ -10,14 +10,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestNormalizeCall_PreservesToolSchemasAndMessageToolPayloads(t *testing.T) {
 	t.Parallel()
 
-	payload := normalizeCall(defaultTextLimits(), fantasy.Call{
+	payload := normalizeCall(fantasy.Call{
 		Prompt: fantasy.Prompt{
 			{
 				Role: fantasy.MessageRoleAssistant,
@@ -95,7 +93,7 @@ func TestNormalizers_SkipTypedNilInterfaceValues(t *testing.T) {
 		t.Parallel()
 
 		var nilPart *fantasy.TextPart
-		parts := normalizeMessageParts(defaultTextLimits(), []fantasy.MessagePart{
+		parts := normalizeMessageParts([]fantasy.MessagePart{
 			nilPart,
 			fantasy.TextPart{Text: "hello"},
 		})
@@ -121,7 +119,7 @@ func TestNormalizers_SkipTypedNilInterfaceValues(t *testing.T) {
 		t.Parallel()
 
 		var nilContent *fantasy.TextContent
-		content := normalizeContentParts(defaultTextLimits(), fantasy.ResponseContent{
+		content := normalizeContentParts(fantasy.ResponseContent{
 			nilContent,
 			fantasy.TextContent{Text: "hello"},
 		})
@@ -154,7 +152,7 @@ func TestAppendNormalizedStreamContent_PreservesOrderAndCanonicalTypes(t *testin
 		{Type: fantasy.StreamPartTypeTextDelta, Delta: "aft"},
 		{Type: fantasy.StreamPartTypeTextDelta, Delta: "er"},
 	} {
-		content, currentText, currentTextIdx = appendNormalizedStreamContent(defaultTextLimits(),
+		content, currentText, currentTextIdx = appendNormalizedStreamContent(
 			content, currentText, currentTextIdx, argBuilders, part, &streamDebugBytes)
 	}
 	materializeStreamContent(content, currentText, currentTextIdx, argBuilders)
@@ -185,7 +183,7 @@ func TestAppendNormalizedStreamContent_ToolInputAttributionPerCall(t *testing.T)
 		{Type: fantasy.StreamPartTypeToolInputDelta, ID: "call-a", ToolCallName: "search", Delta: `":"x"}`},
 		{Type: fantasy.StreamPartTypeToolInputEnd, ID: "call-b", ToolCallName: "calc", Delta: `":"add"}`},
 	} {
-		content, currentText, currentTextIdx = appendNormalizedStreamContent(defaultTextLimits(),
+		content, currentText, currentTextIdx = appendNormalizedStreamContent(
 			content, currentText, currentTextIdx, argBuilders, part, &streamDebugBytes)
 	}
 	materializeStreamContent(content, currentText, currentTextIdx, argBuilders)
@@ -212,7 +210,7 @@ func TestAppendNormalizedStreamContent_ToolInputAcrossInterleavedText(t *testing
 		{Type: fantasy.StreamPartTypeTextDelta, Delta: "thinking..."},
 		{Type: fantasy.StreamPartTypeToolInputDelta, ID: "call-a", ToolCallName: "search", Delta: `uery":"x"}`},
 	} {
-		content, currentText, currentTextIdx = appendNormalizedStreamContent(defaultTextLimits(),
+		content, currentText, currentTextIdx = appendNormalizedStreamContent(
 			content, currentText, currentTextIdx, argBuilders, part, &streamDebugBytes)
 	}
 	materializeStreamContent(content, currentText, currentTextIdx, argBuilders)
@@ -226,42 +224,28 @@ func TestAppendNormalizedStreamContent_ToolInputAcrossInterleavedText(t *testing
 func TestAppendNormalizedStreamContent_GlobalTextCap(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
-		name    string
-		limits  TextLimits
-		wantCap int
-	}{
-		{name: "zero falls back to default", limits: TextLimits{}.withDefaults(), wantCap: codersdk.DefaultChatDebugMaxBodyBytes},
-		{name: "custom cap", limits: TextLimits{MaxBodyBytes: 64}.withDefaults(), wantCap: 64},
+	streamDebugBytes := 0
+	long := strings.Repeat("a", maxStreamDebugTextBytes)
+	var (
+		content        []normalizedContentPart
+		currentText    *strings.Builder
+		currentTextIdx int
+	)
+	argBuilders := make(map[string]*strings.Builder)
+	for _, part := range []fantasy.StreamPart{
+		{Type: fantasy.StreamPartTypeTextDelta, Delta: long},
+		{Type: fantasy.StreamPartTypeToolCall, ID: "call-1", ToolCallName: "search_docs", ToolCallInput: `{}`},
+		{Type: fantasy.StreamPartTypeTextDelta, Delta: "tail"},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			streamDebugBytes := 0
-			// Exceed the cap so the second delta is dropped entirely.
-			long := strings.Repeat("a", tc.wantCap+16)
-			var (
-				content        []normalizedContentPart
-				currentText    *strings.Builder
-				currentTextIdx int
-			)
-			argBuilders := make(map[string]*strings.Builder)
-			for _, part := range []fantasy.StreamPart{
-				{Type: fantasy.StreamPartTypeTextDelta, Delta: long},
-				{Type: fantasy.StreamPartTypeToolCall, ID: "call-1", ToolCallName: "search_docs", ToolCallInput: `{}`},
-				{Type: fantasy.StreamPartTypeTextDelta, Delta: "tail"},
-			} {
-				content, currentText, currentTextIdx = appendNormalizedStreamContent(tc.limits,
-					content, currentText, currentTextIdx, argBuilders, part, &streamDebugBytes)
-			}
-			materializeStreamContent(content, currentText, currentTextIdx, argBuilders)
-
-			require.Len(t, content, 2)
-			require.Equal(t, strings.Repeat("a", tc.wantCap), content[0].Text)
-			require.Equal(t, "tool-call", content[1].Type)
-			require.Equal(t, tc.wantCap, streamDebugBytes)
-		})
+		content, currentText, currentTextIdx = appendNormalizedStreamContent(
+			content, currentText, currentTextIdx, argBuilders, part, &streamDebugBytes)
 	}
+	materializeStreamContent(content, currentText, currentTextIdx, argBuilders)
+
+	require.Len(t, content, 2)
+	require.Equal(t, strings.Repeat("a", maxStreamDebugTextBytes), content[0].Text)
+	require.Equal(t, "tool-call", content[1].Type)
+	require.Equal(t, maxStreamDebugTextBytes, streamDebugBytes)
 }
 
 func TestWrapStreamSeq_SourceCountExcludesToolResults(t *testing.T) {
@@ -271,7 +255,7 @@ func TestWrapStreamSeq_SourceCountExcludesToolResults(t *testing.T) {
 		stepCtx: &StepContext{StepID: uuid.New(), RunID: uuid.New(), ChatID: uuid.New()},
 		sink:    &attemptSink{},
 	}
-	seq := wrapStreamSeq(context.Background(), handle, defaultTextLimits(), partsToSeq([]fantasy.StreamPart{
+	seq := wrapStreamSeq(context.Background(), handle, partsToSeq([]fantasy.StreamPart{
 		{Type: fantasy.StreamPartTypeToolResult, ID: "tool-1", ToolCallName: "search_docs"},
 		{Type: fantasy.StreamPartTypeSource, ID: "source-1", URL: "https://example.com", Title: "docs"},
 		{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
@@ -323,7 +307,7 @@ func TestWrapObjectStreamSeq_UsesStructuredOutputPayload(t *testing.T) {
 func TestNormalizeResponse_UsesCanonicalToolTypes(t *testing.T) {
 	t.Parallel()
 
-	payload := normalizeResponse(defaultTextLimits(), &fantasy.Response{
+	payload := normalizeResponse(&fantasy.Response{
 		Content: fantasy.ResponseContent{
 			fantasy.ToolCallContent{
 				ToolCallID: "call-calc",
@@ -343,31 +327,17 @@ func TestNormalizeResponse_UsesCanonicalToolTypes(t *testing.T) {
 	require.Equal(t, "tool-result", payload.Content[1].Type)
 }
 
-func TestBoundText_RespectsConfiguredRuneLimit(t *testing.T) {
+func TestBoundText_RespectsDocumentedRuneLimit(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
-		name      string
-		limits    TextLimits
-		wantRunes int
-	}{
-		{name: "zero falls back to default", limits: TextLimits{}.withDefaults(), wantRunes: codersdk.DefaultChatDebugMaxTextRunes},
-		{name: "custom limit", limits: TextLimits{MaxTextRunes: 12}.withDefaults(), wantRunes: 12},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			input := strings.Repeat("a", tc.wantRunes+5)
-			got := boundText(tc.limits, input)
-			require.Equal(t, tc.wantRunes, len([]rune(got)))
-			require.Equal(t, '…', []rune(got)[len([]rune(got))-1])
-
-			parts := normalizeMessageParts(tc.limits, []fantasy.MessagePart{fantasy.TextPart{Text: input}})
-			require.Len(t, parts, 1)
-			require.Equal(t, got, parts[0].Text)
-			require.Equal(t, tc.wantRunes+5, parts[0].TextLength)
-		})
+	runes := make([]rune, MaxMessagePartTextLength+5)
+	for i := range runes {
+		runes[i] = 'a'
 	}
+	input := string(runes)
+	got := boundText(input)
+	require.Equal(t, MaxMessagePartTextLength, len([]rune(got)))
+	require.Equal(t, '…', []rune(got)[len([]rune(got))-1])
 }
 
 func TestNormalizeToolResultOutput(t *testing.T) {
@@ -375,25 +345,25 @@ func TestNormalizeToolResultOutput(t *testing.T) {
 
 	t.Run("TextValue", func(t *testing.T) {
 		t.Parallel()
-		got := normalizeToolResultOutput(defaultTextLimits(), fantasy.ToolResultOutputContentText{Text: "hello"})
+		got := normalizeToolResultOutput(fantasy.ToolResultOutputContentText{Text: "hello"})
 		require.Equal(t, "hello", got)
 	})
 
 	t.Run("TextPointer", func(t *testing.T) {
 		t.Parallel()
-		got := normalizeToolResultOutput(defaultTextLimits(), &fantasy.ToolResultOutputContentText{Text: "hello"})
+		got := normalizeToolResultOutput(&fantasy.ToolResultOutputContentText{Text: "hello"})
 		require.Equal(t, "hello", got)
 	})
 
 	t.Run("TextPointerNil", func(t *testing.T) {
 		t.Parallel()
-		got := normalizeToolResultOutput(defaultTextLimits(), (*fantasy.ToolResultOutputContentText)(nil))
+		got := normalizeToolResultOutput((*fantasy.ToolResultOutputContentText)(nil))
 		require.Equal(t, "", got)
 	})
 
 	t.Run("ErrorValue", func(t *testing.T) {
 		t.Parallel()
-		got := normalizeToolResultOutput(defaultTextLimits(), fantasy.ToolResultOutputContentError{
+		got := normalizeToolResultOutput(fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("tool failed"),
 		})
 		require.Equal(t, "tool failed", got)
@@ -401,13 +371,13 @@ func TestNormalizeToolResultOutput(t *testing.T) {
 
 	t.Run("ErrorValueNilError", func(t *testing.T) {
 		t.Parallel()
-		got := normalizeToolResultOutput(defaultTextLimits(), fantasy.ToolResultOutputContentError{Error: nil})
+		got := normalizeToolResultOutput(fantasy.ToolResultOutputContentError{Error: nil})
 		require.Equal(t, "", got)
 	})
 
 	t.Run("ErrorPointer", func(t *testing.T) {
 		t.Parallel()
-		got := normalizeToolResultOutput(defaultTextLimits(), &fantasy.ToolResultOutputContentError{
+		got := normalizeToolResultOutput(&fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("ptr fail"),
 		})
 		require.Equal(t, "ptr fail", got)
@@ -415,19 +385,19 @@ func TestNormalizeToolResultOutput(t *testing.T) {
 
 	t.Run("ErrorPointerNil", func(t *testing.T) {
 		t.Parallel()
-		got := normalizeToolResultOutput(defaultTextLimits(), (*fantasy.ToolResultOutputContentError)(nil))
+		got := normalizeToolResultOutput((*fantasy.ToolResultOutputContentError)(nil))
 		require.Equal(t, "", got)
 	})
 
 	t.Run("ErrorPointerNilError", func(t *testing.T) {
 		t.Parallel()
-		got := normalizeToolResultOutput(defaultTextLimits(), &fantasy.ToolResultOutputContentError{Error: nil})
+		got := normalizeToolResultOutput(&fantasy.ToolResultOutputContentError{Error: nil})
 		require.Equal(t, "", got)
 	})
 
 	t.Run("MediaWithText", func(t *testing.T) {
 		t.Parallel()
-		got := normalizeToolResultOutput(defaultTextLimits(), fantasy.ToolResultOutputContentMedia{
+		got := normalizeToolResultOutput(fantasy.ToolResultOutputContentMedia{
 			Text:      "caption",
 			MediaType: "image/png",
 		})
@@ -436,7 +406,7 @@ func TestNormalizeToolResultOutput(t *testing.T) {
 
 	t.Run("MediaWithoutText", func(t *testing.T) {
 		t.Parallel()
-		got := normalizeToolResultOutput(defaultTextLimits(), fantasy.ToolResultOutputContentMedia{
+		got := normalizeToolResultOutput(fantasy.ToolResultOutputContentMedia{
 			MediaType: "image/png",
 		})
 		require.Equal(t, "[media output: image/png]", got)
@@ -444,19 +414,19 @@ func TestNormalizeToolResultOutput(t *testing.T) {
 
 	t.Run("MediaWithoutTextOrType", func(t *testing.T) {
 		t.Parallel()
-		got := normalizeToolResultOutput(defaultTextLimits(), fantasy.ToolResultOutputContentMedia{})
+		got := normalizeToolResultOutput(fantasy.ToolResultOutputContentMedia{})
 		require.Equal(t, "[media output]", got)
 	})
 
 	t.Run("MediaPointerNil", func(t *testing.T) {
 		t.Parallel()
-		got := normalizeToolResultOutput(defaultTextLimits(), (*fantasy.ToolResultOutputContentMedia)(nil))
+		got := normalizeToolResultOutput((*fantasy.ToolResultOutputContentMedia)(nil))
 		require.Equal(t, "", got)
 	})
 
 	t.Run("MediaPointerWithText", func(t *testing.T) {
 		t.Parallel()
-		got := normalizeToolResultOutput(defaultTextLimits(), &fantasy.ToolResultOutputContentMedia{
+		got := normalizeToolResultOutput(&fantasy.ToolResultOutputContentMedia{
 			Text:      "ptr caption",
 			MediaType: "image/jpeg",
 		})
@@ -465,7 +435,7 @@ func TestNormalizeToolResultOutput(t *testing.T) {
 
 	t.Run("NilOutput", func(t *testing.T) {
 		t.Parallel()
-		got := normalizeToolResultOutput(defaultTextLimits(), nil)
+		got := normalizeToolResultOutput(nil)
 		require.Equal(t, "", got)
 	})
 
@@ -473,7 +443,7 @@ func TestNormalizeToolResultOutput(t *testing.T) {
 		t.Parallel()
 		// An unexpected type falls through to the default JSON
 		// marshal branch.
-		got := normalizeToolResultOutput(defaultTextLimits(), fantasy.ToolResultOutputContentText{
+		got := normalizeToolResultOutput(fantasy.ToolResultOutputContentText{
 			Text: "fallback",
 		})
 		require.Equal(t, "fallback", got)
@@ -483,7 +453,7 @@ func TestNormalizeToolResultOutput(t *testing.T) {
 func TestNormalizeResponse_PreservesToolCallArguments(t *testing.T) {
 	t.Parallel()
 
-	payload := normalizeResponse(defaultTextLimits(), &fantasy.Response{
+	payload := normalizeResponse(&fantasy.Response{
 		Content: fantasy.ResponseContent{
 			fantasy.ToolCallContent{
 				ToolCallID: "call-calc",

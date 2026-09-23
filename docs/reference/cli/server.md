@@ -1845,28 +1845,6 @@ Number of most recent attachments a chat keeps, counting uploads and files the a
 
 Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. Set to 0 to use the default.
 
-### --chat-max-dynamic-tools-per-chat
-
-|             |                                                     |
-|-------------|-----------------------------------------------------|
-| Type        | <code>int</code>                                    |
-| Environment | <code>$CODER_CHAT_MAX_DYNAMIC_TOOLS_PER_CHAT</code> |
-| YAML        | <code>chat.maxDynamicToolsPerChat</code>            |
-| Default     | <code>250</code>                                    |
-
-Maximum number of client-provided dynamic tools a chat can be created with. Set to 0 to use the default.
-
-### --chat-max-tool-output-bytes
-
-|             |                                                |
-|-------------|------------------------------------------------|
-| Type        | <code>int</code>                               |
-| Environment | <code>$CODER_CHAT_MAX_TOOL_OUTPUT_BYTES</code> |
-| YAML        | <code>chat.maxToolOutputBytes</code>           |
-| Default     | <code>32768</code>                             |
-
-Maximum number of bytes of workspace command output the execute and process tools return to the model. Longer output is truncated. Set to 0 to use the default.
-
 ### --chat-max-concurrent-recording-uploads
 
 |             |                                                           |
@@ -1877,28 +1855,6 @@ Maximum number of bytes of workspace command output the execute and process tool
 | Default     | <code>25</code>                                           |
 
 Maximum number of virtual desktop recordings the chat daemon stores concurrently. Each upload buffers the whole recording in memory, so this bounds the daemon's peak memory use for recordings. Set to 0 to use the default.
-
-### --chat-debug-max-text-runes
-
-|             |                                               |
-|-------------|-----------------------------------------------|
-| Type        | <code>int</code>                              |
-| Environment | <code>$CODER_CHAT_DEBUG_MAX_TEXT_RUNES</code> |
-| YAML        | <code>chat.debugMaxTextRunes</code>           |
-| Default     | <code>10000</code>                            |
-
-Maximum number of characters of each message part, tool argument, and tool result kept in chat debug run records. Longer text is truncated. Set to 0 to use the default.
-
-### --chat-debug-max-body-bytes
-
-|             |                                               |
-|-------------|-----------------------------------------------|
-| Type        | <code>int</code>                              |
-| Environment | <code>$CODER_CHAT_DEBUG_MAX_BODY_BYTES</code> |
-| YAML        | <code>chat.debugMaxBodyBytes</code>           |
-| Default     | <code>50000</code>                            |
-
-Maximum number of bytes of streamed model output and of each recorded provider HTTP request or response body kept in chat debug run records. Set to 0 to use the default.
 
 ### --chat-stream-silence-timeout
 

@@ -3094,10 +3094,6 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 				cfg.Logger.Named("chatdebug"),
 				ps,
 				chatdebug.WithAlwaysEnable(cfg.AlwaysEnableDebugLogs),
-				chatdebug.WithTextLimits(chatdebug.TextLimits{
-					MaxTextRunes: limits.DebugMaxTextRunes,
-					MaxBodyBytes: limits.DebugMaxBodyBytes,
-				}),
 			)
 			// Debug runs do not heartbeat during model streams; their
 			// updated_at is only touched on step/run completion. Use a

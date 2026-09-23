@@ -798,8 +798,8 @@ func TestDeploymentValues_Validate_ChatLimits(t *testing.T) {
 	t.Run("AboveInt32", func(t *testing.T) {
 		t.Parallel()
 		dv := mk()
-		dv.AI.Chat.DebugMaxBodyBytes = serpent.Int64(math.MaxInt32 + 1)
-		require.ErrorContains(t, dv.Validate(), "--chat-debug-max-body-bytes")
+		dv.AI.Chat.MaxPromptBytes = serpent.Int64(math.MaxInt32 + 1)
+		require.ErrorContains(t, dv.Validate(), "--chat-max-prompt-bytes")
 	})
 
 	t.Run("Positive", func(t *testing.T) {

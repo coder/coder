@@ -19750,14 +19750,6 @@ const docTemplate = `{
                 "debug_logging_enabled": {
                     "type": "boolean"
                 },
-                "debug_max_body_bytes": {
-                    "description": "DebugMaxBodyBytes bounds accumulated streamed model output and each\nrecorded provider HTTP body in chat debug runs.",
-                    "type": "integer"
-                },
-                "debug_max_text_runes": {
-                    "description": "DebugMaxTextRunes bounds each text, argument, and result field kept\nin chat debug records.",
-                    "type": "integer"
-                },
                 "hook_allow_insecure": {
                     "type": "boolean"
                 },
@@ -19781,10 +19773,6 @@ const docTemplate = `{
                     "description": "MaxConcurrentRecordingUploads bounds the virtual desktop recordings\nchatd stores concurrently.",
                     "type": "integer"
                 },
-                "max_dynamic_tools_per_chat": {
-                    "description": "MaxDynamicToolsPerChat bounds the client-provided dynamic tools a\nchat is created with.",
-                    "type": "integer"
-                },
                 "max_generation_retries": {
                     "description": "MaxGenerationRetries bounds how many times a turn retries a model\ncall that failed with a transient provider error.",
                     "type": "integer"
@@ -19799,10 +19787,6 @@ const docTemplate = `{
                 },
                 "max_steps_per_turn": {
                     "description": "MaxStepsPerTurn bounds the model and tool steps one turn may run.",
-                    "type": "integer"
-                },
-                "max_tool_output_bytes": {
-                    "description": "MaxToolOutputBytes bounds the command output the execute and\nprocess tools return to the model.",
                     "type": "integer"
                 },
                 "stream_silence_timeout": {

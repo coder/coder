@@ -16831,33 +16831,6 @@ func TestChatLimitsFromDeploymentConfig(t *testing.T) {
 		})
 		require.NoError(t, err)
 	})
-
-	t.Run("MaxDynamicToolsPerChat", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		values.AI.Chat.MaxDynamicToolsPerChat = serpent.Int64(2)
-		client := newChatClientWithDeploymentValues(t, values)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-
-		tools := make([]codersdk.DynamicTool, 3)
-		for i := range tools {
-			tools[i] = codersdk.DynamicTool{Name: fmt.Sprintf("tool-%d", i)}
-		}
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: user.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "hello",
-			}},
-			UnsafeDynamicTools: tools,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Too many dynamic tools.", sdkErr.Message)
-		require.Equal(t, "Maximum 2 dynamic tools per chat.", sdkErr.Detail)
-	})
 }
 
 func TestPostChats_DynamicToolValidation(t *testing.T) {

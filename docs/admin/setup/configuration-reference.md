@@ -418,24 +418,6 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 - YAML key: `chat.debugLoggingEnabled`
 - Default value: `false`
 
-### Debug max body bytes
-
-Maximum number of bytes of streamed model output and of each recorded provider HTTP request or response body kept in chat debug run records. Set to 0 to use the default.
-
-- Environment variable: `CODER_CHAT_DEBUG_MAX_BODY_BYTES`
-- CLI flag: [`--chat-debug-max-body-bytes`](../../reference/cli/server.md#--chat-debug-max-body-bytes)
-- YAML key: `chat.debugMaxBodyBytes`
-- Default value: `50000`
-
-### Debug max text runes
-
-Maximum number of characters of each message part, tool argument, and tool result kept in chat debug run records. Longer text is truncated. Set to 0 to use the default.
-
-- Environment variable: `CODER_CHAT_DEBUG_MAX_TEXT_RUNES`
-- CLI flag: [`--chat-debug-max-text-runes`](../../reference/cli/server.md#--chat-debug-max-text-runes)
-- YAML key: `chat.debugMaxTextRunes`
-- Default value: `10000`
-
 ### Max attachments per chat
 
 Number of most recent attachments a chat keeps, counting uploads and files the agent attaches from the workspace. Older attachments are removed when the cap is reached, and a single message cannot include more files than the cap. Set to 0 to use the default.
@@ -453,15 +435,6 @@ Maximum number of virtual desktop recordings the chat daemon stores concurrently
 - CLI flag: [`--chat-max-concurrent-recording-uploads`](../../reference/cli/server.md#--chat-max-concurrent-recording-uploads)
 - YAML key: `chat.maxConcurrentRecordingUploads`
 - Default value: `25`
-
-### Max dynamic tools per chat
-
-Maximum number of client-provided dynamic tools a chat can be created with. Set to 0 to use the default.
-
-- Environment variable: `CODER_CHAT_MAX_DYNAMIC_TOOLS_PER_CHAT`
-- CLI flag: [`--chat-max-dynamic-tools-per-chat`](../../reference/cli/server.md#--chat-max-dynamic-tools-per-chat)
-- YAML key: `chat.maxDynamicToolsPerChat`
-- Default value: `250`
 
 ### Max generation retries
 
@@ -498,15 +471,6 @@ Maximum number of model and tool steps a single agent chat turn may run before C
 - CLI flag: [`--chat-max-steps-per-turn`](../../reference/cli/server.md#--chat-max-steps-per-turn)
 - YAML key: `chat.maxStepsPerTurn`
 - Default value: `1200`
-
-### Max tool output bytes
-
-Maximum number of bytes of workspace command output the execute and process tools return to the model. Longer output is truncated. Set to 0 to use the default.
-
-- Environment variable: `CODER_CHAT_MAX_TOOL_OUTPUT_BYTES`
-- CLI flag: [`--chat-max-tool-output-bytes`](../../reference/cli/server.md#--chat-max-tool-output-bytes)
-- YAML key: `chat.maxToolOutputBytes`
-- Default value: `32768`
 
 ### Stream silence timeout
 
