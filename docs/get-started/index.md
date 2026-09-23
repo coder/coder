@@ -337,17 +337,38 @@ You now have:
 - A workspace running that environment.
 - IDE access to code remotely.
 
-Now that you have your own workspace running, you can [customize your template](./customize-your-template/index.md) to fit your needs.
+Pick the goal that matches what you want to do next.
+Each path starts from the deployment you just built.
+
+### Hand a task to a coding agent
+
+[Coder Agents](../ai-coder/agents/index.md) is a chat interface where you describe work and an agent provisions a workspace from your template and does it.
+Community deployments can run up to five agents at a time at no cost, so you can try it on this deployment right away.
+You need an API key for a [supported LLM provider](../ai-coder/agents/models.md).
+Follow [Get started with Coder Agents](../ai-coder/agents/getting-started.md) to configure a provider and run your first agent.
+
+If you don't have a project in mind, ask the agent for something small you can check in a few minutes, such as a command-line to-do app in the language you picked for your workspace, or a README for a repository you cloned.
+
+### Make the workspace fit how you work
+
+The Quickstart template is a starting point.
+[Customize your template](./customize-your-template/index.md) walks you through adding a language, installing your own command-line tools, and cloning private repositories, about 10 minutes each.
+
+To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../user-guides/workspace-dotfiles.md).
+
+### Bring in your team
+
+Coder is built for shared, remote infrastructure.
+When you're ready for other people to use it:
+
+1. Install the control plane on a separate machine by following the [Install guide](../install/index.md).
+1. [Create users](../admin/users/index.md#create-a-user) for your teammates, or connect an SSO provider.
+1. Have each teammate launch their own workspace from your template, which everyone in the organization can use by default; refer to [Workspace management](../user-guides/workspace-management.md).
 
 ## Learn more
 
-- [Try Coder Agents](../ai-coder/agents/getting-started.md), the chat
-  interface and API for delegating development work to coding agents in your
-  Coder deployment.
-
-- [Read about managing Workspaces for your team](../user-guides/workspace-management.md)
-
-- [Read about implementing monitoring tools for your Coder Deployment](../admin/monitoring/index.md)
+- [Monitor your Coder deployment](../admin/monitoring/index.md)
+- [Browse the Coder Registry](https://registry.coder.com) for templates and modules you can add to your own
 
 ## Troubleshooting
 
