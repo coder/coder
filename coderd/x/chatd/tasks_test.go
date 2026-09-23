@@ -1403,7 +1403,7 @@ func (f *taskTestFixture) interruptChat(t *testing.T, chatID uuid.UUID) database
 	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      taskUserTextMessage(t, "interrupt", f.user.ID, f.model.ID, f.apiKey.ID),
-			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			BusyBehavior: database.ChatBusyBehaviorInterrupt,
 		})
 		return err
 	}))

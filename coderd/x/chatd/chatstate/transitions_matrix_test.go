@@ -32,10 +32,10 @@ type scenario string
 
 const (
 	// scenarioQueue marks SendMessage cases driven by
-	// BusyBehaviorQueue.
+	// ChatBusyBehaviorQueue.
 	scenarioQueue scenario = "queue"
 	// scenarioInterrupt marks SendMessage cases driven by
-	// BusyBehaviorInterrupt.
+	// ChatBusyBehaviorInterrupt.
 	scenarioInterrupt scenario = "interrupt"
 	// scenarioMulti marks cases seeded with multiple queued
 	// messages so the post-mutation queue stays non-empty.
@@ -113,7 +113,7 @@ func applySendMessageQueue(t *testing.T, f *testFixture, tx *chatstate.Tx, _ see
 	var err error
 	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
 		Message:      userTextMessage("sm-queue", f.User.ID, f.Model.ID),
-		BusyBehavior: chatstate.BusyBehaviorQueue,
+		BusyBehavior: database.ChatBusyBehaviorQueue,
 	})
 	return err
 }
@@ -123,7 +123,7 @@ func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, _
 	var err error
 	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
 		Message:      userTextMessage("sm-interrupt", f.User.ID, f.Model.ID),
-		BusyBehavior: chatstate.BusyBehaviorInterrupt,
+		BusyBehavior: database.ChatBusyBehaviorInterrupt,
 	})
 	return err
 }
@@ -1017,6 +1017,8 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 				assertChatMessageText(t, promoted, seeded.queuedMessageBodies[0])
 				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
 				assertQueuedMessageText(t, newQueued, "sm-queue")
+				require.Equal(t, database.ChatBusyBehaviorQueue, newQueued.BusyBehavior,
+					"SendMessage(queue) stores the queue busy behavior")
 				// Previous head queued message is gone from the
 				// queue and now lives in history.
 				require.NotEmpty(t, base.queueIDs,
@@ -1045,6 +1047,8 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 					"SendMessage(queue) from busy states does not insert history")
 				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
 				assertQueuedMessageText(t, newQueued, "sm-queue")
+				require.Equal(t, database.ChatBusyBehaviorQueue, newQueued.BusyBehavior,
+					"SendMessage(queue) stores the queue busy behavior")
 				wantQueue := append(append([]int64{}, base.queueIDs...), newQueued.ID)
 				require.Equal(t, wantQueue, afterQueueIDs,
 					"SendMessage(queue) from busy states appends to the queue tail")
@@ -1126,6 +1130,8 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 				assertChatMessageText(t, promoted, seeded.queuedMessageBodies[0])
 				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
 				assertQueuedMessageText(t, newQueued, "sm-interrupt")
+				require.Equal(t, database.ChatBusyBehaviorInterrupt, newQueued.BusyBehavior,
+					"SendMessage(interrupt) stores the interrupt busy behavior")
 				require.NotEmpty(t, base.queueIDs,
 					chatstate.StateE1.String()+" seed must have a queue head")
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
@@ -1152,6 +1158,8 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"SendMessage(interrupt) from I* does not insert history")
 				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
 				assertQueuedMessageText(t, newQueued, "sm-interrupt")
+				require.Equal(t, database.ChatBusyBehaviorInterrupt, newQueued.BusyBehavior,
+					"SendMessage(interrupt) stores the interrupt busy behavior")
 				wantQueue := append(append([]int64{}, base.queueIDs...), newQueued.ID)
 				require.Equal(t, wantQueue, afterQueueIDs,
 					"SendMessage(interrupt) from I* appends to the queue tail")
@@ -1169,6 +1177,8 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"SendMessage(interrupt) from R* returns the queued tail")
 				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
 				assertQueuedMessageText(t, newQueued, "sm-interrupt")
+				require.Equal(t, database.ChatBusyBehaviorInterrupt, newQueued.BusyBehavior,
+					"SendMessage(interrupt) stores the interrupt busy behavior")
 				wantQueue := append(append([]int64{}, base.queueIDs...), newQueued.ID)
 				require.Equal(t, wantQueue, afterQueueIDs,
 					"SendMessage(interrupt) from R* appends to the queue tail")
@@ -1186,6 +1196,8 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"SendMessage(interrupt) from A* returns the queued tail")
 				newQueued := assertFetchedQueuedMessage(ctx, t, f, seeded.chatID, *result.sendMessage.QueuedMessage)
 				assertQueuedMessageText(t, newQueued, "sm-interrupt")
+				require.Equal(t, database.ChatBusyBehaviorInterrupt, newQueued.BusyBehavior,
+					"SendMessage(interrupt) stores the interrupt busy behavior")
 				wantQueue := append(append([]int64{}, base.queueIDs...), newQueued.ID)
 				require.Equal(t, wantQueue, afterQueueIDs,
 					"SendMessage(interrupt) from A* appends to the queue tail")

@@ -261,7 +261,7 @@ func (tx *Tx) requireQueueCapacity() error {
 
 // insertQueuedMessage inserts a queued user message. created_by falls
 // back to chats.owner_id only when the message does not supply one.
-func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.ChatQueuedMessage, error) {
+func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, busyBehavior database.ChatBusyBehavior) (database.ChatQueuedMessage, error) {
 	createdBy := ownerFallback
 	if m.CreatedBy.Valid {
 		createdBy = m.CreatedBy.UUID
@@ -279,6 +279,7 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 		ModelConfigID:   m.ModelConfigID,
 		ReasoningEffort: m.ReasoningEffort,
 		CreatedBy:       createdBy,
+		BusyBehavior:    busyBehavior,
 	})
 }
 
@@ -369,20 +370,13 @@ func (tx *Tx) SetArchived(input SetArchivedInput) (SetArchivedResult, error) {
 	return SetArchivedResult{}, nil
 }
 
-// BusyBehavior controls how SendMessage behaves when the chat is
-// currently busy (R*/I*/A*). From idle/error states the two behaviors
-// are equivalent.
-type BusyBehavior string
-
-const (
-	BusyBehaviorQueue     BusyBehavior = "queue"
-	BusyBehaviorInterrupt BusyBehavior = "interrupt"
-)
-
 // SendMessageInput configures [Tx.SendMessage].
 type SendMessageInput struct {
-	Message      Message
-	BusyBehavior BusyBehavior
+	Message Message
+	// BusyBehavior controls how SendMessage behaves when the chat is
+	// currently busy (R*/I*/A*). From idle/error states queue and
+	// interrupt are equivalent.
+	BusyBehavior database.ChatBusyBehavior
 }
 
 // SendMessageResult is returned by [Tx.SendMessage].
@@ -406,7 +400,7 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 		)
 	}
 	switch input.BusyBehavior {
-	case BusyBehaviorQueue, BusyBehaviorInterrupt:
+	case database.ChatBusyBehaviorQueue, database.ChatBusyBehaviorInterrupt:
 		// ok
 	default:
 		// Reject unknown / empty BusyBehavior up front so an invalid
@@ -432,14 +426,14 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 
 	// Running with no queue.
 	case StateR0:
-		if input.BusyBehavior == BusyBehaviorInterrupt {
+		if input.BusyBehavior == database.ChatBusyBehaviorInterrupt {
 			return tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
 		}
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
 	// Running with queue.
 	case StateR1:
-		if input.BusyBehavior == BusyBehaviorInterrupt {
+		if input.BusyBehavior == database.ChatBusyBehaviorInterrupt {
 			return tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
 		}
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
@@ -451,7 +445,7 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	// Requires-action: queue keeps A*; interrupt cancels pending
 	// dynamic calls and resumes in running.
 	case StateA0, StateA1:
-		if input.BusyBehavior == BusyBehaviorInterrupt {
+		if input.BusyBehavior == database.ChatBusyBehaviorInterrupt {
 			return tx.sendMessageInterruptRequiresAction(chat, input)
 		}
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
@@ -484,7 +478,7 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (Sen
 }
 
 func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.BusyBehavior)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -533,7 +527,7 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	lastError pqtype.NullRawMessage,
 	deadline sql.NullTime,
 ) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.BusyBehavior)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}

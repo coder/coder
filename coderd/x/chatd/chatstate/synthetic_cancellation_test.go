@@ -149,7 +149,7 @@ func testSendMessageDirectWSynthesizesToolCancellations(t *testing.T) {
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("after-cancel", f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorQueue,
+			BusyBehavior: database.ChatBusyBehaviorQueue,
 		})
 		return err
 	}))
@@ -182,7 +182,7 @@ func testSendMessageDirectE0SynthesizesToolCancellations(t *testing.T) {
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("after-error", f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorQueue,
+			BusyBehavior: database.ChatBusyBehaviorQueue,
 		})
 		return err
 	}))

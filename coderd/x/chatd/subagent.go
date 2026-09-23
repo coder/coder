@@ -767,9 +767,9 @@ func (p *Server) subagentTools(
 						slog.Error(lookupErr),
 					)
 				}
-				busyBehavior := SendMessageBusyBehaviorQueue
+				busyBehavior := database.ChatBusyBehaviorQueue
 				if args.Interrupt {
-					busyBehavior = SendMessageBusyBehaviorInterrupt
+					busyBehavior = database.ChatBusyBehaviorInterrupt
 				}
 				targetChat, err := p.sendSubagentMessage(
 					ctx,
@@ -1185,7 +1185,7 @@ func (p *Server) sendSubagentMessage(
 	parentChatID uuid.UUID,
 	targetChatID uuid.UUID,
 	message string,
-	busyBehavior SendMessageBusyBehavior,
+	busyBehavior database.ChatBusyBehavior,
 ) (database.Chat, error) {
 	message = strings.TrimSpace(message)
 	if message == "" {

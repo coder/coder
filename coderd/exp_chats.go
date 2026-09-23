@@ -2701,10 +2701,10 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		sendPlanMode = &resolvedPlanMode
 	}
 
-	busyBehavior := chatd.SendMessageBusyBehaviorQueue
+	busyBehavior := database.ChatBusyBehaviorQueue
 	switch req.BusyBehavior {
 	case codersdk.ChatBusyBehaviorInterrupt:
-		busyBehavior = chatd.SendMessageBusyBehaviorInterrupt
+		busyBehavior = database.ChatBusyBehaviorInterrupt
 	case codersdk.ChatBusyBehaviorQueue, "":
 		// Default to queue.
 	default:

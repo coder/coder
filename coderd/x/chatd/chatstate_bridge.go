@@ -42,14 +42,3 @@ func userMessage(rawContent pqtype.NullRawMessage, modelConfigID, createdBy uuid
 		ContentVersion:  chatprompt.CurrentContentVersion,
 	}
 }
-
-// busyBehaviorToChatState converts the public busy-behavior enum used
-// by the server API to the chatstate variant.
-func busyBehaviorToChatState(b SendMessageBusyBehavior) chatstate.BusyBehavior {
-	switch b {
-	case SendMessageBusyBehaviorInterrupt:
-		return chatstate.BusyBehaviorInterrupt
-	default:
-		return chatstate.BusyBehaviorQueue
-	}
-}

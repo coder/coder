@@ -304,9 +304,10 @@ func setArchivedWrongDirectionCases() []setArchivedWrongDirectionCase {
 	}
 }
 
-var invalidBusyBehaviors = []chatstate.BusyBehavior{
-	chatstate.BusyBehavior(""),
-	chatstate.BusyBehavior("not-a-real-mode"),
+var invalidBusyBehaviors = []database.ChatBusyBehavior{
+	database.ChatBusyBehavior(""),
+	database.ChatBusyBehavior("not-a-real-mode"),
+	database.ChatBusyBehaviorSteer,
 }
 
 func runSetArchivedWrongDirectionCase(t *testing.T, tc setArchivedWrongDirectionCase) {
@@ -337,7 +338,7 @@ func runSetArchivedWrongDirectionCase(t *testing.T, tc setArchivedWrongDirection
 	assertNoMutationOrPublish(ctx, t, f, seeded.chatID, base)
 }
 
-func runInvalidBusyBehaviorCase(t *testing.T, from chatstate.ExecutionState, bb chatstate.BusyBehavior) {
+func runInvalidBusyBehaviorCase(t *testing.T, from chatstate.ExecutionState, bb database.ChatBusyBehavior) {
 	t.Helper()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -552,7 +553,7 @@ func TestSendMessageQueueCapRejectsQueueAppend(t *testing.T) {
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 
 	// createTestChat lands the chat in R0; SendMessage in R0 with
-	// BusyBehaviorQueue queues. Fill the queue to MaxQueueSize.
+	// ChatBusyBehaviorQueue queues. Fill the queue to MaxQueueSize.
 	for i := 0; i < chatstate.MaxQueueSize; i++ {
 		sendQueuedMessage(t, f, m, "filler")
 	}
@@ -566,7 +567,7 @@ func TestSendMessageQueueCapRejectsQueueAppend(t *testing.T) {
 	err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		_, serr := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("overflow", f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorQueue,
+			BusyBehavior: database.ChatBusyBehaviorQueue,
 		})
 		return serr
 	})
@@ -603,7 +604,7 @@ func TestSendMessageInterruptRequiresActionReturnsCancellations(t *testing.T) {
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("interrupt", f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			BusyBehavior: database.ChatBusyBehaviorInterrupt,
 		})
 		return err
 	}))

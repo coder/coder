@@ -260,7 +260,7 @@ func TestQueueVersionTrigger_AdvancesOnInsert(t *testing.T) {
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("queue", f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorQueue,
+			BusyBehavior: database.ChatBusyBehaviorQueue,
 		})
 		return err
 	}))

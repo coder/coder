@@ -10523,9 +10523,10 @@ func TestClearChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = db.InsertChatQueuedMessageWithCreator(dbauthz.AsSystemRestricted(ctx), database.InsertChatQueuedMessageWithCreatorParams{
-			ChatID:    chat.ID,
-			Content:   queuedContent.RawMessage,
-			CreatedBy: user.UserID,
+			ChatID:       chat.ID,
+			Content:      queuedContent.RawMessage,
+			CreatedBy:    user.UserID,
+			BusyBehavior: database.ChatBusyBehaviorQueue,
 		})
 		require.NoError(t, err)
 

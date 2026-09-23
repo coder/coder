@@ -232,7 +232,7 @@ func TestSendMessageUserPromptSubmitQueue(t *testing.T) {
 	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:       chat.ID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued original")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+		BusyBehavior: database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	require.True(t, result.Queued)
@@ -315,7 +315,7 @@ func TestSendMessageUserPromptSubmitQueuedRejections(t *testing.T) {
 			_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 				ChatID:       chat.ID,
 				Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
-				BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+				BusyBehavior: database.ChatBusyBehaviorQueue,
 			})
 			test.assertErr(t, err)
 			queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
@@ -655,6 +655,7 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 			Content:       queuedContent.RawMessage,
 			ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 			CreatedBy:     user.ID,
+			BusyBehavior:  database.ChatBusyBehaviorQueue,
 		})
 		require.NoError(t, err)
 	}
