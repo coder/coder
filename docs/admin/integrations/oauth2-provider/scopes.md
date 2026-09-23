@@ -30,7 +30,7 @@ The web UI does not yet set the allowlist.
 
 The consent page states the scope being granted before the user approves it. A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
 
-## Next Steps
+## Learn more
 
 - Review [Token management](./token-management.md) for how a refresh can narrow a grant
 - Check [Common issues](./troubleshooting.md) for scope-related errors

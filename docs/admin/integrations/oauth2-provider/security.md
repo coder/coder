@@ -2,9 +2,8 @@
 title: OAuth2 provider security and limitations
 ---
 
-Security guidance for deploying the OAuth2 provider, and the current
-implementation's limitations. For enabling the provider and creating an
-application, see [OAuth2 provider](./index.md).
+Security guidance for deploying the OAuth2 provider, and the current implementation's limitations.
+For enabling the provider and creating an application, refer to [OAuth2 provider](./index.md).
 
 ## Security Considerations
 
@@ -45,3 +44,9 @@ The current implementation has these limitations:
 - An application may register at most 32 redirect URIs of at most 2048 bytes each. To fix an application over that limit, send a `PUT` with a `redirect_uris` list that fits, as shown under [Management API](./index.md#method-2-management-api), or open the application in the web UI and remove entries from **Redirect URIs** until the list fits.
 - A cleartext `http://` redirect URI to a host that is not local is rejected; use `https://` or a local host, as described under [Callback URL schemes](./callback-url-schemes.md).
 - A redirect URI with a private-use scheme must name a path or an authority, as in `com.example.app:/callback` or `com.example.app://auth/callback`. The bare form `com.example.app:callback` is rejected.
+
+## Learn more
+
+- Review [OAuth2 provider](./index.md) for enabling the provider and creating an application
+- Review [Integration patterns](./integration-patterns.md) for client authentication methods and flows
+- Check [Common issues](./troubleshooting.md) if you hit an error

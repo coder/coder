@@ -2,14 +2,9 @@
 title: OAuth2 provider integration patterns
 ---
 
-How a client authenticates to Coder's OAuth2 provider and completes an
-authorization: the supported client authentication methods, the standard
-authorization code flow, the required PKCE flow, and the discovery endpoints
-a client uses to find them. For enabling the provider and creating an
-application, see [OAuth2 provider](./index.md). For scopes, token refresh and
-revocation, and accepted redirect URI schemes, see
-[Scopes](./scopes.md), [Token management](./token-management.md), and
-[Callback URL schemes](./callback-url-schemes.md).
+How a client authenticates to Coder's OAuth2 provider and completes an authorization: the supported client authentication methods, the standard authorization code flow, the required PKCE flow, and the discovery endpoints a client uses to find them.
+For enabling the provider and creating an application, refer to [OAuth2 provider](./index.md).
+For scopes, token refresh and revocation, and accepted redirect URI schemes, refer to [Scopes](./scopes.md), [Token management](./token-management.md), and [Callback URL schemes](./callback-url-schemes.md).
 
 ## Client Authentication Methods
 
@@ -187,7 +182,7 @@ authorization code grants, exact redirect URI string matching with the
 exception, rejection of the implicit grant, and CSRF protections on consent
 pages.
 
-## Next Steps
+## Learn more
 
 - Review [Scopes](./scopes.md) for how access is bounded
 - Review [Token management](./token-management.md) for refresh, revocation, and deletion

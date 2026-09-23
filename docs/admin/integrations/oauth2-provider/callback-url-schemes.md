@@ -17,6 +17,6 @@ A cleartext `http://` redirect URI is accepted only for a local host. A confiden
 
 These rules apply to every entry in `redirect_uris`, not only the first one.
 
-## Next Steps
+## Learn more
 
 - Check [Common issues](./troubleshooting.md) for "Invalid Callback URL" and related errors

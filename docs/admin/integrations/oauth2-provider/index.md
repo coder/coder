@@ -163,7 +163,7 @@ The first entry is the primary callback: it is what the web UI shows for the app
 An admin can edit the list through the management API, and a self-registered client can update its own list with its registration access token.
 The admin `PUT` also validates the stored name, so a self-registered client whose name has leading or trailing whitespace can only be updated with its registration access token.
 
-## Next Steps
+## Learn more
 
 - Review [Integration patterns](./integration-patterns.md) for client authentication methods, the PKCE flow, and discovery endpoints
 - Review [Scopes](./scopes.md) for how access is bounded

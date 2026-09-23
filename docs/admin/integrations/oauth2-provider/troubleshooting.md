@@ -2,10 +2,8 @@
 title: OAuth2 provider troubleshooting
 ---
 
-This page collects the error conditions the OAuth2 provider returns, matched
-by the exact `error`, `error_description`, or log line you'll see. For how the
-provider works, see [OAuth2 provider](./index.md) and
-[Integration patterns](./integration-patterns.md).
+This page collects the error conditions the OAuth2 provider returns, matched by the exact `error`, `error_description`, or log line you'll see.
+For how the provider works, refer to [OAuth2 provider](./index.md) and [Integration patterns](./integration-patterns.md).
 
 ## Common Issues
 
@@ -284,3 +282,9 @@ application that started the flow, so a public client registered with
 one of them could never complete authorization. Register a redirect URI
 the client can actually receive control on instead, such as a custom
 scheme (`myapp://callback`) or a loopback HTTP address.
+
+## Learn more
+
+- Review [OAuth2 provider](./index.md) for enabling the provider and creating an application
+- Review [Integration patterns](./integration-patterns.md) for client authentication methods and flows
+- Review [Security considerations and limitations](./security.md)
