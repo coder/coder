@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Reviews code changes for bugs, security issues, and quality problems. Use for a single-pass review of a PR, branch, or local diff; for large PRs that span several subsystems, use deep-review.
+description: Reviews code changes for bugs, security issues, and quality problems. Use for a single-pass review of a PR, branch, or local diff; for large PRs that span several subsystems, use deep-review (`.agents/skills/deep-review/`).
 ---
 
 # Code Review Skill
@@ -65,7 +65,7 @@ api.Database.GetResource(ctx, id)
 
 ```go
 // OAuth2 endpoints use RFC-compliant errors
-writeOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "description")
+httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "description")
 
 // Regular endpoints use httpapi
 httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{...})

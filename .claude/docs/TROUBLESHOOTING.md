@@ -124,12 +124,12 @@ When facing multiple failing tests or complex integration issues:
 
 ### Useful Debug Commands
 
-| Command                                      | Purpose                               |
-|----------------------------------------------|---------------------------------------|
-| `make lint`                                  | Run all linters                       |
-| `make gen`                                   | Generate mocks, database queries      |
-| `go test -v ./path/to/package -run TestName` | Run specific test with verbose output |
-| `go test -race ./...`                        | Run tests with race detector          |
+| Command                                              | Purpose                               |
+|------------------------------------------------------|---------------------------------------|
+| `make lint`                                          | Run all linters                       |
+| `make gen`                                           | Generate mocks, database queries      |
+| `go test -v ./path/to/package -run TestName`         | Run specific test with verbose output |
+| `make test-race TEST_PACKAGES=./path/to/package/...` | Run tests with race detector          |
 
 ### LSP Debugging
 
@@ -211,9 +211,9 @@ the same language-server operations differently.
 
 ### Before Committing
 
-1. **Run the affected packages' tests**: `go test ./path/to/package`
+1. **Run the affected packages' tests**: `make test TEST_PACKAGES=./path/to/package/...`
 2. **Check linting**: `make lint`
-3. **Run the race detector when the change touches concurrency**: `go test -race ./path/to/package`
+3. **Run the race detector when the change touches concurrency**: `make test-race TEST_PACKAGES=./path/to/package/...`
 
 ## Getting Help
 

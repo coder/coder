@@ -203,26 +203,37 @@ func TestDatabaseFunction(t *testing.T) {
 ### Complex Queries
 
 ```sql
--- Example: Complex join with aggregation
+-- name: GetWorkspaceCountsPerUser :many
 SELECT
     u.id,
     u.username,
-    COUNT(w.id) as workspace_count
+    COUNT(w.id) AS workspace_count
 FROM users u
 LEFT JOIN workspaces w ON u.id = w.owner_id
-WHERE u.created_at > $1
+WHERE u.created_at > @created_after
 GROUP BY u.id, u.username
 ORDER BY workspace_count DESC;
 ```
 
 ### Conditional Queries
 
+sqlc makes cast parameters non-nullable, so an optional filter compares
+against the zero value instead of `IS NULL`. Use `sqlc.narg` when the caller
+must pass a real NULL. `GetTemplatesWithFilter` in
+`coderd/database/queries/templates.sql` is a complete example.
+
 ```sql
--- Example: Dynamic filtering
-SELECT * FROM oauth2_provider_apps
+-- name: GetTemplatesFiltered :many
+SELECT * FROM templates
 WHERE
-    ($1::text IS NULL OR name ILIKE '%' || $1 || '%')
-    AND ($2::uuid IS NULL OR organization_id = $2)
+    CASE
+        WHEN @fuzzy_name :: text != '' THEN name ILIKE '%' || @fuzzy_name || '%'
+        ELSE true
+    END
+    AND CASE
+        WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN organization_id = @organization_id
+        ELSE true
+    END
 ORDER BY created_at DESC;
 ```
 

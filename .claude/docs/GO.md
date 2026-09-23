@@ -216,9 +216,9 @@ exists. Check your output against these.
 
 **Version misuse.** The replacement table has a "Since" column. If the
 project's `go.mod` says `go 1.22`, you cannot use `wg.Go` (1.25),
-`errors.AsType` (1.26), `new(expr)` (1.26), `b.Loop()` (1.24), or
-`testing/synctest` (1.24). Fall back to the older pattern. Always
-check before reaching for a replacement.
+`errors.AsType` (1.26), `new(expr)` (1.26), or `b.Loop()` (1.24).
+Fall back to the older pattern. Always check before reaching for a
+replacement.
 
 **`slices.Sort` vs `slices.SortFunc`.** `slices.Sort` requires
 `cmp.Ordered` types (int, string, float64, etc.). For structs, custom

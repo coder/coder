@@ -114,7 +114,7 @@ Tier 2 file filters:
   - TypeScript: `*.ts` `*.tsx`: reference `.agents/skills/deep-review/references/typescript.md` before reviewing.
   - React: `*.tsx` `*.jsx`: reference `.agents/skills/deep-review/references/react.md` before reviewing.
 
-  `.tsx` files match both TypeScript and React filters. Spawn both instances when the diff contains `.tsx` changes — TS covers language-level patterns; React covers component and hooks patterns. Before spawning, verify each instance's filter produces a non-empty diff. Skip instances whose filtered diff is empty.
+  `.tsx` files match both TypeScript and React filters. Spawn both instances when the diff contains `.tsx` changes: TS covers language-level patterns; React covers component and hooks patterns. Before spawning, list the changed paths (`gh pr diff {number} --name-only` for a PR) and skip instances whose filter matches none of them.
 
 - **Style Reviewer**: `*.go` `*.ts` `*.tsx` `*.py` `*.sh`
 
@@ -323,12 +323,12 @@ Where `review.json`:
         {
             "path": "file.go",
             "position": 42,
-            "body": "**P1** Finding... *(Reviewer Role)*\n\n> Evidence..."
+            "body": "**P2** Finding... *(Reviewer Role)*\n\n> Evidence..."
         },
         {
             "path": "other.go",
-            "position": 1,
-            "body": "**P2** Cross-file finding... *(Reviewer Role)*\n\n> Evidence..."
+            "position": 17,
+            "body": "**P3** Finding that spans files, pinned to the most relevant line in the primary file... *(Reviewer Role)*\n\n> Evidence..."
         }
     ]
 }
