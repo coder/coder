@@ -359,7 +359,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 
 			t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), prebuildInstances)
 			return len(runningPrebuilds) == prebuildInstances
-		}, testutil.IntervalSlow, "prebuilds not running")
+		}, testutil.IntervalFast, "prebuilds not running")
 
 		return runningPrebuilds
 	}
@@ -400,6 +400,10 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			10,
 			nil,
 		)
+		go reconciler.Run(ctx)
+		t.Cleanup(func() {
+			reconciler.Stop(testutil.Context(t, testutil.WaitShort), nil)
+		})
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
@@ -512,6 +516,10 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			10,
 			nil,
 		)
+		go reconciler.Run(ctx)
+		t.Cleanup(func() {
+			reconciler.Stop(testutil.Context(t, testutil.WaitShort), nil)
+		})
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
