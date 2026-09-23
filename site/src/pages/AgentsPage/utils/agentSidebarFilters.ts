@@ -38,11 +38,8 @@ export type AgentChatAttributeFilter =
 	(typeof AGENT_CHAT_ATTRIBUTE_ORDER)[number];
 
 /**
- * Sidebar filter state persisted in the URL.
- *
- * `timeRange` and `attributes` are not yet applied to the chat list: the
- * chats search API has no matching terms. They are persisted so the filter
- * menu can reflect them until the backend supports them.
+ * `timeRange` and `attributes` are URL state only; the chats search API has
+ * no matching terms, so they are not applied to the chat list query.
  */
 export type AgentSidebarFilters = Readonly<{
 	archiveStatus: AgentArchiveStatusFilter;

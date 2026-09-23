@@ -197,9 +197,8 @@ describe("ChatsSidebar sections", () => {
 });
 
 describe("ChatsSidebar filters", () => {
-	// Radix submenus compute a pointer grace area from element rects, which
-	// are all zero in jsdom, so a synthetic hover from the sub-trigger to an
-	// item closes the submenu before the click lands.
+	// jsdom reports zero-size rects, so Radix's submenu pointer grace area
+	// treats a synthetic hover as leaving the submenu and closes it.
 	const setupSubmenuUser = () => userEvent.setup({ skipHover: true });
 
 	it("applies state changes immediately", async () => {

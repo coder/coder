@@ -133,8 +133,8 @@ const hasActiveFilters = (filters: AgentSidebarFilters): boolean => {
 	);
 };
 
-// Radix closes the whole menu when an item is selected. Filters apply
-// immediately, so keep the menu open to allow adjusting several at once.
+// Radix closes the menu on select; keep it open so several filters can be
+// changed in one pass.
 const keepMenuOpen = (event: Event) => {
 	event.preventDefault();
 };
@@ -146,9 +146,8 @@ type AdvancedFilterOption = Readonly<{
 	setChecked: (checked: boolean) => void;
 }>;
 
-// Menu checkbox items with a leading checkbox so multi-select is visually
-// distinct from the single-select radio submenus. The box mirrors the
-// Checkbox component styles without nesting a second interactive control.
+// Draws the checkbox visually instead of rendering Checkbox, which would
+// nest a second interactive control inside the menu item.
 const MultiSelectMenuItem: FC<
 	ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>
 > = ({ className, children, ...props }) => (
