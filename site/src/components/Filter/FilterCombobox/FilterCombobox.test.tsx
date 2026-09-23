@@ -134,6 +134,24 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("missing"));
 	});
 
+	it("labels an applied attribute chip before the menu is opened", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<FilterComboboxHarness
+				categories={[attributesCategory]}
+				initialValue="outdated:true"
+				onChange={onChange}
+			/>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Remove outdated" }),
+		);
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+	});
+
 	it("replaces the selected Workspace attribute", async () => {
 		const user = userEvent.setup();
 		const onChange = vi.fn();

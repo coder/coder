@@ -70,7 +70,6 @@ export const UsersPageFilter: FC<UsersPageFilterProps> = ({
 				icon: <UsersIcon />,
 				chipKeys: USER_TYPE_CHIP_KEYS,
 				inlineOptions: true,
-				inlineOptionsExclusive: true,
 				inlineOptionsLabel: "User type is…",
 				inlineOptionIcons: true,
 				getOptions: getUserTypeFilterOptions,

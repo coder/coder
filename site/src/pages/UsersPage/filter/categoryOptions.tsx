@@ -1,4 +1,4 @@
-import { BotIcon, UserIcon } from "lucide-react";
+import { BotIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import type { QueryClient } from "react-query";
 import { roles } from "#/api/queries/roles";
@@ -57,19 +57,13 @@ export const getRoleFilterOptions = async (
 /** Query keys the User type category owns for chip parsing. */
 export const USER_TYPE_CHIP_KEYS: readonly string[] = ["service_account"];
 
-// Selecting neither type matches all users.
+// Unselected matches every user, so a single option is enough.
 export const getUserTypeFilterOptions = async (
 	query: string,
 ): Promise<FilterOption[]> =>
 	[
 		{
-			label: "Users",
-			value: "user",
-			token: "service_account:false",
-			startIcon: <UserIcon />,
-		},
-		{
-			label: "Service accounts",
+			label: "Service account",
 			value: "service_account",
 			token: "service_account:true",
 			startIcon: <BotIcon />,

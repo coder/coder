@@ -72,7 +72,7 @@ export const FilteredByStatusRoleAndType: Story = {
 			...defaultFilterProps,
 			filter: {
 				...defaultFilterProps.filter,
-				query: "status:active role:owner service_account:false",
+				query: "status:active role:owner service_account:true",
 			},
 		},
 	},

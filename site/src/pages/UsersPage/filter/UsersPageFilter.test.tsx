@@ -49,7 +49,7 @@ describe("UsersPageFilter", () => {
 
 		await user.click(screen.getByRole("button", { name: "Toggle filters" }));
 		await user.click(
-			await screen.findByRole("option", { name: /Service accounts/ }),
+			await screen.findByRole("option", { name: /Service account/ }),
 		);
 
 		await waitFor(() =>
@@ -75,17 +75,16 @@ describe("UsersPageFilter", () => {
 		);
 	});
 
-	it("replaces the selected user type instead of adding a second one", async () => {
+	it("removes a service account chip applied from the URL", async () => {
 		const user = userEvent.setup();
-		const { update } = renderFilter("service_account:false");
+		const { update } = renderFilter("status:active service_account:true");
 
-		await user.click(screen.getByRole("button", { name: "Toggle filters" }));
 		await user.click(
-			await screen.findByRole("option", { name: /Service accounts/ }),
+			await screen.findByRole("button", { name: "Remove service account" }),
 		);
 
 		await waitFor(() =>
-			expect(update).toHaveBeenLastCalledWith("service_account:true"),
+			expect(update).toHaveBeenLastCalledWith("status:active"),
 		);
 	});
 });

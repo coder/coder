@@ -297,7 +297,7 @@ export const WrappedChipsKeepIconsOnFirstRow: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
-		await expect(canvas.getByText(chip("attribute:shared"))).toBeVisible();
+		await expect(canvas.getByText(chip("shared"))).toBeVisible();
 	},
 };
 
