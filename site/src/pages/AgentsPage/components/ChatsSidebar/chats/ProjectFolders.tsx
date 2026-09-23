@@ -24,6 +24,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { ChatTreeNode } from "../tree/ChatTreeNode";
@@ -39,14 +40,15 @@ type ProjectFoldersProps = {
 	readonly onCreate: () => void;
 	readonly onEdit: (project: ChatProject) => void;
 	readonly onDelete: (project: ChatProject) => void;
+	readonly isLoading?: boolean;
 	readonly error?: unknown;
 	readonly onRetry: () => void;
 };
 
 /**
- * Projects as folders at the top of the sidebar. A folder holds the user's
- * chats in that project; those chats are omitted from the time sections below
- * so each chat appears once.
+ * Projects section above Chats, with a matching header. A folder holds the
+ * user's chats in that project; those chats are omitted from the time
+ * sections below so each chat appears once.
  */
 export const ProjectFolders: FC<ProjectFoldersProps> = ({
 	projects,
@@ -56,47 +58,57 @@ export const ProjectFolders: FC<ProjectFoldersProps> = ({
 	onCreate,
 	onEdit,
 	onDelete,
+	isLoading = false,
 	error,
 	onRetry,
 }) => {
 	const location = useLocation();
 
 	return (
-		<div className="mb-3">
-			<div className="group/header mb-1 ml-2.5 mr-2 flex h-7 items-center text-xs font-medium text-content-secondary">
-				<span className="min-w-0 flex-1 truncate">Projects</span>
-				<Button
-					variant="subtle"
-					size="icon"
-					className="size-7 min-w-0"
-					aria-label="New project"
-					onClick={onCreate}
-				>
-					<PlusIcon className="size-3.5" />
-				</Button>
-			</div>
-			{Boolean(error) && (
-				<FolderError
-					message={getErrorMessage(error, "Failed to load projects.")}
-					onRetry={onRetry}
-				/>
-			)}
-			{projects.length > 0 && (
-				<div className="flex flex-col gap-0.5">
-					{projects.map((project) => (
-						<ProjectFolder
-							key={project.id}
-							project={project}
-							chats={chatsByProjectId.get(project.id) ?? []}
-							expanded={Boolean(expandedProjectIds[project.id])}
-							locationSearch={location.search}
-							onToggle={() => onToggle(project.id)}
-							onEdit={() => onEdit(project)}
-							onDelete={() => onDelete(project)}
-						/>
-					))}
+		// Bounded so a long project list cannot push the Chats section off
+		// screen; the folders scroll on their own past that point.
+		<div className="flex max-h-[40vh] shrink-0 flex-col">
+			<div className="mx-2 pt-6 mb-1.5">
+				<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
+					<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
+						Projects
+					</h2>
+					<Button
+						variant="subtle"
+						size="icon"
+						className="size-7"
+						aria-label="New project"
+						onClick={onCreate}
+					>
+						<PlusIcon />
+					</Button>
 				</div>
-			)}
+			</div>
+			<div className="min-h-0 overflow-y-auto px-2">
+				{Boolean(error) && (
+					<FolderError
+						message={getErrorMessage(error, "Failed to load projects.")}
+						onRetry={onRetry}
+					/>
+				)}
+				{isLoading && <Skeleton className="ml-2.5 h-3.5 w-20" />}
+				{projects.length > 0 && (
+					<div className="flex flex-col gap-0.5">
+						{projects.map((project) => (
+							<ProjectFolder
+								key={project.id}
+								project={project}
+								chats={chatsByProjectId.get(project.id) ?? []}
+								expanded={Boolean(expandedProjectIds[project.id])}
+								locationSearch={location.search}
+								onToggle={() => onToggle(project.id)}
+								onEdit={() => onEdit(project)}
+								onDelete={() => onDelete(project)}
+							/>
+						))}
+					</div>
+				)}
+			</div>
 		</div>
 	);
 };
