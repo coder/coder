@@ -98,13 +98,13 @@ export const UsersPageFilter: FC<UsersPageFilterProps> = ({
 
 	return (
 		<div className="mb-4 flex flex-wrap items-start gap-2">
-			<div className="flex min-w-0 max-w-full flex-col gap-2">
+			<div className="flex w-full min-w-0 max-w-full flex-col gap-2 sm:w-auto">
 				<FilterCombobox
 					value={extractFreeText(filter.query, LAST_SEEN_KEYS)}
 					onChange={handleChange}
 					categories={categories}
 					placeholder="Search and filter users…"
-					className="w-auto min-w-lg max-w-full self-start"
+					className="w-full min-w-0 self-start sm:w-auto sm:min-w-lg sm:max-w-full"
 					errorMessage={
 						showValidationError ? getValidationErrorMessage(error) : undefined
 					}
