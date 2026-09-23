@@ -589,7 +589,9 @@ const diffStatusEqual = (
 		a.pr_number === b.pr_number &&
 		a.approved === b.approved &&
 		a.commits === b.commits &&
-		a.reviewer_count === b.reviewer_count
+		a.reviewer_count === b.reviewer_count &&
+		a.author_login === b.author_login &&
+		a.author_avatar_url === b.author_avatar_url
 	);
 };
 
