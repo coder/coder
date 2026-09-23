@@ -11,10 +11,10 @@ import {
 	useEffect,
 	useId,
 	useLayoutEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
+import { useQuery } from "react-query";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ListFilterActiveIcon } from "#/components/Icons/ListFilterActiveIcon";
@@ -23,6 +23,7 @@ import {
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
 import { Switch } from "#/components/Switch/Switch";
+import { useDebouncedValue } from "#/hooks/debounce";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	coarsePointerMediaQuery,
@@ -42,6 +43,7 @@ import {
 	FilterComboboxRoot,
 	FilterComboboxStatus,
 } from "./primitives";
+import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
 import { useFilterCombobox } from "./useFilterCombobox";
 
@@ -196,15 +198,19 @@ export function FilterCombobox({
 	const flyoutCategory = categories.find(
 		(category) => category.key === flyoutCategoryKey,
 	);
+	// Typed text narrows the category rows, so there is no hover flyout and a
+	// click enters the category like Enter does.
+	const filteringCategories = !browseAll && inputValue.trim().length > 0;
 	const flyoutOptions =
 		activeCategoryKey === null &&
 		flyoutCategoryKey !== null &&
-		(browseAll || inputValue.trim().length === 0)
+		!filteringCategories
 			? browseCategoryOptions.get(flyoutCategoryKey)
 			: undefined;
 	const selectFlyoutOption = (token: string) => {
 		actions.selectCategoryOption(token);
 		updateFlyoutCategory(null, true);
+		actions.focusInput();
 	};
 	const selectCategory = (categoryKey: string) => {
 		updateFlyoutCategory(null, true);
@@ -417,6 +423,9 @@ export function FilterCombobox({
 									activeCategory={activeCategory}
 									activeCategoryKey={activeCategoryKey}
 									activeOptions={activeOptions}
+									previewCount={
+										browseCategoryOptions.get(activeCategoryKey)?.length
+									}
 									activeOptionsError={activeOptionsError}
 									selectedTokens={chipValues}
 									chipKey={optionChipKey(activeCategoryKey)}
@@ -442,7 +451,11 @@ export function FilterCombobox({
 								valueSuggestions={valueSuggestions}
 								inlineOptions={inlineOptions}
 								typeaheadError={typeaheadError}
-								drillIn={isCoarsePointer || activeCategoryKey !== null}
+								drillIn={
+									isCoarsePointer ||
+									activeCategoryKey !== null ||
+									filteringCategories
+								}
 								registerCategoryRow={registerCategoryRow}
 								onSelectCategory={selectCategory}
 								onHoverCategory={updateFlyoutCategory}
@@ -456,6 +469,9 @@ export function FilterCombobox({
 									activeCategory={activeCategory}
 									activeCategoryKey={activeCategoryKey}
 									activeOptions={activeOptions}
+									previewCount={
+										browseCategoryOptions.get(activeCategoryKey)?.length
+									}
 									activeOptionsError={activeOptionsError}
 									selectedTokens={chipValues}
 									chipKey={optionChipKey(activeCategoryKey)}
@@ -501,6 +517,17 @@ export function FilterCombobox({
 }
 
 const OPTION_ITEM_CLASS = "min-h-8.5 gap-2 px-2 py-1.25";
+
+// Categories with more options than this get a search field in their panel.
+const SEARCHABLE_OPTION_COUNT = 10;
+
+function NoMatchingOptions() {
+	return (
+		<div className="px-2 py-1.5 text-sm text-content-secondary">
+			No matching options
+		</div>
+	);
+}
 
 // Fixed 24px slot so icons, avatars, and status dots of different sizes align.
 function OptionIcon({ children }: { children: ReactNode }): ReactNode {
@@ -799,18 +826,31 @@ function HoverCategoryPanel({
 	onSelectOption,
 }: HoverCategoryPanelProps) {
 	const [query, setQuery] = useState("");
-	const filteredOptions = useMemo(() => {
-		const normalized = query.trim().toLowerCase();
-		return normalized.length === 0
+	const trimmedQuery = query.trim();
+	// `options` is the preview page, which may be truncated, so searches go
+	// through the category's loader. The preview is filtered locally meanwhile.
+	const debouncedQuery = useDebouncedValue(trimmedQuery, SEARCH_DEBOUNCE_MS);
+	const searchResults = useQuery(
+		filterComboboxOptions(
+			category.key,
+			category.getOptions,
+			debouncedQuery,
+			debouncedQuery.length > 0,
+		),
+	);
+	const normalized = trimmedQuery.toLowerCase();
+	const filteredOptions =
+		normalized.length === 0
 			? options
-			: options.filter(
-					(option) =>
-						option.label.toLowerCase().includes(normalized) ||
-						option.value.toLowerCase().includes(normalized),
-				);
-	}, [options, query]);
-	const searchable = options.length > 10;
-	if (filteredOptions.length === 0) {
+			: debouncedQuery === trimmedQuery && searchResults.data
+				? searchResults.data
+				: options.filter(
+						(option) =>
+							option.label.toLowerCase().includes(normalized) ||
+							option.value.toLowerCase().includes(normalized),
+					);
+	const searchable = options.length > SEARCHABLE_OPTION_COUNT;
+	if (filteredOptions.length === 0 && !searchable) {
 		return null;
 	}
 
@@ -842,6 +882,8 @@ function HoverCategoryPanel({
 							)}
 							key={token}
 							type="button"
+							// Keep focus in the combobox input so keyboard navigation continues.
+							onMouseDown={(event) => event.preventDefault()}
 							onClick={() => onSelectOption(token)}
 						>
 							{option.startIcon ? (
@@ -854,6 +896,7 @@ function HoverCategoryPanel({
 						</button>
 					);
 				})}
+				{filteredOptions.length === 0 && <NoMatchingOptions />}
 			</div>
 			{category.scopeToggle && (
 				<FlyoutScopeToggle
@@ -874,6 +917,8 @@ type CategoryOptionsListProps = Readonly<{
 	activeCategory: FilterCategory | undefined;
 	activeCategoryKey: string | null;
 	activeOptions: readonly FilterOption[] | undefined;
+	/** Size of the category's unfiltered option list, when cached. */
+	previewCount: number | undefined;
 	activeOptionsError: boolean;
 	selectedTokens: readonly string[];
 	chipKey: string;
@@ -892,6 +937,7 @@ function CategoryOptionsList({
 	activeCategory,
 	activeCategoryKey,
 	activeOptions,
+	previewCount,
 	activeOptionsError,
 	selectedTokens,
 	chipKey,
@@ -927,11 +973,18 @@ function CategoryOptionsList({
 		);
 	}
 
-	if (activeOptions === undefined || activeOptions.length === 0) {
+	// Decided from the unfiltered list so the search field stays mounted while
+	// results load or shrink. On mobile the main input is the search field.
+	const searchable =
+		!isMobile &&
+		(previewCount ?? activeOptions?.length ?? 0) > SEARCHABLE_OPTION_COUNT;
+	if (
+		(activeOptions === undefined || activeOptions.length === 0) &&
+		!searchable
+	) {
 		return null;
 	}
 
-	const searchable = activeOptions.length > 10;
 	return (
 		<div
 			className={cn(
@@ -949,7 +1002,7 @@ function CategoryOptionsList({
 						}
 			}
 		>
-			{!isMobile && searchable && activeCategory && (
+			{searchable && activeCategory && (
 				<FlyoutSearch
 					label={activeCategory.label}
 					value={inputValue}
@@ -957,7 +1010,7 @@ function CategoryOptionsList({
 				/>
 			)}
 			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
-				{activeOptions.map((option) => {
+				{activeOptions?.map((option) => {
 					const item = option.token ?? chipToken(chipKey, option.value);
 					const selected = selectedTokens.includes(item);
 					return (
@@ -981,6 +1034,7 @@ function CategoryOptionsList({
 					);
 				})}
 			</FilterComboboxList>
+			{activeOptions?.length === 0 && <NoMatchingOptions />}
 			{activeCategory?.scopeToggle && (
 				<FlyoutScopeToggle
 					categoryKey={activeCategory.key}

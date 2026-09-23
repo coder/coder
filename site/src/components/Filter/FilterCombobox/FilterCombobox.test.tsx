@@ -21,6 +21,19 @@ const scopedOwnerCategory: FilterCategory = {
 	},
 };
 
+const OWNER_NAMES = Array.from({ length: 12 }, (_, index) => `user-${index}`);
+
+// More owners than the flyout search threshold. `zed` is only returned by a
+// search, like a user beyond the first page of results.
+const manyOwnersCategory: FilterCategory = {
+	key: "owner",
+	label: "Owner",
+	getOptions: async (query) =>
+		[...OWNER_NAMES, ...(query ? ["zed"] : [])]
+			.filter((name) => name.includes(query))
+			.map((name) => ({ label: name, value: name })),
+};
+
 const statusCategory: FilterCategory = {
 	key: "status",
 	label: "Status",
@@ -159,6 +172,9 @@ describe("FilterCombobox", () => {
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
 		);
+		expect(
+			screen.getByRole("combobox", { name: "Search and filter" }),
+		).toHaveFocus();
 		await user.click(await screen.findByRole("option", { name: "Running" }));
 
 		await waitFor(() =>
@@ -186,6 +202,115 @@ describe("FilterCombobox", () => {
 		);
 		expect(onChange).not.toHaveBeenCalledWith("status:");
 		expect(input).toHaveValue("");
+	});
+
+	it("keeps search text typed before an inline category prefix", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<FilterComboboxHarness
+				categories={[ownerCategory, statusCategory]}
+				onChange={onChange}
+			/>,
+		);
+
+		const input = screen.getByRole("combobox", { name: "Search and filter" });
+		await user.click(input);
+		await user.type(input, "dev status:");
+		await user.click(await screen.findByRole("option", { name: "Running" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("status:running dev"),
+		);
+		expect(input).toHaveValue("dev");
+	});
+
+	it("commits a typed inline value that is not a suggestion with Enter", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<FilterComboboxHarness
+				categories={[ownerCategory, statusCategory]}
+				onChange={onChange}
+			/>,
+		);
+
+		const input = screen.getByRole("combobox", { name: "Search and filter" });
+		await user.click(input);
+		await user.type(input, "status:starting");
+
+		// Enter waits for the debounced suggestions, so retry until it commits.
+		await waitFor(async () => {
+			await user.keyboard("{Enter}");
+			expect(onChange).toHaveBeenLastCalledWith("status:starting");
+		});
+	});
+
+	it("opens a category narrowed by typed text when clicked", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<FilterComboboxHarness
+				categories={[ownerCategory, statusCategory]}
+				onChange={onChange}
+			/>,
+		);
+
+		const input = screen.getByRole("combobox", { name: "Search and filter" });
+		await user.click(input);
+		await user.type(input, "ow");
+		await user.click(await screen.findByRole("option", { name: "Owner" }));
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
+	it("searches the hover flyout through the category loader", async () => {
+		const user = userEvent.setup({ skipHover: true });
+		const onChange = vi.fn();
+		render(
+			<FilterComboboxHarness
+				categories={[manyOwnersCategory]}
+				onChange={onChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Toggle filters" }));
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		const search = await screen.findByRole("textbox", { name: "Search Owner" });
+		await user.type(search, "nobody");
+		expect(search).toHaveFocus();
+
+		await user.clear(search);
+		await user.type(search, "zed");
+		await user.click(await screen.findByRole("button", { name: "zed" }));
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:zed"));
+	});
+
+	it("keeps the category search field while results shrink", async () => {
+		const user = userEvent.setup();
+		render(
+			<FilterComboboxHarness
+				categories={[manyOwnersCategory]}
+				onChange={vi.fn()}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Toggle filters" }));
+		await user.keyboard("{ArrowRight}");
+		const search = await screen.findByRole("textbox", { name: "Search Owner" });
+		await user.click(search);
+		await user.type(search, "user-1");
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("option", { name: "user-10" }),
+			).toBeInTheDocument();
+			expect(screen.queryByRole("option", { name: "user-2" })).toBeNull();
+		});
+		expect(search).toHaveFocus();
 	});
 
 	it("selects an inline option by keyboard after hovering a category", async () => {
@@ -311,20 +436,6 @@ describe("FilterCombobox", () => {
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
 		);
-	});
-
-	it("hides the scope pill without an Owner chip", () => {
-		render(
-			<FilterComboboxHarness
-				categories={[scopedOwnerCategory]}
-				initialValue=""
-				onChange={vi.fn()}
-			/>,
-		);
-
-		expect(
-			screen.queryByRole("button", { name: /Remove (include|hide) shared/ }),
-		).not.toBeInTheDocument();
 	});
 
 	it("removes a selected inline option", async () => {

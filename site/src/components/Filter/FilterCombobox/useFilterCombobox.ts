@@ -19,10 +19,8 @@ import {
 	parseTypedCategoryPrefix,
 	queryToChips,
 } from "./filterQuery";
-import { filterComboboxOptions } from "./queries";
+import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
-
-const SEARCH_DEBOUNCE_MS = 300;
 
 /**
  * The popup has three mutually exclusive modes. `closed` hides it; `browsing`
@@ -645,16 +643,23 @@ export const useFilterCombobox = ({
 		returnToCategories();
 	};
 
+	// Typed filter text is dropped once an option is picked, but workspace
+	// search text typed ahead of a `status:` prefix is kept.
+	const applyInlineChips = (tokens: string[]) => {
+		const freeText =
+			browseAll || typedInlinePrefix !== null ? committedFreeText : "";
+		updateFromChips(tokens, freeText);
+		if (!browseAll) {
+			dispatch({ type: "typeFreeText", value: freeText });
+		}
+	};
+
 	const toggleInlineOption = (token: string) => {
-		updateFromChips(
+		applyInlineChips(
 			chipValues.includes(token)
 				? chipValues.filter((chip) => chip !== token)
 				: [...chipValues, token],
-			browseAll ? committedFreeText : "",
 		);
-		if (!browseAll) {
-			dispatch({ type: "typeFreeText", value: "" });
-		}
 	};
 
 	const leaveCategory = () => {
@@ -859,6 +864,38 @@ export const useFilterCombobox = ({
 			}
 		}
 
+		// Same for a typed inline prefix such as `status:starting`, whose value
+		// may not be one of the suggested options.
+		if (
+			event.key === "Enter" &&
+			mode === "browsing" &&
+			typedInlinePrefix !== null &&
+			typedInlinePrefix.query.trim().length > 0
+		) {
+			const candidate = chipToken(
+				typedInlinePrefix.categoryKey,
+				typedInlinePrefix.query.trim(),
+			);
+			const hasHighlightedOption = inlineOptions.some(
+				({ categoryKey, option }) =>
+					(option.token ?? chipToken(categoryKey, option.value)) ===
+					highlightedItem,
+			);
+			if (
+				!typeaheadQueryPending &&
+				!hasHighlightedOption &&
+				parseChipToken(candidate, chipKeys)
+			) {
+				event.preventDefault();
+				applyInlineChips(
+					chipValues.includes(candidate)
+						? chipValues
+						: [...chipValues, candidate],
+				);
+				return;
+			}
+		}
+
 		if (
 			(event.key === "ArrowRight" || event.key === "Enter") &&
 			mode === "browsing"
@@ -932,6 +969,7 @@ export const useFilterCombobox = ({
 			setInputRef: (node: HTMLInputElement | null) => {
 				inputRef.current = node;
 			},
+			focusInput: () => inputRef.current?.focus(),
 			toggleMenu: toggleFilterMenu,
 			showMenu: showFilterMenu,
 			dismiss: handleDismiss,

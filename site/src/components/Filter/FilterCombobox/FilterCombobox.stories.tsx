@@ -222,6 +222,24 @@ export const SearchableHoverFlyout: Story = {
 	},
 };
 
+// The search field stays in the flyout when nothing matches.
+export const SearchableHoverFlyoutNoMatches: Story = {
+	...SearchableHoverFlyout,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: "Search and filter…" }),
+		);
+		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
+		await userEvent.type(
+			await body.findByRole("textbox", { name: "Search Owner" }),
+			"nobody",
+		);
+		await body.findByText("No matching options");
+	},
+};
+
 // Inside a category, the filter toggle returns to the category list instead of
 // closing the menu.
 export const ToggleLeavesCategory: Story = {
@@ -638,8 +656,8 @@ export const KeyboardHighlightClosesFlyout: Story = {
 	},
 };
 
-// A category scope toggle sits above the option list; the applied chip shows
-// the widened scope.
+// A category scope toggle sits below the option list; the applied chip is
+// followed by a pill for the toggle state.
 export const ScopeToggle: Story = {
 	render: () => (
 		<FilterComboboxHarness
@@ -669,6 +687,29 @@ export const ScopeToggle: Story = {
 		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
 		await body.findByRole("switch", { name: "Include shared workspaces" });
 	},
+};
+
+// With the scope toggle off, the pill beside the Owner chip reads hide shared.
+export const ScopeToggleOff: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="owner:alice"
+			categories={[
+				{
+					key: "owner",
+					label: "Owner",
+					icon: <UserIcon />,
+					chipKeys: ["owner", "user"],
+					scopeToggle: {
+						label: "Include shared workspaces",
+						chipKey: "user",
+						pillLabels: { on: "include shared", off: "hide shared" },
+					},
+					getOptions: async (query) => filterOptions(ownerOptions, query),
+				},
+			]}
+		/>
+	),
 };
 
 // Escape closes the popup without clearing the committed chips.
