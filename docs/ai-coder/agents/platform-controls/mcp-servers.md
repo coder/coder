@@ -308,6 +308,8 @@ Omit `inline_mcp_servers` to keep the current set.
 Send `[]` to remove every server.
 A server whose `slug` already exists keeps its `id`.
 Only root chats accept `inline_mcp_servers`.
+At the start of each turn, a non-explore subagent chat loads the root chat's current servers that have `allow_in_subagents` set to `true`.
+A change to the root chat's set also applies to existing subagents on their next turn.
 
 ### Fields
 
@@ -356,9 +358,13 @@ A declaration that repeats a name with different casing is rejected.
 
 Header values are encrypted at rest when [database encryption](../../../admin/security/database-encryption.md) is configured.
 The URL, each of its path segments, and header values are redacted from every string the model sees, including tool descriptions and tool results.
-Each whitespace-separated part of a header value, such as the token in `Bearer <token>`, is also redacted.
-Parts shorter than 8&nbsp;bytes are not redacted.
+Each part of a header value separated by whitespace, `;`, or `,`, such as the token in `Bearer <token>`, is also redacted.
+In a `name=value` part, such as `session=<token>` in a `Cookie` header, the value is also redacted on its own, but the name is not.
+Parts and values shorter than 8&nbsp;bytes are not redacted.
 Header names are not secret; the read-back endpoint returns them.
+
+Inline servers have no signing secret, so Coder does not sign the [Coder identity headers](#coder-identity-headers) it sends to them.
+Use these headers to link requests to chats, not to authenticate the user.
 
 Tool calls are at-least-once.
 Every `tools/call` request carries `_meta["com.coder/tool_call_id"]`, which stays the same across chatd retries of one model tool call.
