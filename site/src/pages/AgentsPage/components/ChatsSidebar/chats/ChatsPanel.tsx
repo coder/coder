@@ -498,6 +498,22 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				)}
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
+				{onOpenProjectDialog && onDeleteProject && (
+					<ChatTreeContext value={chatTreeCtx}>
+						<ProjectFolders
+							projects={projects}
+							chatsByProjectId={chatsByProjectId}
+							expandedProjectIds={expandedProjectIds}
+							onToggle={toggleProject}
+							onCreate={() => onOpenProjectDialog(null)}
+							onEdit={onOpenProjectDialog}
+							onDelete={onDeleteProject}
+							isLoading={isProjectsLoading}
+							error={projectsError}
+							onRetry={onRetryProjects}
+						/>
+					</ChatTreeContext>
+				)}
 				<div className="mx-2 pt-6 mb-1.5">
 					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
 						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
@@ -569,22 +585,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						) : (
 							<ChatTreeContext value={chatTreeCtx}>
 								<div className="pb-2">
-									{onOpenProjectDialog && onDeleteProject && (
-										<ProjectFolders
-											projects={projects}
-											chatsByProjectId={chatsByProjectId}
-											expandedProjectIds={expandedProjectIds}
-											onToggle={toggleProject}
-											onCreate={() => onOpenProjectDialog(null)}
-											onEdit={onOpenProjectDialog}
-											onDelete={onDeleteProject}
-											error={projectsError}
-											onRetry={onRetryProjects}
-										/>
-									)}
-									{isProjectsLoading && (
-										<Skeleton className="mb-3 ml-2.5 h-3.5 w-20" />
-									)}
 									{isShowingEmptyState ? (
 										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
 											<p className="m-0">{emptyStateMessage}</p>
