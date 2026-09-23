@@ -288,7 +288,7 @@ export function FilterCombobox({
 							aria-expanded={open}
 							aria-haspopup="listbox"
 							className={cn(
-								"h-9.5 min-w-0 shrink-0 gap-1.5 rounded-none rounded-l-md pl-2.5 pr-3 text-sm [&>svg]:p-0",
+								"h-9.5 min-w-0 shrink-0 rounded-none rounded-l-md pl-2.5 pr-3 text-sm [&>svg]:p-0",
 								chipValues.length > 0 && "text-content-primary",
 							)}
 							onMouseDown={(event) => {
@@ -324,7 +324,6 @@ export function FilterCombobox({
 									<ListFilterIcon aria-hidden className="size-icon-sm" />
 								)}
 							</span>
-							<span className="hidden sm:inline">Filters</span>
 						</InputGroupButton>
 					</InputGroupAddon>
 					<InputGroupAddon className="h-9.5 self-start px-2">
