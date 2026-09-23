@@ -260,7 +260,7 @@ Fresh review found one new issue: 1 P2 across 1 inline comment.
 
 Keep the review body to 2–4 sentences. Don't use markdown headers in the body — they render oversized in GitHub's review UI.
 
-**Inline comments.** Every finding is an inline comment, pinned to the most relevant file and line. For findings that span multiple files, pin to the primary file (GitHub supports file-level comments when `position` is omitted or set to 1).
+**Inline comments.** Every finding is an inline comment, pinned to the most relevant file and line. For findings that span multiple files, pin to the most relevant line in the primary file.
 
 Inline comment format:
 
@@ -297,13 +297,9 @@ For P0 or P1 findings, add a note in the review body: "This review contains find
 
 **Posting via GitHub API.**
 
-The `gh api` endpoint for posting reviews routes through GraphQL by default. Field names differ from the REST API docs:
+Post through the REST endpoint below. Each comment uses `path` and `position`. The review `comments` array has no file-level option, so pin cross-file findings to a line.
 
-- Use `position` (diff-relative line number), not `line` + `side`. `side` is not a valid field in the GraphQL schema.
-- `subject_type: "file"` is not recognized. Pin file-level comments to `position: 1` instead.
-- Use `-X POST` with `--input` to force REST API routing.
-
-To compute positions: save the PR diff to a file, then count lines from the first `@@` hunk header of each file's diff section. For new files, position = line number + 1 (the hunk header is position 1, first content line is position 2).
+To compute positions: save the PR diff to a file. In each file's diff section, the line immediately after the first `@@` hunk header is position 1. Positions keep increasing through later hunks in the same file, and each later `@@` header counts as one line. For a new file, position equals the file line number.
 
 ```sh
 gh pr diff {number} > /tmp/pr.diff
