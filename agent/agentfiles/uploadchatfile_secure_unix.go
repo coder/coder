@@ -58,20 +58,54 @@ func (api *API) writeUploadExclusiveSecure(homeDir, chatID, dir, name string, r 
 		return "", "", 0, xerrors.Errorf("write upload: %w", err)
 	}
 
-	// linkat never replaces or follows an existing name, so publishing
-	// the complete file cannot clobber a concurrent upload or a symlink.
+	candidate, err := publishUploadAt(filesFD, tmp, name, unix.Linkat)
+	if err != nil {
+		return "", "", 0, err
+	}
+	return candidate, filepath.Join(dir, candidate), n, nil
+}
+
+// publishUploadAt gives the complete temp file its final name. linkat
+// never replaces or follows an existing name, so publishing cannot
+// clobber a concurrent upload or a symlink. Filesystems without hard
+// links fall back to an exclusive placeholder replaced by renameat.
+func publishUploadAt(dirFD int, tmp, name string, link func(oldDirFD int, oldPath string, newDirFD int, newPath string, flags int) error) (string, error) {
+	useLink := true
 	for i := 1; i <= maxUploadChatFileCollisionAttempts; i++ {
 		candidate := chatfiles.AddCollisionSuffix(name, i)
-		err := unix.Linkat(filesFD, tmp, filesFD, candidate, 0)
+		if useLink {
+			err := link(dirFD, tmp, dirFD, candidate, 0)
+			if err == nil {
+				return candidate, nil
+			}
+			if errors.Is(err, unix.EEXIST) {
+				continue
+			}
+			if !errors.Is(err, unix.EPERM) && !errors.Is(err, unix.ENOTSUP) &&
+				!errors.Is(err, unix.EOPNOTSUPP) && !errors.Is(err, unix.EXDEV) {
+				return "", xerrors.Errorf("publish upload: %w", err)
+			}
+			useLink = false
+		}
+
+		fd, err := unix.Openat(dirFD, candidate, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0o644)
 		if errors.Is(err, unix.EEXIST) {
 			continue
 		}
 		if err != nil {
-			return "", "", 0, xerrors.Errorf("publish upload: %w", err)
+			return "", xerrors.Errorf("create upload target: %w", err)
 		}
-		return candidate, filepath.Join(dir, candidate), n, nil
+		err = unix.Close(fd)
+		if err == nil {
+			err = unix.Renameat(dirFD, tmp, dirFD, candidate)
+		}
+		if err != nil {
+			_ = unix.Unlinkat(dirFD, candidate, 0)
+			return "", xerrors.Errorf("publish upload: %w", err)
+		}
+		return candidate, nil
 	}
-	return "", "", 0, errUploadCollisionExhausted
+	return "", errUploadCollisionExhausted
 }
 
 func sweepStaleUploadTempsAt(dirFD int) {

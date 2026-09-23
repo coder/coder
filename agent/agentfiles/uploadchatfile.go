@@ -1,6 +1,7 @@
 package agentfiles
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -47,17 +48,24 @@ const staleUploadTempAge = time.Hour
 // every time a chunk of the body arrives, turning the server's fixed
 // per-request timeouts into an idle timeout for streamed uploads.
 type deadlineExtendingReader struct {
+	ctx      context.Context
+	logger   slog.Logger
 	r        io.Reader
 	rc       *http.ResponseController
 	received int64
+	warned   bool
 }
 
 func (d *deadlineExtendingReader) extend() {
 	deadline := time.Now().Add(uploadChatFileIdleTimeout)
-	// ErrNotSupported means the server has no per-request deadlines to
-	// extend, in which case there is nothing to work around.
-	_ = d.rc.SetReadDeadline(deadline)
+	err := d.rc.SetReadDeadline(deadline)
 	_ = d.rc.SetWriteDeadline(deadline)
+	// ErrNotSupported means a ResponseWriter wrapper hides the connection,
+	// so the server's fixed timeouts will still cut off slow uploads.
+	if errors.Is(err, http.ErrNotSupported) && !d.warned {
+		d.warned = true
+		d.logger.Warn(d.ctx, "cannot extend workspace chat file upload deadlines", slog.Error(err))
+	}
 }
 
 func (d *deadlineExtendingReader) Read(p []byte) (int, error) {
@@ -116,7 +124,7 @@ func (api *API) HandleUploadChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body := &deadlineExtendingReader{r: r.Body, rc: http.NewResponseController(rw)}
+	body := &deadlineExtendingReader{ctx: ctx, logger: api.logger, r: r.Body, rc: http.NewResponseController(rw)}
 	body.extend()
 
 	// Workspace uploads intentionally stream without a MaxBytesReader cap.

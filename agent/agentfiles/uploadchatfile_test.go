@@ -24,6 +24,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/usershell"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -342,8 +343,9 @@ func TestHandleUploadChatFile_LogsFailure(t *testing.T) {
 	api.HandleUploadChatFile(rr, req)
 	require.Equal(t, http.StatusInternalServerError, rr.Code, rr.Body.String())
 
-	entries := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelWarn })
+	entries := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "workspace chat file upload failed" })
 	require.Len(t, entries, 1)
+	require.Equal(t, slog.LevelWarn, entries[0].Level)
 	fields := map[string]any{}
 	for _, f := range entries[0].Fields {
 		fields[f.Name] = f.Value
@@ -460,4 +462,77 @@ func TestHandleUploadChatFile_ExtendsDeadlinesWhileStreaming(t *testing.T) {
 			}
 		}
 	}
+}
+
+// unsupportedDeadlineRecorder models a ResponseWriter wrapper that hides
+// the connection's deadline methods.
+type unsupportedDeadlineRecorder struct {
+	*httptest.ResponseRecorder
+}
+
+func (unsupportedDeadlineRecorder) SetReadDeadline(time.Time) error { return http.ErrNotSupported }
+
+func (unsupportedDeadlineRecorder) SetWriteDeadline(time.Time) error { return http.ErrNotSupported }
+
+func TestHandleUploadChatFile_WarnsOnceWhenDeadlinesUnsupported(t *testing.T) {
+	t.Parallel()
+
+	sink := testutil.NewFakeSink(t)
+	api := agentfiles.NewAPI(sink.Logger(), afero.NewOsFs(), nil, agentfiles.WithEnvInfo(fakeBundleEnvInfo{home: t.TempDir()}))
+
+	req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(uploadChatFileTestChatID, "slow.bin"), iotest.OneByteReader(strings.NewReader("abc")))
+	rr := unsupportedDeadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
+	api.HandleUploadChatFile(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	entries := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelWarn })
+	require.Len(t, entries, 1)
+	require.Equal(t, "cannot extend workspace chat file upload deadlines", entries[0].Message)
+}
+
+func TestHandleUploadChatFile_ExtendsRealConnDeadlines(t *testing.T) {
+	t.Parallel()
+
+	sink := testutil.NewFakeSink(t)
+	api := agentfiles.NewAPI(sink.Logger(), afero.NewOsFs(), nil, agentfiles.WithEnvInfo(fakeBundleEnvInfo{home: t.TempDir()}))
+	started := make(chan struct{})
+	// StatusWriterMiddleware wraps the writer like the agent API does, so
+	// the deadline calls must reach the connection through Unwrap.
+	srv := httptest.NewUnstartedServer(tracing.StatusWriterMiddleware(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		close(started)
+		api.HandleUploadChatFile(rw, r)
+	})))
+	// Headers get a normal timeout, but the whole-request read and write
+	// deadlines expire immediately, so reading the body and writing the
+	// response only succeed if the handler extends them on the conn.
+	srv.Config.ReadHeaderTimeout = testutil.WaitLong
+	srv.Config.ReadTimeout = time.Nanosecond
+	srv.Config.WriteTimeout = time.Nanosecond
+	srv.Start()
+	t.Cleanup(srv.Close)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	pr, pw := io.Pipe()
+	go func() {
+		select {
+		case <-started:
+			_, _ = pw.Write([]byte("payload"))
+			_ = pw.Close()
+		case <-ctx.Done():
+			_ = pw.CloseWithError(ctx.Err())
+		}
+	}()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, srv.URL+uploadChatFileURL(uploadChatFileTestChatID, "archive.zip"), pr)
+	require.NoError(t, err)
+	res, err := srv.Client().Do(req)
+	require.NoError(t, err)
+	defer res.Body.Close()
+
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	var resp workspacesdk.AgentUploadChatFileResponse
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+	contents, err := os.ReadFile(resp.Path)
+	require.NoError(t, err)
+	require.Equal(t, "payload", string(contents))
+	require.Empty(t, sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelWarn }))
 }
