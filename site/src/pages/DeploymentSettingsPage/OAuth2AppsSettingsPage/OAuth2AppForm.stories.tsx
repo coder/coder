@@ -109,6 +109,15 @@ export const SelfRegisteredScopesNarrowed: Story = {
 	},
 };
 
+export const AdminCreatedScopesNarrowed: Story = {
+	args: { app: appWithScopes },
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getAllByTestId("clear-option-button")[0],
+		);
+	},
+};
+
 export const SelfRegisteredScopesWidened: Story = {
 	args: {
 		app: {
