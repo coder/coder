@@ -81,9 +81,6 @@ type EditingState = {
 	initialEditorState: string | undefined;
 	remountKey: number;
 	editingTarget: EditingTarget | null;
-	// editingTarget as a history message ID; null when the target is not a
-	// history row.
-	editingMessageId: number | null;
 	editingFileBlocks: readonly ChatMessagePart[];
 	handleBeginHistoryEdit: (
 		messageId: number,
@@ -895,7 +892,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										? undefined
 										: editing.handleBeginHistoryEdit
 								}
-								editingMessageId={editing.editingMessageId}
+								editingMessageId={
+									editing.editingTarget?.kind === "history"
+										? editing.editingTarget.id
+										: null
+								}
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}
 								onImplementPlan={
