@@ -1099,6 +1099,7 @@ type sqlcQuerier interface {
 	// reminder notification (which only stamps a marker, no transition).
 	GetWorkspacesEligibleForLifecycleAction(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForLifecycleActionRow, error)
 	GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]GetWorkspacesForWorkspaceMetricsRow, error)
+	HasAIModelAccess(ctx context.Context, arg HasAIModelAccessParams) (bool, error)
 	// Reports whether the given file is referenced as cached module files by any
 	// template version in the given organization. Used to authorize provisioner
 	// module-file downloads so a daemon cannot read another organization's cached

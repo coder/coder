@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
@@ -94,6 +95,7 @@ type store interface {
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
 
 	// Authorizer-related queries.
+	HasAIModelAccess(context.Context, database.HasAIModelAccessParams) (bool, error)
 	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
 	// ProviderConfigurator-related queries. InTx wraps the provider and key
@@ -127,12 +129,16 @@ type Server struct {
 	clock         quartz.Clock
 	notifEnqueuer notifications.Enqueuer
 	// metrics records cost-control metrics. May be nil.
-	metrics *Metrics
+	metrics      *Metrics
+	entitlements *entitlements.Set
 }
 
 // Options carries the dependencies required to construct an aibridged Server.
 type Options struct {
-	Store         store
+	Store store
+	// Entitlements is shared with coderd so policy changes apply to the next request.
+	// Nil represents an unlicensed server.
+	Entitlements  *entitlements.Set
 	Pubsub        pubsub.Pubsub
 	AISeatTracker aiseats.SeatTracker
 	// Enqueuer enqueues notifications. When nil, NewServer substitutes a no-op
@@ -171,6 +177,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 	srv := &Server{
 		lifecycleCtx:        lifecycleCtx,
 		store:               opts.Store,
+		entitlements:        opts.Entitlements,
 		pubsub:              opts.Pubsub,
 		logger:              opts.Logger,
 		externalAuthConfigs: eac,

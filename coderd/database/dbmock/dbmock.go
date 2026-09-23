@@ -7544,6 +7544,21 @@ func (mr *MockStoreMockRecorder) GetWorkspacesForWorkspaceMetrics(ctx any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesForWorkspaceMetrics", reflect.TypeOf((*MockStore)(nil).GetWorkspacesForWorkspaceMetrics), ctx)
 }
 
+// HasAIModelAccess mocks base method.
+func (m *MockStore) HasAIModelAccess(ctx context.Context, arg database.HasAIModelAccessParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasAIModelAccess", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasAIModelAccess indicates an expected call of HasAIModelAccess.
+func (mr *MockStoreMockRecorder) HasAIModelAccess(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasAIModelAccess", reflect.TypeOf((*MockStore)(nil).HasAIModelAccess), ctx, arg)
+}
+
 // HasTemplateVersionsUsingCachedModuleFileInOrg mocks base method.
 func (m *MockStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
 	m.ctrl.T.Helper()

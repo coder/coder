@@ -4008,6 +4008,14 @@ func (m queryMetricsStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context)
 	return r0, r1
 }
 
+func (m queryMetricsStore) HasAIModelAccess(ctx context.Context, arg database.HasAIModelAccessParams) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.HasAIModelAccess(ctx, arg)
+	m.queryLatencies.WithLabelValues("HasAIModelAccess").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "HasAIModelAccess").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, arg)

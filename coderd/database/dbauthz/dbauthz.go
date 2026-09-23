@@ -6007,6 +6007,15 @@ func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]datab
 	return q.db.GetWorkspacesForWorkspaceMetrics(ctx)
 }
 
+// HasAIModelAccess exposes only a Gateway authorization decision, without Model
+// configurations or ACLs. It requires deployment-wide Gateway visibility.
+func (q *querier) HasAIModelAccess(ctx context.Context, arg database.HasAIModelAccessParams) (bool, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return false, err
+	}
+	return q.db.HasAIModelAccess(ctx, arg)
+}
+
 func (q *querier) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
 	// This query authorizes provisioner module-file downloads. The caller
 	// must be able to read files in the target organization; the actual

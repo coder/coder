@@ -3912,6 +3912,43 @@ func (q *sqlQuerier) UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertU
 	return i, err
 }
 
+const hasAIModelAccess = `-- name: HasAIModelAccess :one
+SELECT EXISTS (
+    SELECT 1
+    FROM organization_members om
+    JOIN organizations o ON o.id = om.organization_id
+    WHERE om.user_id = $1::uuid
+      AND NOT o.deleted
+      AND (
+          NOT o.restrict_models_to_configured
+          OR EXISTS (
+              SELECT 1
+              FROM chat_model_configs cmc
+              JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
+              WHERE cmc.organization_id = o.id
+                AND cmc.enabled
+                AND NOT cmc.deleted
+                AND cmc.model = $2::text
+                AND ap.name = $3::text
+                AND NOT ap.deleted
+          )
+      )
+)
+`
+
+type HasAIModelAccessParams struct {
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	Model        string    `db:"model" json:"model"`
+	ProviderName string    `db:"provider_name" json:"provider_name"`
+}
+
+func (q *sqlQuerier) HasAIModelAccess(ctx context.Context, arg HasAIModelAccessParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasAIModelAccess, arg.UserID, arg.Model, arg.ProviderName)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const getActiveAISeatCount = `-- name: GetActiveAISeatCount :one
 SELECT
 	COUNT(*)
