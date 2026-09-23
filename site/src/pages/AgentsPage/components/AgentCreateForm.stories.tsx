@@ -32,9 +32,11 @@ import {
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
+	MockFailedWorkspace,
 	MockOrganization2,
 	MockUserPreferenceSettings,
 	MockWorkspace,
+	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
@@ -42,6 +44,11 @@ import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
+import {
+	debugWorkspaceBuildLogsFileName,
+	debugWorkspaceBuildPrompt,
+	formatWorkspaceBuildLogsForDebug,
+} from "../utils/workspaceBuildDebug";
 import {
 	AgentCreateForm,
 	emptyInputStorageKey,
@@ -2180,6 +2187,30 @@ export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
 		await capturedQueryClient.refetchQueries({
 			queryKey: mcpServerConfigsKey(MockDefaultOrganization.id),
 			exact: true,
+		});
+	},
+};
+
+// The debug deep link prefills the prompt and attaches the failed build's
+// logs; onCreateChat never resolves so the composer keeps the sent state.
+export const AutoSubmitWorkspaceBuildDebug: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn(() => new Promise<void>(() => {})),
+		autoSubmit: {
+			message: debugWorkspaceBuildPrompt,
+			attachment: {
+				name: debugWorkspaceBuildLogsFileName(MockFailedWorkspace.latest_build),
+				content: formatWorkspaceBuildLogsForDebug(
+					MockFailedWorkspace.latest_build,
+					MockWorkspaceBuildLogs,
+				),
+			},
+		},
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "workspace-build-logs-file",
 		});
 	},
 };

@@ -26,10 +26,13 @@ import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
+	MockFailedWorkspace,
 	MockNoPermissions,
 	MockOrganization2,
 	MockPermissions,
 	MockUserOwner,
+	MockWorkspaceBuildLogs,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -55,6 +58,7 @@ import {
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
+import { debugWorkspaceBuildSearchParam } from "./utils/workspaceBuildDebug";
 
 const defaultModelID = "model-config-1";
 
@@ -1108,6 +1112,47 @@ export const SettingsViewCoderAgentsLink: Story = {
 
 		await screen.findByText(
 			/organization model choices and deployment-wide Coder Agents capabilities/,
+		);
+	},
+};
+
+const debugWorkspaceBuildRouter = reactRouterParameters({
+	location: {
+		path: "/agents",
+		searchParams: {
+			[debugWorkspaceBuildSearchParam]: MockFailedWorkspace.latest_build.id,
+		},
+	},
+	routing: [agentsRouting, aiSettingsRouting],
+});
+
+// The create page waits for the failed build and its logs before mounting
+// the composer, so the build request never resolves here.
+export const DebugWorkspaceBuildLoading: Story = {
+	parameters: {
+		reactRouter: debugWorkspaceBuildRouter,
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceBuild").mockReturnValue(new Promise(() => {}));
+		spyOn(API, "getWorkspaceBuildLogs").mockResolvedValue(
+			MockWorkspaceBuildLogs,
+		);
+	},
+};
+
+export const DebugWorkspaceBuildLoadError: Story = {
+	parameters: {
+		reactRouter: debugWorkspaceBuildRouter,
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceBuild").mockRejectedValue(
+			mockApiError({
+				message: "Workspace build not found.",
+				detail: "The build may have been deleted.",
+			}),
+		);
+		spyOn(API, "getWorkspaceBuildLogs").mockResolvedValue(
+			MockWorkspaceBuildLogs,
 		);
 	},
 };

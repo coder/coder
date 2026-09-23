@@ -34,7 +34,7 @@ export const workspaceBuildByNumber = (
 	};
 };
 
-export const workspaceBuildKey = (workspaceBuildId: string) =>
+const workspaceBuildKey = (workspaceBuildId: string) =>
 	["workspaceBuild", workspaceBuildId] as const;
 
 export function workspaceBuild(workspaceBuildId: string) {
