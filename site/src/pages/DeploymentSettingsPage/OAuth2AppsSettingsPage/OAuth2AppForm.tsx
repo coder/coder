@@ -177,13 +177,16 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	const editing = Boolean(app);
 	// A self-registered client usually requests every scope it registered, so
 	// removing scopes fails its new authorizations instead of narrowing them.
-	// Clearing the allowlist lifts the restriction and does not count.
+	// An empty stored allowlist means unrestricted, so imposing any list on it
+	// narrows too. Clearing the allowlist lifts the restriction and does not
+	// count.
 	const narrowsSelfRegisteredScopes =
 		app?.dynamically_registered === true &&
 		form.values.scope.length > 0 &&
-		form.initialValues.scope.some(
-			(scope) => !form.values.scope.includes(scope),
-		);
+		(form.initialValues.scope.length === 0 ||
+			form.initialValues.scope.some(
+				(scope) => !form.values.scope.includes(scope),
+			));
 	const submitDisabled =
 		formDisabled || !form.isValid || (editing && !form.dirty);
 

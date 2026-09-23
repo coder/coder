@@ -541,4 +541,75 @@ describe("OAuth2AppForm", () => {
 			),
 		);
 	});
+
+	describe("self-registered scope warning", () => {
+		const warning = /may continue requesting scopes you remove/i;
+
+		it("warns when an allowlist is imposed on an unrestricted app", async () => {
+			const user = userEvent.setup();
+
+			render(
+				<OAuth2AppForm
+					app={{ ...MockOAuth2ProviderAppPublic, scope: "" }}
+					onSubmit={vi.fn()}
+					isUpdating={false}
+					disabled={false}
+				/>,
+			);
+
+			expect(screen.queryByText(warning)).not.toBeInTheDocument();
+			await selectScope(user, "workspace:ssh");
+			expect(screen.getByText(warning)).toBeInTheDocument();
+		});
+
+		it("warns when a stored scope is removed", async () => {
+			const user = userEvent.setup();
+
+			render(
+				<OAuth2AppForm
+					app={{ ...MockOAuth2ProviderAppPublic, scope: "workspace:ssh" }}
+					onSubmit={vi.fn()}
+					isUpdating={false}
+					disabled={false}
+				/>,
+			);
+
+			await selectScope(user, "coder:all");
+			expect(screen.queryByText(warning)).not.toBeInTheDocument();
+			await user.click(screen.getAllByTestId("clear-option-button")[0]);
+			expect(screen.getByText(warning)).toBeInTheDocument();
+		});
+
+		it("stays silent when the allowlist is cleared", async () => {
+			const user = userEvent.setup();
+
+			render(
+				<OAuth2AppForm
+					app={{ ...MockOAuth2ProviderAppPublic, scope: "workspace:ssh" }}
+					onSubmit={vi.fn()}
+					isUpdating={false}
+					disabled={false}
+				/>,
+			);
+
+			await user.click(screen.getByTestId("clear-option-button"));
+			expect(screen.queryByText(warning)).not.toBeInTheDocument();
+		});
+
+		it("stays silent for an admin-created app", async () => {
+			const user = userEvent.setup();
+
+			render(
+				<OAuth2AppForm
+					app={{ ...MockOAuth2ProviderApps[0], scope: "" }}
+					onSubmit={vi.fn()}
+					isUpdating={false}
+					disabled={false}
+				/>,
+			);
+
+			await selectScope(user, "workspace:ssh");
+			expect(screen.queryByText(warning)).not.toBeInTheDocument();
+		});
+	});
 });
