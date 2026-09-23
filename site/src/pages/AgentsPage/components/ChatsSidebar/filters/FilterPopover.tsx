@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { FilterIcon } from "lucide-react";
+import { ListFilterIcon } from "lucide-react";
 import {
 	type ComponentProps,
 	type FC,
@@ -148,6 +148,34 @@ const hasActiveFilters = (filters: AgentSidebarFilters): boolean => {
 	);
 };
 
+/**
+ * Number of filter groups that narrow the list. Grouping changes layout, not
+ * membership, so it is excluded.
+ */
+const countActiveFilters = (filters: AgentSidebarFilters): number => {
+	let count = 0;
+	if (filters.archiveStatus !== DEFAULT_AGENT_SIDEBAR_FILTERS.archiveStatus) {
+		count++;
+	}
+	if (filters.prStatuses.length > 0) {
+		count++;
+	}
+	if (
+		!haveSameSelections(
+			filters.chatStatuses,
+			DEFAULT_AGENT_SIDEBAR_FILTERS.chatStatuses,
+		)
+	) {
+		count++;
+	}
+	if (
+		!haveSameSelections(filters.sources, DEFAULT_AGENT_SIDEBAR_FILTERS.sources)
+	) {
+		count++;
+	}
+	return count;
+};
+
 export const FilterPopover: FC<FilterPopoverProps> = ({
 	filters,
 	onFiltersChange,
@@ -261,19 +289,36 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 		setOptionSearch("");
 	};
 
+	const isActive = hasActiveFilters(filters);
+	const activeFilterCount = countActiveFilters(filters);
+
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
 				<Button
 					variant="subtle"
-					size="icon"
+					size="sm"
 					aria-label="Filter agents"
 					className={cn(
-						"size-7 min-w-0 -mr-0.5 justify-end px-0 text-content-secondary hover:text-content-primary",
-						hasActiveFilters(filters) && "text-content-primary",
+						"h-7 min-w-0 gap-1.5 px-1.5 text-xs font-normal text-content-secondary hover:text-content-primary",
+						isActive && "text-content-primary",
 					)}
 				>
-					<FilterIcon />
+					{activeFilterCount > 0 && (
+						<span className="tabular-nums">
+							{activeFilterCount}{" "}
+							{activeFilterCount === 1 ? "filter" : "filters"}
+						</span>
+					)}
+					<span className="relative flex size-4 shrink-0 items-center justify-center">
+						<ListFilterIcon className="size-4" />
+						{isActive && (
+							<span
+								aria-hidden="true"
+								className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-content-link ring-2 ring-surface-primary"
+							/>
+						)}
+					</span>
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent

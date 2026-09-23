@@ -9,6 +9,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -74,8 +75,10 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 }) => {
 	const nameId = useId();
 	const descriptionId = useId();
+	const iconId = useId();
 	const [name, setName] = useState(project?.name ?? "");
 	const [description, setDescription] = useState(project?.description ?? "");
+	const [icon, setIcon] = useState(project?.icon ?? "");
 	const [error, setError] = useState<string>();
 	const isEditing = project !== null && project !== undefined;
 
@@ -87,14 +90,13 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 		}
 		onSavingChange(true);
 		setError(undefined);
+		const fields = {
+			name: trimmedName,
+			description: description.trim(),
+			icon: icon.trim(),
+		};
 		await onSubmit(
-			isEditing
-				? { name: trimmedName, description: description.trim() }
-				: {
-						organization_id: organizationId,
-						name: trimmedName,
-						description: description.trim(),
-					},
+			isEditing ? fields : { organization_id: organizationId, ...fields },
 		)
 			.then(() => {
 				onOpenChange(false);
@@ -122,6 +124,17 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 						autoFocus
 					/>
 				</div>
+				<IconField
+					id={iconId}
+					label="Icon"
+					value={icon}
+					onChange={(event) => setIcon(event.target.value)}
+					onPickEmoji={setIcon}
+					disabled={isSaving}
+					maxLength={256}
+					placeholder="Pick an emoji or paste an image URL"
+					helperText="Optional. Shown next to the project in the sidebar."
+				/>
 				<div className="flex flex-col gap-2">
 					<Label htmlFor={descriptionId}>Description</Label>
 					<Textarea

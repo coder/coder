@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "react-query";
 import { updateChatProject } from "#/api/queries/chatProjects";
 import type { ChatProject } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { ProjectIcon } from "./ChatsSidebar/chats/ProjectIcon";
 import { ChatProjectDialog } from "./ChatsSidebar/dialogs/ChatProjectDialog";
 
 type ProjectComposerHeaderProps = {
@@ -18,7 +19,8 @@ export const ProjectComposerHeader: FC<ProjectComposerHeaderProps> = ({
 	project,
 }) => (
 	<div className="mb-4 text-center">
-		<h1 className="m-0 text-2xl font-semibold text-content-primary">
+		<h1 className="m-0 flex items-center justify-center gap-2.5 text-2xl font-semibold text-content-primary">
+			{project.icon && <ProjectIcon icon={project.icon} className="size-7" />}
 			{project.name}
 		</h1>
 		{project.description && (

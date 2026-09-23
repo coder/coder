@@ -19,6 +19,7 @@ import {
 	DropdownMenuSubTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { ProjectIcon } from "./ChatsSidebar/chats/ProjectIcon";
 
 type ChatProjectActionsProps = {
 	readonly chat: Chat;
@@ -92,6 +93,7 @@ export const ChatProjectActions: FC<ChatProjectActionsProps> = ({
 							disabled={updateProjectMutation.isPending}
 							onSelect={() => selectProject(project.id)}
 						>
+							<ProjectIcon icon={project.icon} />
 							{project.name}
 						</Item>
 					))
