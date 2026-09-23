@@ -1242,7 +1242,7 @@ jobs:
     # The build doesn't get signed, and is not suitable for usage, unlike the
     # `build` job that runs on main.
     needs: changes
-    if: needs.changes.outputs.go == 'true' && github.ref != 'refs/heads/main'
+    if: (needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true') && github.ref != 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
