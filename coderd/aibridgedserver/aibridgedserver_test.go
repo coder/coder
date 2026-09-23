@@ -4246,10 +4246,12 @@ func TestStructuredLogging(t *testing.T) {
 				db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 					func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 				)
+				db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), intcID).Return(intcID, nil)
 				db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).Return(database.AIBridgeTokenUsage{
 					ID:             uuid.New(),
 					InterceptionID: intcID,
 				}, nil)
+				db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
 				_, err := srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{

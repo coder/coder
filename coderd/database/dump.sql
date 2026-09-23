@@ -4742,6 +4742,8 @@ CREATE INDEX idx_aibridge_token_usage_hourly_group ON aibridge_token_usage_hourl
 
 CREATE INDEX idx_aibridge_token_usage_hourly_org_hour ON aibridge_token_usage_hourly USING btree (organization_id, hour);
 
+CREATE INDEX idx_aibridge_token_usages_created_at_group ON aibridge_token_usages USING btree (created_at, effective_group_id) WHERE (effective_group_id IS NOT NULL);
+
 CREATE INDEX idx_aibridge_token_usages_effective_group_id_created_at ON aibridge_token_usages USING btree (effective_group_id, created_at) WHERE (effective_group_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);

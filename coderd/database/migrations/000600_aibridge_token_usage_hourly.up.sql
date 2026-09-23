@@ -19,6 +19,10 @@ CREATE INDEX idx_aibridge_token_usage_hourly_org_hour
 CREATE INDEX idx_aibridge_token_usage_hourly_group
     ON aibridge_token_usage_hourly (effective_group_id, hour);
 
+CREATE INDEX idx_aibridge_token_usages_created_at_group
+    ON aibridge_token_usages (created_at, effective_group_id)
+    WHERE effective_group_id IS NOT NULL;
+
 INSERT INTO aibridge_token_usage_hourly (
     organization_id, hour, effective_group_id, initiator_id, provider, provider_name, model, client,
     cost_micros, unpriced_usage_count, usage_count

@@ -539,13 +539,13 @@ DELETE FROM aibridge_token_usage_hourly WHERE usage_count = 0;
 -- name: ListOrganizationAISpendUsers :many
 -- Whole UTC hours use historical group attribution; the two disjoint edge
 -- scans retain exact timestamp boundaries without scanning the interior raw rows.
-WITH bounds AS (
+WITH bounds AS NOT MATERIALIZED (
     SELECT
         @period_start::timestamptz AS period_start,
         @period_end::timestamptz AS period_end,
         date_trunc('hour', @period_start::timestamptz, 'UTC') AS start_hour,
         date_trunc('hour', @period_end::timestamptz, 'UTC') AS end_hour
-), ranges AS (
+), ranges AS NOT MATERIALIZED (
     SELECT *, CASE WHEN period_start = start_hour THEN start_hour
         ELSE start_hour + interval '1 hour' END AS whole_start
     FROM bounds

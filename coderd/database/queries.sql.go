@@ -3817,13 +3817,13 @@ func (q *sqlQuerier) IncrementUserAIDailySpend(ctx context.Context, arg Incremen
 }
 
 const listOrganizationAISpendUsers = `-- name: ListOrganizationAISpendUsers :many
-WITH bounds AS (
+WITH bounds AS NOT MATERIALIZED (
     SELECT
         $4::timestamptz AS period_start,
         $5::timestamptz AS period_end,
         date_trunc('hour', $4::timestamptz, 'UTC') AS start_hour,
         date_trunc('hour', $5::timestamptz, 'UTC') AS end_hour
-), ranges AS (
+), ranges AS NOT MATERIALIZED (
     SELECT period_start, period_end, start_hour, end_hour, CASE WHEN period_start = start_hour THEN start_hour
         ELSE start_hour + interval '1 hour' END AS whole_start
     FROM bounds

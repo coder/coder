@@ -1,1 +1,2 @@
 DROP TABLE aibridge_token_usage_hourly;
+DROP INDEX idx_aibridge_token_usages_created_at_group;
