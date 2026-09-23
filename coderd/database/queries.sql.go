@@ -21760,7 +21760,7 @@ func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRole
 
 const getDefaultOrganization = `-- name: GetDefaultOrganization :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, restrict_models_to_configured
 FROM
     organizations
 WHERE
@@ -21784,13 +21784,14 @@ func (q *sqlQuerier) GetDefaultOrganization(ctx context.Context) (Organization, 
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
 		pq.Array(&i.DefaultOrgMemberRoles),
+		&i.RestrictModelsToConfigured,
 	)
 	return i, err
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, restrict_models_to_configured
 FROM
     organizations
 WHERE
@@ -21812,13 +21813,14 @@ func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Org
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
 		pq.Array(&i.DefaultOrgMemberRoles),
+		&i.RestrictModelsToConfigured,
 	)
 	return i, err
 }
 
 const getOrganizationByName = `-- name: GetOrganizationByName :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, restrict_models_to_configured
 FROM
     organizations
 WHERE
@@ -21849,6 +21851,7 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, arg GetOrganizat
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
 		pq.Array(&i.DefaultOrgMemberRoles),
+		&i.RestrictModelsToConfigured,
 	)
 	return i, err
 }
@@ -21919,7 +21922,7 @@ func (q *sqlQuerier) GetOrganizationResourceCountByID(ctx context.Context, organ
 
 const getOrganizations = `-- name: GetOrganizations :many
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, restrict_models_to_configured
 FROM
     organizations
 WHERE
@@ -21965,6 +21968,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 			&i.Deleted,
 			&i.ShareableWorkspaceOwners,
 			pq.Array(&i.DefaultOrgMemberRoles),
+			&i.RestrictModelsToConfigured,
 		); err != nil {
 			return nil, err
 		}
@@ -21981,7 +21985,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, restrict_models_to_configured
 FROM
     organizations
 WHERE
@@ -22028,6 +22032,7 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, arg GetOrgani
 			&i.Deleted,
 			&i.ShareableWorkspaceOwners,
 			pq.Array(&i.DefaultOrgMemberRoles),
+			&i.RestrictModelsToConfigured,
 		); err != nil {
 			return nil, err
 		}
@@ -22047,7 +22052,7 @@ INSERT INTO
     organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default, default_org_member_roles)
 VALUES
     -- If no organizations exist, and this is the first, make it the default.
-    ($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL, $8) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+    ($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL, $8) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, restrict_models_to_configured
 `
 
 type InsertOrganizationParams struct {
@@ -22085,6 +22090,7 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
 		pq.Array(&i.DefaultOrgMemberRoles),
+		&i.RestrictModelsToConfigured,
 	)
 	return i, err
 }
@@ -22101,7 +22107,7 @@ SET
     default_org_member_roles = $6
 WHERE
     id = $7
-RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, restrict_models_to_configured
 `
 
 type UpdateOrganizationParams struct {
@@ -22137,6 +22143,7 @@ func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizat
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
 		pq.Array(&i.DefaultOrgMemberRoles),
+		&i.RestrictModelsToConfigured,
 	)
 	return i, err
 }
@@ -22161,6 +22168,41 @@ func (q *sqlQuerier) UpdateOrganizationDeletedByID(ctx context.Context, arg Upda
 	return err
 }
 
+const updateOrganizationRestrictModelsToConfigured = `-- name: UpdateOrganizationRestrictModelsToConfigured :one
+UPDATE organizations
+SET
+    restrict_models_to_configured = $1,
+    updated_at = $2
+WHERE id = $3
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, restrict_models_to_configured
+`
+
+type UpdateOrganizationRestrictModelsToConfiguredParams struct {
+	RestrictModelsToConfigured bool      `db:"restrict_models_to_configured" json:"restrict_models_to_configured"`
+	UpdatedAt                  time.Time `db:"updated_at" json:"updated_at"`
+	ID                         uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateOrganizationRestrictModelsToConfigured(ctx context.Context, arg UpdateOrganizationRestrictModelsToConfiguredParams) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, updateOrganizationRestrictModelsToConfigured, arg.RestrictModelsToConfigured, arg.UpdatedAt, arg.ID)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDefault,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Deleted,
+		&i.ShareableWorkspaceOwners,
+		pq.Array(&i.DefaultOrgMemberRoles),
+		&i.RestrictModelsToConfigured,
+	)
+	return i, err
+}
+
 const updateOrganizationWorkspaceSharingSettings = `-- name: UpdateOrganizationWorkspaceSharingSettings :one
 UPDATE
     organizations
@@ -22169,7 +22211,7 @@ SET
     updated_at = $2
 WHERE
     id = $3
-RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, restrict_models_to_configured
 `
 
 type UpdateOrganizationWorkspaceSharingSettingsParams struct {
@@ -22193,6 +22235,7 @@ func (q *sqlQuerier) UpdateOrganizationWorkspaceSharingSettings(ctx context.Cont
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
 		pq.Array(&i.DefaultOrgMemberRoles),
+		&i.RestrictModelsToConfigured,
 	)
 	return i, err
 }

@@ -1,0 +1,1 @@
+ALTER TABLE organizations DROP COLUMN restrict_models_to_configured;

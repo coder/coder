@@ -3283,6 +3283,7 @@ func TestDefaultOrg(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, all, 1)
 	require.True(t, all[0].IsDefault, "first org should always be default")
+	require.False(t, all[0].RestrictModelsToConfigured, "bootstrapped default org preserves unrestricted access")
 }
 
 func TestAuditLogDefaultLimit(t *testing.T) {
@@ -3807,6 +3808,51 @@ func TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles(t *testing.T) {
 	shrunkSA, err := db.GetAuthorizationUserRoles(ctx, saUser.ID)
 	require.NoError(t, err)
 	require.NotContains(t, shrunkSA.Roles, wantWorkspaceAccess)
+}
+
+func TestUpdateOrganizationRestrictModelsToConfigured(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	org := dbgen.Organization(t, db, database.Organization{})
+	require.True(t, org.RestrictModelsToConfigured)
+	user := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+
+	for _, restrict := range []bool{false, true} {
+		updatedAt := org.UpdatedAt.Add(time.Second)
+		updated, err := db.UpdateOrganizationRestrictModelsToConfigured(ctx, database.UpdateOrganizationRestrictModelsToConfiguredParams{
+			ID:                         org.ID,
+			RestrictModelsToConfigured: restrict,
+			UpdatedAt:                  updatedAt,
+		})
+		require.NoError(t, err)
+		org.RestrictModelsToConfigured = restrict
+		org.UpdatedAt = updatedAt
+		require.Equal(t, org, updated)
+
+		got, err := db.GetOrganizationByID(ctx, org.ID)
+		require.NoError(t, err)
+		require.Equal(t, org, got)
+		memberships, err := db.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{UserID: user.ID})
+		require.NoError(t, err)
+		require.Equal(t, []database.Organization{org}, memberships)
+
+		updated, err = db.UpdateOrganization(ctx, database.UpdateOrganizationParams{
+			ID: org.ID, UpdatedAt: org.UpdatedAt, Name: org.Name, DisplayName: org.DisplayName,
+			Description: org.Description, Icon: org.Icon, DefaultOrgMemberRoles: org.DefaultOrgMemberRoles,
+		})
+		require.NoError(t, err)
+		require.Equal(t, org, updated)
+		updated, err = db.UpdateOrganizationWorkspaceSharingSettings(ctx, database.UpdateOrganizationWorkspaceSharingSettingsParams{
+			ID: org.ID, UpdatedAt: org.UpdatedAt, ShareableWorkspaceOwners: org.ShareableWorkspaceOwners,
+		})
+		require.NoError(t, err)
+		require.Equal(t, org, updated)
+	}
+	_, err := db.UpdateOrganizationRestrictModelsToConfigured(ctx, database.UpdateOrganizationRestrictModelsToConfiguredParams{ID: uuid.New(), UpdatedAt: dbtime.Now()})
+	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 
 func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {

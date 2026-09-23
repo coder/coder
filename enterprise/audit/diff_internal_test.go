@@ -16,6 +16,24 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+func TestOrganizationModelRestrictionDiff(t *testing.T) {
+	t.Parallel()
+	runDiffTests(t, []diffTest{
+		{
+			name:  "Restrict",
+			left:  database.Organization{RestrictModelsToConfigured: false},
+			right: database.Organization{RestrictModelsToConfigured: true},
+			exp:   audit.Map{"restrict_models_to_configured": audit.OldNew{Old: false, New: true}},
+		},
+		{
+			name:  "AllowAll",
+			left:  database.Organization{RestrictModelsToConfigured: true},
+			right: database.Organization{RestrictModelsToConfigured: false},
+			exp:   audit.Map{"restrict_models_to_configured": audit.OldNew{Old: true, New: false}},
+		},
+	})
+}
+
 func Test_diffValues(t *testing.T) {
 	t.Parallel()
 

@@ -5568,6 +5568,14 @@ func (m queryMetricsStore) UpdateOrganizationDeletedByID(ctx context.Context, ar
 	return r0
 }
 
+func (m queryMetricsStore) UpdateOrganizationRestrictModelsToConfigured(ctx context.Context, arg database.UpdateOrganizationRestrictModelsToConfiguredParams) (database.Organization, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateOrganizationRestrictModelsToConfigured(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateOrganizationRestrictModelsToConfigured").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOrganizationRestrictModelsToConfigured").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg database.UpdateOrganizationWorkspaceSharingSettingsParams) (database.Organization, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateOrganizationWorkspaceSharingSettings(ctx, arg)

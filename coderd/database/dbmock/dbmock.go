@@ -10547,6 +10547,21 @@ func (mr *MockStoreMockRecorder) UpdateOrganizationDeletedByID(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationDeletedByID", reflect.TypeOf((*MockStore)(nil).UpdateOrganizationDeletedByID), ctx, arg)
 }
 
+// UpdateOrganizationRestrictModelsToConfigured mocks base method.
+func (m *MockStore) UpdateOrganizationRestrictModelsToConfigured(ctx context.Context, arg database.UpdateOrganizationRestrictModelsToConfiguredParams) (database.Organization, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOrganizationRestrictModelsToConfigured", ctx, arg)
+	ret0, _ := ret[0].(database.Organization)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateOrganizationRestrictModelsToConfigured indicates an expected call of UpdateOrganizationRestrictModelsToConfigured.
+func (mr *MockStoreMockRecorder) UpdateOrganizationRestrictModelsToConfigured(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationRestrictModelsToConfigured", reflect.TypeOf((*MockStore)(nil).UpdateOrganizationRestrictModelsToConfigured), ctx, arg)
+}
+
 // UpdateOrganizationWorkspaceSharingSettings mocks base method.
 func (m *MockStore) UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg database.UpdateOrganizationWorkspaceSharingSettingsParams) (database.Organization, error) {
 	m.ctrl.T.Helper()

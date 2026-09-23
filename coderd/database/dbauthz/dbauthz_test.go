@@ -2592,6 +2592,16 @@ func (s *MethodTestSuite) TestOrganization() {
 		dbm.EXPECT().InsertOrganization(gomock.Any(), arg).Return(database.Organization{ID: arg.ID, Name: arg.Name}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceOrganization, policy.ActionCreate)
 	}))
+	s.Run("UpdateOrganizationRestrictModelsToConfigured", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		arg := database.UpdateOrganizationRestrictModelsToConfiguredParams{
+			ID:                         org.ID,
+			RestrictModelsToConfigured: true,
+		}
+		dbm.EXPECT().GetOrganizationByID(gomock.Any(), org.ID).Return(org, nil).AnyTimes()
+		dbm.EXPECT().UpdateOrganizationRestrictModelsToConfigured(gomock.Any(), arg).Return(org, nil).AnyTimes()
+		check.Args(arg).Asserts(org, policy.ActionUpdate).Returns(org)
+	}))
 	s.Run("UpdateOrganizationWorkspaceSharingSettings", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		org := testutil.Fake(s.T(), faker, database.Organization{})
 		arg := database.UpdateOrganizationWorkspaceSharingSettingsParams{

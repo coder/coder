@@ -1635,11 +1635,15 @@ func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next
 	user := dbgen.User(t, db, database.User{
 		RBACRoles: []string{"auditor", "agents-access"},
 	})
-	org := dbgen.Organization(t, db, database.Organization{
-		DefaultOrgMemberRoles: []string{"organization-workspace-access", "agents-access"},
-	})
+	orgID := uuid.New()
+	// Use the historical schema rather than the current generated organization queries.
+	_, err := sqlDB.ExecContext(t.Context(), `
+		INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles)
+		VALUES ($1, $2, '', '', now(), now(), ARRAY['organization-workspace-access', 'agents-access'])
+	`, orgID, testutil.GetRandomName(t))
+	require.NoError(t, err)
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org.ID,
+		OrganizationID: orgID,
 		UserID:         user.ID,
 		Roles:          []string{"organization-auditor", "agents-access"},
 	})
@@ -1652,9 +1656,9 @@ func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next
 	var siteRoles, orgRoles, defaultRoles pq.StringArray
 	err = sqlDB.QueryRowContext(ctx, "SELECT rbac_roles FROM users WHERE id = $1", user.ID).Scan(&siteRoles)
 	require.NoError(t, err)
-	err = sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", org.ID, user.ID).Scan(&orgRoles)
+	err = sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", orgID, user.ID).Scan(&orgRoles)
 	require.NoError(t, err)
-	err = sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", org.ID).Scan(&defaultRoles)
+	err = sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", orgID).Scan(&defaultRoles)
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"auditor"}, []string(siteRoles))
