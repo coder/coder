@@ -41,9 +41,17 @@ func TestLinkFilesUnavailable(t *testing.T) {
 				FileIds:      []uuid.UUID{fileID},
 			}).Return(int32(0), dbErr)
 
-			err := chatstate.LinkFiles(context.Background(), store, chatID, []uuid.UUID{fileID}, 0)
+			err := chatstate.LinkFiles(context.Background(), store, chatID, []uuid.UUID{fileID}, codersdk.DefaultChatMaxAttachmentsPerChat)
 			require.ErrorIs(t, err, chatstate.ErrChatFileUnavailable)
 			require.ErrorIs(t, err, dbErr)
 		})
 	}
+}
+
+func TestLinkFilesRejectsNonPositiveCap(t *testing.T) {
+	t.Parallel()
+
+	store := dbmock.NewMockStore(gomock.NewController(t))
+	err := chatstate.LinkFiles(context.Background(), store, uuid.New(), []uuid.UUID{uuid.New()}, 0)
+	require.ErrorContains(t, err, "max file links must be positive")
 }

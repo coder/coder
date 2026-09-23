@@ -2291,8 +2291,8 @@ type API struct {
 	dbRolluper *dbrollup.Rolluper
 	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
-	// chatLimits are the resolved deployment chat limits shared by the
-	// chat daemon and the chat HTTP handlers.
+	// chatLimits are the deployment chat limits shared by the chat daemon
+	// and the chat HTTP handlers.
 	chatLimits chatd.Limits
 	// gitSyncWorker refreshes stale chat diff statuses in the background.
 	gitSyncWorker *gitsync.Worker

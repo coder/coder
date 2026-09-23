@@ -261,6 +261,7 @@ func TestQueueVersionTrigger_AdvancesOnInsert(t *testing.T) {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("queue", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))

@@ -38,7 +38,8 @@ type CreateChatInput struct {
 	InitialMessages   []Message
 	// FileIDs are linked atomically with the initial messages.
 	FileIDs []uuid.UUID
-	// MaxFileLinks caps the chat's linked files; zero uses the default.
+	// MaxFileLinks is the maximum number of files linked to the chat. It
+	// must be positive when FileIDs is not empty.
 	MaxFileLinks int
 }
 
@@ -243,14 +244,12 @@ func (tx *Tx) clearQueue() ([]int64, error) {
 
 // requireQueueCapacity rejects the call when the chat already has
 // maxQueueSize queued messages with a *MessageQueueFullError that wraps
-// [ErrMessageQueueFull]. A non-positive maxQueueSize uses
-// [codersdk.DefaultChatMaxQueuedMessagesPerChat]. Queue-appending
-// transitions invoke this helper inside the transaction immediately
-// before inserting a new queued message so the check is atomic with the
-// insert.
+// [ErrMessageQueueFull]. Queue-appending transitions invoke this helper
+// inside the transaction immediately before inserting a new queued
+// message so the check is atomic with the insert.
 func (tx *Tx) requireQueueCapacity(maxQueueSize int) error {
 	if maxQueueSize <= 0 {
-		maxQueueSize = codersdk.DefaultChatMaxQueuedMessagesPerChat
+		return xerrors.Errorf("max queue size must be positive, got %d", maxQueueSize)
 	}
 	count, err := tx.store.CountChatQueuedMessages(tx.ctx, tx.chatID)
 	if err != nil {
@@ -386,7 +385,8 @@ const (
 type SendMessageInput struct {
 	Message      Message
 	BusyBehavior BusyBehavior
-	// MaxQueueSize caps queued messages per chat; zero uses the default.
+	// MaxQueueSize is the maximum number of messages that can be queued
+	// in the chat. It must be positive when the message is queued.
 	MaxQueueSize int
 }
 

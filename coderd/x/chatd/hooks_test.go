@@ -611,7 +611,11 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 		require.NoError(t, err)
 	}))
 	t.Cleanup(consumer.Close)
-	server := newHookTestServer(t, db, ps, consumer)
+	const maxQueued = 2
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.Limits.MaxQueuedMessagesPerChat = maxQueued
+	})
 
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
@@ -649,7 +653,7 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 	})
 	queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
 	require.NoError(t, err)
-	for range codersdk.DefaultChatMaxQueuedMessagesPerChat {
+	for range maxQueued {
 		_, err = db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
 			ChatID:        busy.ID,
 			Content:       queuedContent.RawMessage,

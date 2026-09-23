@@ -455,6 +455,7 @@ func interruptChat(t *testing.T, f *workerTestFixture, chatID uuid.UUID) databas
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(t, "interrupt", f.user.ID, f.model.ID, f.apiKey.ID),
 			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))

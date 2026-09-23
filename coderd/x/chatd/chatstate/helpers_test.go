@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -38,6 +39,7 @@ func sendQueuedMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, b
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(body, f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))
@@ -56,6 +58,7 @@ func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(body, f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))
