@@ -89,3 +89,24 @@ func TestNewJSONErrorResponse(t *testing.T) {
 		})
 	}
 }
+
+func TestActorHeaders(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, utils.IsActorHeader(utils.ActorHeaderPrefix+"-ID"))
+	require.True(t, utils.IsActorHeader("x-ai-bridge-actor-metadata-name"))
+	require.False(t, utils.IsActorHeader("X-AI-Bridge-Request-ID"))
+}
+
+func TestNewStreamingTransport(t *testing.T) {
+	t.Parallel()
+
+	transport := utils.NewStreamingTransport()
+	require.Nil(t, transport.DialContext)
+	require.Equal(t, 100, transport.MaxIdleConns)
+	require.Equal(t, 90*time.Second, transport.IdleConnTimeout)
+	require.Equal(t, 10*time.Second, transport.TLSHandshakeTimeout)
+	require.Equal(t, time.Second, transport.ExpectContinueTimeout)
+	require.Zero(t, transport.ResponseHeaderTimeout)
+	require.False(t, transport.DisableCompression)
+}
