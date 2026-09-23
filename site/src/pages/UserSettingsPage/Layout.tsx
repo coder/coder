@@ -1,55 +1,38 @@
-import { type FC, Suspense } from "react";
-import { Outlet } from "react-router";
+import type { FC } from "react";
+import { Navigate, Outlet } from "react-router";
 import { Avatar } from "#/components/Avatar/Avatar";
-import {
-	Breadcrumb,
-	BreadcrumbItem,
-	BreadcrumbList,
-	BreadcrumbPage,
-	BreadcrumbSeparator,
-} from "#/components/Breadcrumb/Breadcrumb";
-import { Loader } from "#/components/Loader/Loader";
+import { SettingsNavigation } from "#/components/SettingsNavigation/SettingsNavigation";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
-import { Sidebar } from "./Sidebar";
+import { userSettingsNavigation } from "./navigation";
+
+export const UserSettingsIndexRedirect: FC = () => (
+	<Navigate to="account" replace />
+);
 
 const Layout: FC = () => {
 	const { user: me } = useAuthenticated();
+	const { entitlements, buildInfo } = useDashboard();
+	const sections = userSettingsNavigation({
+		showSchedulePage:
+			entitlements.features.advanced_template_scheduling.enabled,
+		showOAuth2Page: buildInfo.oauth2_provider,
+	});
 
 	return (
 		<>
 			<title>{pageTitle("Settings")}</title>
-
-			<div>
-				<Breadcrumb>
-					<BreadcrumbList>
-						<BreadcrumbItem>
-							<BreadcrumbPage className="text-content-primary">
-								User Settings
-							</BreadcrumbPage>
-						</BreadcrumbItem>
-						<BreadcrumbSeparator />
-						<BreadcrumbItem>
-							<BreadcrumbPage className="flex items-center gap-2">
-								<Avatar size="sm" fallback={me.username} src={me.avatar_url} />
-								{me.username}
-							</BreadcrumbPage>
-						</BreadcrumbItem>
-					</BreadcrumbList>
-				</Breadcrumb>
-				<div className="h-px border-none bg-border" />
-
-				<section className="px-4 sm:px-6 lg:px-10 max-w-(--breakpoint-2xl) mx-auto">
-					<div className="flex flex-col gap-8 py-6 lg:flex-row lg:gap-28 lg:py-10">
-						<Sidebar />
-						<div className="grow min-w-0">
-							<Suspense fallback={<Loader />}>
-								<Outlet />
-							</Suspense>
-						</div>
-					</div>
-				</section>
-			</div>
+			<SettingsNavigation
+				title="User settings"
+				sections={sections}
+				storageKey="user-settings-nav-collapsed"
+				pageAdornment={
+					<Avatar size="sm" fallback={me.username} src={me.avatar_url} />
+				}
+			>
+				<Outlet />
+			</SettingsNavigation>
 		</>
 	);
 };

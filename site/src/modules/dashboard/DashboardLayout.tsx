@@ -16,11 +16,14 @@ export const DashboardLayout: FC = () => {
 	const canViewDeployment = Boolean(permissions.viewDeploymentConfig);
 
 	return (
-		<>
+		<div data-dashboard-layout className="flex min-h-full flex-col">
 			{canViewDeployment && <LicenseBanner />}
 			<AnnouncementBanners />
 
-			<div className="flex flex-col min-h-screen justify-between">
+			<div
+				data-dashboard-body
+				className="flex min-h-screen flex-col justify-between"
+			>
 				{/* biome-ignore lint/a11y/useValidAnchor: Skip links use fragment anchors by design. */}
 				<a
 					href="#main-content"
@@ -59,7 +62,7 @@ export const DashboardLayout: FC = () => {
 					/>
 				)}
 			</div>
-		</>
+		</div>
 	);
 };
 
