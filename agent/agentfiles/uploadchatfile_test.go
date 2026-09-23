@@ -2,6 +2,8 @@ package agentfiles_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,24 +16,43 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentfiles"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 const uploadChatFileTestChatID = "00000000-0000-0000-0000-000000000001"
 
+// pathOnlyOsFs hides the afero.OsFs type so uploads take the portable
+// path-based fallback while still exercising the real filesystem.
+type pathOnlyOsFs struct{ afero.OsFs }
+
+var uploadChatFileFilesystems = []struct {
+	name string
+	fs   afero.Fs
+}{
+	{name: "Secure", fs: afero.NewOsFs()},
+	{name: "PathFallback", fs: pathOnlyOsFs{}},
+}
+
+type readerFunc func(p []byte) (int, error)
+
+func (f readerFunc) Read(p []byte) (int, error) { return f(p) }
+
 // newUploadChatFileRouter wires the upload handler against the
-// supplied filesystem so each test gets its own router and fs.
-func newUploadChatFileRouter(t *testing.T, fs afero.Fs) http.Handler {
+// supplied filesystem and home directory so each test is isolated.
+func newUploadChatFileRouter(t *testing.T, fs afero.Fs, home string) http.Handler {
 	t.Helper()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, agentfiles.WithEnvInfo(fakeBundleEnvInfo{home: home}))
 	r := chi.NewRouter()
 	r.Post("/upload-chat-file", api.HandleUploadChatFile)
 	return r
@@ -48,25 +69,30 @@ func uploadChatFileURL(chatID, name string) string {
 	return "/upload-chat-file?" + q.Encode()
 }
 
-func TestHandleUploadChatFile_HappyPath(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	// macOS resolves $HOME through getpwuid by default; we already
-	// override it but USERPROFILE is read on Windows.
-	t.Setenv("USERPROFILE", home)
-
-	fs := afero.NewOsFs()
-	r := newUploadChatFileRouter(t, fs)
-
-	body := strings.NewReader("zip bytes")
-	req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(uploadChatFileTestChatID, "archive.zip"), body)
+func uploadChatFile(t *testing.T, h http.Handler, name string, body io.Reader) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(uploadChatFileTestChatID, name), body)
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
+	h.ServeHTTP(rr, req)
+	return rr
+}
 
+func decodeUploadChatFileResponse(t *testing.T, rr *httptest.ResponseRecorder) workspacesdk.AgentUploadChatFileResponse {
+	t.Helper()
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-
 	var resp workspacesdk.AgentUploadChatFileResponse
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
+	return resp
+}
+
+func TestHandleUploadChatFile_HappyPath(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	fs := afero.NewOsFs()
+	r := newUploadChatFileRouter(t, fs, home)
+
+	resp := decodeUploadChatFileResponse(t, uploadChatFile(t, r, "archive.zip", strings.NewReader("zip bytes")))
 
 	want := filepath.Join(home, ".coder", "chats", uploadChatFileTestChatID, "files", "archive.zip")
 	require.Equal(t, want, resp.Path)
@@ -79,150 +105,263 @@ func TestHandleUploadChatFile_HappyPath(t *testing.T) {
 }
 
 func TestHandleUploadChatFile_SanitizesName(t *testing.T) {
+	t.Parallel()
+
 	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
+	r := newUploadChatFileRouter(t, afero.NewOsFs(), home)
 
-	fs := afero.NewOsFs()
-	r := newUploadChatFileRouter(t, fs)
-
-	body := strings.NewReader("payload")
 	// Path components and unsafe whitespace must be stripped before
 	// the file lands on disk.
-	req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(uploadChatFileTestChatID, "../etc/secret file.zip"), body)
-	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-
-	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-
-	var resp workspacesdk.AgentUploadChatFileResponse
-	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
+	resp := decodeUploadChatFileResponse(t, uploadChatFile(t, r, "../etc/secret file.zip", strings.NewReader("payload")))
 
 	require.Equal(t, "secret_file.zip", resp.Name)
 	require.Equal(t, filepath.Join(home, ".coder", "chats", uploadChatFileTestChatID, "files", "secret_file.zip"), resp.Path)
 }
 
 func TestHandleUploadChatFile_CollisionSuffix(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
+	t.Parallel()
 
-	fs := afero.NewOsFs()
-	r := newUploadChatFileRouter(t, fs)
+	for _, tc := range uploadChatFileFilesystems {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	uploadOnce := func(t *testing.T, body string) workspacesdk.AgentUploadChatFileResponse {
-		t.Helper()
-		req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(uploadChatFileTestChatID, "archive.zip"),
-			strings.NewReader(body))
-		rr := httptest.NewRecorder()
-		r.ServeHTTP(rr, req)
-		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-		var resp workspacesdk.AgentUploadChatFileResponse
-		require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
-		return resp
-	}
+			home := t.TempDir()
+			r := newUploadChatFileRouter(t, tc.fs, home)
 
-	first := uploadOnce(t, "first")
-	second := uploadOnce(t, "second")
-	third := uploadOnce(t, "third")
+			first := decodeUploadChatFileResponse(t, uploadChatFile(t, r, "archive.zip", strings.NewReader("first")))
+			second := decodeUploadChatFileResponse(t, uploadChatFile(t, r, "archive.zip", strings.NewReader("second")))
+			third := decodeUploadChatFileResponse(t, uploadChatFile(t, r, "archive.zip", strings.NewReader("third")))
 
-	require.Equal(t, "archive.zip", first.Name)
-	require.Equal(t, "archive_2.zip", second.Name)
-	require.Equal(t, "archive_3.zip", third.Name)
+			require.Equal(t, "archive.zip", first.Name)
+			require.Equal(t, "archive_2.zip", second.Name)
+			require.Equal(t, "archive_3.zip", third.Name)
 
-	for _, tt := range []struct {
-		resp workspacesdk.AgentUploadChatFileResponse
-		body string
-	}{
-		{resp: first, body: "first"},
-		{resp: second, body: "second"},
-		{resp: third, body: "third"},
-	} {
-		contents, err := os.ReadFile(tt.resp.Path)
-		require.NoError(t, err)
-		require.Equal(t, tt.body, string(contents))
+			for _, tt := range []struct {
+				resp workspacesdk.AgentUploadChatFileResponse
+				body string
+			}{
+				{resp: first, body: "first"},
+				{resp: second, body: "second"},
+				{resp: third, body: "third"},
+			} {
+				contents, err := os.ReadFile(tt.resp.Path)
+				require.NoError(t, err)
+				require.Equal(t, tt.body, string(contents))
+			}
+
+			entries, err := os.ReadDir(chatfiles.WorkspaceUploadDir(home, uploadChatFileTestChatID))
+			require.NoError(t, err)
+			require.Len(t, entries, 3, "temp files must not outlive a successful upload")
+		})
 	}
 }
 
 func TestHandleUploadChatFile_CollisionExhausted(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
+	t.Parallel()
 
-	fs := afero.NewOsFs()
-	r := newUploadChatFileRouter(t, fs)
-	dir := chatfiles.WorkspaceUploadDir(home, uploadChatFileTestChatID)
-	require.NoError(t, os.MkdirAll(dir, 0o755))
-	for i := 1; i <= 1000; i++ {
-		name := chatfiles.AddCollisionSuffix("archive.zip", i)
-		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(name), 0o600))
+	for _, tc := range uploadChatFileFilesystems {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			home := t.TempDir()
+			r := newUploadChatFileRouter(t, tc.fs, home)
+			dir := chatfiles.WorkspaceUploadDir(home, uploadChatFileTestChatID)
+			require.NoError(t, os.MkdirAll(dir, 0o755))
+			for i := 1; i <= 1000; i++ {
+				name := chatfiles.AddCollisionSuffix("archive.zip", i)
+				require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(name), 0o600))
+			}
+
+			rr := uploadChatFile(t, r, "archive.zip", strings.NewReader("payload"))
+
+			require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+			require.Contains(t, rr.Body.String(), "too many existing files")
+			entries, err := os.ReadDir(dir)
+			require.NoError(t, err)
+			require.Len(t, entries, 1000)
+		})
 	}
-
-	req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(uploadChatFileTestChatID, "archive.zip"), strings.NewReader("payload"))
-	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-
-	require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
-	require.Contains(t, rr.Body.String(), "too many existing files")
 }
 
 func TestHandleUploadChatFile_RejectsSymlinkedUploadDir(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("creating symlinks requires elevated privileges on Windows")
 	}
 
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
+	for _, tc := range uploadChatFileFilesystems {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	fs := afero.NewOsFs()
-	r := newUploadChatFileRouter(t, fs)
-	target := t.TempDir()
-	chatParent := filepath.Join(home, ".coder", "chats")
-	require.NoError(t, os.MkdirAll(chatParent, 0o755))
-	require.NoError(t, os.Symlink(target, filepath.Join(chatParent, uploadChatFileTestChatID)))
+			home := t.TempDir()
+			r := newUploadChatFileRouter(t, tc.fs, home)
+			target := t.TempDir()
+			chatParent := filepath.Join(home, ".coder", "chats")
+			require.NoError(t, os.MkdirAll(chatParent, 0o755))
+			require.NoError(t, os.Symlink(target, filepath.Join(chatParent, uploadChatFileTestChatID)))
 
-	req := httptest.NewRequest(http.MethodPost,
-		uploadChatFileURL(uploadChatFileTestChatID, "archive.zip"),
-		strings.NewReader("payload"),
-	)
-	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
+			rr := uploadChatFile(t, r, "archive.zip", strings.NewReader("payload"))
 
-	require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
-	require.Contains(t, rr.Body.String(), "symlink")
-	_, err := os.Stat(filepath.Join(target, "files", "archive.zip"))
-	require.ErrorIs(t, err, os.ErrNotExist)
+			require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
+			require.Contains(t, rr.Body.String(), "symlink")
+			entries, err := os.ReadDir(target)
+			require.NoError(t, err)
+			require.Empty(t, entries)
+		})
+	}
+}
+
+func TestHandleUploadChatFile_SkipsSymlinkedTargetName(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("creating symlinks requires elevated privileges on Windows")
+	}
+
+	for _, tc := range uploadChatFileFilesystems {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			home := t.TempDir()
+			r := newUploadChatFileRouter(t, tc.fs, home)
+			outside := filepath.Join(t.TempDir(), "outside.zip")
+			require.NoError(t, os.WriteFile(outside, []byte("original"), 0o600))
+			dir := chatfiles.WorkspaceUploadDir(home, uploadChatFileTestChatID)
+			require.NoError(t, os.MkdirAll(dir, 0o755))
+			require.NoError(t, os.Symlink(outside, filepath.Join(dir, "archive.zip")))
+
+			resp := decodeUploadChatFileResponse(t, uploadChatFile(t, r, "archive.zip", strings.NewReader("payload")))
+
+			require.Equal(t, "archive_2.zip", resp.Name)
+			contents, err := os.ReadFile(resp.Path)
+			require.NoError(t, err)
+			require.Equal(t, "payload", string(contents))
+			contents, err = os.ReadFile(outside)
+			require.NoError(t, err)
+			require.Equal(t, "original", string(contents))
+		})
+	}
 }
 
 func TestHandleUploadChatFile_WriteErrorRemovesPartialFile(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
+	t.Parallel()
 
-	fs := afero.NewOsFs()
-	r := newUploadChatFileRouter(t, fs)
+	for _, tc := range uploadChatFileFilesystems {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	req := httptest.NewRequest(http.MethodPost,
-		uploadChatFileURL(uploadChatFileTestChatID, "archive.zip"),
-		iotest.ErrReader(os.ErrClosed),
-	)
+			home := t.TempDir()
+			r := newUploadChatFileRouter(t, tc.fs, home)
+
+			body := io.MultiReader(strings.NewReader("partial"), iotest.ErrReader(os.ErrClosed))
+			rr := uploadChatFile(t, r, "archive.zip", body)
+
+			require.Equal(t, http.StatusInternalServerError, rr.Code, rr.Body.String())
+			entries, err := os.ReadDir(chatfiles.WorkspaceUploadDir(home, uploadChatFileTestChatID))
+			require.NoError(t, err)
+			require.Empty(t, entries)
+		})
+	}
+}
+
+func TestHandleUploadChatFile_NotVisibleBeforeComplete(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range uploadChatFileFilesystems {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			home := t.TempDir()
+			r := newUploadChatFileRouter(t, tc.fs, home)
+			dir := chatfiles.WorkspaceUploadDir(home, uploadChatFileTestChatID)
+
+			checked := false
+			body := io.MultiReader(strings.NewReader("first chunk "), readerFunc(func(p []byte) (int, error) {
+				if !checked {
+					checked = true
+					_, err := os.Lstat(filepath.Join(dir, "archive.zip"))
+					require.ErrorIs(t, err, os.ErrNotExist)
+					entries, err := os.ReadDir(dir)
+					require.NoError(t, err)
+					require.Len(t, entries, 1)
+					require.True(t, strings.HasPrefix(entries[0].Name(), ".archive.zip.upload-"), entries[0].Name())
+				}
+				return copy(p, "second chunk"), io.EOF
+			}))
+
+			resp := decodeUploadChatFileResponse(t, uploadChatFile(t, r, "archive.zip", body))
+
+			require.True(t, checked)
+			contents, err := os.ReadFile(resp.Path)
+			require.NoError(t, err)
+			require.Equal(t, "first chunk second chunk", string(contents))
+		})
+	}
+}
+
+func TestHandleUploadChatFile_SweepsStaleTempFiles(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range uploadChatFileFilesystems {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			home := t.TempDir()
+			r := newUploadChatFileRouter(t, tc.fs, home)
+			dir := chatfiles.WorkspaceUploadDir(home, uploadChatFileTestChatID)
+			require.NoError(t, os.MkdirAll(dir, 0o755))
+
+			staleTemp := filepath.Join(dir, ".old.zip.upload-0123456789abcdef")
+			activeTemp := filepath.Join(dir, ".new.zip.upload-fedcba9876543210")
+			oldUpload := filepath.Join(dir, "old.zip")
+			old := time.Now().Add(-2 * time.Hour)
+			for _, p := range []string{staleTemp, activeTemp, oldUpload} {
+				require.NoError(t, os.WriteFile(p, []byte("x"), 0o600))
+			}
+			require.NoError(t, os.Chtimes(staleTemp, old, old))
+			require.NoError(t, os.Chtimes(oldUpload, old, old))
+
+			decodeUploadChatFileResponse(t, uploadChatFile(t, r, "archive.zip", strings.NewReader("payload")))
+
+			_, err := os.Lstat(staleTemp)
+			require.ErrorIs(t, err, os.ErrNotExist)
+			require.FileExists(t, activeTemp)
+			require.FileExists(t, oldUpload)
+		})
+	}
+}
+
+func TestHandleUploadChatFile_LogsFailure(t *testing.T) {
+	t.Parallel()
+
+	sink := testutil.NewFakeSink(t)
+	api := agentfiles.NewAPI(sink.Logger(), afero.NewOsFs(), nil, agentfiles.WithEnvInfo(fakeBundleEnvInfo{home: t.TempDir()}))
+
+	body := io.MultiReader(strings.NewReader("partial"), iotest.ErrReader(os.ErrClosed))
+	req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(uploadChatFileTestChatID, "my archive.zip"), body)
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-
+	api.HandleUploadChatFile(rr, req)
 	require.Equal(t, http.StatusInternalServerError, rr.Code, rr.Body.String())
 
-	dir := chatfiles.WorkspaceUploadDir(home, uploadChatFileTestChatID)
-	entries, err := os.ReadDir(dir)
-	require.NoError(t, err)
-	require.Empty(t, entries)
+	entries := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelWarn })
+	require.Len(t, entries, 1)
+	fields := map[string]any{}
+	for _, f := range entries[0].Fields {
+		fields[f.Name] = f.Value
+	}
+	require.Equal(t, uploadChatFileTestChatID, fmt.Sprint(fields["chat_id"]))
+	require.Equal(t, "my_archive.zip", fields["name"])
+	require.EqualValues(t, len("partial"), fields["bytes_received"])
+	require.Equal(t, http.StatusInternalServerError, fields["status"])
+	require.Contains(t, fields, "duration")
+	loggedErr, ok := fields["error"].(error)
+	require.True(t, ok)
+	require.ErrorIs(t, loggedErr, os.ErrClosed)
 }
 
 func TestHandleUploadChatFile_BadRequest(t *testing.T) {
 	t.Parallel()
 
-	fs := afero.NewOsFs()
-	r := newUploadChatFileRouter(t, fs)
+	r := newUploadChatFileRouter(t, afero.NewOsFs(), t.TempDir())
 
 	tests := []struct {
 		name     string
@@ -254,20 +393,25 @@ func TestHandleUploadChatFile_BadRequest(t *testing.T) {
 func TestHandleUploadChatFile_UsesConfiguredHomeDir(t *testing.T) {
 	t.Parallel()
 
-	processHome := t.TempDir()
+	// A fresh chat ID makes the check against the real process home
+	// meaningful: nothing else could have created this directory.
+	chatID := uuid.NewString()
+	processHome, err := usershell.SystemEnvInfo{}.HomeDir()
+	require.NoError(t, err)
 	agentHome := t.TempDir()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	api := agentfiles.NewAPI(logger, afero.NewOsFs(), nil, agentfiles.WithEnvInfo(fakeBundleEnvInfo{home: agentHome}))
 
-	req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(uploadChatFileTestChatID, "archive.zip"), strings.NewReader("zip bytes"))
+	req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(chatID, "archive.zip"), strings.NewReader("zip bytes"))
 	rr := httptest.NewRecorder()
 	api.HandleUploadChatFile(rr, req)
-	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	resp := decodeUploadChatFileResponse(t, rr)
 
-	var resp workspacesdk.AgentUploadChatFileResponse
-	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
-	require.Equal(t, filepath.Join(chatfiles.WorkspaceUploadDir(agentHome, uploadChatFileTestChatID), "archive.zip"), resp.Path)
-	_, err := os.Stat(chatfiles.WorkspaceUploadDir(processHome, uploadChatFileTestChatID))
+	require.Equal(t, filepath.Join(chatfiles.WorkspaceUploadDir(agentHome, chatID), "archive.zip"), resp.Path)
+	contents, err := os.ReadFile(resp.Path)
+	require.NoError(t, err)
+	require.Equal(t, "zip bytes", string(contents))
+	_, err = os.Stat(chatfiles.WorkspaceChatDir(processHome, chatID))
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
@@ -306,10 +450,14 @@ func TestHandleUploadChatFile_ExtendsDeadlinesWhileStreaming(t *testing.T) {
 	api.HandleUploadChatFile(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
-	// One extension before the copy starts plus one per chunk received.
-	require.Len(t, rr.readDeadlines, 1+len(payload))
-	require.Len(t, rr.writeDeadlines, 1+len(payload))
-	for _, deadline := range append(rr.readDeadlines, rr.writeDeadlines...) {
-		require.False(t, deadline.Before(start.Add(10*time.Second)), "deadline %s was not pushed into the future", deadline)
+	for _, deadlines := range [][]time.Time{rr.readDeadlines, rr.writeDeadlines} {
+		// At least one extension before the copy starts plus one per chunk.
+		require.GreaterOrEqual(t, len(deadlines), 1+len(payload))
+		for i, deadline := range deadlines {
+			require.False(t, deadline.Before(start.Add(10*time.Second)), "deadline %s was not pushed into the future", deadline)
+			if i > 0 {
+				require.False(t, deadline.Before(deadlines[i-1]), "deadline moved backwards")
+			}
+		}
 	}
 }
