@@ -721,20 +721,29 @@ func TestAIGatewayCompatibilityAliases(t *testing.T) {
 	})
 }
 
+// defaultDeploymentValues returns deployment values with every option set to
+// its default, which passes Validate.
+func defaultDeploymentValues(t *testing.T) *codersdk.DeploymentValues {
+	t.Helper()
+	dv := &codersdk.DeploymentValues{}
+	opts := dv.Options()
+	require.NoError(t, opts.SetDefaults())
+	return dv
+}
+
 func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 	t.Parallel()
 
-	mk := func(access, refresh time.Duration) *codersdk.DeploymentValues {
-		dv := &codersdk.DeploymentValues{}
+	mk := func(t *testing.T, access, refresh time.Duration) *codersdk.DeploymentValues {
+		dv := defaultDeploymentValues(t)
 		dv.Sessions.DefaultDuration = serpent.Duration(access)
 		dv.Sessions.RefreshDefaultDuration = serpent.Duration(refresh)
-		dv.AI.Chat.HookTimeout = serpent.Duration(1500 * time.Millisecond)
 		return dv
 	}
 
 	t.Run("EqualDurations_Error", func(t *testing.T) {
 		t.Parallel()
-		dv := mk(1*time.Hour, 1*time.Hour)
+		dv := mk(t, 1*time.Hour, 1*time.Hour)
 		err := dv.Validate()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "must be strictly greater")
@@ -742,7 +751,7 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 
 	t.Run("RefreshShorter_Error", func(t *testing.T) {
 		t.Parallel()
-		dv := mk(2*time.Hour, 1*time.Hour)
+		dv := mk(t, 2*time.Hour, 1*time.Hour)
 		err := dv.Validate()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "must be strictly greater")
@@ -750,7 +759,7 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 
 	t.Run("RefreshZero_Error", func(t *testing.T) {
 		t.Parallel()
-		dv := mk(1*time.Hour, 0)
+		dv := mk(t, 1*time.Hour, 0)
 		err := dv.Validate()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "must be strictly greater")
@@ -759,7 +768,7 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 	t.Run("AccessUninitialized_Error", func(t *testing.T) {
 		t.Parallel()
 		// Access duration is zero (uninitialized); refresh is valid.
-		dv := mk(0, 48*time.Hour)
+		dv := mk(t, 0, 48*time.Hour)
 		err := dv.Validate()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "developer error: sessions configuration appears uninitialized")
@@ -767,7 +776,7 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 
 	t.Run("RefreshLonger_OK", func(t *testing.T) {
 		t.Parallel()
-		dv := mk(1*time.Hour, 48*time.Hour)
+		dv := mk(t, 1*time.Hour, 48*time.Hour)
 		err := dv.Validate()
 		require.NoError(t, err)
 	})
@@ -776,35 +785,25 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 func TestDeploymentValues_Validate_ChatLimits(t *testing.T) {
 	t.Parallel()
 
-	mk := func() *codersdk.DeploymentValues {
-		dv := &codersdk.DeploymentValues{}
-		dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
-		dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
-		return dv
-	}
-
-	t.Run("ZeroMeansDefault", func(t *testing.T) {
+	t.Run("BelowOne", func(t *testing.T) {
 		t.Parallel()
-		require.NoError(t, mk().Validate())
-	})
-
-	t.Run("Negative", func(t *testing.T) {
-		t.Parallel()
-		dv := mk()
-		dv.AI.Chat.MaxStepsPerTurn = serpent.Int64(-1)
-		require.ErrorContains(t, dv.Validate(), "--chat-max-steps-per-turn (-1)")
+		for _, value := range []int64{0, -1} {
+			dv := defaultDeploymentValues(t)
+			dv.AI.Chat.MaxStepsPerTurn = serpent.Int64(value)
+			require.ErrorContains(t, dv.Validate(), fmt.Sprintf("--chat-max-steps-per-turn (%d) must be between 1 and", value))
+		}
 	})
 
 	t.Run("AboveInt32", func(t *testing.T) {
 		t.Parallel()
-		dv := mk()
+		dv := defaultDeploymentValues(t)
 		dv.AI.Chat.MaxPromptBytes = serpent.Int64(math.MaxInt32 + 1)
 		require.ErrorContains(t, dv.Validate(), "--chat-max-prompt-bytes")
 	})
 
 	t.Run("Positive", func(t *testing.T) {
 		t.Parallel()
-		dv := mk()
+		dv := defaultDeploymentValues(t)
 		dv.AI.Chat.MaxStepsPerTurn = serpent.Int64(10)
 		dv.AI.Chat.MaxPromptBytes = serpent.Int64(math.MaxInt32)
 		require.NoError(t, dv.Validate())
@@ -964,9 +963,7 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			dv := &codersdk.DeploymentValues{}
-			dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
-			dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
+			dv := defaultDeploymentValues(t)
 			dv.AI.Chat.HookEnabled = serpent.Bool(!tt.disabled)
 			dv.AI.Chat.HookSecret = serpent.String(tt.secret)
 			dv.AI.Chat.HookTimeout = serpent.Duration(tt.timeout)
@@ -1003,9 +1000,7 @@ func TestDeploymentValues_Validate_ChatStreamSilenceTimeout(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			dv := &codersdk.DeploymentValues{}
-			dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
-			dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
+			dv := defaultDeploymentValues(t)
 			dv.AI.Chat.StreamSilenceTimeout = serpent.Duration(tt.timeout)
 
 			err := dv.Validate()
