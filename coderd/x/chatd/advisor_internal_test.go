@@ -102,6 +102,7 @@ func newAdvisorTestServer(
 		db:          store,
 		logger:      slog.Make(),
 		configCache: newChatConfigCache(ctx, store, clock),
+		chatLimits:  Limits{}.withDefaults(),
 	}
 }
 
@@ -419,7 +420,8 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		chat, store := advisorChatModelFixture(t, nil)
 		p := newAdvisorTestServer(ctx, t, store)
 		p.aibridgeTransportFactory = aibridgeTestFactoryPointer(advisorTestTransportFactory())
-		p.chatLimits = Limits{MaxStepsPerTurn: 7, MaxGenerationRetries: 3}
+		p.chatLimits.MaxStepsPerTurn = 7
+		p.chatLimits.MaxGenerationRetries = 3
 
 		rt, err := p.newAdvisorRuntime(ctx, chat, advisorRuntimeConfig{
 			Enabled:         true,

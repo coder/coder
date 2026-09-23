@@ -862,7 +862,7 @@ func TestStopAndStoreRecording_KeepsRecordingAtCapOne(t *testing.T) {
 	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
 
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-	server.chatLimits = Limits{MaxAttachmentsPerChat: 1}
+	server.chatLimits.MaxAttachmentsPerChat = 1
 	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
 	mockConn.EXPECT().

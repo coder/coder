@@ -412,6 +412,7 @@ func runInvalidBusyBehaviorCase(t *testing.T, from chatstate.ExecutionState, bb 
 		_, serr := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("invalid-bb", f.User.ID, f.Model.ID),
 			BusyBehavior: bb,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return serr
 	})
@@ -606,12 +607,11 @@ func TestTransitionInputValidation(t *testing.T) {
 func TestSendMessageQueueCapUsesConfiguredMax(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 
 	const maxQueueSize = 2
-	send := func(body string) error {
+	send := func(ctx context.Context, body string) error {
 		return m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 			_, err := tx.SendMessage(chatstate.SendMessageInput{
 				Message:      userTextMessage(body, f.User.ID, f.Model.ID),
@@ -621,17 +621,38 @@ func TestSendMessageQueueCapUsesConfiguredMax(t *testing.T) {
 			return err
 		})
 	}
+	ctx := testutil.Context(t, testutil.WaitShort)
 	for range maxQueueSize {
-		require.NoError(t, send("filler"))
+		require.NoError(t, send(ctx, "filler"))
 	}
 
-	err := send("overflow")
+	err := send(ctx, "overflow")
 	var typed *chatstate.MessageQueueFullError
 	require.ErrorAs(t, err, &typed)
 	require.EqualValues(t, maxQueueSize, typed.Max)
 	count, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, maxQueueSize, count)
+}
+
+func TestSendMessageQueueRejectsNonPositiveMax(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	created := createTestChat(t, f)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := tx.SendMessage(chatstate.SendMessageInput{
+			Message:      userTextMessage("queued", f.User.ID, f.Model.ID),
+			BusyBehavior: chatstate.BusyBehaviorQueue,
+		})
+		return err
+	})
+	require.ErrorContains(t, err, "max queue size must be positive")
+	count, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.Zero(t, count)
 }
 
 // TestSendMessageQueueCapRejectsQueueAppend seeds a chat with the
@@ -661,6 +682,7 @@ func TestSendMessageQueueCapRejectsQueueAppend(t *testing.T) {
 		_, serr := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("overflow", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return serr
 	})
@@ -698,6 +720,7 @@ func TestSendMessageInterruptRequiresActionReturnsCancellations(t *testing.T) {
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("interrupt", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))

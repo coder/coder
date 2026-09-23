@@ -84,6 +84,7 @@ func TestRequestCompaction_PreservedByAcquireAndQueueAppend(t *testing.T) {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("queued while compacting", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))

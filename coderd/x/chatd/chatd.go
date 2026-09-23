@@ -305,7 +305,7 @@ func (p *Server) newAdvisorRuntime(
 		// requires a positive bound. The per-turn step limit is the
 		// effective upper bound because advisor can run at most
 		// once per loop step.
-		maxUsesPerRun = p.limits().MaxStepsPerTurn
+		maxUsesPerRun = p.chatLimits.MaxStepsPerTurn
 	case maxUsesPerRun < 0:
 		logger.Warn(
 			ctx,
@@ -357,7 +357,7 @@ func (p *Server) newAdvisorRuntime(
 		MaxUsesPerRun:        maxUsesPerRun,
 		MaxOutputTokens:      maxOutputTokens,
 		StreamSilenceTimeout: p.streamSilenceTimeout,
-		MaxRetries:           p.limits().MaxGenerationRetries,
+		MaxRetries:           p.chatLimits.MaxGenerationRetries,
 	})
 	if err != nil {
 		logger.Warn(
@@ -1422,7 +1422,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		InitialMessages: initialMessages,
 		FileIDs:         chatprompt.FileIDs(contentParts),
 		InitialStatus:   initialStatus,
-		MaxFileLinks:    p.limits().MaxAttachmentsPerChat,
+		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1470,7 +1470,6 @@ func (p *Server) SendMessage(
 		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
 	}
 
-	limits := p.limits()
 	contentParts := opts.Content
 	if p.hooks.Enabled() {
 		turnID := uuid.New()
@@ -1491,8 +1490,8 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
 		}
-		if queuedCount >= int64(limits.MaxQueuedMessagesPerChat) {
-			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: int64(limits.MaxQueuedMessagesPerChat)}
+		if queuedCount >= int64(p.chatLimits.MaxQueuedMessagesPerChat) {
+			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: int64(p.chatLimits.MaxQueuedMessagesPerChat)}
 		}
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {
@@ -1582,7 +1581,7 @@ func (p *Server) SendMessage(
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      message,
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
-			MaxQueueSize: limits.MaxQueuedMessagesPerChat,
+			MaxQueueSize: p.chatLimits.MaxQueuedMessagesPerChat,
 		})
 		if err != nil {
 			return err
@@ -1603,7 +1602,7 @@ func (p *Server) SendMessage(
 		result.InsertedMessages = sendResult.InsertedMessages
 
 		// File-link errors must roll back the message.
-		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), limits.MaxAttachmentsPerChat); err != nil {
+		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
 			return err
 		}
 		if firstUserTurn && !result.Queued {
@@ -2003,7 +2002,7 @@ func (p *Server) EditMessage(
 		inserted = append(inserted, editResult.SuffixMessages...)
 		result.InsertedMessages = inserted
 		result.DeletedMessageIDs = editResult.DeletedMessageIDs
-		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.limits().MaxAttachmentsPerChat); err != nil {
+		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
 			return err
 		}
 		// Capture the post-edit chat inside the same transaction so
@@ -2929,8 +2928,7 @@ type Config struct {
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
-	// Limits bound chat turns and stored payloads; zero fields use the
-	// codersdk defaults.
+	// Limits are the deployment chat limits.
 	Limits Limits
 }
 

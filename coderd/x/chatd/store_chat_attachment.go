@@ -61,7 +61,7 @@ func (p *Server) storeChatAttachment(
 			storedName,
 			mediaType,
 			data,
-			p.limits().MaxAttachmentsPerChat,
+			p.chatLimits.MaxAttachmentsPerChat,
 		)
 		return err
 	}, database.DefaultTXOptions().WithID("store_chat_attachment"))

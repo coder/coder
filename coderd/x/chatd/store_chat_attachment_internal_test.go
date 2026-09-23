@@ -24,7 +24,7 @@ func TestStoreChatAttachment_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	tx := dbmock.NewMockStore(ctrl)
-	server := &Server{db: db}
+	server := newStoreChatAttachmentTestServer(db)
 
 	chatID := uuid.New()
 	ownerID := uuid.New()
@@ -70,7 +70,7 @@ func TestStoreChatAttachment_UsesDetectNameForClassification(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	tx := dbmock.NewMockStore(ctrl)
-	server := &Server{db: db}
+	server := newStoreChatAttachmentTestServer(db)
 
 	chatID := uuid.New()
 	ownerID := uuid.New()
@@ -110,7 +110,7 @@ func TestStoreChatAttachment_AllowsUnsupportedPromptInputType(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	tx := dbmock.NewMockStore(ctrl)
-	server := &Server{db: db}
+	server := newStoreChatAttachmentTestServer(db)
 
 	chatID := uuid.New()
 	ownerID := uuid.New()
@@ -156,7 +156,7 @@ func TestStoreChatAttachment_NoWorkspace(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	server := &Server{db: db}
+	server := newStoreChatAttachmentTestServer(db)
 
 	attachment, err := server.storeChatAttachment(context.Background(), database.Chat{}, "build.log", "build.log", []byte("build output"))
 	require.ErrorContains(t, err, "this tool requires a workspace")
@@ -169,7 +169,7 @@ func TestStoreChatAttachment_WorkspaceLookupError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	tx := dbmock.NewMockStore(ctrl)
-	server := &Server{db: db}
+	server := newStoreChatAttachmentTestServer(db)
 
 	workspaceID := uuid.New()
 	chatSnapshot := database.Chat{
@@ -193,7 +193,7 @@ func TestStoreChatAttachment_InsertError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	tx := dbmock.NewMockStore(ctrl)
-	server := &Server{db: db}
+	server := newStoreChatAttachmentTestServer(db)
 
 	workspaceID := uuid.New()
 	chatSnapshot := database.Chat{
@@ -218,7 +218,7 @@ func TestStoreChatAttachment_LinkError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	tx := dbmock.NewMockStore(ctrl)
-	server := &Server{db: db}
+	server := newStoreChatAttachmentTestServer(db)
 
 	chatID := uuid.New()
 	ownerID := uuid.New()
@@ -300,7 +300,7 @@ FOR EACH ROW EXECUTE FUNCTION test_block_chat_file_link();
 	_, err = barrierConn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", lockKey)
 	require.NoError(t, err)
 
-	server := &Server{db: db}
+	server := newStoreChatAttachmentTestServer(db)
 	attachmentResults := make(chan error, 2)
 	for i := range 2 {
 		go func() {
@@ -358,6 +358,10 @@ WHERE datname = current_database()
 	var fileCount int
 	require.NoError(t, rawDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_files").Scan(&fileCount))
 	require.Equal(t, codersdk.DefaultChatMaxAttachmentsPerChat, fileCount)
+}
+
+func newStoreChatAttachmentTestServer(db database.Store) *Server {
+	return &Server{db: db, chatLimits: Limits{}.withDefaults()}
 }
 
 func expectStoreChatAttachmentInTx(t *testing.T, db, tx *dbmock.MockStore) {

@@ -861,7 +861,7 @@ func (server *Server) prepareGeneration(
 		ExclusiveToolNames:   exclusiveToolNames,
 		BuiltinToolNames:     builtinToolNames,
 		ToolNameToConfigID:   toolNameToConfigID,
-		MaxSteps:             server.limits().MaxStepsPerTurn,
+		MaxSteps:             server.chatLimits.MaxStepsPerTurn,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
 			ChatModelConfig: modelConfig,
