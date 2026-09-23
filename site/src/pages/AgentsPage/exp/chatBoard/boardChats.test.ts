@@ -1,11 +1,12 @@
 import { MutationObserver, QueryClient } from "react-query";
-import { afterEach, describe, expect, it, type MockInstance, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import {
 	applyWatchedChatArchived,
 	chatListFamilyKey,
 	chatListKey,
 	toChatListParams,
+	updateChatTitle,
 } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -13,7 +14,7 @@ import { createDeferred } from "#/testHelpers/deferred";
 import {
 	boardChats,
 	boardChatsKey,
-	updateBoardChatTitle,
+	boardWriteScope,
 	updateChatLabels,
 } from "./boardChats";
 
@@ -39,16 +40,10 @@ const write = (
 
 const rename = (queryClient: QueryClient, chatId: string, title: string) =>
 	new MutationObserver(queryClient, {
-		...updateBoardChatTitle(queryClient),
+		...updateChatTitle(queryClient),
+		scope: boardWriteScope,
 		retry: false,
 	}).mutate({ chatId, title });
-
-const listInvalidations = (
-	invalidate: MockInstance<QueryClient["invalidateQueries"]>,
-) =>
-	invalidate.mock.calls.filter(
-		([filters]) => filters?.queryKey === chatListFamilyKey,
-	).length;
 
 describe("boardChats", () => {
 	afterEach(() => {
@@ -109,25 +104,32 @@ describe("boardChats", () => {
 		await pending;
 	});
 
-	it("invalidates the list once, after the last of two overlapping writes settles", async () => {
-		const first = createDeferred<void>();
-		const second = createDeferred<void>();
-		vi.spyOn(API.experimental, "updateChat").mockImplementation((chatId) =>
-			chatId === "a" ? first.promise : second.promise,
-		);
+	it("keeps the board's labels on a refetch while a write is queued", async () => {
+		const request = createDeferred<void>();
+		vi.spyOn(API.experimental, "updateChat").mockReturnValue(request.promise);
+		const staleList = createDeferred<Chat[]>();
+		vi.spyOn(API.experimental, "getChats")
+			.mockReturnValueOnce(staleList.promise)
+			.mockResolvedValueOnce([chat("a", { "board/column": "Done" })]);
 		const queryClient = new QueryClient();
-		const invalidate = vi.spyOn(queryClient, "invalidateQueries");
-		queryClient.setQueryData(boardChatsKey, boardPage([chat("a"), chat("b")]));
+		queryClient.setQueryData(boardChatsKey, boardPage([chat("a")]));
+		const refetch = () =>
+			queryClient.fetchInfiniteQuery({ ...boardChats(), staleTime: 0 });
 
-		const writes = [write(queryClient, "a"), write(queryClient, "b")];
-		first.resolve();
-		await writes[0];
-		expect(listInvalidations(invalidate)).toBe(0);
+		const pending = write(queryClient, "a");
+		const midQueue = refetch();
+		staleList.resolve([chat("a"), chat("new")]);
+		await midQueue;
+		expect(queryClient.getQueryData(boardChatsKey)).toEqual(
+			boardPage([chat("a", { "board/column": "Doing" }), chat("new")]),
+		);
 
-		second.resolve();
-		await Promise.all(writes);
-		expect(listInvalidations(invalidate)).toBe(1);
-		expect(invalidate).toHaveBeenCalledTimes(3);
+		request.resolve();
+		await pending;
+		await refetch();
+		expect(queryClient.getQueryData(boardChatsKey)).toEqual(
+			boardPage([chat("a", { "board/column": "Done" })]),
+		);
 	});
 
 	it("sends board writes to the server one at a time in call order", async () => {

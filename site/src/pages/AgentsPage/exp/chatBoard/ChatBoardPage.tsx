@@ -21,7 +21,7 @@ import {
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
-import { chatSearch, createChat } from "#/api/queries/chats";
+import { chatSearch, createChat, updateChatTitle } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
@@ -34,11 +34,7 @@ import { BoardColumns } from "./BoardColumns";
 import { BoardHeader } from "./BoardHeader";
 import { BoardWindows } from "./BoardWindows";
 import type { Plan } from "./boardApi";
-import {
-	boardChats,
-	updateBoardChatTitle,
-	updateChatLabels,
-} from "./boardChats";
+import { boardChats, boardWriteScope, updateChatLabels } from "./boardChats";
 import {
 	boardCollision,
 	type DropTarget,
@@ -143,7 +139,8 @@ const ChatBoardPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to update chat labels.")),
 	});
 	const titleMutation = useMutation({
-		...updateBoardChatTitle(queryClient),
+		...updateChatTitle(queryClient),
+		scope: boardWriteScope,
 		onError: (error: unknown) =>
 			toast.error(getErrorMessage(error, "Failed to rename chat.")),
 	});
