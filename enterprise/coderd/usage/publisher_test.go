@@ -271,8 +271,8 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 	}))
 
 	publishHealth := &usage.PublishHealth{}
-	publishHealth.RecordPublished(time.Now())
-	publishHealth.RecordFailure(time.Now())
+	publishHealth.RecordCyclePublishedForTest(time.Now())
+	publishHealth.RecordCycleFailureForTest(time.Now())
 	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
@@ -308,8 +308,8 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 	snapshot := publishHealth.Snapshot()
 	require.True(t, snapshot.LastPublishedAt.IsZero())
 	require.True(t, snapshot.FailureStartedAt.IsZero())
-	publishHealth.RecordPublished(time.Now())
-	publishHealth.RecordFailure(time.Now())
+	publishHealth.RecordCyclePublishedForTest(time.Now())
+	publishHealth.RecordCycleFailureForTest(time.Now())
 
 	// Mock a single license with usage publishing disabled.
 	licenseJWT := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
@@ -499,6 +499,7 @@ func TestPublisherMissingEvents(t *testing.T) {
 	snapshot := publishHealth.Snapshot()
 	require.Equal(t, now.Add(tickerCall.Duration), snapshot.FailureStartedAt)
 	require.True(t, snapshot.LastPublishedAt.IsZero())
+	require.True(t, snapshot.LocalDatabaseFailureStartedAt.IsZero())
 
 	// Missing events are treated as temporary rejections.
 	require.Equal(t, 1, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_results_total", prometheus.Labels{
@@ -722,6 +723,7 @@ func TestPublisherTallymanError(t *testing.T) {
 	snapshot := publishHealth.Snapshot()
 	require.Equal(t, now.Add(tickerCall.Duration), snapshot.FailureStartedAt)
 	require.True(t, snapshot.LastPublishedAt.IsZero())
+	require.True(t, snapshot.LocalDatabaseFailureStartedAt.IsZero())
 
 	// Request failures do not produce per-event results.
 	require.Equal(t, 1, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_send_errors_total", nil))
@@ -778,6 +780,7 @@ func TestPublisherShutdownDoesNotRecordFailure(t *testing.T) {
 	snapshot := publishHealth.Snapshot()
 	require.True(t, snapshot.LastPublishedAt.IsZero())
 	require.True(t, snapshot.FailureStartedAt.IsZero())
+	require.True(t, snapshot.LocalDatabaseFailureStartedAt.IsZero())
 }
 
 func TestPublisherTimeoutRecordsFailure(t *testing.T) {
@@ -834,6 +837,7 @@ func TestPublisherTimeoutRecordsFailure(t *testing.T) {
 	snapshot := publishHealth.Snapshot()
 	require.Equal(t, now.Add(tickerCall.Duration), snapshot.FailureStartedAt)
 	require.True(t, snapshot.LastPublishedAt.IsZero())
+	require.True(t, snapshot.LocalDatabaseFailureStartedAt.IsZero())
 }
 
 func TestPublisherSelectErrorRecordsFailure(t *testing.T) {
@@ -873,6 +877,7 @@ func TestPublisherSelectErrorRecordsFailure(t *testing.T) {
 	snapshot := publishHealth.Snapshot()
 	require.Equal(t, now.Add(tickerCall.Duration), snapshot.FailureStartedAt)
 	require.True(t, snapshot.LastPublishedAt.IsZero())
+	require.True(t, snapshot.LocalDatabaseFailureStartedAt.IsZero())
 }
 
 func TestPublisherPostPublishUpdateError(t *testing.T) {
@@ -941,6 +946,7 @@ func TestPublisherPostPublishUpdateError(t *testing.T) {
 	failureStartedAt := now.Add(tickerCall.Duration)
 	snapshot := publishHealth.Snapshot()
 	require.Equal(t, failureStartedAt, snapshot.FailureStartedAt)
+	require.Equal(t, failureStartedAt, snapshot.LocalDatabaseFailureStartedAt)
 	require.True(t, snapshot.LastPublishedAt.IsZero())
 	require.Equal(t, 1, publishCalls)
 
@@ -952,6 +958,7 @@ func TestPublisherPostPublishUpdateError(t *testing.T) {
 
 	snapshot = publishHealth.Snapshot()
 	require.Equal(t, failureStartedAt, snapshot.FailureStartedAt)
+	require.Equal(t, failureStartedAt, snapshot.LocalDatabaseFailureStartedAt)
 	require.True(t, snapshot.LastPublishedAt.IsZero())
 	require.Equal(t, 1, publishCalls)
 
@@ -960,6 +967,7 @@ func TestPublisherPostPublishUpdateError(t *testing.T) {
 
 	snapshot = publishHealth.Snapshot()
 	require.True(t, snapshot.FailureStartedAt.IsZero())
+	require.True(t, snapshot.LocalDatabaseFailureStartedAt.IsZero())
 	require.Equal(t, clock.Now(), snapshot.LastPublishedAt)
 	require.Equal(t, 2, publishCalls)
 }

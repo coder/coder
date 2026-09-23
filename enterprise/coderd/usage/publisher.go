@@ -465,10 +465,12 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	err = p.db.UpdateUsageEventsPostPublish(updateCtx, dbUpdate)
 	updateCtxCancel()
 	if err != nil {
-		p.publishHealth.recordCyclePostPublishUpdateFailure(healthEpoch)
+		if ctx.Err() == nil {
+			p.publishHealth.recordLocalDatabaseFailure(healthEpoch, p.clock.Now())
+		}
 		return 0, xerrors.Errorf("update usage events post publish: %w", err)
 	}
-	p.publishHealth.recordCyclePostPublishUpdateSuccess(healthEpoch)
+	p.publishHealth.recordLocalDatabaseSuccess(healthEpoch)
 	if acceptedCount > 0 {
 		p.publishHealth.recordCyclePublished(healthEpoch, publishedAt)
 	}
