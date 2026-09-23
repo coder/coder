@@ -61,8 +61,11 @@ Treat the setting as a way to stop new authorizations rather than as a way to re
 2. On the **Applications** tab, select **Add application**.
 3. Fill in the application details:
    - **Name**: Your application name
-   - **Callback URL**: `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop)
+   - **Default callback**: `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop). Select **Add redirect URI** for additional callback URLs.
    - **Icon**: Optional icon URL
+4. Select **Create application**.
+
+Coder creates the application and takes you to its details page, which prompts you to generate a client secret.
 
 ### Method 2: Management API
 
@@ -113,6 +116,10 @@ curl -X POST \
   -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
   "$CODER_URL/api/v2/oauth2-provider/apps/$APP_ID/secrets"
 ```
+
+The response includes `client_secret_full`, the plaintext secret. Save it now: later reads of this application return only a truncated version.
+
+Every client, whichever method you used to create its application, must complete PKCE to exchange a code for a token; refer to [PKCE Flow](./integration-patterns.md#pkce-flow-required) before you start integrating.
 
 ## Dynamic Client Registration
 
