@@ -18,11 +18,6 @@ import {
 } from "./assistantSpecs";
 import { ASSISTANT_KEY } from "./boardLabels";
 
-// Same key the chat pages write when the user picks a model
-// (submitChatTurn.ts, AgentCreateForm.tsx). Copied rather than imported so
-// the experiment adds no surface to those modules.
-export const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-
 const WORKSPACE_INSTRUCTION = `Workspace: none attached yet. Create "${WORKSPACE_NAME}" as described in your instructions when you first need it; do not ask first.`;
 
 // The deployment's own MCP server, which gives the assistant chat tools
@@ -119,7 +114,6 @@ const createAssistant = async ({
 			);
 		const workspace = await (mcp ? lookup.catch(() => undefined) : lookup);
 		const built = mcp ? spec({ coderMcp: true }) : bare;
-		const model = localStorage.getItem(lastModelConfigIDStorageKey);
 		const text = workspace
 			? built.snapshot
 			: `${built.snapshot}\n\n${WORKSPACE_INSTRUCTION}`;
@@ -131,7 +125,6 @@ const createAssistant = async ({
 			mcp_server_ids: mcp ? [mcp.id] : undefined,
 			labels: { [ASSISTANT_KEY]: built.key },
 			client_type: "ui",
-			...(model ? { model_config_id: model } : {}),
 		});
 		// The board reads assistant ids from the list; seeding it lets the next
 		// open find this chat before the refetch delivers it.
