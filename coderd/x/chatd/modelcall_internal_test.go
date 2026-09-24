@@ -2,12 +2,16 @@ package chatd
 
 import (
 	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -99,19 +103,30 @@ func TestResolveModelCallResolvedEffort(t *testing.T) {
 
 	tests := []struct {
 		name            string
+		providerType    database.AIProviderType
 		reasoningEffort *codersdk.ChatModelReasoningEffortConfig
 		requestedEffort *string
 		wantEffort      string
 	}{
 		{
 			name:            "ClampedToMax",
+			providerType:    database.AIProviderTypeOpenai,
 			reasoningEffort: &codersdk.ChatModelReasoningEffortConfig{Default: ptr.Ref("low"), Max: ptr.Ref("medium")},
 			requestedEffort: ptr.Ref("high"),
 			wantEffort:      "medium",
 		},
 		{
-			name:       "EmptyWithoutConfig",
-			wantEffort: "",
+			name:         "EmptyWithoutConfig",
+			providerType: database.AIProviderTypeOpenai,
+			wantEffort:   "",
+		},
+		{
+			// The model name resolves to openai, so the provider type
+			// must come from the configured provider.
+			name:            "CopilotProviderType",
+			providerType:    database.AIProviderTypeCopilot,
+			reasoningEffort: &codersdk.ChatModelReasoningEffortConfig{Default: ptr.Ref("low")},
+			wantEffort:      "low",
 		},
 	}
 	for _, tt := range tests {
@@ -132,13 +147,24 @@ func TestResolveModelCallResolvedEffort(t *testing.T) {
 			chat.LastModelConfigID = config.ID
 
 			db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil)
-			db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
+			db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary", tt.providerType), nil).AnyTimes()
 			db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
 				ProviderID: providerID,
 				APIKey:     "test-key",
 			}}, nil).AnyTimes()
 
+			tracer, recorder := newStageTestTracer(t)
 			server := titleOverrideTestServer(db, logger)
+			server.stages = tracer
+			server.aibridgeTransportFactory = aibridgeTestFactoryPointer(&aibridgeTestFactory{
+				rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: http.StatusBadRequest,
+						Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"rejected"}}`)),
+						Request:    req,
+					}, nil
+				}),
+			})
 			resolved, err := server.resolveModelCall(ctx, modelCallSpec{
 				purpose:         "chat_turn",
 				chat:            chat,
@@ -147,9 +173,23 @@ func TestResolveModelCallResolvedEffort(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.wantEffort, resolved.resolvedEffort)
-			require.Equal(t, chatloop.StageModel{ProviderType: "openai", Model: "gpt-5", Effort: tt.wantEffort}, resolved.stageModel())
-			if tt.wantEffort != "" {
+			wantStageModel := chatloop.StageModel{ProviderType: string(tt.providerType), Model: "gpt-5", Effort: tt.wantEffort}
+			require.Equal(t, wantStageModel, resolved.stageModel())
+			if tt.providerType == database.AIProviderTypeOpenai && tt.wantEffort != "" {
 				requireOpenAIReasoningEffort(t, resolved.providerOptions, tt.wantEffort)
+			}
+
+			_, err = resolved.model.LanguageModel().Generate(ctx, fantasy.Call{Prompt: []fantasy.Message{{
+				Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+			}}})
+			require.Error(t, err)
+			ended := recorder.Ended()
+			require.Len(t, ended, 1)
+			require.Equal(t, string(chatloop.StageProviderAttempt), ended[0].Name())
+			require.Contains(t, ended[0].Attributes(), attribute.String(chatloop.AttrProviderType, wantStageModel.ProviderType))
+			require.Contains(t, ended[0].Attributes(), attribute.String(chatloop.AttrModel, wantStageModel.Model))
+			if wantStageModel.Effort != "" {
+				require.Contains(t, ended[0].Attributes(), attribute.String(chatloop.AttrReasoningEffort, wantStageModel.Effort))
 			}
 		})
 	}

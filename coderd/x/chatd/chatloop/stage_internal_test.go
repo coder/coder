@@ -17,11 +17,11 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
-// stageSampleCount returns the observation count of stage on
-// coderd_chatd_stage_duration_seconds, and whether the series exists.
+// stageSampleCount reports false when stage has no series.
 func stageSampleCount(t *testing.T, registry *prometheus.Registry, stage Stage) (uint64, bool) {
 	t.Helper()
 	families, err := registry.Gather()
@@ -39,8 +39,7 @@ func stageSampleCount(t *testing.T, registry *prometheus.Registry, stage Stage) 
 	return 0, false
 }
 
-// modelStageSeries returns the single coderd_chatd_model_stage_duration_seconds
-// series for stage, and whether it exists.
+// modelStageSeries reports false when stage has no series.
 func modelStageSeries(t *testing.T, registry *prometheus.Registry, stage Stage) (*dto.Metric, bool) {
 	t.Helper()
 	families, err := registry.Gather()
@@ -58,8 +57,6 @@ func modelStageSeries(t *testing.T, registry *prometheus.Registry, stage Stage) 
 	return nil, false
 }
 
-// ttftSampleCount returns the total observation count across every
-// coderd_chatd_ttft_seconds series.
 func ttftSampleCount(t *testing.T, registry *prometheus.Registry) uint64 {
 	t.Helper()
 	families, err := registry.Gather()
@@ -100,8 +97,8 @@ func endedSpan(t *testing.T, spans *tracetest.SpanRecorder, stage Stage) sdktrac
 	return found
 }
 
-// recordedErrorMessage returns the exception message of the span's
-// single recorded error event.
+// recordedErrorMessage returns the message of the span's first
+// recorded error event.
 func recordedErrorMessage(t *testing.T, span sdktrace.ReadOnlySpan) string {
 	t.Helper()
 	for _, event := range span.Events() {
@@ -145,8 +142,6 @@ func newStageMetricsFixture(t *testing.T) stageMetricsFixture {
 	}
 }
 
-// histogramSum returns the sum of observations across every series of
-// the named histogram family.
 func histogramSum(t *testing.T, registry *prometheus.Registry, name string) float64 {
 	t.Helper()
 	families, err := registry.Gather()
@@ -163,11 +158,13 @@ func histogramSum(t *testing.T, registry *prometheus.Registry, name string) floa
 	return sum
 }
 
-// drainStream consumes every part of stream.
-func drainStream(stream fantasy.StreamResponse) {
-	for part := range stream {
-		_ = part
+// drainStream returns the number of parts consumed.
+func drainStream(stream fantasy.StreamResponse) int {
+	parts := 0
+	for range stream {
+		parts++
 	}
+	return parts
 }
 
 func TestGuardedStreamTTFTStage(t *testing.T) {
@@ -209,8 +206,8 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		require.InDelta(t, 0.25, histogramSum(t, fixture.registry, "coderd_chatd_stage_duration_seconds"), 1e-9)
 		ttftSpan := endedSpan(t, fixture.spans, StageTimeToFirstToken)
 		require.Equal(t, codes.Unset, ttftSpan.Status().Code)
-		// The span carries the transport provider and the configured
-		// provider type as separate attributes, each once.
+		// provider is the wire protocol and provider_type the configured
+		// AI provider type.
 		providers := map[attribute.Key][]string{}
 		for _, attr := range ttftSpan.Attributes() {
 			if attr.Key == AttrProvider || attr.Key == AttrProviderType {
@@ -334,6 +331,69 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		require.Equal(t, uint64(1), ttftSampleCount(t, fixture.registry))
 		// The window closes at the text part, after the warnings part.
 		require.InDelta(t, 1, histogramSum(t, fixture.registry, "coderd_chatd_ttft_seconds"), 1e-9)
+	})
+
+	t.Run("StartMarkerThenErrorObservesOnStartMarker", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+
+		streamErr := xerrors.New("provider returned 500")
+		attempt, err := guardedStream(
+			t.Context(), "openai", "gpt-5", fixture.clock, time.Minute,
+			func(context.Context) (fantasy.StreamResponse, error) {
+				return fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
+					fixture.clock.Advance(time.Second)
+					if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeReasoningStart, ID: "r1"}) {
+						return
+					}
+					fixture.clock.Advance(time.Second)
+					yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeError, Error: streamErr})
+				}), nil
+			},
+			fixture.metrics, fixture.tracer, StageModel{Model: "gpt-5"},
+		)
+		require.NoError(t, err)
+		drainStream(attempt.stream)
+		attempt.release()
+
+		// A start marker is a streamed output part, so the window
+		// closes on it and the later error does not reopen it.
+		span := endedSpan(t, fixture.spans, StageTimeToFirstToken)
+		require.Equal(t, codes.Unset, span.Status().Code)
+		count, ok := stageSampleCount(t, fixture.registry, StageTimeToFirstToken)
+		require.True(t, ok)
+		require.Equal(t, uint64(1), count)
+		require.Equal(t, uint64(1), ttftSampleCount(t, fixture.registry))
+		require.InDelta(t, 1, histogramSum(t, fixture.registry, "coderd_chatd_ttft_seconds"), 1e-9)
+	})
+
+	t.Run("SilenceTimeoutClassifiesSpanError", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		attempt, err := guardedStream(
+			ctx, "anthropic", "claude", fixture.clock, time.Minute,
+			func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
+				return fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
+					fixture.clock.Advance(time.Minute).MustWait(ctx)
+					yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeError, Error: attemptCtx.Err()})
+				}), nil
+			},
+			fixture.metrics, fixture.tracer, StageModel{Model: "claude"},
+		)
+		require.NoError(t, err)
+		drainStream(attempt.stream)
+		finishErr := attempt.finish(nil)
+		attempt.release()
+		require.ErrorIs(t, finishErr, errStreamSilenceTimeout)
+
+		span := endedSpan(t, fixture.spans, StageTimeToFirstToken)
+		require.Equal(t, codes.Error, span.Status().Code)
+		require.Equal(t, errStreamSilenceTimeout.Error(), recordedErrorMessage(t, span))
+		_, ok := stageSampleCount(t, fixture.registry, StageTimeToFirstToken)
+		require.False(t, ok)
+		require.Zero(t, ttftSampleCount(t, fixture.registry))
 	})
 
 	t.Run("FinishWithoutContentEndsSpanWithoutObservation", func(t *testing.T) {

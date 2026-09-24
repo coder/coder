@@ -131,12 +131,12 @@ const (
 
 // stageSpanRoundTripper emits one provider_attempt stage per HTTP
 // round trip to the model provider, so retried requests each get
-// their own span. model labels every attempt with the identity the
-// client was built for.
+// their own span. stageModel labels every attempt with the identity
+// the client was built for.
 type stageSpanRoundTripper struct {
-	base   http.RoundTripper
-	stages *chatloop.StageTracer
-	model  chatloop.StageModel
+	base       http.RoundTripper
+	stages     *chatloop.StageTracer
+	stageModel chatloop.StageModel
 }
 
 var _ http.RoundTripper = (*stageSpanRoundTripper)(nil)
@@ -144,9 +144,8 @@ var _ http.RoundTripper = (*stageSpanRoundTripper)(nil)
 func (t *stageSpanRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx, span := t.stages.Start(req.Context(), chatloop.StageProviderAttempt,
 		attribute.String(chatloop.AttrHTTPMethod, req.Method),
-		attribute.String(chatloop.AttrHTTPHost, req.URL.Host),
 	)
-	span.SetModel(t.model)
+	span.SetModel(t.stageModel)
 	resp, err := t.base.RoundTrip(req.WithContext(ctx))
 	if resp != nil {
 		span.SetAttributes(attribute.Int(chatloop.AttrHTTPStatusCode, resp.StatusCode))
@@ -269,7 +268,7 @@ func (p *Server) newModel(
 	if opts.RecordHTTP {
 		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
-	baseRT = &stageSpanRoundTripper{base: baseRT, stages: p.stages, model: opts.StageModel}
+	baseRT = &stageSpanRoundTripper{base: baseRT, stages: p.stages, stageModel: opts.StageModel}
 
 	config := fantasyConfigForAIBridge(route.Provider.Type, req.ModelName)
 	openAIConfig := req.CallConfig.OpenAIConfig
