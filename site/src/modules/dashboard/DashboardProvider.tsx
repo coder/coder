@@ -42,8 +42,12 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const organizationsQuery = useQuery(organizations(metadata.organizations));
 
+	// Entitlements refetch on window focus and reconnect, so a transient
+	// refetch failure can happen at any point in a session. Keep rendering
+	// the last known entitlements instead of replacing the dashboard with an
+	// error; only a fetch that never produced data is fatal.
 	const error =
-		entitlementsQuery.error ||
+		(entitlementsQuery.data ? undefined : entitlementsQuery.error) ||
 		appearanceQuery.error ||
 		experimentsQuery.error ||
 		buildInfoQuery.error ||

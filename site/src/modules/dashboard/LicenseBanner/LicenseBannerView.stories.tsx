@@ -1,5 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import type { FC } from "react";
+import { focusManager, type QueryClient, useQueryClient } from "react-query";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
+import { API } from "#/api/api";
+import { entitlementsQueryKey } from "#/api/queries/entitlements";
 import {
 	type Entitlements,
 	LicenseAgentRuntimeHoursAllocationReachedWarningText,
@@ -8,6 +19,7 @@ import {
 	LicenseAgentRuntimeUsageUnavailableErrorText,
 	LicenseAIGovernance90PercentWarningText,
 	LicenseTelemetryRequiredErrorText,
+	LicenseUsagePublishingFailingWarningText,
 } from "#/api/typesGenerated";
 import {
 	MockAppearanceConfig,
@@ -15,8 +27,15 @@ import {
 	MockDefaultOrganization,
 	MockEntitlements,
 	MockExperiments,
+	MockPermissions,
+	MockUserOwner,
 } from "#/testHelpers/entities";
-import { DashboardContext, type DashboardValue } from "../DashboardProvider";
+import { withAuthProvider } from "#/testHelpers/storybook";
+import {
+	DashboardContext,
+	DashboardProvider,
+	type DashboardValue,
+} from "../DashboardProvider";
 import { formatLicenseMessage, LicenseBanner } from "./LicenseBanner";
 import { LicenseBannerView } from "./LicenseBannerView";
 
@@ -372,6 +391,163 @@ export const AgentRuntimeHoursClaimsIgnored: Story = {
 			warnings: [LicenseAgentRuntimeHoursClaimsIgnoredWarningText],
 		}),
 	play: playMutedDiagnostic(LicenseAgentRuntimeHoursClaimsIgnoredWarningText),
+};
+
+export const UsagePublishingFailing: Story = {
+	render: () =>
+		renderLicenseBanner({
+			warnings: [
+				LicenseUsagePublishingFailingWarningText,
+				LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
+			],
+		}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("status")).toHaveTextContent(
+			LicenseUsagePublishingFailingWarningText,
+		);
+		await expect(canvas.getByText("License notices")).toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Your license limits have been reached"),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+// The stories below mount the real DashboardProvider to pin the
+// entitlements refresh behavior: the query refetches on window focus and
+// reconnect instead of polling, and a failed refetch keeps the last known
+// entitlements on screen.
+
+// Captures the story-scoped query client so play functions can wait on
+// query state transitions that have no visible success indicator, such as
+// a background refetch that fails by design.
+let capturedQueryClient: QueryClient | undefined;
+const WithQueryClientCapture = (Story: FC) => {
+	capturedQueryClient = useQueryClient();
+	return <Story />;
+};
+
+const mockDashboardQueries = () => {
+	spyOn(API, "getExperiments").mockResolvedValue(MockExperiments);
+	spyOn(API, "getAppearance").mockResolvedValue(MockAppearanceConfig);
+	spyOn(API, "getBuildInfo").mockResolvedValue(MockBuildInfo);
+	spyOn(API, "getOrganizations").mockResolvedValue([MockDefaultOrganization]);
+};
+
+const refocusWindow = () => {
+	focusManager.setFocused(false);
+	focusManager.setFocused(true);
+};
+
+const dashboardProviderStory = {
+	decorators: [WithQueryClientCapture, withAuthProvider],
+	parameters: {
+		user: MockUserOwner,
+		permissions: MockPermissions,
+	},
+	render: () => (
+		<DashboardProvider>
+			<main aria-label="Dashboard ready" />
+			<LicenseBanner />
+		</DashboardProvider>
+	),
+} satisfies Partial<Story>;
+
+export const UsagePublishingWarningAppearsOnFocus: Story = {
+	...dashboardProviderStory,
+	beforeEach: () => {
+		mockDashboardQueries();
+		spyOn(API, "getEntitlements")
+			.mockResolvedValueOnce({ ...MockEntitlements, warnings: [] })
+			.mockResolvedValue({
+				...MockEntitlements,
+				warnings: [LicenseUsagePublishingFailingWarningText],
+			});
+		return () => focusManager.setFocused(undefined);
+	},
+	play: async () => {
+		await screen.findByRole("main", { name: "Dashboard ready" });
+		await expect(
+			screen.queryByText(LicenseUsagePublishingFailingWarningText),
+		).not.toBeInTheDocument();
+
+		refocusWindow();
+
+		await expect(
+			await screen.findByText(LicenseUsagePublishingFailingWarningText),
+		).toBeVisible();
+	},
+};
+
+export const UsagePublishingWarningClearsOnFocus: Story = {
+	...dashboardProviderStory,
+	beforeEach: () => {
+		mockDashboardQueries();
+		spyOn(API, "getEntitlements")
+			.mockResolvedValueOnce({
+				...MockEntitlements,
+				warnings: [LicenseUsagePublishingFailingWarningText],
+			})
+			.mockResolvedValue({ ...MockEntitlements, warnings: [] });
+		return () => focusManager.setFocused(undefined);
+	},
+	play: async () => {
+		await screen.findByRole("main", { name: "Dashboard ready" });
+		await expect(
+			await screen.findByText(LicenseUsagePublishingFailingWarningText),
+		).toBeVisible();
+
+		refocusWindow();
+
+		await waitFor(() =>
+			expect(
+				screen.queryByText(LicenseUsagePublishingFailingWarningText),
+			).not.toBeInTheDocument(),
+		);
+	},
+};
+
+export const EntitlementsRefetchFailureKeepsLastKnownState: Story = {
+	...dashboardProviderStory,
+	beforeEach: () => {
+		mockDashboardQueries();
+		spyOn(API, "getEntitlements")
+			.mockResolvedValueOnce({
+				...MockEntitlements,
+				warnings: [LicenseUsagePublishingFailingWarningText],
+			})
+			.mockRejectedValue(new Error("entitlements are unreachable"));
+		return () => focusManager.setFocused(undefined);
+	},
+	play: async () => {
+		await screen.findByRole("main", { name: "Dashboard ready" });
+		await expect(
+			await screen.findByText(LicenseUsagePublishingFailingWarningText),
+		).toBeVisible();
+
+		refocusWindow();
+
+		// The refetch has no visible failure indicator by design, so wait for
+		// the query error state before asserting nothing changed on screen.
+		await waitFor(() =>
+			expect(
+				capturedQueryClient?.getQueryState(entitlementsQueryKey)?.error,
+			).toBeTruthy(),
+		);
+
+		await expect(
+			screen.getByRole("main", { name: "Dashboard ready" }),
+		).toBeInTheDocument();
+		await expect(
+			screen.getByText(LicenseUsagePublishingFailingWarningText),
+		).toBeVisible();
+		await expect(
+			screen.queryByText("Something went wrong."),
+		).not.toBeInTheDocument();
+	},
 };
 
 // An all-diagnostic banner must not claim license limits were exceeded,

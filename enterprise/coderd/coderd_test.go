@@ -76,6 +76,9 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, res.HasLicense)
 		require.Empty(t, res.Warnings)
+		require.False(t, res.UsagePublishing.PublishingEnabled)
+		require.Nil(t, res.UsagePublishing.LastPublishedAt)
+		require.Nil(t, res.UsagePublishing.FailingSince)
 
 		// Ensure the entitlements are the same reference
 		require.Equal(t, fmt.Sprintf("%p", api.Entitlements), fmt.Sprintf("%p", api.AGPL.Entitlements))

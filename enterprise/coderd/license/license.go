@@ -24,7 +24,12 @@ import (
 // keeps serving the previous entitlements. The count normally completes
 // in well under a second, but its cost scales with the number of unique
 // role sets and it runs on a context with no deadline of its own.
-const workspaceCapableUserCountTimeout = 60 * time.Second
+const (
+	workspaceCapableUserCountTimeout = 60 * time.Second
+	// UsagePublishingFailureThreshold is how long publishing must fail before
+	// administrators are warned.
+	UsagePublishingFailureThreshold = 24 * time.Hour
+)
 
 // Entitlements processes licenses to return whether features are enabled or not.
 // TODO(@deansheather): This function and the related LicensesEntitlements
@@ -428,6 +433,10 @@ func LicensesEntitlements(
 
 		// Any valid license should toggle this boolean
 		entitlements.HasLicense = true
+
+		if claims.AccountType == AccountTypeSalesforce && claims.PublishUsageData {
+			entitlements.UsagePublishing.PublishingEnabled = true
+		}
 
 		// If any license requires telemetry, the deployment should require telemetry.
 		entitlements.RequireTelemetry = entitlements.RequireTelemetry || claims.RequireTelemetry
