@@ -28,12 +28,7 @@ export const WorkspaceBuildFailedAlert: FC<WorkspaceBuildFailedAlertProps> = ({
 			prominent
 			actions={
 				canDebugWithAgents ? (
-					<Button
-						asChild
-						variant="outline"
-						size="sm"
-						className="border-border-secondary bg-surface-primary"
-					>
+					<Button asChild size="sm">
 						<a
 							href={buildDebugWorkspaceBuildPath(build.id)}
 							target="_blank"
