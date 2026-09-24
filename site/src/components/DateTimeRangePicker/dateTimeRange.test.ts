@@ -146,14 +146,14 @@ describe("formatCustomLabel", () => {
 
 	it("spells out both months within one year", () => {
 		expect(formatCustomLabel(new Date(2026, 2, 28), new Date(2026, 3, 2))).toBe(
-			"Mar 28 - Apr 2",
+			"March 28 - April 2",
 		);
 	});
 
 	it("includes years when they differ", () => {
 		expect(
 			formatCustomLabel(new Date(2025, 11, 30), new Date(2026, 0, 2)),
-		).toBe("Dec 30, 2025 - Jan 2, 2026");
+		).toBe("December 30, 2025 - January 2, 2026");
 	});
 });
 

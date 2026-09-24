@@ -229,7 +229,9 @@ it("applies a date preset and resets pagination", async () => {
 	const user = userEvent.setup({ skipHover: true });
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
-	await user.click(screen.getByRole("button", { name: /Feb 10.*Mar 12/ }));
+	await user.click(
+		screen.getByRole("button", { name: /February 10.*March 12/ }),
+	);
 	await user.click(await screen.findByRole("radio", { name: "Last 7 days" }));
 	const window = {
 		period_start: fixedNow.subtract(7, "day").toISOString(),
@@ -271,7 +273,9 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 	// The picker stays usable with the bound the first report delivered, so
 	// every preset it offers requests a period that starts within retention.
 	const requestsBeforePicking = spendSpy.mock.calls.length;
-	await user.click(screen.getByRole("button", { name: /Feb 10.*Mar 12/ }));
+	await user.click(
+		screen.getByRole("button", { name: /February 10.*March 12/ }),
+	);
 	const offered = screen
 		.getAllByRole("radio", { name: /^Last \d+ (days|hours)$/ })
 		.map((preset) => preset.textContent ?? "");
@@ -305,7 +309,9 @@ it("applies a second range from the keyboard after the first one resolves", asyn
 	const { spendSpy } = renderSpend();
 	await screen.findByRole("table", { name: "Spend by user" });
 
-	await user.click(screen.getByRole("button", { name: /Feb 10.*Mar 12/ }));
+	await user.click(
+		screen.getByRole("button", { name: /February 10.*March 12/ }),
+	);
 	await user.click(await screen.findByRole("radio", { name: "Last 7 days" }));
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
