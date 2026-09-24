@@ -3,7 +3,7 @@ title: Install Coder on Kubernetes
 ---
 
 You can install Coder on Kubernetes (K8s) using Helm. We run on most Kubernetes
-distributions, including [OpenShift](./openshift.md).
+distributions, including [OpenShift](../openshift.md).
 
 ## Requirements
 
@@ -120,13 +120,13 @@ coder:
 ```
 
 You can view our
-[Helm README](../../helm/coder/README.md) for
+[Helm README](../../../helm/coder/README.md) for
 details on the values that are available, or you can view the
-[values.yaml](../../helm/coder/values.yaml)
+[values.yaml](../../../helm/coder/values.yaml)
 file directly.
 
 We support two release channels: mainline and stable - read the
-[Releases](./releases/index.md) page to learn more about which best suits your team.
+[Releases](../releases/index.md) page to learn more about which best suits your team.
 
 - **Mainline** Coder release:
 
@@ -201,9 +201,9 @@ helm upgrade coder coder-v2/coder \
 
 ## Standalone AI gateway chart
 
-Coder also publishes a chart, `oci://ghcr.io/coder/chart/coder-ai-gateway`, that runs [AI Gateway](../ai-coder/ai-gateway/index.md) as its own Deployment alongside the control plane.
+Coder also publishes a chart, `oci://ghcr.io/coder/chart/coder-ai-gateway`, that runs [AI Gateway](../../ai-coder/ai-gateway/index.md) as its own Deployment alongside the control plane.
 Use it when you want to scale AI traffic independently of `coderd`.
-For installation and configuration, refer to [Deploy AI Gateway as a standalone service](../ai-coder/ai-gateway/standalone.md) and the [AI Gateway Helm chart README](../../helm/ai-gateway/README.md).
+For installation and configuration, refer to [Deploy AI Gateway as a standalone service](../../ai-coder/ai-gateway/standalone.md) and the [AI Gateway Helm chart README](../../../helm/ai-gateway/README.md).
 
 ## Coder Observability Chart
 
@@ -317,7 +317,7 @@ The Application Gateway supports:
 - TLS termination
 
 Follow our doc on
-[how to deploy Coder on Azure with an Application Gateway](./kubernetes/kubernetes-azure-app-gateway.md)
+[how to deploy Coder on Azure with an Application Gateway](./kubernetes-azure-app-gateway.md)
 for an example.
 
 ## Troubleshooting
@@ -332,10 +332,10 @@ Ensure you have an externally-reachable `CODER_ACCESS_URL` set in your helm
 chart. If you do not have a domain set up, this should be the IP address of
 Coder's LoadBalancer (`kubectl get svc -n coder`).
 
-See [troubleshooting templates](../admin/templates/troubleshooting.md) for more
+See [troubleshooting templates](../../admin/templates/troubleshooting.md) for more
 steps.
 
 ## Next steps
 
-- [Create your first template](../tutorials/template-from-scratch.md)
-- [Control plane configuration](../admin/setup/index.md)
+- [Create your first template](../../tutorials/template-from-scratch.md)
+- [Control plane configuration](../../admin/setup/index.md)

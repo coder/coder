@@ -46,7 +46,7 @@ We recommend that all administrators deploying on Kubernetes or on an existing
 Prometheus or Grafana stack set the observability bundle up with the control
 plane from the start. For installation instructions, visit the
 [observability repository](https://github.com/coder/observability?tab=readme-ov-file#installation),
-or our [Kubernetes installation guide](../../install/kubernetes.md).
+or our [Kubernetes installation guide](../../install/kubernetes/index.md).
 
 ### Enable Prometheus metrics for Coder
 
