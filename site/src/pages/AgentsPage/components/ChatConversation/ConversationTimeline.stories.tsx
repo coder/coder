@@ -1876,6 +1876,65 @@ export const SourcesOnlyAssistantSpacing: Story = {
 };
 
 /**
+ * A provider-executed OpenAI web search renders as a tool row with its
+ * consulted sources, separate from the answer's citation pills.
+ */
+export const ProviderWebSearchWithCitations: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "What is new in Coder?" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "ws_1",
+						tool_name: "web_search",
+						args: { queries: JSON.stringify(["coder release notes"]) },
+						provider_executed: true,
+					},
+					{
+						type: "tool-result",
+						tool_call_id: "ws_1",
+						tool_name: "web_search",
+						provider_executed: true,
+						result: {
+							sources: [
+								{ url: "https://coder.com/changelog" },
+								{ url: "https://github.com/coder/coder/releases" },
+								{ url: "https://coder.com/blog" },
+							],
+						},
+					},
+					{ type: "text", text: "The latest release adds Coder Agents." },
+					{
+						type: "source",
+						url: "https://coder.com/changelog",
+						title: "Coder changelog",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: /searched for coder release notes/i,
+			}),
+		);
+	},
+};
+
+/**
  * Regression: action bar must appear on the last *visible* assistant
  * message even when invisible assistant messages (provider-executed
  * tool-result-only) follow it before the next user turn.

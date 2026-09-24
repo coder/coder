@@ -695,7 +695,7 @@ describe("applyMessagePartToStreamState", () => {
 		const prev = createEmptyStreamState();
 		const result = applyMessagePartToStreamState(prev, {
 			type: "tool-call",
-			tool_name: "web_search",
+			tool_name: "code_execution",
 			tool_call_id: "tc-1",
 			provider_executed: true,
 		});
@@ -707,13 +707,41 @@ describe("applyMessagePartToStreamState", () => {
 		const prev = createEmptyStreamState();
 		const result = applyMessagePartToStreamState(prev, {
 			type: "tool-result",
-			tool_name: "web_search",
+			tool_name: "code_execution",
 			tool_call_id: "tc-1",
 			provider_executed: true,
 			result: { output: "search results" },
 		});
 		expect(result).toBe(prev);
 		expect(prev.toolResults).toEqual({});
+	});
+
+	it("streams provider_executed web_search parts as a tool", () => {
+		const webSearchResult = {
+			sources: [{ url: "https://coder.com/changelog" }],
+		};
+		let state = applyMessagePartToStreamState(null, {
+			type: "tool-call",
+			tool_name: "web_search",
+			tool_call_id: "ws-1",
+			args: { queries: JSON.stringify(["coder release notes"]) },
+			provider_executed: true,
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "web_search",
+			tool_call_id: "ws-1",
+			provider_executed: true,
+			result: webSearchResult,
+		});
+		expect(state?.blocks).toEqual([{ type: "tool", id: "ws-1" }]);
+		expect(state?.toolCalls["ws-1"]?.name).toBe("web_search");
+		expect(state?.toolCalls["ws-1"]?.args).toEqual({
+			queries: JSON.stringify(["coder release notes"]),
+		});
+		expect(state?.toolResults["ws-1"]?.result).toEqual(webSearchResult);
+		// Consulted sources are not answer citations.
+		expect(state?.sources).toEqual([]);
 	});
 
 	it("adds a file block from a file part with data", () => {

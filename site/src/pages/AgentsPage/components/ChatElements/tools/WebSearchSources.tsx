@@ -50,10 +50,10 @@ const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 };
 
 /**
- * A single source citation pill. Shows a favicon from Google's S2
+ * A single source URL pill. Shows a favicon from Google's S2
  * service, a truncated title, and an external-link icon on hover.
  */
-const SourcePill: FC<{ source: { url: string; title: string } }> = ({
+export const SourcePill: FC<{ source: { url: string; title: string } }> = ({
 	source,
 }) => {
 	let hostname: string;

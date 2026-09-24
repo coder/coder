@@ -449,7 +449,7 @@ describe("parseMessageContent", () => {
 		const result = parseMessageContent([
 			{
 				type: "tool-call",
-				tool_name: "web_search",
+				tool_name: "code_execution",
 				tool_call_id: "tc-1",
 				provider_executed: true,
 			},
@@ -462,7 +462,7 @@ describe("parseMessageContent", () => {
 		const result = parseMessageContent([
 			{
 				type: "tool-result",
-				tool_name: "web_search",
+				tool_name: "code_execution",
 				tool_call_id: "tc-1",
 				provider_executed: true,
 				result: { output: "results" },
@@ -470,6 +470,49 @@ describe("parseMessageContent", () => {
 		]);
 		expect(result.toolResults).toEqual([]);
 		expect(result.blocks.some((b) => b.type === "tool")).toBe(false);
+	});
+
+	it("keeps provider_executed web_search parts as a tool without sources", () => {
+		const webSearchResult = {
+			sources: [{ url: "https://coder.com/changelog" }],
+		};
+		const [entry] = parseMessagesWithMergedTools([
+			{
+				id: 1,
+				chat_id: "chat-1",
+				created_at: "2026-04-21T00:00:00.000Z",
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_name: "web_search",
+						tool_call_id: "ws-1",
+						args: { queries: JSON.stringify(["coder release notes"]) },
+						provider_executed: true,
+					},
+					{
+						type: "tool-result",
+						tool_name: "web_search",
+						tool_call_id: "ws-1",
+						provider_executed: true,
+						result: webSearchResult,
+					},
+					{ type: "text", text: "The latest release is out." },
+				],
+			},
+		]);
+		expect(entry.parsed.tools).toEqual([
+			expect.objectContaining({
+				id: "ws-1",
+				name: "web_search",
+				args: { queries: JSON.stringify(["coder release notes"]) },
+				result: webSearchResult,
+				status: "completed",
+			}),
+		]);
+		expect(entry.parsed.blocks[0]).toEqual({ type: "tool", id: "ws-1" });
+		// Consulted sources are not answer citations.
+		expect(entry.parsed.sources).toEqual([]);
 	});
 
 	it("parses a source part into a sources block", () => {

@@ -290,6 +290,13 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		},
 	},
 	{
+		name: "web_search",
+		args: { queries: ["coder agents release notes"] },
+		result: {
+			sources: [{ url: "https://coder.com/changelog" }],
+		},
+	},
+	{
 		name: "unknown_tool",
 		args: { example: true },
 		result: { ok: true },
@@ -2338,6 +2345,70 @@ export const WaitAgentComputerUseTimedOutNoRecording: Story = {
 			error: "timed out waiting for agent",
 		},
 		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
+	},
+};
+
+// ---------------------------------------------------------------------------
+// web_search stories
+// ---------------------------------------------------------------------------
+
+// Anthropic emits the call before its search runs.
+export const WebSearchRunning: Story = {
+	args: {
+		name: "web_search",
+		status: "running",
+		args: { query: "coder workspace templates" },
+	},
+};
+
+// OpenAI emits the call once its search finished, and the sources only
+// arrive with the completed response.
+export const WebSearchAwaitingSources: Story = {
+	args: {
+		name: "web_search",
+		status: "running",
+		args: { queries: ["coder agents release notes"] },
+	},
+};
+
+export const WebSearchQueriesAndSources: Story = {
+	args: {
+		name: "web_search",
+		status: "completed",
+		args: {
+			queries: ["coder agents release notes", "coder ai gateway docs"],
+		},
+		result: {
+			sources: [
+				{ url: "https://coder.com/changelog" },
+				{ url: "https://coder.com/docs/ai-coder/ai-gateway" },
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /searched for coder agents/i }),
+		);
+	},
+};
+
+export const WebSearchNoQueries: Story = {
+	args: {
+		name: "web_search",
+		status: "completed",
+		args: { queries: [] },
+		result: {},
+	},
+};
+
+// Anthropic persists an empty result and keeps the query in the call args.
+export const WebSearchAnthropicQuery: Story = {
+	args: {
+		name: "web_search",
+		status: "completed",
+		args: { query: "coder workspace templates" },
+		result: {},
 	},
 };
 
