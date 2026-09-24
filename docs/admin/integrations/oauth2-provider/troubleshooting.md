@@ -143,7 +143,7 @@ Public clients have no secret and never receive this error for omitting one.
 
 `POST /oauth2/tokens` and `POST /oauth2/revoke` answer HTTP 400 with `error=invalid_request` when `client_secret` appears in the URL query string.
 OAuth 2.1 section 2.4.1 allows the secret in the request body or the `Authorization` header only.
-Send it as a form parameter or as HTTP Basic, following [Client Authentication Methods](./integration-patterns.md#client-authentication-methods).
+Send it as a form parameter or as HTTP Basic, following [Client authentication methods](./integration-patterns.md#client-authentication-methods).
 
 The rule covers `client_secret` only. Coder still reads `refresh_token`,
 `code`, and the revocation `token` from the query string. Send those in the
