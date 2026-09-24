@@ -179,7 +179,8 @@ describe("AgentCreateForm prefill", () => {
 		const { rerender } = renderForm(onCreateChat);
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		// The page reports the mutation, then a gate flip that must not resend.
+		// isCreating returning to false reopens the send gate while the send is
+		// still in flight; the form must not send again.
 		rerender({ isCreating: true });
 		rerender({ isCreating: false });
 		const message = screen.getByRole("textbox", { name: "Chat message" });
@@ -400,7 +401,7 @@ describe("AgentCreateForm prefill", () => {
 		);
 	});
 
-	it("uploads the logs again and sends to the new organization when theirs is revoked", async () => {
+	it("drops the logs and the automatic send when their organization is revoked", async () => {
 		mockFormQueries();
 		dashboard.showOrganizations = true;
 		dashboard.organizations = [MockDefaultOrganization, MockOrganization2];
@@ -413,15 +414,12 @@ describe("AgentCreateForm prefill", () => {
 				permittedOrganization === MockDefaultOrganization,
 			[MockOrganization2.id]: permittedOrganization === MockOrganization2,
 		}));
-		const uploadToOrg2 = createDeferred<TypesGen.UploadChatFileResponse>();
+		const upload = createDeferred<TypesGen.UploadChatFileResponse>();
 		const uploadChatFile = vi
 			.spyOn(API.experimental, "uploadChatFile")
-			.mockImplementation((_file, organizationId) =>
-				organizationId === MockOrganization2.id
-					? uploadToOrg2.promise
-					: Promise.resolve({ id: "file-in-org1" }),
-			);
+			.mockReturnValue(upload.promise);
 		const onCreateChat = vi.fn().mockResolvedValue(undefined);
+		const user = userEvent.setup();
 		const queryClient = createTestQueryClient();
 
 		renderForm(onCreateChat, {}, queryClient);
@@ -438,17 +436,22 @@ describe("AgentCreateForm prefill", () => {
 			});
 		});
 		await act(async () => {
-			uploadToOrg2.resolve({ id: "file-in-org2" });
+			upload.resolve({ id: "file-in-org2" });
 		});
+
+		const sendButton = screen.getByRole("button", { name: "Send" });
+		await waitFor(() => expect(sendButton).toBeEnabled());
+		expect(onCreateChat).not.toHaveBeenCalled();
+
+		await user.click(sendButton);
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		expect(onCreateChat).toHaveBeenCalledWith(
 			expect.objectContaining({
 				organizationId: MockDefaultOrganization.id,
-				fileIDs: ["file-in-org1"],
+				fileIDs: undefined,
 			}),
 		);
-		expect(uploadChatFile).toHaveBeenCalledTimes(2);
-		expect(uploadChatFile.mock.calls[1][1]).toBe(MockDefaultOrganization.id);
+		expect(uploadChatFile).toHaveBeenCalledTimes(1);
 	});
 });
