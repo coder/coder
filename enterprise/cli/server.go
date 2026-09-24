@@ -132,6 +132,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		// publishing enabled.
 		publisherOptions := []usage.TallymanPublisherOption{
 			usage.PublisherWithHTTPClient(api.HTTPClient),
+			usage.PublisherWithPublishHealth(api.UsagePublishHealth),
 		}
 		if options.DeploymentValues.Prometheus.Enable {
 			publisherOptions = append(publisherOptions, usage.PublisherWithPrometheusRegisterer(options.PrometheusRegistry))
