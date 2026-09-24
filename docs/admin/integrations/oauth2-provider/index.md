@@ -185,12 +185,9 @@ The admin `PUT` also validates the stored name, so a self-registered client whos
 <a id="integration-patterns"></a>
 
 - [Integration patterns](./integration-patterns.md): client authentication methods, the PKCE flow, and discovery endpoints
-  <a id="client-authentication-methods"></a>
-  - [Client authentication methods](./integration-patterns.md#client-authentication-methods)
-  <a id="standard-oauth2-flow"></a><a id="pkce-flow-required"></a>
-  - [PKCE flow](./integration-patterns.md#pkce-flow-required)
-  <a id="discovery-endpoints"></a><a id="standards-compliance"></a>
-  - [Discovery endpoints](./integration-patterns.md#discovery-endpoints)
+  - <a id="client-authentication-methods"></a>[Client authentication methods](./integration-patterns.md#client-authentication-methods)
+  - <a id="standard-oauth2-flow"></a><a id="pkce-flow-required"></a>[PKCE flow](./integration-patterns.md#pkce-flow-required)
+  - <a id="discovery-endpoints"></a><a id="standards-compliance"></a>[Discovery endpoints](./integration-patterns.md#discovery-endpoints)
 
 <a id="scopes"></a>
 
@@ -199,14 +196,10 @@ The admin `PUT` also validates the stored name, so a self-registered client whos
 <a id="token-management"></a>
 
 - [Token management](./token-management.md): refresh, revocation, and deletion
-  <a id="refresh-tokens"></a>
-  - [Refresh tokens](./token-management.md#refresh-tokens)
-  <a id="revoke-a-token"></a>
-  - [Revoke a token](./token-management.md#revoke-a-token)
-  <a id="revoke-access"></a>
-  - [Revoke your authorization](./token-management.md#revoke-your-authorization-for-an-application)
-  <a id="delete-an-application"></a>
-  - [Delete an application](./token-management.md#delete-an-application)
+  - <a id="refresh-tokens"></a>[Refresh tokens](./token-management.md#refresh-tokens)
+  - <a id="revoke-a-token"></a>[Revoke a token](./token-management.md#revoke-a-token)
+  - <a id="revoke-access"></a>[Revoke your authorization](./token-management.md#revoke-your-authorization-for-an-application)
+  - <a id="delete-an-application"></a>[Delete an application](./token-management.md#delete-an-application)
 
 <a id="callback-url-schemes"></a>
 
@@ -217,10 +210,8 @@ The admin `PUT` also validates the stored name, so a self-registered client whos
 - [Troubleshooting](./troubleshooting.md): look up an error by its exact code or message
 
 - [Security and limitations](./security.md): security considerations, current limitations, and upgrade notes
-  <a id="security-considerations"></a>
-  - [Security considerations](./security.md#security-considerations)
-  <a id="limitations"></a>
-  - [Limitations](./security.md#limitations)
+  - <a id="security-considerations"></a>[Security considerations](./security.md#security-considerations)
+  - <a id="limitations"></a>[Limitations](./security.md#limitations)
 
 - Check [External Authentication](../../external-auth/index.md) for configuring Coder as an OAuth2 client
 - Review the [API Reference](../../../reference/api/index.md) for complete endpoint documentation
