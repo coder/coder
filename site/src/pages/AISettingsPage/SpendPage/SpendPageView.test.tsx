@@ -18,6 +18,7 @@ const pendingReportQuery = {
 
 const renderView = (organization: typeof MockOrganization | undefined) => {
 	const onOrganizationChange = vi.fn();
+	const onFilterQueryChange = vi.fn();
 	render(
 		<SpendPageView
 			isEntitled
@@ -35,27 +36,28 @@ const renderView = (organization: typeof MockOrganization | undefined) => {
 			}}
 			minDate={undefined}
 			onPeriodChange={vi.fn()}
-			filterMenus={undefined}
+			filterQuery=""
+			onFilterQueryChange={onFilterQueryChange}
+			canFilterDimensions
 			reportQuery={pendingReportQuery}
 		/>,
 	);
-	return { onOrganizationChange };
+	return { onFilterQueryChange, onOrganizationChange };
 };
 
-it("reports the organization picked from the switcher", async () => {
+it("reports the organization picked from the unified filter", async () => {
 	const user = userEvent.setup();
-	const { onOrganizationChange } = renderView(MockOrganization);
+	const { onFilterQueryChange } = renderView(MockOrganization);
 
+	await user.click(screen.getByRole("combobox", { name: "Filter spend" }));
+	await user.click(await screen.findByRole("option", { name: "Organization" }));
 	await user.click(
-		screen.getByRole("button", {
-			name: `Organization ${MockOrganization.display_name}`,
-		}),
-	);
-	await user.click(
-		await screen.findByRole("option", { name: /My Organization 2/ }),
+		await screen.findByRole("option", { name: MockOrganization2.display_name }),
 	);
 
-	expect(onOrganizationChange).toHaveBeenCalledWith(MockOrganization2);
+	expect(onFilterQueryChange).toHaveBeenCalledWith(
+		`org:${MockOrganization2.name}`,
+	);
 });
 
 it("reports the organization picked to recover from a denied one", async () => {

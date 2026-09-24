@@ -96,17 +96,31 @@ function mockSpendApi(report: Partial<OrganizationAISpendReport> = {}) {
 	const spendSpy = vi
 		.spyOn(API, "getOrganizationAISpendUsers")
 		.mockImplementation(async (_organizationId, params) => buildReport(params));
-	return { spendSpy, buildReport };
+	return { spendSpy, buildReport, users };
 }
 
 function renderSpend(
 	search = initialSearch,
 	report: Partial<OrganizationAISpendReport> = {},
 ) {
-	const { spendSpy, buildReport } = mockSpendApi(report);
+	const { spendSpy, buildReport, users } = mockSpendApi(report);
 	vi.spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
 	vi.spyOn(API, "getAIBridgeClients").mockResolvedValue(["Claude Code"]);
 	vi.spyOn(API, "getAIBridgeModels").mockResolvedValue(["gpt-4o"]);
+	vi.spyOn(API, "getUsers").mockImplementation(async ({ q = "" }) => {
+		const normalizedQuery = q.toLowerCase();
+		const matched = users
+			.map((spendUser) => ({
+				...MockUserMember,
+				id: spendUser.user_id,
+				username: spendUser.username,
+				name: spendUser.name,
+			}))
+			.filter((candidate) =>
+				candidate.username.toLowerCase().includes(normalizedQuery),
+			);
+		return { users: matched, count: matched.length };
+	});
 	const router = createMemoryRouter(
 		[
 			{
@@ -134,13 +148,10 @@ it("requests the default organization and switches organizations from the first 
 		expect.objectContaining({ ...period, offset: 10, limit: 10 }),
 	);
 
+	await user.click(screen.getByRole("combobox", { name: "Filter spend" }));
+	await user.click(await screen.findByRole("option", { name: "Organization" }));
 	await user.click(
-		screen.getByRole("button", {
-			name: `Organization ${MockOrganization.display_name}`,
-		}),
-	);
-	await user.click(
-		await screen.findByRole("option", { name: /My Organization 2/ }),
+		await screen.findByRole("option", { name: MockOrganization2.display_name }),
 	);
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
@@ -148,7 +159,7 @@ it("requests the default organization and switches organizations from the first 
 			expect.objectContaining({ ...period, offset: 0 }),
 		),
 	);
-	expect(searchParam(router, "org")).toBe(MockOrganization2.name);
+	expect(searchParam(router, "filter")).toBe(`org:${MockOrganization2.name}`);
 	expect(searchParam(router, "page")).toBeNull();
 });
 
@@ -188,7 +199,7 @@ it("requests no spend for a denied organization until another one is picked", as
 		MockOrganization.id,
 		expect.anything(),
 	);
-	expect(searchParam(router, "org")).toBe(MockOrganization2.name);
+	expect(searchParam(router, "filter")).toBe(`org:${MockOrganization2.name}`);
 });
 
 it("applies a date preset and resets pagination", async () => {
@@ -222,7 +233,8 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 
 	// Leave the refiltered report pending so its retention bound never arrives.
 	spendSpy.mockImplementationOnce(() => new Promise(() => {}));
-	await user.click(screen.getByRole("button", { name: "Select provider" }));
+	await user.click(screen.getByRole("combobox", { name: "Filter spend" }));
+	await user.click(await screen.findByRole("option", { name: "Provider" }));
 	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
@@ -295,7 +307,7 @@ it("applies a second range from the keyboard after the first one resolves", asyn
 
 it("shows spend without dimension filters to viewers who cannot read AI sessions", async () => {
 	auth.permissions = MockNoPermissions;
-	const { spendSpy } = renderSpend(`${initialSearch}&provider_name=openai`);
+	const { spendSpy } = renderSpend(`${initialSearch}&filter=provider%3Aopenai`);
 	await screen.findByRole("table", { name: "Spend by user" });
 	expect(API.getAIBridgeProviders).not.toHaveBeenCalled();
 	expect(API.getAIBridgeModels).not.toHaveBeenCalled();
@@ -307,11 +319,65 @@ it("shows spend without dimension filters to viewers who cannot read AI sessions
 	expect(spendSpy.mock.calls[0][1]).not.toHaveProperty("provider_name");
 });
 
+it("applies user and unconfigured pricing filters", async () => {
+	const user = userEvent.setup();
+	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
+	await screen.findByRole("table", { name: "Spend by user" });
+
+	await user.type(
+		screen.getByRole("combobox", { name: "Filter spend" }),
+		"user01",
+	);
+	await user.click(await screen.findByRole("option", { name: "user01" }));
+	await user.click(screen.getByRole("combobox", { name: "Filter spend" }));
+	await user.click(await screen.findByRole("option", { name: "Pricing" }));
+	await user.click(
+		await screen.findByRole("option", {
+			name: "Models with unconfigured pricing",
+		}),
+	);
+
+	await waitFor(() =>
+		expect(spendSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			expect.objectContaining({ offset: 0 }),
+		),
+	);
+	expect(spendSpy.mock.calls.at(-1)?.[1]).not.toHaveProperty("user");
+	expect(spendSpy.mock.calls.at(-1)?.[1]).not.toHaveProperty("pricing");
+	expect(searchParam(router, "filter")).toBe(
+		"user:user01 pricing:unconfigured",
+	);
+	expect(searchParam(router, "page")).toBeNull();
+});
+
+it("applies the organization filter", async () => {
+	const user = userEvent.setup();
+	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
+	await screen.findByRole("table", { name: "Spend by user" });
+
+	await user.click(screen.getByRole("combobox", { name: "Filter spend" }));
+	await user.click(await screen.findByRole("option", { name: "Organization" }));
+	await user.click(
+		await screen.findByRole("option", { name: MockOrganization2.display_name }),
+	);
+
+	await waitFor(() =>
+		expect(spendSpy).toHaveBeenCalledWith(
+			MockOrganization2.id,
+			expect.objectContaining({ offset: 0 }),
+		),
+	);
+	expect(searchParam(router, "filter")).toBe(`org:${MockOrganization2.name}`);
+	expect(searchParam(router, "page")).toBeNull();
+});
+
 it("applies the provider filter and resets pagination", async () => {
 	const user = userEvent.setup();
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
-	await user.click(screen.getByRole("button", { name: "Select provider" }));
+	await user.click(screen.getByRole("combobox", { name: "Filter spend" }));
+	await user.click(await screen.findByRole("option", { name: "Provider" }));
 	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
@@ -319,7 +385,7 @@ it("applies the provider filter and resets pagination", async () => {
 			expect.objectContaining({ provider_name: "openai", offset: 0 }),
 		),
 	);
-	expect(searchParam(router, "provider_name")).toBe("openai");
+	expect(searchParam(router, "filter")).toBe("provider:openai");
 	expect(searchParam(router, "page")).toBeNull();
 });
 

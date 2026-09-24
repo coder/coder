@@ -54,6 +54,20 @@ const mockMultipleDimensionsReport: OrganizationAISpendReport = {
 	})),
 };
 
+const mockFiveTopModelsReport: OrganizationAISpendReport = {
+	...MockOrganizationAISpendReport,
+	users: MockOrganizationAISpendReport.users.map((user) => ({
+		...user,
+		models: [
+			"gpt-5.4",
+			"claude-opus-4-6",
+			"gpt-4o",
+			"claude-sonnet-4-5",
+			"gemini-2.5-pro",
+		],
+	})),
+};
+
 const meta = {
 	title: "pages/AISettingsPage/SpendPage/SpendUsersTable",
 	component: SpendUsersTable,
@@ -140,48 +154,6 @@ export const MultipleDimensions: Story = {
 	args: { reportQuery: loadedReportQuery(mockMultipleDimensionsReport) },
 };
 
-export const ClientsList: Story = {
-	args: { reportQuery: loadedReportQuery(mockMultipleDimensionsReport) },
-	play: async ({ canvasElement }) => {
-		within(within(canvasElement).getByRole("row", { name: /alice/ }))
-			.getByRole("button", { name: "2 clients" })
-			.focus();
-		await screen.findByRole("tooltip");
-	},
-};
-
-export const ModelsList: Story = {
-	args: { reportQuery: loadedReportQuery(mockMultipleDimensionsReport) },
-	play: async ({ canvasElement }) => {
-		await userEvent.hover(
-			within(
-				within(canvasElement).getByRole("row", { name: /alice/ }),
-			).getByRole("button", { name: "2 models" }),
-		);
-		await screen.findByRole("tooltip");
-	},
-};
-
-// A list taller than the viewport scrolls inside the tooltip.
-export const LongModelsList: Story = {
-	args: {
-		reportQuery: loadedReportQuery({
-			...mockMultipleDimensionsReport,
-			users: mockMultipleDimensionsReport.users.map((user) => ({
-				...user,
-				models: Array.from({ length: 40 }, (_, i) =>
-					i % 2 === 0 ? `claude-model-${i}` : `gpt-model-${i}`,
-				),
-			})),
-		}),
-	},
-	globals: { viewport: { value: "mobile2", isRotated: false } },
-	play: async ({ canvasElement }) => {
-		await userEvent.hover(
-			within(
-				within(canvasElement).getByRole("row", { name: /alice/ }),
-			).getByRole("button", { name: "40 models" }),
-		);
-		await screen.findByRole("tooltip");
-	},
+export const FiveTopModels: Story = {
+	args: { reportQuery: loadedReportQuery(mockFiveTopModelsReport) },
 };

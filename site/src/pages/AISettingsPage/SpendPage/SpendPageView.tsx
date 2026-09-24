@@ -13,7 +13,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "#/pages/AIBridgePage/AIBridgeSetupAlert";
-import { type SpendFilterMenus, SpendFilters } from "./components/SpendFilters";
+import { SpendFilters } from "./components/SpendFilters";
 import {
 	type SpendReportQuery,
 	SpendUsersTable,
@@ -31,7 +31,9 @@ type SpendPageViewProps = {
 	period: DateTimeRangeValue;
 	minDate: Date | undefined;
 	onPeriodChange: (value: DateTimeRangeValue) => void;
-	filterMenus: SpendFilterMenus | undefined;
+	filterQuery: string;
+	onFilterQueryChange: (query: string) => void;
+	canFilterDimensions: boolean;
 	reportQuery: SpendReportQuery;
 };
 
@@ -79,7 +81,9 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 	period,
 	minDate,
 	onPeriodChange,
-	filterMenus,
+	filterQuery,
+	onFilterQueryChange,
+	canFilterDimensions,
 	reportQuery,
 }) => {
 	if (isOrganizationsLoading) {
@@ -129,9 +133,9 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 			{refetchErrorAlert}
 			<SpendFilters
 				organizations={organizations}
-				organization={organization}
-				onOrganizationChange={onOrganizationChange}
-				menus={filterMenus}
+				filterQuery={filterQuery}
+				onFilterQueryChange={onFilterQueryChange}
+				canFilterDimensions={canFilterDimensions}
 				now={now}
 				period={period}
 				minDate={minDate}

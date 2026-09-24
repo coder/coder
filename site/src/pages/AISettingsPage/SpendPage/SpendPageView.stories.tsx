@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
-import { MockMenu } from "#/components/Filter/storyHelpers";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
@@ -50,7 +49,9 @@ const meta = {
 		},
 		minDate: new Date("2026-01-12T00:00:00Z"),
 		onPeriodChange: fn(),
-		filterMenus: { provider: MockMenu, client: MockMenu, model: MockMenu },
+		filterQuery: "",
+		onFilterQueryChange: fn(),
+		canFilterDimensions: true,
 		reportQuery: mockReportQuery,
 	},
 } satisfies Meta<typeof SpendPageView>;
@@ -101,7 +102,11 @@ export const Loading: Story = {
 export const Users: Story = {};
 
 export const WithoutDimensionFilters: Story = {
-	args: { filterMenus: undefined },
+	args: { canFilterDimensions: false },
+};
+
+export const PricingPreset: Story = {
+	args: { filterQuery: "pricing:unconfigured" },
 };
 
 export const SingleOrganization: Story = {
@@ -110,10 +115,12 @@ export const SingleOrganization: Story = {
 
 export const OrganizationMenu: Story = {
 	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
 		await userEvent.click(
-			within(canvasElement).getByRole("button", {
-				name: `Organization ${MockOrganization.display_name}`,
-			}),
+			canvas.getByRole("combobox", { name: "Filter spend" }),
+		);
+		await userEvent.click(
+			await canvas.findByRole("option", { name: "Organization" }),
 		);
 	},
 };

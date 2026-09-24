@@ -88,6 +88,15 @@ const meta = {
 		spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
 		spyOn(API, "getAIBridgeClients").mockResolvedValue(["Claude Code"]);
 		spyOn(API, "getAIBridgeModels").mockResolvedValue(["gpt-4o"]);
+		spyOn(API, "getUsers").mockResolvedValue({
+			users: mockSpendUsers.map((spendUser) => ({
+				...MockUserMember,
+				id: spendUser.user_id,
+				username: spendUser.username,
+				name: spendUser.name,
+			})),
+			count: mockSpendUsers.length,
+		});
 	},
 } satisfies Meta<typeof SpendPage>;
 export default meta;
@@ -111,9 +120,31 @@ export const ProviderMenu: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Select provider" }),
+			await canvas.findByRole("combobox", { name: "Filter spend" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: "Provider" }),
 		);
 		await screen.findByRole("option", { name: /OpenAI/ });
+	},
+};
+
+export const UnconfiguredPricingFilter: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/ai/settings/spend",
+				searchParams: {
+					startDate: "2026-02-10T00:00:00.000Z",
+					endDate: "2026-03-12T00:00:00.000Z",
+					filter: "pricing:unconfigured",
+				},
+			},
+			routing,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("table", { name: "Spend by user" });
 	},
 };
 
@@ -125,7 +156,7 @@ export const FilteredByProvider: Story = {
 				searchParams: {
 					startDate: "2026-02-10T00:00:00.000Z",
 					endDate: "2026-03-12T00:00:00.000Z",
-					provider_name: "openai",
+					filter: "provider:openai",
 				},
 			},
 			routing,

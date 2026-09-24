@@ -7,12 +7,13 @@ import {
 } from "#/api/queries/aiBridge";
 import type { OrganizationAISpendFilter } from "#/api/typesGenerated";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
+import {
+	parseFilterQuery,
+	stringifyFilter,
+} from "#/components/Filter/filterQuery";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { useClientFilterMenu } from "#/pages/AIBridgePage/filters/ClientFilter";
-import { useModelFilterMenu } from "#/pages/AIBridgePage/filters/ModelFilter";
-import { useProviderFilterMenu } from "#/pages/AIBridgePage/filters/ProviderFilter";
 import { getAIBridgePermissions } from "#/pages/AIBridgePage/getAIBridgePermissions";
 import {
 	modelOrganizationSearchParam,
@@ -87,13 +88,22 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		);
 	};
 
+	const filterQuery = searchParams.get("filter") ?? "";
+	const filterValues = parseFilterQuery(filterQuery);
+
+	const setFilterQuery = (query: string) =>
+		setFilterParams({ filter: query || undefined });
+	const setFilterValue = (key: string, value: string | undefined) => {
+		setFilterQuery(stringifyFilter({ ...filterValues, [key]: value }));
+	};
+
 	const organizationsQuery = useQuery({
 		...aiSpendOrganizations(),
 		enabled: isSpendAvailable,
 	});
 	const organizationSelection = selectModelOrganization(
 		organizationsQuery.data ?? [],
-		searchParams.get(modelOrganizationSearchParam),
+		filterValues.org ?? searchParams.get(modelOrganizationSearchParam),
 	);
 	// A requested organization the viewer cannot see gets a warning, not
 	// another organization's spend.
@@ -103,28 +113,11 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 
 	const dimensions: SpendDimensions = canFilterDimensions
 		? {
-				provider_name: searchParams.get("provider_name") || undefined,
-				client: searchParams.get("client") || undefined,
-				model: searchParams.get("model") || undefined,
+				provider_name: filterValues.provider,
+				client: filterValues.client,
+				model: filterValues.model,
 			}
 		: {};
-	const filterMenus = {
-		provider: useProviderFilterMenu({
-			value: dimensions.provider_name,
-			onChange: (option) => setFilterParams({ provider_name: option?.value }),
-			enabled: isSpendAvailable && canFilterDimensions,
-		}),
-		client: useClientFilterMenu({
-			value: dimensions.client,
-			onChange: (option) => setFilterParams({ client: option?.value }),
-			enabled: isSpendAvailable && canFilterDimensions,
-		}),
-		model: useModelFilterMenu({
-			value: dimensions.model,
-			onChange: (option) => setFilterParams({ model: option?.value }),
-			enabled: isSpendAvailable && canFilterDimensions,
-		}),
-	};
 
 	// The default period lives in memory, not the URL, so a shared link
 	// resolves relative to the viewer's current time. It is fixed per mount so
@@ -188,15 +181,15 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				now={now}
 				organizations={organizationsQuery.data ?? []}
 				organization={organization}
-				onOrganizationChange={(next) =>
-					setFilterParams({ [modelOrganizationSearchParam]: next.name })
-				}
+				onOrganizationChange={(next) => setFilterValue("org", next.name)}
 				isOrganizationsLoading={organizationsQuery.isLoading}
 				organizationsError={organizationsQuery.error}
 				period={{ ...period, preset }}
 				minDate={minDate}
 				onPeriodChange={onPeriodChange}
-				filterMenus={canFilterDimensions ? filterMenus : undefined}
+				filterQuery={filterQuery}
+				onFilterQueryChange={setFilterQuery}
+				canFilterDimensions={canFilterDimensions}
 				reportQuery={reportQuery}
 			/>
 		</>

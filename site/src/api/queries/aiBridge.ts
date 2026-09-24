@@ -1,16 +1,43 @@
-import { hashKey, type UseInfiniteQueryOptions } from "react-query";
+import {
+	hashKey,
+	type UseInfiniteQueryOptions,
+	type UseQueryOptions,
+} from "react-query";
 import { API } from "#/api/api";
 import type {
 	AIBridgeListSessionsResponse,
+	AIBridgeProvider,
 	AIBridgeSessionThreadsResponse,
 	OrganizationAISpendFilter,
 	OrganizationAISpendReport,
+	Pagination,
 } from "#/api/typesGenerated";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import { permittedOrganizations } from "./organizations";
 
 const SESSION_THREADS_INFINITE_PAGE_SIZE = 20;
+
+export const aiBridgeProviders = (): UseQueryOptions<AIBridgeProvider[]> => ({
+	queryKey: ["aiBridgeProviders"],
+	queryFn: () => API.getAIBridgeProviders(),
+});
+
+export const aiBridgeModels = (
+	options: Pagination & { model?: string },
+): UseQueryOptions<string[]> => ({
+	queryKey: ["aiBridgeModels", options],
+	queryFn: () => API.getAIBridgeModels(options),
+});
+
+export const aiBridgeClients = (options: {
+	q?: string;
+	limit?: number;
+	offset?: number;
+}): UseQueryOptions<string[]> => ({
+	queryKey: ["aiBridgeClients", options],
+	queryFn: () => API.getAIBridgeClients(options),
+});
 
 export const paginatedSessions = (
 	searchParams: URLSearchParams,
