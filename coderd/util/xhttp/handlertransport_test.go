@@ -222,4 +222,41 @@ func TestHandlerTransport(t *testing.T) {
 		}
 		require.NoError(t, eg.Wait())
 	})
+
+	t.Run("EmptyPathAndNilBody", func(t *testing.T) {
+		t.Parallel()
+
+		h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Path", r.URL.Path)
+			w.Header().Set("X-Body", fmt.Sprint(r.Body != nil))
+		})
+
+		req, err := http.NewRequestWithContext(testutil.Context(t, testutil.WaitShort), http.MethodGet, "http://handler", nil)
+		require.NoError(t, err)
+		resp, err := xhttp.HandlerTransport(h).RoundTrip(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, "/", resp.Header.Get("X-Path"))
+		require.Equal(t, "true", resp.Header.Get("X-Body"))
+	})
+
+	t.Run("ClosesRequestBody", func(t *testing.T) {
+		t.Parallel()
+
+		pr, pw := io.Pipe()
+		defer pr.Close()
+		wrote := make(chan error, 1)
+		go func() {
+			_, err := pw.Write([]byte("unread"))
+			wrote <- err
+		}()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://handler/", pr)
+		require.NoError(t, err)
+		resp, err := xhttp.HandlerTransport(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).RoundTrip(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.ErrorIs(t, testutil.RequireReceive(ctx, t, wrote), io.ErrClosedPipe)
+	})
 }

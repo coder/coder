@@ -35,6 +35,15 @@ func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	// Cloning lets the handler mutate or store its request without
 	// surprising the caller.
 	served := req.Clone(ctx)
+	// Match net/http.Server: an empty path becomes "/", the body is never
+	// nil, and the body is closed when h returns.
+	if served.URL.Path == "" {
+		served.URL.Path = "/"
+	}
+	if served.Body == nil {
+		served.Body = http.NoBody
+	}
+	reqBody := served.Body
 
 	// Close the pipe when the caller cancels, so an unresponsive handler
 	// does not strand the body read.
@@ -42,6 +51,7 @@ func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	go func() {
 		defer func() {
 			stop()
+			_ = reqBody.Close()
 			if r := recover(); r != nil {
 				// Mirror net/http.Server behavior: a panicking handler
 				// produces a 500 instead of crashing the process.
