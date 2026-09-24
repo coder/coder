@@ -13,7 +13,6 @@ import (
 	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	"github.com/coder/coder/v2/coderd/database"

@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-
 	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
