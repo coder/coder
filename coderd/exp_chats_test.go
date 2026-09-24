@@ -10081,13 +10081,9 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 	sources := []string{"https://www.metro.tokyo.lg.jp/", "https://example.com/tokyo"}
 
 	tests := []struct {
-		name      string
-		webSearch chattest.OpenAIWebSearchCall
-		// wantArgs is the call input carrying the queries, available
-		// before the result arrives with the terminal response.
-		wantArgs string
-		// wantResult is the persisted result carrying the consulted
-		// sources.
+		name       string
+		webSearch  chattest.OpenAIWebSearchCall
+		wantArgs   string
 		wantResult string
 	}{
 		{
@@ -10191,8 +10187,8 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			close(streamReady)
 
 			// requireWebSearchParts checks the provider-executed pair the UI
-			// renders: the call, and a result carrying the queries and the
-			// consulted sources.
+			// renders: the call carrying the queries, and the result carrying
+			// the consulted sources.
 			requireWebSearchParts := func(t *testing.T, call, result *codersdk.ChatMessagePart) {
 				t.Helper()
 				require.NotNil(t, call, "missing web_search tool-call part")

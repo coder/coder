@@ -472,7 +472,7 @@ describe("parseMessageContent", () => {
 		expect(result.blocks.some((b) => b.type === "tool")).toBe(false);
 	});
 
-	it("keeps provider_executed web_search parts as a tool without sources", () => {
+	it("keeps provider_executed web_search parts as a tool, not as citation sources", () => {
 		const webSearchResult = {
 			sources: [{ url: "https://coder.com/changelog" }],
 		};

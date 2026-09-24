@@ -801,9 +801,9 @@ func toolResultContentToPart(
 		result, _ = json.Marshal(persisted)
 	default:
 		result = []byte(`{}`)
-		// Provider-executed OpenAI web searches report their consulted
-		// sources only in metadata, which API responses strip, so
-		// persist them as the result the UI renders. The Responses
+		// Fantasy reports the consulted URLs of a provider-executed
+		// OpenAI web search only in metadata, which API responses strip,
+		// so persist them as the result the UI renders. The Responses
 		// prompt builder skips provider-executed results, so this does
 		// not change what OpenAI receives on replay.
 		if content.ProviderExecuted && content.ToolName == "web_search" {

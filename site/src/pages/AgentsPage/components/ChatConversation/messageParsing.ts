@@ -77,9 +77,8 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 });
 
 /**
- * Provider-executed tools run inside the model provider, so their parts
- * carry no output the user can act on. web_search is the exception: its
- * row shows what the provider searched for and which URLs it consulted.
+ * Provider-executed tools are hidden except web_search, whose row shows
+ * what the provider searched for and which URLs it consulted.
  */
 export const isHiddenProviderExecutedPart = (
 	part: TypesGen.ChatToolCallPart | TypesGen.ChatToolResultPart,
