@@ -2,7 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
@@ -191,6 +191,60 @@ describe("ChatsSidebar sections", () => {
 			todaySection.compareDocumentPosition(ownedNode) &
 				Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
+	});
+});
+
+describe("ChatsSidebar auto-expand", () => {
+	const renderAtChildRoute = (chats: readonly Chat[], isLoading: boolean) => (
+		<QueryClientProvider client={createTestQueryClient()}>
+			<ThemeOverride theme={themes[DEFAULT_THEME]}>
+				<TooltipProvider>
+					<MemoryRouter initialEntries={["/agents/child-chat"]}>
+						<DashboardContext.Provider value={dashboardValue}>
+							<Routes>
+								<Route
+									path="/agents/:agentId"
+									element={
+										<ChatsSidebar
+											{...defaultProps}
+											chats={chats}
+											isLoading={isLoading}
+										/>
+									}
+								/>
+							</Routes>
+						</DashboardContext.Provider>
+					</MemoryRouter>
+				</TooltipProvider>
+			</ThemeOverride>
+		</QueryClientProvider>
+	);
+
+	it("expands the parent once the chat list loads after a direct child load", () => {
+		const child = buildChat({
+			id: "child-chat",
+			title: "Child chat",
+			parent_chat_id: "parent-chat",
+		});
+		const parent = buildChat({
+			id: "parent-chat",
+			title: "Parent chat",
+			children: [child],
+		});
+
+		// Mount at the child URL before any chats have loaded, mirroring a
+		// page reload where activeChatId is set before the list arrives.
+		const { rerender } = render(renderAtChildRoute([], true));
+		expect(
+			screen.queryByTestId("agents-tree-node-child-chat"),
+		).not.toBeInTheDocument();
+
+		rerender(renderAtChildRoute([parent], false));
+
+		expect(
+			screen.getByTestId("agents-tree-toggle-parent-chat"),
+		).toHaveAttribute("aria-expanded", "true");
+		expect(screen.getByTestId("agents-tree-node-child-chat")).toBeVisible();
 	});
 });
 
