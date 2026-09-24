@@ -22,6 +22,11 @@ import {
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
 import { Switch } from "#/components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
@@ -398,7 +403,17 @@ export function FilterCombobox({
 												"min-w-0 rounded-l-none border-l-border",
 											)}
 										>
-											<span className="min-w-0 truncate">{scopePillLabel}</span>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<span className="min-w-0 truncate">
+														{scopePillLabel}
+													</span>
+												</TooltipTrigger>
+												{/* Narrow and balanced so the message wraps to two lines. */}
+												<TooltipContent className="max-w-48 text-balance">
+													{scopeFor(category.key)?.label}
+												</TooltipContent>
+											</Tooltip>
 										</FilterComboboxChip>
 									)}
 								</span>

@@ -663,6 +663,16 @@ export const ScopePillTruncatesWhenNarrow: Story = {
 	},
 };
 
+// Hovering the pill shows the full toggle message.
+export const ScopePillTooltip: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByText("shared with owner"));
+		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
+	},
+};
+
 // With a single template there is nothing to narrow, so Template is left out.
 const singleTemplateCategories: FilterCategory[] = [
 	{
