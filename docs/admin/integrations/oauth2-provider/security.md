@@ -44,7 +44,7 @@ The current implementation has these limitations:
 - Limited to opaque access tokens (no JWT support)
 - An application may register at most 32 redirect URIs of at most 2048 bytes each.
   An application that stored a longer list before this limit existed keeps working, but it cannot be saved again until the list fits.
-  To fix it, send a `PUT` with a `redirect_uris` list that fits, as shown under [Management API](./index.md#create-an-application-with-the-api).
+  To fix it, send a `PUT` with a `redirect_uris` list that fits, as shown under [Create an application with the API](./index.md#create-an-application-with-the-api).
   In the web UI, open the application and remove entries from **Redirect URIs** until the list fits.
 - A cleartext `http://` redirect URI to a host that is not local is rejected.
   Earlier versions accepted one through the management API for a confidential application, although Dynamic Client Registration always refused it.
