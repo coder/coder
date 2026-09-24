@@ -177,70 +177,147 @@ The first entry is the primary callback: it is what the web UI shows for the app
 An admin can edit the list through the management API, and a self-registered client can update its own list with its registration access token.
 The admin `PUT` also validates the stored name, so a self-registered client whose name has leading or trailing whitespace can only be updated with its registration access token.
 
+<a id="next-steps"></a>
+
 ## Learn more
 
 - Review [Integration patterns](./integration-patterns.md) for client authentication methods, the PKCE flow, and discovery endpoints
 - Review [Scopes](./scopes.md) for how access is bounded
 - Review [Token management](./token-management.md) for refresh, revocation, and deletion
 - Review [Callback URL schemes](./callback-url-schemes.md) for accepted redirect URIs
-- Check [Common issues](./troubleshooting.md) if a request fails
-- Review [Security considerations and limitations](./security.md) before deploying to production
+- Check [Troubleshooting](./troubleshooting.md) if a request fails
+- Review [Security and limitations](./security.md) for security considerations, current limitations, and upgrade notes
 - Check [External Authentication](../../external-auth/index.md) for configuring Coder as an OAuth2 client
 - Review the [API Reference](../../../reference/api/index.md) for complete endpoint documentation
 
 ## Moved sections
 
-This page used to be a single page with all of the sections below.
-If you followed an old link here, use the pointer next to the section you were looking for.
+The sections below moved to their own pages.
+Each link goes to the exact heading that section became.
 
 <a id="integration-patterns"></a>
+
+- ["Integration Patterns"](./integration-patterns.md)
+
 <a id="client-authentication-methods"></a>
+
+- ["Client Authentication Methods"](./integration-patterns.md#client-authentication-methods)
+
 <a id="standard-oauth2-flow"></a>
+
+- ["Standard OAuth2 Flow"](./integration-patterns.md#standard-oauth2-flow)
+
 <a id="pkce-flow-required"></a>
+
+- ["PKCE Flow (Required)"](./integration-patterns.md#pkce-flow-required)
+
 <a id="discovery-endpoints"></a>
+
+- ["Discovery Endpoints"](./integration-patterns.md#discovery-endpoints)
+
 <a id="standards-compliance"></a>
 
-- Integration Patterns, Client Authentication Methods, Standard OAuth2 Flow, PKCE Flow, Discovery Endpoints, and Standards Compliance moved to [Integration patterns](./integration-patterns.md).
+- ["Standards Compliance"](./integration-patterns.md#standards-compliance)
 
 <a id="scopes"></a>
 
-- Scopes moved to [Scopes](./scopes.md).
+- ["Scopes"](./scopes.md)
 
 <a id="token-management"></a>
+
+- ["Token Management"](./token-management.md)
+
 <a id="refresh-tokens"></a>
+
+- ["Refresh Tokens"](./token-management.md#refresh-tokens)
+
 <a id="revoke-a-token"></a>
+
+- ["Revoke a Token"](./token-management.md#revoke-a-token)
+
 <a id="revoke-access"></a>
+
+- ["Revoke Access"](./token-management.md#revoke-your-authorization-for-an-application)
+
 <a id="delete-an-application"></a>
 
-- Token Management, Refresh Tokens, Revoke a Token, Revoke Access, and Delete an Application moved to [Token management](./token-management.md).
+- ["Delete an Application"](./token-management.md#delete-an-application)
 
 <a id="callback-url-schemes"></a>
 
-- Callback URL schemes moved to [Callback URL schemes](./callback-url-schemes.md).
+- ["Callback URL schemes"](./callback-url-schemes.md)
 
 <a id="common-issues"></a>
+
+- ["Common Issues"](./troubleshooting.md)
+
 <a id="oauth2-endpoints-return-404"></a>
+
+- ["OAuth2 endpoints return 404"](./troubleshooting.md#oauth2-endpoints-return-404)
+
 <a id="invalid-redirect_uri"></a>
+
+- ["Invalid redirect_uri"](./troubleshooting.md#invalid-redirect_uri)
+
 <a id="invalid-callback-url-on-the-consent-page"></a>
+
+- ["Invalid Callback URL" on the consent page](./troubleshooting.md#invalid-callback-url-on-the-consent-page)
+
 <a id="invalid_scope-returned-to-your-callback"></a>
+
+- ["invalid_scope" returned to your callback](./troubleshooting.md#invalid_scope-returned-to-your-callback)
+
 <a id="invalid_grant-for-a-scope-the-deployment-cannot-mint"></a>
+
+- ["invalid_grant" for a scope the deployment cannot mint](./troubleshooting.md#invalid_grant-for-a-scope-the-deployment-cannot-mint)
+
 <a id="invalid_scope-for-a-refresh-that-names-a-scope"></a>
+
+- ["invalid_scope" for a refresh that names a scope](./troubleshooting.md#invalid_scope-for-a-refresh-that-names-a-scope)
+
 <a id="invalid_client-for-a-refresh-or-a-revocation"></a>
+
+- ["invalid_client" for a refresh or a revocation](./troubleshooting.md#invalid_client-for-a-refresh-or-a-revocation)
+
 <a id="invalid_request-for-client_secret-in-the-query-string"></a>
+
+- ["invalid_request" for `client_secret` in the query string](./troubleshooting.md#invalid_request-for-client_secret-in-the-query-string)
+
 <a id="unsupported_response_type-returned-to-your-callback"></a>
+
+- ["unsupported_response_type" returned to your callback](./troubleshooting.md#unsupported_response_type-returned-to-your-callback)
+
 <a id="invalid_request-for-code_challenge_method"></a>
+
+- ["invalid_request" for `code_challenge_method`](./troubleshooting.md#invalid_request-for-code_challenge_method)
+
 <a id="invalid_request-for-a-rejected-parameter"></a>
+
+- ["invalid_request" for a rejected parameter](./troubleshooting.md#invalid_request-for-a-rejected-parameter)
+
 <a id="invalid_request-from-post-oauth2tokens-for-a-repeated-parameter"></a>
+
+- ["invalid_request" from `POST /oauth2/tokens` for a repeated parameter](./troubleshooting.md#invalid_request-from-post-oauth2tokens-for-a-repeated-parameter)
+
 <a id="invalid_target-for-a-rejected-resource"></a>
+
+- ["invalid_target" for a rejected `resource`](./troubleshooting.md#invalid_target-for-a-rejected-resource)
+
 <a id="pkce-verification-failed"></a>
+
+- ["PKCE verification failed"](./troubleshooting.md#pkce-verification-failed)
+
 <a id="public-clients-may-not-use-the-mailtotelsms-scheme"></a>
 
-- Common Issues, and each of its error entries, moved to [Troubleshooting](./troubleshooting.md).
+- ["public clients may not use the mailto/tel/sms scheme"](./troubleshooting.md#public-clients-may-not-use-the-mailtotelsms-scheme)
 
 <a id="security-considerations"></a>
+
+- ["Security Considerations"](./security.md#security-considerations)
+
 <a id="limitations"></a>
 
-- Security Considerations and Limitations moved to [Security and limitations](./security.md).
+- ["Limitations"](./security.md#limitations)
 
 <a id="testing-and-development"></a>
 

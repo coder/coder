@@ -2,7 +2,7 @@
 title: OAuth2 provider security and limitations
 ---
 
-Security guidance for deploying the OAuth2 provider, and the current implementation's limitations.
+Security guidance for deploying the OAuth2 provider, its current limitations, and upgrade notes for pending changes.
 For enabling the provider and creating an application, refer to [OAuth2 provider](./index.md).
 
 ## Security Considerations
@@ -45,7 +45,12 @@ The current implementation has these limitations:
 - A cleartext `http://` redirect URI to a host that is not local is rejected. Earlier versions accepted one through the management API for a confidential application, although Dynamic Client Registration always refused it. An application that stored one keeps working, but it cannot be saved again until its list uses `https://` or a local host, as described under [Callback URL schemes](./callback-url-schemes.md).
 - A redirect URI with a private-use scheme must name a path or an authority, as in `com.example.app:/callback` or `com.example.app://auth/callback`. The bare form `com.example.app:callback` is rejected. Dynamic Client Registration accepted it in earlier versions. A client that registered one can re-register with one of the other two forms, or an administrator can correct it with the same `PUT`.
 
-### Upgrading from callback_url to redirect_uris
+## Upgrade notes
+
+These changes are on `main` and have not shipped in a release yet.
+This section will name the version once one ships.
+
+### Upgrade from `callback_url` to `redirect_uris`
 
 The `redirect_uris` list is now the source of truth for an application's callbacks, and its first entry is the primary:
 
@@ -54,13 +59,15 @@ The `redirect_uris` list is now the source of truth for an application's callbac
 - Replicas running the new version also show the old callback URL in the form, so saving the application unchanged does not restore the edit.
 - Drain replicas running the earlier version before you upgrade. If a callback URL was edited during the upgrade, enter the intended value again and save the application once every replica runs the new version.
 
-### Other behavior changes
+### Refresh `scope` narrowing is now enforced
 
 A `scope` on a refresh request was parsed and discarded in earlier versions, so a
 client sending one wider than its grant refreshed successfully. It is now
 enforced, and such a request answers HTTP 400 with `error=invalid_scope`. The
 refresh token is not consumed, so a client that drops the parameter or asks for
 less recovers without re-authorizing.
+
+### Refresh and revocation now require `client_secret`
 
 Earlier versions did not check `client_secret` on a refresh or at the RFC 7009
 revocation endpoint, so a confidential client could refresh or revoke with a
@@ -69,6 +76,8 @@ authorization code grant does, and a request without a valid secret answers
 HTTP 401 with `error=invalid_client`. The refresh token is not consumed and
 nothing is revoked, so a client that adds its secret recovers without
 re-authorizing. Public clients are unaffected.
+
+### Dynamic Client Registration `scope` enforcement
 
 Coder now enforces the `scope` an application declared for itself when it self-registered through [Dynamic Client Registration](./index.md#dynamic-client-registration).
 This affects only deployments that enabled Dynamic Client Registration and have an application that self-registered with a `scope`.
@@ -96,5 +105,5 @@ The web UI cannot change it.
 
 - Review [OAuth2 provider](./index.md) for enabling the provider and creating an application
 - Review [Integration patterns](./integration-patterns.md) for client authentication methods and flows
-- Check [Common issues](./troubleshooting.md) if you hit an error
+- Check [Troubleshooting](./troubleshooting.md) if you hit an error
 - Refer to [Security Best Practices](../../security/index.md) for deployment security guidance

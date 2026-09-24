@@ -32,5 +32,5 @@ The consent page states the scope being granted before the user approves it. A r
 
 ## Learn more
 
-- Review [Token management](./token-management.md) for how a refresh can narrow a grant
-- Check [Common issues](./troubleshooting.md) for scope-related errors
+- Refer to ["invalid_scope" for a refresh that names a scope](./troubleshooting.md#invalid_scope-for-a-refresh-that-names-a-scope) for how a refresh can narrow the access token it mints
+- Check [Troubleshooting](./troubleshooting.md) for scope-related errors

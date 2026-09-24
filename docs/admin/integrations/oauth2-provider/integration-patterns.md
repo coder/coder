@@ -31,9 +31,8 @@ If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_
 > Coder ignores the port of an `http://` redirect URI to one of those three loopback hosts, for public and confidential clients alike. RFC 8252 requires this for `127.0.0.1` and `[::1]` so that native apps can choose a port at runtime. Coder applies it to `localhost` too. A `.localhost` subdomain still requires an exact port match.
 > Register `http://127.0.0.1/callback` and present whichever port the client is listening on.
 >
-> Which schemes a redirect URI may use is a separate restriction that
-> also differs by client type. See
-> [Callback URL schemes](./callback-url-schemes.md).
+> Which schemes a redirect URI may use is a separate restriction that also differs by client type.
+> Refer to [Callback URL schemes](./callback-url-schemes.md).
 
 A client's type is fixed when it registers.
 An RFC 7592 update that would move a client between public and confidential is rejected with `invalid_client_metadata`, since the client either holds a secret that would stop being required or has none and no way to be issued one.
@@ -186,4 +185,4 @@ pages.
 
 - Review [Scopes](./scopes.md) for how access is bounded
 - Review [Token management](./token-management.md) for refresh, revocation, and deletion
-- Check [Common issues](./troubleshooting.md) if a request fails
+- Check [Troubleshooting](./troubleshooting.md) if a request fails

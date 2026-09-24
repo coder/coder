@@ -3,7 +3,7 @@ title: OAuth2 provider token management
 ---
 
 Refresh an access token, revoke a token, revoke your own authorization for an application, and delete an application.
-For the authentication methods used in these requests, refer to [Client Authentication Methods](./integration-patterns.md#client-authentication-methods).
+For the client authentication methods used to refresh or revoke a token, refer to [Client Authentication Methods](./integration-patterns.md#client-authentication-methods); the other two operations authenticate with your Coder session token.
 
 ## Refresh Tokens
 
@@ -101,4 +101,4 @@ Turning the setting off stops new registrations; it does not remove the ones alr
 
 ## Learn more
 
-- Check [Common issues](./troubleshooting.md) if a refresh or revocation fails
+- Check [Troubleshooting](./troubleshooting.md) if a refresh or revocation fails
