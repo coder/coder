@@ -21,9 +21,8 @@ import (
 const (
 	// defaultCLILogBufferSize is the default number of below-level (debug) log
 	// entries a session command keeps in memory and writes to its log file on a
-	// connection failure. It matches the agent and VS Code defaults.
+	// connection failure.
 	defaultCLILogBufferSize = 1000
-	// maxCLILogBufferSize caps the configurable buffer size to bound memory use.
 	maxCLILogBufferSize = 10000
 	// keepSessionLogFiles is the number of session log files retained per log
 	// directory; older files are pruned when a new session starts.
@@ -63,7 +62,6 @@ func defaultSessionLogDir() string {
 	return filepath.Join(xdg.StateHome, "coder", "logs")
 }
 
-// clampLogBufferSize bounds a requested buffer size to [0, maxCLILogBufferSize].
 func clampLogBufferSize(size int64) int64 {
 	if size < 0 {
 		return 0
