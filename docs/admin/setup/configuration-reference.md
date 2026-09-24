@@ -1,3 +1,7 @@
+---
+toc_depth: 2
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # Configuration reference
 
@@ -1806,7 +1810,10 @@ How often to reconcile workspace prebuilds state.
 - YAML key: `workspace_prebuilds.reconciliation_interval`
 - Default value: `1m0s`
 
-## ⚠️ Dangerous
+## Dangerous
+
+> [!CAUTION]
+> These options can break your deployment or weaken its security. Change them only when you understand the consequences.
 
 ### Allow path app sharing
 
