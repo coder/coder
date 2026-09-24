@@ -53,20 +53,20 @@ export const MockChatModelProviderDescriptor: ChatModelProviderDescriptor = {
 
 const unsetPersonalModelOverride = (
 	context: ChatPersonalModelOverride["context"],
+	mode: ChatPersonalModelOverride["mode"],
 ): ChatPersonalModelOverride => ({
 	context,
-	mode: "deployment_default",
+	mode,
 	model_config_id: "",
 	is_set: false,
 });
 
-/** Personal model overrides with nothing set, so catalog defaults apply. */
-export const MockUserChatPersonalModelOverrides: UserChatPersonalModelOverridesResponse =
+export const MockUnsetUserChatPersonalModelOverrides: UserChatPersonalModelOverridesResponse =
 	{
 		enabled: true,
-		root: unsetPersonalModelOverride("root"),
-		general: unsetPersonalModelOverride("general"),
-		explore: unsetPersonalModelOverride("explore"),
+		root: unsetPersonalModelOverride("root", "chat_default"),
+		general: unsetPersonalModelOverride("general", "deployment_default"),
+		explore: unsetPersonalModelOverride("explore", "deployment_default"),
 		deployment_defaults: {
 			general: { context: "general", model_config_id: "" },
 			explore: { context: "explore", model_config_id: "" },

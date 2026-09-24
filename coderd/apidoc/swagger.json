@@ -21540,7 +21540,7 @@
 				"ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
 				"ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
 				"ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
-				"ExperimentEnableAIWorkspaceDebug": "Lets users open a Coder Agents chat about a failed workspace build from the workspace page.",
+				"ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
 				"ExperimentExample": "This isn't used for anything.",
 				"ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
 				"ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
@@ -21565,7 +21565,7 @@
 				"Enables the advisor tool for root agent chats.",
 				"Enables virtual desktop and computer use provider for agents.",
 				"Enables chat lifecycle hook webhooks for agent chats.",
-				"Lets users open a Coder Agents chat about a failed workspace build from the workspace page."
+				"Enables debugging failed workspace builds with Coder Agents."
 			],
 			"x-enum-varnames": [
 				"ExperimentExample",

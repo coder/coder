@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -10,15 +10,16 @@ import {
 } from "#/api/queries/workspaceBuilds";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Loader } from "#/components/Loader/Loader";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { isUUID } from "#/utils/uuid";
 import {
-	type AgentCreateAutoSubmit,
 	AgentCreateForm,
+	type AgentCreatePrefill,
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
@@ -27,10 +28,12 @@ import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
 import {
+	clearDebugWorkspaceBuildIntent,
 	debugWorkspaceBuildLogsFileName,
 	debugWorkspaceBuildPrompt,
 	debugWorkspaceBuildSearchParam,
 	formatWorkspaceBuildLogsForDebug,
+	hasDebugWorkspaceBuildIntent,
 } from "./utils/workspaceBuildDebug";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
@@ -48,37 +51,61 @@ const AgentCreatePage: FC = () => {
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
-	const debugBuildId = experiments.includes("enable-ai-workspace-debug")
-		? searchParams.get(debugWorkspaceBuildSearchParam)
-		: null;
+	const debugBuildParam = searchParams.get(debugWorkspaceBuildSearchParam);
+	const debugBuildId =
+		experiments.includes("enable-ai-workspace-debug") &&
+		debugBuildParam !== null &&
+		isUUID(debugBuildParam)
+			? debugBuildParam
+			: null;
+	// Read once per page load and cleared on mount, so a replayed or shared
+	// link can only prefill the chat, never send it.
+	const [debugAutoSend] = useState(
+		() => debugBuildId !== null && hasDebugWorkspaceBuildIntent(debugBuildId),
+	);
+	useEffect(() => {
+		if (debugBuildId !== null) {
+			clearDebugWorkspaceBuildIntent();
+		}
+	}, [debugBuildId]);
 	const debugBuildQuery = useQuery({
 		...workspaceBuild(debugBuildId ?? ""),
 		enabled: debugBuildId !== null,
+		// A finished build is immutable, and a refetch after an error would
+		// mount the prefilled form a second time.
+		staleTime: Number.POSITIVE_INFINITY,
+		refetchOnMount: false,
+		refetchOnReconnect: false,
+		refetchOnWindowFocus: false,
 	});
 	const debugBuildLogsQuery = useQuery({
 		...workspaceBuildLogs(debugBuildId ?? ""),
 		enabled: debugBuildId !== null,
 	});
 	const debugBuildError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
-	const autoSubmit: AgentCreateAutoSubmit | undefined =
-		debugBuildQuery.data && debugBuildLogsQuery.data
+	const debugBuild = debugBuildQuery.data;
+	const debugBuildFailed = debugBuild?.job.status === "failed";
+	const prefill: AgentCreatePrefill | undefined =
+		debugBuild && debugBuildFailed && debugBuildLogsQuery.data
 			? {
-					message: debugWorkspaceBuildPrompt(debugBuildQuery.data.transition),
+					message: debugWorkspaceBuildPrompt(debugBuild),
 					attachment: {
-						name: debugWorkspaceBuildLogsFileName(debugBuildQuery.data),
-						content: formatWorkspaceBuildLogsForDebug(
-							debugBuildQuery.data,
+						name: debugWorkspaceBuildLogsFileName(debugBuild),
+						text: formatWorkspaceBuildLogsForDebug(
+							debugBuild,
 							debugBuildLogsQuery.data,
 						),
 					},
+					organizationId: debugBuild.job.organization_id,
+					autoSend: debugAutoSend,
 				}
 			: undefined;
-	// The form reads the auto-submitted message as its initial editor value,
-	// so it must not mount until the build and logs have loaded.
+	// The form reads prefill only on mount (initial editor value, draft and
+	// attachment persistence), so it waits for the build and logs.
 	const isDebugBuildLoading =
 		debugBuildId !== null &&
-		autoSubmit === undefined &&
-		debugBuildError == null;
+		debugBuildError == null &&
+		(debugBuild === undefined || debugBuildLogsQuery.data === undefined);
 
 	const handleCreateChat = async ({
 		message,
@@ -115,14 +142,16 @@ const AgentCreatePage: FC = () => {
 		if (model) {
 			localStorage.setItem(lastModelConfigIDStorageKey, model);
 		}
-		// Drop the debug deep link so returning to /agents from the new chat
-		// does not start another one.
 		const nextSearchParams = new URLSearchParams(location.search);
 		nextSearchParams.delete(debugWorkspaceBuildSearchParam);
-		navigate({
-			pathname: buildAgentChatPath({ chatId: createdChat.id }),
-			search: nextSearchParams.toString(),
-		});
+		navigate(
+			{
+				pathname: buildAgentChatPath({ chatId: createdChat.id }),
+				search: nextSearchParams.toString(),
+			},
+			// Back from a prefilled chat should not land on the deep link again.
+			{ replace: debugBuildId !== null },
+		);
 	};
 
 	const handleChimeToggle = () => {
@@ -157,13 +186,34 @@ const AgentCreatePage: FC = () => {
 			</AgentPageHeader>
 			{debugBuildError != null && (
 				<div className="mx-auto w-full max-w-3xl px-4 pt-4">
-					<ErrorAlert error={debugBuildError} />
+					<Alert severity="error" prominent>
+						<AlertTitle>
+							Could not load the failed workspace build. Nothing was sent.
+						</AlertTitle>
+						<AlertDescription>
+							{getErrorMessage(debugBuildError, "The request failed.")}
+						</AlertDescription>
+					</Alert>
+				</div>
+			)}
+			{debugBuild && !debugBuildFailed && (
+				<div className="mx-auto w-full max-w-3xl px-4 pt-4">
+					<Alert severity="info">
+						<AlertTitle>Nothing to debug</AlertTitle>
+						<AlertDescription>
+							Build #{debugBuild.build_number} of workspace{" "}
+							{debugBuild.workspace_owner_name}/{debugBuild.workspace_name} did
+							not fail.
+						</AlertDescription>
+					</Alert>
 				</div>
 			)}
 			{isDebugBuildLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : (
 				<AgentCreateForm
+					// Prefill is read on mount, so switching modes must remount.
+					key={prefill ? debugBuildId : "draft"}
 					onCreateChat={handleCreateChat}
 					isCreating={createMutation.isPending}
 					createError={createMutation.error}
@@ -174,7 +224,7 @@ const AgentCreatePage: FC = () => {
 					workspaceOptions={workspacesQuery.data?.workspaces ?? []}
 					workspacesError={workspacesQuery.error}
 					isWorkspacesLoading={workspacesQuery.isLoading}
-					autoSubmit={autoSubmit}
+					prefill={prefill}
 				/>
 			)}
 		</>

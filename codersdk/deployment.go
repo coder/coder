@@ -5245,7 +5245,7 @@ const (
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
-	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Lets users open a Coder Agents chat about a failed workspace build from the workspace page.
+	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 )
 
 func (e Experiment) DisplayName() string {

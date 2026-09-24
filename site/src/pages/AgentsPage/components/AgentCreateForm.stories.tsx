@@ -28,6 +28,7 @@ import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
+	MockUnsetUserChatPersonalModelOverrides,
 } from "#/testHelpers/chatModels";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
@@ -37,6 +38,7 @@ import {
 	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceBuildLogs,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
@@ -213,24 +215,8 @@ const buildRootPersonalModelOverride = (
 const buildPersonalModelOverridesResponse = (
 	root = buildRootPersonalModelOverride({ is_set: false }),
 ): TypesGen.UserChatPersonalModelOverridesResponse => ({
-	enabled: true,
+	...MockUnsetUserChatPersonalModelOverrides,
 	root,
-	general: {
-		context: "general",
-		mode: "deployment_default",
-		model_config_id: "",
-		is_set: false,
-	},
-	explore: {
-		context: "explore",
-		mode: "deployment_default",
-		model_config_id: "",
-		is_set: false,
-	},
-	deployment_defaults: {
-		general: { context: "general", model_config_id: "" },
-		explore: { context: "explore", model_config_id: "" },
-	},
 });
 
 const mock403Error = Object.assign(
@@ -2191,28 +2177,53 @@ export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
 	},
 };
 
-// onCreateChat never resolves so the prefilled prompt and attachment stay
-// visible.
-export const AutoSubmitWorkspaceBuildDebug: Story = {
+const workspaceBuildDebugPrefill = {
+	message: debugWorkspaceBuildPrompt(MockFailedWorkspace.latest_build),
+	attachment: {
+		name: debugWorkspaceBuildLogsFileName(MockFailedWorkspace.latest_build),
+		text: formatWorkspaceBuildLogsForDebug(
+			MockFailedWorkspace.latest_build,
+			MockWorkspaceBuildLogs,
+		),
+	},
+	organizationId: MockDefaultOrganization.id,
+};
+
+// Keeps the sent prompt and attachment on screen.
+export const AutoSendWorkspaceBuildDebug: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn(() => new Promise<void>(() => {})),
-		autoSubmit: {
-			message: debugWorkspaceBuildPrompt(
-				MockFailedWorkspace.latest_build.transition,
-			),
-			attachment: {
-				name: debugWorkspaceBuildLogsFileName(MockFailedWorkspace.latest_build),
-				content: formatWorkspaceBuildLogsForDebug(
-					MockFailedWorkspace.latest_build,
-					MockWorkspaceBuildLogs,
-				),
-			},
-		},
+		prefill: { ...workspaceBuildDebugPrefill, autoSend: true },
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
 			id: "workspace-build-logs-file",
 		});
+	},
+};
+
+// A pasted or replayed deep link prefills and waits for Send.
+export const PrefilledWorkspaceBuildDebug: Story = {
+	args: {
+		...defaultArgs,
+		prefill: { ...workspaceBuildDebugPrefill, autoSend: false },
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "workspace-build-logs-file",
+		});
+	},
+};
+
+export const WorkspaceBuildDebugUploadFailed: Story = {
+	args: {
+		...defaultArgs,
+		prefill: { ...workspaceBuildDebugPrefill, autoSend: true },
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "uploadChatFile").mockRejectedValue(
+			mockApiError({ message: "File exceeds the maximum size of 10 MiB." }),
+		);
 	},
 };

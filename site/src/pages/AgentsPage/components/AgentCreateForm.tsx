@@ -15,6 +15,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import { renameChatFileForUpload } from "../utils/chatAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getDefaultMCPSelection,
@@ -50,7 +51,8 @@ export const emptyInputStorageKey = "agents.empty-input";
 /** @internal Exported for testing. */
 export const selectedOrganizationIdStorageKey =
 	"agents.selected-organization-id";
-const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
+/** @internal Exported for testing. */
+export const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 export type CreateChatOptions = {
@@ -65,16 +67,20 @@ export type CreateChatOptions = {
 };
 
 /**
- * A message the form sends on the user's behalf once the send gate opens,
- * after uploading the attachment. Used by deep links such as the failed
- * workspace build debug action.
+ * Prefilled content for a chat opened from a deep link. The form uploads the
+ * attachment and, when `autoSend` is set, sends once without user action as
+ * soon as the send gate opens. It never reads from or writes to the user's
+ * saved draft, workspace, or organization selection; the chat is created in
+ * `organizationId` with no workspace.
  */
-export type AgentCreateAutoSubmit = {
+export type AgentCreatePrefill = {
 	message: string;
 	attachment: {
 		name: string;
-		content: string;
+		text: string;
 	};
+	organizationId: string;
+	autoSend: boolean;
 };
 
 /**
@@ -86,10 +92,19 @@ export type AgentCreateAutoSubmit = {
  * content changes are no longer persisted for the lifetime of the hook.
  * Call `resetDraft` to re-enable persistence (e.g. on mutation failure).
  *
+ * When `prefilledText` is given, it is the initial value and the stored
+ * draft is neither read nor modified.
+ *
  * @internal Exported for testing.
  */
-export function useEmptyStateDraft() {
+export function useEmptyStateDraft(prefilledText?: string) {
 	const [{ initialInputValue, initialEditorState }] = useState(() => {
+		if (prefilledText !== undefined) {
+			return {
+				initialInputValue: prefilledText,
+				initialEditorState: undefined,
+			};
+		}
 		const draft = parseStoredDraft(localStorage.getItem(emptyInputStorageKey));
 		return {
 			initialInputValue: draft.text,
@@ -98,6 +113,7 @@ export function useEmptyStateDraft() {
 	});
 	const inputValueRef = useRef(initialInputValue);
 	const sentRef = useRef(false);
+	const persists = prefilledText === undefined;
 
 	const handleContentChange = (
 		content: string,
@@ -105,7 +121,7 @@ export function useEmptyStateDraft() {
 		hasFileReferences: boolean,
 	) => {
 		inputValueRef.current = content;
-		if (!sentRef.current) {
+		if (persists && !sentRef.current) {
 			const shouldPersist = content.trim() || hasFileReferences;
 			if (shouldPersist) {
 				try {
@@ -123,7 +139,9 @@ export function useEmptyStateDraft() {
 		// Mark as sent so that editor change events firing during
 		// the async gap cannot re-persist the draft.
 		sentRef.current = true;
-		localStorage.removeItem(emptyInputStorageKey);
+		if (persists) {
+			localStorage.removeItem(emptyInputStorageKey);
+		}
 	};
 
 	const resetDraft = () => {
@@ -153,7 +171,7 @@ type AgentCreateFormProps = {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
-	autoSubmit?: AgentCreateAutoSubmit;
+	prefill?: AgentCreatePrefill;
 };
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
@@ -167,19 +185,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	workspaceOptions,
 	workspacesError,
 	isWorkspacesLoading,
-	autoSubmit,
+	prefill,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
-	// An auto-submitted message is not the user's draft: it must neither be
-	// persisted as one nor clear the draft they left on the normal create page.
-	const draft = useEmptyStateDraft();
-	const handleContentChange = autoSubmit
-		? undefined
-		: draft.handleContentChange;
-	const initialInputValue = autoSubmit
-		? autoSubmit.message
-		: draft.initialInputValue;
-	const initialEditorState = autoSubmit ? undefined : draft.initialEditorState;
+	const {
+		initialInputValue,
+		initialEditorState,
+		handleContentChange,
+		submitDraft,
+		resetDraft,
+	} = useEmptyStateDraft(prefill?.message);
 	const [initialLastModelConfigID] = useState(() => {
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
@@ -188,16 +203,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// because the permitted-organizations query may resolve after mount and
 	// change the effective org.
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
-		() => localStorage.getItem(selectedWorkspaceIdStorageKey),
+		() =>
+			prefill ? null : localStorage.getItem(selectedWorkspaceIdStorageKey),
 	);
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
 		() => {
-			const storedOrganizationId = localStorage.getItem(
-				selectedOrganizationIdStorageKey,
-			);
+			const initialOrganizationId =
+				prefill?.organizationId ??
+				localStorage.getItem(selectedOrganizationIdStorageKey);
 			return (
 				organizations.find(
-					(organization) => organization.id === storedOrganizationId,
+					(organization) => organization.id === initialOrganizationId,
 				) ?? null
 			);
 		},
@@ -288,8 +304,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			setUserMCPServerIds(null);
 		}
 	}
+	// Prefilled chats leave the user's stored selections untouched.
+	const persistsSelections = prefill === undefined;
 	useEffect(() => {
-		if (!orgSelectionSettled) {
+		if (!orgSelectionSettled || !persistsSelections) {
 			return;
 		}
 		if (selectedOrg) {
@@ -297,12 +315,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		} else {
 			localStorage.removeItem(selectedOrganizationIdStorageKey);
 		}
-	}, [orgSelectionSettled, selectedOrg]);
+	}, [orgSelectionSettled, persistsSelections, selectedOrg]);
 	useEffect(() => {
-		if (selectedWorkspaceId === null) {
+		if (persistsSelections && selectedWorkspaceId === null) {
 			localStorage.removeItem(selectedWorkspaceIdStorageKey);
 		}
-	}, [selectedWorkspaceId]);
+	}, [persistsSelections, selectedWorkspaceId]);
 	const modelsQuery = useQuery(chatModels(organizationId));
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(organizationId),
@@ -456,13 +474,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		return getDefaultMCPSelection(mcpServers);
 	})();
 	const handleWorkspaceChange = (value: string | null) => {
-		if (value === null) {
-			setSelectedWorkspaceId(null);
-			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+		setSelectedWorkspaceId(value);
+		if (!persistsSelections) {
 			return;
 		}
-		setSelectedWorkspaceId(value);
-		localStorage.setItem(selectedWorkspaceIdStorageKey, value);
+		if (value === null) {
+			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+		} else {
+			localStorage.setItem(selectedWorkspaceIdStorageKey, value);
+		}
 	};
 
 	const selectOrganization = (organization: TypesGen.Organization) => {
@@ -519,9 +539,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? organizationId || undefined
 			: undefined,
 		{
-			// Auto-submitted attachments must not be saved as, or sent alongside,
-			// the attachments the user left in the normal composer.
-			persist: autoSubmit === undefined,
+			// persist also restores saved draft files into this send.
+			persist: prefill === undefined,
 			provider: getProviderForModelOption(modelOptions, selectedModel),
 		},
 	);
@@ -535,9 +554,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	};
 
 	const handleSend = async (message: string, fileIDs?: string[]) => {
-		if (!autoSubmit) {
-			draft.submitDraft();
-		}
+		submitDraft();
 		await onCreateChat({
 			message,
 			fileIDs,
@@ -551,7 +568,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					: undefined,
 			planMode: planModeEnabled ? "plan" : undefined,
 		}).catch((err) => {
-			draft.resetDraft();
+			resetDraft();
 			throw err;
 		});
 	};
@@ -583,7 +600,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
-	const isInputDisabled =
+	const isSendGateClosed =
 		isCreating ||
 		isForbidden ||
 		!orgSelectionSettled ||
@@ -595,43 +612,63 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		!hasModelOptions ||
 		Boolean(aiGatewayDisabled);
 
-	const [autoSubmitFile, setAutoSubmitFile] = useState<File | null>(null);
-	const attachAutoSubmitFile = useEffectEvent(
-		(attachment: AgentCreateAutoSubmit["attachment"]) => {
-			const file = new File([attachment.content], attachment.name, {
-				type: "text/plain",
-			});
-			setAutoSubmitFile(file);
-			handleAttach([file]);
-		},
+	// Sanitized up front so uploadStates, keyed by File identity, can be read
+	// back for this file.
+	const [prefillFile] = useState(() =>
+		prefill
+			? renameChatFileForUpload(
+					new File([prefill.attachment.text], prefill.attachment.name, {
+						type: "text/plain",
+					}),
+				)
+			: null,
 	);
-	// The upload needs the settled organization, which is also what the send
-	// gate waits for.
-	const canAttachAutoSubmitFile =
-		orgSelectionSettled && organizationId !== "" && autoSubmitFile === null;
-	useEffect(() => {
-		if (autoSubmit && canAttachAutoSubmitFile) {
-			attachAutoSubmitFile(autoSubmit.attachment);
-		}
-	}, [autoSubmit, canAttachAutoSubmitFile]);
-
-	const isAutoSubmitReady =
-		autoSubmit !== undefined &&
-		!isInputDisabled &&
-		autoSubmitFile !== null &&
-		uploadStates.get(autoSubmitFile)?.status === "uploaded";
-	const autoSubmitSentRef = useRef(false);
-	const sendAutoSubmit = useEffectEvent((message: string) => {
-		void handleSendWithAttachments(message);
+	const prefillAttachedRef = useRef(false);
+	const attachPrefillFile = useEffectEvent((file: File) => {
+		handleAttach([file]);
 	});
-	// Send exactly once; a failed send leaves the message and attachment in
-	// the composer so the user can retry manually.
+	// Uploads are scoped to the selected organization.
+	const canAttachPrefillFile =
+		orgSelectionSettled && organizationId !== "" && !isForbidden;
 	useEffect(() => {
-		if (autoSubmit && isAutoSubmitReady && !autoSubmitSentRef.current) {
-			autoSubmitSentRef.current = true;
-			sendAutoSubmit(autoSubmit.message);
+		if (prefillFile && canAttachPrefillFile && !prefillAttachedRef.current) {
+			prefillAttachedRef.current = true;
+			attachPrefillFile(prefillFile);
 		}
-	}, [autoSubmit, isAutoSubmitReady]);
+	}, [prefillFile, canAttachPrefillFile]);
+	const prefillUploadState = prefillFile
+		? uploadStates.get(prefillFile)
+		: undefined;
+
+	// Settled means the automatic send resolved either way; it flips the
+	// composer back to editable so a failed send can be retried by hand.
+	const [autoSendSettled, setAutoSendSettled] = useState(false);
+	const autoSendPending = prefill?.autoSend === true && !autoSendSettled;
+	const isAutoSendReady =
+		autoSendPending &&
+		!isSendGateClosed &&
+		prefillUploadState?.status === "uploaded";
+	const autoSentRef = useRef(false);
+	const sendPrefill = useEffectEvent((message: string) => {
+		void handleSendWithAttachments(message).finally(() => {
+			setAutoSendSettled(true);
+		});
+	});
+	// At most once: the gate reopens after a failed send and would retry in a
+	// loop.
+	useEffect(() => {
+		if (prefill && isAutoSendReady && !autoSentRef.current) {
+			autoSentRef.current = true;
+			sendPrefill(prefill.message);
+		}
+	}, [prefill, isAutoSendReady]);
+
+	// Typing during a pending automatic send would be discarded, and sending
+	// while the log upload failed would post the prompt without the logs.
+	const isInputDisabled =
+		isSendGateClosed ||
+		autoSendPending ||
+		prefillUploadState?.status === "error";
 
 	return (
 		<>
@@ -681,6 +718,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					)}
 					{personalModelOverridesQuery.error != null && (
 						<ErrorAlert error={personalModelOverridesQuery.error} />
+					)}
+					{prefillUploadState?.status === "error" && (
+						<Alert severity="error">
+							<AlertTitle>The build logs could not be attached</AlertTitle>
+							<AlertDescription>
+								{prefillUploadState.error ?? "The upload failed."} Reload the
+								page to try again.
+							</AlertDescription>
+						</Alert>
 					)}
 					{showOrganizations &&
 						orgSelectionSettled &&

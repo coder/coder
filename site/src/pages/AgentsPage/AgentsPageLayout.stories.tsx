@@ -24,6 +24,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockFailedWorkspace,
@@ -274,35 +275,8 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			API.experimental,
 			"getUserChatPersonalModelOverrides",
 		).mockResolvedValue({
+			...MockUnsetUserChatPersonalModelOverrides,
 			enabled: false,
-			root: {
-				context: "root",
-				mode: "deployment_default",
-				model_config_id: "",
-				is_set: false,
-			},
-			general: {
-				context: "general",
-				mode: "deployment_default",
-				model_config_id: "",
-				is_set: false,
-			},
-			explore: {
-				context: "explore",
-				mode: "deployment_default",
-				model_config_id: "",
-				is_set: false,
-			},
-			deployment_defaults: {
-				general: {
-					context: "general",
-					model_config_id: "",
-				},
-				explore: {
-					context: "explore",
-					model_config_id: "",
-				},
-			},
 		});
 		spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],
@@ -1126,7 +1100,6 @@ const debugWorkspaceBuildRouter = reactRouterParameters({
 	routing: [agentsRouting, aiSettingsRouting],
 });
 
-// The build request never resolves, so the create page stays on its loader.
 export const DebugWorkspaceBuildLoading: Story = {
 	parameters: {
 		experiments: ["enable-ai-workspace-debug"],
@@ -1148,8 +1121,8 @@ export const DebugWorkspaceBuildLoadError: Story = {
 	beforeEach: () => {
 		spyOn(API, "getWorkspaceBuild").mockRejectedValue(
 			mockApiError({
-				message: "Workspace build not found.",
-				detail: "The build may have been deleted.",
+				message:
+					"Resource not found or you do not have access to this resource",
 			}),
 		);
 		spyOn(API, "getWorkspaceBuildLogs").mockResolvedValue(
