@@ -263,6 +263,20 @@
 			{
 				"types": {
 					"FC": "Use React.FC instead.",
+					"ComponentProps": "Use React.ComponentProps instead.",
+					"CSSProperties": "Use React.CSSProperties instead.",
+					"Dispatch": "Use React.Dispatch instead.",
+					"ElementType": "Use React.ElementType instead.",
+					"ForwardedRef": "Use React.ForwardedRef instead.",
+					"HTMLProps": "Use React.HTMLProps instead.",
+					"JSX.Element": "Use React.JSX.Element instead.",
+					"JSX.IntrinsicElements": "Use React.JSX.IntrinsicElements instead.",
+					"PropsWithChildren": "Use React.PropsWithChildren instead.",
+					"ReactElement": "Use React.ReactElement instead.",
+					"ReactNode": "Use React.ReactNode instead.",
+					"Ref": "Use React.Ref instead.",
+					"RefObject": "Use React.RefObject instead.",
+					"SetStateAction": "Use React.SetStateAction instead.",
 					// Event types that share a DOM name are covered by
 					// no-restricted-imports instead.
 					"BaseSyntheticEvent": "Use React.BaseSyntheticEvent instead.",
