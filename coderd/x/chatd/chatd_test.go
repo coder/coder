@@ -29,6 +29,10 @@ import (
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -55,6 +59,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
@@ -14752,4 +14757,143 @@ func setupWorkspaceContextAgentConn(
 		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
+}
+
+// TestActiveServer_TracesChatTurn drives one prompt through a real worker
+// with a recording tracer and checks the spans the turn produced.
+func TestActiveServer_TracesChatTurn(t *testing.T) {
+	t.Parallel()
+
+	type spanIndex map[string][]sdktrace.ReadOnlySpan
+
+	run := func(t *testing.T, respond func(*chattest.OpenAIRequest) chattest.OpenAIResponse, wantStatus database.ChatStatus) (uuid.UUID, spanIndex) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		recorder := tracetest.NewSpanRecorder()
+		provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+		t.Cleanup(func() { require.NoError(t, provider.Shutdown(context.Background())) })
+		openAIURL := chattest.NewOpenAI(t, respond)
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			cfg.TracerProvider = provider
+		})
+
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+		waitForChatStatus(ctx, t, db, chat.ID, wantStatus)
+
+		// The turn span settles after the final step returns, which can
+		// be after the status is visible.
+		var index spanIndex
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			index = spanIndex{}
+			for _, span := range recorder.Ended() {
+				index[span.Name()] = append(index[span.Name()], span)
+			}
+			return len(index[string(chatloop.StageChatTurn)]) > 0
+		}, testutil.IntervalFast)
+		return chat.ID, index
+	}
+
+	attr := func(span sdktrace.ReadOnlySpan, key attribute.Key) string {
+		for _, kv := range span.Attributes() {
+			if kv.Key == key {
+				return kv.Value.Emit()
+			}
+		}
+		return ""
+	}
+	single := func(t *testing.T, index spanIndex, stage chatloop.Stage) sdktrace.ReadOnlySpan {
+		t.Helper()
+		require.Len(t, index[string(stage)], 1, "expected exactly one %s span", stage)
+		return index[string(stage)][0]
+	}
+	childOf := func(t *testing.T, index spanIndex, stage chatloop.Stage, parent sdktrace.ReadOnlySpan) sdktrace.ReadOnlySpan {
+		t.Helper()
+		var found []sdktrace.ReadOnlySpan
+		for _, span := range index[string(stage)] {
+			if span.Parent().SpanID() == parent.SpanContext().SpanID() {
+				found = append(found, span)
+			}
+		}
+		require.Len(t, found, 1, "expected exactly one %s span under %s", stage, parent.Name())
+		return found[0]
+	}
+	stepByAction := func(t *testing.T, steps []sdktrace.ReadOnlySpan, action string) sdktrace.ReadOnlySpan {
+		t.Helper()
+		for _, step := range steps {
+			if attr(step, chatloop.AttrGenerationAction) == action {
+				return step
+			}
+		}
+		t.Fatalf("no generation_step span with action %q", action)
+		return nil
+	}
+	requireChild := func(t *testing.T, child, parent sdktrace.ReadOnlySpan) {
+		t.Helper()
+		require.Equal(t, parent.SpanContext().TraceID(), child.SpanContext().TraceID(), "%s is not in %s's trace", child.Name(), parent.Name())
+		require.Equal(t, parent.SpanContext().SpanID(), child.Parent().SpanID(), "%s is not a child of %s", child.Name(), parent.Name())
+		require.False(t, child.StartTime().Before(parent.StartTime()), "%s starts before %s", child.Name(), parent.Name())
+		require.False(t, child.EndTime().After(parent.EndTime()), "%s ends after %s", child.Name(), parent.Name())
+	}
+
+	t.Run("Completed", func(t *testing.T) {
+		t.Parallel()
+		chatID, index := run(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			return chattest.OpenAIStreamingResponse(openAITextChunksWithStop("hello")...)
+		}, database.ChatStatusWaiting)
+
+		turn := single(t, index, chatloop.StageChatTurn)
+		require.Equal(t, codes.Unset, turn.Status().Code)
+		require.Equal(t, string(chatloop.TurnOutcomeCompleted), attr(turn, chatloop.AttrTurnOutcome))
+		require.Equal(t, string(chatloop.ChatKindRoot), attr(turn, chatloop.AttrChatKind))
+		require.Equal(t, chatID.String(), attr(turn, chatloop.AttrChatID))
+		require.False(t, turn.Parent().IsValid(), "chat_turn is a trace root")
+
+		requireChild(t, single(t, index, chatloop.StageAcquisition), turn)
+		// One step generates the assistant message and a second
+		// finishes the turn; both belong to the same turn.
+		steps := index[string(chatloop.StageGenerationStep)]
+		require.Len(t, steps, 2)
+		for _, step := range steps {
+			requireChild(t, step, turn)
+		}
+		generate := stepByAction(t, steps, "generate_assistant")
+		finish := stepByAction(t, steps, "finish_turn")
+		for _, step := range []sdktrace.ReadOnlySpan{generate, finish} {
+			requireChild(t, childOf(t, index, chatloop.StagePrepare, step), step)
+		}
+		stream := single(t, index, chatloop.StageStream)
+		requireChild(t, stream, generate)
+		requireChild(t, single(t, index, chatloop.StageTimeToFirstToken), stream)
+		requireChild(t, single(t, index, chatloop.StageCommit), generate)
+		require.Empty(t, index[string(chatloop.StageQueueWait)])
+		require.Empty(t, index[string(chatloop.StageRetryBackoff)])
+	})
+
+	t.Run("ProviderError", func(t *testing.T) {
+		t.Parallel()
+		_, index := run(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			// A 400 is non-retryable, so the turn fails on its first attempt.
+			return chattest.OpenAIErrorResponse(http.StatusBadRequest, "invalid_request_error", "synthetic failure")
+		}, database.ChatStatusError)
+
+		turn := single(t, index, chatloop.StageChatTurn)
+		require.Equal(t, codes.Error, turn.Status().Code)
+		require.Equal(t, string(chatloop.TurnOutcomeError), attr(turn, chatloop.AttrTurnOutcome))
+		step := single(t, index, chatloop.StageGenerationStep)
+		requireChild(t, step, turn)
+		require.Equal(t, "generate_assistant", attr(step, chatloop.AttrGenerationAction))
+		stream := single(t, index, chatloop.StageStream)
+		requireChild(t, stream, step)
+		require.Equal(t, codes.Error, stream.Status().Code)
+		require.Empty(t, index[string(chatloop.StageRetryBackoff)])
+	})
 }
