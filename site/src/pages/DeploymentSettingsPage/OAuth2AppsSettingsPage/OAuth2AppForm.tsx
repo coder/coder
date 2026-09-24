@@ -421,8 +421,13 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 							A self-registered client that requests every advertised scope
 							fails new authorizations with invalid_scope once its allowlist is
 							narrower than that list. Existing tokens keep their scopes.{" "}
-							<Link href={docs("/admin/integrations/oauth2-provider#scopes")}>
+							<Link
+								href={docs("/admin/integrations/oauth2-provider#scopes")}
+								target="_blank"
+								rel="noreferrer"
+							>
 								Learn more
+								<span className="sr-only"> (link opens in new tab)</span>
 							</Link>
 						</Alert>
 					)}
