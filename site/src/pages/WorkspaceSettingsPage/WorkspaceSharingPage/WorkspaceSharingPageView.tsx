@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type {
 	Group,
 	Workspace,
@@ -40,7 +39,9 @@ type WorkspaceSharingPageViewProps = {
 	hasRemovedMember?: boolean;
 };
 
-export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
+export const WorkspaceSharingPageView: React.FC<
+	WorkspaceSharingPageViewProps
+> = ({
 	workspace,
 	workspaceACL,
 	canUpdatePermissions,

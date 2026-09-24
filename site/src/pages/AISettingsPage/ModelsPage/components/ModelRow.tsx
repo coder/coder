@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import type { FC } from "react";
 import type { ChatModel } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
@@ -29,7 +28,7 @@ const formatContextLimit = (contextLimit: number): string => {
 	return `${contextLimit.toLocaleString("en-US")} tokens`;
 };
 
-export const ModelRow: FC<ModelRowProps> = ({
+export const ModelRow: React.FC<ModelRowProps> = ({
 	model,
 	providerLabel,
 	providerTypeByID,

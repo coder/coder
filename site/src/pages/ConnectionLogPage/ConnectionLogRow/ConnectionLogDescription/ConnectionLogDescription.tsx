@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
@@ -8,9 +7,9 @@ type ConnectionLogDescriptionProps = {
 	connectionLog: ConnectionLog;
 };
 
-export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
-	connectionLog,
-}) => {
+export const ConnectionLogDescription: React.FC<
+	ConnectionLogDescriptionProps
+> = ({ connectionLog }) => {
 	const { type, workspace_owner_username, workspace_name, web_info } =
 		connectionLog;
 
@@ -24,7 +23,7 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 			const presentAction = isPortForward ? "access" : "open";
 			const pastAction = isPortForward ? "accessed" : "opened";
 
-			const target: ReactNode = isPortForward ? (
+			const target: React.ReactNode = isPortForward ? (
 				<>
 					port <strong>{slug_or_port}</strong>
 				</>
@@ -32,7 +31,7 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 				<strong>{slug_or_port}</strong>
 			);
 
-			const actionText: ReactNode = (() => {
+			const actionText: React.ReactNode = (() => {
 				if (status_code === 303) {
 					return (
 						<>

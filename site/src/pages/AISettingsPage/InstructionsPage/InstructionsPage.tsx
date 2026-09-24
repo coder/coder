@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatPlanModeInstructions,
@@ -11,7 +10,7 @@ import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { InstructionsPageView } from "./InstructionsPageView";
 
-const InstructionsPage: FC = () => {
+const InstructionsPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 

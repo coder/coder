@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import {
 	FILTER_TOKEN_RE,
 	needsQuotes,
@@ -205,7 +204,7 @@ type CategoryValueSuggestion = {
 	option: {
 		label: string;
 		value: string;
-		startIcon?: ReactNode;
+		startIcon?: React.ReactNode;
 	};
 	token: string;
 };

@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
-import { type FC, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
@@ -28,7 +28,7 @@ type DownloadableFile = {
 	blob: Blob | undefined;
 };
 
-export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
+export const DownloadLogsDialog: React.FC<DownloadLogsDialogProps> = ({
 	workspace,
 	open,
 	onClose,
@@ -171,7 +171,10 @@ type DownloadingItemProps = Readonly<{
 	file: DownloadableFile;
 }>;
 
-const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
+const DownloadingItem: React.FC<DownloadingItemProps> = ({
+	file,
+	giveUpTimeMs,
+}) => {
 	const [isWaiting, setIsWaiting] = useState(true);
 
 	useEffect(() => {

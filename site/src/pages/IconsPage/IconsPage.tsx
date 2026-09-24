@@ -1,5 +1,5 @@
 import { SearchIcon, XIcon } from "lucide-react";
-import { type FC, type ReactNode, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import uFuzzy from "ufuzzy";
 import { Button } from "#/components/Button/Button";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
@@ -39,7 +39,7 @@ const fuzzyFinder = new uFuzzy({
 	intraDel: 1,
 });
 
-const IconsPage: FC = () => {
+const IconsPage: React.FC = () => {
 	const { externalImages } = useAppearance();
 	const [searchInputText, setSearchInputText] = useState("");
 	const searchText = searchInputText.trim();
@@ -66,7 +66,7 @@ const IconsPage: FC = () => {
 			const iconName = filteredIcons[info.idx[i]];
 			const ranges = info.ranges[i];
 
-			const nodes: ReactNode[] = [];
+			const nodes: React.ReactNode[] = [];
 			let cursor = 0;
 			for (let j = 0; j < ranges.length; j += 2) {
 				nodes.push(iconName.slice(cursor, ranges[j]));

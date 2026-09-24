@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -154,7 +154,7 @@ export const chatCostIdToInvalidate = (
 	return getChatCostTreeID(chat);
 };
 
-const AgentsPageLayout: FC = () => {
+const AgentsPageLayout: React.FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();

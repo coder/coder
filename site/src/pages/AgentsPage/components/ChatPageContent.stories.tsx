@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	chatPromptsKey,
@@ -31,7 +30,7 @@ import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 // These stories cover transcript rendering, so history paging stays idle.
-const StoryChatPageTimeline: FC<{
+const StoryChatPageTimeline: React.FC<{
 	store: ReturnType<typeof createChatStore>;
 }> = ({ store }) => (
 	<MessageScroller.Provider autoScroll defaultScrollPosition="end">
@@ -98,7 +97,7 @@ const mockCompactionModels: readonly TypesGen.ChatModel[] = [
 
 // Renders only the composer half of the chat page. Empty chat id and
 // organization keep the prompt-history and draft attachment queries disabled.
-const StoryChatPageInput: FC<{
+const StoryChatPageInput: React.FC<{
 	store: ReturnType<typeof createChatStore>;
 	onInterrupt?: () => void;
 	contextLimit?: number;
@@ -380,7 +379,7 @@ export const RunningShowsBusyComposer: Story = {
 	},
 };
 
-const CompactionChatPageInput: FC = () => {
+const CompactionChatPageInput: React.FC = () => {
 	const store = createChatStore();
 	store.replaceMessages([
 		buildMessage(1, "user", [{ type: "text", text: "Summarize the diff" }]),

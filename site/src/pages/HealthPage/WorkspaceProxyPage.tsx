@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { GlobeIcon, HashIcon } from "lucide-react";
-import type { FC } from "react";
 import { useOutletContext } from "react-router";
 import type { HealthcheckReport } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
@@ -23,7 +22,7 @@ import {
 } from "./Content";
 import { MuteWarningsButton } from "./MuteWarningsButton";
 
-const WorkspaceProxyPage: FC = () => {
+const WorkspaceProxyPage: React.FC = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
 	const { workspace_proxy } = healthStatus;
 	const { regions } = workspace_proxy.workspace_proxies;

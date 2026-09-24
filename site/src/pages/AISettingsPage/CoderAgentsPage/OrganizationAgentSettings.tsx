@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatModels,
@@ -32,11 +31,9 @@ type OrganizationAgentSettingsProps = {
 	showAdvisor: boolean;
 };
 
-export const OrganizationAgentSettings: FC<OrganizationAgentSettingsProps> = ({
-	organization,
-	canEdit,
-	showAdvisor,
-}) => (
+export const OrganizationAgentSettings: React.FC<
+	OrganizationAgentSettingsProps
+> = ({ organization, canEdit, showAdvisor }) => (
 	<OrganizationAgentSettingsContent
 		key={organization.id}
 		organization={organization}
@@ -45,11 +42,9 @@ export const OrganizationAgentSettings: FC<OrganizationAgentSettingsProps> = ({
 	/>
 );
 
-const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
-	organization,
-	canEdit,
-	showAdvisor,
-}) => {
+const OrganizationAgentSettingsContent: React.FC<
+	OrganizationAgentSettingsProps
+> = ({ organization, canEdit, showAdvisor }) => {
 	const queryClient = useQueryClient();
 	const modelsQuery = useQuery(chatModels(organization.id));
 	const overridesQuery = useQuery(

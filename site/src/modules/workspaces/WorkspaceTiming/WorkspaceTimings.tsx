@@ -1,6 +1,6 @@
 import sortBy from "lodash/sortBy";
 import uniqBy from "lodash/uniqBy";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type {
 	AgentConnectionTiming,
 	AgentScriptTiming,
@@ -48,7 +48,7 @@ type WorkspaceTimingsProps = {
 	agentConnectionTimings: readonly AgentConnectionTiming[] | undefined;
 };
 
-export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
+export const WorkspaceTimings: React.FC<WorkspaceTimingsProps> = ({
 	provisionerTimings = [],
 	agentScriptTimings = [],
 	agentConnectionTimings = [],

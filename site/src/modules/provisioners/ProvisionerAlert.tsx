@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import {
 	Alert,
 	type AlertColor,
@@ -43,7 +42,7 @@ const getAlertClassName = (variant: AlertVariant, severity: AlertColor) => {
 	return undefined;
 };
 
-export const ProvisionerAlert: FC<ProvisionerAlertProps> = ({
+export const ProvisionerAlert: React.FC<ProvisionerAlertProps> = ({
 	title,
 	detail,
 	severity,

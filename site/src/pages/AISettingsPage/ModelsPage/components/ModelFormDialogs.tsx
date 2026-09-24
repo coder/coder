@@ -1,5 +1,4 @@
 import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -13,7 +12,7 @@ import {
 } from "#/components/Dialog/Dialog";
 import type { ModelFormValues } from "#/modules/aiModels/modelConfigFormLogic";
 
-export const ModelFormDialogs: FC<{
+export const ModelFormDialogs: React.FC<{
 	editingModel?: TypesGen.ChatModel;
 	onDeleteModel?: (modelId: string) => Promise<void>;
 	isDeleting: boolean;

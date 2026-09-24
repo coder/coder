@@ -1,10 +1,4 @@
-import {
-	type KeyboardEvent as ReactKeyboardEvent,
-	useEffect,
-	useMemo,
-	useReducer,
-	useRef,
-} from "react";
+import { useEffect, useMemo, useReducer, useRef } from "react";
 import { useQueries, useQuery } from "react-query";
 import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
 import {
@@ -554,7 +548,7 @@ export const useFilterCombobox = ({
 		updateFromChips(chipValues.filter((entry) => entry !== token));
 	};
 
-	const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+	const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
 		const isBackspaceOrDelete =
 			event.key === "Backspace" || event.key === "Delete";
 

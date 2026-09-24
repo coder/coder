@@ -1,4 +1,4 @@
-import { type FC, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -28,7 +28,7 @@ import { RoleSelectorDialog } from "#/modules/roles/RoleSelectorDialog";
 import { pageTitle } from "#/utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
-const OrganizationMembersPage: FC = () => {
+const OrganizationMembersPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const { user: me } = useAuthenticated();
 	const { organization: organizationName } = useParams() as {

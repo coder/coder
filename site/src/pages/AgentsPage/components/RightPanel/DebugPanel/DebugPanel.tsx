@@ -1,6 +1,6 @@
 import { saveAs } from "file-saver";
 import { DownloadIcon } from "lucide-react";
-import { type FC, type ReactNode, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
 	type QueryClient,
 	useMutation,
@@ -98,7 +98,7 @@ const fetchDebugRunDetailsForExport = async (
 	return { runDetails, failedRuns };
 };
 
-export const DebugPanel: FC<DebugPanelProps> = ({
+export const DebugPanel: React.FC<DebugPanelProps> = ({
 	chatId,
 	isVisible = false,
 	download = saveAs,
@@ -129,7 +129,7 @@ export const DebugPanel: FC<DebugPanelProps> = ({
 			</div>
 		) : null;
 
-	let content: ReactNode;
+	let content: React.ReactNode;
 	if (runsQuery.isError && !hasRunsData) {
 		content = (
 			<div className="p-4">
@@ -204,7 +204,7 @@ type ExportAllDebugRunsButtonProps = {
 	download: DownloadDebugFile;
 };
 
-const ExportAllDebugRunsButton: FC<ExportAllDebugRunsButtonProps> = ({
+const ExportAllDebugRunsButton: React.FC<ExportAllDebugRunsButtonProps> = ({
 	chatId,
 	runs,
 	download,

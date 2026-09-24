@@ -1,13 +1,12 @@
 import { cn } from "cn";
-import type { ComponentProps, FC, ReactNode } from "react";
 
-export type EmptyStateProps = ComponentProps<"div"> & {
+export type EmptyStateProps = React.ComponentProps<"div"> & {
 	/** Text Message to display, placed inside Typography component */
 	message: string;
 	/** Longer optional description to display below the message */
-	description?: string | ReactNode;
-	cta?: ReactNode;
-	image?: ReactNode;
+	description?: string | React.ReactNode;
+	cta?: React.ReactNode;
+	image?: React.ReactNode;
 	isCompact?: boolean;
 };
 
@@ -16,7 +15,7 @@ export type EmptyStateProps = ComponentProps<"div"> & {
  * provide a button that would allow the user to return from where they were,
  * or to add an item that they currently have none of.
  */
-export const EmptyState: FC<EmptyStateProps> = ({
+export const EmptyState: React.FC<EmptyStateProps> = ({
 	message,
 	description,
 	cta,

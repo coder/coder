@@ -1,4 +1,4 @@
-import { type FC, useEffect } from "react";
+import { useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 import { API } from "#/api/api";
 import { isApiError } from "#/api/errors";
@@ -21,7 +21,7 @@ type RequireAuthProps = Readonly<{
  * props at all. But to make testing easier, you can call this component with
  * specific providers to mock them out.
  */
-export const RequireAuth: FC<RequireAuthProps> = ({
+export const RequireAuth: React.FC<RequireAuthProps> = ({
 	DashboardProvider = ProductionDashboardProvider,
 	ProxyProvider = ProductionProxyProvider,
 }) => {

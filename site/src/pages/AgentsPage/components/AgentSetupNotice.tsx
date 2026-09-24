@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import { Link } from "react-router";
 import type { Organization } from "#/api/typesGenerated";
 import { organizationModelsPath } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
@@ -25,7 +24,7 @@ const formatProviderList = (names: readonly string[]): string => {
 	return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 };
 
-export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
+export const AgentSetupNotice: React.FC<AgentSetupNoticeProps> = ({
 	isAdmin,
 	providerCount,
 	modelCount,
@@ -149,7 +148,9 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 	);
 };
 
-const NoticeContainer: FC<{ children: ReactNode }> = ({ children }) => {
+const NoticeContainer: React.FC<{ children: React.ReactNode }> = ({
+	children,
+}) => {
 	return (
 		<div className="rounded-2xl bg-surface-tertiary px-4 pb-14 pt-2.5 text-[13px] text-content-primary">
 			{children}

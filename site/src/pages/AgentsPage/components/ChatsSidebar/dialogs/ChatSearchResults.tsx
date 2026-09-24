@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Link, type Location } from "react-router";
 import { CHAT_SEARCH_LIMIT } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
@@ -35,7 +35,7 @@ const SCROLL_AREA_PROPS = {
 	viewportTabIndex: -1,
 };
 
-export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
+export const ChatSearchResults: React.FC<ChatSearchResultsProps> = ({
 	chats,
 	recentChats,
 	error,
@@ -128,7 +128,7 @@ type DefaultViewProps = {
 	readonly onDismiss: () => void;
 };
 
-const DefaultView: FC<DefaultViewProps> = ({
+const DefaultView: React.FC<DefaultViewProps> = ({
 	recentChats,
 	location,
 	listboxId,
@@ -185,7 +185,7 @@ type ChatSearchResultsListProps = {
 	readonly onDismiss: () => void;
 };
 
-const ChatSearchResultsList: FC<ChatSearchResultsListProps> = ({
+const ChatSearchResultsList: React.FC<ChatSearchResultsListProps> = ({
 	chats,
 	hasSearchText,
 	location,
@@ -244,7 +244,7 @@ type ChatSearchResultRowProps = {
 	readonly onSelect: () => void;
 };
 
-const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
+const ChatSearchResultRow: React.FC<ChatSearchResultRowProps> = ({
 	chat,
 	id,
 	isSelected,
@@ -334,7 +334,7 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 	);
 };
 
-const ChatSearchResultsSkeleton: FC = () => (
+const ChatSearchResultsSkeleton: React.FC = () => (
 	<div className="space-y-1.5">
 		{Array.from({ length: 6 }, (_, index) => (
 			<div

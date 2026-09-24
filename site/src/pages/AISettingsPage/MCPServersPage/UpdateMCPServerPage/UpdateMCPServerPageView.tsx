@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { pageTitle } from "#/utils/page";
 import { MCPServerForm } from "../components/MCPServerForm";
@@ -22,7 +21,7 @@ type UpdateMCPServerPageViewProps = {
 	onCancel: () => void;
 };
 
-const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
+const UpdateMCPServerPageView: React.FC<UpdateMCPServerPageViewProps> = ({
 	server,
 	organizations,
 	organization,

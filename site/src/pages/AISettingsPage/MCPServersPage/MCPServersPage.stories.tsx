@@ -1,5 +1,4 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
 import { useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
@@ -85,7 +84,7 @@ const mockOrganizationPermissions = (
 		organizationPermissionsResponse(permissionsByOrganizationId, checks),
 	);
 
-const RefetchServerDetailProbe: FC = () => {
+const RefetchServerDetailProbe: React.FC = () => {
 	const queryClient = useQueryClient();
 	return (
 		<button
@@ -109,7 +108,7 @@ const withRefetchServerDetailProbe: Decorator = (Story) => (
 	</>
 );
 
-const RefetchPermissionsProbe: FC = () => {
+const RefetchPermissionsProbe: React.FC = () => {
 	const queryClient = useQueryClient();
 	const { organizations } = useDashboard();
 	return (
@@ -136,7 +135,7 @@ const withRefetchPermissionsProbe: Decorator = (Story) => (
 	</>
 );
 
-const OrganizationSearchParamProbe: FC = () => {
+const OrganizationSearchParamProbe: React.FC = () => {
 	const [searchParams] = useSearchParams();
 	return (
 		<output aria-label="Organization query parameter">
@@ -152,17 +151,17 @@ const withOrganizationSearchParamProbe: Decorator = (Story) => (
 	</>
 );
 
-const ListRedirectProbe: FC = () => {
+const ListRedirectProbe: React.FC = () => {
 	const [searchParams] = useSearchParams();
 	return <div>list-org:{searchParams.get(orgSearchParam) ?? "none"}</div>;
 };
 
-const AddRedirectProbe: FC = () => {
+const AddRedirectProbe: React.FC = () => {
 	const [searchParams] = useSearchParams();
 	return <h1>add-org:{searchParams.get(orgSearchParam) ?? "none"}</h1>;
 };
 
-const DetailRedirectProbe: FC = () => {
+const DetailRedirectProbe: React.FC = () => {
 	const [searchParams] = useSearchParams();
 	return <h1>detail-org:{searchParams.get(orgSearchParam) ?? "none"}</h1>;
 };

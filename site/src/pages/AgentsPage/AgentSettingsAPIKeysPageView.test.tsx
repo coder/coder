@@ -1,6 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactElement } from "react";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -58,7 +57,7 @@ const defaultProps: AgentSettingsAPIKeysPageViewProps = {
 	areModelsUnavailable: false,
 };
 
-const renderView = (ui: ReactElement) => {
+const renderView = (ui: React.ReactElement) => {
 	const queryClient = createTestQueryClient();
 	queryClient.setDefaultOptions({
 		...queryClient.getDefaultOptions(),

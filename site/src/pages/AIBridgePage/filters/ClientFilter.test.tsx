@@ -1,5 +1,4 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import type { PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -14,7 +13,7 @@ const renderClientFilterMenu = (value: string) => {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
-	const wrapper = ({ children }: PropsWithChildren) => (
+	const wrapper = ({ children }: React.PropsWithChildren) => (
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 	);
 	const rendered = renderHook(

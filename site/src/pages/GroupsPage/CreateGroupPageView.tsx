@@ -1,6 +1,5 @@
 import { useFormik } from "formik";
 import { ArrowLeftIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
@@ -34,7 +33,7 @@ type CreateGroupPageViewProps = {
 	showOrganizations: boolean;
 };
 
-export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
+export const CreateGroupPageView: React.FC<CreateGroupPageViewProps> = ({
 	onSubmit,
 	onCancel,
 	error,

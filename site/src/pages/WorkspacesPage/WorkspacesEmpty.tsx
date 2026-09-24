@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Link } from "react-router";
 import type { Template } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -13,7 +12,7 @@ type WorkspacesEmptyProps = {
 	canCreateWorkspace: boolean;
 };
 
-export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
+export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 	isUsingFilter,
 	templates,
 	canCreateTemplate,

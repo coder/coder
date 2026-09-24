@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ChevronDownIcon } from "lucide-react";
-import type { FC } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import {
 	Collapsible,
@@ -31,7 +30,11 @@ type JsonBlockProps = {
 	copyLabel: string;
 };
 
-const JsonBlock: FC<JsonBlockProps> = ({ value, emptyMessage, copyLabel }) => {
+const JsonBlock: React.FC<JsonBlockProps> = ({
+	value,
+	emptyMessage,
+	copyLabel,
+}) => {
 	if (
 		value === null ||
 		value === undefined ||
@@ -65,7 +68,7 @@ const getAttemptTimingLabel = (attempt: NormalizedAttempt): string => {
 	return `${startedLabel} → ${finishedLabel} • ${durationLabel}`;
 };
 
-export const DebugAttemptAccordion: FC<DebugAttemptAccordionProps> = ({
+export const DebugAttemptAccordion: React.FC<DebugAttemptAccordionProps> = ({
 	attempts,
 	rawFallback,
 }) => {

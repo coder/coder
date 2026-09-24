@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -40,7 +39,7 @@ export type AgentSettingsUserAgentsPageViewProps = {
 	isSaveExploreModelOverrideError: boolean;
 };
 
-export const AgentSettingsUserAgentsPageView: FC<
+export const AgentSettingsUserAgentsPageView: React.FC<
 	AgentSettingsUserAgentsPageViewProps
 > = ({
 	overridesData,

@@ -1,4 +1,4 @@
-import { type FC, useCallback, useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { watchInboxNotifications } from "#/api/api";
@@ -23,7 +23,7 @@ type NotificationsInboxProps = {
 	) => Promise<UpdateInboxNotificationReadStatusResponse>;
 };
 
-export const NotificationsInbox: FC<NotificationsInboxProps> = ({
+export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
 	defaultOpen,
 	fetchNotifications,
 	markAllAsRead,

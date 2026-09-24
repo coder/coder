@@ -12,12 +12,7 @@ import {
 	StarIcon,
 } from "lucide-react";
 import type React from "react";
-import {
-	type FC,
-	type PropsWithChildren,
-	type ReactNode,
-	useState,
-} from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, useNavigate } from "react-router";
 import { API } from "#/api/api";
@@ -101,7 +96,7 @@ type WorkspacesTableProps = {
 	chatsByWorkspace?: Record<string, string>;
 };
 
-export const WorkspacesTable: FC<WorkspacesTableProps> = ({
+export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 	workspaces,
 	checkedWorkspaces,
 	isUsingFilter,
@@ -312,11 +307,11 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 type WorkspacesRowProps = {
 	workspace: Workspace;
 	workspacePageLink: string;
-	children?: ReactNode;
+	children?: React.ReactNode;
 	checked: boolean;
 };
 
-const WorkspacesRow: FC<WorkspacesRowProps> = ({
+const WorkspacesRow: React.FC<WorkspacesRowProps> = ({
 	workspace,
 	workspacePageLink,
 	children,
@@ -356,7 +351,7 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 	);
 };
 
-const TableLoader: FC = () => {
+const TableLoader: React.FC = () => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
@@ -395,7 +390,7 @@ type WorkspaceActionsCellProps = {
 	onActionError: (error: unknown) => void;
 };
 
-const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
+const WorkspaceActionsCell: React.FC<WorkspaceActionsCellProps> = ({
 	workspace,
 	onActionSuccess,
 	onActionError,
@@ -666,13 +661,13 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	);
 };
 
-type PrimaryActionProps = PropsWithChildren<{
+type PrimaryActionProps = React.PropsWithChildren<{
 	label: string;
 	isLoading?: boolean;
 	onClick: () => void;
 }>;
 
-const PrimaryAction: FC<PrimaryActionProps> = ({
+const PrimaryAction: React.FC<PrimaryActionProps> = ({
 	onClick,
 	isLoading,
 	label,
@@ -705,7 +700,7 @@ type WorkspaceAppsProps = {
 	workspace: Workspace;
 };
 
-const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
+const WorkspaceApps: React.FC<WorkspaceAppsProps> = ({ workspace }) => {
 	/**
 	 * Coder is pretty flexible and allows an enormous variety of use cases, such
 	 * as having multiple resources with many agents, but they are not common. The
@@ -741,7 +736,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 		)
 		.slice(0, remainingSlots);
 
-	const buttons: ReactNode[] = [];
+	const buttons: React.ReactNode[] = [];
 
 	if (builtinApps.has("vscode")) {
 		buttons.push(
@@ -812,7 +807,7 @@ type WorkspaceAppStatusLinksProps = {
 	workspace: Workspace;
 };
 
-const WorkspaceAppStatusLinks: FC<WorkspaceAppStatusLinksProps> = ({
+const WorkspaceAppStatusLinks: React.FC<WorkspaceAppStatusLinksProps> = ({
 	workspace,
 }) => {
 	const status = workspace.latest_app_status;
@@ -849,7 +844,7 @@ type IconAppLinkProps = {
 	agent: WorkspaceAgent;
 };
 
-const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
+const IconAppLink: React.FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 	const link = useAppLink(app, {
 		workspace,
 		agent,
@@ -900,7 +895,7 @@ type VSCodeIconLinkProps = {
 // Generates an API key on click instead of on page load, since
 // key generation is a POST request that should only fire when
 // the user actually wants to open VS Code.
-const VSCodeIconLink: FC<VSCodeIconLinkProps> = ({
+const VSCodeIconLink: React.FC<VSCodeIconLinkProps> = ({
 	variant,
 	label,
 	owner,
@@ -943,7 +938,7 @@ const VSCodeIconLink: FC<VSCodeIconLinkProps> = ({
 	);
 };
 
-type BaseIconLinkCommonProps = PropsWithChildren<{
+type BaseIconLinkCommonProps = React.PropsWithChildren<{
 	label: string;
 	isLoading?: boolean;
 }>;
@@ -961,7 +956,7 @@ type BaseIconLinkButtonProps = BaseIconLinkCommonProps & {
 
 type BaseIconLinkProps = BaseIconLinkAnchorProps | BaseIconLinkButtonProps;
 
-const BaseIconLink: FC<BaseIconLinkProps> = ({
+const BaseIconLink: React.FC<BaseIconLinkProps> = ({
 	isLoading,
 	label,
 	children,

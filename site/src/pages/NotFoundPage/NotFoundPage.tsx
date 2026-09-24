@@ -1,6 +1,4 @@
-import type { FC } from "react";
-
-const NotFoundPage: FC = () => {
+const NotFoundPage: React.FC = () => {
 	return (
 		<div className="w-full h-full flex flex-row justify-center items-center">
 			<p className="flex gap-4">

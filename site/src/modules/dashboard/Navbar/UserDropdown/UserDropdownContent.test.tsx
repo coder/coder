@@ -1,5 +1,4 @@
 import { screen } from "@testing-library/react";
-import type { ReactNode } from "react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -11,7 +10,7 @@ import { UserDropdownContent } from "./UserDropdownContent";
 
 const renderUserDropdownContent = (props: {
 	onSignOut: () => void;
-	profileExtra?: ReactNode;
+	profileExtra?: React.ReactNode;
 }) => {
 	return render(
 		<DropdownMenu defaultOpen>

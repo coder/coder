@@ -1,4 +1,3 @@
-import type { ComponentProps, FC } from "react";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
 import { PaginationAmount } from "./PaginationAmount";
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
@@ -8,12 +7,12 @@ export type PaginationResult<Data = unknown> = PaginationResultInfo & {
 	data?: Data;
 };
 
-type PaginationProps = ComponentProps<"div"> & {
+type PaginationProps = React.ComponentProps<"div"> & {
 	query: PaginationResult;
 	paginationUnitLabel: string;
 };
 
-export const PaginationContainer: FC<PaginationProps> = ({
+export const PaginationContainer: React.FC<PaginationProps> = ({
 	children,
 	query,
 	paginationUnitLabel,

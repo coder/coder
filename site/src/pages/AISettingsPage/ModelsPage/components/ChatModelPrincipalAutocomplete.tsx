@@ -1,5 +1,5 @@
 import { CheckIcon } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { useId, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { chatModelACLAvailable } from "#/api/queries/chats";
 import type { Group, ReducedUser } from "#/api/typesGenerated";
@@ -21,7 +21,7 @@ type ChatModelPrincipalAutocompleteProps = {
 	className?: string;
 };
 
-export const ChatModelPrincipalAutocomplete: FC<
+export const ChatModelPrincipalAutocomplete: React.FC<
 	ChatModelPrincipalAutocompleteProps
 > = ({
 	value,

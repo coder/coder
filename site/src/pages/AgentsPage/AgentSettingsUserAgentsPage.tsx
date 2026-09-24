@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatModels,
@@ -13,7 +13,7 @@ import {
 import { AgentSettingsUserAgentsPageView } from "./AgentSettingsUserAgentsPageView";
 import { resolveModelSelector } from "./utils/modelOptions";
 
-const AgentSettingsUserAgentsPage: FC = () => {
+const AgentSettingsUserAgentsPage: React.FC = () => {
 	const { organizations } = useDashboard();
 	const defaultOrganizationId = getDefaultOrganizationId(organizations);
 	const [selectedOrganizationId, setSelectedOrganizationId] = useState(
@@ -50,7 +50,7 @@ type AgentSettingsUserAgentsPageContentProps = {
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
 };
 
-const AgentSettingsUserAgentsPageContent: FC<
+const AgentSettingsUserAgentsPageContent: React.FC<
 	AgentSettingsUserAgentsPageContentProps
 > = ({
 	organizations,

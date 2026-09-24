@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import { ArrowRightIcon, CheckIcon } from "lucide-react";
 import type React from "react";
-import type { FC } from "react";
 import { type LinkProps, Link as RouterLink } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
@@ -47,7 +46,7 @@ export const Paywall = ({
 	);
 };
 
-export const PaywallContent: FC<React.ComponentProps<"div">> = ({
+export const PaywallContent: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...props
@@ -65,7 +64,7 @@ export const PaywallContent: FC<React.ComponentProps<"div">> = ({
 	);
 };
 
-export const PaywallHeading: FC<React.ComponentProps<"div">> = ({
+export const PaywallHeading: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...props
@@ -83,7 +82,7 @@ export const PaywallHeading: FC<React.ComponentProps<"div">> = ({
 	);
 };
 
-export const PaywallTitle: FC<React.ComponentProps<"h5">> = ({
+export const PaywallTitle: React.FC<React.ComponentProps<"h5">> = ({
 	children,
 	className,
 	...props
@@ -98,7 +97,7 @@ export const PaywallTitle: FC<React.ComponentProps<"h5">> = ({
 	);
 };
 
-export const PaywallDescription: FC<React.ComponentProps<"p">> = ({
+export const PaywallDescription: React.FC<React.ComponentProps<"p">> = ({
 	children,
 	className,
 	...props
@@ -113,14 +112,14 @@ export const PaywallDescription: FC<React.ComponentProps<"p">> = ({
 	);
 };
 
-export const PaywallSupergraphic: FC<React.ComponentProps<"div">> = ({
+export const PaywallSupergraphic: React.FC<React.ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {
 	return <Supergraphic className={cn("left-0 w-1/2", className)} {...props} />;
 };
 
-export const PaywallStack: FC<React.ComponentProps<"div">> = ({
+export const PaywallStack: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...props
@@ -135,7 +134,7 @@ export const PaywallStack: FC<React.ComponentProps<"div">> = ({
 	);
 };
 
-export const PaywallFeatures: FC<React.ComponentProps<"ul">> = ({
+export const PaywallFeatures: React.FC<React.ComponentProps<"ul">> = ({
 	children,
 	className,
 	...props
@@ -150,7 +149,7 @@ export const PaywallFeatures: FC<React.ComponentProps<"ul">> = ({
 	);
 };
 
-export const PaywallFeature: FC<React.ComponentProps<"li">> = ({
+export const PaywallFeature: React.FC<React.ComponentProps<"li">> = ({
 	children,
 	className,
 	...props
@@ -163,7 +162,7 @@ export const PaywallFeature: FC<React.ComponentProps<"li">> = ({
 	);
 };
 
-export const PaywallCTALink: FC<LinkProps> = ({
+export const PaywallCTALink: React.FC<LinkProps> = ({
 	children,
 	className,
 	...props
@@ -178,7 +177,7 @@ export const PaywallCTALink: FC<LinkProps> = ({
 	);
 };
 
-export const PaywallGuidance: FC<React.ComponentProps<"p">> = ({
+export const PaywallGuidance: React.FC<React.ComponentProps<"p">> = ({
 	children,
 	className,
 	...props
@@ -196,7 +195,7 @@ export const PaywallGuidance: FC<React.ComponentProps<"p">> = ({
 	);
 };
 
-const FeatureIcon: FC<React.ComponentProps<"svg">> = ({
+const FeatureIcon: React.FC<React.ComponentProps<"svg">> = ({
 	className,
 	...props
 }) => {

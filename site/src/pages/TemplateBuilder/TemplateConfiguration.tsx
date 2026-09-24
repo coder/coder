@@ -1,4 +1,3 @@
-import type { PropsWithChildren } from "react";
 import { TemplateBuilderAvatarData } from "#/pages/TemplateBuilder/TemplateBuilderAvatarData";
 import {
 	ConfigurationField,
@@ -6,7 +5,7 @@ import {
 	type ConfigurationFieldDefinition,
 } from "./ConfigurationField";
 
-type TemplateConfigurationProps = PropsWithChildren<{
+type TemplateConfigurationProps = React.PropsWithChildren<{
 	name: string;
 	description: string;
 	iconUrl?: string;

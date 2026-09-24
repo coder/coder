@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { expect, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
@@ -13,7 +12,7 @@ import {
 } from "#/testHelpers/entities";
 import { UsersPageView } from "./UsersPageView";
 
-type FilterProps = ComponentProps<typeof UsersPageView>["filterProps"];
+type FilterProps = React.ComponentProps<typeof UsersPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	query: "owner:me",

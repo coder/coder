@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useOutletContext } from "react-router";
 import type { HealthcheckReport } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
@@ -13,7 +12,7 @@ import {
 } from "./Content";
 import { MuteWarningsButton } from "./MuteWarningsButton";
 
-const ProvisionerDaemonsPage: FC = () => {
+const ProvisionerDaemonsPage: React.FC = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
 	const { provisioner_daemons: daemons } = healthStatus;
 

@@ -15,13 +15,7 @@ import {
 	XIcon,
 } from "lucide-react";
 import type React from "react";
-import {
-	type FC,
-	useEffect,
-	useImperativeHandle,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -233,7 +227,7 @@ type ToolBadgeData =
 // workspace, MCP server, planning indicator) to dismiss or disable
 // the badge without opening the `+` menu. Callers pass the action
 // handler and a descriptive aria-label.
-const BadgeDismissButton: FC<{
+const BadgeDismissButton: React.FC<{
 	onClick: () => void;
 	ariaLabel: string;
 	isDisabled?: boolean;
@@ -251,7 +245,7 @@ const BadgeDismissButton: FC<{
 	</button>
 );
 
-const ToolBadge: FC<{
+const ToolBadge: React.FC<{
 	badge: ToolBadgeData;
 	onRemoveWorkspace?: () => void;
 	onRemoveMcp?: (serverId: string) => void;
@@ -365,7 +359,7 @@ const ToolBadge: FC<{
 	);
 };
 
-export const AgentChatInput: FC<AgentChatInputProps> = ({
+export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onSend,
 	placeholder = "Type a message...",
 	isDisabled,
@@ -1822,7 +1816,7 @@ type WorkspacePickerListProps = {
 	onSelect: (id: string | null) => void;
 };
 
-const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
+const WorkspacePickerList: React.FC<WorkspacePickerListProps> = ({
 	workspaceOptions,
 	selectedWorkspaceId,
 	chatOrganizationId,

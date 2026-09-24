@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { chatModelACL, updateChatModelACL } from "#/api/queries/chats";
@@ -72,7 +71,7 @@ type OpenChatModelSharingDialogProps = Omit<
 	"open"
 >;
 
-const OpenChatModelSharingDialog: FC<OpenChatModelSharingDialogProps> = ({
+const OpenChatModelSharingDialog: React.FC<OpenChatModelSharingDialogProps> = ({
 	onOpenChange,
 	organizationId,
 	modelId,
@@ -134,6 +133,6 @@ const OpenChatModelSharingDialog: FC<OpenChatModelSharingDialogProps> = ({
 	);
 };
 
-export const ChatModelSharingDialog: FC<ChatModelSharingDialogProps> = (
+export const ChatModelSharingDialog: React.FC<ChatModelSharingDialogProps> = (
 	props,
 ) => (props.open ? <OpenChatModelSharingDialog {...props} /> : null);

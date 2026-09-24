@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ChevronLeftIcon, CodeIcon, HashIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link, useOutletContext, useParams } from "react-router";
 import type {
 	DERPNodeReport,
@@ -40,7 +39,7 @@ type NodeCheckRow = {
 	value: boolean | null;
 };
 
-const DERPRegionPage: FC = () => {
+const DERPRegionPage: React.FC = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
 	const params = useParams() as { regionId: string };
 	const regionId = Number(params.regionId);
@@ -228,7 +227,7 @@ const DERPRegionPage: FC = () => {
 
 type StatusCircleProps = { background: string };
 
-const StatusCircle: FC<StatusCircleProps> = ({ background }) => {
+const StatusCircle: React.FC<StatusCircleProps> = ({ background }) => {
 	return (
 		<div className="flex items-center justify-center">
 			<div className={cn("size-2 rounded-full", background)} />

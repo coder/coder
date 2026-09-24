@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
-import type { FC } from "react";
 import { useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -29,7 +28,7 @@ type PersonalInstructionsSettingsProps = {
 	isAnyPromptSaving: boolean;
 };
 
-export const PersonalInstructionsSettings: FC<
+export const PersonalInstructionsSettings: React.FC<
 	PersonalInstructionsSettingsProps
 > = ({
 	userPromptData,

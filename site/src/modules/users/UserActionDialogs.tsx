@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -31,7 +31,7 @@ type UserActionDialogsProps = {
 	onDeleted?: (user: User) => void;
 };
 
-export const UserActionDialogs: FC<UserActionDialogsProps> = ({
+export const UserActionDialogs: React.FC<UserActionDialogsProps> = ({
 	action,
 	onClose,
 	onDeleted,
@@ -218,7 +218,7 @@ export const UserActionDialogs: FC<UserActionDialogsProps> = ({
 	);
 };
 
-const ResetPasswordAction: FC<{
+const ResetPasswordAction: React.FC<{
 	user: User;
 	loading: boolean;
 	onClose: () => void;

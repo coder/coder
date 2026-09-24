@@ -1,5 +1,4 @@
 import { InfoIcon, NetworkIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import userAgentParser from "ua-parser-js";
 import type { ConnectionLog } from "#/api/typesGenerated";
@@ -20,7 +19,7 @@ type ConnectionLogRowProps = {
 	connectionLog: ConnectionLog;
 };
 
-export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
+export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 	connectionLog,
 }) => {
 	const userAgent = connectionLog.web_info?.user_agent

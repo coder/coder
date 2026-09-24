@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import type { ConfirmDialogProps } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
@@ -33,7 +32,7 @@ type ScheduleDialogProps = Pick<
 	readonly deletionValueChanged: boolean;
 };
 
-export const ScheduleDialog: FC<ScheduleDialogProps> = ({
+export const ScheduleDialog: React.FC<ScheduleDialogProps> = ({
 	cancelText,
 	confirmLoading,
 	disabled = false,

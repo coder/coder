@@ -1,11 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useFormik } from "formik";
-import type { FC } from "react";
 import { FormField } from "#/components/FormField/FormField";
 import { getFormHelpers } from "#/utils/formUtils";
 import { Form, FormFields, FormSection } from "./Form";
 
-const ExampleForm: FC<{ direction?: "horizontal" | "vertical" }> = ({
+const ExampleForm: React.FC<{ direction?: "horizontal" | "vertical" }> = ({
 	direction,
 }) => {
 	const form = useFormik({

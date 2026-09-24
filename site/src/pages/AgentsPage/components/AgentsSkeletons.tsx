@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
@@ -30,7 +30,7 @@ function getRightPanelState(): { open: boolean; width: number } {
  * sidebar + empty main area layout so the user sees structure
  * immediately instead of a fullscreen spinner.
  */
-export const AgentsPageLayoutSkeleton: FC = () => {
+export const AgentsPageLayoutSkeleton: React.FC = () => {
 	const [leftSidebarWidth] = useState(() => loadPersistedLeftSidebarWidth());
 
 	return (
@@ -86,7 +86,7 @@ export const AgentsPageLayoutSkeleton: FC = () => {
  * Skeleton placeholder for a chat conversation: two user message
  * bubbles interleaved with assistant response lines.
  */
-export const ChatConversationSkeleton: FC = () => (
+export const ChatConversationSkeleton: React.FC = () => (
 	<div className="flex flex-col gap-3">
 		{/* User message bubble (right-aligned) */}
 		<div className="flex w-full justify-end">
@@ -117,7 +117,7 @@ export const ChatConversationSkeleton: FC = () => (
  * Skeleton placeholder for the right sidebar panel: a tab bar and
  * a few content lines.
  */
-export const RightPanelSkeleton: FC = () => (
+export const RightPanelSkeleton: React.FC = () => (
 	<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 		{/* Skeleton tab bar */}
 		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1">
@@ -138,7 +138,7 @@ export const RightPanelSkeleton: FC = () => (
  * the real AgentChatInput so the transition from Suspense fallback to
  * the loaded component doesn't cause a vertical layout shift.
  */
-const ChatInputSkeleton: FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
+const ChatInputSkeleton: React.FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
 	<div className="shrink-0 overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin">
 		<div
 			className={cn("mx-auto w-full pb-0 sm:pb-4", chatWidthClass(fullWidth))}
@@ -159,7 +159,7 @@ const ChatInputSkeleton: FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
  * top bar + chat conversation layout so the user sees navigable
  * structure during the brief Suspense fallback.
  */
-export const AgentChatPageSkeleton: FC = () => {
+export const AgentChatPageSkeleton: React.FC = () => {
 	const rightPanel = getRightPanelState();
 	const [chatFullWidth] = useChatFullWidth();
 

@@ -1,5 +1,5 @@
 import { CheckIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { templaceACLAvailable } from "#/api/queries/templates";
 import type { Group, ReducedUser } from "#/api/typesGenerated";
@@ -18,12 +18,9 @@ type UserOrGroupAutocompleteProps = {
 	exclude: UserOrGroupAutocompleteValue[];
 };
 
-export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
-	value,
-	onChange,
-	templateID,
-	exclude,
-}) => {
+export const UserOrGroupAutocomplete: React.FC<
+	UserOrGroupAutocompleteProps
+> = ({ value, onChange, templateID, exclude }) => {
 	const [inputValue, setInputValue] = useState("");
 	const [open, setOpen] = useState(false);
 

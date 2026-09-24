@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC, ReactNode } from "react";
 import {
 	Link,
 	NavLink,
@@ -25,7 +24,7 @@ type AISettingsSidebarViewProps = {
 	canShareOrganizationMCPServers?: boolean;
 };
 
-const SubNavItem: FC<{ href: To; children?: ReactNode }> = ({
+const SubNavItem: React.FC<{ href: To; children?: React.ReactNode }> = ({
 	href,
 	children,
 }) => (
@@ -44,7 +43,7 @@ const SubNavItem: FC<{ href: To; children?: ReactNode }> = ({
 	</NavLink>
 );
 
-const SubNavGroup: FC<{ children: ReactNode }> = ({ children }) => (
+const SubNavGroup: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 	<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
 		{children}
 	</div>
@@ -62,7 +61,7 @@ const organizationScopedPath = (
 		: "",
 });
 
-const ModelsSidebarNavItem: FC<{ href: To }> = ({ href }) => {
+const ModelsSidebarNavItem: React.FC<{ href: To }> = ({ href }) => {
 	const legacyMatch = useMatch("/ai/settings/models/*");
 	const organizationMatch = useMatch(
 		"/ai/settings/organizations/:organization/models/*",
@@ -83,7 +82,7 @@ const ModelsSidebarNavItem: FC<{ href: To }> = ({ href }) => {
 	);
 };
 
-const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
+const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 	permissions,
 	canViewAISpend = false,
 	canAccessOrganizationModels = false,

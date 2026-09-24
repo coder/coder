@@ -1,4 +1,4 @@
-import { type RefObject, useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 // Tolerance for getBoundingClientRect subpixel rounding and integer
 // scrollWidth/clientWidth rounding.
@@ -69,7 +69,7 @@ export function computeOverflowCount(snapshot: {
  *   is reserved before items claim space.
  */
 export function useOverflowCount(
-	containerRef: RefObject<HTMLElement | null>,
+	containerRef: React.RefObject<HTMLElement | null>,
 	itemCount: number,
 ): number {
 	const [overflowCount, setOverflowCount] = useState(0);

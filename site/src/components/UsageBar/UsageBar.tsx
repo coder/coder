@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { clampPercentage, type UsageSeverity } from "#/utils/budget";
 
 const severityProgressClasses = {
@@ -17,7 +16,7 @@ type UsageBarProps = {
 	className?: string;
 };
 
-export const UsageBar: FC<UsageBarProps> = ({
+export const UsageBar: React.FC<UsageBarProps> = ({
 	percent,
 	severity = "normal",
 	ariaLabel,

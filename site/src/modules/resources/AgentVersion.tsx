@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { buildInfo } from "#/api/queries/buildInfo";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
@@ -11,7 +10,10 @@ type AgentVersionProps = {
 	onUpdate: () => void;
 };
 
-export const AgentVersion: FC<AgentVersionProps> = ({ agent, onUpdate }) => {
+export const AgentVersion: React.FC<AgentVersionProps> = ({
+	agent,
+	onUpdate,
+}) => {
 	const { metadata } = useEmbeddedMetadata();
 	const { data: build } = useQuery(buildInfo(metadata["build-info"]));
 	const serverVersion = build?.version ?? "";

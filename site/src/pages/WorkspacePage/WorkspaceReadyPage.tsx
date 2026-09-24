@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { API } from "#/api/api";
@@ -41,7 +41,7 @@ type WorkspaceReadyPageProps = {
 	permissions: WorkspacePermissions;
 };
 
-export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
+export const WorkspaceReadyPage: React.FC<WorkspaceReadyPageProps> = ({
 	workspace,
 	template,
 	permissions,
@@ -444,7 +444,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	);
 };
 
-const WarningDialog: FC<
+const WarningDialog: React.FC<
 	Pick<
 		ConfirmDialogProps,
 		"open" | "onClose" | "title" | "confirmText" | "description" | "onConfirm"

@@ -4,8 +4,7 @@ import {
 	FileTextIcon,
 	LinkIcon,
 } from "lucide-react";
-import type { FC, RefObject } from "react";
-import { type KeyboardEventHandler, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { type Location, useNavigate } from "react-router";
 import { chatSearch } from "#/api/queries/chats";
@@ -30,7 +29,7 @@ import {
 type FilterDefinition = {
 	readonly key: ChatSearchFilterKey;
 	readonly label: string;
-	readonly icon: FC<{ className?: string }>;
+	readonly icon: React.FC<{ className?: string }>;
 	readonly defaultValue: string | null;
 	readonly validate: (value: string) => boolean;
 };
@@ -80,7 +79,7 @@ type ChatSearchDialogProps = {
 
 const SEARCH_DEBOUNCE_MS = 500;
 
-export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
+export const ChatSearchDialog: React.FC<ChatSearchDialogProps> = ({
 	open,
 	onOpenChange,
 	focusInputOnOpen = true,
@@ -137,10 +136,10 @@ type ChatSearchDialogContentProps = Omit<
 	ChatSearchDialogProps,
 	"focusInputOnOpen"
 > & {
-	readonly inputRef: RefObject<HTMLInputElement | null>;
+	readonly inputRef: React.RefObject<HTMLInputElement | null>;
 };
 
-const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
+const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 	open,
 	onOpenChange,
 	location,
@@ -280,7 +279,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		? [...filters, { key: incompleteFilterKey, value: null }]
 		: filters;
 
-	const handleInputKeyDown: KeyboardEventHandler<HTMLInputElement> = (
+	const handleInputKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (
 		event,
 	) => {
 		if (
@@ -432,7 +431,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 // Filter dropdown: appears on focus, shows clickable filter chips.
 // ---------------------------------------------------------------------------
 
-const FilterDropdown: FC<{
+const FilterDropdown: React.FC<{
 	readonly filters: readonly SearchFilter[];
 	readonly onSelectFilter: (def: FilterDefinition) => void;
 }> = ({ filters, onSelectFilter }) => {

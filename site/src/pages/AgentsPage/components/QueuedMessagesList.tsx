@@ -6,7 +6,7 @@ import {
 	InfoIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -53,7 +53,7 @@ export const getQueuedMessageInfo = (
 	};
 };
 
-export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
+export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	messages,
 	onDelete,
 	onPromote,

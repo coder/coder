@@ -1,14 +1,6 @@
 import { cn } from "cn";
 import { CheckIcon, XIcon } from "lucide-react";
-import {
-	type KeyboardEvent,
-	type ReactNode,
-	type SyntheticEvent,
-	useCallback,
-	useId,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import {
 	Command,
@@ -33,7 +25,7 @@ type AutocompleteProps<TOption> = {
 	getOptionValue: (option: TOption) => string;
 	getOptionLabel: (option: TOption) => string;
 	isOptionEqualToValue?: (option: TOption, value: TOption) => boolean;
-	renderOption?: (option: TOption, isSelected: boolean) => ReactNode;
+	renderOption?: (option: TOption, isSelected: boolean) => React.ReactNode;
 	loading?: boolean;
 	placeholder?: string;
 	noOptionsText?: string;
@@ -46,7 +38,7 @@ type AutocompleteProps<TOption> = {
 	inlineSearch?: boolean;
 	clearable?: boolean;
 	disabled?: boolean;
-	startAdornment?: ReactNode;
+	startAdornment?: React.ReactNode;
 	className?: string;
 	triggerAriaInvalid?: boolean;
 	triggerAriaDescribedBy?: string;
@@ -140,7 +132,7 @@ export function Autocomplete<TOption>({
 	);
 
 	const handleClear = useCallback(
-		(e: SyntheticEvent) => {
+		(e: React.SyntheticEvent) => {
 			e.stopPropagation();
 			onChange(null);
 			handleInputChange("");
@@ -149,7 +141,7 @@ export function Autocomplete<TOption>({
 	);
 
 	const handleKeyDown = useCallback(
-		(e: KeyboardEvent<HTMLElement>) => {
+		(e: React.KeyboardEvent<HTMLElement>) => {
 			if (e.key === "Escape") {
 				// cmdk consumes Escape unless default is prevented before its handler.
 				e.preventDefault();
@@ -175,7 +167,7 @@ export function Autocomplete<TOption>({
 			? `${listboxId}-option-${highlightedIndex}`
 			: undefined;
 
-	const handleInlineKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+	const handleInlineKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
 		if (disabled) {
 			return;
 		}

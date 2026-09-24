@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -15,7 +15,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
 
-const ExternalAuthPage: FC = () => {
+const ExternalAuthPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	// This is used to tell the child components something was unlinked and things
 	// need to be refetched

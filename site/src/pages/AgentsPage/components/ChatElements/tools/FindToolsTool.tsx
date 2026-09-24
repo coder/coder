@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
@@ -16,7 +15,7 @@ type FindToolsToolProps = {
 	errorMessage?: string;
 };
 
-export const FindToolsTool: FC<FindToolsToolProps> = ({
+export const FindToolsTool: React.FC<FindToolsToolProps> = ({
 	queries,
 	names,
 	matches,

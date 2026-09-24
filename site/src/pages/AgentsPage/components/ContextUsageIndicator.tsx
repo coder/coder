@@ -7,7 +7,7 @@ import {
 	WrenchIcon,
 	ZapIcon,
 } from "lucide-react";
-import { type FC, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type {
 	ChatContext,
 	ChatContextResource,
@@ -122,7 +122,7 @@ const sumResourceBytes = (
 
 // Dimmed "(N.N KiB)" size suffix for a section header, omitted when the
 // section has no measurable size.
-const SectionSize: FC<{ bytes: number }> = ({ bytes }) =>
+const SectionSize: React.FC<{ bytes: number }> = ({ bytes }) =>
 	bytes > 0 ? (
 		<span className="ml-1 font-normal text-content-secondary">
 			{`(${formatKiB(bytes)})`}
@@ -179,7 +179,7 @@ const GLYPH_BAR_LENGTH = 8.1;
 const GLYPH_TOP = (RING_SIZE - GLYPH_HEIGHT) / 2;
 const GLYPH_CX = RING_SIZE / 2;
 
-const ExclamationGlyph: FC = () => (
+const ExclamationGlyph: React.FC = () => (
 	<svg
 		width={RING_SIZE}
 		height={RING_SIZE}
@@ -211,7 +211,7 @@ const HOVER_CLOSE_DELAY_MS = 150;
 
 // Dimmed directory header shown above a group of context resources when a
 // section spans more than one directory.
-const ContextDirLabel: FC<{ dir: string }> = ({ dir }) => (
+const ContextDirLabel: React.FC<{ dir: string }> = ({ dir }) => (
 	<span
 		className="flex items-center gap-1 text-[11px] text-content-secondary"
 		title={dir}
@@ -221,7 +221,7 @@ const ContextDirLabel: FC<{ dir: string }> = ({ dir }) => (
 	</span>
 );
 
-export const ContextUsageIndicator: FC<{
+export const ContextUsageIndicator: React.FC<{
 	usage: AgentContextUsage | null;
 	onRefreshContext?: () => void;
 	isRefreshingContext?: boolean;

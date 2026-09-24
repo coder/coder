@@ -1,10 +1,9 @@
-import type { FC } from "react";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useDeploymentConfig } from "#/modules/management/DeploymentConfigProvider";
 import { pageTitle } from "#/utils/page";
 import { AIGovernanceSettingsPageView } from "./AIGovernanceSettingsPageView";
 
-const AIGovernanceSettingsPage: FC = () => {
+const AIGovernanceSettingsPage: React.FC = () => {
 	const { deploymentConfig } = useDeploymentConfig();
 	const { entitlements } = useDashboard();
 	const isAiBridgeEntitled =

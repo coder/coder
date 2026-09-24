@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 
 type PaginationHeaderProps = {
@@ -14,7 +13,7 @@ type PaginationHeaderProps = {
 	className?: string;
 };
 
-export const PaginationAmount: FC<PaginationHeaderProps> = ({
+export const PaginationAmount: React.FC<PaginationHeaderProps> = ({
 	paginationUnitLabel,
 	limit,
 	totalRecords,

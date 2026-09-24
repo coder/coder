@@ -21,7 +21,7 @@ import {
 	SettingsIcon,
 	SquarePenIcon,
 } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, type Location, NavLink } from "react-router";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -100,7 +100,7 @@ type ChatsPanelProps = {
 	readonly currentUserId: string;
 };
 
-export const ChatsPanel: FC<ChatsPanelProps> = ({
+export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chats,
 	chatErrorReasons,
 	modelConfigs,

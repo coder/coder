@@ -1,4 +1,3 @@
-import type { ComponentProps, FC } from "react";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -27,12 +26,12 @@ type ConnectionLogPageViewProps = {
 	isNonInitialPage: boolean;
 	isConnectionLogVisible: boolean;
 	error?: unknown;
-	filterProps: ComponentProps<typeof ConnectionLogFilter>;
+	filterProps: React.ComponentProps<typeof ConnectionLogFilter>;
 	connectionLogsQuery: PaginationResult;
 	permissions: Permissions;
 };
 
-export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
+export const ConnectionLogPageView: React.FC<ConnectionLogPageViewProps> = ({
 	connectionLogs,
 	isNonInitialPage,
 	isConnectionLogVisible,
@@ -111,7 +110,7 @@ type ConnectionLogTableBodyProps = {
 	isNonInitialPage: boolean;
 };
 
-const ConnectionLogTableBody: FC<ConnectionLogTableBodyProps> = ({
+const ConnectionLogTableBody: React.FC<ConnectionLogTableBodyProps> = ({
 	connectionLogs,
 	error,
 	isLoading,

@@ -1,12 +1,4 @@
-import {
-	createContext,
-	type FC,
-	type PropsWithChildren,
-	useContext,
-	useEffect,
-	useMemo,
-	useState,
-} from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { API } from "#/api/api";
 import { cachedQuery } from "#/api/queries/util";
@@ -91,7 +83,9 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
 /**
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
  */
-export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
+export const ProxyProvider: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	// Using a useState so the caller always has the latest user saved
 	// proxy.
 	const [userSavedProxy, setUserSavedProxy] = useState(loadUserSelectedProxy());

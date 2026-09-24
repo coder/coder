@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { AlertTriangleIcon, ClipboardPasteIcon, XIcon } from "lucide-react";
-import type { FC, ReactEventHandler } from "react";
 import { toast } from "sonner";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -32,11 +31,11 @@ export const isUploadInProgress = (state: UploadState | undefined): boolean =>
 	state?.status === "uploading";
 
 /** Renders an image thumbnail from a pre-created preview URL. */
-export const ImageThumbnail: FC<{
+export const ImageThumbnail: React.FC<{
 	previewUrl: string;
 	name: string;
 	className?: string;
-	onError?: ReactEventHandler<HTMLImageElement>;
+	onError?: React.ReactEventHandler<HTMLImageElement>;
 }> = ({ previewUrl, name, className, onError }) => (
 	<img
 		src={previewUrl}
@@ -50,7 +49,7 @@ export const ImageThumbnail: FC<{
 );
 
 /** Renders a horizontal strip of attachment thumbnails above the input. */
-export const AttachmentPreview: FC<{
+export const AttachmentPreview: React.FC<{
 	attachments: readonly File[];
 	onRemove: (attachment: number | File) => void;
 	uploadStates?: Map<File, UploadState>;

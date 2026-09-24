@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import { type FC, type FormEvent, useId, useState } from "react";
+import { useId, useState } from "react";
 import type {
 	CreateWorkspaceBuildRequest,
 	Workspace,
@@ -22,7 +22,7 @@ type WorkspaceDeleteDialogProps = {
 	onConfirm: (arg: CreateWorkspaceBuildRequest["orphan"]) => void;
 };
 
-export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
+export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
 	workspace,
 	canDeleteFailedWorkspace,
 	isOpen,
@@ -42,7 +42,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 	const hasError = !deletionConfirmed && userConfirmationText.length > 0;
 	const displayErrorMessage = hasError && !isFocused;
 
-	const onSubmit = (event: FormEvent) => {
+	const onSubmit = (event: React.FormEvent) => {
 		event.preventDefault();
 		if (deletionConfirmed) {
 			onConfirm(orphanWorkspace);

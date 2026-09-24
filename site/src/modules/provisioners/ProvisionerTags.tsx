@@ -1,8 +1,7 @@
 import { cn } from "cn";
-import type { FC, HTMLProps } from "react";
 import { Badge } from "#/components/Badge/Badge";
 
-export const ProvisionerTags: FC<HTMLProps<HTMLDivElement>> = ({
+export const ProvisionerTags: React.FC<React.HTMLProps<HTMLDivElement>> = ({
 	className,
 	...props
 }) => {
@@ -19,7 +18,10 @@ type ProvisionerTagProps = {
 	value?: string;
 };
 
-export const ProvisionerTag: FC<ProvisionerTagProps> = ({ label, value }) => {
+export const ProvisionerTag: React.FC<ProvisionerTagProps> = ({
+	label,
+	value,
+}) => {
 	return (
 		<Badge className="whitespace-nowrap">
 			[{label}
@@ -32,7 +34,9 @@ type ProvisionerTagsProps = {
 	tags: Record<string, string>;
 };
 
-export const ProvisionerTruncateTags: FC<ProvisionerTagsProps> = ({ tags }) => {
+export const ProvisionerTruncateTags: React.FC<ProvisionerTagsProps> = ({
+	tags,
+}) => {
 	const keys = Object.keys(tags);
 
 	if (keys.length === 0) {

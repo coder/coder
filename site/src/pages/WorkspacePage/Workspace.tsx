@@ -1,5 +1,4 @@
 import { BlocksIcon, HistoryIcon } from "lucide-react";
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { SidebarIconButton } from "#/components/FullPageLayout/Sidebar";
@@ -45,7 +44,7 @@ type WorkspaceProps = {
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: FC<WorkspaceProps> = ({
+export const Workspace: React.FC<WorkspaceProps> = ({
 	workspace,
 	isUpdating,
 	isRestarting,

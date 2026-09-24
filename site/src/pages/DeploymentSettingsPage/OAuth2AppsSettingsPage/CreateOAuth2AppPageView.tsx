@@ -1,5 +1,5 @@
 import { ArrowLeftIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -14,7 +14,7 @@ import { OAuth2AppForm } from "./OAuth2AppForm";
 
 const BACK_HREF = "/deployment/oauth2-provider/apps";
 
-export const CreateOAuth2AppPageView: FC = () => {
+export const CreateOAuth2AppPageView: React.FC = () => {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();

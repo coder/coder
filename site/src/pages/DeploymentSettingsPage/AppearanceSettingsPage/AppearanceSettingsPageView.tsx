@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import type { UpdateAppearanceConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -32,7 +31,7 @@ type AppearanceSettingsPageViewProps = {
 	) => Promise<void>;
 };
 
-export const AppearanceSettingsPageView: FC<
+export const AppearanceSettingsPageView: React.FC<
 	AppearanceSettingsPageViewProps
 > = ({ appearance, isEntitled, canViewPremium, onSaveAppearance }) => {
 	const form = useFormik<{

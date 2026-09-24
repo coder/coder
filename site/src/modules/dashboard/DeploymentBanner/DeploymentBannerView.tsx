@@ -13,16 +13,7 @@ import {
 	WrenchIcon,
 } from "lucide-react";
 import prettyBytes from "pretty-bytes";
-import {
-	type FC,
-	Fragment,
-	memo,
-	type PropsWithChildren,
-	type ReactNode,
-	useEffect,
-	useMemo,
-	useState,
-} from "react";
+import { Fragment, memo, useEffect, useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import {
 	type AppFamilyName,
@@ -52,7 +43,7 @@ type DeploymentBannerViewProps = {
 	fetchStats?: () => void;
 };
 
-export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
+export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 	health,
 	stats,
 	fetchStats,
@@ -317,7 +308,10 @@ const SESSION_FAMILIES = {
 	},
 	unknown: { name: "Other", icon: <BlocksIcon className="size-icon-xs" /> },
 	sftp: null,
-} satisfies Record<AppFamilyName, { name: string; icon: ReactNode } | null>;
+} satisfies Record<
+	AppFamilyName,
+	{ name: string; icon: React.ReactNode } | null
+>;
 
 const FAMILY_SLOTS = Object.entries(SESSION_FAMILIES).flatMap(
 	([name, slot]) => {
@@ -420,7 +414,10 @@ const ActiveConnections = memo(
 );
 
 /** Renders an app's icon and name. Only bundled "/icon/" paths load. */
-const AppLabel: FC<{ icon?: string; name: string }> = ({ icon, name }) => (
+const AppLabel: React.FC<{ icon?: string; name: string }> = ({
+	icon,
+	name,
+}) => (
 	<>
 		{icon?.startsWith("/icon/") ? (
 			<ExternalImage src={icon} className="size-icon-xs shrink-0" />
@@ -436,7 +433,7 @@ type WorkspaceBuildValueProps = {
 	count?: number;
 };
 
-const WorkspaceBuildValue: FC<WorkspaceBuildValueProps> = ({
+const WorkspaceBuildValue: React.FC<WorkspaceBuildValueProps> = ({
 	status,
 	count,
 }) => {
@@ -469,11 +466,11 @@ const WorkspaceBuildValue: FC<WorkspaceBuildValueProps> = ({
 	);
 };
 
-const ValueSeparator: FC = () => {
+const ValueSeparator: React.FC = () => {
 	return <div className="text-content-disabled self-center">/</div>;
 };
 
-const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
+const HealthIssue: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
 		<div className="flex items-center gap-1">
 			<CircleAlertIcon className="size-icon-sm text-border-destructive" />

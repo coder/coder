@@ -1,6 +1,5 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
-import type { FC, PropsWithChildren } from "react";
 import { act } from "react";
 import { QueryClientProvider } from "react-query";
 import { toast } from "sonner";
@@ -15,7 +14,7 @@ import { server } from "#/testHelpers/server";
 import type { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import { useAgentContainers } from "./useAgentContainers";
 
-const createWrapper = (): FC<PropsWithChildren> => {
+const createWrapper = (): React.FC<React.PropsWithChildren> => {
 	const queryClient = createTestQueryClient();
 	return ({ children }) => (
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

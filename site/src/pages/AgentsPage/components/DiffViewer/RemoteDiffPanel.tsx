@@ -4,7 +4,7 @@ import {
 	ExternalLinkIcon,
 	GitBranchIcon,
 } from "lucide-react";
-import { type FC, type RefObject, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { chatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -28,7 +28,7 @@ export { InlinePromptInput } from "../DiffViewer/CommentableDiffViewer";
 // Branch copy button
 // -------------------------------------------------------------------
 
-const BranchCopyButton: FC<{ branch: string }> = ({ branch }) => {
+const BranchCopyButton: React.FC<{ branch: string }> = ({ branch }) => {
 	const { copyToClipboard, showCopiedSuccess } = useClipboard();
 	return (
 		<Tooltip>
@@ -60,12 +60,12 @@ const BranchCopyButton: FC<{ branch: string }> = ({ branch }) => {
 type RemoteDiffPanelProps = {
 	chatId: string;
 	isExpanded?: boolean;
-	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	chatInputRef?: React.RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
 	diffStatus?: TypesGen.ChatDiffStatus;
 };
 
-export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
+export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 	chatId,
 	isExpanded,
 	chatInputRef,

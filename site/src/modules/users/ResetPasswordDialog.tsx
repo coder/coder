@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -12,7 +11,7 @@ type ResetPasswordDialogProps = {
 	loading: boolean;
 };
 
-export const ResetPasswordDialog: FC<ResetPasswordDialogProps> = ({
+export const ResetPasswordDialog: React.FC<ResetPasswordDialogProps> = ({
 	open,
 	onClose,
 	onConfirm,

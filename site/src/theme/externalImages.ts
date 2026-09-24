@@ -1,17 +1,15 @@
-import type { CSSProperties } from "react";
-
 export type ExternalImageModeStyles = {
 	/**
 	 * monochrome icons will be flattened to a neutral, theme-appropriate color.
 	 * eg. white, light gray, dark gray, black
 	 */
-	monochrome?: CSSProperties;
+	monochrome?: React.CSSProperties;
 	/**
 	 * @default
 	 * fullcolor icons should look their best of any background, with distinct colors
 	 * and good contrast. This is the default, and won't alter the image.
 	 */
-	fullcolor?: CSSProperties;
+	fullcolor?: React.CSSProperties;
 	/**
 	 * whiteWithColor is useful for icons that are primarily white, or contain white text,
 	 * which are hard to see or look incorrect on light backgrounds. This setting will apply
@@ -20,7 +18,7 @@ export type ExternalImageModeStyles = {
 	 * You can also specify a `brightness` level if your icon still doesn't look quite right.
 	 * eg. /icon/aws.svg?blackWithColor&brightness=1.5
 	 */
-	whiteWithColor?: CSSProperties;
+	whiteWithColor?: React.CSSProperties;
 	/**
 	 * blackWithColor is useful for icons that are primarily black, or contain black text,
 	 * which are hard to see or look incorrect on dark backgrounds. This setting will apply
@@ -29,7 +27,7 @@ export type ExternalImageModeStyles = {
 	 * You can also specify a `brightness` level if your icon still doesn't look quite right.
 	 * eg. /icon/aws.svg?blackWithColor&brightness=1.5
 	 */
-	blackWithColor?: CSSProperties;
+	blackWithColor?: React.CSSProperties;
 };
 
 export const forDarkThemes: ExternalImageModeStyles = {
@@ -64,14 +62,14 @@ const multiplier = /^\d+(\.\d+)?%?$/;
  */
 const parseInvertFilterParameters = (
 	params: URLSearchParams,
-	baseStyles?: CSSProperties,
+	baseStyles?: React.CSSProperties,
 ) => {
 	// Only apply additional styles if the current theme supports this mode
 	if (!baseStyles) {
 		return;
 	}
 
-	let extraStyles: CSSProperties | undefined;
+	let extraStyles: React.CSSProperties | undefined;
 
 	const brightness = params.get("brightness") ?? "";
 	if (multiplier.test(brightness)) {
@@ -93,10 +91,10 @@ const parseInvertFilterParameters = (
 export function parseImageParameters(
 	modes: ExternalImageModeStyles,
 	searchString: string,
-): CSSProperties | undefined {
+): React.CSSProperties | undefined {
 	const params = new URLSearchParams(searchString);
 
-	let styles: CSSProperties | undefined = modes.fullcolor;
+	let styles: React.CSSProperties | undefined = modes.fullcolor;
 
 	if (params.has("monochrome")) {
 		styles = modes.monochrome;

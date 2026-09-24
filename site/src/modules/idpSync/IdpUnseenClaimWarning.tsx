@@ -1,12 +1,11 @@
 import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-export const IdpUnseenClaimWarning: FC = () => {
+export const IdpUnseenClaimWarning: React.FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>

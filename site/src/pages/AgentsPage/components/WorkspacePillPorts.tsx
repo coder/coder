@@ -8,7 +8,6 @@ import {
 	NetworkIcon,
 	RadioIcon,
 } from "lucide-react";
-import type { FC } from "react";
 import { useEffect, useRef } from "react";
 import { Link } from "react-router";
 import type {
@@ -28,7 +27,7 @@ import type { PortsData } from "#/modules/resources/usePortsData";
 import { portForwardURL } from "#/utils/portForward";
 import type { PortSelection } from "../utils/rightPanelTabs";
 
-export const PortsMenuItem: FC<{
+export const PortsMenuItem: React.FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	host: string;
@@ -107,7 +106,7 @@ export const PortsMenuItem: FC<{
 	);
 };
 
-export const MobilePortsPanel: FC<{
+export const MobilePortsPanel: React.FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	host: string;
@@ -143,7 +142,7 @@ export const MobilePortsPanel: FC<{
 	);
 };
 
-const PortsList: FC<{
+const PortsList: React.FC<{
 	host: string;
 	agent: WorkspaceAgent;
 	workspace: Workspace;
@@ -218,7 +217,7 @@ const PortsList: FC<{
 	);
 };
 
-const ListeningPortItem: FC<{
+const ListeningPortItem: React.FC<{
 	port: WorkspaceAgentListeningPort;
 	host: string;
 	agentName: string;
@@ -281,7 +280,7 @@ const ListeningPortItem: FC<{
 	);
 };
 
-const SharedPortItem: FC<{
+const SharedPortItem: React.FC<{
 	share: WorkspaceAgentPortShare;
 	host: string;
 	agentName: string;

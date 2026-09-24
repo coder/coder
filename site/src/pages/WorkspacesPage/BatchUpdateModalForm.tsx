@@ -1,14 +1,7 @@
 import { cn } from "cn";
 import { TriangleAlertIcon } from "lucide-react";
 import { Label, Slot } from "radix-ui";
-import {
-	type FC,
-	type ForwardedRef,
-	type ReactNode,
-	useId,
-	useRef,
-	useState,
-} from "react";
+import { useId, useRef, useState } from "react";
 import { useQueries } from "react-query";
 import { templateVersion } from "#/api/queries/templates";
 import type { Workspace } from "#/api/typesGenerated";
@@ -26,7 +19,7 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 
-export const BatchUpdateModalForm: FC<BatchUpdateModalFormProps> = ({
+export const BatchUpdateModalForm: React.FC<BatchUpdateModalFormProps> = ({
 	open,
 	isProcessing,
 	workspacesToUpdate,
@@ -87,12 +80,12 @@ type ReviewPanelProps = Readonly<{
 	workspaceIconUrl: string;
 	running: boolean;
 	transitioning: boolean;
-	label?: ReactNode;
-	adornment?: ReactNode;
+	label?: React.ReactNode;
+	adornment?: React.ReactNode;
 	className?: string;
 }>;
 
-const ReviewPanel: FC<ReviewPanelProps> = ({
+const ReviewPanel: React.FC<ReviewPanelProps> = ({
 	workspaceName,
 	label,
 	running,
@@ -135,7 +128,9 @@ const ReviewPanel: FC<ReviewPanelProps> = ({
 	);
 };
 
-const PanelListItem: FC<{ children: ReactNode }> = ({ children }) => {
+const PanelListItem: React.FC<{ children: React.ReactNode }> = ({
+	children,
+}) => {
 	return (
 		<li className="not-last:border-b-border not-last:border-b not-last:border-solid border-0">
 			{children}
@@ -148,7 +143,7 @@ type TemplateNameChangeProps = Readonly<{
 	newTemplateVersionName: string;
 }>;
 
-const TemplateNameChange: FC<TemplateNameChangeProps> = ({
+const TemplateNameChange: React.FC<TemplateNameChangeProps> = ({
 	oldTemplateVersionName: oldTemplateName,
 	newTemplateVersionName: newTemplateName,
 }) => {
@@ -168,11 +163,11 @@ const TemplateNameChange: FC<TemplateNameChangeProps> = ({
 type RunningWorkspacesWarningProps = Readonly<{
 	acceptedRisks: boolean;
 	onAcceptedRisksChange: (newValue: boolean) => void;
-	checkboxRef: ForwardedRef<HTMLButtonElement>;
-	containerRef: ForwardedRef<HTMLDivElement>;
+	checkboxRef: React.ForwardedRef<HTMLButtonElement>;
+	containerRef: React.ForwardedRef<HTMLDivElement>;
 }>;
 
-const RunningWorkspacesWarning: FC<RunningWorkspacesWarningProps> = ({
+const RunningWorkspacesWarning: React.FC<RunningWorkspacesWarningProps> = ({
 	acceptedRisks,
 	onAcceptedRisksChange,
 	checkboxRef,
@@ -214,10 +209,10 @@ const RunningWorkspacesWarning: FC<RunningWorkspacesWarningProps> = ({
 
 type ContainerProps = Readonly<{
 	asChild?: boolean;
-	children?: ReactNode;
+	children?: React.ReactNode;
 }>;
 
-const Container: FC<ContainerProps> = ({ children, asChild = false }) => {
+const Container: React.FC<ContainerProps> = ({ children, asChild = false }) => {
 	const Wrapper = asChild ? Slot.Root : "div";
 	return (
 		<Wrapper className="max-h-[80vh] flex flex-col flex-nowrap">
@@ -227,13 +222,13 @@ const Container: FC<ContainerProps> = ({ children, asChild = false }) => {
 };
 
 type ContainerBodyProps = Readonly<{
-	headerText: ReactNode;
-	description: ReactNode;
+	headerText: React.ReactNode;
+	description: React.ReactNode;
 	showDescription?: boolean;
-	children?: ReactNode;
+	children?: React.ReactNode;
 }>;
 
-const ContainerBody: FC<ContainerBodyProps> = ({
+const ContainerBody: React.FC<ContainerBodyProps> = ({
 	children,
 	headerText,
 	description,
@@ -265,10 +260,13 @@ const ContainerBody: FC<ContainerBodyProps> = ({
 
 type ContainerFooterProps = Readonly<{
 	className?: string;
-	children?: ReactNode;
+	children?: React.ReactNode;
 }>;
 
-const ContainerFooter: FC<ContainerFooterProps> = ({ children, className }) => {
+const ContainerFooter: React.FC<ContainerFooterProps> = ({
+	children,
+	className,
+}) => {
 	return (
 		<div
 			className={cn(
@@ -285,12 +283,12 @@ const ContainerFooter: FC<ContainerFooterProps> = ({ children, className }) => {
 };
 
 type WorkspacesListSectionProps = Readonly<{
-	headerText: ReactNode;
-	description: ReactNode;
-	children?: ReactNode;
+	headerText: React.ReactNode;
+	description: React.ReactNode;
+	children?: React.ReactNode;
 }>;
 
-const WorkspacesListSection: FC<WorkspacesListSectionProps> = ({
+const WorkspacesListSection: React.FC<WorkspacesListSectionProps> = ({
 	children,
 	headerText,
 	description,
@@ -322,7 +320,7 @@ type ReviewFormProps = Readonly<{
 	onSubmit: () => void;
 }>;
 
-const ReviewForm: FC<ReviewFormProps> = ({
+const ReviewForm: React.FC<ReviewFormProps> = ({
 	workspacesToUpdate,
 	isProcessing,
 	onCancel,

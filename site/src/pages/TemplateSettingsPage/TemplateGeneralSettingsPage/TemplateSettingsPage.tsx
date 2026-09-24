@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -15,7 +14,7 @@ import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 
-const TemplateSettingsPage: FC = () => {
+const TemplateSettingsPage: React.FC = () => {
 	const { template: templateName } = useParams() as { template: string };
 	const navigate = useNavigate();
 	const getLink = useLinks();

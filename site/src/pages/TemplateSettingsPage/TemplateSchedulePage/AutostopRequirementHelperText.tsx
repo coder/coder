@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { Template } from "#/api/typesGenerated";
 import type { TemplateAutostopRequirementDaysValue } from "#/utils/schedule";
 
@@ -35,7 +34,7 @@ type AutostopRequirementDaysHelperTextProps = {
 	days: TemplateAutostopRequirementDaysValue;
 };
 
-export const AutostopRequirementDaysHelperText: FC<
+export const AutostopRequirementDaysHelperText: React.FC<
 	AutostopRequirementDaysHelperTextProps
 > = ({ days = "off" }) => {
 	return <span>{autostopRequirementDescriptions[days]}</span>;
@@ -46,7 +45,7 @@ type AutostopRequirementWeeksHelperTextProps = {
 	weeks: number;
 };
 
-export const AutostopRequirementWeeksHelperText: FC<
+export const AutostopRequirementWeeksHelperText: React.FC<
 	AutostopRequirementWeeksHelperTextProps
 > = ({ days, weeks }) => {
 	// Disabled

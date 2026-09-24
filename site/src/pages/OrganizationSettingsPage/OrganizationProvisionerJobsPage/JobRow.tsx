@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon, TriangleAlertIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Link as RouterLink } from "react-router";
 import type { ProvisionerJob } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -21,7 +21,10 @@ type JobRowProps = {
 	defaultIsOpen: boolean;
 };
 
-export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
+export const JobRow: React.FC<JobRowProps> = ({
+	job,
+	defaultIsOpen = false,
+}) => {
 	const metadata = job.metadata;
 	const [isOpen, setIsOpen] = useState(defaultIsOpen);
 	const queue = {

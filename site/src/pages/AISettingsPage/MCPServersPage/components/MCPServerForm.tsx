@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { MCPServerFormDialogs } from "./MCPServerFormDialogs";
@@ -22,7 +22,7 @@ type MCPServerFormCreateProps = {
 	isSaving: boolean;
 	isDeleting?: false;
 	canSelectUserOIDC: boolean;
-	organizationPicker?: ReactNode;
+	organizationPicker?: React.ReactNode;
 	canShareServer?: false;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
@@ -39,7 +39,7 @@ type MCPServerFormEditProps = {
 	isSaving: boolean;
 	isDeleting: boolean;
 	canSelectUserOIDC: boolean;
-	organizationPicker?: ReactNode;
+	organizationPicker?: React.ReactNode;
 	canShareServer?: boolean;
 	onCreateServer?: undefined;
 	onUpdateServer?: (
@@ -53,7 +53,7 @@ type MCPServerFormEditProps = {
 
 type MCPServerFormProps = MCPServerFormCreateProps | MCPServerFormEditProps;
 
-export const MCPServerForm: FC<MCPServerFormProps> = ({
+export const MCPServerForm: React.FC<MCPServerFormProps> = ({
 	server,
 	listPath,
 	isSaving,

@@ -1,9 +1,7 @@
-import type { ReactNode } from "react";
-
 export type FilterOption = {
 	label: string;
 	value: string;
-	startIcon?: ReactNode;
+	startIcon?: React.ReactNode;
 	subtitle?: string;
 	/**
 	 * Explicit chip token committed when this option is selected, overriding the
@@ -18,7 +16,7 @@ export type FilterCategory = {
 	key: string;
 	label: string;
 	getOptions: (query: string) => Promise<FilterOption[]>;
-	icon?: ReactNode;
+	icon?: React.ReactNode;
 	/** Extra typed prefixes that enter this category, e.g. `user` for `owner`. */
 	aliases?: readonly string[];
 	/**
@@ -34,7 +32,7 @@ export type FilterCategory = {
 export type SearchResult = {
 	label: string;
 	value: string;
-	startIcon?: ReactNode;
+	startIcon?: React.ReactNode;
 	subtitle?: string;
 	/** Renders an avatar when `startIcon` is not provided. */
 	imageUrl?: string;

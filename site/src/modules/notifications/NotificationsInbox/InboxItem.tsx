@@ -1,5 +1,4 @@
 import { SquareCheckBigIcon } from "lucide-react";
-import type { FC } from "react";
 import Markdown from "react-markdown";
 import { Link as RouterLink } from "react-router";
 import type { InboxNotification } from "#/api/typesGenerated";
@@ -13,7 +12,7 @@ type InboxItemProps = {
 	onMarkNotificationAsRead: (notificationId: string) => void;
 };
 
-export const InboxItem: FC<InboxItemProps> = ({
+export const InboxItem: React.FC<InboxItemProps> = ({
 	notification,
 	onMarkNotificationAsRead,
 }) => {

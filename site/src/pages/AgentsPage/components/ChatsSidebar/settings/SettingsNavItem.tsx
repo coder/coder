@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ShieldIcon } from "lucide-react";
-import type { ComponentProps, FC, ReactNode } from "react";
 import { Link } from "react-router";
 import {
 	Tooltip,
@@ -9,18 +8,18 @@ import {
 } from "#/components/Tooltip/Tooltip";
 
 type SettingsNavItemProps = {
-	icon: FC<{ className?: string }>;
+	icon: React.FC<{ className?: string }>;
 	label: string;
 	active: boolean;
 	adminOnly?: boolean;
 	ariaLabel?: string;
 	className?: string;
 	disabled?: boolean;
-	trailing?: ReactNode;
-	trailingIcon?: FC<{ className?: string }>;
+	trailing?: React.ReactNode;
+	trailingIcon?: React.FC<{ className?: string }>;
 } & (
 	| {
-			to: ComponentProps<typeof Link>["to"];
+			to: React.ComponentProps<typeof Link>["to"];
 			replace?: boolean;
 			state?: unknown;
 			onClick?: () => void;
@@ -42,12 +41,12 @@ const navItemClassName = (
 		className,
 	);
 
-const NavItemContent: FC<{
-	icon: FC<{ className?: string }>;
+const NavItemContent: React.FC<{
+	icon: React.FC<{ className?: string }>;
 	label: string;
 	adminOnly?: boolean;
-	trailing?: ReactNode;
-	trailingIcon?: FC<{ className?: string }>;
+	trailing?: React.ReactNode;
+	trailingIcon?: React.FC<{ className?: string }>;
 }> = ({
 	icon: Icon,
 	label,
@@ -77,7 +76,7 @@ const NavItemContent: FC<{
 	</>
 );
 
-export const SettingsNavItem: FC<SettingsNavItemProps> = ({
+export const SettingsNavItem: React.FC<SettingsNavItemProps> = ({
 	icon,
 	label,
 	active,

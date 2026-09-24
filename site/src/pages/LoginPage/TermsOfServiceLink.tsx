@@ -1,11 +1,12 @@
-import type { FC } from "react";
 import { Link } from "#/components/Link/Link";
 
 type TermsOfServiceLinkProps = {
 	url?: string;
 };
 
-export const TermsOfServiceLink: FC<TermsOfServiceLinkProps> = ({ url }) => {
+export const TermsOfServiceLink: React.FC<TermsOfServiceLinkProps> = ({
+	url,
+}) => {
 	return (
 		<div className="pt-3 text-base">
 			By continuing, you agree to the{" "}

@@ -1,13 +1,11 @@
-import type { FC } from "react";
-
 /**
  * Pill-styled diff stats badge with coloured backgrounds,
  * used inside the Git tab header.
  */
-export const DiffStatBadge: FC<{ additions: number; deletions: number }> = ({
-	additions,
-	deletions,
-}) => {
+export const DiffStatBadge: React.FC<{
+	additions: number;
+	deletions: number;
+}> = ({ additions, deletions }) => {
 	if (additions === 0 && deletions === 0) {
 		return null;
 	}

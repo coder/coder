@@ -1,10 +1,9 @@
-import type { FC } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 
-export const ChatAccessDeniedAlert: FC = () => {
+export const ChatAccessDeniedAlert: React.FC = () => {
 	const docsLink = docs("/ai-coder/agents/getting-started");
 
 	return (

@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import {
@@ -8,7 +7,7 @@ import {
 } from "#/components/Filter/storyHelpers";
 import { ListSessionsFilter } from "./ListSessionsFilter";
 
-type FilterProps = ComponentProps<typeof ListSessionsFilter>;
+type FilterProps = React.ComponentProps<typeof ListSessionsFilter>;
 
 type FilterAndMenus = Pick<FilterProps, "filter" | "menus">;
 
