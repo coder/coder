@@ -1,21 +1,27 @@
 package aibridge
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
+	"fmt"
+	"io"
 	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
@@ -28,6 +34,126 @@ import (
 )
 
 var testTracer = otel.Tracer("bridge_test")
+
+type lateTrailerReader struct {
+	io.Reader
+	trailer http.Header
+	values  http.Header
+	set     bool
+}
+
+func (r *lateTrailerReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	if err == io.EOF && !r.set {
+		for name, values := range r.values {
+			r.trailer[name] = append([]string(nil), values...)
+		}
+		r.set = true
+	}
+	return n, err
+}
+
+func TestPassthroughSupportsProtocolUpgrade(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hijacker, ok := w.(http.Hijacker)
+		if !assert.True(t, ok) {
+			return
+		}
+		conn, rw, err := hijacker.Hijack()
+		if !assert.NoError(t, err) {
+			return
+		}
+		defer conn.Close()
+		_, _ = rw.WriteString("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: test\r\n\r\n")
+		_ = rw.Flush()
+		buf := make([]byte, 4)
+		_, err = io.ReadFull(rw, buf)
+		if !assert.NoError(t, err) {
+			return
+		}
+		_, _ = rw.Write(buf)
+		_ = rw.Flush()
+	}))
+	t.Cleanup(upstream.Close)
+
+	prov := &testutil.MockProvider{NameStr: "test", URL: upstream.URL}
+	handler := newPassthroughRouter(prov, slogtest.Make(t, nil), nil, testTracer)
+	gateway := httptest.NewServer(handler)
+	t.Cleanup(gateway.Close)
+
+	gatewayURL, err := url.Parse(gateway.URL)
+	require.NoError(t, err)
+	conn, err := net.Dial("tcp", gatewayURL.Host)
+	require.NoError(t, err)
+	defer conn.Close()
+	_, err = fmt.Fprintf(conn, "GET /upgrade HTTP/1.1\r\nHost: %s\r\nConnection: Upgrade\r\nUpgrade: test\r\n\r\n", gatewayURL.Host)
+	require.NoError(t, err)
+	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
+	resp, err := http.ReadResponse(rw.Reader, &http.Request{Method: http.MethodGet})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+	require.NoError(t, resp.Body.Close())
+	_, err = conn.Write([]byte("ping"))
+	require.NoError(t, err)
+	echo := make([]byte, 4)
+	_, err = io.ReadFull(conn, echo)
+	require.NoError(t, err)
+	require.Equal(t, "ping", string(echo))
+}
+
+func TestPassthroughDropsRequestAndResponseTrailers(t *testing.T) {
+	t.Parallel()
+
+	const body = "request-body"
+	upstreamResult := make(chan error, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, err := io.ReadAll(r.Body)
+		if err == nil && string(gotBody) != body {
+			err = xerrors.Errorf("unexpected body %q", gotBody)
+		}
+		if err == nil && len(r.Trailer) != 0 {
+			err = xerrors.Errorf("unexpected request trailers: %v", r.Trailer)
+		}
+		upstreamResult <- err
+		w.Header().Add("Trailer", "Set-Cookie")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("response-body"))
+		w.Header().Set("Set-Cookie", "coder_session_token=upstream-trailer")
+	}))
+	t.Cleanup(upstream.Close)
+
+	prov := &testutil.MockProvider{NameStr: "test", URL: upstream.URL}
+	handler := newPassthroughRouter(prov, slogtest.Make(t, nil), nil, testTracer)
+	gateway := httptest.NewServer(handler)
+	t.Cleanup(gateway.Close)
+	requestTrailers := http.Header{
+		"Cookie":               nil,
+		"X-AI-Bridge-Actor-Id": nil,
+	}
+	requestBody := &lateTrailerReader{
+		Reader:  strings.NewReader(body),
+		trailer: requestTrailers,
+		values: http.Header{
+			"Cookie":               {"coder_session_token=request-trailer"},
+			"X-AI-Bridge-Actor-Id": {"spoofed"},
+		},
+	}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, gateway.URL+"/v1/models", requestBody)
+	require.NoError(t, err)
+	req.ContentLength = -1
+	req.Trailer = requestTrailers
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	gotBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, "response-body", string(gotBody))
+	require.Empty(t, resp.Trailer)
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	require.NoError(t, codertestutil.RequireReceive(ctx, t, upstreamResult))
+}
 
 func TestPassthroughRoutes(t *testing.T) {
 	t.Parallel()
@@ -76,12 +202,18 @@ func TestPassthroughRoutes(t *testing.T) {
 			expectRespBody:   "invalid provider base URL",
 		},
 		{
-			name:          "proxy_headers_are_set_and_forwarded_chain_is_appended",
+			name:          "sanitizes_sensitive_and_untrusted_proxy_headers",
 			reqPath:       "/v1/models",
 			reqHost:       "client.example.com",
 			reqRemoteAddr: "1.1.1.1:1111",
 			reqHeaders: http.Header{
-				"X-Forwarded-For": {"2.2.2.2, 3.3.3.3"},
+				"Cookie":                      {"coder_session_token=secret"},
+				"Coder-Session-Token":         {"secret"},
+				"X-Coder-AI-Governance-Token": {"secret"},
+				"X-AI-Bridge-Actor-Id":        {"spoofed"},
+				"Forwarded":                   {"for=2.2.2.2"},
+				"X-Forwarded-For":             {"2.2.2.2"},
+				"X-Forwarded-Server":          {"client"},
 			},
 			expectRequestPath: "/v1/models",
 			expectRespStatus:  http.StatusOK,
@@ -89,7 +221,7 @@ func TestPassthroughRoutes(t *testing.T) {
 			expectHeaders: http.Header{
 				"Accept-Encoding":   {"gzip"},
 				"User-Agent":        {"aibridge"},
-				"X-Forwarded-For":   {"2.2.2.2, 3.3.3.3, 1.1.1.1"},
+				"X-Forwarded-For":   {"1.1.1.1"},
 				"X-Forwarded-Host":  {"client.example.com"},
 				"X-Forwarded-Proto": {"http"},
 			},
@@ -167,6 +299,35 @@ func TestRewritePassthroughRequest(t *testing.T) {
 			},
 		},
 		{
+			name:          "bare_IPv4_remote_addr_sets_forwarded_for",
+			reqPath:       "http://client-host/chat",
+			reqRemoteAddr: "1.1.1.1",
+			reqHeaders: http.Header{
+				"X-Forwarded-For": {"203.0.113.10"},
+			},
+			provider:  &testutil.MockProvider{URL: "https://upstream-host/base"},
+			expectURL: "https://upstream-host/base/chat",
+			expectHeaders: http.Header{
+				"X-Forwarded-Host":  {"client-host"},
+				"X-Forwarded-Proto": {"http"},
+				"X-Forwarded-For":   {"1.1.1.1"},
+				"User-Agent":        {"aibridge"},
+			},
+		},
+		{
+			name:          "bare_IPv6_remote_addr_sets_forwarded_for",
+			reqPath:       "http://client-host/chat",
+			reqRemoteAddr: "2001:db8::1",
+			provider:      &testutil.MockProvider{URL: "https://upstream-host/base"},
+			expectURL:     "https://upstream-host/base/chat",
+			expectHeaders: http.Header{
+				"X-Forwarded-Host":  {"client-host"},
+				"X-Forwarded-Proto": {"http"},
+				"X-Forwarded-For":   {"2001:db8::1"},
+				"User-Agent":        {"aibridge"},
+			},
+		},
+		{
 			name:          "preserves_client_user_agent",
 			reqPath:       "http://client-host/chat",
 			reqRemoteAddr: "1.1.1.1:1111",
@@ -181,7 +342,9 @@ func TestRewritePassthroughRequest(t *testing.T) {
 			},
 		},
 		{
-			name:          "appends_remote_addr_to_existing_forwarded_for_chain",
+			// Incoming forwarding chains are untrusted. The proxy starts a new chain
+			// from its directly connected client peer.
+			name:          "replaces_existing_forwarded_for_chain",
 			reqPath:       "http://client-host/chat",
 			reqRemoteAddr: "1.1.1.1:1111",
 			reqHeaders: http.Header{
@@ -192,7 +355,7 @@ func TestRewritePassthroughRequest(t *testing.T) {
 			expectHeaders: http.Header{
 				"X-Forwarded-Host":  {"client-host"},
 				"X-Forwarded-Proto": {"http"},
-				"X-Forwarded-For":   {"2.2.2.2, 3.3.3.3, 1.1.1.1"},
+				"X-Forwarded-For":   {"1.1.1.1"},
 				"User-Agent":        {"aibridge"},
 			},
 		},
@@ -250,13 +413,57 @@ func TestRewritePassthroughRequest(t *testing.T) {
 				Out: r.Clone(r.Context()),
 			}
 
+			originalIn := pr.In
+			originalRemoteAddr := pr.In.RemoteAddr
 			rewritePassthroughRequest(pr, provBaseURL)
 
+			assert.Same(t, originalIn, pr.In)
+			assert.Equal(t, originalRemoteAddr, pr.In.RemoteAddr)
 			assert.Equal(t, tc.expectURL, pr.Out.URL.String())
 			assert.Equal(t, "", pr.Out.Host)
 			assert.Equal(t, tc.expectHeaders, pr.Out.Header)
 		})
 	}
+}
+
+func TestPassthroughRejectsTraversalAndPreservesEscapedSeparator(t *testing.T) {
+	t.Parallel()
+
+	upstreamPaths := make(chan string, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPaths <- r.URL.EscapedPath()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(upstream.Close)
+	prov := &testutil.MockProvider{NameStr: "test", URL: upstream.URL}
+	handler := newPassthroughRouter(prov, slogtest.Make(t, nil), nil, testTracer)
+
+	for _, path := range []string{"/v1/models/%2e%2e/admin", "/v1/models/%2E/admin"} {
+		resp := httptest.NewRecorder()
+		handler.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, path, nil))
+		require.Equal(t, http.StatusBadRequest, resp.Code)
+	}
+
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, "/v1/models/a%2Fb", nil))
+	require.Equal(t, http.StatusNoContent, resp.Code)
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	require.Equal(t, "/v1/models/a%2Fb", codertestutil.RequireReceive(ctx, t, upstreamPaths))
+}
+
+func TestPassthroughStripsSetCookie(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Set-Cookie", "coder_session_token=upstream")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(upstream.Close)
+	prov := &testutil.MockProvider{NameStr: "test", URL: upstream.URL}
+	handler := newPassthroughRouter(prov, slogtest.Make(t, nil), nil, testTracer)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, "/v1/models", nil))
+	require.Empty(t, resp.Header().Values("Set-Cookie"))
 }
 
 func TestPassthroughRouterReusesProxyInstance(t *testing.T) {
@@ -290,6 +497,29 @@ func TestPassthroughRouterReusesProxyInstance(t *testing.T) {
 	}
 
 	assert.EqualValues(t, 1, newConnections.Load())
+}
+
+func TestPassthroughMetricCardinalityIsBounded(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(upstream.Close)
+	registry := prometheus.NewRegistry()
+	m := NewMetrics(registry)
+	prov := provider.NewCopilot(config.Copilot{BaseURL: upstream.URL})
+	handler := newPassthroughRouter(prov, slogtest.Make(t, nil), m, testTracer)
+
+	for i := range 50 {
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/v1/threads/%d/messages", i), nil)
+		resp := httptest.NewRecorder()
+		handler.ServeHTTP(resp, req)
+		require.Equal(t, http.StatusNoContent, resp.Code)
+	}
+
+	require.Equal(t, 50.0, promtest.ToFloat64(m.PassthroughCount.WithLabelValues(config.ProviderCopilot, "/", http.MethodGet)))
+	require.Equal(t, 1, promtest.CollectAndCount(m.PassthroughCount))
 }
 
 // TestPassthrough_KeyFailover exercises the KeyFailoverTransport

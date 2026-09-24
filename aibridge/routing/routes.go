@@ -9,10 +9,25 @@ import (
 	"github.com/coder/coder/v2/aibridge/provider"
 )
 
-// ErrorCodeProviderDisabled is the code written in the response
-// body when a request targets a configured-but-disabled provider.
-// Paired with HTTP 503.
-const ErrorCodeProviderDisabled = "provider_disabled"
+const (
+	// ErrorCodeProviderDisabled is the code written in the response body when a
+	// request targets a configured-but-disabled provider. Paired with HTTP 503.
+	ErrorCodeProviderDisabled = "provider_disabled"
+)
+
+const metricMethodOther = "OTHER"
+
+// MetricMethod returns a bounded HTTP method label.
+func MetricMethod(method string) string {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
+		http.MethodPatch, http.MethodDelete, http.MethodConnect,
+		http.MethodOptions, http.MethodTrace:
+		return method
+	default:
+		return metricMethodOther
+	}
+}
 
 // NewProviderMux registers mode-independent provider errors. Callers add
 // their enabled-provider routes to the returned mux.

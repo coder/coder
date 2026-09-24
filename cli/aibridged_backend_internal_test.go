@@ -5,12 +5,12 @@ package cli
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
@@ -36,7 +36,9 @@ func TestNewAIBridgeDaemonBackend(t *testing.T) {
 			if tc.experiment {
 				dv.Experiments = append(dv.Experiments, string(codersdk.ExperimentAIGatewayReverseProxy))
 			}
-			client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{DeploymentValues: dv})
+			logSink := testutil.NewFakeSink(t)
+			logger := logSink.Logger()
+			client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{DeploymentValues: dv, Logger: &logger})
 			firstUser := coderdtest.CreateFirstUser(t, client)
 			srv, unsubscribe, err := newAIBridgeDaemon(api, dv.AI.BridgeConfig, prometheus.NewRegistry(), nil)
 			require.NoError(t, err)
@@ -44,8 +46,16 @@ func TestNewAIBridgeDaemonBackend(t *testing.T) {
 			t.Cleanup(unsubscribe)
 			handler, err := srv.GetRequestHandler(testutil.Context(t, testutil.WaitLong), aibridged.Request{InitiatorID: firstUser.UserID, SessionKey: client.SessionToken()})
 			require.NoError(t, err)
-			_, isBridge := handler.(*aibridge.RequestBridge)
-			require.Equal(t, !tc.proxy, isBridge, "interception serves from a RequestBridge")
+			// Admission middleware may wrap either backend, so observe mode
+			// selection rather than asserting the concrete handler type.
+			proxySelected := false
+			for _, entry := range logSink.Entries() {
+				if strings.HasPrefix(entry.Message, "selected experimental reverse proxy routing;") {
+					proxySelected = true
+					break
+				}
+			}
+			require.Equal(t, tc.proxy, proxySelected, "the embedded daemon must honor its experiment setting")
 			if tc.proxy {
 				// A published router answers unregistered routes with 404;
 				// the not-ready handler would answer 503.

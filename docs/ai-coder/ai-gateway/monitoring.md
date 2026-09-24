@@ -6,7 +6,14 @@ title: Monitoring
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is
 > included with a Premium license.
 
-AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request. Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
+In interception mode, AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each request.
+Each capture maps back to the authenticated Coder identity for spend and usage attribution.
+
+> [!WARNING]
+> The unsafe `ai-gateway-reverse-proxy` experiment records request lifecycle events only.
+> For traffic routed through this experiment, the monitoring UI can show a blank model and zero usage, but those values aren't evidence of zero provider spend or complete audit coverage.
+> Budget checks still include spend recorded from other traffic, but they cannot account for traffic routed through this experiment.
+> Leave the experiment off, or remove it and restart the embedded Coder server or standalone AI Gateway process, if you require spend enforcement.
 
 ![User Prompt logging](../../images/aibridge/grafana_user_prompts_logging.png)
 
@@ -29,6 +36,9 @@ Refer to [provider configuration](./providers.md) for the provider reload lifecy
 
 The `provider` label is the provider instance name.
 Some metrics use the explicit `provider_name` or `provider_type` labels for clarity.
+The `method` label contains a standard HTTP method or `OTHER`.
+For `coder_ai_gateway_passthrough_total`, the `route` label contains the registered route pattern, not the requested URL path.
+When the unsafe reverse proxy experiment handles a request, the `model` label is empty because the experiment doesn't observe the model.
 
 | Metric                                                             | Type      | Labels                                                                     | Purpose                                                                                                                                            |
 |--------------------------------------------------------------------|-----------|----------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -52,6 +62,7 @@ Some metrics use the explicit `provider_name` or `provider_type` labels for clar
 | `coder_ai_gateway_providers_last_reload_success_timestamp_seconds` | gauge     |                                                                            | Unix timestamp of the last successful rebuild of the Gateway provider pool.                                                                        |
 
 Histograms also emit the standard `_bucket`, `_sum`, and `_count` series.
+Circuit-breaker state and trip series appear only after the relevant breaker changes state or transitions to open.
 
 ### Cost control metrics
 

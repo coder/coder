@@ -6,7 +6,12 @@ Coder controls agent spend with AI Gateway budgets, and surfaces the resulting s
 
 ## Budgets
 
-Coder Agents spend is controlled by AI Gateway budgets, which cap all AI Gateway usage (including Coder Agents chats) per user over the budget period.
+Coder Agents spend is controlled by AI Gateway budgets, which cap recorded AI Gateway usage (including Coder Agents chats) per user over the budget period.
+
+> [!WARNING]
+> The unsafe `ai-gateway-reverse-proxy` experiment doesn't accrue spend for traffic it routes, so budgets cannot account for that traffic.
+> Leave the experiment off, or remove it and restart the embedded Coder server or standalone AI Gateway process, if you require spend enforcement.
+> Refer to [AI Governance Cost Control](../../ai-gateway/cost-controls.md) for the accounting limitation.
 
 - **Group budgets**: set a budget for a group from the group's settings page.
   The deployment budget policy resolves which group budget applies when a user belongs to multiple budgeted groups, which defaults to the group with the highest budget.

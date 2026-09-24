@@ -2,6 +2,7 @@ package circuitbreaker
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -11,6 +12,7 @@ import (
 	"github.com/sony/gobreaker/v2"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/metrics"
 )
@@ -41,6 +43,27 @@ type ProviderCircuitBreakers struct {
 	breakers sync.Map // "endpoint:model" -> *gobreaker.CircuitBreaker[struct{}]
 	onChange func(endpoint, model string, from, to gobreaker.State)
 	metrics  *metrics.Metrics
+}
+
+// NewProviderCircuitBreakersWithObservability creates provider circuit
+// breakers with the shared state-change logging and metrics callback.
+func NewProviderCircuitBreakersWithObservability(provider string, cfg *config.CircuitBreaker, logger slog.Logger, m *metrics.Metrics) *ProviderCircuitBreakers {
+	onChange := func(endpoint, model string, from, to gobreaker.State) {
+		logger.Info(context.Background(), "circuit breaker state change",
+			slog.F("provider", provider),
+			slog.F("endpoint", endpoint),
+			slog.F("model", model),
+			slog.F("from", from.String()),
+			slog.F("to", to.String()),
+		)
+		if m != nil {
+			m.CircuitBreakerState.WithLabelValues(provider, endpoint, model).Set(StateToGaugeValue(to))
+			if to == gobreaker.StateOpen {
+				m.CircuitBreakerTrips.WithLabelValues(provider, endpoint, model).Inc()
+			}
+		}
+	}
+	return NewProviderCircuitBreakers(provider, cfg, onChange, m)
 }
 
 // NewProviderCircuitBreakers creates circuit breakers for a single provider.

@@ -18,6 +18,13 @@ AI Governance Cost Control requires:
 - Coder v2.36 or later.
 - AI Gateway [enabled and configured](./setup.md) with at least one provider.
 
+> [!WARNING]
+> The unsafe `ai-gateway-reverse-proxy` experiment records request lifecycle events, but it doesn't record token, model, prompt, or tool data or accrue spend.
+> Budget checks still include spend recorded from other traffic, but they cannot account for traffic routed through this experiment.
+> Leave the experiment off, or remove it and restart the embedded Coder server or standalone AI Gateway process, if you require spend enforcement.
+
+<!-- Keep adjacent callouts separate. -->
+
 > [!NOTE]
 > AI Governance Cost Control reports approximate spend rather than billed cost.
 > These figures will not match your provider invoices exactly. For details, visit [How spend is calculated](#how-spend-is-calculated).

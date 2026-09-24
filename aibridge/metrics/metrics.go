@@ -50,22 +50,29 @@ type Metrics struct {
 // using [prometheus.WrapRegistererWithPrefix].
 func NewMetrics(reg prometheus.Registerer) *Metrics {
 	return &Metrics{
+		// Cardinality estimates below use N for provider names and M for requested
+		// model names. Model counts vary by workload. Counts for routes, clients,
+		// token types, servers, and tools are planning estimates unless noted.
+
 		// Interception-related metrics.
 
-		// Pessimistic cardinality: N provider names, 5 models, 2 statuses, 3 routes, 3 methods, 10 clients = up to 900N PER INITIATOR.
+		// Estimated cardinality: N providers, M models, 2 statuses, 3 routes,
+		// 10 method values, and 10 clients = about 600MN per initiator. Method
+		// values are the 9 standard HTTP methods plus OTHER.
 		InterceptionCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "interceptions",
 			Name:      "total",
 			Help:      "The count of intercepted requests.",
 		}, append(baseLabels, "status", "route", "method", "initiator_id", "client")),
-		// Pessimistic cardinality: N provider names, 5 models, 3 routes = up to 15N.
-		// NOTE: route is not unbounded because this is only for intercepted routes.
+		// Estimated cardinality: N providers, M models, and 3 intercepted routes
+		// = about 3MN.
 		InterceptionsInflight: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
 			Subsystem: "interceptions",
 			Name:      "inflight",
 			Help:      "The number of intercepted requests which are being processed.",
 		}, append(baseLabels, "route")),
-		// Pessimistic cardinality: N provider names, 5 models, 7 buckets + 3 extra series (count, sum, +Inf) = up to 50N.
+		// Estimated cardinality: N providers, M models, 7 finite buckets, and 3
+		// extra series (count, sum, +Inf) = about 10MN.
 		InterceptionDuration: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 			Subsystem: "interceptions",
 			Name:      "duration_seconds",
@@ -77,8 +84,10 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Buckets: []float64{0.5, 2, 5, 15, 30, 60, 120},
 		}, baseLabels),
 
-		// Pessimistic cardinality: N provider names, 10 routes, 3 methods = up to 30N.
-		// NOTE: route is not unbounded because PassthroughRoutes (see provider.go) is a static list.
+		// Estimated cardinality: N providers, 10 registered route patterns, and
+		// 10 method values = about 100N. Method values are the 9 standard HTTP
+		// methods plus OTHER. The route label is the registered passthrough route
+		// pattern, not the arbitrary requested path.
 		PassthroughCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "passthrough",
 			Name:      "total",
@@ -87,7 +96,8 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 
 		// Prompt-related metrics.
 
-		// Pessimistic cardinality: N provider names, 5 models, 10 clients = up to 50N PER INITIATOR.
+		// Estimated cardinality: N providers, M models, and 10 clients = about
+		// 10MN per initiator.
 		PromptCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "prompts",
 			Name:      "total",
@@ -96,7 +106,8 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 
 		// Token-related metrics.
 
-		// Pessimistic cardinality: N provider names, 5 models, 10 types, 10 clients = up to 500N PER INITIATOR.
+		// Estimated cardinality: N providers, M models, 10 token types, and 10
+		// clients = about 100MN per initiator.
 		TokenUseCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "tokens",
 			Name:      "total",
@@ -105,13 +116,15 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 
 		// Tool-related metrics.
 
-		// Pessimistic cardinality: N provider names, 5 models, 3 servers, 30 tools = up to 450N.
+		// Estimated cardinality: N providers, M models, 3 servers, and 30 tools
+		// = about 90MN.
 		InjectedToolUseCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "injected_tool_invocations",
 			Name:      "total",
 			Help:      "The number of times an injected MCP tool was invoked by AI Gateway.",
 		}, append(baseLabels, "server", "name")),
-		// Pessimistic cardinality: N provider names, 5 models, 30 tools = up to 150N.
+		// Estimated cardinality: N providers, M models, and 30 tools = about
+		// 30MN.
 		NonInjectedToolUseCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "non_injected_tool_selections",
 			Name:      "total",
@@ -120,19 +133,22 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 
 		// Circuit breaker metrics.
 
-		// Pessimistic cardinality: N provider names, 2 endpoints, 5 models = up to 10N.
+		// Estimated cardinality: N providers, 2 endpoints, and M models = about
+		// 2MN.
 		CircuitBreakerState: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
 			Subsystem: "circuit_breaker",
 			Name:      "state",
 			Help:      "Current state of the circuit breaker (0=closed, 0.5=half-open, 1=open).",
 		}, []string{"provider", "endpoint", "model"}),
-		// Pessimistic cardinality: N provider names, 2 endpoints, 5 models = up to 10N.
+		// Estimated cardinality: N providers, 2 endpoints, and M models = about
+		// 2MN.
 		CircuitBreakerTrips: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "circuit_breaker",
 			Name:      "trips_total",
 			Help:      "Total number of times the circuit breaker transitioned to open state.",
 		}, []string{"provider", "endpoint", "model"}),
-		// Pessimistic cardinality: N provider names, 2 endpoints, 5 models = up to 10N.
+		// Estimated cardinality: N providers, 2 endpoints, and M models = about
+		// 2MN.
 		CircuitBreakerRejects: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "circuit_breaker",
 			Name:      "rejects_total",

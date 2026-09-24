@@ -5,12 +5,16 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -343,6 +347,46 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 			assert.Contains(t, resp.Body.String(), upstreamRespBody)
 		})
 	}
+}
+
+func TestRequestBridgeReusesPassthroughTransportAcrossRoutes(t *testing.T) {
+	t.Parallel()
+
+	var newConnections atomic.Int32
+	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	upstream.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			newConnections.Add(1)
+		}
+	}
+	upstream.Start()
+	t.Cleanup(upstream.Close)
+
+	prov := &testutil.MockProvider{
+		NameStr:     "test",
+		URL:         upstream.URL,
+		Passthrough: []string{"/v1/models", "/v1/threads/"},
+	}
+	metricsRegistry := prometheus.NewRegistry()
+	m := aibridge.NewMetrics(metricsRegistry)
+	bridge, err := aibridge.NewRequestBridge(
+		t.Context(), []provider.Provider{prov}, nil, nil,
+		slogtest.Make(t, nil), m, bridgeTestTracer,
+	)
+	require.NoError(t, err)
+
+	for _, path := range []string{"/test/v1/models", "/test/v1/threads/1/messages"} {
+		resp := httptest.NewRecorder()
+		bridge.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, path, nil))
+		require.Equal(t, http.StatusNoContent, resp.Code)
+	}
+
+	require.EqualValues(t, 1, newConnections.Load())
+	require.Equal(t, 1.0, promtest.ToFloat64(m.PassthroughCount.WithLabelValues("test", "/v1/models", http.MethodGet)))
+	require.Equal(t, 1.0, promtest.ToFloat64(m.PassthroughCount.WithLabelValues("test", "/v1/threads/", http.MethodGet)))
+	require.Equal(t, 2, promtest.CollectAndCount(m.PassthroughCount))
 }
 
 func TestBridgedRouteTakesPrecedenceOverPassthroughCatchAll(t *testing.T) {

@@ -17,11 +17,15 @@ func Recover(log slog.Logger) func(h http.Handler) http.Handler {
 				r := recover()
 
 				// Reverse proxying (among other things) may panic with
-				// http.ErrAbortHandler when the request is aborted. It's not a
-				// real panic so we shouldn't log them.
+				// http.ErrAbortHandler when the request is aborted. The HTTP
+				// server must handle it so the connection is closed without
+				// logging a stack trace.
 				//
 				//nolint:errorlint // this is how the stdlib does the check
-				if r != nil && r != http.ErrAbortHandler {
+				if r == http.ErrAbortHandler {
+					panic(r)
+				}
+				if r != nil {
 					log.Warn(context.Background(),
 						"panic serving http request (recovered)",
 						slog.F("panic", r),

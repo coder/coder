@@ -1,6 +1,8 @@
 package aibridged
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -69,7 +71,9 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	if err != nil {
 		return nil, xerrors.Errorf("rewrite request URL for provider %q: %w", t.providerName, err)
 	}
-	req = req.Clone(req.Context())
+	callerCtx := req.Context()
+	servedCtx, cancelServed := context.WithCancel(callerCtx)
+	req = req.Clone(callerCtx)
 	req.URL.Path = newPath
 
 	pr, pw := io.Pipe()
@@ -84,30 +88,36 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	// handler operate on its own request value without surprising the caller
 	// if it mutates Headers or stores the request. The Source is attached to
 	// the served context so downstream handlers can log the call site.
-	served := req.Clone(aibridge.WithSource(req.Context(), t.source))
+	served := req.Clone(aibridge.WithSource(servedCtx, t.source))
 
 	handlerDone := make(chan struct{})
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				// Mirror net/http.Server behavior: a panicking handler
-				// produces a 500 instead of crashing the process.
-				rw.WriteHeader(http.StatusInternalServerError)
-				_ = pw.CloseWithError(xerrors.Errorf("handler panicked: %v", r))
-			}
-			// Make sure we always unblock RoundTrip even if the handler
-			// returns before writing headers (e.g. handler returns early
-			// without writing).
-			rw.ensureHeaders()
-			// If the request context was canceled, surface that as a
-			// body-read error so the caller sees a network-style failure
-			// rather than EOF. Otherwise close cleanly.
-			if cerr := served.Context().Err(); cerr != nil {
-				_ = pw.CloseWithError(cerr)
+				panicErr, isError := r.(error)
+				if isError && errors.Is(panicErr, http.ErrAbortHandler) {
+					abortErr := io.ErrUnexpectedEOF
+					if cause := context.Cause(served.Context()); cause != nil {
+						abortErr = cause
+					}
+					_ = pw.CloseWithError(abortErr)
+				} else {
+					// Mirror net/http.Server behavior: a panicking handler
+					// produces a 500 instead of crashing the process.
+					rw.WriteHeader(http.StatusInternalServerError)
+					_ = pw.CloseWithError(xerrors.Errorf("handler panicked: %v", r))
+				}
+			} else if cause := context.Cause(served.Context()); cause != nil {
+				_ = pw.CloseWithError(cause)
 			} else {
+				// Finalize the stream before canceling internal work so normal
+				// completion remains a clean EOF.
 				_ = pw.Close()
 			}
+			// Always unblock RoundTrip if the handler returned without writing.
+			rw.ensureHeaders()
 			close(handlerDone)
+			cancelServed()
 		}()
 		t.handler.ServeHTTP(rw, served)
 	}()
@@ -121,7 +131,7 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	go func() {
 		select {
 		case <-served.Context().Done():
-			_ = pw.CloseWithError(served.Context().Err())
+			_ = pw.CloseWithError(context.Cause(served.Context()))
 		case <-handlerDone:
 			// Handler finished; nothing to cancel.
 		}
@@ -129,8 +139,10 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 
 	select {
 	case <-rw.gotHeaders:
-	case <-served.Context().Done():
-		return nil, served.Context().Err()
+	case <-callerCtx.Done():
+		cancelServed()
+		_ = pr.Close()
+		return nil, context.Cause(callerCtx)
 	}
 
 	return &http.Response{
@@ -140,10 +152,20 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 		ProtoMajor:    1,
 		ProtoMinor:    1,
 		Header:        rw.frozenHeader,
-		Body:          pr,
+		Body:          &cancelingResponseBody{ReadCloser: pr, cancel: cancelServed},
 		Request:       req,
 		ContentLength: -1, // streaming; unknown length
 	}, nil
+}
+
+type cancelingResponseBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (b *cancelingResponseBody) Close() error {
+	b.cancel()
+	return b.ReadCloser.Close()
 }
 
 // pipeResponseWriter is an [http.ResponseWriter] that streams the response
@@ -192,6 +214,7 @@ func (*pipeResponseWriter) Flush() {}
 // current status. Used to unblock RoundTrip on handler return-without-write.
 func (w *pipeResponseWriter) ensureHeaders() {
 	w.once.Do(func() {
+		w.frozenHeader = w.header.Clone()
 		close(w.gotHeaders)
 	})
 }

@@ -89,3 +89,75 @@ func TestNewJSONErrorResponse(t *testing.T) {
 		})
 	}
 }
+
+func TestActorHeaders(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		header string
+		want   bool
+	}{
+		{name: "ID", header: utils.ActorHeaderPrefix + "-ID", want: true},
+		{name: "MetadataCaseInsensitive", header: "x-ai-bridge-actor-metadata-name", want: true},
+		{name: "Other", header: "X-AI-Bridge-Request-ID"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, utils.IsActorHeader(tc.header))
+		})
+	}
+}
+
+func TestNewStreamingTransport(t *testing.T) {
+	t.Parallel()
+
+	transport := utils.NewStreamingTransport()
+	require.Equal(t, 100, transport.MaxIdleConns)
+	require.Equal(t, 90*time.Second, transport.IdleConnTimeout)
+	require.Equal(t, 10*time.Second, transport.TLSHandshakeTimeout)
+	require.Equal(t, time.Second, transport.ExpectContinueTimeout)
+	require.Zero(t, transport.ResponseHeaderTimeout)
+	require.False(t, transport.DisableCompression)
+}
+
+func TestStripSensitiveRequestHeaders(t *testing.T) {
+	t.Parallel()
+
+	headers := http.Header{
+		"Cookie":                                 {"coder_session_token=cookie-secret"},
+		"Coder-Session-Token":                    {"secret"},
+		"cOdEr-Custom":                           {"secret"},
+		"X-Coder-AI-Governance-Token":            {"secret"},
+		"x-CoDeR-Agent-Firewall-Session-Id":      {"secret"},
+		"X-Coder-Agent-Firewall-Sequence-Number": {"42"},
+		"Authorization":                          {"Bearer provider"},
+		"X-Api-Key":                              {"provider-key"},
+		"User-Agent":                             {"client/1.0"},
+		"Accept-Encoding":                        {"gzip"},
+		"X-AI-Bridge-Actor-Id":                   {"actor"},
+		"Forwarded":                              {"for=192.0.2.1"},
+		"X-Forwarded-Server":                     {"client"},
+	}
+
+	utils.StripSensitiveRequestHeaders(headers)
+
+	require.Equal(t, http.Header{
+		"Authorization":   {"Bearer provider"},
+		"X-Api-Key":       {"provider-key"},
+		"User-Agent":      {"client/1.0"},
+		"Accept-Encoding": {"gzip"},
+	}, headers)
+}
+
+func TestStripSensitiveResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	headers := http.Header{
+		"Set-Cookie":   {"coder_session_token=upstream"},
+		"Content-Type": {"application/json"},
+	}
+	utils.StripSensitiveResponseHeaders(headers)
+	require.Empty(t, headers.Values("Set-Cookie"))
+	require.Equal(t, "application/json", headers.Get("Content-Type"))
+}

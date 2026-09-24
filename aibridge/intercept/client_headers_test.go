@@ -122,19 +122,25 @@ func TestPrepareClientHeaders(t *testing.T) {
 		require.Equal(t, originalCopy, input)
 	})
 
-	t.Run("agent firewall headers are removed", func(t *testing.T) {
+	t.Run("sensitive boundary headers are removed", func(t *testing.T) {
 		t.Parallel()
 
 		input := http.Header{
-			"X-Coder-Agent-Firewall-Session-Id":      {"e5f6a7b8-1234-5678-9abc-def012345678"},
-			"X-Coder-Agent-Firewall-Sequence-Number": {"42"},
-			"X-Custom":                               {"preserved"},
+			"Cookie":                      {"coder_session_token=secret"},
+			"Coder-Session-Token":         {"session-token"},
+			"X-Coder-AI-Governance-Token": {"governance-token"},
+			"X-AI-Bridge-Actor-Id":        {"spoofed-actor"},
+			"X-Forwarded-Server":          {"untrusted-proxy"},
+			"X-Custom":                    {"preserved"},
 		}
 
 		result := intercept.PrepareClientHeaders(input)
 
-		assert.Empty(t, result.Get("X-Coder-Agent-Firewall-Session-Id"))
-		assert.Empty(t, result.Get("X-Coder-Agent-Firewall-Sequence-Number"))
+		assert.Empty(t, result.Get("Cookie"))
+		assert.Empty(t, result.Get("Coder-Session-Token"))
+		assert.Empty(t, result.Get("X-Coder-AI-Governance-Token"))
+		assert.Empty(t, result.Get("X-AI-Bridge-Actor-Id"))
+		assert.Empty(t, result.Get("X-Forwarded-Server"))
 		assert.Equal(t, "preserved", result.Get("X-Custom"))
 	})
 }
