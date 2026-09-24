@@ -3,7 +3,7 @@ title: OAuth2 provider
 ---
 
 > [!NOTE]
-> The OAuth2 provider is generally available and off by default.
+> The OAuth2 provider is off by default.
 > Set `CODER_OAUTH2_PROVIDER_ENABLE=true` to turn it on.
 > The `oauth2` experiment has been removed, and setting `CODER_EXPERIMENTS=oauth2` now only logs a warning and does nothing.
 > Switch to `CODER_OAUTH2_PROVIDER_ENABLE=true` instead.
