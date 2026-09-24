@@ -1,17 +1,21 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { type FC, useEffect, useState } from "react";
+import { type FC, StrictMode, useEffect, useState } from "react";
 import { onlineManager } from "react-query";
 import {
+	createMemoryRouter,
 	type InitialEntry,
+	RouterProvider,
 	useBlocker,
 	useLocation,
 	useSearchParams,
 } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { AppProviders } from "#/App";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { RequireAuth } from "#/contexts/auth/RequireAuth";
 import {
 	buildDebugWorkspaceBuildPath,
 	debugWorkspaceBuildIntentStorageKey,
@@ -29,7 +33,10 @@ import {
 	MockUserPreferenceSettings,
 	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
-import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import {
+	createTestQueryClient,
+	renderWithAuth,
+} from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import AgentCreatePage from "./AgentCreatePage";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
@@ -132,6 +139,31 @@ const PageWithSidebarFilters: FC = () => (
 	</>
 );
 
+// StrictMode double-invokes effects only when it wraps the root, so this
+// builds the same tree as renderWithAuth under it.
+const renderPageInStrictMode = () => {
+	const router = createMemoryRouter(
+		[
+			{
+				element: <RequireAuth />,
+				children: [
+					{ path: "/agents", element: <AgentCreatePage /> },
+					{ path: "/agents/:agentId", element: null },
+				],
+			},
+		],
+		{ initialEntries: [deepLink] },
+	);
+	render(
+		<StrictMode>
+			<AppProviders queryClient={createTestQueryClient()}>
+				<RouterProvider router={router} />
+			</AppProviders>
+		</StrictMode>,
+	);
+	return { router };
+};
+
 // Holds the page's replace navigation so the automatic send runs with the
 // build ID still in the URL. useBlocker registers over two effect passes, so
 // the page mounts after them.
@@ -198,6 +230,20 @@ describe("AgentCreatePage debug deep link", () => {
 		expect(
 			localStorage.getItem(debugWorkspaceBuildIntentStorageKey),
 		).toBeNull();
+	});
+
+	it("sends once after the button click under StrictMode", async () => {
+		enableExperiment();
+		const { uploadChatFile, createChat } = mockPageQueries();
+		storeDebugWorkspaceBuildIntent(failedBuild.id);
+
+		const { router } = renderPageInStrictMode();
+
+		await waitFor(() =>
+			expect(router.state.location.pathname).toBe("/agents/new-chat-id"),
+		);
+		expect(createChat).toHaveBeenCalledTimes(1);
+		expect(uploadChatFile).toHaveBeenCalledTimes(1);
 	});
 
 	it("strips the build ID from the chat URL even if the send beats the history move", async () => {

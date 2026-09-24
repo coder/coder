@@ -659,10 +659,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	>("pending");
 	const autoSendRequested = prefill?.autoSend === true && !prefillDetached;
 	const autoSendPending = autoSendRequested && autoSendState === "pending";
+	// A file the user adds while the logs upload goes with the send instead of
+	// being dropped by resetAttachments afterwards.
+	const uploadsSettled = attachments.every((file) => {
+		const status = uploadStates.get(file)?.status;
+		return status === "uploaded" || status === "error";
+	});
 	const isAutoSendReady =
 		autoSendPending &&
 		!isSendGateClosed &&
-		prefillUploadState?.status === "uploaded";
+		prefillUploadState?.status === "uploaded" &&
+		uploadsSettled;
 	const sendPrefill = useEffectEvent((message: string) => {
 		setAutoSendState("sending");
 		void handleSendWithAttachments(message).finally(() => {

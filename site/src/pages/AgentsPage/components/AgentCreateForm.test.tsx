@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act, StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -188,6 +188,49 @@ describe("AgentCreateForm prefill", () => {
 
 		expect(message).toHaveTextContent(/^Why did this build fail\?$/);
 		expect(onCreateChat).toHaveBeenCalledTimes(1);
+	});
+
+	it("waits for a file added during the log upload and sends it too", async () => {
+		mockFormQueries();
+		const uploads = new Map<
+			string,
+			ReturnType<typeof createDeferred<TypesGen.UploadChatFileResponse>>
+		>();
+		const uploadChatFile = vi
+			.spyOn(API.experimental, "uploadChatFile")
+			.mockImplementation((file) => {
+				const upload = createDeferred<TypesGen.UploadChatFileResponse>();
+				uploads.set(file.name, upload);
+				return upload.promise;
+			});
+		const onCreateChat = vi.fn().mockResolvedValue(undefined);
+
+		renderForm(onCreateChat);
+
+		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(1));
+		fireEvent.drop(screen.getByTestId("chat-composer"), {
+			dataTransfer: {
+				files: [new File(["my notes"], "notes.txt", { type: "text/plain" })],
+			},
+		});
+		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(2));
+
+		await act(async () => {
+			uploads.get("workspace-build-logs.txt")?.resolve({ id: "uploaded-logs" });
+		});
+		await act(async () => {
+			await Promise.resolve();
+		});
+		expect(onCreateChat).not.toHaveBeenCalled();
+
+		await act(async () => {
+			uploads.get("notes.txt")?.resolve({ id: "uploaded-notes" });
+		});
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(onCreateChat).toHaveBeenCalledWith(
+			expect.objectContaining({ fileIDs: ["uploaded-logs", "uploaded-notes"] }),
+		);
 	});
 
 	it("auto-sends a prefill whose file name needs sanitizing", async () => {
