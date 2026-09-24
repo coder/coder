@@ -168,15 +168,8 @@ It is not gated on [Dynamic Client Registration](./index.md#dynamic-client-regis
 
 ## Standards compliance
 
-This implementation follows established OAuth2 standards including
-[RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) (OAuth2 core),
-[RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636) (PKCE), and the
-[OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-16).
-Coder enforces OAuth 2.1 requirements including mandatory PKCE for all
-authorization code grants, exact redirect URI string matching with the
-[RFC 8252](https://datatracker.ietf.org/doc/html/rfc8252) loopback port
-exception, rejection of the implicit grant, and CSRF protections on consent
-pages.
+This implementation follows established OAuth2 standards including [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) (OAuth2 core), [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636) (PKCE), and the [OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-16).
+Coder enforces OAuth 2.1 requirements including mandatory PKCE for all authorization code grants, exact redirect URI string matching with the [RFC 8252](https://datatracker.ietf.org/doc/html/rfc8252) loopback port exception, rejection of the implicit grant, and CSRF protections on consent pages.
 
 ## Learn more
 
