@@ -596,6 +596,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		!hasModelOptions ||
 		Boolean(aiGatewayDisabled);
 
+	// Captured on mount like the editor's initial value, so the automatic send
+	// posts the text the user sees.
+	const [prefillMessage] = useState(prefill?.message);
 	// Sanitized up front so uploadStates, keyed by File identity, can be read
 	// back for this file.
 	const [prefillFile] = useState(() =>
@@ -607,33 +610,42 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				)
 			: null,
 	);
-	const prefillAttachRequestedRef = useRef(false);
+	// Adoption replaces the attachment list, so the file is attached once per
+	// adopted organization: an org change drops the logs and uploads them again
+	// to the new org. Removing or inlining the chip is the user's decision and
+	// is not undone.
+	const prefillAttachedOrgRef = useRef<string | null>(null);
 	const [prefillAttachRequested, setPrefillAttachRequested] = useState(false);
+	const [prefillDetachedByUser, setPrefillDetachedByUser] = useState(false);
 	const attachPrefillFile = useEffectEvent((file: File) => {
 		handleAttach([file]);
 	});
-	// Uploads are scoped to the adopted organization.
 	const canAttachPrefillFile =
-		orgSelectionSettled &&
-		organizationId !== "" &&
-		organizationAdopted &&
-		!isForbidden;
+		organizationAdopted && !isForbidden && !prefillDetachedByUser;
 	useEffect(() => {
 		if (
 			prefillFile &&
 			canAttachPrefillFile &&
-			!prefillAttachRequestedRef.current
+			prefillAttachedOrgRef.current !== organizationId
 		) {
-			prefillAttachRequestedRef.current = true;
+			prefillAttachedOrgRef.current = organizationId;
 			setPrefillAttachRequested(true);
 			attachPrefillFile(prefillFile);
 		}
-	}, [prefillFile, canAttachPrefillFile]);
+	}, [prefillFile, canAttachPrefillFile, organizationId]);
+	const handleRemoveAttachmentByUser = (attachment: number | File) => {
+		const removed =
+			typeof attachment === "number" ? attachments[attachment] : attachment;
+		if (prefillFile !== null && removed === prefillFile) {
+			setPrefillDetachedByUser(true);
+		}
+		handleRemoveAttachment(attachment);
+	};
 	const prefillUploadState = prefillFile
 		? uploadStates.get(prefillFile)
 		: undefined;
-	// Removing or inlining the chip hands the composer back to the user; an
-	// automatic send must not go out without the logs it describes.
+	// Whether removed by the user or dropped by an org change, an automatic
+	// send must not go out without the logs it describes.
 	const prefillDetached =
 		prefillAttachRequested &&
 		prefillFile !== null &&
@@ -645,8 +657,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [autoSendState, setAutoSendState] = useState<
 		"pending" | "sending" | "settled"
 	>("pending");
-	const autoSendActive = prefill?.autoSend === true && !prefillDetached;
-	const autoSendPending = autoSendActive && autoSendState === "pending";
+	const autoSendRequested = prefill?.autoSend === true && !prefillDetached;
+	const autoSendPending = autoSendRequested && autoSendState === "pending";
 	const isAutoSendReady =
 		autoSendPending &&
 		!isSendGateClosed &&
@@ -657,7 +669,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			setAutoSendState("settled");
 		});
 	});
-	const prefillMessage = prefill?.message;
 	useEffect(() => {
 		if (prefillMessage !== undefined && isAutoSendReady) {
 			sendPrefill(prefillMessage);
@@ -760,7 +771,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						isDisabled={isInputDisabled}
 						// Typing during an automatic send would be discarded.
 						isReadOnly={
-							isForbidden || (autoSendActive && autoSendState !== "settled")
+							isForbidden || (autoSendRequested && autoSendState !== "settled")
 						}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
@@ -780,7 +791,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						// Files attached before org adoption cannot upload and would be discarded
 						// when restoration completes.
 						onAttach={organizationAdopted ? handleAttach : undefined}
-						onRemoveAttachment={handleRemoveAttachment}
+						onRemoveAttachment={handleRemoveAttachmentByUser}
 						uploadStates={uploadStates}
 						previewUrls={previewUrls}
 						textContents={textContents}

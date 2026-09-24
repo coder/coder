@@ -28,20 +28,27 @@ const linesBytes = (lines: readonly string[]): number =>
 	lines.reduce((total, line) => total + lineBytes(line), 0);
 
 // Truncates text to maxBytes of UTF-8, dropping a character split by the cut.
-const truncateUtf8 = (
+/** @internal Exported for testing. */
+export const truncateUtf8 = (
 	text: string,
 	maxBytes: number,
 	keep: "head" | "tail",
 ): string => {
+	if (keep === "head") {
+		// encodeInto writes only whole characters.
+		const { read } = utf8.encodeInto(text, new Uint8Array(maxBytes));
+		return text.slice(0, read);
+	}
 	const bytes = utf8.encode(text);
 	if (bytes.length <= maxBytes) {
 		return text;
 	}
-	const slice =
-		keep === "head"
-			? bytes.subarray(0, maxBytes)
-			: bytes.subarray(bytes.length - maxBytes);
-	return new TextDecoder().decode(slice).replace(/^\uFFFD+|\uFFFD+$/g, "");
+	let start = bytes.length - maxBytes;
+	// Skip continuation bytes so the tail starts on a character boundary.
+	while ((bytes[start] & 0xc0) === 0x80) {
+		start++;
+	}
+	return new TextDecoder().decode(bytes.subarray(start));
 };
 
 type LogLine = {

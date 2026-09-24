@@ -1,9 +1,14 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import type { FC } from "react";
+import { type FC, useEffect, useState } from "react";
 import { onlineManager } from "react-query";
-import { type InitialEntry, useLocation, useSearchParams } from "react-router";
+import {
+	type InitialEntry,
+	useBlocker,
+	useLocation,
+	useSearchParams,
+} from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -42,6 +47,11 @@ vi.mock("./components/AgentPageHeader", () => ({
 }));
 
 const failedBuild = MockFailedWorkspaceBuildWithUUID;
+const runningBuild = {
+	...failedBuild,
+	status: "running",
+	job: { ...failedBuild.job, status: "running" },
+} satisfies typeof failedBuild;
 
 const deepLink = `${buildDebugWorkspaceBuildPath(failedBuild.id)}&archived=archived`;
 
@@ -89,6 +99,13 @@ const renderPage = (route: InitialEntry = deepLink) =>
 		extraRoutes: [{ path: "/agents/:agentId", element: null }],
 	});
 
+const renderPageWith = (Wrapper: FC) =>
+	renderWithAuth(<Wrapper />, {
+		path: "/agents",
+		route: deepLink,
+		extraRoutes: [{ path: "/agents/:agentId", element: null }],
+	});
+
 // Writes a sidebar filter the way the layout does.
 const SidebarFilterProbe: FC = () => {
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -106,6 +123,27 @@ const SidebarFilterProbe: FC = () => {
 			Group by status
 		</button>
 	);
+};
+
+const PageWithSidebarFilters: FC = () => (
+	<>
+		<SidebarFilterProbe />
+		<AgentCreatePage />
+	</>
+);
+
+// Holds the page's replace navigation so the automatic send runs with the
+// build ID still in the URL. useBlocker registers over two effect passes, so
+// the page mounts after them.
+const PageWithHeldStrip: FC = () => {
+	useBlocker(({ nextLocation }) => nextLocation.pathname === "/agents");
+	const [passes, setPasses] = useState(0);
+	useEffect(() => {
+		if (passes < 2) {
+			setPasses(passes + 1);
+		}
+	}, [passes]);
+	return passes === 2 ? <AgentCreatePage /> : null;
 };
 
 const findChatMessage = () =>
@@ -160,6 +198,27 @@ describe("AgentCreatePage debug deep link", () => {
 		expect(
 			localStorage.getItem(debugWorkspaceBuildIntentStorageKey),
 		).toBeNull();
+	});
+
+	it("strips the build ID from the chat URL even if the send beats the history move", async () => {
+		enableExperiment();
+		const { createChat } = mockPageQueries();
+		storeDebugWorkspaceBuildIntent(failedBuild.id);
+
+		const { router } = renderPageWith(PageWithHeldStrip);
+		let searchAtSend: string | undefined;
+		createChat.mockImplementation(async () => {
+			searchAtSend = router.state.location.search;
+			return { ...MockChat, id: "new-chat-id" };
+		});
+
+		await waitFor(() =>
+			expect(router.state.location).toMatchObject({
+				pathname: "/agents/new-chat-id",
+				search: "?archived=archived",
+			}),
+		);
+		expect(searchAtSend).toContain("debug_workspace_build=");
 	});
 
 	it("only prefills a link opened without the button click", async () => {
@@ -248,17 +307,7 @@ describe("AgentCreatePage debug deep link", () => {
 		storeDebugWorkspaceBuildIntent(failedBuild.id);
 		const user = userEvent.setup();
 
-		const { router } = renderWithAuth(
-			<>
-				<SidebarFilterProbe />
-				<AgentCreatePage />
-			</>,
-			{
-				path: "/agents",
-				route: deepLink,
-				extraRoutes: [{ path: "/agents/:agentId", element: null }],
-			},
-		);
+		const { router } = renderPageWith(PageWithSidebarFilters);
 
 		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(1));
 		await user.click(screen.getByRole("button", { name: "Group by status" }));
@@ -285,7 +334,7 @@ describe("AgentCreatePage debug deep link", () => {
 		expect(uploadChatFile).toHaveBeenCalledTimes(1);
 	});
 
-	it("does not refetch the build on Back, and a failed refetch is not a load error", async () => {
+	it("does not refetch a failed build when Back returns to it", async () => {
 		enableExperiment();
 		const { uploadChatFile, createChat } = mockPageQueries();
 		const getWorkspaceBuild = vi
@@ -295,7 +344,7 @@ describe("AgentCreatePage debug deep link", () => {
 		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
 		const user = userEvent.setup();
 
-		const { router, queryClient } = renderPage();
+		const { router } = renderPage();
 
 		await findEnabledSendButton();
 		// Stands in for the layout's New chat link.
@@ -315,21 +364,6 @@ describe("AgentCreatePage debug deep link", () => {
 		const sendButton = await findEnabledSendButton();
 		expect(getWorkspaceBuild).toHaveBeenCalledTimes(1);
 
-		await act(async () => {
-			await queryClient.invalidateQueries({
-				queryKey: ["workspaceBuilds", failedBuild.id],
-				exact: true,
-			});
-			// React Query delivers the result to the page on a timer.
-			await new Promise((resolve) => setTimeout(resolve, 0));
-		});
-
-		expect(getWorkspaceBuild).toHaveBeenCalledTimes(2);
-		expect(
-			screen.queryByText(
-				"Could not load the workspace build or its logs. Nothing was sent.",
-			),
-		).toBeNull();
 		await user.click(sendButton);
 		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
 		expect(createChat).toHaveBeenCalledWith(
@@ -340,6 +374,61 @@ describe("AgentCreatePage debug deep link", () => {
 				],
 			}),
 		);
+	});
+
+	it("refetches a build that had not failed when Back returns to it", async () => {
+		enableExperiment();
+		const { uploadChatFile } = mockPageQueries();
+		const getWorkspaceBuild = vi
+			.spyOn(API, "getWorkspaceBuild")
+			.mockResolvedValueOnce(runningBuild)
+			.mockResolvedValue(failedBuild);
+
+		const { router } = renderPage();
+
+		await screen.findByText("Nothing to debug");
+		// Stands in for the layout's New chat link.
+		await router.navigate({
+			pathname: "/agents",
+			search: "?archived=archived",
+		});
+		await findChatMessage();
+
+		await router.navigate(-1);
+
+		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(1));
+		await findEnabledSendButton();
+		expect(getWorkspaceBuild).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps the last build status when its refetch fails", async () => {
+		enableExperiment();
+		const { uploadChatFile } = mockPageQueries();
+		const getWorkspaceBuild = vi
+			.spyOn(API, "getWorkspaceBuild")
+			.mockResolvedValueOnce(runningBuild)
+			.mockRejectedValue(new Error("boom"));
+
+		const { router } = renderPage();
+
+		await screen.findByText("Nothing to debug");
+		// Stands in for the layout's New chat link.
+		await router.navigate({
+			pathname: "/agents",
+			search: "?archived=archived",
+		});
+		await findChatMessage();
+
+		await router.navigate(-1);
+
+		await waitFor(() => expect(getWorkspaceBuild).toHaveBeenCalledTimes(2));
+		await screen.findByText(/has not failed \(status: running\)/);
+		expect(
+			screen.queryByText(
+				"Could not load the workspace build or its logs. Nothing was sent.",
+			),
+		).toBeNull();
+		expect(uploadChatFile).not.toHaveBeenCalled();
 	});
 
 	it("does not retry a failed automatic send until the user presses Send", async () => {
@@ -397,11 +486,7 @@ describe("AgentCreatePage debug deep link", () => {
 	it("does not fetch or attach logs for a build that has not failed", async () => {
 		enableExperiment();
 		const { uploadChatFile } = mockPageQueries();
-		vi.spyOn(API, "getWorkspaceBuild").mockResolvedValue({
-			...failedBuild,
-			status: "running",
-			job: { ...failedBuild.job, status: "running" },
-		});
+		vi.spyOn(API, "getWorkspaceBuild").mockResolvedValue(runningBuild);
 		const getWorkspaceBuildLogs = vi.spyOn(API, "getWorkspaceBuildLogs");
 		storeDebugWorkspaceBuildIntent(failedBuild.id);
 

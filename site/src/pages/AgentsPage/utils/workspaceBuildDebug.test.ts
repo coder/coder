@@ -6,6 +6,7 @@ import {
 	debugWorkspaceBuildLogsMaxBytes,
 	debugWorkspaceBuildPrompt,
 	formatWorkspaceBuildLogsForDebug,
+	truncateUtf8,
 } from "./workspaceBuildDebug";
 
 const failedBuild: WorkspaceBuild = {
@@ -249,5 +250,21 @@ describe("formatWorkspaceBuildLogsForDebug", () => {
 
 		expect(text).not.toContain("\uFFFD");
 		expect(text).toContain("│ (error truncated)");
+	});
+});
+
+describe(truncateUtf8.name, () => {
+	// │ and \uFFFD are three bytes each.
+	it("drops only the character split by the cut", () => {
+		expect(truncateUtf8("││", 4, "head")).toBe("│");
+		expect(truncateUtf8("│ab", 4, "tail")).toBe("ab");
+		expect(truncateUtf8("│ab", 5, "head")).toBe("│ab");
+	});
+
+	it("keeps replacement characters that were in the text", () => {
+		expect(truncateUtf8("\uFFFD\uFFFD error: xxxxxxxx", 8, "head")).toBe(
+			"\uFFFD\uFFFD e",
+		);
+		expect(truncateUtf8("ab\uFFFDcd", 5, "tail")).toBe("\uFFFDcd");
 	});
 });
