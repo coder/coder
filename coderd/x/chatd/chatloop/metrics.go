@@ -41,6 +41,13 @@ const (
 	// follow the previous turn's anchor on the same runner; the anchor
 	// was clamped to the previous one.
 	StageAnomalyStaleAnchor = "stale_anchor"
+	// StageAnomalyNonPositiveTurn is a finished turn whose duration
+	// was not positive, so its accounting was not emitted.
+	StageAnomalyNonPositiveTurn = "nonpositive_turn"
+	// StageAnomalyOverattributed is a finished turn whose categories
+	// summed to more than its duration. The categories were emitted as
+	// measured, with no unattributed remainder.
+	StageAnomalyOverattributed = "overattributed"
 )
 
 // observedStages is the set of stages observed into
@@ -95,6 +102,9 @@ type Metrics struct {
 	TTFTSeconds               *prometheus.HistogramVec
 	StageDurationSeconds      *prometheus.HistogramVec
 	ModelStageDurationSeconds *prometheus.HistogramVec
+	TurnTimeSecondsTotal      *prometheus.CounterVec
+	TurnsTotal                *prometheus.CounterVec
+	TurnOutcomesTotal         *prometheus.CounterVec
 	StageAnomaliesTotal       *prometheus.CounterVec
 	CompactionTotal           *prometheus.CounterVec
 	StepsTotal                *prometheus.CounterVec
@@ -180,11 +190,29 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Help:      "Wall time of the stages that are a provider's work on a model: time_to_first_token (request open to first content part, successful windows only), stream (open to close), and provider_attempt (one HTTP round trip, closed on response headers). Also observed on stage_duration_seconds. provider_type is the configured AI provider type (for example bedrock), not the wire protocol other chatd metrics report as provider. Registered only with the chat-stage-metrics experiment.",
 			Buckets:   stageDurationBuckets,
 		}, []string{"stage", "provider_type", "chat_kind", "model"}),
+		TurnTimeSecondsTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_time_seconds_total",
+			Help:      "Accumulated wall time of finished chat turns split into disjoint categories that sum to the turn duration, added once per turn per category when the turn ends. Divide by turns_total for mean seconds per turn. Only turns that finished normally are counted. Registered only with the chat-stage-metrics experiment.",
+		}, []string{"category", "chat_kind"}),
+		TurnsTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turns_total",
+			Help:      "Total chat turns whose time partition was recorded in turn_time_seconds_total. Only turns that finished normally are counted. Registered only with the chat-stage-metrics experiment.",
+		}, []string{"chat_kind"}),
+		TurnOutcomesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_outcomes_total",
+			Help:      "Total chat turns by outcome (completed, interrupted, error, abandoned); every closed turn is counted exactly once, and completed turns are the ones whose time partition is recorded. Registered only with the chat-stage-metrics experiment.",
+		}, []string{"outcome", "chat_kind"}),
 		StageAnomaliesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "stage_anomalies_total",
-			Help:      "Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed and inverted_window (end before start, clock skew), missing_timestamp (unset start or end), future_start (start ahead of this replica's clock, span started now), stale_anchor (turn anchor clamped to the previous turn's anchor). Registered only with the chat-stage-metrics experiment.",
+			Help:      "Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed, inverted_window (end before start), missing_timestamp (unset start or end), future_start (start ahead of this clock, span started now), stale_anchor (turn anchor clamped to the previous one), nonpositive_turn (turn accounting not emitted), overattributed (categories summed past the turn). Registered only with the chat-stage-metrics experiment.",
 		}, []string{"reason"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
@@ -265,13 +293,41 @@ func (m *Metrics) RecordStageDuration(stage Stage, scope Scope, chatKind ChatKin
 	}
 }
 
-// RecordStageAnomaly counts a stage observation that was dropped, by
-// reason. No-op when m is nil.
+// RecordStageAnomaly counts a stage observation that was dropped or
+// emitted inconsistent, by reason. No-op when m is nil.
 func (m *Metrics) RecordStageAnomaly(reason string) {
 	if m == nil {
 		return
 	}
 	m.StageAnomaliesTotal.WithLabelValues(reason).Inc()
+}
+
+// RecordTurnCategory adds one category of a turn's time partition to
+// the category counter. Categories with no time are recorded as zero
+// so every category has a series. No-op when m is nil.
+func (m *Metrics) RecordTurnCategory(category Category, chatKind ChatKind, elapsed time.Duration) {
+	if m == nil || elapsed < 0 {
+		return
+	}
+	m.TurnTimeSecondsTotal.WithLabelValues(string(category), string(chatKind)).Add(elapsed.Seconds())
+}
+
+// RecordTurn counts one finished turn whose time partition was
+// recorded through RecordTurnCategory. No-op when m is nil.
+func (m *Metrics) RecordTurn(chatKind ChatKind) {
+	if m == nil {
+		return
+	}
+	m.TurnsTotal.WithLabelValues(string(chatKind)).Inc()
+}
+
+// RecordTurnOutcome counts one closed turn by outcome. No-op when m is
+// nil.
+func (m *Metrics) RecordTurnOutcome(outcome TurnOutcome, chatKind ChatKind) {
+	if m == nil {
+		return
+	}
+	m.TurnOutcomesTotal.WithLabelValues(string(outcome), string(chatKind)).Inc()
 }
 
 // RecordCompaction classifies and records a compaction attempt.
