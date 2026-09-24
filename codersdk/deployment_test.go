@@ -785,29 +785,43 @@ func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
 func TestDeploymentValues_Validate_ChatLimits(t *testing.T) {
 	t.Parallel()
 
-	t.Run("BelowOne", func(t *testing.T) {
-		t.Parallel()
-		for _, value := range []int64{0, -1} {
-			dv := defaultDeploymentValues(t)
-			dv.AI.Chat.MaxStepsPerTurn = serpent.Int64(value)
-			require.ErrorContains(t, dv.Validate(), fmt.Sprintf("--chat-max-steps-per-turn (%d) must be between 1 and", value))
+	limits := []struct {
+		flag  string
+		value func(*codersdk.DeploymentValues) *serpent.Int64
+	}{
+		{"chat-max-steps-per-turn", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxStepsPerTurn }},
+		{"chat-max-generation-retries", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxGenerationRetries }},
+		{"chat-max-queued-messages-per-chat", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxQueuedMessagesPerChat }},
+		{"chat-max-attachments-per-chat", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxAttachmentsPerChat }},
+		{"chat-max-prompt-bytes", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxPromptBytes }},
+		{"chat-max-concurrent-recording-uploads", func(dv *codersdk.DeploymentValues) *serpent.Int64 { return &dv.AI.Chat.MaxConcurrentRecordingUploads }},
+	}
+	values := []struct {
+		value int64
+		valid bool
+	}{
+		{value: -1},
+		{value: 0},
+		{value: 1, valid: true},
+		{value: math.MaxInt32, valid: true},
+		{value: math.MaxInt32 + 1},
+	}
+
+	for _, limit := range limits {
+		for _, tc := range values {
+			t.Run(fmt.Sprintf("%s=%d", limit.flag, tc.value), func(t *testing.T) {
+				t.Parallel()
+				dv := defaultDeploymentValues(t)
+				*limit.value(dv) = serpent.Int64(tc.value)
+				err := dv.Validate()
+				if tc.valid {
+					require.NoError(t, err)
+					return
+				}
+				require.ErrorContains(t, err, fmt.Sprintf("--%s (%d) must be between 1 and", limit.flag, tc.value))
+			})
 		}
-	})
-
-	t.Run("AboveInt32", func(t *testing.T) {
-		t.Parallel()
-		dv := defaultDeploymentValues(t)
-		dv.AI.Chat.MaxPromptBytes = serpent.Int64(math.MaxInt32 + 1)
-		require.ErrorContains(t, dv.Validate(), "--chat-max-prompt-bytes")
-	})
-
-	t.Run("Positive", func(t *testing.T) {
-		t.Parallel()
-		dv := defaultDeploymentValues(t)
-		dv.AI.Chat.MaxStepsPerTurn = serpent.Int64(10)
-		dv.AI.Chat.MaxPromptBytes = serpent.Int64(math.MaxInt32)
-		require.NoError(t, dv.Validate())
-	})
+	}
 }
 
 func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
