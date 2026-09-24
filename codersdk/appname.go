@@ -93,9 +93,10 @@ func SessionCountApps(counts map[string]int64) map[string]SessionCountApp {
 }
 
 // SessionAppPresentation returns an app's display name, icon, and family. An
-// unregistered name shows as itself under AppFamilyUnknown.
+// unregistered app shows its normalized name under AppFamilyUnknown.
 func SessionAppPresentation(appName string) (displayName, icon string, family AppFamilyName) {
-	app := sessionApps[NormalizeAppName(appName)]
+	appName = NormalizeAppName(appName)
+	app := sessionApps[appName]
 	return cmp.Or(app.displayName, appName), app.icon, cmp.Or(app.family, AppFamilyUnknown)
 }
 
