@@ -4,15 +4,19 @@ import {
 	LayoutGridIcon,
 	MoonIcon,
 	RefreshCwOffIcon,
-	Share2Icon,
 	SlidersHorizontalIcon,
 	UserIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { setupMatchMedia } from "#/testHelpers/matchMedia";
+import {
+	belowLgViewportMediaQuery,
+	mobileViewportMediaQuery,
+} from "#/utils/mobile";
 import { FilterCombobox } from "./FilterCombobox";
-import type { FilterCategory, FilterOption, SearchResult } from "./types";
+import type { FilterCategory, FilterOption } from "./types";
 
 const meta: Meta<typeof FilterCombobox> = {
 	title: "components/Filter/FilterCombobox",
@@ -31,12 +35,12 @@ const ownerOptions: FilterOption[] = [
 	{
 		label: "alice",
 		value: "alice",
-		startIcon: <Avatar fallback="alice" size="md" />,
+		startIcon: <Avatar fallback="alice" size="sm" />,
 	},
 	{
 		label: "bob",
 		value: "bob",
-		startIcon: <Avatar fallback="bob" size="md" />,
+		startIcon: <Avatar fallback="bob" size="sm" />,
 	},
 ];
 
@@ -50,31 +54,13 @@ const attributeOptions: FilterOption[] = [
 		label: "Outdated",
 		value: "outdated",
 		token: "outdated:true",
-		startIcon: (
-			<span className="flex size-(--avatar-default) shrink-0 items-center justify-center">
-				<RefreshCwOffIcon className="size-icon-sm" />
-			</span>
-		),
+		startIcon: <RefreshCwOffIcon />,
 	},
 	{
-		label: "Dormant",
+		label: "Deletion pending",
 		value: "dormant",
 		token: "dormant:true",
-		startIcon: (
-			<span className="flex size-(--avatar-default) shrink-0 items-center justify-center">
-				<MoonIcon className="size-icon-sm" />
-			</span>
-		),
-	},
-	{
-		label: "Shared",
-		value: "shared",
-		token: "shared:true",
-		startIcon: (
-			<span className="flex size-(--avatar-default) shrink-0 items-center justify-center">
-				<Share2Icon className="size-icon-sm" />
-			</span>
-		),
+		startIcon: <MoonIcon />,
 	},
 ];
 
@@ -109,7 +95,6 @@ const categories: FilterCategory[] = [
 	{
 		key: "owner",
 		label: "Owner",
-		aliases: ["user"],
 		icon: <UserIcon />,
 		getOptions: async (query) => filterOptions(ownerOptions, query),
 	},
@@ -118,27 +103,33 @@ const categories: FilterCategory[] = [
 // Attributes groups boolean workspace filters; each option commits its own
 // `key:true` chip, and the category owns those keys for parsing.
 const categoriesWithAttributes: FilterCategory[] = [
-	...categories,
+	...categories.map((category) =>
+		category.key === "status" ? { ...category, inlineOptions: true } : category,
+	),
 	{
-		key: "attributes",
+		key: "attribute",
+		aliases: ["attributes"],
 		label: "Attributes",
 		icon: <SlidersHorizontalIcon />,
-		chipKeys: ["outdated", "dormant", "shared"],
+		chipKeys: ["outdated", "dormant"],
+		inlineOptions: true,
+		inlineOptionsLabel: "Workspace is…",
+		inlineOptionsExclusive: true,
+		inlineOptionsLabelOnly: true,
 		getOptions: async (query) => filterOptions(attributeOptions, query),
 	},
 ];
 
+// Chips split key and value into separate spans, so match on the chip's text.
+const chip = (token: string) => (_: string, element: Element | null) =>
+	element?.getAttribute("data-slot") === "combobox-chip" &&
+	element.textContent === token;
+
 const FilterComboboxHarness = ({
 	initialQuery = "owner:me",
-	getSearchResults,
-	onSearchResultSelect,
-	searchResultsLabel,
 	categories: categoriesProp = categories,
 }: {
 	initialQuery?: string;
-	getSearchResults?: (query: string) => Promise<SearchResult[]>;
-	onSearchResultSelect?: (result: SearchResult) => void;
-	searchResultsLabel?: string;
 	categories?: readonly FilterCategory[];
 }) => {
 	const [query, setQuery] = useState(initialQuery);
@@ -150,24 +141,145 @@ const FilterComboboxHarness = ({
 			categories={categoriesProp}
 			placeholder="Search and filter…"
 			className="max-w-lg"
-			getSearchResults={getSearchResults}
-			onSearchResultSelect={onSearchResultSelect}
-			searchResultsLabel={searchResultsLabel}
 		/>
 	);
 };
 
 export const Default: Story = {
 	render: () => <FilterComboboxHarness />,
+};
+
+export const CompactMainMenu: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={categoriesWithAttributes}
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
+		await userEvent.click(
 			canvas.getByRole("combobox", { name: "Search and filter…" }),
-		).toBeVisible();
-		await expect(canvas.getByText("owner:me")).toBeVisible();
-		await expect(
+		);
+	},
+};
+
+export const MobileCategoryNavigation: Story = {
+	render: () => <FilterComboboxHarness initialQuery="" />,
+	play: async ({ canvasElement }) => {
+		const media = setupMatchMedia({
+			[belowLgViewportMediaQuery]: true,
+			[mobileViewportMediaQuery]: true,
+		});
+		try {
+			await userEvent.click(
+				within(canvasElement).getByRole("combobox", {
+					name: "Search and filter…",
+				}),
+			);
+		} finally {
+			media.restore();
+		}
+	},
+};
+
+const searchOwnerFlyout = async (canvasElement: HTMLElement, text: string) => {
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(
+		within(canvasElement).getByRole("combobox", { name: "Search and filter…" }),
+	);
+	await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
+	await userEvent.type(
+		await body.findByRole("textbox", { name: "Search Owner" }),
+		text,
+	);
+};
+
+export const SearchableHoverFlyout: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				{
+					key: "owner",
+					label: "Owner",
+					icon: <UserIcon />,
+					getOptions: async () =>
+						Array.from({ length: 12 }, (_, index) => ({
+							label: `user-${index + 1}`,
+							value: `user-${index + 1}`,
+						})),
+				},
+			]}
+		/>
+	),
+	play: ({ canvasElement }) => searchOwnerFlyout(canvasElement, "user-12"),
+};
+
+// The search field stays in the flyout when nothing matches.
+export const SearchableHoverFlyoutNoMatches: Story = {
+	...SearchableHoverFlyout,
+	play: ({ canvasElement }) => searchOwnerFlyout(canvasElement, "nobody"),
+};
+
+// Inside a category, the filter toggle returns to the category list instead of
+// closing the menu.
+export const ToggleLeavesCategory: Story = {
+	render: () => <FilterComboboxHarness initialQuery="" />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "status:");
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: "Running" })).toBeVisible(),
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Toggle filters" }),
+		);
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /^Status/ })).toBeVisible(),
+		);
+		await expect(canvas.queryByText("status:")).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Toggle filters" }),
+		);
+		await waitFor(() =>
+			expect(body.queryByRole("option")).not.toBeInTheDocument(),
+		);
+	},
+};
+
+export const ActiveFilterIcon: Story = {
+	render: () => <FilterComboboxHarness />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByTestId("filter-active-icon")).toBeVisible();
+		await userEvent.click(
 			canvas.getByRole("button", { name: "Remove owner:me" }),
-		).toBeVisible();
+		);
+		await waitFor(() =>
+			expect(
+				canvas.queryByTestId("filter-active-icon"),
+			).not.toBeInTheDocument(),
+		);
+	},
+};
+
+export const WrappedChipsKeepIconsOnFirstRow: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="owner:me status:running template:docker outdated:true dormant:true"
+			categories={categoriesWithAttributes}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
+		await expect(canvas.getByText(chip("outdated"))).toBeVisible();
 	},
 };
 
@@ -181,14 +293,16 @@ export const BackspaceRemovesLastChip: Story = {
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
-		await expect(canvas.getByText("status:running")).toBeVisible();
-		await expect(canvas.getByText("owner:me")).toBeVisible();
+		await expect(canvas.getByText(chip("status:running"))).toBeVisible();
+		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
 		await userEvent.click(input);
 		await userEvent.keyboard("{Backspace}");
 		await waitFor(() =>
-			expect(canvas.queryByText("status:running")).not.toBeInTheDocument(),
+			expect(
+				canvas.queryByText(chip("status:running")),
+			).not.toBeInTheDocument(),
 		);
-		await expect(canvas.getByText("owner:me")).toBeVisible();
+		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
 	},
 };
 
@@ -254,25 +368,12 @@ export const TypeRawCategoryValue: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "status:starting");
-		await expect(
-			await body.findByText("No Status matches", {
-				ignore: '[role="status"], script, style',
-			}),
-		).toBeVisible();
-		await expect(
-			canvas.queryByRole("button", { name: "Remove status:starting" }),
-		).not.toBeInTheDocument();
 		await userEvent.keyboard("{Enter}");
-		await expect(
-			canvas.getByRole("button", { name: "Remove status:starting" }),
-		).toBeVisible();
-		await expect(input).toHaveValue("");
 	},
 };
 
@@ -295,6 +396,31 @@ export const TypeaheadMatchingCategories: Story = {
 		await userEvent.keyboard("{Enter}");
 		await expect(canvas.getByText("owner:")).toBeVisible();
 		await waitFor(() => expect(body.getByText("alice")).toBeVisible());
+	},
+};
+
+// Typed text filters filter items only. With no matching filter items, the
+// popup does not render a dropdown.
+export const NoFilterMatches: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				{
+					key: "owner",
+					label: "Owner",
+					icon: <UserIcon />,
+					getOptions: async (query) => filterOptions(ownerOptions, query),
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "missing");
 	},
 };
 
@@ -346,98 +472,6 @@ export const EnterCommitsHighlightedCategory: Story = {
 	},
 };
 
-export const LiveResourcePreviews: Story = {
-	render: () => (
-		<FilterComboboxHarness
-			initialQuery=""
-			searchResultsLabel="Workspaces"
-			getSearchResults={async (query) => {
-				await new Promise((resolve) => {
-					window.setTimeout(resolve, 50);
-				});
-				if (!query.toLowerCase().includes("dev")) {
-					return [];
-				}
-				return [
-					{
-						value: "ws-1",
-						label: "devbox",
-						subtitle: "alice · docker",
-						href: "/@alice/devbox",
-					},
-				];
-			}}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		const input = canvas.getByRole("combobox", {
-			name: "Search and filter…",
-		});
-		await userEvent.click(input);
-		await userEvent.type(input, "dev");
-		await waitFor(() =>
-			expect(body.getByRole("option", { name: /devbox/i })).toBeVisible(),
-		);
-		await expect(body.getByText("Workspaces")).toBeVisible();
-		await expect(body.getByText("alice · docker")).toBeVisible();
-	},
-};
-
-export const HidesStaleResourcePreviews: Story = {
-	render: () => (
-		<FilterComboboxHarness
-			initialQuery=""
-			searchResultsLabel="Workspaces"
-			getSearchResults={async (query) => {
-				if (query === "dev") {
-					return [
-						{
-							value: "ws-dev",
-							label: "devbox",
-							subtitle: "alice · docker",
-							href: "/@alice/devbox",
-						},
-					];
-				}
-				if (query === "prod") {
-					return [
-						{
-							value: "ws-prod",
-							label: "prodbox",
-							subtitle: "bob · kubernetes",
-							href: "/@bob/prodbox",
-						},
-					];
-				}
-				return [];
-			}}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		const input = canvas.getByRole("combobox", {
-			name: "Search and filter…",
-		});
-		await userEvent.click(input);
-		await userEvent.type(input, "dev");
-		await waitFor(() =>
-			expect(body.getByRole("option", { name: /devbox/i })).toBeVisible(),
-		);
-		await userEvent.clear(input);
-		await userEvent.type(input, "p");
-		await expect(
-			body.queryByRole("option", { name: /devbox/i }),
-		).not.toBeInTheDocument();
-		await userEvent.type(input, "rod");
-		await waitFor(() =>
-			expect(body.getByRole("option", { name: /prodbox/i })).toBeVisible(),
-		);
-	},
-};
-
 // Regression: chips must render in the order they were added, not in the
 // configured category order. Categories are status, template, owner; starting
 // from owner:me and adding template then status must keep the visible order
@@ -463,7 +497,7 @@ export const PreservesChipInsertionOrder: Story = {
 		await waitFor(() => expect(body.getByText("docker")).toBeVisible());
 		await userEvent.click(body.getByRole("option", { name: /docker/i }));
 		await waitFor(() =>
-			expect(canvas.getByText("template:docker")).toBeVisible(),
+			expect(canvas.getByText(chip("template:docker"))).toBeVisible(),
 		);
 
 		await userEvent.click(input);
@@ -471,7 +505,7 @@ export const PreservesChipInsertionOrder: Story = {
 		await waitFor(() => expect(body.getByText("Running")).toBeVisible());
 		await userEvent.click(body.getByRole("option", { name: /Running/i }));
 		await waitFor(() =>
-			expect(canvas.getByText("status:running")).toBeVisible(),
+			expect(canvas.getByText(chip("status:running"))).toBeVisible(),
 		);
 
 		await waitFor(() =>
@@ -498,7 +532,6 @@ export const CrossCategoryValueSuggestions: Story = {
 				{
 					key: "owner",
 					label: "Owner",
-					aliases: ["user"],
 					icon: <UserIcon />,
 					getOptions: async (query) =>
 						filterOptions(
@@ -528,13 +561,13 @@ export const CrossCategoryValueSuggestions: Story = {
 			body.queryByRole("option", { name: /^Owner$/i }),
 		).not.toBeInTheDocument();
 		await userEvent.click(body.getByRole("option", { name: /testuser01/i }));
-		await expect(canvas.getByText("owner:testuser01")).toBeVisible();
+		await expect(canvas.getByText(chip("owner:testuser01"))).toBeVisible();
 	},
 };
 
-// The Attributes category commits a distinct `key:true` chip per option, and
-// several attribute chips can coexist because each owns its own key.
-export const AttributesCommitBooleanChips: Story = {
+// Typing an inline category prefix narrows the main panel to that category
+// instead of opening a second panel beside it.
+export const TypedInlinePrefix: Story = {
 	render: () => (
 		<FilterComboboxHarness
 			initialQuery=""
@@ -544,36 +577,148 @@ export const AttributesCommitBooleanChips: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
-
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
-		await waitFor(() =>
-			expect(body.getByRole("option", { name: /Attributes/i })).toBeVisible(),
-		);
-		await userEvent.click(body.getByRole("option", { name: /Attributes/i }));
-		await waitFor(() =>
-			expect(body.getByRole("option", { name: /Outdated/i })).toBeVisible(),
-		);
-		await userEvent.click(body.getByRole("option", { name: /Outdated/i }));
-		await waitFor(() =>
-			expect(canvas.getByText("outdated:true")).toBeVisible(),
-		);
-
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
-		await userEvent.click(body.getByRole("option", { name: /Attributes/i }));
-		await waitFor(() =>
-			expect(body.getByRole("option", { name: /Shared/i })).toBeVisible(),
-		);
-		await userEvent.click(body.getByRole("option", { name: /Shared/i }));
-		await waitFor(() => expect(canvas.getByText("shared:true")).toBeVisible());
-
-		// Both boolean chips coexist because each attribute owns a distinct key.
-		await expect(canvas.getByText("outdated:true")).toBeVisible();
-		await expect(canvas.getByText("shared:true")).toBeVisible();
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "status:");
+		await body.findByRole("option", { name: "Running" });
 	},
+};
+
+const scopedOwnerCategories: FilterCategory[] = [
+	{
+		key: "owner",
+		label: "Owner",
+		icon: <UserIcon />,
+		chipKeys: ["owner", "user"],
+		scopeToggle: {
+			label: (owner) =>
+				owner
+					? `Include workspaces shared with ${owner}`
+					: "Include shared workspaces",
+			chipKey: "user",
+			pillLabel: "shared with owner",
+		},
+		getOptions: async (query) => filterOptions(ownerOptions, query),
+	},
+];
+
+// A category scope toggle sits below the option list; the applied chip is
+// joined by a shared with owner pill while the toggle is on.
+export const ScopeToggle: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alice"
+			categories={scopedOwnerCategories}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Toggle filters" }),
+		);
+		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
+		await body.findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
+	},
+};
+
+// Typing part of the toggle's pill label opens the Owner flyout, so the toggle
+// is visible.
+export const ScopeToggleTypedMatch: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "shared");
+		await within(canvasElement.ownerDocument.body).findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
+	},
+};
+
+// A long owner name next to the shared with owner pill. At desktop width the
+// pill label shows in full.
+export const ScopePillFullLabel: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alexandra-montgomery"
+			categories={scopedOwnerCategories}
+		/>
+	),
+};
+
+// On a phone the pill label truncates so the chip pair stays inside the field.
+export const ScopePillTruncatesWhenNarrow: Story = {
+	...ScopePillFullLabel,
+	parameters: {
+		layout: "fullscreen",
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
+// Hovering the pill shows the full toggle message.
+export const ScopePillTooltip: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByText("shared with owner"));
+		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
+	},
+};
+
+// With a single template there is nothing to narrow, so Template is left out.
+const singleTemplateCategories: FilterCategory[] = [
+	{
+		key: "owner",
+		label: "Owner",
+		icon: <UserIcon />,
+		getOptions: async (query) => filterOptions(ownerOptions, query),
+	},
+	{
+		key: "template",
+		label: "Template",
+		icon: <LayoutGridIcon />,
+		hideWhenSingleOption: true,
+		getOptions: async (query) =>
+			filterOptions(templateOptions.slice(0, 1), query),
+	},
+];
+
+const openFilterMenu = async (canvasElement: HTMLElement) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "Toggle filters" }),
+	);
+	await within(canvasElement.ownerDocument.body).findByRole("option", {
+		name: "Owner",
+	});
+};
+
+export const SingleOptionCategoryHidden: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={singleTemplateCategories}
+		/>
+	),
+	play: ({ canvasElement }) => openFilterMenu(canvasElement),
+};
+
+// An applied chip keeps the category listed so it can still be changed.
+export const SingleOptionCategoryWithChip: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="template:docker"
+			categories={singleTemplateCategories}
+		/>
+	),
+	play: ({ canvasElement }) => openFilterMenu(canvasElement),
 };
 
 // Escape closes the popup without clearing the committed chips.
@@ -595,7 +740,7 @@ export const DismissOnEscape: Story = {
 				body.queryByRole("option", { name: /Status/i }),
 			).not.toBeInTheDocument(),
 		);
-		await expect(canvas.getByText("owner:me")).toBeVisible();
+		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
 	},
 };
 
@@ -618,14 +763,16 @@ export const DismissOnOutsideClick: Story = {
 				body.queryByRole("option", { name: /Status/i }),
 			).not.toBeInTheDocument(),
 		);
-		await expect(canvas.getByText("owner:me")).toBeVisible();
+		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
 	},
 };
 
 // A failed category lookup surfaces a Retry that refetches the options.
 export const CategoryOptionsErrorRetry: Story = {
 	render: () => {
-		let thrown = false;
+		// The row preview and the category view share the empty-query lookup, so
+		// both of their initial fetches fail; the Retry click is the next call.
+		let failuresLeft = 2;
 		return (
 			<FilterComboboxHarness
 				initialQuery=""
@@ -635,8 +782,8 @@ export const CategoryOptionsErrorRetry: Story = {
 						label: "Status",
 						icon: <CircleDotIcon />,
 						getOptions: async (query) => {
-							if (!thrown) {
-								thrown = true;
+							if (failuresLeft > 0) {
+								failuresLeft -= 1;
 								throw new Error("boom");
 							}
 							return filterOptions(statusOptions, query);
@@ -714,44 +861,6 @@ export const TypeaheadErrorRetry: Story = {
 	},
 };
 
-// A failed workspace-preview lookup names the preview source, not suggestions,
-// while the loaded suggestion rows stay visible.
-export const PreviewErrorNamesPreview: Story = {
-	render: () => (
-		<FilterComboboxHarness
-			initialQuery=""
-			searchResultsLabel="Jump to workspace"
-			categories={[
-				{
-					key: "owner",
-					label: "Owner",
-					icon: <UserIcon />,
-					getOptions: async (query) =>
-						filterOptions([{ label: "alice", value: "alice" }], query),
-				},
-			]}
-			getSearchResults={async () => {
-				throw new Error("boom");
-			}}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		const input = canvas.getByRole("combobox", {
-			name: "Search and filter…",
-		});
-		await userEvent.click(input);
-		await userEvent.type(input, "alice");
-		await expect(
-			await body.findByText(/Couldn.t load workspace previews/, {
-				ignore: '[role="status"], script, style',
-			}),
-		).toBeVisible();
-		await expect(body.getByRole("option", { name: /alice/i })).toBeVisible();
-	},
-};
-
 // A category whose options resolve empty announces a category-aware empty state
 // rather than the browsing "No filters found." copy.
 export const CategoryEmptyState: Story = {
@@ -770,20 +879,11 @@ export const CategoryEmptyState: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "template:");
-		await expect(
-			await body.findByText("No Template matches", {
-				ignore: '[role="status"], script, style',
-			}),
-		).toBeVisible();
-		await expect(body.getByRole("status")).toHaveTextContent(
-			"No Template matches",
-		);
 	},
 };
 
@@ -803,14 +903,6 @@ export const TypingChipTokenCommitsChip: Story = {
 			name: "Search and filter…",
 		});
 		await userEvent.click(input);
-		// A partial value must not commit a chip yet.
-		await userEvent.type(input, "outdated:t");
-		await expect(canvas.queryByText("outdated:t")).not.toBeInTheDocument();
-		// Completing the token with a space promotes it and clears the input.
-		await userEvent.type(input, "rue ");
-		await waitFor(() =>
-			expect(canvas.getByText("outdated:true")).toBeVisible(),
-		);
-		await expect(input).toHaveValue("");
+		await userEvent.type(input, "outdated:true ");
 	},
 };

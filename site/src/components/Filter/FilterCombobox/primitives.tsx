@@ -9,7 +9,6 @@ import {
 	type RefObject,
 	useContext,
 	useRef,
-	useState,
 } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { InputGroup } from "#/components/InputGroup/InputGroup";
@@ -62,9 +61,12 @@ type FilterComboboxRootProps = {
 	onRemoveValue?: (value: string) => void;
 	inputValue?: string;
 	onInputValueChange?: (value: string) => void;
-	onItemHighlighted?: (value: string | undefined) => void;
+	/** Highlighted row value. Controlled so callers can clear it directly. */
+	highlightedValue?: string;
+	onHighlightedValueChange?: (value: string) => void;
 	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
 	label?: string;
+	className?: string;
 	children?: ReactNode;
 };
 
@@ -85,14 +87,13 @@ export function FilterComboboxRoot({
 	onRemoveValue,
 	inputValue = "",
 	onInputValueChange,
-	onItemHighlighted,
+	highlightedValue = "",
+	onHighlightedValueChange,
 	label,
+	className,
 	children,
 }: FilterComboboxRootProps) {
 	const anchorRef = useRef<HTMLDivElement | null>(null);
-	// cmdk only reports highlight changes through `onValueChange` when its value
-	// is controlled, so track the highlighted row here and surface it to callers.
-	const [highlightedValue, setHighlightedValue] = useState("");
 
 	const state: FilterComboboxStateValue = {
 		inputValue,
@@ -107,12 +108,9 @@ export function FilterComboboxRoot({
 					shouldFilter={false}
 					loop
 					label={label}
-					className="flex w-full flex-col"
+					className={cn("flex w-full flex-col", className)}
 					value={highlightedValue}
-					onValueChange={(highlighted) => {
-						setHighlightedValue(highlighted);
-						onItemHighlighted?.(highlighted || undefined);
-					}}
+					onValueChange={onHighlightedValueChange}
 				>
 					{/* No PopoverTrigger: opens are caller-driven via `open`; Radix only
 					    originates close requests, forwarded as `onDismiss`. */}
@@ -204,7 +202,7 @@ export const FilterComboboxItem: FC<FilterComboboxItemProps> = ({
 		<CommandPrimitive.Item
 			data-slot="combobox-item"
 			className={cn(
-				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
+				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-normal text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
 				className,
 			)}
 			{...props}
@@ -221,7 +219,7 @@ export const FilterComboboxGroup: FC<FilterComboboxGroupProps> = ({
 	return (
 		<CommandPrimitive.Group
 			data-slot="combobox-group"
-			className={cn(className)}
+			className={cn("group/combobox-group", className)}
 			{...props}
 		/>
 	);
@@ -236,25 +234,9 @@ export const FilterComboboxLabel: FC<FilterComboboxLabelProps> = ({
 	return (
 		<div
 			data-slot="combobox-label"
-			className={cn("px-2 py-1.5 text-xs text-content-secondary", className)}
-			{...props}
-		/>
-	);
-};
-
-type FilterComboboxEmptyProps = ComponentProps<"div">;
-
-export const FilterComboboxEmpty: FC<FilterComboboxEmptyProps> = ({
-	className,
-	...props
-}) => {
-	// Visibility is driven by the `data-empty` group set on
-	// `FilterComboboxContent`.
-	return (
-		<div
-			data-slot="combobox-empty"
+			// The first header relies on the list's own padding for its top space.
 			className={cn(
-				"hidden w-full justify-center py-6 text-center text-sm text-content-secondary group-data-[empty]/combobox-content:flex",
+				"px-2 pt-4 pb-2 text-xs text-content-secondary group-first/combobox-group:pt-0",
 				className,
 			)}
 			{...props}
@@ -308,7 +290,7 @@ export const FilterComboboxChips: FC<FilterComboboxChipsProps> = ({
 		<div
 			data-slot="combobox-chips"
 			className={cn(
-				"flex min-h-10 min-w-0 flex-1 flex-wrap content-center items-center gap-1 py-2 pr-2",
+				"flex min-h-9.5 min-w-0 flex-1 flex-wrap content-center items-center gap-1 py-1.25 pr-2",
 				className,
 			)}
 			{...props}
@@ -326,6 +308,8 @@ type FilterComboboxChipProps = ComponentProps<typeof Badge> & {
 	showRemove?: boolean;
 	/** Accessible name for the remove control. Defaults to `Remove ${value}`. */
 	removeLabel?: string;
+	/** Replaces the root's `onRemoveValue` for chips that are not query tokens. */
+	onRemove?: () => void;
 };
 
 export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
@@ -334,6 +318,7 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 	value,
 	showRemove = true,
 	removeLabel,
+	onRemove,
 	...props
 }) => {
 	const { onRemoveValue } = useFilterComboboxState();
@@ -350,7 +335,7 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 			data-slot="combobox-chip"
 			svgSize="sm"
 			className={cn(
-				"font-medium text-content-secondary hover:text-content-primary",
+				"group/chip pl-2 font-medium text-content-secondary hover:text-content-primary",
 				className,
 			)}
 			{...props}
@@ -367,7 +352,9 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 					onMouseDown={(event) => event.preventDefault()}
 					onClick={(event) => {
 						event.stopPropagation();
-						if (removeValue) {
+						if (onRemove) {
+							onRemove();
+						} else if (removeValue) {
 							onRemoveValue?.(removeValue);
 						}
 					}}
@@ -396,8 +383,13 @@ export const FilterComboboxChipsInput: FC<FilterComboboxChipsInputProps> = ({
 			data-slot="combobox-chip-input"
 			value={inputValue}
 			onValueChange={(next) => onInputValueChange?.(next)}
+			// Content-sized so an empty input fits in the space after the last chip
+			// instead of forcing a new row; `size={1}` is the fallback intrinsic
+			// width. Height matches a chip so the box stays the same height with or
+			// without chips.
+			size={1}
 			className={cn(
-				"h-6 min-w-16 flex-1 border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
+				"h-7 min-w-1 flex-auto field-sizing-content border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
 				className,
 			)}
 			{...props}
