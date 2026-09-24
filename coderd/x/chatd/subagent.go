@@ -1401,7 +1401,8 @@ func (p *Server) interruptSubagent(
 		return database.Chat{}, false, xerrors.Errorf("get target chat: %w", err)
 	}
 
-	if targetChat.Status == database.ChatStatusWaiting {
+	// Idle and paused chats have no turn to interrupt.
+	if targetChat.Status == database.ChatStatusWaiting || targetChat.Status == database.ChatStatusPaused {
 		return targetChat, false, nil
 	}
 

@@ -3312,6 +3312,12 @@ export interface ChatQueuedMessage {
 	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
 	readonly created_at: string;
+	/**
+	 * EditingSince is set while the owner edits the message. A message
+	 * under edit and every message behind it wait until the edit ends; a
+	 * turn that ends at a message under edit pauses the chat.
+	 */
+	readonly editing_since?: string;
 }
 
 // From codersdk/chats.go
@@ -3378,6 +3384,7 @@ export interface ChatSourcePart {
 export type ChatStatus =
 	| "error"
 	| "interrupting"
+	| "paused"
 	| "requires_action"
 	| "running"
 	| "waiting";
@@ -3385,6 +3392,7 @@ export type ChatStatus =
 export const ChatStatuses: ChatStatus[] = [
 	"error",
 	"interrupting",
+	"paused",
 	"requires_action",
 	"running",
 	"waiting",
@@ -5010,6 +5018,29 @@ export interface EditChatMessageResponse {
 	 */
 	readonly deleted_message_ids?: readonly number[];
 	readonly warnings?: readonly string[];
+}
+
+// From codersdk/chats.go
+/**
+ * EditChatQueuedMessageRequest edits a queued message. Omitted fields
+ * are left unchanged; a request with no fields is rejected.
+ */
+export interface EditChatQueuedMessageRequest {
+	/**
+	 * Content replaces the queued content. An empty array is rejected.
+	 */
+	readonly content?: readonly ChatInputPart[];
+	/**
+	 * ModelConfigID and ReasoningEffort apply only together with Content.
+	 */
+	readonly model_config_id?: string;
+	readonly reasoning_effort?: string;
+	/**
+	 * Editing begins (true) or ends (false) an edit of the message. A
+	 * chat has at most one message under edit; beginning another ends the
+	 * first. Ending the edit of a paused chat's head sends it.
+	 */
+	readonly editing?: boolean;
 }
 
 // From codersdk/externalauth.go
