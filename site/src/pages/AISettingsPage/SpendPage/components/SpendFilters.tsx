@@ -68,14 +68,14 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 	);
 
 	return (
-		<div className="flex flex-wrap gap-2 lg:flex-nowrap">
-			<div className="w-full min-w-0">
+		<div className="flex flex-wrap items-start gap-2">
+			<div className="flex w-full min-w-0 max-w-full flex-col sm:w-auto">
 				<FilterCombobox
 					value={filterQuery}
 					onChange={onFilterQueryChange}
 					categories={categories}
 					placeholder="Search and filter users…"
-					className="w-full min-w-0"
+					className="w-full min-w-0 self-start sm:w-auto sm:min-w-lg sm:max-w-full"
 				/>
 			</div>
 			<div className="shrink-0">

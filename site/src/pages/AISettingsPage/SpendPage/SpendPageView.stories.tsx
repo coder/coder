@@ -109,6 +109,13 @@ export const PricingPreset: Story = {
 	args: { filterQuery: "pricing:unconfigured" },
 };
 
+export const ManyFilterChips: Story = {
+	args: {
+		filterQuery:
+			"user:alice group:engineering provider:openai model:gpt-4o client:cursor pricing:unconfigured",
+	},
+};
+
 const openFilterMenu: Story["play"] = async ({ canvasElement }) => {
 	await userEvent.click(
 		within(canvasElement).getByRole("combobox", {
