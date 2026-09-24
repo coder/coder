@@ -284,6 +284,7 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 				require.Equal(t, test.callbackURL, updated.CallbackURL)
 				require.Equal(t, []string{test.callbackURL}, updated.RedirectURIs)
 				require.Equal(t, codersdk.OAuth2ClientTypePublic, updated.ClientType)
+				require.True(t, updated.DynamicallyRegistered)
 
 				// The edit replaces the registered URI rather than adding to it.
 				stored, err := db.GetOAuth2ProviderAppByID(ctx, appID)
@@ -706,6 +707,33 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		require.Equal(t, "coder:all workspace:read", admin.Scope)
 		require.Equal(t, admin.Scope, dcr.Scope)
 	})
+
+	t.Run("RegistrationOrigin", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		admin, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        testutil.GetRandomName(t),
+			CallbackURL: "https://example.com/callback",
+		})
+		require.NoError(t, err)
+		require.False(t, admin.DynamicallyRegistered)
+
+		registered, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+			ClientName:   testutil.GetRandomName(t),
+			RedirectURIs: []string{"https://example.com/callback"},
+		})
+		require.NoError(t, err)
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		dcr, err := client.OAuth2ProviderApp(ctx, uuid.MustParse(registered.ClientID))
+		require.NoError(t, err)
+		require.True(t, dcr.DynamicallyRegistered)
+	})
 }
 
 func requireCallbackURLValidationError(t *testing.T, err error) {
@@ -1038,7 +1066,7 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 			Name:        "renamed",
 			CallbackURL: first,
 		})
-		requireRedirectURIsValidationError(t, err, "redirect URI at index 1 must be at most 2048 bytes")
+		requireRedirectURIsValidationError(t, err, "redirect URI 2 must be at most 2048 bytes")
 
 		stored, err := db.GetOAuth2ProviderAppByID(ctx, app.ID)
 		require.NoError(t, err)
@@ -1356,9 +1384,9 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
-		require.Equal(t, "redirect URI at index 0 must use https scheme for non-localhost URLs", sdkErr.Validations[0].Detail)
+		require.Equal(t, "redirect URI 1 must use https scheme for non-localhost URLs", sdkErr.Validations[0].Detail)
 
-		// The index names the offending entry rather than the first one.
+		// The row number names the offending entry rather than the first one.
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		_, err = client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
 			Name:         "cleartext-create-second",
@@ -1367,7 +1395,7 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		sdkErr = nil
 		require.ErrorAs(t, err, &sdkErr)
 		require.Len(t, sdkErr.Validations, 1)
-		require.Equal(t, "redirect URI at index 1 must use https scheme for non-localhost URLs", sdkErr.Validations[0].Detail)
+		require.Equal(t, "redirect URI 2 must use https scheme for non-localhost URLs", sdkErr.Validations[0].Detail)
 
 		// The deprecated field is reported against its own name.
 		//nolint:gocritic // OAuth2 app management requires owner permission.
@@ -1406,7 +1434,7 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
-		require.Equal(t, "redirect URI at index 0 must use https scheme for non-localhost URLs", sdkErr.Validations[0].Detail)
+		require.Equal(t, "redirect URI 1 must use https scheme for non-localhost URLs", sdkErr.Validations[0].Detail)
 	})
 
 	t.Run("LegacyCleartextHTTPCallback", func(t *testing.T) {
@@ -1434,7 +1462,7 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		_, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
 			Name: "renamed",
 		})
-		requireRedirectURIsValidationError(t, err, "redirect URI at index 0 must use https scheme for non-localhost URLs")
+		requireRedirectURIsValidationError(t, err, "redirect URI 1 must use https scheme for non-localhost URLs")
 
 		stored, err := db.GetOAuth2ProviderAppByID(ctx, app.ID)
 		require.NoError(t, err)
@@ -1502,6 +1530,32 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.Equal(t, "redirect_uris was sent as an empty list, which overrides callback_url; send at least one redirect URI, or omit redirect_uris to use callback_url", sdkErr.Validations[0].Detail)
 	})
 
+	// The web UI only rejects a fragment for public clients, so a confidential
+	// app's fragment reaches the server. The row number in the message counts
+	// from one, matching the form labels, rather than the zero-based index.
+	t.Run("FragmentNamesVisibleRow", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "fragment-row",
+			RedirectURIs: []string{first},
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.OAuth2ClientTypeConfidential, app.ClientType)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:         app.Name,
+			RedirectURIs: []string{first, "https://example.com/callback#state"},
+		})
+		requireRedirectURIsValidationError(t, err, "redirect URI 2 must not contain a fragment component")
+	})
+
 	// A create that sends neither URI field is refused.
 	t.Run("OmittedFieldsOnCreateRefused", func(t *testing.T) {
 		t.Parallel()
@@ -1522,7 +1576,7 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 	})
 
 	// A malformed entry sent through redirect_uris is attributed to that
-	// field with its index; the same value sent through callback_url is
+	// field with its row number; the same value sent through callback_url is
 	// attributed to callback_url instead.
 	t.Run("AttributionByOriginField", func(t *testing.T) {
 		t.Parallel()
@@ -1540,7 +1594,7 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
-		require.Equal(t, "redirect URI at index 1 uses the dangerous scheme javascript", sdkErr.Validations[0].Detail)
+		require.Equal(t, "redirect URI 2 uses the dangerous scheme javascript", sdkErr.Validations[0].Detail)
 
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		_, err = client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{

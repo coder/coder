@@ -290,7 +290,7 @@ func mustRandInt64n(t *testing.T, n int64) int64 {
 
 func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {
 	t.Helper()
-	counts, err := codersdk.SessionCountsByFamilyJSON(data)
+	counts, err := codersdk.DecodeAppMap[int64](data)
 	require.NoError(t, err)
-	return counts
+	return codersdk.SumByFamily(counts)
 }

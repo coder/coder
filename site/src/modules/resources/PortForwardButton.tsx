@@ -39,6 +39,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { SearchField } from "#/components/SearchField/SearchField";
 import {
 	Select,
 	SelectContent,
@@ -124,9 +125,22 @@ type OpenPortFormValues = {
 	share_level: WorkspaceAgentPortShareLevel;
 };
 
+// Port range accepted by coderd for port shares and forwards.
+const MIN_PORT = 9;
+const MAX_PORT = 65535;
+
+// Number() rejects trailing text such as "8080abc" that parseInt would accept,
+// keeping the Connect button in step with the list filter.
+const parsePort = (value: string): number | undefined => {
+	const port = Number(value);
+	return Number.isInteger(port) && port >= MIN_PORT && port <= MAX_PORT
+		? port
+		: undefined;
+};
+
 const openPortSchema = () =>
 	Yup.object({
-		port: Yup.number().required().min(9).max(65535),
+		port: Yup.number().required().min(MIN_PORT).max(MAX_PORT),
 		share_level: Yup.string().required().oneOf(WorkspaceAgentPortShareLevels),
 	});
 
@@ -154,6 +168,42 @@ const isPortShareLevel = (
 const isListeningPortProtocol = (value: string): value is "http" | "https" =>
 	value === "http" || value === "https";
 
+type ShareLevelOptionsProps = {
+	canShareAuthenticated: boolean;
+	canSharePublic: boolean;
+};
+
+const ShareLevelOptions: FC<ShareLevelOptionsProps> = ({
+	canShareAuthenticated,
+	canSharePublic,
+}) => (
+	<>
+		<SelectItem value="organization">Organization</SelectItem>
+		{canShareAuthenticated ? (
+			<SelectItem value="authenticated">Authenticated</SelectItem>
+		) : (
+			<SelectItem
+				value="authenticated"
+				disabled
+				title="This workspace template does not allow sharing ports outside of its organization."
+			>
+				Authenticated
+			</SelectItem>
+		)}
+		{canSharePublic ? (
+			<SelectItem value="public">Public</SelectItem>
+		) : (
+			<SelectItem
+				value="public"
+				disabled
+				title="This workspace template does not allow sharing ports publicly."
+			>
+				Public
+			</SelectItem>
+		)}
+	</>
+);
+
 export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	host,
 	workspace,
@@ -167,6 +217,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	const [listeningPortProtocol, setListeningPortProtocol] = useState(
 		getWorkspaceListeningPortsProtocol(workspace.id),
 	);
+	const [portQuery, setPortQuery] = useState("");
 	const protocolFieldId = useId();
 	const shareLevelFieldId = useId();
 
@@ -213,9 +264,13 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 
 	// usePortsData already filters shared ports down to this agent, so only
 	// hide listening ports that are also shared.
-	const filteredListeningPorts = listeningPorts.filter((port) =>
+	const unsharedListeningPorts = listeningPorts.filter((port) =>
 		sharedPorts.every((sharedPort) => sharedPort.port !== port.port),
 	);
+	const filteredListeningPorts = unsharedListeningPorts.filter((port) =>
+		port.port.toString().includes(portQuery),
+	);
+	const typedPort = parsePort(portQuery);
 	// only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
 	const canSharePorts = !(
 		portSharingControlsEnabled && template.max_port_share_level === "owner"
@@ -231,33 +286,15 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 			? "organization"
 			: "authenticated";
 
-	const renderShareLevelOptions = () => (
-		<>
-			<SelectItem value="organization">Organization</SelectItem>
-			{canSharePortsAuthenticated ? (
-				<SelectItem value="authenticated">Authenticated</SelectItem>
-			) : (
-				<SelectItem
-					value="authenticated"
-					disabled
-					title="This workspace template does not allow sharing ports outside of its organization."
-				>
-					Authenticated
-				</SelectItem>
-			)}
-			{canSharePortsPublic ? (
-				<SelectItem value="public">Public</SelectItem>
-			) : (
-				<SelectItem
-					value="public"
-					disabled
-					title="This workspace template does not allow sharing ports publicly."
-				>
-					Public
-				</SelectItem>
-			)}
-		</>
-	);
+	let emptyListMessage: string | undefined;
+	if (unsharedListeningPorts.length === 0) {
+		emptyListMessage = "No open ports were detected.";
+	} else if (filteredListeningPorts.length === 0) {
+		emptyListMessage =
+			typedPort !== undefined
+				? `No listening port matches "${portQuery}". Connect to it anyway if it is not detected yet.`
+				: `No listening port matches "${portQuery}". Enter a port from ${MIN_PORT} to ${MAX_PORT} to connect.`;
+	}
 
 	return (
 		<>
@@ -276,7 +313,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 							The listening ports are exclusively accessible to you. Selecting
 							HTTP/S will change the protocol for all listening ports.
 						</HelpPopoverText>
-						<div className="flex flex-row gap-2 pb-2">
+						<div className="mt-2 flex items-center gap-2 pb-2">
 							<Select
 								value={listeningPortProtocol}
 								onValueChange={(value) => {
@@ -289,7 +326,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 							>
 								<SelectTrigger
 									aria-label="Listening port protocol"
-									className="h-[34px] min-w-[100px] mt-2 w-auto"
+									className="h-9 min-w-[100px] w-auto"
 								>
 									<SelectValue />
 								</SelectTrigger>
@@ -299,47 +336,47 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 								</SelectContent>
 							</Select>
 							<form
-								className="mt-2 flex w-full items-center rounded border border-solid border-border focus-within:border-content-link"
-								onSubmit={(e) => {
-									e.preventDefault();
-									const formData = new FormData(e.currentTarget);
-									const port = Number(formData.get("portNumber"));
-									const url = portForwardURL(
-										host,
-										port,
-										agent.name,
-										workspace.name,
-										workspace.owner_name,
-										listeningPortProtocol,
+								className="flex flex-1 items-center gap-2"
+								onSubmit={(event) => {
+									event.preventDefault();
+									if (typedPort === undefined) {
+										return;
+									}
+									window.open(
+										portForwardURL(
+											host,
+											typedPort,
+											agent.name,
+											workspace.name,
+											workspace.owner_name,
+											listeningPortProtocol,
+										),
+										"_blank",
 									);
-									window.open(url, "_blank");
 								}}
 							>
-								<input
-									aria-label="Port number"
-									name="portNumber"
-									type="number"
-									placeholder="Connect to port..."
-									min={9}
-									max={65535}
-									required
-									className="block h-[34px] w-full border-0 bg-transparent px-3 text-sm text-content-primary outline-hidden [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+								<SearchField
+									className="h-9 flex-1 [&_input]:h-9"
+									value={portQuery}
+									onChange={(query) => setPortQuery(query.trim())}
+									placeholder="Filter ports..."
+									aria-label="Filter ports"
 								/>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button type="submit" size="icon" variant="subtle">
-											<ExternalLinkIcon />
-											<span className="sr-only">Connect to port</span>
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent disablePortal>Connect to port</TooltipContent>
-								</Tooltip>
+								<Button
+									type="submit"
+									size="sm"
+									variant="outline"
+									disabled={typedPort === undefined}
+								>
+									<ExternalLinkIcon />
+									Connect
+								</Button>
 							</form>
 						</div>
 					</div>
-					{filteredListeningPorts.length === 0 && (
+					{emptyListMessage && (
 						<HelpPopoverText className="text-content-secondary pt-5 pb-2.5 text-center">
-							No open ports were detected.
+							{emptyListMessage}
 						</HelpPopoverText>
 					)}
 					{filteredListeningPorts.map((port) => {
@@ -494,7 +531,12 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 											>
 												<SelectValue />
 											</SelectTrigger>
-											<SelectContent>{renderShareLevelOptions()}</SelectContent>
+											<SelectContent>
+												<ShareLevelOptions
+													canShareAuthenticated={canSharePortsAuthenticated}
+													canSharePublic={canSharePortsPublic}
+												/>
+											</SelectContent>
 										</Select>
 										<Button
 											size="icon"
@@ -520,8 +562,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									label="Port"
 									disabled={isSubmitting}
 									type="number"
-									min={9}
-									max={65535}
+									min={MIN_PORT}
+									max={MAX_PORT}
 								/>
 								<div className="flex flex-col gap-2">
 									<Label htmlFor={protocolFieldId}>Protocol</Label>
@@ -576,7 +618,12 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										>
 											<SelectValue />
 										</SelectTrigger>
-										<SelectContent>{renderShareLevelOptions()}</SelectContent>
+										<SelectContent>
+											<ShareLevelOptions
+												canShareAuthenticated={canSharePortsAuthenticated}
+												canSharePublic={canSharePortsPublic}
+											/>
+										</SelectContent>
 									</Select>
 								</div>
 								<Button type="submit" disabled={!form.isValid || isSubmitting}>

@@ -154,9 +154,12 @@ func TestTelemetry(t *testing.T) {
 
 		_ = dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
 			ConnectionMedianLatencyMS: 1,
-			// Names from the same family, one of them an alias, so the fixed
-			// session count fields cover the app name folding.
-			SessionCounts: dbgen.SessionCounts(t, map[string]int64{"vscode": 1, "cursor": 2, "zed": 3}),
+			SessionCounts: dbgen.SessionCounts(t, map[string]int64{
+				"cursor":  2,
+				"vscode":  1,
+				"zed":     3,
+				"unknown": 4,
+			}),
 		})
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: dbtime.Now(),
@@ -276,6 +279,12 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceBuilds, 1)
 		require.Len(t, snapshot.WorkspaceResources, 1)
 		require.Len(t, snapshot.WorkspaceAgentStats, 1)
+		require.Equal(t, map[string]int64{
+			"cursor":  2,
+			"vscode":  1,
+			"zed":     3,
+			"unknown": 4,
+		}, snapshot.WorkspaceAgentStats[0].SessionCounts)
 		require.Equal(t, int64(3), snapshot.WorkspaceAgentStats[0].SessionCountVSCode)
 		require.Equal(t, int64(3), snapshot.WorkspaceAgentStats[0].SessionCountSSH)
 		require.Len(t, snapshot.WorkspaceProxies, 1)
