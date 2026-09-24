@@ -178,7 +178,13 @@ type Story = StoryObj<typeof SpendPage>;
 export const FirstPage: Story = {
 	parameters: { reactRouter: explicitRange },
 	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("table", { name: "Spend by user" });
+		const canvas = within(canvasElement);
+		await canvas.findByRole("table", { name: "Spend by user" });
+		await expect(
+			within(canvas.getByRole("region", { name: "Spend summary" })).getByText(
+				"Feb 10 - Mar 12",
+			),
+		).toBeInTheDocument();
 	},
 };
 

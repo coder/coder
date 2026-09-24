@@ -1,10 +1,26 @@
+import dayjs from "dayjs";
 import { CalendarIcon, CircleDollarSignIcon, UsersIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import type { To } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
-import { formatCustomLabel } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { formatCostMicros } from "#/utils/currency";
 import { UnpricedModelsWarning } from "./UnpricedModelsWarning";
+
+/** Labels a period with abbreviated month names, such as "Mar 28 - Apr 2". */
+const formatTimeframe = (start: Date, end: Date): string => {
+	const from = dayjs(start);
+	const to = dayjs(end);
+	if (from.isSame(to, "day")) {
+		return `${from.format("MMM D, h:mm A")} - ${to.format("h:mm A")}`;
+	}
+	if (from.isSame(to, "month")) {
+		return `${from.format("MMM D")}-${to.format("D")}`;
+	}
+	if (from.isSame(to, "year")) {
+		return `${from.format("MMM D")} - ${to.format("MMM D")}`;
+	}
+	return `${from.format("MMM D, YYYY")} - ${to.format("MMM D, YYYY")}`;
+};
 
 type SpendSummaryProps = {
 	report: TypesGen.OrganizationAISpendReport;
@@ -47,7 +63,7 @@ export const SpendSummary: FC<SpendSummaryProps> = ({
 			icon={<UsersIcon />}
 		/>
 		<SummaryCard
-			value={formatCustomLabel(period.start, period.end)}
+			value={formatTimeframe(period.start, period.end)}
 			label="Timeframe"
 			icon={<CalendarIcon />}
 		/>
