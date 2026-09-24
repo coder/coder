@@ -150,6 +150,34 @@ export const ClientsList: Story = {
 	},
 };
 
+// The tooltip lists only the top five clients, however many the user used.
+export const LongClientsList: Story = {
+	args: {
+		reportQuery: loadedReportQuery({
+			...mockMultipleDimensionsReport,
+			users: mockMultipleDimensionsReport.users.map((user) => ({
+				...user,
+				clients: [
+					"Claude Code",
+					"Cursor",
+					"Codex",
+					"GitHub Copilot",
+					"Zed",
+					"Unknown",
+				],
+			})),
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(
+				within(canvasElement).getByRole("row", { name: /alice/ }),
+			).getByRole("button", { name: "6 clients" }),
+		);
+		await screen.findByRole("tooltip");
+	},
+};
+
 export const ModelsList: Story = {
 	args: { reportQuery: loadedReportQuery(mockMultipleDimensionsReport) },
 	play: async ({ canvasElement }) => {

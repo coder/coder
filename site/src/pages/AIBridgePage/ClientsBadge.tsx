@@ -9,6 +9,8 @@ type ClientsBadgeProps = {
 export const ClientsBadge: FC<ClientsBadgeProps> = ({ clients }) => (
 	<ItemsBadge
 		noun="clients"
+		tooltipHeading={{ title: "Top clients", subtitle: "(Based on cost)" }}
+		maxTooltipItems={5}
 		items={clients.map((client) => ({
 			key: client,
 			label: client,
