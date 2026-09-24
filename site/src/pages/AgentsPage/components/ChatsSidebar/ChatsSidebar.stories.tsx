@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
 import {
@@ -120,7 +119,7 @@ export default meta;
 type Story = StoryObj<typeof ChatsSidebar>;
 
 const ChatsSidebarWithKeybindings = (
-	args: ComponentProps<typeof ChatsSidebar>,
+	args: React.ComponentProps<typeof ChatsSidebar>,
 ) => {
 	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(
 		args.isSearchDialogOpen,
@@ -145,7 +144,7 @@ const ChatsSidebarWithKeybindings = (
 };
 
 const ChatsSidebarWithDeferredModels = (
-	args: ComponentProps<typeof ChatsSidebar>,
+	args: React.ComponentProps<typeof ChatsSidebar>,
 ) => {
 	const [modelsResolved, setModelsResolved] = useState(false);
 

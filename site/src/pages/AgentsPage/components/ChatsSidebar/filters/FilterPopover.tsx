@@ -1,12 +1,6 @@
 import { cn } from "cn";
 import { FilterIcon } from "lucide-react";
-import {
-	type ComponentProps,
-	type FC,
-	type ReactNode,
-	useId,
-	useState,
-} from "react";
+import { useId, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
@@ -85,7 +79,7 @@ const SOURCE_OPTIONS: readonly Readonly<{
 	label: SOURCE_LABELS[source],
 }));
 
-const SectionHeading: FC<ComponentProps<"h2">> = ({
+const SectionHeading: React.FC<React.ComponentProps<"h2">> = ({
 	className,
 	children,
 	...props
@@ -101,7 +95,7 @@ const SectionHeading: FC<ComponentProps<"h2">> = ({
 	</h2>
 );
 
-const FilterGroupHeading: FC<ComponentProps<"h3">> = ({
+const FilterGroupHeading: React.FC<React.ComponentProps<"h3">> = ({
 	className,
 	children,
 	...props
@@ -117,9 +111,9 @@ const FilterGroupHeading: FC<ComponentProps<"h3">> = ({
 	</h3>
 );
 
-const OptionRow: FC<{ readonly children: ReactNode }> = ({ children }) => (
-	<div className="flex h-6 items-center gap-2 rounded-sm">{children}</div>
-);
+const OptionRow: React.FC<{ readonly children: React.ReactNode }> = ({
+	children,
+}) => <div className="flex h-6 items-center gap-2 rounded-sm">{children}</div>;
 
 type FilterPopoverProps = {
 	readonly filters: AgentSidebarFilters;
@@ -148,7 +142,7 @@ const hasActiveFilters = (filters: AgentSidebarFilters): boolean => {
 	);
 };
 
-export const FilterPopover: FC<FilterPopoverProps> = ({
+export const FilterPopover: React.FC<FilterPopoverProps> = ({
 	filters,
 	onFiltersChange,
 }) => {

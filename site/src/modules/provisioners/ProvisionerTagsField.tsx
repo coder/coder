@@ -1,5 +1,5 @@
 import { PlusIcon } from "lucide-react";
-import { type FC, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import * as Yup from "yup";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -17,7 +17,7 @@ type ProvisionerTagsFieldProps = {
 	onChange: (value: ProvisionerDaemon["tags"]) => void;
 };
 
-export const ProvisionerTagsField: FC<ProvisionerTagsFieldProps> = ({
+export const ProvisionerTagsField: React.FC<ProvisionerTagsFieldProps> = ({
 	value: fieldValue,
 	onChange,
 }) => {
@@ -78,7 +78,7 @@ type NewTagControlProps = {
 	onAdd: (tag: Tag) => void;
 };
 
-const NewTagControl: FC<NewTagControlProps> = ({ onAdd }) => {
+const NewTagControl: React.FC<NewTagControlProps> = ({ onAdd }) => {
 	const keyInputRef = useRef<HTMLInputElement>(null);
 	const [error, setError] = useState<string>();
 	const [newTag, setNewTag] = useState<Tag>({

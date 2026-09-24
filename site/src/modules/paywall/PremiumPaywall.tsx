@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation } from "react-query";
 import { reportPremiumFunnelEvent } from "#/api/queries/premiumFunnel";
 import type { PremiumFunnelSource } from "#/api/typesGenerated";
@@ -14,7 +13,7 @@ type PremiumPaywallProps = Omit<PaywallProps, "onCTAClick"> & {
  * The full page premium paywall, wired to conversion telemetry. Prefer this
  * over PaywallPremium so every surface is attributable.
  */
-export const PremiumPaywall: FC<PremiumPaywallProps> = ({
+export const PremiumPaywall: React.FC<PremiumPaywallProps> = ({
 	source,
 	...paywallProps
 }) => {

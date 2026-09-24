@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { formatDate } from "#/utils/time";
 import { TokenBadges } from "../../TokenBadges";
@@ -13,7 +12,7 @@ type ToolCallTableProps = {
 	className?: string;
 };
 
-export const ToolCallTable: FC<ToolCallTableProps> = ({
+export const ToolCallTable: React.FC<ToolCallTableProps> = ({
 	timestamp,
 	serverURL,
 	inputTokens,

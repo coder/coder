@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { Button } from "#/components/Button/Button";
@@ -81,7 +80,7 @@ export type DesktopPopoutPageViewProps = {
 	onReleaseControl: () => void;
 };
 
-export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
+export const DesktopPopoutPageView: React.FC<DesktopPopoutPageViewProps> = ({
 	status,
 	reconnect,
 	attach,

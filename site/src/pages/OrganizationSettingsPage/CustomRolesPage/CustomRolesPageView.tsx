@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { AssignableRoles, Organization, Role } from "#/api/typesGenerated";
 import { PremiumBadge } from "#/components/Badge/PresetBadges";
@@ -51,7 +51,7 @@ type CustomRolesPageViewProps = {
 	isUpdatingDefaultRoles?: boolean;
 };
 
-export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
+export const CustomRolesPageView: React.FC<CustomRolesPageViewProps> = ({
 	organization,
 	builtInRoles,
 	customRoles,
@@ -157,7 +157,7 @@ type DefaultRolesSectionProps = {
 	onUpdateDefaultRoles: (roles: string[]) => Promise<void>;
 };
 
-const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
+const DefaultRolesSection: React.FC<DefaultRolesSectionProps> = ({
 	organization,
 	availableOrgRoles,
 	canEditDefaultRoles,
@@ -234,7 +234,7 @@ type DefaultRolesSummaryProps = {
 	availableRoles?: AssignableRoles[];
 };
 
-const DefaultRolesSummary: FC<DefaultRolesSummaryProps> = ({
+const DefaultRolesSummary: React.FC<DefaultRolesSummaryProps> = ({
 	roleNames,
 	availableRoles,
 }) => {
@@ -265,7 +265,7 @@ type RoleTableProps = RoleTableBodyProps & {
 	"aria-label": string;
 };
 
-const RoleTable: FC<RoleTableProps> = ({
+const RoleTable: React.FC<RoleTableProps> = ({
 	"aria-label": ariaLabel,
 	...bodyProps
 }) => {
@@ -285,7 +285,7 @@ const RoleTable: FC<RoleTableProps> = ({
 	);
 };
 
-const RoleTableBody: FC<RoleTableBodyProps> = ({
+const RoleTableBody: React.FC<RoleTableBodyProps> = ({
 	roles,
 	isCustomRolesEnabled,
 	canCreateOrgRole,
@@ -345,7 +345,7 @@ type RoleRowProps = {
 	onDelete: () => void;
 };
 
-const RoleRow: FC<RoleRowProps> = ({
+const RoleRow: React.FC<RoleRowProps> = ({
 	role,
 	onDelete,
 	canUpdateOrgRole,

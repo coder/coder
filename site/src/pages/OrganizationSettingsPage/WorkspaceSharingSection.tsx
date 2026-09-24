@@ -1,4 +1,4 @@
-import { type FC, useId, useState } from "react";
+import { useId, useState } from "react";
 import {
 	type ShareableWorkspaceOwners,
 	ShareableWorkspaceOwnerses,
@@ -22,7 +22,9 @@ type WorkspaceSharingSectionProps = {
 	isTogglingWorkspaceSharing: boolean;
 };
 
-export const WorkspaceSharingSection: FC<WorkspaceSharingSectionProps> = ({
+export const WorkspaceSharingSection: React.FC<
+	WorkspaceSharingSectionProps
+> = ({
 	organizationId,
 	workspaceSharingGloballyDisabled,
 	shareableWorkspaceOwners,

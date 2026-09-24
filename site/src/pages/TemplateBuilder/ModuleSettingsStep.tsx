@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
@@ -104,7 +103,7 @@ export function moduleSettingsComplete(
 	return true;
 }
 
-export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
+export const ModuleSettingsStep: React.FC<ModuleSettingsStepProps> = ({
 	baseId,
 	selectedModuleIds,
 	moduleVariables,

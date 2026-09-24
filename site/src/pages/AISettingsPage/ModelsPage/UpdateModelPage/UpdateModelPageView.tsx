@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
@@ -33,7 +32,7 @@ type UpdateModelPageViewProps =
 			onToggleEnabled: (enabled: boolean) => void;
 	  };
 
-const UpdateModelPageView: FC<UpdateModelPageViewProps> = (props) => {
+const UpdateModelPageView: React.FC<UpdateModelPageViewProps> = (props) => {
 	if (props.state === "error") {
 		return (
 			<div className="flex flex-col items-start gap-4">

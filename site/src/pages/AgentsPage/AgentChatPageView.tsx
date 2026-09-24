@@ -1,12 +1,6 @@
 import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
-import {
-	type FC,
-	type ReactNode,
-	type RefObject,
-	useEffect,
-	useState,
-} from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
@@ -84,7 +78,7 @@ import {
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
 type EditingState = {
-	chatInputRef: RefObject<ChatMessageInputRef | null>;
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	editorInitialValue: string;
 	initialEditorState: string | undefined;
 	remountKey: number;
@@ -124,7 +118,7 @@ type AgentChatPageViewProps = {
 	modelOptions: readonly ModelSelectorOption[];
 	models: readonly TypesGen.ChatModel[] | undefined;
 	modelSelectorPlaceholder: string;
-	modelSelectorHelp?: ReactNode;
+	modelSelectorHelp?: React.ReactNode;
 	modelCatalogError?: unknown;
 	unavailableModelNotice?: string;
 	reasoningEffort?: string;
@@ -189,7 +183,7 @@ type AgentChatPageViewProps = {
 	desktopChatId?: string;
 };
 
-const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
+const UnavailableTabMessage: React.FC<{ message: string }> = ({ message }) => (
 	<div className="flex h-full min-h-0 items-center justify-center px-6 text-center text-xs text-content-secondary">
 		{message}
 	</div>
@@ -207,7 +201,7 @@ type UserTabContentProps = {
 	onTerminalReady: (tabId: string) => void;
 };
 
-const UserTabContent: FC<UserTabContentProps> = ({
+const UserTabContent: React.FC<UserTabContentProps> = ({
 	tab,
 	chatId,
 	workspace,
@@ -274,7 +268,7 @@ const UserTabContent: FC<UserTabContentProps> = ({
 	}
 };
 
-export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
+export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	chat,
 	persistedError,
 	workspaceAgent,
@@ -670,7 +664,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		activateRightPanelTab(tab.id);
 	};
 
-	const renderTabContent = (tabId: string): ReactNode => {
+	const renderTabContent = (tabId: string): React.ReactNode => {
 		switch (tabId) {
 			case "summary":
 				return (
@@ -1043,7 +1037,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 };
 
 type AgentChatPageLoadingViewProps = {
-	inputRef: RefObject<ChatMessageInputRef | null>;
+	inputRef: React.RefObject<ChatMessageInputRef | null>;
 	initialValue: string;
 	initialEditorState: string | undefined;
 	remountKey: number;
@@ -1064,7 +1058,9 @@ type AgentChatPageLoadingViewProps = {
 	showRightPanel: boolean;
 };
 
-export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
+export const AgentChatPageLoadingView: React.FC<
+	AgentChatPageLoadingViewProps
+> = ({
 	inputRef,
 	initialValue,
 	initialEditorState,
@@ -1144,7 +1140,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	);
 };
 
-export const AgentChatPageNotFoundView: FC = () => {
+export const AgentChatPageNotFoundView: React.FC = () => {
 	return (
 		<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
 			<ChatTopBar

@@ -1,4 +1,4 @@
-import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
@@ -185,7 +185,7 @@ type AgentCreateFormProps = {
 	prefill?: AgentCreatePrefill;
 };
 
-export const AgentCreateForm: FC<AgentCreateFormProps> = ({
+export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	onCreateChat,
 	isCreating,
 	createError,

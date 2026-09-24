@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type {
 	DAUsResponse,
 	Experiment,
@@ -24,7 +23,7 @@ type OverviewPageViewProps = {
 	readonly safeExperiments: readonly Experiment[];
 };
 
-export const OverviewPageView: FC<OverviewPageViewProps> = ({
+export const OverviewPageView: React.FC<OverviewPageViewProps> = ({
 	deploymentOptions,
 	dailyActiveUsers,
 	safeExperiments,
