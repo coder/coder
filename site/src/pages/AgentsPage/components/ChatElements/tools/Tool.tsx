@@ -59,8 +59,8 @@ import {
 	parseServerEditResults,
 	type ToolStatus,
 } from "./utils";
+import { getWebSearchToolData, WebSearchTool } from "./WebSearchTool";
 import { WorkspaceLifecycleTool } from "./WorkspaceLifecycleTool";
-
 import { WriteFileTool } from "./WriteFileTool";
 
 type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
@@ -1168,6 +1168,28 @@ const WorkspaceLifecycleRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
+const WebSearchRenderer: FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => {
+	const { queries, sourceUrls, searchFinished } = getWebSearchToolData(
+		args,
+		result,
+	);
+	return (
+		<WebSearchTool
+			queries={queries}
+			sourceUrls={sourceUrls}
+			// A finished OpenAI search stays without a result until the
+			// whole response completes, so it must not show as running.
+			status={status === "running" && searchFinished ? "completed" : status}
+			isError={isError}
+		/>
+	);
+};
+
 // ---------------------------------------------------------------------------
 // Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
@@ -1195,6 +1217,7 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	propose_plan: ProposePlanRenderer,
 	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,
+	web_search: WebSearchRenderer,
 };
 
 // Exported so tests can assert cross-cutting affordances across every
