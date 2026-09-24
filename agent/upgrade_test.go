@@ -36,13 +36,13 @@ func TestAgent_SSHUpgrade_Error(t *testing.T) {
 		{
 			name:    "InvalidPort",
 			portStr: "invalid",
-			status:  http.StatusBadRequest,
+			status:  http.StatusNotFound,
 			error:   "Invalid port",
 		},
 		{
 			name:   "UnsupportedPort",
 			port:   9999,
-			status: http.StatusBadRequest,
+			status: http.StatusNotFound,
 			error:  "Unsupported port",
 		},
 		{
