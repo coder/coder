@@ -1499,6 +1499,26 @@ func TestClassify_AuthKeepsStructuredProviderDetail(t *testing.T) {
 	}, classified)
 }
 
+func TestClassify_BedrockSubscriptionPending(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"operation error Bedrock Runtime: ConverseStream, https response error StatusCode: 403",
+		403,
+		nil,
+		testProviderResponseDump(`{"message":"Your subscription to the model is being set up. Check your Marketplace subscriptions page to confirm."}`),
+	))
+
+	require.Equal(t, chaterror.ClassifiedError{
+		Message:    "AWS Bedrock is still setting up the Marketplace subscription for this model. Wait a few minutes and try again.",
+		Detail:     "Your subscription to the model is being set up. Check your Marketplace subscriptions page to confirm.",
+		Kind:       codersdk.ChatErrorKindAuth,
+		Provider:   "bedrock",
+		Retryable:  false,
+		StatusCode: 403,
+	}, classified)
+}
+
 func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
 	t.Parallel()
 

@@ -5,6 +5,7 @@ import {
 	buildSubagentMaps,
 	getEditableUserMessagePayload,
 	getPendingToolCallIDs,
+	getRetryableUserTurn,
 	mergeTools,
 	parseMessageContent,
 	parseMessagesWithMergedTools,
@@ -174,6 +175,64 @@ describe("getEditableUserMessagePayload", () => {
 			text: "hello   world",
 			fileBlocks: undefined,
 		});
+	});
+});
+
+describe("getRetryableUserTurn", () => {
+	const base = {
+		chat_id: "chat-1",
+		created_at: "2026-04-21T00:00:00.000Z",
+	} as const;
+
+	it("targets the most recent user message and keeps stored attachments", () => {
+		const messages: ChatMessage[] = [
+			{
+				...base,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "first" }],
+			},
+			{
+				...base,
+				id: 2,
+				role: "assistant",
+				content: [{ type: "text", text: "reply" }],
+			},
+			{
+				...base,
+				id: 3,
+				role: "user",
+				content: [
+					{ type: "text", text: "second" },
+					{ type: "file", media_type: "image/png", file_id: "image-file" },
+				],
+			},
+			{
+				...base,
+				id: 4,
+				role: "assistant",
+				content: [],
+			},
+		];
+		expect(getRetryableUserTurn(messages)).toEqual({
+			messageId: 3,
+			text: "second",
+			attachments: [{ fileId: "image-file", mediaType: "image/png" }],
+		});
+	});
+
+	it("returns undefined without a user message to resubmit", () => {
+		expect(getRetryableUserTurn(undefined)).toBeUndefined();
+		expect(
+			getRetryableUserTurn([
+				{
+					...base,
+					id: 1,
+					role: "assistant",
+					content: [{ type: "text", text: "reply" }],
+				},
+			]),
+		).toBeUndefined();
 	});
 });
 

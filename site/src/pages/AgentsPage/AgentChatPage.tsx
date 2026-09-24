@@ -66,6 +66,7 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
+import { getRetryableUserTurn } from "./components/ChatConversation/messageParsing";
 import { submitChatTurn } from "./components/ChatConversation/submitChatTurn";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
@@ -689,6 +690,22 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
+	// Resubmits the last user message through the edit path so the failed
+	// turn is replaced instead of appending a duplicate user bubble.
+	const handleRetryFailedTurn = async () => {
+		const turn = getRetryableUserTurn(chatMessagesList);
+		if (!turn) {
+			return;
+		}
+		isEditReasoningEffortDirtyRef.current = false;
+		await submitChatTurn({
+			...chatTurnDeps,
+			message: turn.text,
+			attachments: turn.attachments.length > 0 ? turn.attachments : undefined,
+			editedMessageID: turn.messageId,
+		});
+	};
+
 	return (
 		<>
 			<title>
@@ -785,6 +802,7 @@ const AgentChatPage: FC = () => {
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
+					onRetryFailedTurn={handleRetryFailedTurn}
 					urlTransform={urlTransform}
 					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
 					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}

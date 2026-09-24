@@ -172,6 +172,7 @@ type AgentChatPageViewProps = {
 
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	onRetryFailedTurn?: () => Promise<void> | void;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -319,6 +320,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handlePromoteQueuedMessage,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
+	onRetryFailedTurn,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	isHydratingMessages,
@@ -937,6 +939,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									isOtherUserReadOnly || !canSubmitChatTurn
 										? undefined
 										: onSendAskUserQuestionResponse
+								}
+								onRetryFailedTurn={
+									isOtherUserReadOnly || !canSubmitChatTurn
+										? undefined
+										: onRetryFailedTurn
 								}
 								footer={
 									chat.queued_for_capacity ? (
