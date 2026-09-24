@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import { takeDebugWorkspaceBuildIntent } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockFailedWorkspaceBuildWithUUID } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
@@ -12,11 +11,10 @@ import { WorkspaceBuildFailedAlert } from "./WorkspaceBuildFailedAlert";
 
 afterEach(() => {
 	vi.restoreAllMocks();
-	localStorage.clear();
 });
 
 describe("WorkspaceBuildFailedAlert", () => {
-	it("records the click for the create page and reports it for telemetry", async () => {
+	it("links to the agents page in a new tab and reports the click", async () => {
 		server.use(
 			http.get("/api/v2/experiments", () =>
 				HttpResponse.json(["enable-ai-workspace-debug"]),
@@ -34,15 +32,14 @@ describe("WorkspaceBuildFailedAlert", () => {
 		const link = await screen.findByRole("link", {
 			name: "Debug with Coder Agents",
 		});
-		expect(
-			takeDebugWorkspaceBuildIntent(MockFailedWorkspaceBuildWithUUID.id),
-		).toBe(false);
+		expect(link).toHaveAttribute(
+			"href",
+			`/agents?debug_workspace_build=${MockFailedWorkspaceBuildWithUUID.id}`,
+		);
+		expect(link).toHaveAttribute("target", "_blank");
 
 		await user.click(link);
 
-		expect(
-			takeDebugWorkspaceBuildIntent(MockFailedWorkspaceBuildWithUUID.id),
-		).toBe(true);
 		await waitFor(() => expect(reportClick).toHaveBeenCalledTimes(1));
 		const [buildId, request] = reportClick.mock.calls[0];
 		expect(buildId).toBe(MockFailedWorkspaceBuildWithUUID.id);

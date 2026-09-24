@@ -15,7 +15,6 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
-import { renameChatFileForUpload } from "../utils/chatAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getDefaultMCPSelection,
@@ -67,12 +66,10 @@ export type CreateChatOptions = {
 /**
  * Prefilled content for a chat opened from a deep link. `message` and
  * `attachment` are captured on mount; remount with a new `key` to change them.
- * The form uploads the attachment and, when `autoSend` is set, sends once
- * without user action after the attachment has uploaded and the form can send.
- * Removing or inlining the attachment before then cancels the automatic send.
- * The prefilled text and attachment are never saved as the user's draft, and
- * the saved draft and attachments are not restored into this send.
- * Organization, workspace, MCP, and model selection behave as in any new chat.
+ * The attachment is uploaded once the organization is adopted, and the user
+ * presses Send. The prefilled text and attachment are never saved as the
+ * user's draft, and the saved draft and attachments are not restored.
+ * Everything else behaves as in any new chat.
  */
 export type AgentCreatePrefill = {
 	message: string;
@@ -80,7 +77,6 @@ export type AgentCreatePrefill = {
 		name: string;
 		text: string;
 	};
-	autoSend: boolean;
 };
 
 /**
@@ -584,34 +580,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
-	const isSendGateClosed =
-		isCreating ||
-		isForbidden ||
-		!orgSelectionSettled ||
-		// Sending before adoption would omit persisted files not yet restored.
-		!organizationAdopted ||
-		workspaceValidationPending ||
-		isPersonalModelOverridesUnresolved ||
-		isMCPSelectionUnresolved ||
-		!hasModelOptions ||
-		Boolean(aiGatewayDisabled);
-
-	// Sanitized up front so uploadStates, keyed by File identity, can be read
-	// back for this file.
 	const [prefillFile] = useState(() =>
 		prefill
-			? renameChatFileForUpload(
-					new File([prefill.attachment.text], prefill.attachment.name, {
-						type: "text/plain",
-					}),
-				)
+			? new File([prefill.attachment.text], prefill.attachment.name, {
+					type: "text/plain",
+				})
 			: null,
 	);
 	// Attached once, after adoption, because adoption replaces the attachment
-	// list. An org change after that drops the logs and hands the composer back
-	// with only the prompt; this MVP does not upload them again.
+	// list. An org change after that drops the logs; this MVP does not upload
+	// them again.
 	const prefillAttachRequestedRef = useRef(false);
-	const [prefillAttachRequested, setPrefillAttachRequested] = useState(false);
 	const attachPrefillFile = useEffectEvent((file: File) => {
 		handleAttach([file]);
 	});
@@ -623,57 +602,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			!prefillAttachRequestedRef.current
 		) {
 			prefillAttachRequestedRef.current = true;
-			setPrefillAttachRequested(true);
 			attachPrefillFile(prefillFile);
 		}
 	}, [prefillFile, canAttachPrefillFile]);
-	const prefillUploadState = prefillFile
-		? uploadStates.get(prefillFile)
-		: undefined;
-	// Whether removed by the user or dropped by an org change, an automatic
-	// send must not go out without the logs it describes.
-	const prefillDetached =
-		prefillAttachRequested &&
-		prefillFile !== null &&
-		!attachments.includes(prefillFile);
-
-	// Fires the automatic send at most once and, after a failed send, hands the
-	// composer back for a manual retry. "sending" is set when the send fires
-	// because the send gate can reopen on failure before "settled" renders.
-	const [autoSendState, setAutoSendState] = useState<
-		"pending" | "sending" | "settled"
-	>("pending");
-	const autoSendRequested = prefill?.autoSend === true && !prefillDetached;
-	const autoSendPending = autoSendRequested && autoSendState === "pending";
-	// A file the user adds while the logs upload goes with the send instead of
-	// being dropped by resetAttachments afterwards.
-	const uploadsSettled = attachments.every((file) => {
-		const status = uploadStates.get(file)?.status;
-		return status === "uploaded" || status === "error";
-	});
-	const isAutoSendReady =
-		autoSendPending &&
-		!isSendGateClosed &&
-		prefillUploadState?.status === "uploaded" &&
-		uploadsSettled;
-	// Posts the editor's initial value, which is the prefill message, so the
-	// send matches what the read-only editor shows.
-	const sendPrefill = useEffectEvent(() => {
-		setAutoSendState("sending");
-		void handleSendWithAttachments(initialInputValue).finally(() => {
-			setAutoSendState("settled");
-		});
-	});
-	useEffect(() => {
-		if (isAutoSendReady) {
-			sendPrefill();
-		}
-	}, [isAutoSendReady]);
-
-	// Sending while the log upload failed would post the prompt without the
-	// logs.
-	const isInputDisabled =
-		isSendGateClosed || prefillUploadState?.status === "error";
 
 	return (
 		<>
@@ -724,21 +655,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{personalModelOverridesQuery.error != null && (
 						<ErrorAlert error={personalModelOverridesQuery.error} />
 					)}
-					{prefillUploadState?.status === "error" && (
-						<Alert severity="error">
-							<AlertTitle>
-								The build logs could not be attached. Nothing was sent.
-							</AlertTitle>
-							<AlertDescription>
-								<span className="block">
-									{prefillUploadState.error ?? "The upload failed."}
-								</span>
-								<span className="mt-1 block">
-									Reload the page to attach the logs again, then press Send.
-								</span>
-							</AlertDescription>
-						</Alert>
-					)}
 					{showOrganizations &&
 						orgSelectionSettled &&
 						permittedOrgs.length > 1 && (
@@ -763,11 +679,19 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
-						isDisabled={isInputDisabled}
-						// Typing during an automatic send would be discarded.
-						isReadOnly={
-							isForbidden || (autoSendRequested && autoSendState !== "settled")
+						isDisabled={
+							isCreating ||
+							isForbidden ||
+							!orgSelectionSettled ||
+							// Sending before adoption would omit persisted files not yet restored.
+							!organizationAdopted ||
+							workspaceValidationPending ||
+							isPersonalModelOverridesUnresolved ||
+							isMCPSelectionUnresolved ||
+							!hasModelOptions ||
+							Boolean(aiGatewayDisabled)
 						}
+						isReadOnly={isForbidden}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
 						initialEditorState={initialEditorState}

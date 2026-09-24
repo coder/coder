@@ -38,7 +38,6 @@ import {
 	MockUserPreferenceSettings,
 	MockWorkspace,
 	MockWorkspaceBuildLogs,
-	mockApiError,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
@@ -2186,23 +2185,11 @@ const workspaceBuildDebugPrefill = {
 export const PrefilledWorkspaceBuildDebug: Story = {
 	args: {
 		...defaultArgs,
-		prefill: { ...workspaceBuildDebugPrefill, autoSend: false },
+		prefill: workspaceBuildDebugPrefill,
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
 			id: "workspace-build-logs-file",
 		});
-	},
-};
-
-export const WorkspaceBuildDebugUploadFailed: Story = {
-	args: {
-		...defaultArgs,
-		prefill: { ...workspaceBuildDebugPrefill, autoSend: true },
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "uploadChatFile").mockRejectedValue(
-			mockApiError({ message: "Failed to read file from request." }),
-		);
 	},
 };

@@ -7,10 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import {
-	buildDebugWorkspaceBuildPath,
-	storeDebugWorkspaceBuildIntent,
-} from "#/modules/workspaces/workspaceBuildDebugLink";
+import { buildDebugWorkspaceBuildPath } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { generateUUID } from "#/utils/random";
 
 type WorkspaceBuildFailedAlertProps = {
@@ -27,7 +24,6 @@ export const WorkspaceBuildFailedAlert: FC<WorkspaceBuildFailedAlertProps> = ({
 		experiments.includes("enable-ai-workspace-debug") && permissions.createChat;
 
 	const handleDebugClick = () => {
-		storeDebugWorkspaceBuildIntent(build.id);
 		reportClick({ workspaceBuildId: build.id, req: { id: generateUUID() } });
 	};
 

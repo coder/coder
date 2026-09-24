@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
 import { MockFailedWorkspace } from "#/testHelpers/entities";
 import {
-	debugWorkspaceBuildLogsFileName,
 	debugWorkspaceBuildLogsMaxBytes,
 	debugWorkspaceBuildPrompt,
 	formatWorkspaceBuildLogsForDebug,
@@ -80,14 +79,6 @@ describe("debugWorkspaceBuildPrompt", () => {
 		).toBe(true);
 		expect(prompt.match(/failed to stop/g)).toHaveLength(2);
 		expect(prompt).not.toContain("failed to start");
-	});
-});
-
-describe("debugWorkspaceBuildLogsFileName", () => {
-	it("names the attachment after the workspace and build number", () => {
-		expect(debugWorkspaceBuildLogsFileName(failedBuild)).toBe(
-			"workspace-build-logs-dfraley-my-workspace-7.txt",
-		);
 	});
 });
 

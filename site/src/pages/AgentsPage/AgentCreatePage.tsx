@@ -16,10 +16,7 @@ import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import {
-	debugWorkspaceBuildSearchParam,
-	takeDebugWorkspaceBuildIntent,
-} from "#/modules/workspaces/workspaceBuildDebugLink";
+import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { isUUID } from "#/utils/uuid";
 import {
 	AgentCreateForm,
@@ -52,7 +49,7 @@ const AgentCreatePage: FC = () => {
 
 	// Read once and tied to this history entry: the layout's links forward
 	// location.search, so a later entry with the same param must not prefill
-	// again. Only a real click on the workspace page sends without user action.
+	// again.
 	const [debugLink] = useState(() => {
 		const buildId = searchParams.get(debugWorkspaceBuildSearchParam);
 		if (
@@ -62,11 +59,7 @@ const AgentCreatePage: FC = () => {
 		) {
 			return null;
 		}
-		return {
-			key: location.key,
-			buildId,
-			autoSend: takeDebugWorkspaceBuildIntent(buildId),
-		};
+		return { key: location.key, buildId };
 	});
 	const debugBuildId =
 		debugLink !== null && debugLink.key === location.key
@@ -88,7 +81,7 @@ const AgentCreatePage: FC = () => {
 	});
 	const debugBuildError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
 	const prefill: AgentCreatePrefill | undefined =
-		debugLink && debugBuild && debugBuildFailed && debugBuildLogsQuery.data
+		debugBuild && debugBuildFailed && debugBuildLogsQuery.data
 			? {
 					message: debugWorkspaceBuildPrompt(debugBuild),
 					attachment: {
@@ -98,7 +91,6 @@ const AgentCreatePage: FC = () => {
 							debugBuildLogsQuery.data,
 						),
 					},
-					autoSend: debugLink.autoSend,
 				}
 			: undefined;
 	// Hold the form until the prefill is ready: AgentCreateForm reads message
@@ -174,7 +166,7 @@ const AgentCreatePage: FC = () => {
 			return (
 				<Alert severity="error" prominent>
 					<AlertTitle>
-						Could not load the workspace build or its logs. Nothing was sent.
+						Could not load the workspace build or its logs
 					</AlertTitle>
 					<AlertDescription>
 						{getErrorMessage(debugBuildError, "The request failed.")}
@@ -189,7 +181,7 @@ const AgentCreatePage: FC = () => {
 					<AlertDescription>
 						Build #{debugBuild.build_number} of workspace{" "}
 						{debugBuild.workspace_owner_name}/{debugBuild.workspace_name} has
-						not failed (status: {debugBuild.job.status}). Nothing was sent.
+						not failed (status: {debugBuild.job.status}).
 					</AlertDescription>
 				</Alert>
 			);
