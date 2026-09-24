@@ -3,9 +3,9 @@ import type { FC } from "react";
 import type { DragData } from "./BoardCard";
 import { cardAccent } from "./cardColor";
 
-interface DragGhostProps {
+type DragGhostProps = {
 	readonly drag: DragData;
-}
+};
 
 /** Compact stand-in rendered in the DragOverlay while a card, chat, column, or note moves. */
 export const DragGhost: FC<DragGhostProps> = ({ drag }) => {

@@ -4,7 +4,7 @@ import type { CardColor } from "./boardLabels";
 import type { ChatWindow } from "./boardStorage";
 import { FloatingChat } from "./ChatWindows";
 
-interface BoardWindowsProps {
+type BoardWindowsProps = {
 	readonly windows: readonly ChatWindow[];
 	readonly chatsById: ReadonlyMap<string, Chat>;
 	readonly colorByChatId: ReadonlyMap<string, CardColor>;
@@ -15,7 +15,7 @@ interface BoardWindowsProps {
 	readonly onPreviewLeave: () => void;
 	/** Escape outside a text field: the preview goes, else the frontmost window. */
 	readonly onDismissTop: () => void;
-}
+};
 
 export const BoardWindows: FC<BoardWindowsProps> = ({
 	windows,

@@ -2,10 +2,10 @@ import { cn } from "cn";
 import type { FC } from "react";
 import { Markdown } from "#/components/Markdown/Markdown";
 
-interface CompactMarkdownProps {
+type CompactMarkdownProps = {
 	readonly className?: string;
 	readonly children: string;
-}
+};
 
 /** Markdown with block spacing tightened for small text inside a card or popover. */
 export const CompactMarkdown: FC<CompactMarkdownProps> = ({

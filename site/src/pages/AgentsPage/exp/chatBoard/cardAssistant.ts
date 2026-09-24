@@ -76,7 +76,7 @@ export const snapshot = (
 	].join("\n\n");
 };
 
-interface OpenCardAssistant {
+type OpenCardAssistant = {
 	readonly card: BoardCard;
 	/** Id only: passing the chat object would let the compiler treat the list as mutated. */
 	readonly existingId: string | undefined;
@@ -86,7 +86,7 @@ interface OpenCardAssistant {
 		title: string;
 	}) => Promise<unknown>;
 	readonly queryClient: QueryClient;
-}
+};
 
 /**
  * The card's assistant chat id: the existing one, or a new chat in the shared

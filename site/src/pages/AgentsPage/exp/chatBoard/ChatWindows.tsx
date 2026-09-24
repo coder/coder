@@ -20,12 +20,12 @@ import { clampWindow, MIN_WINDOW_SIZE } from "./windows";
 const AgentChatPage = lazy(() => import("../../AgentChatPage"));
 
 /** A drag of the title bar or the resize corner, from where the pointer went down. */
-interface Gesture {
+type Gesture = {
 	readonly kind: "move" | "resize";
 	readonly startX: number;
 	readonly startY: number;
 	readonly origin: ChatWindow;
-}
+};
 
 const applyGesture = (
 	gesture: Gesture,
@@ -45,7 +45,7 @@ const applyGesture = (
 	});
 };
 
-interface FloatingChatProps {
+type FloatingChatProps = {
 	readonly window: ChatWindow;
 	readonly chat: Chat | undefined;
 	readonly color: CardColor | undefined;
@@ -57,7 +57,7 @@ interface FloatingChatProps {
 	/** Preview only: the pointer entering keeps it, leaving lets it close. */
 	readonly onPreviewEnter: () => void;
 	readonly onPreviewLeave: () => void;
-}
+};
 
 /**
  * One chat floating over the board. The title bar drags it, the corner

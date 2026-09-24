@@ -6,14 +6,14 @@ import type { BoardStorage } from "./boardStorage";
 const UNDO_MS = 10_000;
 
 /** What a plan needs from the page: the two mutations and the storage setter. */
-export interface PlanDeps {
+export type PlanDeps = {
 	readonly write: (
 		chatId: string,
 		labels: Record<string, string>,
 	) => Promise<unknown>;
 	readonly rename: (chatId: string, title: string) => Promise<unknown>;
 	readonly updateStorage: (patch: Partial<BoardStorage>) => void;
-}
+};
 
 // The mutations report their own errors with a toast; a rejection reaching
 // the caller would only add an unhandled-rejection report.

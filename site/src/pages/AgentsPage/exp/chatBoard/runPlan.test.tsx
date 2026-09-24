@@ -12,7 +12,7 @@ import { API } from "#/api/api";
 import { infiniteChats, updateChatTitle } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { createDeferred } from "#/testHelpers/deferred";
+import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	addColumn,
 	type BoardState,
@@ -186,7 +186,7 @@ describe("runPlan", () => {
 	});
 
 	it("patches the board and sidebar caches before the request settles, then invalidates", async () => {
-		const request = createDeferred<void>();
+		const request: Deferred<void> = createDeferred();
 		vi.spyOn(API.experimental, "updateChat").mockReturnValue(request.promise);
 		const primary = chat("p", { "board/column": "Inbox" });
 		const { queryClient, deps } = renderDeps();
@@ -225,7 +225,7 @@ describe("runPlan", () => {
 	});
 
 	it("keeps the patch when a board refetch started before the write lands after it", async () => {
-		const request = createDeferred<void>();
+		const request: Deferred<void> = createDeferred();
 		vi.spyOn(API.experimental, "updateChat").mockReturnValue(request.promise);
 		const primary = chat("p");
 		const { queryClient, deps } = renderDeps();

@@ -2,7 +2,7 @@ import { cn } from "cn";
 import type { FC } from "react";
 import { InlineEdit } from "./InlineEdit";
 
-interface EditableTitleProps {
+type EditableTitleProps = {
 	readonly value: string;
 	readonly renaming: boolean;
 	/** The chat is open in a floating window; the title alone marks it, no chrome. */
@@ -11,7 +11,7 @@ interface EditableTitleProps {
 	readonly onEdit: () => void;
 	readonly onRenamed: (title: string) => void;
 	readonly onCancel: () => void;
-}
+};
 
 /** Two-line title; clicking the text (only the text) edits it in place. */
 export const EditableTitle: FC<EditableTitleProps> = ({
