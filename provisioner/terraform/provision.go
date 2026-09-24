@@ -95,9 +95,17 @@ func (s *server) Init(
 	}
 
 	s.logger.Debug(ctx, "running terraform initialization")
+	sessState := s.resetSession(sess.Files)
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageInit)
-	err = e.init(ctx, killCtx, sess)
-	endStage(err)
+	if prepareWithoutInit(ctx, s.logger, sess.Files, s.cachePath) {
+		sessState.initSkipped = true
+		sess.ProvisionLog(proto.LogLevel_INFO, "Reusing cached providers from the dependency lock file")
+		endStage(nil)
+		err = nil
+	} else {
+		err = e.init(ctx, killCtx, sess)
+		endStage(err)
+	}
 	if err != nil {
 		s.logger.Debug(ctx, "init failed", slog.Error(err))
 
@@ -210,8 +218,26 @@ func (s *server) Plan(
 	}
 
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
-	resp, err := e.plan(ctx, killCtx, env, vars, sess, request)
+	planLogs := &errorCapturingSink{logSink: sess}
+	resp, err := e.plan(ctx, killCtx, env, vars, planLogs, request)
 	endStage(err)
+	if err != nil && s.session(sess.Files).initSkipped && planLogs.needsInit() {
+		// Init only linked cached providers. If Terraform says that was not
+		// enough, run the real thing once and retry, so the shortcut can
+		// never fail a build that would otherwise have succeeded.
+		s.logger.Warn(ctx, "plan failed after skipping terraform init, retrying with a full init", slog.Error(err))
+		sess.ProvisionLog(proto.LogLevel_WARN, "Cached providers were not sufficient, running terraform init")
+		s.session(sess.Files).initSkipped = false
+		endInit := e.timings.startStage(database.ProvisionerJobTimingStageInit)
+		initErr := e.init(ctx, killCtx, sess)
+		endInit(initErr)
+		if initErr != nil {
+			return provisionersdk.PlanErrorf("initialize terraform: %s", initErr.Error())
+		}
+		endStage = e.timings.startStage(database.ProvisionerJobTimingStagePlan)
+		resp, err = e.plan(ctx, killCtx, env, vars, sess, request)
+		endStage(err)
+	}
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}

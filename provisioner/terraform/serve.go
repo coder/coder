@@ -158,6 +158,64 @@ type server struct {
 	// reused instead of spawning `terraform version` before every stage.
 	versionMut    sync.Mutex
 	cachedVersion *version.Version
+
+	// sessionsMut guards sessions, which carries state between the RPCs of
+	// one provisioner session (Init, Plan, Apply, Graph) keyed by the
+	// session's working directory.
+	sessionsMut sync.Mutex
+	sessions    map[string]*sessionState
+}
+
+// sessionState is what one RPC of a session leaves behind for the next.
+type sessionState struct {
+	createdAt time.Time
+
+	// initSkipped is set when Init linked cached providers instead of
+	// running `terraform init`, so Plan can fall back to a real init if
+	// the shortcut turns out to be insufficient.
+	initSkipped bool
+}
+
+// sessionStateRetention bounds how long state for a session whose final RPC
+// never ran (for example because apply failed) is kept before a later
+// session evicts it.
+const sessionStateRetention = time.Hour
+
+// session returns the state shared by the RPCs of the session that owns
+// the given working directory, creating it on first use.
+func (s *server) session(files tfpath.Layout) *sessionState {
+	s.sessionsMut.Lock()
+	defer s.sessionsMut.Unlock()
+	if s.sessions == nil {
+		s.sessions = map[string]*sessionState{}
+	}
+	st, ok := s.sessions[files.WorkDirectory()]
+	if !ok {
+		st = &sessionState{createdAt: time.Now()}
+		s.sessions[files.WorkDirectory()] = st
+	}
+	return st
+}
+
+// resetSession discards state from any previous session using the same
+// working directory and returns a fresh one. Init calls this because it is
+// the first RPC of every session. It also evicts state left behind by
+// sessions that ended without reaching their final RPC.
+func (s *server) resetSession(files tfpath.Layout) *sessionState {
+	s.sessionsMut.Lock()
+	defer s.sessionsMut.Unlock()
+	if s.sessions == nil {
+		s.sessions = map[string]*sessionState{}
+	}
+	now := time.Now()
+	for dir, st := range s.sessions {
+		if now.Sub(st.createdAt) > sessionStateRetention {
+			delete(s.sessions, dir)
+		}
+	}
+	st := &sessionState{createdAt: now}
+	s.sessions[files.WorkDirectory()] = st
+	return st
 }
 
 // terraformVersion returns the version of the configured Terraform binary,
