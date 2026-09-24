@@ -10050,6 +10050,160 @@ func TestStreamChat(t *testing.T) {
 		}
 	})
 
+	// An edited chat keeps soft-deleted rows forever; the initial sync must
+	// start from the client's page or every connection replays the history.
+	t.Run("EditedChatDoesNotReplayHistory", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "first prompt",
+			}},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+
+		// newestPage is what a freshly opened chat fetches; it has no deleted rows.
+		newestPage := func(t *testing.T) (page codersdk.ChatMessagesResponse, newestID, userMessageID int64) {
+			t.Helper()
+			page, err := client.GetChatMessages(ctx, chat.ID, nil)
+			require.NoError(t, err)
+			require.Positive(t, page.HistoryVersion, "the messages page must report the history version it was read at")
+			for _, message := range page.Messages {
+				newestID = max(newestID, message.ID)
+				if message.Role == codersdk.ChatMessageRoleUser {
+					userMessageID = message.ID
+				}
+			}
+			require.NotZero(t, userMessageID)
+			return page, newestID, userMessageID
+		}
+
+		// editPrompt uses the real edit path, which soft-deletes the message
+		// and its suffix.
+		editPrompt := func(t *testing.T, messageID int64, text string) {
+			t.Helper()
+			edited, err := client.EditChatMessage(ctx, chat.ID, messageID, codersdk.EditChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: text,
+				}},
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, edited.DeletedMessageIDs)
+		}
+
+		// readInitialSync reads events up to and including the first status.
+		readInitialSync := func(t *testing.T, events <-chan codersdk.ChatStreamEvent) (reset bool, messageIDs []int64, version int64) {
+			t.Helper()
+			for {
+				select {
+				case <-ctx.Done():
+					require.FailNow(t, "timed out waiting for the initial stream sync")
+				case event, ok := <-events:
+					require.True(t, ok, "stream closed before the initial sync completed")
+					switch event.Type {
+					case codersdk.ChatStreamEventTypeHistoryReset:
+						reset = true
+					case codersdk.ChatStreamEventTypeMessage:
+						messageIDs = append(messageIDs, event.Message.ID)
+					case codersdk.ChatStreamEventTypeStatus:
+						return reset, messageIDs, event.Status.HistoryVersion
+					}
+				}
+			}
+		}
+
+		// Open an already-edited chat as the web client does.
+		_, _, userMessageID := newestPage(t)
+		editPrompt(t, userMessageID, "edited prompt")
+		waitForChatStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting)
+		page, newestID, userMessageID := newestPage(t)
+
+		events, closer, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{
+			AfterID:       &newestID,
+			AfterRevision: &page.HistoryVersion,
+		})
+		require.NoError(t, err)
+		defer closer.Close()
+		reset, messageIDs, version := readInitialSync(t, events)
+		require.False(t, reset, "connecting with the page's history_version reset the client's paginated history")
+		require.Empty(t, messageIDs, "messages the client already fetched over REST were replayed on connect")
+		require.Equal(t, page.HistoryVersion, version, "status must carry the version the client can reconnect with")
+
+		// A live edit still arrives as history_reset plus full history. The
+		// last status of that turn covers everything sent.
+		editPrompt(t, userMessageID, "edited again")
+		sawReset := false
+		var latestVersion int64
+		for done := false; !done; {
+			select {
+			case <-ctx.Done():
+				require.FailNow(t, "timed out waiting for the edit to reach the stream")
+			case event, ok := <-events:
+				require.True(t, ok, "stream closed before the edit was delivered")
+				switch event.Type {
+				case codersdk.ChatStreamEventTypeHistoryReset:
+					sawReset = true
+				case codersdk.ChatStreamEventTypeStatus:
+					latestVersion = max(latestVersion, event.Status.HistoryVersion)
+					done = sawReset && event.Status.Status == codersdk.ChatStatusWaiting
+				}
+			}
+		}
+		require.Greater(t, latestVersion, page.HistoryVersion)
+
+		// Reconnect from that version alone: without after_id, anything the
+		// status version failed to cover would be sent again.
+		reconnected, closer2, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterRevision: &latestVersion})
+		require.NoError(t, err)
+		defer closer2.Close()
+		reset, messageIDs, _ = readInitialSync(t, reconnected)
+		require.False(t, reset, "reconnecting with the last status version reset the client's history")
+		require.Empty(t, messageIDs, "reconnecting with the last status version replayed history")
+
+		// Without after_revision old deletions look like missed ones and the
+		// server resets the client, as before this change.
+		_, newestID, _ = newestPage(t)
+		legacy, closer3, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterID: &newestID})
+		require.NoError(t, err)
+		defer closer3.Close()
+		reset, messageIDs, _ = readInitialSync(t, legacy)
+		require.True(t, reset, "a client without after_revision must still receive the full reset on connect")
+		require.NotEmpty(t, messageIDs)
+	})
+
+	t.Run("NegativeAfterRevisionReturns400", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "prompt"}},
+		})
+		require.NoError(t, err)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodGet,
+			fmt.Sprintf("/api/v2/chats/%s/stream?after_revision=-1", chat.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
 
@@ -13151,6 +13305,14 @@ func seedChatWithDeletedModelConfig(
 func createChatModel(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModel {
 	t.Helper()
 	return coderdtest.CreateOpenAICompatChatModel(t, client, "")
+}
+
+func waitForChatStatus(ctx context.Context, t testing.TB, client *codersdk.ExperimentalClient, chatID uuid.UUID, want codersdk.ChatStatus) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		chat, err := client.GetChat(ctx, chatID)
+		return err == nil && chat.Status == want
+	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
 func createChatModelWithBaseURL(t testing.TB, client *codersdk.ExperimentalClient, baseURL string) codersdk.ChatModel {

@@ -3262,6 +3262,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "has_more": true,
+  "history_version": 0,
   "messages": [
     {
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
@@ -3404,11 +3405,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                              | Required | Restrictions | Description |
-|-------------------|-------------------------------------------------------------------|----------|--------------|-------------|
-| `has_more`        | boolean                                                           | false    |              |             |
-| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
+| Name              | Type                                                              | Required | Restrictions | Description                                                                                                           |
+|-------------------|-------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| `has_more`        | boolean                                                           | false    |              |                                                                                                                       |
+| `history_version` | integer                                                           | false    |              | History version is the chat history_version this page was read at. Pass it as after_revision when opening the stream. |
+| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                       |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                       |
 
 ## codersdk.ChatModel
 
@@ -5013,6 +5015,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "status_code": 0
   },
   "status": {
+    "history_version": 0,
     "status": "waiting"
   },
   "type": "message_part"
@@ -5151,15 +5154,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "history_version": 0,
   "status": "waiting"
 }
 ```
 
 ### Properties
 
-| Name     | Type                                       | Required | Restrictions | Description |
-|----------|--------------------------------------------|----------|--------------|-------------|
-| `status` | [codersdk.ChatStatus](#codersdkchatstatus) | false    |              |             |
+| Name              | Type                                       | Required | Restrictions | Description                                                                                                                                |
+|-------------------|--------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `history_version` | integer                                    | false    |              | History version is the chat history_version after the message events sent before this status. Pass it as after_revision when reconnecting. |
+| `status`          | [codersdk.ChatStatus](#codersdkchatstatus) | false    |              |                                                                                                                                            |
 
 ## codersdk.ChatStreamToolCall
 

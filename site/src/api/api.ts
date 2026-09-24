@@ -71,10 +71,14 @@ export const watchWorkspace = (
 export const watchChat = (
 	chatId: string,
 	afterMessageId?: number,
+	afterRevision?: number,
 ): OneWayWebSocketApi<TypesGen.ChatStreamEvent[]> => {
 	const params = new URLSearchParams();
 	if (afterMessageId !== undefined && afterMessageId > 0) {
 		params.set("after_id", afterMessageId.toString());
+	}
+	if (afterRevision !== undefined && afterRevision > 0) {
+		params.set("after_revision", afterRevision.toString());
 	}
 	const token = API.getSessionToken();
 	if (token) {
