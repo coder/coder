@@ -13407,18 +13407,6 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
 	})
 
-	t.Run("TooLong", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		tooLong := strings.Repeat("a", 131073)
-		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt:               tooLong,
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "System prompt exceeds maximum length.", sdkErr.Message)
-	})
-
 	t.Run("Audit", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -13498,7 +13486,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 		// A failed PUT records the attempt with an empty diff.
 		mAudit.ResetLogs()
-		tooLong := strings.Repeat("a", 131073)
+		tooLong := strings.Repeat("a", codersdk.DefaultChatMaxPromptBytes+1)
 		err = auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt: tooLong,
 		})
@@ -13914,17 +13902,6 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		})
 	}
 
-	t.Run("OversizedPayloadReturns400", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		tooLong := strings.Repeat("a", 131073)
-
-		err := adminClient.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-			PlanModeInstructions: tooLong,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Plan mode instructions exceed maximum length.", sdkErr.Message)
-	})
-
 	t.Run("NonAdminGETReturns404", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -13985,7 +13962,7 @@ func TestChatPlanModeInstructions(t *testing.T) {
 
 		// A failed PUT records the attempt with an empty diff.
 		mAudit.ResetLogs()
-		tooLong := strings.Repeat("a", 131073)
+		tooLong := strings.Repeat("a", codersdk.DefaultChatMaxPromptBytes+1)
 		err = auditClient.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
 			PlanModeInstructions: tooLong,
 		})
@@ -16730,32 +16707,136 @@ func TestSubmitToolResults(t *testing.T) {
 	})
 }
 
+// chatLimitCase runs a test against one deployment configuration of a chat
+// limit.
+type chatLimitCase struct {
+	name      string
+	configure func(*coderdtest.Options)
+	limit     int
+}
+
+// chatLimitCases returns a Default row that leaves the deployment option
+// unset, so the codersdk default applies, plus rows configured below and
+// above the default.
+func chatLimitCases(option func(*codersdk.ChatConfig) *serpent.Int64, defaultLimit, lower, higher int) []chatLimitCase {
+	configured := func(name string, limit int) chatLimitCase {
+		return chatLimitCase{
+			name: name,
+			configure: func(o *coderdtest.Options) {
+				*option(&o.DeploymentValues.AI.Chat) = serpent.Int64(limit)
+			},
+			limit: limit,
+		}
+	}
+	return []chatLimitCase{
+		{name: "Default", configure: func(*coderdtest.Options) {}, limit: defaultLimit},
+		configured("Lower", lower),
+		configured("Higher", higher),
+	}
+}
+
 func TestChatLimitsFromDeploymentConfig(t *testing.T) {
 	t.Parallel()
 
 	t.Run("MaxPromptBytes", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		// A limit smaller than the JSON envelope must still reject on
-		// prompt length, not on body size.
-		values.AI.Chat.MaxPromptBytes = serpent.Int64(16)
-		client := newChatClientWithDeploymentValues(t, values)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		type promptEndpoint struct {
+			name    string
+			message string
+			put     func(ctx context.Context, client *codersdk.ExperimentalClient, prompt string) error
+			get     func(ctx context.Context, client *codersdk.ExperimentalClient) (string, error)
+		}
+		endpoints := []promptEndpoint{
+			{
+				name:    "SystemPrompt",
+				message: "System prompt exceeds maximum length.",
+				put: func(ctx context.Context, client *codersdk.ExperimentalClient, prompt string) error {
+					return client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+						SystemPrompt:               prompt,
+						IncludeDefaultSystemPrompt: ptr.Ref(true),
+					})
+				},
+				get: func(ctx context.Context, client *codersdk.ExperimentalClient) (string, error) {
+					resp, err := client.GetChatSystemPrompt(ctx)
+					return resp.SystemPrompt, err
+				},
+			},
+			{
+				name:    "PlanModeInstructions",
+				message: "Plan mode instructions exceed maximum length.",
+				put: func(ctx context.Context, client *codersdk.ExperimentalClient, prompt string) error {
+					return client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+						PlanModeInstructions: prompt,
+					})
+				},
+				get: func(ctx context.Context, client *codersdk.ExperimentalClient) (string, error) {
+					resp, err := client.GetChatPlanModeInstructions(ctx)
+					return resp.PlanModeInstructions, err
+				},
+			},
+			{
+				name:    "UserCustomPrompt",
+				message: "Custom prompt exceeds maximum length.",
+				put: func(ctx context.Context, client *codersdk.ExperimentalClient, prompt string) error {
+					_, err := client.UpdateUserChatCustomPrompt(ctx, codersdk.UserChatCustomPrompt{CustomPrompt: prompt})
+					return err
+				},
+				get: func(ctx context.Context, client *codersdk.ExperimentalClient) (string, error) {
+					resp, err := client.GetUserChatCustomPrompt(ctx)
+					return resp.CustomPrompt, err
+				},
+			},
+		}
 
-		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt:               strings.Repeat("a", 17),
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "System prompt exceeds maximum length.", sdkErr.Message)
-		require.Contains(t, sdkErr.Detail, "Maximum length is 16 bytes")
+		// Lower sits below the JSON envelope size, so rejection must come from
+		// the prompt check rather than the body cap. Higher exceeds the former
+		// fixed limit and lifts the body cap above its 256 KiB floor.
+		limitCases := chatLimitCases(func(c *codersdk.ChatConfig) *serpent.Int64 { return &c.MaxPromptBytes },
+			codersdk.DefaultChatMaxPromptBytes, 16, 512*1024)
+		for _, lc := range limitCases {
+			t.Run(lc.name, func(t *testing.T) {
+				t.Parallel()
 
-		require.NoError(t, client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt:               strings.Repeat("a", 16),
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
-		}))
+				client := newChatClient(t, lc.configure)
+				_ = coderdtest.CreateFirstUser(t, client.Client)
+
+				for _, ep := range endpoints {
+					t.Run(ep.name, func(t *testing.T) {
+						t.Parallel()
+
+						requireStored := func(ctx context.Context, t *testing.T, want string) {
+							t.Helper()
+							got, err := ep.get(ctx, client)
+							require.NoError(t, err)
+							require.Equal(t, want, got)
+						}
+						requireAccepted := func(ctx context.Context, t *testing.T, prompt string) {
+							t.Helper()
+							require.NoError(t, ep.put(ctx, client, prompt))
+							requireStored(ctx, t, prompt)
+						}
+						requireRejected := func(ctx context.Context, t *testing.T, prompt, stored string) {
+							t.Helper()
+							sdkErr := requireSDKError(t, ep.put(ctx, client, prompt), http.StatusBadRequest)
+							require.Equal(t, ep.message, sdkErr.Message)
+							require.Equal(t, fmt.Sprintf("Maximum length is %d bytes, got %d.", lc.limit, len(prompt)), sdkErr.Detail)
+							requireStored(ctx, t, stored)
+						}
+
+						ctx := testutil.Context(t, testutil.WaitLong)
+						atLimit := strings.Repeat("a", lc.limit)
+						requireAccepted(ctx, t, atLimit)
+						requireRejected(ctx, t, atLimit+"a", atLimit)
+
+						// "é" is two bytes, so the limit counts bytes, not characters.
+						multibyte := strings.Repeat("é", lc.limit/2)
+						requireAccepted(ctx, t, multibyte)
+						requireRejected(ctx, t, multibyte+"é", multibyte)
+					})
+				}
+			})
+		}
 	})
 
 	t.Run("MaxPromptBytesDoesNotBoundChatCreation", func(t *testing.T) {
