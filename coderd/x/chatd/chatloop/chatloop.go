@@ -176,6 +176,12 @@ type ExecuteLocalToolsOptions struct {
 	// that never run. Optional.
 	BillingRecorder ToolBillingRecorder
 
+	// Stages receives one tool_call stage per local tool call. The tool
+	// runs on the stage's context. Optional.
+	Stages *StageTracer
+	// StageModel is the model identity carried by the tool_call stages.
+	StageModel StageModel
+
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger             slog.Logger
 	Metrics            *Metrics
@@ -568,6 +574,8 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		opts.ToolNameAliases,
 		batchStart,
 		opts.BillingRecorder,
+		opts.Stages,
+		opts.StageModel,
 	)
 	for _, execution := range toolExecutions {
 		tr := execution.content
@@ -1071,7 +1079,8 @@ type toolExecutionResult struct {
 
 // executeTools runs non-serial calls concurrently, then SerialToolCalls in
 // call order. Results are returned in original order after all tools finish.
-// recorder, if set, receives live start and completion timestamps.
+// recorder, if set, receives live start and completion timestamps. Each
+// call runs inside a tool_call stage started on stages.
 func executeTools(
 	ctx context.Context,
 	clock quartz.Clock,
@@ -1089,6 +1098,8 @@ func executeTools(
 	toolNameAliases map[string]string,
 	batchStart time.Time,
 	recorder ToolBillingRecorder,
+	stages *StageTracer,
+	stageModel StageModel,
 ) []toolExecutionResult {
 	if len(toolCalls) == 0 {
 		return nil
@@ -1140,13 +1151,20 @@ func executeTools(
 
 	executions := make([]toolExecutionResult, len(localToolCalls))
 	runCall := func(i int, tc fantasy.ToolCallContent) {
+		toolCtx, toolSpan := stages.Start(ctx, StageToolCall,
+			attribute.String(AttrToolName, tc.ToolName),
+			attribute.String(AttrProvider, provider),
+		)
+		toolSpan.SetModel(stageModel)
+		var execErr error
 		defer func() {
 			if r := recover(); r != nil {
+				execErr = xerrors.Errorf("tool panicked: %v", r)
 				executions[i].content = fantasy.ToolResultContent{
 					ToolCallID: tc.ToolCallID,
 					ToolName:   tc.ToolName,
 					Result: fantasy.ToolResultOutputContentError{
-						Error: xerrors.Errorf("tool panicked: %v", r),
+						Error: execErr,
 					},
 				}
 			}
@@ -1158,9 +1176,10 @@ func executeTools(
 			if recorder != nil {
 				recorder.RecordComplete(i, completedAt)
 			}
+			toolSpan.End(execErr)
 		}()
-		executions[i].content = executeSingleTool(
-			ctx,
+		executions[i].content, execErr = executeSingleTool(
+			toolCtx,
 			toolMap,
 			tc,
 			metrics,
@@ -1311,7 +1330,9 @@ func exclusiveToolSkippedErrorMessage(toolName string) string {
 }
 
 // executeSingleTool executes one tool call and converts the
-// response into a ToolResultContent.
+// response into a ToolResultContent. The error is the tool's execution
+// failure, which the result also reports to the model; it is nil when
+// the tool ran and returned an error result of its own.
 func executeSingleTool(
 	ctx context.Context,
 	toolMap map[string]fantasy.AgentTool,
@@ -1326,7 +1347,7 @@ func executeSingleTool(
 	resultProviderMetadata map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
 	maxResultBytes int,
 	toolNameAliases map[string]string,
-) fantasy.ToolResultContent {
+) (fantasy.ToolResultContent, error) {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
 		ToolName:         tc.ToolName,
@@ -1358,7 +1379,7 @@ func executeSingleTool(
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("Tool not active in this turn: " + resolvedName),
 		}
-		return result
+		return result, nil
 	}
 
 	tool, exists := toolMap[resolvedName]
@@ -1366,7 +1387,7 @@ func executeSingleTool(
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("Tool not found: " + resolvedName),
 		}
-		return result
+		return result, nil
 	}
 
 	logger.Debug(ctx, "tool execution",
@@ -1391,7 +1412,7 @@ func executeSingleTool(
 			slog.F("tool_call_id", tc.ToolCallID),
 			slog.Error(err),
 		)
-		return result
+		return result, err
 	}
 
 	result.ClientMetadata = resp.Metadata
@@ -1447,7 +1468,7 @@ func executeSingleTool(
 	}
 
 	if _, isError := result.Result.(fantasy.ToolResultOutputContentError); isError {
-		return result
+		return result, nil
 	}
 	if len(result.ProviderMetadata) == 0 {
 		if callback := resultProviderMetadata[tc.ToolName]; callback != nil {
@@ -1457,7 +1478,7 @@ func executeSingleTool(
 			}
 		}
 	}
-	return result
+	return result, nil
 }
 
 // normalizeToolMedia bounds persisted payloads and corrects image MIME types

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
-	"sync"
 	"time"
 
 	"charm.land/fantasy"
@@ -87,6 +86,16 @@ type generationPrepared struct {
 	Cleanup func()
 
 	Debug *generationDebug
+}
+
+// modelProvider returns the wire protocol of the prepared model, the
+// provider attribute of the stages that run against it. It is empty
+// when no model was built.
+func (p generationPrepared) modelProvider() string {
+	if !p.Model.Valid() {
+		return ""
+	}
+	return p.Model.Provider()
 }
 
 // generationCompaction contains compaction inputs prepared for generation.
@@ -441,19 +450,19 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
-		turnCtx, turnToken := input.Turn.Ensure(ctx, chat, turnTriggerTime(chat, messages))
-		input.TurnToken = turnToken
+		var turnCtx context.Context
+		turnCtx, input.TurnToken = input.TurnSpan.Ensure(ctx, chat, turnTriggerTime(chat, messages))
 		var again bool
 		input, again, err = s.runGenerationStep(turnCtx, machine, input, chat, messages)
 		if again {
 			continue
 		}
 		if err != nil && !turnContinues(ctx, err) {
-			input.Turn.Invalidate(input.TurnToken, turnOutcomeForError(ctx, err), err)
+			input.TurnSpan.Invalidate(input.TurnToken, turnOutcomeForError(ctx, err), err)
 		}
 		// The step's stage has ended by now, so a turn the step finished
-		// closes with that stage counted.
-		input.Turn.Settle(ctx, input.TurnToken)
+		// or invalidated closes with that stage counted.
+		input.TurnSpan.Settle(input.TurnToken)
 		return err
 	}
 }
@@ -519,7 +528,7 @@ func (s *taskStarter) runGenerationStep(
 		return s.server.prepareGeneration(prepareCtx, prepareInput)
 	})
 	if err == nil {
-		providerAttr := attribute.String(chatloop.AttrProvider, prepared.ResolvedProvider)
+		providerAttr := attribute.String(chatloop.AttrProvider, prepared.modelProvider())
 		prepareSpan.SetAttributes(providerAttr)
 		prepareSpan.SetModel(prepared.StageModel)
 		stepSpan.SetAttributes(providerAttr)
@@ -872,7 +881,7 @@ func (s *taskStarter) recordThinkingStages(
 			startedAt,
 			step.ReasoningCompletedAt[index],
 			nil,
-			attribute.String(chatloop.AttrProvider, prepared.ResolvedProvider),
+			attribute.String(chatloop.AttrProvider, prepared.modelProvider()),
 		)
 	}
 }
@@ -955,50 +964,6 @@ func (r *bufferToolBillingRecorder) RecordComplete(dispatchIndex int, completedA
 	r.recordComplete(r.allowedIndexes[dispatchIndex], completedAt)
 }
 
-// toolCallName returns the name of the tool call at dispatchIndex, or
-// an empty string when the index is out of range.
-func toolCallName(calls []fantasy.ToolCallContent, dispatchIndex int) string {
-	if dispatchIndex < 0 || dispatchIndex >= len(calls) {
-		return ""
-	}
-	return calls[dispatchIndex].ToolName
-}
-
-// toolCallStageRecorder emits one tool_call stage per local tool call
-// while forwarding every callback to the billing recorder it wraps.
-// Completions arrive on the tool goroutines, so the pending starts are
-// mutex guarded.
-type toolCallStageRecorder struct {
-	inner  chatloop.ToolBillingRecorder
-	record func(dispatchIndex int, startedAt, completedAt time.Time)
-
-	mu     sync.Mutex
-	starts map[int]time.Time
-}
-
-func (r *toolCallStageRecorder) RecordStart(dispatchIndex int, startedAt time.Time) {
-	if r.inner != nil {
-		r.inner.RecordStart(dispatchIndex, startedAt)
-	}
-	r.mu.Lock()
-	r.starts[dispatchIndex] = startedAt
-	r.mu.Unlock()
-}
-
-func (r *toolCallStageRecorder) RecordComplete(dispatchIndex int, completedAt time.Time) {
-	if r.inner != nil {
-		r.inner.RecordComplete(dispatchIndex, completedAt)
-	}
-	r.mu.Lock()
-	startedAt, started := r.starts[dispatchIndex]
-	delete(r.starts, dispatchIndex)
-	r.mu.Unlock()
-	if !started {
-		return
-	}
-	r.record(dispatchIndex, startedAt, completedAt)
-}
-
 func (s *taskStarter) executeLocalTools(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
@@ -1029,10 +994,9 @@ func (s *taskStarter) executeLocalTools(
 		return xerrors.Errorf("beginGenerationAttempt: %w", err)
 	}
 	defer attempt.closeEpisode()
-	provider := ""
+	provider := prepared.modelProvider()
 	modelName := ""
 	if prepared.Model.Valid() {
-		provider = prepared.Model.Provider()
 		modelName = prepared.Model.ModelID()
 	}
 	var outcome chatloop.PersistedStep
@@ -1045,16 +1009,6 @@ func (s *taskStarter) executeLocalTools(
 				recordStart:    attempt.recordToolStart,
 				recordComplete: attempt.recordToolCompletion,
 			}
-		}
-		toolStages := &toolCallStageRecorder{
-			inner:  billingRecorder,
-			starts: make(map[int]time.Time, len(allowed)),
-			record: func(dispatchIndex int, startedAt, completedAt time.Time) {
-				s.server.stages.Record(ctx, chatloop.StageToolCall, prepared.StageModel, startedAt, completedAt, nil,
-					attribute.String(chatloop.AttrToolName, toolCallName(allowed, dispatchIndex)),
-					attribute.String(chatloop.AttrProvider, provider),
-				)
-			},
 		}
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 			Tools:              prepared.Tools,
@@ -1070,7 +1024,9 @@ func (s *taskStarter) executeLocalTools(
 			ContextLimit:       prepared.ContextLimitFallback,
 			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,
-			BillingRecorder:    toolStages,
+			BillingRecorder:    billingRecorder,
+			Stages:             s.server.stages,
+			StageModel:         prepared.StageModel,
 			PublishMessagePart: attempt.publish,
 			Logger:             s.opts.Logger,
 			Metrics:            s.server.metrics,
@@ -1157,7 +1113,7 @@ func (s *taskStarter) generateCompaction(
 	metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
 	// The compaction stage is labeled with the model that runs the
 	// summary: the chat model unless an override is configured.
-	compactionStage := prepared.StageModel
+	compactionModel := prepared.StageModel
 	if override := prepared.Compaction.Override; override != nil {
 		// A usable override that fails to build is a hard generation failure.
 		overrideModel, err := s.server.resolveModelCall(ctx, modelCallSpec{
@@ -1175,7 +1131,7 @@ func (s *taskStarter) generateCompaction(
 			slog.F("chat_id", prepared.Chat.ID),
 			slog.F("owner_id", prepared.Chat.OwnerID),
 		)
-		compactionStage = overrideModel.stageModel()
+		compactionModel = overrideModel.stageModel()
 		compactionOpts.Model = overrideModel.model.LanguageModel()
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
@@ -1217,7 +1173,7 @@ func (s *taskStarter) generateCompaction(
 		attribute.String(chatloop.AttrProvider, metricProvider),
 		attribute.String(chatloop.AttrCompactionSource, string(source)),
 	)
-	compactionSpan.SetModel(compactionStage)
+	compactionSpan.SetModel(compactionModel)
 	outcome, err := chatloop.GenerateCompaction(compactionCtx, compactionOpts)
 	compactionSpan.End(err)
 	if err != nil {
@@ -1446,6 +1402,7 @@ func (s *taskStarter) commitGenerationStep(
 		return normalizeTaskTransitionError(err, "commit generation step")
 	}
 	if failClosed {
+		input.TurnSpan.Invalidate(input.TurnToken, chatloop.TurnOutcomeError, commitHooks.PostCommitError)
 		input.DebugTurn.RecordOutcome(chatdebug.StatusError)
 		postCommitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
 		defer cancel()
@@ -1488,6 +1445,9 @@ func (s *taskStarter) enterRequiresAction(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "enter requires action")
 	}
+	// The turn ends while the chat waits for the client; the submitted
+	// tool results open the next one.
+	input.TurnSpan.Complete(input.TurnToken)
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindActionRequired); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
@@ -1583,9 +1543,7 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 		if err != nil {
 			return xerrors.Errorf("tx.FinishTurn: %w", err)
 		}
-		if finishResult.PromotedMessage != nil {
-			promotedQueuedAt = finishResult.PromotedQueuedAt
-		}
+		promotedQueuedAt = finishResult.PromotedQueuedAt
 		committed = finishResult.Chat
 		return nil
 	})
@@ -1594,7 +1552,8 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 		recordGenerationFinishFailure(input.DebugTurn, err)
 		return err
 	}
-	input.Turn.Complete(input.TurnToken, promotedQueuedAt)
+	input.TurnSpan.Complete(input.TurnToken)
+	s.server.recordQueueWait(ctx, committed, promotedQueuedAt, s.server.stages.Now())
 	return s.completeGenerationTurn(ctx, input, committed)
 }
 
@@ -1657,9 +1616,7 @@ func (s *taskStarter) finishGenerationTurn(
 			if err != nil {
 				return xerrors.Errorf("tx.FinishTurn: %w", err)
 			}
-			if finishResult.PromotedMessage != nil {
-				promotedQueuedAt = finishResult.PromotedQueuedAt
-			}
+			promotedQueuedAt = finishResult.PromotedQueuedAt
 			committed = finishResult.Chat
 			return nil
 		}
@@ -1685,7 +1642,8 @@ func (s *taskStarter) finishGenerationTurn(
 			Kind: runnerActionKind(generationActionGenerateAssistant),
 		})
 	}
-	input.Turn.Complete(input.TurnToken, promotedQueuedAt)
+	input.TurnSpan.Complete(input.TurnToken)
+	s.server.recordQueueWait(ctx, committed, promotedQueuedAt, s.server.stages.Now())
 	return s.completeGenerationTurn(ctx, input, committed)
 }
 
@@ -1696,7 +1654,6 @@ func (s *taskStarter) finishGenerationError(
 	cause error,
 	fence generationAttemptFence,
 ) error {
-	input.Turn.Invalidate(input.TurnToken, turnOutcomeForError(ctx, cause), cause)
 	classified := chaterror.Classify(cause)
 	// Log the unsanitized cause before persisting so administrators can
 	// diagnose the failure even when the classified user-facing message
@@ -1732,6 +1689,7 @@ func (s *taskStarter) finishGenerationError(
 		recordGenerationFinishFailure(input.DebugTurn, err)
 		return err
 	}
+	input.TurnSpan.Invalidate(input.TurnToken, turnOutcomeForError(ctx, cause), cause)
 	input.DebugTurn.RecordOutcome(chatdebug.StatusError)
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)

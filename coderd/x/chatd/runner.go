@@ -72,7 +72,7 @@ func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts 
 		tasksByIndex: make(map[taskIndexKey]taskInstanceID),
 		localLocks:   newLocalLockSet(),
 		debugTurn:    newRunnerDebugTurn(ctx, opts.Logger),
-		turnSpan:     newRunnerTurnSpan(mgr.server.stages, mgr.server.organizationName),
+		turnSpan:     newRunnerTurnSpan(mgr.server.stages, mgr.server.organizationName, rec.takenOver),
 	}
 }
 
@@ -232,7 +232,7 @@ func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
 		Status:                   state.Status,
 		RequiresActionDeadlineAt: state.RequiresActionDeadlineAt,
 		DebugTurn:                r.debugTurn,
-		Turn:                     r.turnSpan,
+		TurnSpan:                 r.turnSpan,
 		SessionStart:             &r.sessionStart,
 		StopNudges:               &r.stopNudges,
 	}
