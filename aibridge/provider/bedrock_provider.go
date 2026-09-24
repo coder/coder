@@ -168,6 +168,10 @@ func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, trace
 	if err != nil {
 		return nil, xerrors.Errorf("unmarshal request body: %w", err)
 	}
+	cred, err := authorizeAndResolveCredential(p, r, reqPayload.InvocationModel(&p.runtime))
+	if err != nil {
+		return nil, err
+	}
 
 	cfg := intercept.Config{
 		ProviderName:     p.Name(),
@@ -177,9 +181,9 @@ func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, trace
 	}
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
-		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, nil, &p.runtime, r.Header, tracer)
+		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, &p.runtime, r.Header, tracer)
 	} else {
-		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, nil, &p.runtime, r.Header, tracer)
+		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, &p.runtime, r.Header, tracer)
 	}
 	return interceptor, nil
 }
@@ -193,13 +197,17 @@ func (p *Bedrock) createChatCompletionsInterceptor(id uuid.UUID, r *http.Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, xerrors.Errorf("unmarshal request body: %w", err)
 	}
+	cred, err := authorizeAndResolveCredential(p, r, req.Model)
+	if err != nil {
+		return nil, err
+	}
 
 	cfg := p.bedrockInterceptConfig()
 	var interceptor intercept.Interceptor
 	if req.Stream {
-		interceptor = chatcompletions.NewBedrockStreamingInterceptor(id, &req, cfg, nil, p.mantleConfig(), r.Header, tracer)
+		interceptor = chatcompletions.NewBedrockStreamingInterceptor(id, &req, cfg, cred, p.mantleConfig(), r.Header, tracer)
 	} else {
-		interceptor = chatcompletions.NewBedrockBlockingInterceptor(id, &req, cfg, nil, p.mantleConfig(), r.Header, tracer)
+		interceptor = chatcompletions.NewBedrockBlockingInterceptor(id, &req, cfg, cred, p.mantleConfig(), r.Header, tracer)
 	}
 	return interceptor, nil
 }
@@ -217,13 +225,17 @@ func (p *Bedrock) createResponsesInterceptor(id uuid.UUID, r *http.Request, trac
 	if err != nil {
 		return nil, xerrors.Errorf("unmarshal request body: %w", err)
 	}
+	cred, err := authorizeAndResolveCredential(p, r, reqPayload.Model())
+	if err != nil {
+		return nil, err
+	}
 
 	cfg := p.bedrockInterceptConfig()
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
-		interceptor = responses.NewBedrockStreamingInterceptor(id, reqPayload, cfg, nil, p.mantleConfig(), r.Header, tracer)
+		interceptor = responses.NewBedrockStreamingInterceptor(id, reqPayload, cfg, cred, p.mantleConfig(), r.Header, tracer)
 	} else {
-		interceptor = responses.NewBedrockBlockingInterceptor(id, reqPayload, cfg, nil, p.mantleConfig(), r.Header, tracer)
+		interceptor = responses.NewBedrockBlockingInterceptor(id, reqPayload, cfg, cred, p.mantleConfig(), r.Header, tracer)
 	}
 	return interceptor, nil
 }

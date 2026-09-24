@@ -139,6 +139,10 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 	if err != nil {
 		return nil, xerrors.Errorf("unmarshal request body: %w", err)
 	}
+	cred, err := authorizeAndResolveCredential(p, r, reqPayload.InvocationModel(p.bedrock))
+	if err != nil {
+		return nil, err
+	}
 
 	cfg := intercept.Config{
 		ProviderName:     p.Name(),
@@ -148,9 +152,9 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 	}
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
-		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, nil, p.bedrock, r.Header, tracer)
+		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
 	} else {
-		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, nil, p.bedrock, r.Header, tracer)
+		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
 	}
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil

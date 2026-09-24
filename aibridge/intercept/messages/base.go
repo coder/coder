@@ -149,10 +149,6 @@ func (i *interceptionBase) Credential() intercept.Credential {
 	return i.cred
 }
 
-func (i *interceptionBase) SetCredential(cred intercept.Credential) {
-	i.cred = cred
-}
-
 func (i *interceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpProxy mcp.ServerProxier) {
 	i.logger = logger
 	i.recorder = rec
@@ -208,13 +204,6 @@ func (i *interceptionBase) isBedrockMantle() bool {
 // InvokeModel protocol.
 func (i *interceptionBase) isBedrockInvokeModel() bool {
 	return i.bedrock != nil && i.bedrock.Cfg.ResolvedProtocol() == aibconfig.BedrockProtocolInvokeModel
-}
-
-func (i *interceptionBase) InvocationModel() string {
-	if i.isBedrockInvokeModel() {
-		return i.upstreamModel()
-	}
-	return i.Model()
 }
 
 func (i *interceptionBase) Model() string {

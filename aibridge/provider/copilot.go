@@ -149,11 +149,15 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			return nil, xerrors.Errorf("unmarshal chat completions request body: %w", err)
 		}
+		cred, err := authorizeAndResolveCredential(p, r, req.Model)
+		if err != nil {
+			return nil, err
+		}
 
 		if req.Stream {
-			interceptor = chatcompletions.NewStreamingInterceptor(id, &req, cfg, nil, r.Header, tracer)
+			interceptor = chatcompletions.NewStreamingInterceptor(id, &req, cfg, cred, r.Header, tracer)
 		} else {
-			interceptor = chatcompletions.NewBlockingInterceptor(id, &req, cfg, nil, r.Header, tracer)
+			interceptor = chatcompletions.NewBlockingInterceptor(id, &req, cfg, cred, r.Header, tracer)
 		}
 
 	case routeCopilotResponses:
@@ -165,11 +169,15 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal request body: %w", err)
 		}
+		cred, err := authorizeAndResolveCredential(p, r, reqPayload.Model())
+		if err != nil {
+			return nil, err
+		}
 
 		if reqPayload.Stream() {
-			interceptor = responses.NewStreamingInterceptor(id, reqPayload, cfg, nil, r.Header, tracer)
+			interceptor = responses.NewStreamingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
 		} else {
-			interceptor = responses.NewBlockingInterceptor(id, reqPayload, cfg, nil, r.Header, tracer)
+			interceptor = responses.NewBlockingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
 		}
 
 	case routeCopilotMessages:
@@ -181,11 +189,15 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal request body: %w", err)
 		}
+		cred, err := authorizeAndResolveCredential(p, r, reqPayload.InvocationModel(nil))
+		if err != nil {
+			return nil, err
+		}
 
 		if reqPayload.Stream() {
-			interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, nil, nil, r.Header, tracer)
+			interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
 		} else {
-			interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, nil, nil, r.Header, tracer)
+			interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
 		}
 
 	default:

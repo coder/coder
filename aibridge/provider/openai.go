@@ -118,11 +118,15 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			return nil, xerrors.Errorf("unmarshal request body: %w", err)
 		}
+		cred, err := authorizeAndResolveCredential(p, r, req.Model)
+		if err != nil {
+			return nil, err
+		}
 
 		if req.Stream {
-			interceptor = chatcompletions.NewStreamingInterceptor(id, &req, cfg, nil, r.Header, tracer)
+			interceptor = chatcompletions.NewStreamingInterceptor(id, &req, cfg, cred, r.Header, tracer)
 		} else {
-			interceptor = chatcompletions.NewBlockingInterceptor(id, &req, cfg, nil, r.Header, tracer)
+			interceptor = chatcompletions.NewBlockingInterceptor(id, &req, cfg, cred, r.Header, tracer)
 		}
 
 	case routeResponses:
@@ -134,10 +138,14 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal request body: %w", err)
 		}
+		cred, err := authorizeAndResolveCredential(p, r, reqPayload.Model())
+		if err != nil {
+			return nil, err
+		}
 		if reqPayload.Stream() {
-			interceptor = responses.NewStreamingInterceptor(id, reqPayload, cfg, nil, r.Header, tracer)
+			interceptor = responses.NewStreamingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
 		} else {
-			interceptor = responses.NewBlockingInterceptor(id, reqPayload, cfg, nil, r.Header, tracer)
+			interceptor = responses.NewBlockingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
 		}
 
 	default:

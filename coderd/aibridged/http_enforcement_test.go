@@ -10,13 +10,16 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"storj.io/drpc/drpcerr"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	mock "github.com/coder/coder/v2/coderd/aibridged/aibridgedmock"
@@ -35,16 +38,20 @@ func TestServeHTTP_ModelAuthorization(t *testing.T) {
 		code         uint64
 		status       int
 		wantCalls    int
+		kind         string
 	}{
 		{name: "full_key_allowed", status: http.StatusTeapot, wantCalls: 1},
-		{name: "full_key_policy", code: proto.AuthorizationErrorPolicy, status: http.StatusForbidden},
-		{name: "full_key_evaluation", code: proto.AuthorizationErrorEvaluation, status: http.StatusInternalServerError},
-		{name: "full_key_unknown_error", code: 9999, status: http.StatusInternalServerError},
+		{name: "full_key_authentication", code: proto.AuthorizationErrorAuthentication, status: http.StatusForbidden, kind: "authentication"},
+		{name: "full_key_policy", code: proto.AuthorizationErrorPolicy, status: http.StatusForbidden, kind: "policy"},
+		{name: "full_key_evaluation", code: proto.AuthorizationErrorEvaluation, status: http.StatusInternalServerError, kind: "evaluation"},
+		{name: "full_key_malformed", code: proto.AuthorizationErrorMalformed, status: http.StatusInternalServerError, kind: "malformed"},
+		{name: "full_key_unknown_error", code: 9999, status: http.StatusInternalServerError, kind: "evaluation"},
 		{name: "delegated_allowed", delegated: true, status: http.StatusTeapot, wantCalls: 1},
-		{name: "delegated_policy", delegated: true, code: proto.AuthorizationErrorPolicy, status: http.StatusForbidden},
-		{name: "delegated_evaluation", delegated: true, code: proto.AuthorizationErrorEvaluation, status: http.StatusInternalServerError},
-		{name: "denied_before_credentials_blocking", noCredential: true, code: proto.AuthorizationErrorPolicy, status: http.StatusForbidden},
-		{name: "denied_before_credentials_streaming", noCredential: true, stream: true, code: proto.AuthorizationErrorPolicy, status: http.StatusForbidden},
+		{name: "delegated_policy", delegated: true, code: proto.AuthorizationErrorPolicy, status: http.StatusForbidden, kind: "policy"},
+		{name: "delegated_evaluation", delegated: true, code: proto.AuthorizationErrorEvaluation, status: http.StatusInternalServerError, kind: "evaluation"},
+		{name: "denied_before_credentials_blocking", noCredential: true, code: proto.AuthorizationErrorPolicy, status: http.StatusForbidden, kind: "policy"},
+		{name: "denied_before_credentials_streaming", noCredential: true, stream: true, code: proto.AuthorizationErrorPolicy, status: http.StatusForbidden, kind: "policy"},
+		{name: "allowed_without_credentials", noCredential: true, status: http.StatusInternalServerError},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -91,9 +98,11 @@ func TestServeHTTP_ModelAuthorization(t *testing.T) {
 			client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).Times(tc.wantCalls).Return(&proto.RecordInterceptionResponse{}, nil)
 			client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).Times(tc.wantCalls)
 
+			logs := testutil.NewFakeSink(t)
+			metrics := aibridge.NewMetrics(prometheus.NewRegistry())
 			srv, err := aibridged.New(t.Context(), func(context.Context) (aibridged.DRPCClient, error) {
 				return client, nil
-			}, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), testTracer, nil, nil)
+			}, logs.Logger(), testTracer, nil, metrics)
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = srv.Shutdown(testutil.Context(t, testutil.WaitShort)) })
 			require.Eventually(t, srv.Ready, testutil.WaitShort, testutil.IntervalFast)
@@ -120,6 +129,31 @@ func TestServeHTTP_ModelAuthorization(t *testing.T) {
 
 			require.Equal(t, tc.status, rw.Code)
 			require.EqualValues(t, tc.wantCalls, upstreamCalls.Load())
+			if tc.noCredential && tc.code == 0 {
+				require.Contains(t, rw.Body.String(), "failed to resolve credential:")
+			}
+			outcome := "allowed"
+			if tc.code != 0 {
+				outcome = "error"
+				if tc.status == http.StatusForbidden {
+					outcome = "denied"
+					require.Equal(t, "unauthorized\n", rw.Body.String())
+				}
+			}
+			for _, label := range []string{"allowed", "denied", "error"} {
+				want := 0.0
+				if label == outcome {
+					want = 1
+				}
+				require.Equal(t, want, promtest.ToFloat64(metrics.AuthorizationCount.WithLabelValues(label)))
+			}
+			if tc.kind != "" {
+				entries := logs.Entries(func(entry slog.SinkEntry) bool {
+					return entry.Message == "request authorization denied" || entry.Message == "request authorization failed"
+				})
+				require.Len(t, entries, 1)
+				require.Contains(t, entries[0].Fields, slog.F("authorization_error_kind", intercept.AuthorizationErrorKind(tc.kind)))
+			}
 		})
 	}
 }

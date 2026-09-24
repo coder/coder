@@ -4,13 +4,13 @@ import "context"
 
 // AuthorizationErrorKind identifies the outcome of a request-scoped model
 // authorization check.
-type AuthorizationErrorKind uint8
+type AuthorizationErrorKind string
 
 const (
-	AuthorizationErrorAuthentication AuthorizationErrorKind = iota + 1
-	AuthorizationErrorPolicy
-	AuthorizationErrorEvaluation
-	AuthorizationErrorMalformed
+	AuthorizationErrorAuthentication AuthorizationErrorKind = "authentication"
+	AuthorizationErrorPolicy         AuthorizationErrorKind = "policy"
+	AuthorizationErrorEvaluation     AuthorizationErrorKind = "evaluation"
+	AuthorizationErrorMalformed      AuthorizationErrorKind = "malformed"
 )
 
 // AuthorizationError is returned by a request authorization hook.

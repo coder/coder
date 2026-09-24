@@ -143,22 +143,14 @@ func (i *responsesInterceptionBase) Credential() intercept.Credential {
 	return i.cred
 }
 
-func (i *responsesInterceptionBase) SetCredential(cred intercept.Credential) {
-	i.cred = cred
-}
-
 func (i *responsesInterceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpProxy mcp.ServerProxier) {
 	i.logger = logger.With(slog.F("model", i.Model()))
 	i.recorder = rec
 	i.mcpProxy = mcpProxy
 }
 
-func (i *responsesInterceptionBase) InvocationModel() string {
-	return i.Model()
-}
-
 func (i *responsesInterceptionBase) Model() string {
-	return i.reqPayload.model()
+	return i.reqPayload.Model()
 }
 
 func (i *responsesInterceptionBase) CorrelatingToolCallID() *string {
