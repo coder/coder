@@ -37,16 +37,21 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 	const [orphanWorkspace, setOrphanWorkspace] =
 		useState<CreateWorkspaceBuildRequest["orphan"]>(false);
 	const [isFocused, setIsFocused] = useState(false);
+	const [hasSubmittedInvalidConfirmation, setHasSubmittedInvalidConfirmation] =
+		useState(false);
 
 	const deletionConfirmed = workspace.name === userConfirmationText;
 	const hasError = !deletionConfirmed && userConfirmationText.length > 0;
-	const displayErrorMessage = hasError && !isFocused;
+	const displayErrorMessage =
+		hasError && (!isFocused || hasSubmittedInvalidConfirmation);
 
 	const onSubmit = (event: FormEvent) => {
 		event.preventDefault();
 		if (deletionConfirmed) {
 			onConfirm(orphanWorkspace);
+			return;
 		}
+		setHasSubmittedInvalidConfirmation(true);
 	};
 
 	// Orphaning is sort of a "last resort" that should really only
@@ -104,9 +109,25 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 							autoFocus
 							placeholder={workspace.name}
 							value={userConfirmationText}
-							onChange={(event) => setUserConfirmationText(event.target.value)}
+							onChange={(event) => {
+								setUserConfirmationText(event.target.value);
+								setHasSubmittedInvalidConfirmation(false);
+							}}
 							onFocus={() => setIsFocused(true)}
 							onBlur={() => setIsFocused(false)}
+							onKeyDown={(event) => {
+								if (event.key !== "Enter") {
+									return;
+								}
+								// React events bubble through portals, so without this a
+								// clickable ancestor (e.g. a workspaces table row) treats
+								// Enter as a click and navigates away.
+								event.stopPropagation();
+								if (!deletionConfirmed) {
+									event.preventDefault();
+									setHasSubmittedInvalidConfirmation(true);
+								}
+							}}
 							aria-invalid={displayErrorMessage}
 							aria-describedby={displayErrorMessage ? errorId : undefined}
 							data-testid="delete-dialog-name-confirmation"

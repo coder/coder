@@ -46,14 +46,18 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 
 	const [userConfirmationText, setUserConfirmationText] = useState("");
 	const [isFocused, setIsFocused] = useState(false);
+	const [hasSubmittedInvalidConfirmation, setHasSubmittedInvalidConfirmation] =
+		useState(false);
 
 	const deletionConfirmed = name === userConfirmationText;
 	const hasError = !deletionConfirmed && userConfirmationText.length > 0;
-	const displayErrorMessage = hasError && !isFocused;
+	const displayErrorMessage =
+		hasError && (!isFocused || hasSubmittedInvalidConfirmation);
 
 	const resetConfirmation = () => {
 		setUserConfirmationText("");
 		setIsFocused(false);
+		setHasSubmittedInvalidConfirmation(false);
 	};
 
 	const handleOpenChange = (open: boolean) => {
@@ -67,7 +71,9 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 		event.preventDefault();
 		if (deletionConfirmed && !confirmLoading) {
 			onConfirm();
+			return;
 		}
+		setHasSubmittedInvalidConfirmation(true);
 	};
 
 	return (
@@ -104,9 +110,24 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 							autoFocus
 							placeholder={name}
 							value={userConfirmationText}
-							onChange={(event) => setUserConfirmationText(event.target.value)}
+							onChange={(event) => {
+								setUserConfirmationText(event.target.value);
+								setHasSubmittedInvalidConfirmation(false);
+							}}
 							onFocus={() => setIsFocused(true)}
 							onBlur={() => setIsFocused(false)}
+							onKeyDown={(event) => {
+								if (event.key !== "Enter") {
+									return;
+								}
+								// React events bubble through portals, so without this a
+								// clickable ancestor treats Enter as a click.
+								event.stopPropagation();
+								if (!deletionConfirmed) {
+									event.preventDefault();
+									setHasSubmittedInvalidConfirmation(true);
+								}
+							}}
 							aria-invalid={displayErrorMessage}
 							aria-describedby={displayErrorMessage ? errorId : undefined}
 							data-testid="delete-dialog-name-confirmation"
