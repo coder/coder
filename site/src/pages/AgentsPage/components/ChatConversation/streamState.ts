@@ -5,6 +5,7 @@ import { appendTextBlock } from "./blockUtils";
 import {
 	ensureToolBlock,
 	getToolResultStatus,
+	isHiddenProviderExecutedPart,
 	markTextBeforeProviderTool,
 	parseToolResultIsError,
 } from "./messageParsing";
@@ -53,10 +54,8 @@ export const applyMessagePartToStreamState = (
 			};
 		}
 		case "tool-call": {
-			// Provider-executed tool calls (e.g. web_search) are
-			// handled natively by the provider — skip rendering them
-			// as tool cards.
-			if (part.provider_executed) {
+			// Hidden provider-executed calls render no card.
+			if (isHiddenProviderExecutedPart(part)) {
 				const blocks = markTextBeforeProviderTool(nextState.blocks);
 				const startedAt = nextState.startedAt ?? part.created_at;
 				return blocks === nextState.blocks && startedAt === nextState.startedAt
@@ -106,10 +105,10 @@ export const applyMessagePartToStreamState = (
 			};
 		}
 		case "tool-result": {
-			// Provider-executed results render no card, but the search they end
-			// is a step. Recording it may create an empty state, which still
-			// shows the Thinking indicator.
-			if (part.provider_executed) {
+			// Hidden provider-executed results render no card, but the call
+			// they end is a step. Recording it may create an empty state,
+			// which still shows the Thinking indicator.
+			if (isHiddenProviderExecutedPart(part)) {
 				return nextState.providerToolRan
 					? nextState
 					: { ...nextState, providerToolRan: true };
