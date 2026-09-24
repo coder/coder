@@ -86,7 +86,8 @@ type OnRetryFn func(attempt int, err error, classified ClassifiedError, delay ti
 // non-retryable error, ctx is canceled, or it has been retried
 // maxRetries times. Retries use exponential backoff capped at
 // MaxDelay, unless the normalized error includes a longer provider
-// Retry-After hint.
+// Retry-After hint. maxRetries must be at least 1; otherwise Retry
+// returns an error without calling fn.
 //
 // When fn returns bare context.Canceled while ctx is still alive, Retry
 // treats it as a provider transport reset and retries it.
@@ -95,6 +96,9 @@ type OnRetryFn func(attempt int, err error, classified ClassifiedError, delay ti
 // attempt, giving the caller a chance to reset state, log, or
 // publish status events.
 func Retry(ctx context.Context, maxRetries int, fn RetryFn, onRetry OnRetryFn) error {
+	if maxRetries < 1 {
+		return xerrors.Errorf("max retries must be positive, got %d", maxRetries)
+	}
 	var attempt int
 	for {
 		if ctxErr := contextError(ctx); ctxErr != nil {

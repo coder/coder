@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // testMaxRetries is generous enough that no existing scenario exhausts
@@ -92,16 +93,26 @@ func TestRetry_MultipleTransientThenSuccess(t *testing.T) {
 	require.Equal(t, 4, calls)
 }
 
-func TestRetry_ExhaustsMaxRetries(t *testing.T) {
+func TestRetry_MaxRetries(t *testing.T) {
 	t.Parallel()
 
-	calls := 0
-	err := chatretry.Retry(context.Background(), 1, func(_ context.Context) error {
-		calls++
-		return xerrors.New("overloaded")
-	}, nil)
-	require.ErrorContains(t, err, "max retries (1) exceeded")
-	require.Equal(t, 2, calls, "one retry allows exactly two attempts")
+	for _, maxRetries := range []int{-1, 0, 1, 2} {
+		t.Run(fmt.Sprintf("Max%d", maxRetries), func(t *testing.T) {
+			t.Parallel()
+			calls := 0
+			err := chatretry.Retry(testutil.Context(t, testutil.WaitMedium), maxRetries, func(_ context.Context) error {
+				calls++
+				return xerrors.New("overloaded")
+			}, nil)
+			if maxRetries < 1 {
+				require.ErrorContains(t, err, "max retries must be positive")
+				require.Zero(t, calls)
+				return
+			}
+			require.ErrorContains(t, err, fmt.Sprintf("max retries (%d) exceeded", maxRetries))
+			require.Equal(t, maxRetries+1, calls)
+		})
+	}
 }
 
 func TestRetry_ContextCanceledStatus500ThenSuccess(t *testing.T) {
