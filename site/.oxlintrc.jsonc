@@ -188,6 +188,7 @@
 		"no-irregular-whitespace": "error",
 		"no-redeclare": "error",
 		"no-empty-interface": "error",
+		"no-invalid-void-type": ["error", { "allowInGenericTypeArguments": true }],
 		"no-use-before-define": [
 			"error",
 			{ "functions": false, "classes": false, "variables": false }
@@ -207,7 +208,6 @@
 		// small < medium < large < xl.
 		// ==========================================================
 		"no-autofocus": "off", // a11y/noAutofocus (large)
-		"no-invalid-void-type": "off", // suspicious/noConfusingVoidType (large)
 		"no-fallthrough": "off", // suspicious/noFallthroughSwitchClause (medium)
 		"click-events-have-key-events": "off", // a11y/useKeyWithClickEvents (small)
 		"no-danger": "off", // security/noDangerouslySetInnerHtml (small: Biome suppression to migrate)

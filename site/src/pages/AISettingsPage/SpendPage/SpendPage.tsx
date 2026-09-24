@@ -5,14 +5,8 @@ import {
 	aiSpendOrganizations,
 	paginatedOrganizationAISpend,
 } from "#/api/queries/aiBridge";
-import type {
-	OrganizationAISpendFilter,
-	OrganizationAISpendReport,
-} from "#/api/typesGenerated";
-import {
-	type DateRangeValue,
-	toBoundary,
-} from "#/components/DateRangePicker/DateRangePicker";
+import type { OrganizationAISpendFilter } from "#/api/typesGenerated";
+import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -26,6 +20,7 @@ import {
 } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { pageTitle } from "#/utils/page";
 import { SpendPageView } from "./SpendPageView";
+import { defaultSpendPeriod } from "./spendPeriod";
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
@@ -35,63 +30,25 @@ type SpendDimensions = Pick<
 	"provider_name" | "client" | "model"
 >;
 
-// Local midnight of the UTC calendar date that the instant falls on.
-const localDayOf = (instant: Date): Date =>
-	new Date(
-		instant.getUTCFullYear(),
-		instant.getUTCMonth(),
-		instant.getUTCDate(),
-	);
-
-/**
- * The first local calendar day the picker can select on or after the moving
- * retention cutoff: the first local midnight at or after it. With less than a
- * day of retention that midnight has not happened yet.
- */
-export const firstDayWithinRetention = (cutoff: Date): Date => {
-	const day = new Date(
-		cutoff.getFullYear(),
-		cutoff.getMonth(),
-		cutoff.getDate(),
-	);
-	return day < cutoff
-		? new Date(cutoff.getFullYear(), cutoff.getMonth(), cutoff.getDate() + 1)
-		: day;
-};
-
-/**
- * Maps the server's UTC window to local picker days, advancing the start past
- * retention where possible. Undefined when no selectable day remains: the
- * first local day is still ahead of the viewer's clock, either because the
- * UTC period began after local midnight or because every day the picker could
- * commit would start before the retention cutoff.
- */
-export const appliedWindowToDateRange = (
-	reportWindow: Pick<
-		OrganizationAISpendReport,
-		"period_start" | "period_end" | "retention_start"
-	>,
-	now: Date,
-): DateRangeValue | undefined => {
-	const start = new Date(reportWindow.period_start);
-	let lastDay = localDayOf(
-		new Date(new Date(reportWindow.period_end).getTime() - 1),
-	);
-	let firstDay = localDayOf(start);
+/** Extracts an explicit period from the URL, or null if absent or invalid. */
+const parsePeriod = (
+	searchParams: URLSearchParams,
+): Pick<DateTimeRangeValue, "start" | "end"> | null => {
+	const startParam = searchParams.get(startDateSearchParam)?.trim();
+	const endParam = searchParams.get(endDateSearchParam)?.trim();
+	if (!startParam || !endParam) {
+		return null;
+	}
+	const start = new Date(startParam);
+	const end = new Date(endParam);
 	if (
-		reportWindow.retention_start !== undefined &&
-		firstDay.getTime() < Date.parse(reportWindow.retention_start)
+		Number.isNaN(start.getTime()) ||
+		Number.isNaN(end.getTime()) ||
+		start.getTime() >= end.getTime()
 	) {
-		firstDay = firstDayWithinRetention(new Date(reportWindow.retention_start));
-		if (firstDay > lastDay) {
-			lastDay = firstDay;
-		}
+		return null;
 	}
-	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-	if (firstDay > today) {
-		return undefined;
-	}
-	return toBoundary(firstDay, lastDay, now);
+	return { start, end };
 };
 
 type SpendPageProps = {
@@ -169,44 +126,38 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		}),
 	};
 
-	const startDateParam = searchParams.get(startDateSearchParam)?.trim() ?? "";
-	const endDateParam = searchParams.get(endDateSearchParam)?.trim() ?? "";
+	// The default period lives in memory, not the URL, so a shared link
+	// resolves relative to the viewer's current time. It is fixed per mount so
+	// query cache keys stay stable.
+	const [defaultPeriod] = useState(() => defaultSpendPeriod(now ?? new Date()));
+	const explicitPeriod = parsePeriod(searchParams);
+	const period = explicitPeriod ?? defaultPeriod;
 
-	// Without an explicit range the server applies the current budget period
-	// narrowed to retention, which a client-side default could not know.
-	let dateRange: DateRangeValue | undefined;
-
-	if (startDateParam && endDateParam) {
-		const parsedStartDate = new Date(startDateParam);
-		const parsedEndDate = new Date(endDateParam);
-
-		if (
-			!Number.isNaN(parsedStartDate.getTime()) &&
-			!Number.isNaN(parsedEndDate.getTime()) &&
-			parsedStartDate.getTime() < parsedEndDate.getTime()
-		) {
-			dateRange = {
-				startDate: parsedStartDate,
-				endDate: parsedEndDate,
-			};
-		}
-	}
+	// The preset is display-only; the URL stores resolved timestamps. Show the
+	// last picked preset only while the URL range still matches it.
+	const [lastPicked, setLastPicked] = useState<DateTimeRangeValue>();
+	const preset =
+		explicitPeriod === null
+			? defaultPeriod.preset
+			: lastPicked?.preset !== undefined &&
+					lastPicked.start.getTime() === period.start.getTime() &&
+					lastPicked.end.getTime() === period.end.getTime()
+				? lastPicked.preset
+				: undefined;
 
 	const spendFilter: OrganizationAISpendFilter = {
-		...(dateRange && {
-			period_start: dateRange.startDate.toISOString(),
-			period_end: dateRange.endDate.toISOString(),
-		}),
+		period_start: period.start.toISOString(),
+		period_end: period.end.toISOString(),
 		...dimensions,
 	};
 
-	// DateRangePicker already emits exclusive API boundaries (midnight after
-	// the picked day, or the next hour when the picked day is today).
-	const onDateRangeChange = (value: DateRangeValue) =>
+	const onPeriodChange = (value: DateTimeRangeValue) => {
+		setLastPicked(value);
 		setFilterParams({
-			[startDateSearchParam]: value.startDate.toISOString(),
-			[endDateSearchParam]: value.endDate.toISOString(),
+			[startDateSearchParam]: value.start.toISOString(),
+			[endDateSearchParam]: value.end.toISOString(),
 		});
+	};
 
 	const reportQuery = usePaginatedQuery({
 		...paginatedOrganizationAISpend(organization?.id ?? "", spendFilter),
@@ -215,14 +166,8 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		enabled: isSpendAvailable && organization !== undefined,
 	});
 
-	const currentTime = now ?? new Date();
-	const appliedDateRange =
-		dateRange ??
-		(reportQuery.data &&
-			appliedWindowToDateRange(reportQuery.data, currentTime));
-
 	// Retention is deployment-wide. Keep the last reported cutoff while the
-	// next report loads so the date picker stays mounted.
+	// next report loads so the picker keeps hiding periods the server rejects.
 	const [retention, setRetention] = useState<{ start: string | undefined }>();
 	if (
 		reportQuery.data &&
@@ -232,9 +177,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	) {
 		setRetention({ start: reportQuery.data.retention_start });
 	}
-	const minDate = retention?.start
-		? firstDayWithinRetention(new Date(retention.start))
-		: undefined;
+	const minDate = retention?.start ? new Date(retention.start) : undefined;
 
 	return (
 		<>
@@ -250,10 +193,9 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				}
 				isOrganizationsLoading={organizationsQuery.isLoading}
 				organizationsError={organizationsQuery.error}
-				dateRange={appliedDateRange}
+				period={{ ...period, preset }}
 				minDate={minDate}
-				isRetentionLoading={retention === undefined && reportQuery.isLoading}
-				onDateRangeChange={onDateRangeChange}
+				onPeriodChange={onPeriodChange}
 				filterMenus={canFilterDimensions ? filterMenus : undefined}
 				reportQuery={reportQuery}
 			/>

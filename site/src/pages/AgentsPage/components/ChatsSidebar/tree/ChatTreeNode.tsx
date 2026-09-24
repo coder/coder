@@ -27,6 +27,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { shortRelativeTime } from "#/utils/time";
 import {
 	ChatActionsMenuItems,
+	canManageChat,
 	chatFamilyAllowsArchive,
 	chatHasMenuActions,
 } from "../../ChatActionsMenuItems";
@@ -57,6 +58,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		isLoadingModelConfigs,
 		chatErrorReasons,
 		activeChatId,
+		currentUserId,
 		isArchiving,
 		archivingChatId,
 		toggleExpanded,
@@ -147,7 +149,11 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
-	const hasMenuActions = chatHasMenuActions(chat);
+	const canManage = canManageChat(chat, currentUserId);
+	const hasMenuActions = chatHasMenuActions(chat, {
+		canManage,
+		hasSubagentsToggle: hasChildren,
+	});
 
 	const hoverLayout =
 		"[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
@@ -155,6 +161,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		"has-[[aria-current=page]]:-mx-2 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[11px]";
 	const sharedMenuItemProps = {
 		chat,
+		canManage,
 		hasWorkspace: Boolean(workspaceId),
 		isArchiving,
 		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
@@ -281,7 +288,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 											className={cn(
 												"min-w-0 overflow-hidden text-[13px] leading-4",
 												errorReason
-													? "line-clamp-1 whitespace-normal text-content-destructive wrap-anywhere"
+													? "line-clamp-1 whitespace-normal text-content-secondary wrap-anywhere"
 													: "truncate text-content-secondary",
 											)}
 											title={subtitle}

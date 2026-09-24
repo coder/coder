@@ -266,10 +266,10 @@ organization can now create workspaces from it.
 <summary>What happens under the hood?</summary>
 
 A Coder template is a [Terraform](https://developer.hashicorp.com/terraform/intro) configuration, and Coder is built on top of Terraform.
-When you create a workspace from this template, a Coder [provisioner](../admin/infrastructure/architecture.md#provisionerd) runs a Terraform job from the template's configuration to build your environment.
+When you create a workspace from this template, a Coder [provisioner](../install/plan/architecture.md#provisionerd) runs a Terraform job from the template's configuration to build your environment.
 For the Docker base template, that job starts a Docker container with the Coder agent pre-configured, along with any modules you selected.
 
-To learn how Coder uses Terraform to provision and run workspaces, refer to the [architecture overview](../admin/infrastructure/architecture.md).
+To learn how Coder uses Terraform to provision and run workspaces, refer to the [architecture overview](../install/plan/architecture.md).
 
 </details>
 

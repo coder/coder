@@ -94,9 +94,6 @@ const todayTimestamp = new Date().toISOString();
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...MockChat,
 	id: "chat-default",
-	owner_id: "owner-1",
-	owner_username: "owner",
-	owner_name: undefined,
 	last_model_config_id: defaultModels[0].id,
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
