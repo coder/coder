@@ -3101,25 +3101,6 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getOrganizationAISpendUsers = async (
-		organizationId: string,
-		{ limit, offset, ...filter }: OrganizationAISpendParams,
-	): Promise<TypesGen.OrganizationAISpendReport> => {
-		// Like the Go SDK, a zero page value means the server default; the
-		// endpoint rejects an explicit limit=0.
-		const url = getURLWithSearchParams(
-			`/api/v2/organizations/${organizationId}/ai/spend/users`,
-			{
-				...filter,
-				limit: limit !== undefined && limit > 0 ? limit : undefined,
-				offset: offset !== undefined && offset > 0 ? offset : undefined,
-			},
-		);
-		const response =
-			await this.axios.get<TypesGen.OrganizationAISpendReport>(url);
-		return response.data;
-	};
-
 	getAIProviders = async (): Promise<TypesGen.AIProvider[]> => {
 		const response = await this.axios.get<TypesGen.AIProvider[]>(
 			"/api/v2/ai/providers",
@@ -3417,6 +3398,25 @@ class ExperimentalApiMethods {
 		const response = await this.axios.get<TypesGen.ChatDiffContents>(
 			`/api/v2/chats/${chatId}/diff`,
 		);
+		return response.data;
+	};
+
+	getOrganizationAISpendUsers = async (
+		organizationId: string,
+		{ limit, offset, ...filter }: OrganizationAISpendParams,
+	): Promise<TypesGen.OrganizationAISpendReport> => {
+		// Like the Go SDK, a zero page value means the server default; the
+		// endpoint rejects an explicit limit=0.
+		const url = getURLWithSearchParams(
+			`/api/experimental/organizations/${organizationId}/ai/spend/users`,
+			{
+				...filter,
+				limit: limit !== undefined && limit > 0 ? limit : undefined,
+				offset: offset !== undefined && offset > 0 ? offset : undefined,
+			},
+		);
+		const response =
+			await this.axios.get<TypesGen.OrganizationAISpendReport>(url);
 		return response.data;
 	};
 
