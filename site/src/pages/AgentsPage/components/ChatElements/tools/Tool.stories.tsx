@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { API } from "#/api/api";
 import { chatModelKey } from "#/api/queries/chats";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
@@ -2624,6 +2623,37 @@ export const StartWorkspaceAgentWaiting: Story = {
 	},
 };
 
+export const StartWorkspaceAgentNoLogs: Story = {
+	args: {
+		name: "start_workspace",
+		status: "running",
+	},
+	decorators: [
+		withWebSocket,
+		(Story) => (
+			<ChatWorkspaceContext
+				value={{
+					workspaceId: MockWorkspace.id,
+					buildId: MockWorkspace.latest_build.id,
+					agentId: MockWorkspaceAgent.id,
+				}}
+			>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+	parameters: {
+		queries: [{ key: workspaceByIdKey(MockWorkspace.id), data: MockWorkspace }],
+		webSocket: {
+			"/workspacebuilds/": MockWorkspaceBuildLogs.map((log) => ({
+				event: "message",
+				data: JSON.stringify(log),
+			})),
+			"/workspaceagents/": [],
+		},
+	},
+};
+
 export const StartWorkspaceCompletedWithAgentLogs: Story = {
 	args: {
 		name: "start_workspace",
@@ -2636,6 +2666,7 @@ export const StartWorkspaceCompletedWithAgentLogs: Story = {
 		},
 	},
 	decorators: [
+		withWebSocket,
 		(Story) => (
 			<ChatWorkspaceContext
 				value={{
@@ -2656,11 +2687,11 @@ export const StartWorkspaceCompletedWithAgentLogs: Story = {
 				data: MockWorkspaceBuildLogs,
 			},
 		],
-	},
-	beforeEach: () => {
-		spyOn(API, "getWorkspaceAgentLogs").mockResolvedValue(
-			MockWorkspaceAgentLogs,
-		);
+		webSocket: {
+			"/workspaceagents/": [
+				{ event: "message", data: JSON.stringify(MockWorkspaceAgentLogs) },
+			],
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

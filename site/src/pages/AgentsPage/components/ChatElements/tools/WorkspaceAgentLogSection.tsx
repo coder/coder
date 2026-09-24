@@ -1,19 +1,14 @@
-import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
-import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
+import { LoaderIcon } from "lucide-react";
+import { type FC, memo, type ReactNode, useLayoutEffect, useRef } from "react";
 import { useQuery } from "react-query";
-import { agentLogs, workspaceById } from "#/api/queries/workspaces";
-import type { WorkspaceAgent } from "#/api/typesGenerated";
-import type { Line } from "#/components/Logs/LogLine";
+import { workspaceById } from "#/api/queries/workspaces";
+import type { WorkspaceAgent, WorkspaceAgentLog } from "#/api/typesGenerated";
 import { DEFAULT_LOG_LINE_SIDE_PADDING } from "#/components/Logs/Logs";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { AgentLogLine } from "#/modules/resources/AgentLogs/AgentLogLine";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
 import { findWorkspaceAgent } from "#/utils/workspace";
-import {
-	useChatAgentId,
-	useChatBuildId,
-	useChatWorkspaceId,
-} from "../../../context/ChatWorkspaceContext";
+import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
 import type { ToolStatus } from "./utils";
 
 type WorkspaceAgentLogSectionProps = {
@@ -22,15 +17,21 @@ type WorkspaceAgentLogSectionProps = {
 	buildId?: string;
 };
 
-/** Agent startup logs: streamed while the tool runs, fetched once it completes. */
+/**
+ * Agent startup logs for a start or create call. Renders nothing unless
+ * the call's build is the workspace's latest build and that build has
+ * started the workspace.
+ */
 export const WorkspaceAgentLogSection: FC<WorkspaceAgentLogSectionProps> = ({
 	status,
 	buildId,
 }) => {
 	const isRunning = status === "running";
-	const workspaceId = useChatWorkspaceId();
-	const chatBuildId = useChatBuildId();
-	const chatAgentId = useChatAgentId();
+	const {
+		workspaceId,
+		buildId: chatBuildId,
+		agentId: chatAgentId,
+	} = useChatWorkspace();
 
 	// Updated live by the workspace watch socket; do not poll.
 	const workspaceQuery = useQuery({
@@ -38,15 +39,14 @@ export const WorkspaceAgentLogSection: FC<WorkspaceAgentLogSectionProps> = ({
 		enabled: Boolean(workspaceId),
 	});
 	const workspace = workspaceQuery.data;
-	const relevantBuildId = isRunning ? chatBuildId : buildId;
-	// After a rebuild, chat.agent_id may still be the previous build's agent.
-	const buildIsCurrent =
-		workspace !== undefined &&
-		relevantBuildId !== undefined &&
-		workspace.latest_build.id === relevantBuildId &&
-		workspace.latest_build.status === "running";
-
-	if (!buildIsCurrent) {
+	const callBuildId = isRunning ? chatBuildId : buildId;
+	// The agent is looked up in the latest build, so that build must be the call's.
+	if (
+		!workspace ||
+		!callBuildId ||
+		workspace.latest_build.id !== callBuildId ||
+		workspace.latest_build.status !== "running"
+	) {
 		return null;
 	}
 
@@ -55,13 +55,7 @@ export const WorkspaceAgentLogSection: FC<WorkspaceAgentLogSectionProps> = ({
 		: undefined;
 	if (!agent) {
 		return isRunning ? (
-			<Notice
-				icon={
-					<LoaderIcon className="size-3 animate-spin motion-reduce:animate-none" />
-				}
-			>
-				Waiting for workspace agent…
-			</Notice>
+			<WaitingNotice>Waiting for workspace agent…</WaitingNotice>
 		) : null;
 	}
 
@@ -76,55 +70,20 @@ type AgentStartupLogsProps = {
 };
 
 const AgentStartupLogs: FC<AgentStartupLogsProps> = ({ agent, isRunning }) => {
-	const streamedLogs = useAgentLogs({ agentId: agent.id, enabled: isRunning });
-	const completedLogsQuery = useQuery({
-		...agentLogs(agent.id),
-		enabled: !isRunning,
-		// Cached logs may have been fetched before the agent finished starting.
-		staleTime: 0,
-		refetchOnMount: true,
-	});
-	const logs = isRunning ? streamedLogs : completedLogsQuery.data;
-	const hasLogs = logs !== undefined && logs.length > 0;
+	const logs = useAgentLogs({ agentId: agent.id });
 
 	const endRef = useRef<HTMLDivElement>(null);
 	useLayoutEffect(() => {
-		if (isRunning && logs && logs.length > 0) {
+		if (logs.length > 0) {
 			endRef.current?.scrollIntoView({ block: "end" });
 		}
-	}, [isRunning, logs]);
+	}, [logs]);
 
-	// isError can be set while data from an earlier fetch is still present.
-	if (!isRunning && completedLogsQuery.isError && !hasLogs) {
-		return (
-			<Notice icon={<TriangleAlertIcon className="size-3" />}>
-				Failed to load agent logs.
-			</Notice>
-		);
+	if (logs.length === 0) {
+		return isRunning ? (
+			<WaitingNotice>Waiting for agent logs…</WaitingNotice>
+		) : null;
 	}
-
-	if (!hasLogs) {
-		if (!isRunning && completedLogsQuery.isSuccess) {
-			return <Notice>No agent logs available.</Notice>;
-		}
-		return (
-			<Notice
-				icon={
-					<LoaderIcon className="size-3 animate-spin motion-reduce:animate-none" />
-				}
-			>
-				{isRunning ? "Waiting for agent logs…" : "Loading agent logs…"}
-			</Notice>
-		);
-	}
-
-	const lines = logs.map<Line>((log) => ({
-		id: log.id,
-		time: log.created_at,
-		output: log.output,
-		level: log.level,
-		sourceId: log.source_id,
-	}));
 
 	return (
 		<ScrollArea
@@ -147,8 +106,8 @@ const AgentStartupLogs: FC<AgentStartupLogsProps> = ({ agent, isRunning }) => {
 					</div>
 				</div>
 				<div className="py-2 bg-surface-primary">
-					{lines.map((line) => (
-						<AgentLogLine key={line.id} line={line} sourceIcon={null} />
+					{logs.map((log) => (
+						<AgentLogRow key={log.id} log={log} />
 					))}
 				</div>
 				<div ref={endRef} />
@@ -157,12 +116,23 @@ const AgentStartupLogs: FC<AgentStartupLogsProps> = ({ agent, isRunning }) => {
 	);
 };
 
-const Notice: FC<{ icon?: ReactNode; children: ReactNode }> = ({
-	icon,
-	children,
-}) => (
+// Memoized so a streamed batch renders only its new lines.
+const AgentLogRow = memo<{ log: WorkspaceAgentLog }>(({ log }) => (
+	<AgentLogLine
+		line={{
+			id: log.id,
+			time: log.created_at,
+			output: log.output,
+			level: log.level,
+			sourceId: log.source_id,
+		}}
+		sourceIcon={null}
+	/>
+));
+
+const WaitingNotice: FC<{ children: ReactNode }> = ({ children }) => (
 	<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-		{icon}
+		<LoaderIcon className="size-3 animate-spin motion-reduce:animate-none" />
 		<span>{children}</span>
 	</div>
 );

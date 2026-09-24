@@ -1,4 +1,5 @@
-import { render } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "#/api/api";
@@ -16,16 +17,26 @@ afterEach(() => {
 });
 
 describe("Tool workspace lifecycle rows", () => {
-	it.each([
-		{ name: "start_workspace", agentLogs: true },
-		{ name: "create_workspace", agentLogs: true },
-		{ name: "stop_workspace", agentLogs: false },
-	])(
-		"$name streams build logs, agent logs: $agentLogs",
-		({ name, agentLogs }) => {
+	it.each(
+		[
+			{ name: "start_workspace", streamsAgentLogs: true },
+			{ name: "create_workspace", streamsAgentLogs: true },
+			{ name: "stop_workspace", streamsAgentLogs: false },
+		].flatMap((row) => [
+			{ ...row, status: "running" as const },
+			{ ...row, status: "completed" as const },
+		]),
+	)(
+		"$name $status shows its build's logs, agent logs: $streamsAgentLogs",
+		async ({ name, status, streamsAgentLogs }) => {
+			const buildId = MockWorkspace.latest_build.id;
+			const isRunning = status === "running";
 			const watchBuildLogs = vi
 				.spyOn(apiModule, "watchBuildLogsByBuildId")
 				.mockImplementation(() => createMockWebSocket("ws://test")[0]);
+			const getBuildLogs = vi
+				.spyOn(API, "getWorkspaceBuildLogs")
+				.mockResolvedValue([]);
 			const watchAgentLogs = vi
 				.spyOn(apiModule, "watchWorkspaceAgentLogs")
 				.mockImplementation(
@@ -43,25 +54,36 @@ describe("Tool workspace lifecycle rows", () => {
 				MockWorkspace,
 			);
 
+			// Completed rows omit the binding so only the result build_id matches.
 			render(
 				<QueryClientProvider client={queryClient}>
 					<ChatWorkspaceContext
 						value={{
 							workspaceId: MockWorkspace.id,
-							buildId: MockWorkspace.latest_build.id,
+							buildId: isRunning ? buildId : undefined,
 							agentId: MockWorkspaceAgent.id,
 						}}
 					>
-						<Tool name={name} status="running" />
+						<Tool
+							name={name}
+							status={status}
+							result={isRunning ? undefined : { build_id: buildId }}
+						/>
 					</ChatWorkspaceContext>
 				</QueryClientProvider>,
 			);
+			if (!isRunning) {
+				await userEvent.click(screen.getByRole("button", { expanded: false }));
+			}
 
-			expect(watchBuildLogs).toHaveBeenCalledWith(
-				MockWorkspace.latest_build.id,
-				expect.anything(),
-			);
-			if (agentLogs) {
+			if (isRunning) {
+				expect(watchBuildLogs).toHaveBeenCalledWith(buildId, expect.anything());
+			} else {
+				await waitFor(() => {
+					expect(getBuildLogs).toHaveBeenCalledWith(buildId);
+				});
+			}
+			if (streamsAgentLogs) {
 				expect(watchAgentLogs).toHaveBeenCalledWith(
 					MockWorkspaceAgent.id,
 					expect.anything(),

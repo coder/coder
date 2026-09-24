@@ -8,10 +8,7 @@ import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import {
-	useChatBuildId,
-	useChatWorkspaceId,
-} from "../../../context/ChatWorkspaceContext";
+import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
 import type { ToolStatus } from "./utils";
 
 type WorkspaceBuildLogSectionProps = {
@@ -42,11 +39,10 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	// Primary source: build ID from the chat binding, pushed via
 	// pubsub when create_workspace or start_workspace persists it.
 	// This avoids the 2s polling latency.
-	const chatBuildId = useChatBuildId();
+	const { workspaceId, buildId: chatBuildId } = useChatWorkspace();
 
 	// Fallback: poll the workspace to infer the build ID from
 	// latest_build. Only used when the binding hasn't arrived yet.
-	const workspaceId = useChatWorkspaceId();
 	const needsPoll = isRunning && !chatBuildId;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
