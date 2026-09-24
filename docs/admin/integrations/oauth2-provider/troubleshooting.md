@@ -22,7 +22,7 @@ Refer to [Callback URL schemes](./callback-url-schemes.md).
 
 If you see this error when authorizing, one of the application's registered redirect URIs is not usable: either it does not parse as a URL, or it uses a blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`).
 The same cause answers `server_error` on `POST /oauth2/authorize`.
-Use `GET /api/v2/oauth2-provider/apps/{app}` to see every registered redirect URI, then update the application with a corrected `redirect_uris` list as shown under [Management API](./index.md#create-an-application-with-the-api).
+Use `GET /api/v2/oauth2-provider/apps/{app}` to see every registered redirect URI, then update the application with a corrected `redirect_uris` list as shown under [Create an application with the API](./index.md#create-an-application-with-the-api).
 Refer to [Callback URL schemes](./callback-url-schemes.md) for which values are accepted.
 
 The `coderd` log records the application ID and the stored value. The response
