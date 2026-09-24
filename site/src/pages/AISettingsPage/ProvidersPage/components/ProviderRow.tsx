@@ -32,10 +32,9 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 	const displayName = provider.display_name || provider.name;
 	const disabled = !provider.enabled;
 
-	// Stop activation from bubbling to a parent `useClickableTableRow`
-	// row, which navigates on click, Enter (onKeyDown), and Space
-	// (onKeyUp). Radix composes its own click handler, so the tooltip
-	// still opens.
+	// Stop clicks from bubbling to a parent `useClickableTableRow` row, which
+	// navigates on click (Enter on a native trigger also dispatches a click).
+	// Radix composes its own click handler, so the tooltip still opens.
 	const stopPropagation = (event: React.SyntheticEvent) => {
 		event.stopPropagation();
 	};
@@ -90,13 +89,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 					{AgentsUnsupportedProviderTypes.some((t) => t === provider.type) && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Badge
-									asChild
-									variant="info"
-									onClick={stopPropagation}
-									onKeyDown={stopPropagation}
-									onKeyUp={stopPropagation}
-								>
+								<Badge asChild variant="info" onClick={stopPropagation}>
 									<button type="button">Not supported in Agents</button>
 								</Badge>
 							</TooltipTrigger>
@@ -109,13 +102,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 					{provider.status?.warnings && provider.status.warnings.length > 0 && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Badge
-									asChild
-									variant="warning"
-									onClick={stopPropagation}
-									onKeyDown={stopPropagation}
-									onKeyUp={stopPropagation}
-								>
+								<Badge asChild variant="warning" onClick={stopPropagation}>
 									<button
 										type="button"
 										aria-label={`Warning: ${provider.status.warnings.join("; ")}`}

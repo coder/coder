@@ -166,6 +166,6 @@ describe(useClickable.name, () => {
 			screen.getByLabelText(name).focus();
 			await user.keyboard("a b{Enter}");
 		}
-		expect(mockCallback).not.toBeCalled();
+		expect(mockCallback).not.toHaveBeenCalled();
 	});
 });

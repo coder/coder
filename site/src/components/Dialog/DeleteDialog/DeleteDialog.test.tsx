@@ -26,6 +26,7 @@ describe("DeleteDialog", () => {
 		expect(onConfirm).not.toHaveBeenCalled();
 		expect(onCancel).not.toHaveBeenCalled();
 		expect(input).toHaveFocus();
+		expect(input).toHaveAttribute("aria-invalid", "true");
 		expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
 	});
 });

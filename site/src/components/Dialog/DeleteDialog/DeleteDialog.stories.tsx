@@ -51,8 +51,19 @@ export const FilledWrong: Story = {
 
 		await expect(body.getByRole("button", { name: "Delete" })).toBeDisabled();
 		await expect(
-			body.getByText("InvalidFooName does not match the name of this foo"),
+			body.getByText("“InvalidFooName” does not match the name of this foo"),
 		).toBeVisible();
+	},
+};
+
+// Shows the error while the input still has focus after pressing Enter.
+export const FilledWrongSubmitted: Story = {
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.type(
+			await body.findByLabelText("Name of the foo to delete"),
+			"InvalidFooName{Enter}",
+		);
 	},
 };
 

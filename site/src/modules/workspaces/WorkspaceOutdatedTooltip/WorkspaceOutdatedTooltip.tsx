@@ -34,9 +34,10 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
-	// Stop activation from bubbling to a parent `useClickableTableRow` row,
-	// which navigates on click, Enter (onKeyDown), and Space (onKeyUp). Radix
-	// composes its own click handler, so the popover still opens.
+	// Stop clicks from bubbling to a parent `useClickableTableRow` row, which
+	// navigates on click (Enter on the native trigger also dispatches a click).
+	// Radix composes its own click handler, so the popover still opens. The
+	// span's key handlers only satisfy the click-needs-key-handler a11y lint.
 	const stopPropagation = (event: React.SyntheticEvent) => {
 		event.stopPropagation();
 	};
@@ -60,8 +61,6 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 					size="small"
 					hoverEffect={false}
 					onClick={stopPropagation}
-					onKeyDown={stopPropagation}
-					onKeyUp={stopPropagation}
 				>
 					<CircleAlertIcon className="text-content-secondary" />
 					<span className="sr-only">Outdated info</span>

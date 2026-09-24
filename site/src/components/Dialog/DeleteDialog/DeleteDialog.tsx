@@ -71,9 +71,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 		event.preventDefault();
 		if (deletionConfirmed && !confirmLoading) {
 			onConfirm();
-			return;
 		}
-		setHasSubmittedInvalidConfirmation(true);
 	};
 
 	return (
@@ -127,8 +125,13 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 							data-testid="delete-dialog-name-confirmation"
 						/>
 						{displayErrorMessage && (
-							<span id={errorId} className="text-xs text-content-destructive">
-								{userConfirmationText} does not match the name of this {entity}
+							<span
+								id={errorId}
+								role="alert"
+								className="text-xs text-content-destructive"
+							>
+								&ldquo;{userConfirmationText}&rdquo; does not match the name of
+								this {entity}
 							</span>
 						)}
 					</div>

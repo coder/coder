@@ -74,7 +74,10 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 			open={isOpen}
 			title="Delete Workspace"
 			onConfirm={() => onConfirm(orphanWorkspace)}
-			onClose={onCancel}
+			onClose={() => {
+				setHasSubmittedInvalidConfirmation(false);
+				onCancel();
+			}}
 			disabled={!deletionConfirmed}
 			description={
 				<>
@@ -115,19 +118,18 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 							}}
 							onFocus={() => setIsFocused(true)}
 							onBlur={() => setIsFocused(false)}
-							onKeyDown={(event) => {
-								if (event.key === "Enter" && !deletionConfirmed) {
-									event.preventDefault();
-									setHasSubmittedInvalidConfirmation(true);
-								}
-							}}
 							aria-invalid={displayErrorMessage}
 							aria-describedby={displayErrorMessage ? errorId : undefined}
 							data-testid="delete-dialog-name-confirmation"
 						/>
 						{displayErrorMessage && (
-							<span id={errorId} className="text-xs text-content-destructive">
-								{userConfirmationText} does not match the name of this workspace
+							<span
+								id={errorId}
+								role="alert"
+								className="text-xs text-content-destructive"
+							>
+								&ldquo;{userConfirmationText}&rdquo; does not match the name of
+								this workspace
 							</span>
 						)}
 

@@ -51,16 +51,10 @@ export const useClickable = <
 		role: (role ?? "button") as TRole,
 
 		/*
-		 * Native buttons are programmed to handle both space and enter, but they're
-		 * each handled via different event handlers.
-		 *
-		 * 99% of the time, you shouldn't be able to tell the difference, but one
-		 * edge case behavior is that holding down Enter will continually fire
-		 * events, while holding down Space won't fire anything until you let go.
-		 *
-		 * Both handlers ignore events from descendants (inputs, nested buttons,
-		 * and portaled dialogs, since React events bubble through portals) so
-		 * that typing Enter or Space inside them does not activate this element.
+		 * Mirrors native buttons: Enter activates on keydown (repeats while held),
+		 * Space on keyup (fires once on release). Only events targeting this element
+		 * count. React bubbles key events from descendants, including portaled
+		 * dialogs, so Enter or Space typed into them would otherwise activate it.
 		 */
 		onKeyDown: (event) => {
 			if (event.target !== event.currentTarget) {

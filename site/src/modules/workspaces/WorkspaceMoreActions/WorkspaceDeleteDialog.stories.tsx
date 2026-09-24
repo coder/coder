@@ -84,11 +84,22 @@ export const FilledWrong: Story = {
 			() =>
 				expect(
 					body.getByText(
-						"wrong-name does not match the name of this workspace",
+						"“wrong-name” does not match the name of this workspace",
 					),
 				).toBeVisible(),
 			{ timeout: 5_000 },
 		);
 		await expect(body.getByRole("button", { name: "Delete" })).toBeDisabled();
+	},
+};
+
+// Shows the error while the input still has focus after pressing Enter.
+export const FilledWrongSubmitted: Story = {
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.type(
+			body.getByTestId("delete-dialog-name-confirmation"),
+			"wrong name{Enter}",
+		);
 	},
 };
