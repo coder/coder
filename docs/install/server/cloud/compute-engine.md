@@ -31,7 +31,7 @@ deployments and you should adjust your infrastructure when preparing for
 production use. See: [Scaling Coder](../../plan/index.md)
 
 <video autoplay playsinline loop>
-  <source src="../../images/platforms/gcp/launch.mp4?raw=true" type="video/mp4">
+  <source src="../../../images/platforms/gcp/launch.mp4?raw=true" type="video/mp4">
 Your browser does not support the video tag.
 </video>
 

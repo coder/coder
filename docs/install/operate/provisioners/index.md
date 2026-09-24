@@ -21,7 +21,7 @@ are often benefits to running external provisioner daemons:
 
 - **Reduce control plane load**: External provisioners reduce load and build
   queue times from the control plane. See
-  [Scaling Coder](../../plan/index.md#scale-tests) for more
+  [Scaling Coder](../../validate/scale-testing.md) for more
   details.
 
 Each provisioner runs a single
