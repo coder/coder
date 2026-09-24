@@ -79,6 +79,16 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	hookNotices: [],
 });
 
+/**
+ * Provider-executed tools run inside the model provider, so their parts
+ * carry no output the user can act on. web_search is the exception: its
+ * row shows what the provider searched for and which URLs it consulted.
+ */
+export const isHiddenProviderExecutedPart = (
+	part: TypesGen.ChatToolCallPart | TypesGen.ChatToolResultPart,
+): boolean =>
+	Boolean(part.provider_executed) && part.tool_name !== "web_search";
+
 export const ensureToolBlock = (
 	blocks: RenderBlock[],
 	id: string,
@@ -259,11 +269,8 @@ export const parseMessageContent = (
 				break;
 			}
 			case "tool-call": {
-				// Provider-executed tool calls (e.g. web_search) are
-				// handled by the provider itself — hide them from the
-				// tool card UI and let the sources component render
-				// their results.
-				if (part.provider_executed) {
+				// Hidden provider-executed calls render no block.
+				if (isHiddenProviderExecutedPart(part)) {
 					parsed.blocks = markTextBeforeProviderTool(parsed.blocks);
 					break;
 				}
@@ -285,8 +292,7 @@ export const parseMessageContent = (
 				break;
 			}
 			case "tool-result": {
-				// Skip synthetic results for provider-executed tools.
-				if (part.provider_executed) {
+				if (isHiddenProviderExecutedPart(part)) {
 					break;
 				}
 				const id = part.tool_call_id || `tool-result-${index}`;
