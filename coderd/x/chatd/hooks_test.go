@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -599,79 +600,130 @@ func TestEditMessageInvalidTargetSkipsHooks(t *testing.T) {
 
 func TestPromptHooksAdmissionPreflight(t *testing.T) {
 	t.Parallel()
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-	received := make(chan agenthooks.Request, 8)
-	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-		received <- request
-		_, err := w.Write([]byte(`{}`))
-		require.NoError(t, err)
-	}))
-	t.Cleanup(consumer.Close)
-	const maxQueued = 2
-	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
-		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
-		cfg.Limits.MaxQueuedMessagesPerChat = maxQueued
-	})
 
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
-	})
-	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:        chat.ID,
-		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("bad model")},
-		ModelConfigID: uuid.New(),
-	})
-	require.ErrorIs(t, err, chatd.ErrInvalidModelConfigID)
-
-	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
-	require.NoError(t, err)
-	inserted, err := db.InsertChatMessages(ctx, singleChatMessageInsertParams(
-		chat.ID, database.ChatMessageRoleUser, content, model.ID, user.ID,
-	))
-	require.NoError(t, err)
-	require.Len(t, inserted, 1)
-	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
-		ChatID:          chat.ID,
-		CreatedBy:       user.ID,
-		EditedMessageID: inserted[0].ID,
-		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("bad model edit")},
-		ModelConfigID:   uuid.New(),
-	})
-	require.ErrorIs(t, err, chatd.ErrInvalidModelConfigID)
-
-	busy := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
-		Status:            database.ChatStatusRunning,
-	})
-	queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
-	require.NoError(t, err)
-	for range maxQueued {
-		_, err = db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-			ChatID:        busy.ID,
-			Content:       queuedContent.RawMessage,
-			ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-			CreatedBy:     user.ID,
+	// newPreflightServer returns a server whose hook consumer reports every
+	// dispatched request on the returned channel.
+	newPreflightServer := func(t *testing.T, limits chatd.Limits) (database.Store, *chatd.Server, <-chan agenthooks.Request) {
+		t.Helper()
+		db, ps := dbtestutil.NewDB(t)
+		received := make(chan agenthooks.Request, 8)
+		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var request agenthooks.Request
+			if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&request)) {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			received <- request
+			_, err := w.Write([]byte(`{}`))
+			assert.NoError(t, err)
+		}))
+		t.Cleanup(consumer.Close)
+		server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+			cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+			cfg.Limits = limits
 		})
-		require.NoError(t, err)
+		return db, server, received
 	}
-	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  busy.ID,
-		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("queue full")},
-	})
-	require.ErrorIs(t, err, chatstate.ErrMessageQueueFull)
 
-	select {
-	case request := <-received:
-		t.Fatalf("admission-rejected prompt dispatched %s", request.Type)
-	default:
+	t.Run("InvalidModel", func(t *testing.T) {
+		t.Parallel()
+
+		db, server, received := newPreflightServer(t, chatd.Limits{})
+		user, org, model := seedChatDependencies(t, db)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("bad model")},
+			ModelConfigID: uuid.New(),
+		})
+		require.ErrorIs(t, err, chatd.ErrInvalidModelConfigID)
+
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
+		require.NoError(t, err)
+		inserted, err := db.InsertChatMessages(ctx, singleChatMessageInsertParams(
+			chat.ID, database.ChatMessageRoleUser, content, model.ID, user.ID,
+		))
+		require.NoError(t, err)
+		require.Len(t, inserted, 1)
+		_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
+			ChatID:          chat.ID,
+			CreatedBy:       user.ID,
+			EditedMessageID: inserted[0].ID,
+			Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("bad model edit")},
+			ModelConfigID:   uuid.New(),
+		})
+		require.ErrorIs(t, err, chatd.ErrInvalidModelConfigID)
+
+		select {
+		case request := <-received:
+			t.Fatalf("admission-rejected prompt dispatched %s", request.Type)
+		default:
+		}
+	})
+
+	queueTests := []struct {
+		name      string
+		limits    chatd.Limits
+		maxQueued int
+	}{
+		{name: "QueueFullDefault", maxQueued: codersdk.DefaultChatMaxQueuedMessagesPerChat},
+		{name: "QueueFullConfigured2", limits: chatd.Limits{MaxQueuedMessagesPerChat: 2}, maxQueued: 2},
+	}
+	for _, tt := range queueTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, server, received := newPreflightServer(t, tt.limits)
+			user, org, model := seedChatDependencies(t, db)
+			busy := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				LastModelConfigID: model.ID,
+				Status:            database.ChatStatusRunning,
+			})
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
+			require.NoError(t, err)
+			for range tt.maxQueued - 1 {
+				_, err = db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+					ChatID:        busy.ID,
+					Content:       queuedContent.RawMessage,
+					ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+					CreatedBy:     user.ID,
+				})
+				require.NoError(t, err)
+			}
+
+			result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:  busy.ID,
+				Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("last free slot")},
+			})
+			require.NoError(t, err)
+			require.True(t, result.Queued)
+			request := testutil.RequireReceive(ctx, t, received)
+			require.Equal(t, agenthooks.EventUserPromptSubmit, request.Type)
+
+			_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:  busy.ID,
+				Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("queue full")},
+			})
+			var queueFull *chatstate.MessageQueueFullError
+			require.ErrorAs(t, err, &queueFull)
+			require.EqualValues(t, tt.maxQueued, queueFull.Max)
+
+			select {
+			case request := <-received:
+				t.Fatalf("admission-rejected prompt dispatched %s", request.Type)
+			default:
+			}
+		})
 	}
 }
 
