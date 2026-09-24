@@ -812,6 +812,52 @@ func TestWorker_MarkStale_EmptyBranchOrOrigin(t *testing.T) {
 	}
 }
 
+func TestWorker_MarkStale_StripsOriginCredentials(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		origin string
+		want   string
+	}{
+		{"token as user", "https://ghp_abc@github.com/o/r.git", "https://github.com/o/r.git"},
+		{"user and password", "http://oauth2:tok@git.example.com:8080/o/r.git", "http://git.example.com:8080/o/r.git"},
+		{"no credentials", "https://github.com/o/r.git", "https://github.com/o/r.git"},
+		{"at sign in path", "https://github.com/o/r@v1", "https://github.com/o/r@v1"},
+		{"ssh URL keeps user", "ssh://git@github.com/o/r.git", "ssh://git@github.com/o/r.git"},
+		{"scp-style ssh", "git@github.com:o/r.git", "git@github.com:o/r.git"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			ctrl := gomock.NewController(t)
+			store := dbmock.NewMockStore(ctrl)
+
+			var stored string
+			store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
+				stored = arg.GitRemoteOrigin
+				return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
+			})
+
+			mClock := quartz.NewMock(t)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			worker := gitsync.NewWorker(store, newTestRefresher(t, mClock), nil, mClock, logger)
+
+			worker.MarkStale(ctx, gitsync.MarkStaleParams{
+				WorkspaceID: uuid.New(),
+				Branch:      "main",
+				Origin:      tc.origin,
+				ChatID:      uuid.New(),
+			})
+
+			require.Equal(t, tc.want, stored)
+		})
+	}
+}
+
 func TestWorker_MarkStale_WithChatID(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)

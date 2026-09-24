@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
@@ -300,6 +301,8 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 		return
 	}
 
+	p.Origin = originCredentials.ReplaceAllString(p.Origin, "$1")
+
 	// When a specific chat is identified, target it directly
 	// instead of broadcasting to every chat on the workspace.
 	// Note: this path does not verify that the chat belongs to
@@ -327,6 +330,12 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 		w.markStaleSingle(ctx, chat.ID, p.Branch, p.Origin)
 	}
 }
+
+// originCredentials matches the user and password in an HTTP(S) remote
+// such as "https://<token>@github.com/o/r.git". SSH remotes keep their
+// user: it is not a secret, and GitHub needs "git@" to parse them.
+// Migration 000600 strips existing rows with the same pattern.
+var originCredentials = regexp.MustCompile(`^(https?://)[^/]*@`)
 
 // markStaleSingle upserts the git ref for a single chat and publishes
 // a diff-status change event.
