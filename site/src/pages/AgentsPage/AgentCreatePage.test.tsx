@@ -1,10 +1,12 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import type { FC } from "react";
 import { onlineManager } from "react-query";
-import type { InitialEntry } from "react-router";
+import { type InitialEntry, useLocation, useSearchParams } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	buildDebugWorkspaceBuildPath,
 	debugWorkspaceBuildIntentStorageKey,
@@ -16,6 +18,7 @@ import {
 	MockDefaultChatModel,
 	MockUnsetUserChatPersonalModelOverrides,
 } from "#/testHelpers/chatModels";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockFailedWorkspaceBuildWithUUID,
 	MockUserPreferenceSettings,
@@ -25,6 +28,7 @@ import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import AgentCreatePage from "./AgentCreatePage";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import { readAgentAttachmentText } from "./utils/fileAttachmentLimits";
 import {
 	debugWorkspaceBuildLogsFileName,
@@ -84,6 +88,25 @@ const renderPage = (route: InitialEntry = deepLink) =>
 		route,
 		extraRoutes: [{ path: "/agents/:agentId", element: null }],
 	});
+
+// Writes a sidebar filter the way the layout does.
+const SidebarFilterProbe: FC = () => {
+	const [searchParams, setSearchParams] = useSearchParams();
+	const location = useLocation();
+	const [filters, setFilters] = getAgentSidebarFilters(
+		searchParams,
+		setSearchParams,
+		location.state,
+	);
+	return (
+		<button
+			type="button"
+			onClick={() => setFilters({ ...filters, groupBy: "chat_status" })}
+		>
+			Group by status
+		</button>
+	);
+};
 
 const findChatMessage = () =>
 	screen.findByRole("textbox", { name: "Chat message" });
@@ -149,8 +172,6 @@ describe("AgentCreatePage debug deep link", () => {
 		const sendButton = await findEnabledSendButton();
 		expect(uploadChatFile).toHaveBeenCalledTimes(1);
 		expect(createChat).not.toHaveBeenCalled();
-		// The layout forwards location.search to every link, so the build ID
-		// moves out of the URL into history state.
 		expect(router.state.location).toMatchObject({
 			pathname: "/agents",
 			search: "?archived=archived",
@@ -198,7 +219,7 @@ describe("AgentCreatePage debug deep link", () => {
 		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
 		await screen.findByText("server error");
 
-		// New chat navigates to the same route with the forwarded search only.
+		// Stands in for the layout's New chat link.
 		await router.navigate({
 			pathname: "/agents",
 			search: "?archived=archived",
@@ -217,6 +238,108 @@ describe("AgentCreatePage debug deep link", () => {
 		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(2));
 		await findEnabledSendButton();
 		expect(createChat).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps the prefill and the pending send across a sidebar filter change", async () => {
+		enableExperiment();
+		const { uploadChatFile, createChat } = mockPageQueries();
+		const upload = createDeferred<TypesGen.UploadChatFileResponse>();
+		uploadChatFile.mockReturnValue(upload.promise);
+		storeDebugWorkspaceBuildIntent(failedBuild.id);
+		const user = userEvent.setup();
+
+		const { router } = renderWithAuth(
+			<>
+				<SidebarFilterProbe />
+				<AgentCreatePage />
+			</>,
+			{
+				path: "/agents",
+				route: deepLink,
+				extraRoutes: [{ path: "/agents/:agentId", element: null }],
+			},
+		);
+
+		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(1));
+		await user.click(screen.getByRole("button", { name: "Group by status" }));
+		await waitFor(() =>
+			expect(router.state.location).toMatchObject({
+				search: "?archived=archived&group_by=chat_status",
+				state: { debugWorkspaceBuild: failedBuild.id },
+			}),
+		);
+
+		await act(async () => {
+			upload.resolve({ id: "uploaded-logs" });
+		});
+
+		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
+		expect(createChat).toHaveBeenCalledWith(
+			expect.objectContaining({
+				content: [
+					{ type: "text", text: debugWorkspaceBuildPrompt(failedBuild) },
+					{ type: "file", file_id: "uploaded-logs" },
+				],
+			}),
+		);
+		expect(uploadChatFile).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not refetch the build on Back, and a failed refetch is not a load error", async () => {
+		enableExperiment();
+		const { uploadChatFile, createChat } = mockPageQueries();
+		const getWorkspaceBuild = vi
+			.spyOn(API, "getWorkspaceBuild")
+			.mockResolvedValueOnce(failedBuild)
+			.mockRejectedValue(new Error("boom"));
+		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
+		const user = userEvent.setup();
+
+		const { router, queryClient } = renderPage();
+
+		await findEnabledSendButton();
+		// Stands in for the layout's New chat link.
+		await router.navigate({
+			pathname: "/agents",
+			search: "?archived=archived",
+		});
+		await waitFor(() =>
+			expect(
+				screen.getByRole("textbox", { name: "Chat message" }),
+			).toHaveTextContent("draft the user typed earlier"),
+		);
+
+		await router.navigate(-1);
+
+		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(2));
+		const sendButton = await findEnabledSendButton();
+		expect(getWorkspaceBuild).toHaveBeenCalledTimes(1);
+
+		await act(async () => {
+			await queryClient.invalidateQueries({
+				queryKey: ["workspaceBuilds", failedBuild.id],
+				exact: true,
+			});
+			// React Query delivers the result to the page on a timer.
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		});
+
+		expect(getWorkspaceBuild).toHaveBeenCalledTimes(2);
+		expect(
+			screen.queryByText(
+				"Could not load the workspace build or its logs. Nothing was sent.",
+			),
+		).toBeNull();
+		await user.click(sendButton);
+		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
+		expect(createChat).toHaveBeenCalledWith(
+			expect.objectContaining({
+				content: [
+					{ type: "text", text: debugWorkspaceBuildPrompt(failedBuild) },
+					{ type: "file", file_id: "uploaded-logs" },
+				],
+			}),
+		);
 	});
 
 	it("does not retry a failed automatic send until the user presses Send", async () => {

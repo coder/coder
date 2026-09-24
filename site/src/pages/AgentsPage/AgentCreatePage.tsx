@@ -37,8 +37,8 @@ import {
 	formatWorkspaceBuildLogsForDebug,
 } from "./utils/workspaceBuildDebug";
 
-// The deep link's build ID moves from the query string into history state on
-// the first render, so it survives reload and Back but not the layout's
+// The deep link's build ID moves from the query string into history state
+// after the first render, so it survives reload and Back but not the layout's
 // links, which forward location.search to a fresh entry.
 type DebugLinkState = { debugWorkspaceBuild: string };
 
@@ -121,9 +121,13 @@ const AgentCreatePage: FC = () => {
 	const debugBuildQuery = useQuery({
 		...workspaceBuildById(debugBuildId ?? ""),
 		enabled: debugBuildId !== null,
-		// A refetch after an error would mount the prefilled form after the page
-		// already reported that nothing was sent.
+		// A finished build does not change, and a refetch after an error would
+		// mount the prefilled form after the page already reported that nothing
+		// was sent. Cached as long as its logs, which the prefill also needs.
+		staleTime: Number.POSITIVE_INFINITY,
+		gcTime: 10 * 60 * 1000,
 		refetchOnReconnect: false,
+		refetchOnWindowFocus: false,
 	});
 	const debugBuild = debugBuildQuery.data;
 	const debugBuildFailed = debugBuild?.job.status === "failed";
@@ -132,7 +136,11 @@ const AgentCreatePage: FC = () => {
 		// The logs query never refetches, so fetch only once the build has failed.
 		enabled: debugBuildFailed,
 	});
-	const debugBuildError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
+	// A failed refetch keeps the data the prefill is built from, so it is not a
+	// load error.
+	const debugBuildError =
+		(debugBuild === undefined ? debugBuildQuery.error : null) ??
+		(debugBuildLogsQuery.data === undefined ? debugBuildLogsQuery.error : null);
 	const prefill: AgentCreatePrefill | undefined =
 		debugBuild && debugBuildFailed && debugBuildLogsQuery.data
 			? {

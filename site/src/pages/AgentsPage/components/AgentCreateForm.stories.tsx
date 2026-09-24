@@ -2196,7 +2196,6 @@ export const AutoSendWorkspaceBuildDebug: Story = {
 	},
 };
 
-// A pasted or replayed deep link prefills and waits for Send.
 export const PrefilledWorkspaceBuildDebug: Story = {
 	args: {
 		...defaultArgs,

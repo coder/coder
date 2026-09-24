@@ -59,7 +59,8 @@ export const MockChatModelProviderDescriptor: ChatModelProviderDescriptor = {
 	available: true,
 };
 
-export const MockUnsetChatPersonalModelOverride = (
+// Unset by default; pass overrides such as `is_set: true` for a set value.
+export const MockChatPersonalModelOverride = (
 	context: ChatPersonalModelOverride["context"],
 	overrides: Partial<ChatPersonalModelOverride> = {},
 ): ChatPersonalModelOverride => ({
@@ -74,9 +75,9 @@ export const MockUnsetChatPersonalModelOverride = (
 export const MockUnsetUserChatPersonalModelOverrides: UserChatPersonalModelOverridesResponse =
 	{
 		enabled: true,
-		root: MockUnsetChatPersonalModelOverride("root"),
-		general: MockUnsetChatPersonalModelOverride("general"),
-		explore: MockUnsetChatPersonalModelOverride("explore"),
+		root: MockChatPersonalModelOverride("root"),
+		general: MockChatPersonalModelOverride("general"),
+		explore: MockChatPersonalModelOverride("explore"),
 		deployment_defaults: {
 			general: { context: "general", model_config_id: "" },
 			explore: { context: "explore", model_config_id: "" },

@@ -1,5 +1,5 @@
-// The contract between the workspace page, which renders the debug action,
-// and the agents create page, which consumes it.
+// Link contract between the workspace page's debug action and the agents
+// create page.
 
 // Failed build ID; the create page fetches the build and logs so the link
 // stays shareable.
@@ -8,9 +8,8 @@ export const debugWorkspaceBuildSearchParam = "debug_workspace_build";
 export const buildDebugWorkspaceBuildPath = (buildId: string): string =>
 	`/agents?${debugWorkspaceBuildSearchParam}=${encodeURIComponent(buildId)}`;
 
-// Written by the workspace page when the user clicks the action and taken by
-// the create page, so only a real click sends without confirmation. A pasted
-// or replayed link prefills the chat instead.
+// Set on the action's click and taken by the create page: only a real click
+// auto-sends; a pasted or replayed link only prefills.
 /** @internal Exported for testing. */
 export const debugWorkspaceBuildIntentStorageKey =
 	"agents.debug-workspace-build-intent";

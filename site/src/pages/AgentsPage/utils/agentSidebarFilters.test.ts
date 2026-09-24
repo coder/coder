@@ -1,5 +1,5 @@
 import { act, waitFor } from "@testing-library/react";
-import { useSearchParams } from "react-router";
+import { type InitialEntry, useLocation, useSearchParams } from "react-router";
 import { renderHookWithAuth } from "#/testHelpers/hooks";
 import {
 	type AgentSidebarFilters,
@@ -22,11 +22,16 @@ const archivedFilters: AgentSidebarFilters = {
 	sources: ["created_by_me", "shared_with_me"],
 };
 
-const renderFilters = (route = "/agents") => {
+const renderFilters = (route: InitialEntry = "/agents") => {
 	return renderHookWithAuth(
 		() => {
 			const [searchParams, setSearchParams] = useSearchParams();
-			return getAgentSidebarFilters(searchParams, setSearchParams);
+			const location = useLocation();
+			return getAgentSidebarFilters(
+				searchParams,
+				setSearchParams,
+				location.state,
+			);
 		},
 		{
 			routingOptions: { path: "/agents", route },
@@ -123,5 +128,22 @@ describe(getAgentSidebarFilters.name, () => {
 		expect(search.get("pr_status")).toBe("draft,merged");
 		expect(search.get("chat_status")).toBe("unread");
 		expect(search.get("source")).toBe("created_by_me,shared_with_me");
+	});
+
+	it("keeps the entry's history state when writing filters", async () => {
+		const state = { debugWorkspaceBuild: "build-id" };
+		const { result, getLocationSnapshot } = await renderFilters({
+			pathname: "/agents",
+			state,
+		});
+
+		act(() => {
+			result.current[1]({ ...defaultFilters, archiveStatus: "archived" });
+		});
+		await waitFor(() =>
+			expect(result.current[0]).toMatchObject({ archiveStatus: "archived" }),
+		);
+
+		expect(getLocationSnapshot().state).toEqual(state);
 	});
 });

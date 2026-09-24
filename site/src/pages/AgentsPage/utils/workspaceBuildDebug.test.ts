@@ -154,7 +154,7 @@ describe("formatWorkspaceBuildLogsForDebug", () => {
 	});
 
 	it("counts only log lines as omitted and relabels the surviving stage", () => {
-		// Two of these fit within the budget; the third does not.
+		// One of these fits within the budget; two do not.
 		const bigLine = "z".repeat(
 			Math.ceil(debugWorkspaceBuildLogsMaxBytes * 0.55),
 		);
@@ -235,5 +235,19 @@ describe("formatWorkspaceBuildLogsForDebug", () => {
 		expect(text).toContain("Job error: summary first eee");
 		expect(text).toContain("(error truncated)");
 		expect(text).toContain("[error] Error: Invalid value for variable");
+	});
+
+	it("drops a partial character at the job error cut", () => {
+		// 9000 bytes of 3-byte characters, so the 8 KiB cut splits one.
+		const text = formatWorkspaceBuildLogsForDebug(
+			{
+				...failedBuild,
+				job: { ...failedBuild.job, error: "│".repeat(3000) },
+			},
+			logs,
+		);
+
+		expect(text).not.toContain("\uFFFD");
+		expect(text).toContain("│ (error truncated)");
 	});
 });

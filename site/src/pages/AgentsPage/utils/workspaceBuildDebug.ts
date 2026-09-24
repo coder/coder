@@ -24,11 +24,11 @@ const utf8 = new TextEncoder();
 // Includes the newline that joins the lines.
 const lineBytes = (line: string): number => utf8.encode(line).length + 1;
 
-const sum = (lines: readonly string[]): number =>
+const linesBytes = (lines: readonly string[]): number =>
 	lines.reduce((total, line) => total + lineBytes(line), 0);
 
-// Decodes a byte slice, dropping any partial character at the cut.
-const decodeWithinBytes = (
+// Truncates text to maxBytes of UTF-8, dropping a character split by the cut.
+const truncateUtf8 = (
 	text: string,
 	maxBytes: number,
 	keep: "head" | "tail",
@@ -69,7 +69,7 @@ export const formatWorkspaceBuildLogsForDebug = (
 		header.push(`Job error code: ${build.job.error_code}`);
 	}
 	if (build.job.error) {
-		const error = decodeWithinBytes(build.job.error, jobErrorMaxBytes, "head");
+		const error = truncateUtf8(build.job.error, jobErrorMaxBytes, "head");
 		header.push(
 			`Job error: ${error}${error === build.job.error ? "" : " (error truncated)"}`,
 		);
@@ -96,9 +96,9 @@ export const formatWorkspaceBuildLogsForDebug = (
 		lines.push({ text: "(no build logs were recorded)" });
 	}
 
-	const headerBytes = sum(header);
+	const headerBytes = linesBytes(header);
 	const texts = lines.map((line) => line.text);
-	if (headerBytes + sum(texts) <= debugWorkspaceBuildLogsMaxBytes) {
+	if (headerBytes + linesBytes(texts) <= debugWorkspaceBuildLogsMaxBytes) {
 		return `${[...header, ...texts].join("\n")}\n`;
 	}
 
@@ -134,9 +134,9 @@ export const formatWorkspaceBuildLogsForDebug = (
 			"[the start of the next line was omitted to fit the attachment size limit]",
 		);
 		kept = [
-			decodeWithinBytes(
+			truncateUtf8(
 				first.text,
-				Math.max(lineBudget - sum(markers), 0),
+				Math.max(lineBudget - linesBytes(markers), 0),
 				"tail",
 			),
 		];
