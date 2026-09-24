@@ -400,7 +400,7 @@ export function FilterCombobox({
 											// Only the pill shrinks, so the pair never overflows the field.
 											className={cn(
 												labelOnlyChipClassName,
-												"min-w-0 rounded-l-none border-l-border",
+												"min-w-0 rounded-l-none border-l-surface-primary",
 											)}
 										>
 											<Tooltip>
