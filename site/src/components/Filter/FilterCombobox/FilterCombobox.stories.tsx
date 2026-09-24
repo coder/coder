@@ -673,6 +673,18 @@ export const ScopePillTooltip: Story = {
 	},
 };
 
+// Three or more chips add a Clear all button after the last chip.
+export const ClearAll: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:me template:docker status:running outdated:true"
+			categories={categoriesWithAttributes.map((category) =>
+				category.key === "owner" ? scopedOwnerCategories[0] : category,
+			)}
+		/>
+	),
+};
+
 // With a single template there is nothing to narrow, so Template is left out.
 const singleTemplateCategories: FilterCategory[] = [
 	{

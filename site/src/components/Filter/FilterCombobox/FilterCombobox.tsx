@@ -58,6 +58,8 @@ import { useFilterCombobox } from "./useFilterCombobox";
  */
 const CATEGORY_HOVER_DELAY_MS = 300;
 
+const CLEAR_ALL_MIN_CHIPS = 3;
+
 const labelOnlyChipClassName =
 	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
 
@@ -424,6 +426,23 @@ export function FilterCombobox({
 								</span>
 							);
 						})}
+						{chipValues.length >= CLEAR_ALL_MIN_CHIPS && (
+							<Badge
+								asChild
+								variant="outline"
+								hover
+								className="h-7 px-2 font-medium text-content-secondary hover:text-content-primary"
+							>
+								<button
+									type="button"
+									// Keep focus in the combobox input.
+									onMouseDown={(event) => event.preventDefault()}
+									onClick={actions.clearChips}
+								>
+									Clear all
+								</button>
+							</Badge>
+						)}
 						{activeCategory && committedFreeText.length > 0 && (
 							<Badge
 								variant="outline"
