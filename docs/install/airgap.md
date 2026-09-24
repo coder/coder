@@ -186,7 +186,7 @@ This can be uploaded into the `plugins` directory on your offline server.
 
 We publish the Helm chart for download on
 [GitHub Releases](https://github.com/coder/coder/releases/latest). Follow our
-[Kubernetes](./kubernetes.md) documentation and modify the Helm values to
+[Kubernetes](./kubernetes/index.md) documentation and modify the Helm values to
 specify your custom Coder image.
 
 ```yaml
