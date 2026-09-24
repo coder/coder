@@ -175,6 +175,7 @@ func TestMergeSkills(t *testing.T) {
 		resolved := skills.MergeSkills(
 			[]skills.Skill{{Name: "my-skill", Description: "Mine"}},
 			nil,
+			nil,
 		)
 
 		require.Equal(t, []skills.ResolvedSkill{{
@@ -193,6 +194,7 @@ func TestMergeSkills(t *testing.T) {
 		resolved := skills.MergeSkills(
 			nil,
 			[]skills.Skill{{Name: "my-skill", Description: "Workspace"}},
+			nil,
 		)
 
 		require.Equal(t, []skills.ResolvedSkill{{
@@ -211,6 +213,7 @@ func TestMergeSkills(t *testing.T) {
 		resolved := skills.MergeSkills(
 			[]skills.Skill{{Name: "personal-skill"}},
 			[]skills.Skill{{Name: "workspace-skill"}},
+			nil,
 		)
 
 		require.Equal(t, []skills.ResolvedSkill{
@@ -237,6 +240,7 @@ func TestMergeSkills(t *testing.T) {
 		resolved := skills.MergeSkills(
 			[]skills.Skill{{Name: "shared-skill", Description: "Mine"}},
 			[]skills.Skill{{Name: "shared-skill", Description: "Workspace"}},
+			nil,
 		)
 
 		require.Equal(t, []skills.ResolvedSkill{
@@ -286,6 +290,7 @@ func TestMergeSkills(t *testing.T) {
 				{Name: "workspace-skill", Description: "Workspace"},
 				{Name: "workspace-skill", Description: "Workspace duplicate"},
 			},
+			nil,
 		)
 
 		require.Equal(t, []skills.ResolvedSkill{
@@ -318,6 +323,7 @@ func TestLookup(t *testing.T) {
 		resolved := skills.MergeSkills(
 			[]skills.Skill{{Name: "personal-skill"}},
 			[]skills.Skill{{Name: "workspace-skill"}},
+			nil,
 		)
 
 		personal, err := skills.Lookup(resolved, "personal-skill")
@@ -337,6 +343,7 @@ func TestLookup(t *testing.T) {
 		resolved := skills.MergeSkills(
 			[]skills.Skill{{Name: "personal-skill"}},
 			[]skills.Skill{{Name: "workspace-skill"}},
+			nil,
 		)
 
 		personal, err := skills.Lookup(resolved, "personal/personal-skill")
@@ -373,4 +380,116 @@ func TestLookup(t *testing.T) {
 		require.ErrorIs(t, err, skills.ErrSkillNotFound)
 		require.ErrorContains(t, err, "missing-skill")
 	})
+}
+
+func TestMergeSkillsPlugins(t *testing.T) {
+	t.Parallel()
+
+	t.Run("PluginOnlyUsesBareAlias", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := skills.MergeSkills(
+			nil,
+			nil,
+			[]skills.Skill{{Name: "deploy", Description: "Deploy", Plugin: "acme-tools"}},
+		)
+
+		require.Equal(t, []skills.ResolvedSkill{{
+			Skill: skills.Skill{
+				Name:        "deploy",
+				Description: "Deploy",
+				Source:      skills.SourcePlugin,
+				Plugin:      "acme-tools",
+			},
+			Alias: "deploy",
+		}}, resolved)
+	})
+
+	t.Run("PluginWithoutNameIsDropped", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := skills.MergeSkills(nil, nil, []skills.Skill{{Name: "deploy"}})
+
+		require.Empty(t, resolved)
+	})
+
+	t.Run("TwoPluginsSameSkillNameBothQualified", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := skills.MergeSkills(
+			nil,
+			nil,
+			[]skills.Skill{
+				{Name: "deploy", Plugin: "zeta"},
+				{Name: "deploy", Plugin: "alpha"},
+				{Name: "deploy", Plugin: "alpha"},
+			},
+		)
+
+		require.Equal(t, []skills.ResolvedSkill{
+			{
+				Skill: skills.Skill{Name: "deploy", Source: skills.SourcePlugin, Plugin: "alpha"},
+				Alias: "plugin/alpha/deploy",
+			},
+			{
+				Skill: skills.Skill{Name: "deploy", Source: skills.SourcePlugin, Plugin: "zeta"},
+				Alias: "plugin/zeta/deploy",
+			},
+		}, resolved)
+
+		alpha, err := skills.Lookup(resolved, "plugin/alpha/deploy")
+		require.NoError(t, err)
+		require.Equal(t, "alpha", alpha.Plugin)
+
+		_, err = skills.Lookup(resolved, "deploy")
+		require.ErrorIs(t, err, skills.ErrSkillAmbiguous)
+		require.ErrorContains(t, err, "plugin/alpha/deploy, plugin/zeta/deploy")
+	})
+
+	t.Run("CollisionAcrossAllSourcesOrdersHolders", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := skills.MergeSkills(
+			[]skills.Skill{{Name: "review"}},
+			[]skills.Skill{{Name: "review"}},
+			[]skills.Skill{{Name: "review", Plugin: "workspace"}},
+		)
+
+		require.Equal(t, []string{
+			"personal/review",
+			"workspace/review",
+			"plugin/workspace/review",
+		}, aliasesOf(resolved))
+
+		workspace, err := skills.Lookup(resolved, "workspace/review")
+		require.NoError(t, err)
+		require.Equal(t, skills.SourceWorkspace, workspace.Source)
+
+		plugin, err := skills.Lookup(resolved, "plugin/workspace/review")
+		require.NoError(t, err)
+		require.Equal(t, skills.SourcePlugin, plugin.Source)
+		require.Equal(t, "workspace", plugin.Plugin)
+	})
+
+	t.Run("PluginNameIsClearedOnOtherSources", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := skills.MergeSkills(
+			nil,
+			[]skills.Skill{{Name: "review", Plugin: "stray"}},
+			nil,
+		)
+
+		require.Len(t, resolved, 1)
+		require.Empty(t, resolved[0].Plugin)
+		require.Equal(t, "workspace/review", resolved[0].QualifiedAlias())
+	})
+}
+
+func aliasesOf(resolved []skills.ResolvedSkill) []string {
+	aliases := make([]string, 0, len(resolved))
+	for _, r := range resolved {
+		aliases = append(aliases, r.Alias)
+	}
+	return aliases
 }
