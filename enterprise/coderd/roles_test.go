@@ -525,6 +525,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       false,
 				{Name: codersdk.RoleTemplateAdmin}: false,
 				{Name: codersdk.RoleUserAdmin}:     false,
+				rbac.RoleAIGatewayUnrestricted():   false,
 			}),
 		},
 		{
@@ -539,6 +540,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            false,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: false,
 				{Name: codersdk.RoleOrganizationWorkspaceAccess, OrganizationID: owner.OrganizationID}:      false,
+				rbac.ScopedRoleOrgAIGatewayUnrestricted(owner.OrganizationID):                               false,
 			}),
 		},
 		{
@@ -559,6 +561,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       false,
 				{Name: codersdk.RoleTemplateAdmin}: false,
 				{Name: codersdk.RoleUserAdmin}:     false,
+				rbac.RoleAIGatewayUnrestricted():   false,
 			}),
 		},
 		{
@@ -573,6 +576,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            true,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: true,
 				{Name: codersdk.RoleOrganizationWorkspaceAccess, OrganizationID: owner.OrganizationID}:      true,
+				rbac.ScopedRoleOrgAIGatewayUnrestricted(owner.OrganizationID):                               true,
 			}),
 		},
 		{
@@ -593,6 +597,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       true,
 				{Name: codersdk.RoleTemplateAdmin}: true,
 				{Name: codersdk.RoleUserAdmin}:     true,
+				rbac.RoleAIGatewayUnrestricted():   true,
 			}),
 		},
 		{
@@ -607,6 +612,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleOrganizationUserAdmin, OrganizationID: owner.OrganizationID}:            true,
 				{Name: codersdk.RoleOrganizationWorkspaceCreationBan, OrganizationID: owner.OrganizationID}: true,
 				{Name: codersdk.RoleOrganizationWorkspaceAccess, OrganizationID: owner.OrganizationID}:      true,
+				rbac.ScopedRoleOrgAIGatewayUnrestricted(owner.OrganizationID):                               true,
 			}),
 		},
 	}
