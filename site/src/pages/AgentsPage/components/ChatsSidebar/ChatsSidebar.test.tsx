@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
@@ -148,7 +148,11 @@ describe("ChatsSidebar section switcher", () => {
 		await user.click(screen.getByRole("button", { name: "Agents" }));
 		await user.click(await screen.findByRole("menuitem", { name: label }));
 
-		expect(screen.getByTestId("location-pathname").textContent).toBe(pathname);
+		await waitFor(() => {
+			expect(screen.getByTestId("location-pathname").textContent).toBe(
+				pathname,
+			);
+		});
 	});
 });
 
