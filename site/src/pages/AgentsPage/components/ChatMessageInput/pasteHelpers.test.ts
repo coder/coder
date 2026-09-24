@@ -1,6 +1,6 @@
 // Tests for pasteHelpers utility functions (pure logic, no DOM).
 import { describe, expect, it } from "vitest";
-import { readMockFileText } from "#/testHelpers/files";
+import { readAgentAttachmentText } from "../../utils/fileAttachmentLimits";
 import {
 	createPasteFile,
 	getPasteDataTransfer,
@@ -141,7 +141,7 @@ describe("createPasteFile", () => {
 	it("preserves the text content", async () => {
 		const text = "Hello\nWorld";
 		const file = createPasteFile(text);
-		const content = await readMockFileText(file);
+		const content = await readAgentAttachmentText(file);
 		expect(content).toBe(text);
 	});
 });

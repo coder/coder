@@ -1,16 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
 import { MockFailedWorkspace } from "#/testHelpers/entities";
 import {
-	buildDebugWorkspaceBuildPath,
-	clearDebugWorkspaceBuildIntent,
 	debugWorkspaceBuildLogsFileName,
-	debugWorkspaceBuildLogsMaxChars,
+	debugWorkspaceBuildLogsMaxBytes,
 	debugWorkspaceBuildPrompt,
-	debugWorkspaceBuildSearchParam,
 	formatWorkspaceBuildLogsForDebug,
-	hasDebugWorkspaceBuildIntent,
-	storeDebugWorkspaceBuildIntent,
 } from "./workspaceBuildDebug";
 
 const failedBuild: WorkspaceBuild = {
@@ -58,22 +53,20 @@ const logs: ProvisionerJobLog[] = [
 	},
 ];
 
-afterEach(() => {
-	localStorage.clear();
-	vi.restoreAllMocks();
-});
+const logLines = (count: number, output: (index: number) => string) =>
+	Array.from(
+		{ length: count },
+		(_, index): ProvisionerJobLog => ({
+			id: index,
+			created_at: "2024-01-01T00:00:00.000Z",
+			log_source: "provisioner",
+			log_level: "info",
+			stage: "Starting workspace",
+			output: output(index),
+		}),
+	);
 
-describe("buildDebugWorkspaceBuildPath", () => {
-	it("links to the agents create page with the build id", () => {
-		const path = buildDebugWorkspaceBuildPath("build id/with?chars");
-		const url = new URL(path, "https://coder.example.com");
-
-		expect(url.pathname).toBe("/agents");
-		expect(url.searchParams.get(debugWorkspaceBuildSearchParam)).toBe(
-			"build id/with?chars",
-		);
-	});
-});
+const byteLength = (text: string) => new TextEncoder().encode(text).length;
 
 describe("debugWorkspaceBuildPrompt", () => {
 	it("names the workspace and the failed transition", () => {
@@ -139,51 +132,64 @@ describe("formatWorkspaceBuildLogsForDebug", () => {
 		expect(text).toContain("Note: the build hit the provisioner log limit");
 	});
 
-	it("keeps the header and the most recent lines within the size budget", () => {
-		const line = "x".repeat(99);
-		const manyLogs: ProvisionerJobLog[] = Array.from(
-			{ length: 3000 },
-			(_, index) => ({
-				id: index,
-				created_at: "2024-01-01T00:00:00.000Z",
-				log_source: "provisioner",
-				log_level: "info",
-				stage: "Starting workspace",
-				output: `${index} ${line}`,
-			}),
+	it("keeps the header and the most recent lines within the byte budget", () => {
+		// Terraform diagnostics prefix lines with a 3-byte character.
+		const text = formatWorkspaceBuildLogsForDebug(
+			failedBuild,
+			logLines(3000, (index) => `│ ${index} ${"x".repeat(96)}`),
 		);
 
-		const text = formatWorkspaceBuildLogsForDebug(failedBuild, manyLogs);
-
-		expect(text.length).toBeLessThanOrEqual(
-			debugWorkspaceBuildLogsMaxChars + 80,
+		expect(byteLength(text)).toBeLessThanOrEqual(
+			debugWorkspaceBuildLogsMaxBytes,
 		);
 		expect(text).toContain("Job error: terraform plan: exit status 1");
+		expect(text).toContain(
+			"=== Starting workspace (2024-01-01T00:00:00.000Z) ===",
+		);
 		expect(text).toMatch(
 			/\[\d+ earlier lines omitted to fit the attachment size limit\]/,
 		);
-		expect(text).not.toContain("[info] 0 x");
-		expect(text).toContain(`[info] 2999 ${line}`);
-	});
-});
-
-describe("debug workspace build intent", () => {
-	it("is present only for the clicked build until cleared", () => {
-		storeDebugWorkspaceBuildIntent("build-a");
-
-		expect(hasDebugWorkspaceBuildIntent("build-b")).toBe(false);
-		expect(hasDebugWorkspaceBuildIntent("build-a")).toBe(true);
-
-		clearDebugWorkspaceBuildIntent();
-		expect(hasDebugWorkspaceBuildIntent("build-a")).toBe(false);
+		expect(text).not.toContain("[info] │ 0 x");
+		expect(text).toContain(`[info] │ 2999 ${"x".repeat(96)}`);
 	});
 
-	it("expires", () => {
-		const now = Date.now();
-		vi.spyOn(Date, "now").mockReturnValue(now);
-		storeDebugWorkspaceBuildIntent("build-a");
-		vi.spyOn(Date, "now").mockReturnValue(now + 6 * 60 * 1000);
+	it("counts only log lines as omitted and relabels the surviving stage", () => {
+		const text = formatWorkspaceBuildLogsForDebug(failedBuild, [
+			...logLines(3, () => "z".repeat(70 * 1024)),
+			...logLines(2, (index) => `kept ${index}`).map((log) => ({
+				...log,
+				stage: "Cleaning up",
+			})),
+		]);
 
-		expect(hasDebugWorkspaceBuildIntent("build-a")).toBe(false);
+		expect(text).toContain(
+			"[2 earlier lines omitted to fit the attachment size limit]",
+		);
+		expect(
+			text.split("=== Cleaning up (2024-01-01T00:00:00.000Z) ==="),
+		).toHaveLength(2);
+		expect(text).toMatch(
+			/\[2 earlier lines omitted to fit the attachment size limit\]\n=== Starting workspace \(2024-01-01T00:00:00.000Z\) ===\n\[info\] zzz/,
+		);
+	});
+
+	it("keeps the tail of a single line that is over budget", () => {
+		const text = formatWorkspaceBuildLogsForDebug(failedBuild, [
+			...logLines(1, () => "first"),
+			...logLines(1, () => `${"a".repeat(200 * 1024)}END`),
+		]);
+
+		expect(byteLength(text)).toBeLessThanOrEqual(
+			debugWorkspaceBuildLogsMaxBytes,
+		);
+		expect(text).toContain("Job error: terraform plan: exit status 1");
+		expect(text).toContain(
+			"[1 earlier lines omitted to fit the attachment size limit]",
+		);
+		expect(text).toContain(
+			"[the start of the next line was omitted to fit the attachment size limit]",
+		);
+		expect(text.endsWith("aaaEND\n")).toBe(true);
+		expect(text).not.toContain("[info] first");
 	});
 });

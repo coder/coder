@@ -23,6 +23,7 @@ import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
+import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
@@ -32,7 +33,6 @@ import {
 	MockOrganization2,
 	MockPermissions,
 	MockUserOwner,
-	MockWorkspaceBuildLogs,
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
@@ -59,7 +59,6 @@ import {
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
-import { debugWorkspaceBuildSearchParam } from "./utils/workspaceBuildDebug";
 
 const defaultModelID = "model-config-1";
 
@@ -1090,11 +1089,17 @@ export const SettingsViewCoderAgentsLink: Story = {
 	},
 };
 
+// The create page only accepts a UUID build ID.
+const debugWorkspaceBuild: TypesGen.WorkspaceBuild = {
+	...MockFailedWorkspace.latest_build,
+	id: "9f0e7d0e-4b2b-4ac9-8f1a-1a7a1f0c9d11",
+};
+
 const debugWorkspaceBuildRouter = reactRouterParameters({
 	location: {
 		path: "/agents",
 		searchParams: {
-			[debugWorkspaceBuildSearchParam]: MockFailedWorkspace.latest_build.id,
+			[debugWorkspaceBuildSearchParam]: debugWorkspaceBuild.id,
 		},
 	},
 	routing: [agentsRouting, aiSettingsRouting],
@@ -1107,9 +1112,6 @@ export const DebugWorkspaceBuildLoading: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaceBuild").mockReturnValue(new Promise(() => {}));
-		spyOn(API, "getWorkspaceBuildLogs").mockResolvedValue(
-			MockWorkspaceBuildLogs,
-		);
 	},
 };
 
@@ -1125,8 +1127,19 @@ export const DebugWorkspaceBuildLoadError: Story = {
 					"Resource not found or you do not have access to this resource",
 			}),
 		);
-		spyOn(API, "getWorkspaceBuildLogs").mockResolvedValue(
-			MockWorkspaceBuildLogs,
-		);
+	},
+};
+
+export const DebugWorkspaceBuildNotFailed: Story = {
+	parameters: {
+		experiments: ["enable-ai-workspace-debug"],
+		reactRouter: debugWorkspaceBuildRouter,
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceBuild").mockResolvedValue({
+			...debugWorkspaceBuild,
+			status: "running",
+			job: { ...debugWorkspaceBuild.job, status: "succeeded" },
+		});
 	},
 };

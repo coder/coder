@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { userEvent, within } from "storybook/test";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
+import { chatPermissionChecks } from "#/modules/permissions/chats";
 import * as Mocks from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -413,10 +415,22 @@ export const UnhealthyWithoutUpdatePermission: Story = {
 	},
 };
 
+const failedBuildChatPermissionKey = getAuthorizationKey({
+	checks: chatPermissionChecks(
+		Mocks.MockFailedWorkspace.latest_build.job.organization_id,
+	),
+});
+
 export const FailedWithLogs: Story = {
 	parameters: {
 		permissions: Mocks.MockPermissions,
 		experiments: ["enable-ai-workspace-debug"],
+		queries: [
+			{
+				key: failedBuildChatPermissionKey,
+				data: { createChatInOrganization: true },
+			},
+		],
 	},
 	args: {
 		...Running.args,
@@ -439,6 +453,12 @@ export const FailedWithoutChatPermission: Story = {
 	parameters: {
 		permissions: Mocks.MockNoPermissions,
 		experiments: ["enable-ai-workspace-debug"],
+		queries: [
+			{
+				key: failedBuildChatPermissionKey,
+				data: { createChatInOrganization: false },
+			},
+		],
 	},
 	args: FailedWithLogs.args,
 };

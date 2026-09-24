@@ -1,54 +1,8 @@
 import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
 import { sanitizeChatFileName } from "./chatAttachments";
 
-// Failed build ID; the create page refetches the build and logs so the link
-// stays shareable.
-export const debugWorkspaceBuildSearchParam = "debug_workspace_build";
-
-// Written by the workspace page when the user clicks the action and cleared
-// by the create page on mount, so only a real click sends without
-// confirmation. A pasted or replayed link prefills the chat instead.
-const debugWorkspaceBuildIntentStorageKey =
-	"agents.debug-workspace-build-intent";
-const debugWorkspaceBuildIntentMaxAgeMs = 5 * 60 * 1000;
-
-export const storeDebugWorkspaceBuildIntent = (buildId: string): void => {
-	localStorage.setItem(
-		debugWorkspaceBuildIntentStorageKey,
-		JSON.stringify({ buildId, at: Date.now() }),
-	);
-};
-
-export const clearDebugWorkspaceBuildIntent = (): void => {
-	localStorage.removeItem(debugWorkspaceBuildIntentStorageKey);
-};
-
-export const hasDebugWorkspaceBuildIntent = (buildId: string): boolean => {
-	const raw = localStorage.getItem(debugWorkspaceBuildIntentStorageKey);
-	if (raw === null) {
-		return false;
-	}
-	try {
-		const intent: unknown = JSON.parse(raw);
-		return (
-			typeof intent === "object" &&
-			intent !== null &&
-			"buildId" in intent &&
-			intent.buildId === buildId &&
-			"at" in intent &&
-			typeof intent.at === "number" &&
-			Date.now() - intent.at < debugWorkspaceBuildIntentMaxAgeMs
-		);
-	} catch {
-		return false;
-	}
-};
-
 export const debugWorkspaceBuildPrompt = (build: WorkspaceBuild): string =>
 	`Workspace ${build.workspace_owner_name}/${build.workspace_name} failed to ${build.transition}. Review the attached log information, determine why the workspace failed to ${build.transition}, and what resolving action the user can take. Respond with a 2-3 sentence summary of what the problem is and the action the user can take. Be concise, and keep it at a 15-year-old level. Do not start a new workspace.`;
-
-export const buildDebugWorkspaceBuildPath = (buildId: string): string =>
-	`/agents?${debugWorkspaceBuildSearchParam}=${encodeURIComponent(buildId)}`;
 
 export const debugWorkspaceBuildLogsFileName = (
 	build: WorkspaceBuild,
@@ -57,13 +11,40 @@ export const debugWorkspaceBuildLogsFileName = (
 		`workspace-build-logs-${build.workspace_owner_name}-${build.workspace_name}-${build.build_number}.txt`,
 	);
 
-// Matches the inline budget chatd applies to pasted text. The attachment is
-// replayed on every turn, so anything larger is pure token cost.
-export const debugWorkspaceBuildLogsMaxChars = 128 * 1024;
+// Same value as chatprompt.syntheticPasteInlineBudget, in bytes. chatd applies
+// that budget only to pasted-text files, so this trim is the only cap on the
+// attachment, which is replayed on every turn.
+export const debugWorkspaceBuildLogsMaxBytes = 128 * 1024;
+// Room for the omission marker and a re-emitted stage header.
+const markerReserveBytes = 512;
+
+const utf8 = new TextEncoder();
+// Includes the newline that joins the lines.
+const lineBytes = (line: string): number => utf8.encode(line).length + 1;
+
+const sum = (lines: readonly string[]): number =>
+	lines.reduce((total, line) => total + lineBytes(line), 0);
+
+// Keeps the last `maxBytes` of `text`, dropping any partial leading character.
+const tailWithinBytes = (text: string, maxBytes: number): string => {
+	const bytes = utf8.encode(text);
+	if (bytes.length <= maxBytes) {
+		return text;
+	}
+	return new TextDecoder()
+		.decode(bytes.subarray(bytes.length - maxBytes))
+		.replace(/^\uFFFD+/, "");
+};
+
+type LogLine = {
+	text: string;
+	// Set on log output so a trimmed block can be labelled again.
+	stageHeader?: string;
+};
 
 /**
  * Formats a build and its provisioner logs as the plain text chat attachment.
- * Keeps the header and the most recent log lines within the size budget.
+ * Keeps the header and the most recent log lines within the byte budget.
  */
 export const formatWorkspaceBuildLogsForDebug = (
 	build: WorkspaceBuild,
@@ -88,34 +69,61 @@ export const formatWorkspaceBuildLogsForDebug = (
 	}
 	header.push("", "Build logs:");
 
-	const logLines: string[] = [];
+	const lines: LogLine[] = [];
 	let currentStage: string | undefined;
+	let stageHeader: string | undefined;
 	for (const log of logs) {
 		if (log.stage !== currentStage) {
 			currentStage = log.stage;
-			logLines.push("", `=== ${log.stage} (${log.created_at}) ===`);
+			stageHeader = `=== ${log.stage} (${log.created_at}) ===`;
+			lines.push({ text: "" }, { text: stageHeader });
 		}
-		logLines.push(`[${log.log_level}] ${log.output}`);
+		lines.push({ text: `[${log.log_level}] ${log.output}`, stageHeader });
 	}
 	if (logs.length === 0) {
-		logLines.push("(no build logs were recorded)");
+		lines.push({ text: "(no build logs were recorded)" });
 	}
 
-	let size = [...header, ...logLines].reduce(
-		(total, line) => total + line.length + 1,
-		0,
-	);
-	let omitted = 0;
-	while (size > debugWorkspaceBuildLogsMaxChars && logLines.length > 1) {
-		const dropped = logLines.shift() ?? "";
-		size -= dropped.length + 1;
-		omitted++;
+	const headerBytes = sum(header);
+	const texts = lines.map((line) => line.text);
+	if (headerBytes + sum(texts) <= debugWorkspaceBuildLogsMaxBytes) {
+		return `${[...header, ...texts].join("\n")}\n`;
 	}
+
+	const lineBudget =
+		debugWorkspaceBuildLogsMaxBytes - headerBytes - markerReserveBytes;
+	let start = lines.length;
+	let used = 0;
+	while (start > 0 && used + lineBytes(texts[start - 1]) <= lineBudget) {
+		used += lineBytes(texts[start - 1]);
+		start--;
+	}
+	// Even the last line alone can be over budget; keep its tail then.
+	const truncateLast = start === lines.length;
+	if (truncateLast) {
+		start = lines.length - 1;
+	}
+	const first = lines[start];
+	const omitted = lines
+		.slice(0, start)
+		.filter((line) => line.stageHeader).length;
+	const markers: string[] = [];
 	if (omitted > 0) {
-		logLines.unshift(
+		markers.push(
 			`[${omitted} earlier lines omitted to fit the attachment size limit]`,
 		);
 	}
-
-	return `${[...header, ...logLines].join("\n")}\n`;
+	if (first.stageHeader) {
+		markers.push(first.stageHeader);
+	}
+	let kept = texts.slice(start);
+	if (truncateLast) {
+		markers.push(
+			"[the start of the next line was omitted to fit the attachment size limit]",
+		);
+		kept = [
+			tailWithinBytes(first.text, Math.max(lineBudget - sum(markers), 0)),
+		];
+	}
+	return `${[...header, ...markers, ...kept].join("\n")}\n`;
 };

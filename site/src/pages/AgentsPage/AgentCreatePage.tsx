@@ -16,6 +16,10 @@ import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	debugWorkspaceBuildSearchParam,
+	takeDebugWorkspaceBuildIntent,
+} from "#/modules/workspaces/workspaceBuildDebugLink";
 import { isUUID } from "#/utils/uuid";
 import {
 	AgentCreateForm,
@@ -28,22 +32,45 @@ import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
 import {
-	clearDebugWorkspaceBuildIntent,
 	debugWorkspaceBuildLogsFileName,
 	debugWorkspaceBuildPrompt,
-	debugWorkspaceBuildSearchParam,
 	formatWorkspaceBuildLogsForDebug,
-	hasDebugWorkspaceBuildIntent,
 } from "./utils/workspaceBuildDebug";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+
+type DebugLink =
+	| { kind: "none" }
+	| { kind: "experiment-disabled" }
+	| { kind: "invalid" }
+	| { kind: "build"; buildId: string; clicked: boolean };
+
+const readDebugLink = (
+	param: string | null,
+	experiments: readonly TypesGen.Experiment[],
+): DebugLink => {
+	if (param === null) {
+		return { kind: "none" };
+	}
+	if (!experiments.includes("enable-ai-workspace-debug")) {
+		return { kind: "experiment-disabled" };
+	}
+	if (!isUUID(param)) {
+		return { kind: "invalid" };
+	}
+	return {
+		kind: "build",
+		buildId: param,
+		clicked: takeDebugWorkspaceBuildIntent(param),
+	};
+};
 
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();
-	const [searchParams] = useSearchParams();
-	const { permissions } = useAuthenticated();
+	const [searchParams, setSearchParams] = useSearchParams();
+	const { permissions, user } = useAuthenticated();
 	const { experiments } = useDashboard();
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
@@ -51,40 +78,41 @@ const AgentCreatePage: FC = () => {
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
-	const debugBuildParam = searchParams.get(debugWorkspaceBuildSearchParam);
-	const debugBuildId =
-		experiments.includes("enable-ai-workspace-debug") &&
-		debugBuildParam !== null &&
-		isUUID(debugBuildParam)
-			? debugBuildParam
-			: null;
-	// Read once per page load and cleared on mount, so a replayed or shared
-	// link can only prefill the chat, never send it.
-	const [debugAutoSend] = useState(
-		() => debugBuildId !== null && hasDebugWorkspaceBuildIntent(debugBuildId),
+	// Consumed once per page load. The intent is taken in the same step so a
+	// second tab for the same link cannot also read it.
+	const [debugLink] = useState(() =>
+		readDebugLink(
+			searchParams.get(debugWorkspaceBuildSearchParam),
+			experiments,
+		),
 	);
+	// The layout's links forward location.search, so the param must not stay
+	// in the URL once it has been read.
 	useEffect(() => {
-		if (debugBuildId !== null) {
-			clearDebugWorkspaceBuildIntent();
+		if (searchParams.has(debugWorkspaceBuildSearchParam)) {
+			const next = new URLSearchParams(searchParams);
+			next.delete(debugWorkspaceBuildSearchParam);
+			setSearchParams(next, { replace: true });
 		}
-	}, [debugBuildId]);
+	}, [searchParams, setSearchParams]);
+	const debugBuildId = debugLink.kind === "build" ? debugLink.buildId : null;
 	const debugBuildQuery = useQuery({
 		...workspaceBuild(debugBuildId ?? ""),
 		enabled: debugBuildId !== null,
-		// A finished build is immutable, and a refetch after an error would
-		// mount the prefilled form a second time.
-		staleTime: Number.POSITIVE_INFINITY,
+		// A refetch after an error would mount the prefilled form after the page
+		// already reported that nothing was sent.
 		refetchOnMount: false,
 		refetchOnReconnect: false,
 		refetchOnWindowFocus: false,
 	});
-	const debugBuildLogsQuery = useQuery({
-		...workspaceBuildLogs(debugBuildId ?? ""),
-		enabled: debugBuildId !== null,
-	});
-	const debugBuildError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
 	const debugBuild = debugBuildQuery.data;
 	const debugBuildFailed = debugBuild?.job.status === "failed";
+	const debugBuildLogsQuery = useQuery({
+		...workspaceBuildLogs(debugBuildId ?? ""),
+		// The logs query caches forever, which is only right for a finished build.
+		enabled: debugBuildFailed,
+	});
+	const debugBuildError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
 	const prefill: AgentCreatePrefill | undefined =
 		debugBuild && debugBuildFailed && debugBuildLogsQuery.data
 			? {
@@ -97,15 +125,20 @@ const AgentCreatePage: FC = () => {
 						),
 					},
 					organizationId: debugBuild.job.organization_id,
-					autoSend: debugAutoSend,
+					// Someone else's build output is only sent after the viewer has
+					// seen it and pressed Send.
+					autoSend:
+						debugLink.kind === "build" &&
+						debugLink.clicked &&
+						debugBuild.workspace_owner_id === user.id,
 				}
 			: undefined;
-	// The form reads prefill only on mount (initial editor value, draft and
-	// attachment persistence), so it waits for the build and logs.
+	// AgentCreateForm reads prefill only on mount.
 	const isDebugBuildLoading =
 		debugBuildId !== null &&
 		debugBuildError == null &&
-		(debugBuild === undefined || debugBuildLogsQuery.data === undefined);
+		(debugBuild === undefined ||
+			(debugBuildFailed && debugBuildLogsQuery.data === undefined));
 
 	const handleCreateChat = async ({
 		message,
@@ -142,16 +175,10 @@ const AgentCreatePage: FC = () => {
 		if (model) {
 			localStorage.setItem(lastModelConfigIDStorageKey, model);
 		}
-		const nextSearchParams = new URLSearchParams(location.search);
-		nextSearchParams.delete(debugWorkspaceBuildSearchParam);
-		navigate(
-			{
-				pathname: buildAgentChatPath({ chatId: createdChat.id }),
-				search: nextSearchParams.toString(),
-			},
-			// Back from a prefilled chat should not land on the deep link again.
-			{ replace: debugBuildId !== null },
-		);
+		navigate({
+			pathname: buildAgentChatPath({ chatId: createdChat.id }),
+			search: location.search,
+		});
 	};
 
 	const handleChimeToggle = () => {
@@ -173,6 +200,56 @@ const AgentCreatePage: FC = () => {
 		}
 	};
 
+	const debugAlert = (() => {
+		if (debugLink.kind === "experiment-disabled") {
+			return (
+				<Alert severity="info">
+					<AlertTitle>This debug link is not enabled here</AlertTitle>
+					<AlertDescription>
+						Debugging workspace builds with Coder Agents requires the{" "}
+						<code>enable-ai-workspace-debug</code> experiment, which is off on
+						this deployment. Nothing was sent.
+					</AlertDescription>
+				</Alert>
+			);
+		}
+		if (debugLink.kind === "invalid") {
+			return (
+				<Alert severity="info">
+					<AlertTitle>This debug link is not valid</AlertTitle>
+					<AlertDescription>
+						The link does not carry a workspace build ID. Nothing was sent.
+					</AlertDescription>
+				</Alert>
+			);
+		}
+		if (debugBuildError != null) {
+			return (
+				<Alert severity="error" prominent>
+					<AlertTitle>
+						Could not load the failed workspace build. Nothing was sent.
+					</AlertTitle>
+					<AlertDescription>
+						{getErrorMessage(debugBuildError, "The request failed.")}
+					</AlertDescription>
+				</Alert>
+			);
+		}
+		if (debugBuild && !debugBuildFailed) {
+			return (
+				<Alert severity="info">
+					<AlertTitle>Nothing to debug</AlertTitle>
+					<AlertDescription>
+						Build #{debugBuild.build_number} of workspace{" "}
+						{debugBuild.workspace_owner_name}/{debugBuild.workspace_name} has
+						not failed (status: {debugBuild.job.status}).
+					</AlertDescription>
+				</Alert>
+			);
+		}
+		return null;
+	})();
+
 	return (
 		<>
 			<AgentPageHeader
@@ -184,35 +261,13 @@ const AgentCreatePage: FC = () => {
 				<ChimeButton enabled={chimeEnabled} onToggle={handleChimeToggle} />
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
-			{debugBuildError != null && (
-				<div className="mx-auto w-full max-w-3xl px-4 pt-4">
-					<Alert severity="error" prominent>
-						<AlertTitle>
-							Could not load the failed workspace build. Nothing was sent.
-						</AlertTitle>
-						<AlertDescription>
-							{getErrorMessage(debugBuildError, "The request failed.")}
-						</AlertDescription>
-					</Alert>
-				</div>
-			)}
-			{debugBuild && !debugBuildFailed && (
-				<div className="mx-auto w-full max-w-3xl px-4 pt-4">
-					<Alert severity="info">
-						<AlertTitle>Nothing to debug</AlertTitle>
-						<AlertDescription>
-							Build #{debugBuild.build_number} of workspace{" "}
-							{debugBuild.workspace_owner_name}/{debugBuild.workspace_name} did
-							not fail.
-						</AlertDescription>
-					</Alert>
-				</div>
+			{debugAlert && (
+				<div className="mx-auto w-full max-w-3xl px-4 pt-4">{debugAlert}</div>
 			)}
 			{isDebugBuildLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : (
 				<AgentCreateForm
-					// Prefill is read on mount, so switching modes must remount.
 					key={prefill ? debugBuildId : "draft"}
 					onCreateChat={handleCreateChat}
 					isCreating={createMutation.isPending}
