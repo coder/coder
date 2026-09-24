@@ -40,12 +40,22 @@ func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	// Cloning lets the handler mutate or store its request without
 	// surprising the caller.
 	served := req.Clone(ctx)
+	// Match net/http.Server: an empty path becomes "/", the body is never
+	// nil, and the body is closed when h returns.
+	if served.URL.Path == "" {
+		served.URL.Path = "/"
+	}
+	if served.Body == nil {
+		served.Body = http.NoBody
+	}
+	reqBody := served.Body
 
 	// Close the pipe when the request ends, so an unresponsive handler
 	// does not strand the body read.
 	context.AfterFunc(ctx, func() { _ = pw.CloseWithError(context.Cause(ctx)) })
 	go func() {
 		defer func() {
+			_ = reqBody.Close()
 			cause := io.EOF
 			if r := recover(); r != nil {
 				//nolint:errorlint // Match net/http: only the exact sentinel aborts.
