@@ -276,7 +276,7 @@ func TestRenderPipeline(t *testing.T) {
 	}
 	// The Caution alert follows the Dangerous heading directly, before its
 	// first option.
-	if i, j, k := strings.Index(got, "## Dangerous"), strings.Index(got, "> [!CAUTION]"), strings.Index(got, "### Allow all cors"); i < 0 || j < 0 || k < 0 || !(i < j && j < k) {
+	if i, j, k := strings.Index(got, "## Dangerous"), strings.Index(got, "> [!CAUTION]"), strings.Index(got, "### Allow all cors"); i < 0 || j < 0 || k < 0 || (i >= j || j >= k) {
 		t.Errorf("Caution alert should render between the Dangerous heading and its options (got indexes %d, %d, %d)", i, j, k)
 	}
 	// Hidden and unsettable options never render.
