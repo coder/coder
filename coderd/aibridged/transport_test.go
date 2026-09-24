@@ -252,7 +252,8 @@ func TestInMemoryRoundTripper_CancelCloses(t *testing.T) {
 	require.NoError(t, err)
 
 	parentCtx := testutil.Context(t, testutil.WaitShort)
-	ctx, cancel := context.WithCancel(parentCtx)
+	cancelCause := xerrors.New("caller canceled")
+	ctx, cancel := context.WithCancelCause(parentCtx)
 	ctx = aibridge.WithDelegatedAPIKeyID(ctx, "test-key-id")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/stream", nil)
 	require.NoError(t, err)
@@ -261,9 +262,9 @@ func TestInMemoryRoundTripper_CancelCloses(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	cancel()
+	cancel(cancelCause)
 	_, err = io.ReadAll(resp.Body)
-	require.Error(t, err)
+	require.ErrorIs(t, err, cancelCause)
 
 	select {
 	case <-handlerCtxObserved:
@@ -326,30 +327,67 @@ func TestInMemoryRoundTripper_ConcurrentRequests(t *testing.T) {
 	}
 }
 
-// A panicking handler must not crash the process; it should produce a 500
-// response with an error on the body read, mirroring net/http.Server behavior.
+// Only the exact http.ErrAbortHandler sentinel aborts the response; other panic
+// values produce a 500 response with a body-read error.
 func TestInMemoryRoundTripper_HandlerPanic(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		panic("unexpected nil pointer")
-	})
+	tests := []struct {
+		name            string
+		panicValue      any
+		wantStatusCode  int
+		wantErr         error
+		wantErrContains string
+	}{
+		{
+			name:            "String",
+			panicValue:      "unexpected nil pointer",
+			wantStatusCode:  http.StatusInternalServerError,
+			wantErrContains: "handler panicked",
+		},
+		{
+			name:           "AbortHandlerBeforeHeaders",
+			panicValue:     http.ErrAbortHandler,
+			wantStatusCode: http.StatusOK,
+			wantErr:        io.ErrUnexpectedEOF,
+		},
+		{
+			name:            "WrappedAbortHandler",
+			panicValue:      xerrors.Errorf("wrapped: %w", http.ErrAbortHandler),
+			wantStatusCode:  http.StatusInternalServerError,
+			wantErrContains: "handler panicked",
+		},
+	}
 
-	rt, err := aibridged.NewTransportFactory(handler).TransportFor("openai", aibridge.SourceAgents)
-	require.NoError(t, err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	ctx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "test-key-id")
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/panic", nil)
-	require.NoError(t, err)
+			handler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				panic(tc.panicValue)
+			})
 
-	resp, err := rt.RoundTrip(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
+			rt, err := aibridged.NewTransportFactory(handler).TransportFor("openai", aibridge.SourceAgents)
+			require.NoError(t, err)
 
-	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	_, err = io.ReadAll(resp.Body)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "handler panicked")
+			ctx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "test-key-id")
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/panic", nil)
+			require.NoError(t, err)
+
+			resp, err := rt.RoundTrip(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, tc.wantStatusCode, resp.StatusCode)
+			require.NotNil(t, resp.Header)
+			_, err = io.ReadAll(resp.Body)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+			} else {
+				require.ErrorContains(t, err, tc.wantErrContains)
+			}
+		})
+	}
 }
 
 // The in-memory transport must reject any RoundTrip whose context does not
@@ -420,6 +458,62 @@ func TestInMemoryRoundTripper_RequiresDelegatedAPIKeyID(t *testing.T) {
 	}
 }
 
+func TestInMemoryRoundTripper_HandlerCompletionCancelsServedRequest(t *testing.T) {
+	t.Parallel()
+
+	servedCtx := make(chan context.Context, 1)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		servedCtx <- r.Context()
+		_, err := w.Write([]byte("complete"))
+		assert.NoError(t, err)
+	})
+
+	rt, err := aibridged.NewTransportFactory(handler).TransportFor("openai", aibridge.SourceAgents)
+	require.NoError(t, err)
+
+	callerCtx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "test-key-id")
+	req, err := http.NewRequestWithContext(callerCtx, http.MethodPost, "http://aibridge/complete", nil)
+	require.NoError(t, err)
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, "complete", string(body))
+
+	ctx := testutil.TryReceive(callerCtx, t, servedCtx)
+	testutil.TryReceive(callerCtx, t, ctx.Done())
+	require.NoError(t, callerCtx.Err(), "handler completion must not cancel the caller context")
+}
+
+func TestInMemoryRoundTripper_CloseCancelsServedRequestOnly(t *testing.T) {
+	t.Parallel()
+
+	canceled := make(chan struct{})
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		<-r.Context().Done()
+		close(canceled)
+	})
+
+	rt, err := aibridged.NewTransportFactory(handler).TransportFor("openai", aibridge.SourceAgents)
+	require.NoError(t, err)
+
+	parentCtx := testutil.Context(t, testutil.WaitShort)
+	ctx := aibridge.WithDelegatedAPIKeyID(parentCtx, "test-key-id")
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/stream", nil)
+	require.NoError(t, err)
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+
+	require.NoError(t, resp.Body.Close())
+	testutil.TryReceive(parentCtx, t, canceled)
+	require.NoError(t, parentCtx.Err(), "closing a response must not cancel the caller context")
+}
+
 // A handler that returns without writing must not block RoundTrip; the caller
 // gets a zero-length 200 OK.
 func TestInMemoryRoundTripper_HandlerReturnsWithoutWriting(t *testing.T) {
@@ -442,4 +536,5 @@ func TestInMemoryRoundTripper_HandlerReturnsWithoutWriting(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, body)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.NotNil(t, resp.Header)
 }
