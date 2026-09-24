@@ -685,7 +685,6 @@ const singleTemplateCategories: FilterCategory[] = [
 		key: "template",
 		label: "Template",
 		icon: <LayoutGridIcon />,
-		hideWhenSingleOption: true,
 		getOptions: async (query) =>
 			filterOptions(templateOptions.slice(0, 1), query),
 	},
