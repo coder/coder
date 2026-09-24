@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
 
-	"github.com/coder/coder/v2/aibridge"
+	aibclient "github.com/coder/coder/v2/aibridge/client"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
@@ -46,7 +46,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 		expectToolRecorded   *recorder.ToolUsageRecord
 		expectTokenUsage     *recorder.TokenUsageRecord
 		userAgent            string
-		expectedClient       aibridge.Client
+		expectedClient       aibclient.Client
 	}{
 		{
 			name:                 "blocking_simple",
@@ -64,7 +64,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			userAgent:      "claude-cli/2.0.67 (external, cli)",
-			expectedClient: aibridge.ClientClaudeCode,
+			expectedClient: aibclient.ClientClaudeCode,
 		},
 		{
 			name:                 "blocking_builtin_tool",
@@ -89,7 +89,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.ClientUnknown,
 		},
 		{
 			name:                 "blocking_cached_input_tokens",
@@ -108,7 +108,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.ClientUnknown,
 		},
 		{
 			name:                 "blocking_custom_tool",
@@ -133,7 +133,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.ClientUnknown,
 		},
 		{
 			// web_search_call is a hosted tool executed server-side by the
@@ -161,7 +161,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.ClientUnknown,
 		},
 		{
 			name:                 "blocking_conversation",
@@ -178,7 +178,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.ClientUnknown,
 		},
 		{
 			name:                 "blocking_prev_response_id",
@@ -195,7 +195,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.ClientUnknown,
 		},
 		{
 			name:                 "streaming_simple",
@@ -214,7 +214,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			userAgent:      "Zed/0.219.4+stable.119.abc123 (macos; aarch64)",
-			expectedClient: aibridge.ClientZed,
+			expectedClient: aibclient.ClientZed,
 		},
 		{
 			name:                 "streaming_codex",
@@ -233,7 +233,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			userAgent:      "codex_cli_rs/0.87.0 (Mac OS 26.2.0; arm64)",
-			expectedClient: aibridge.ClientCodex,
+			expectedClient: aibclient.ClientCodex,
 		},
 		{
 			name:                 "streaming_builtin_tool",
@@ -259,7 +259,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.ClientUnknown,
 		},
 		{
 			name:                 "streaming_cached_tokens",
@@ -279,7 +279,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.ClientUnknown,
 		},
 		{
 			name:                 "streaming_custom_tool",
@@ -305,7 +305,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.ClientUnknown,
 		},
 		{
 			// web_search_call is a hosted tool executed server-side by the
@@ -334,7 +334,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.ClientUnknown,
 		},
 		{
 			name:                 "streaming_conversation",
@@ -342,7 +342,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			streaming:            true,
 			expectModel:          "gpt-4o-mini",
 			expectPromptRecorded: "explain why this is funny.",
-			expectedClient:       aibridge.ClientUnknown,
+			expectedClient:       aibclient.ClientUnknown,
 		},
 		{
 			name:                 "streaming_prev_response_id",
@@ -360,7 +360,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.ClientUnknown,
 		},
 		{
 			name:                 "stream_error",
@@ -368,7 +368,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			streaming:            true,
 			expectModel:          "gpt-6.7",
 			expectPromptRecorded: "hello_stream_error",
-			expectedClient:       aibridge.ClientUnknown,
+			expectedClient:       aibclient.ClientUnknown,
 		},
 		{
 			name:                 "stream_failure",
@@ -376,7 +376,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			streaming:            true,
 			expectModel:          "gpt-6.7",
 			expectPromptRecorded: "hello_stream_failure",
-			expectedClient:       aibridge.ClientUnknown,
+			expectedClient:       aibclient.ClientUnknown,
 		},
 
 		// Original status code and body is kept even with wrong json format
@@ -384,7 +384,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			name:           "blocking_wrong_format",
 			fixture:        fixtures.OaiResponsesBlockingWrongResponseFormat,
 			expectModel:    "gpt-6.7",
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.ClientUnknown,
 		},
 		{
 			name:                 "streaming_wrong_format",
@@ -392,7 +392,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			streaming:            true,
 			expectModel:          "gpt-6.7",
 			expectPromptRecorded: "hello_wrong_format",
-			expectedClient:       aibridge.ClientUnknown,
+			expectedClient:       aibclient.ClientUnknown,
 			expectTokenUsage: &recorder.TokenUsageRecord{
 				MsgID:  "resp_123",
 				Input:  11,

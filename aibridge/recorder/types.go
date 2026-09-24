@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"time"
+
+	"github.com/coder/coder/v2/aibridge/credential"
 )
 
 // Recorder describes all the possible usage information we need to capture during interactions with AI providers.
@@ -51,7 +53,7 @@ type InterceptionRecord struct {
 	// did not pass through Agent Firewall.
 	AgentFirewallSequenceNumber *int32
 	// CredentialKind is always set: either BYOK or centralized.
-	CredentialKind string
+	CredentialKind credential.Kind
 	// CredentialHint is only set for BYOK, where the key is known
 	// from the request. Centralized uses key failover, so the hint
 	// can only be determined at end-of-interception.

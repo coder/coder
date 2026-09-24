@@ -31,7 +31,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	agplaibridge "github.com/coder/coder/v2/aibridge"
+	aibclient "github.com/coder/coder/v2/aibridge/client"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
@@ -12474,7 +12474,7 @@ func seedChatGatewayRequest(t *testing.T, db database.Store, initiatorID, sessio
 		Provider:        "anthropic",
 		Model:           "claude-4",
 		StartedAt:       now,
-		Client:          sql.NullString{String: string(agplaibridge.ClientCoderAgents), Valid: true},
+		Client:          sql.NullString{String: string(aibclient.ClientCoderAgents), Valid: true},
 		ClientSessionID: sql.NullString{String: sessionChatID.String(), Valid: true},
 	}, &endedAt)
 
@@ -12784,7 +12784,7 @@ func TestGetChatCost(t *testing.T) {
 		foreignInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID:     firstUser.UserID,
 			StartedAt:       dbtime.Now(),
-			Client:          sql.NullString{String: string(agplaibridge.ClientClaudeCode), Valid: true},
+			Client:          sql.NullString{String: string(aibclient.ClientClaudeCode), Valid: true},
 			ClientSessionID: sql.NullString{String: chat.ID.String(), Valid: true},
 		}, &foreignEndedAt)
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
@@ -12796,7 +12796,7 @@ func TestGetChatCost(t *testing.T) {
 		unfinishedInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID:     firstUser.UserID,
 			StartedAt:       dbtime.Now(),
-			Client:          sql.NullString{String: string(agplaibridge.ClientCoderAgents), Valid: true},
+			Client:          sql.NullString{String: string(aibclient.ClientCoderAgents), Valid: true},
 			ClientSessionID: sql.NullString{String: chat.ID.String(), Valid: true},
 		}, nil)
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
