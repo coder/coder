@@ -7,7 +7,6 @@ CREATE TABLE chat_mcp_servers (
     headers_key_id TEXT REFERENCES dbcrypt_keys(active_key_digest),
     tool_allow_list TEXT[] NOT NULL DEFAULT '{}',
     tool_deny_list TEXT[] NOT NULL DEFAULT '{}',
-    allow_in_plan_mode BOOLEAN NOT NULL DEFAULT false,
     allow_in_subagents BOOLEAN NOT NULL DEFAULT false,
     forward_coder_headers BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

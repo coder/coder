@@ -439,7 +439,6 @@ func ChatMCPServer(t testing.TB, db database.Store, seed database.ChatMCPServer)
 		HeadersKeyID:        seed.HeadersKeyID,
 		ToolAllowList:       takeFirstSlice(seed.ToolAllowList, []string{}),
 		ToolDenyList:        takeFirstSlice(seed.ToolDenyList, []string{}),
-		AllowInPlanMode:     seed.AllowInPlanMode,
 		AllowInSubagents:    seed.AllowInSubagents,
 		ForwardCoderHeaders: seed.ForwardCoderHeaders,
 	})

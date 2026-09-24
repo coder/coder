@@ -6,7 +6,6 @@ INSERT INTO chat_mcp_servers (
     headers,
     tool_allow_list,
     tool_deny_list,
-    allow_in_plan_mode,
     allow_in_subagents,
     forward_coder_headers
 )
@@ -18,7 +17,6 @@ SELECT
     '{}',
     '{}',
     '{}',
-    false,
     false,
     false
 FROM (

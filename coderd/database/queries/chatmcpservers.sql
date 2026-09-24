@@ -18,7 +18,6 @@ INSERT INTO chat_mcp_servers (
     headers_key_id,
     tool_allow_list,
     tool_deny_list,
-    allow_in_plan_mode,
     allow_in_subagents,
     forward_coder_headers
 ) VALUES (
@@ -30,7 +29,6 @@ INSERT INTO chat_mcp_servers (
     sqlc.narg('headers_key_id')::text,
     @tool_allow_list::text[],
     @tool_deny_list::text[],
-    @allow_in_plan_mode::boolean,
     @allow_in_subagents::boolean,
     @forward_coder_headers::boolean
 )
@@ -40,7 +38,6 @@ ON CONFLICT (chat_id, slug) DO UPDATE SET
     headers_key_id = EXCLUDED.headers_key_id,
     tool_allow_list = EXCLUDED.tool_allow_list,
     tool_deny_list = EXCLUDED.tool_deny_list,
-    allow_in_plan_mode = EXCLUDED.allow_in_plan_mode,
     allow_in_subagents = EXCLUDED.allow_in_subagents,
     forward_coder_headers = EXCLUDED.forward_coder_headers,
     updated_at = now()

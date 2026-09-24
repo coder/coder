@@ -2030,7 +2030,6 @@ CREATE TABLE chat_mcp_servers (
     headers_key_id text,
     tool_allow_list text[] DEFAULT '{}'::text[] NOT NULL,
     tool_deny_list text[] DEFAULT '{}'::text[] NOT NULL,
-    allow_in_plan_mode boolean DEFAULT false NOT NULL,
     allow_in_subagents boolean DEFAULT false NOT NULL,
     forward_coder_headers boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,

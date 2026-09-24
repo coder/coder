@@ -6481,7 +6481,7 @@ func (q *sqlQuerier) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Cont
 
 const getChatMCPServersByChatID = `-- name: GetChatMCPServersByChatID :many
 SELECT
-    id, chat_id, slug, url, headers, headers_key_id, tool_allow_list, tool_deny_list, allow_in_plan_mode, allow_in_subagents, forward_coder_headers, created_at, updated_at
+    id, chat_id, slug, url, headers, headers_key_id, tool_allow_list, tool_deny_list, allow_in_subagents, forward_coder_headers, created_at, updated_at
 FROM
     chat_mcp_servers
 WHERE
@@ -6508,7 +6508,6 @@ func (q *sqlQuerier) GetChatMCPServersByChatID(ctx context.Context, chatID uuid.
 			&i.HeadersKeyID,
 			pq.Array(&i.ToolAllowList),
 			pq.Array(&i.ToolDenyList),
-			&i.AllowInPlanMode,
 			&i.AllowInSubagents,
 			&i.ForwardCoderHeaders,
 			&i.CreatedAt,
@@ -6529,7 +6528,7 @@ func (q *sqlQuerier) GetChatMCPServersByChatID(ctx context.Context, chatID uuid.
 
 const getChatMCPServersByChatOwnerID = `-- name: GetChatMCPServersByChatOwnerID :many
 SELECT
-    cms.id, cms.chat_id, cms.slug, cms.url, cms.headers, cms.headers_key_id, cms.tool_allow_list, cms.tool_deny_list, cms.allow_in_plan_mode, cms.allow_in_subagents, cms.forward_coder_headers, cms.created_at, cms.updated_at
+    cms.id, cms.chat_id, cms.slug, cms.url, cms.headers, cms.headers_key_id, cms.tool_allow_list, cms.tool_deny_list, cms.allow_in_subagents, cms.forward_coder_headers, cms.created_at, cms.updated_at
 FROM
     chat_mcp_servers cms
 JOIN
@@ -6558,7 +6557,6 @@ func (q *sqlQuerier) GetChatMCPServersByChatOwnerID(ctx context.Context, ownerID
 			&i.HeadersKeyID,
 			pq.Array(&i.ToolAllowList),
 			pq.Array(&i.ToolDenyList),
-			&i.AllowInPlanMode,
 			&i.AllowInSubagents,
 			&i.ForwardCoderHeaders,
 			&i.CreatedAt,
@@ -6608,7 +6606,6 @@ INSERT INTO chat_mcp_servers (
     headers_key_id,
     tool_allow_list,
     tool_deny_list,
-    allow_in_plan_mode,
     allow_in_subagents,
     forward_coder_headers
 ) VALUES (
@@ -6621,8 +6618,7 @@ INSERT INTO chat_mcp_servers (
     $7::text[],
     $8::text[],
     $9::boolean,
-    $10::boolean,
-    $11::boolean
+    $10::boolean
 )
 ON CONFLICT (chat_id, slug) DO UPDATE SET
     url = EXCLUDED.url,
@@ -6630,12 +6626,11 @@ ON CONFLICT (chat_id, slug) DO UPDATE SET
     headers_key_id = EXCLUDED.headers_key_id,
     tool_allow_list = EXCLUDED.tool_allow_list,
     tool_deny_list = EXCLUDED.tool_deny_list,
-    allow_in_plan_mode = EXCLUDED.allow_in_plan_mode,
     allow_in_subagents = EXCLUDED.allow_in_subagents,
     forward_coder_headers = EXCLUDED.forward_coder_headers,
     updated_at = now()
 RETURNING
-    id, chat_id, slug, url, headers, headers_key_id, tool_allow_list, tool_deny_list, allow_in_plan_mode, allow_in_subagents, forward_coder_headers, created_at, updated_at
+    id, chat_id, slug, url, headers, headers_key_id, tool_allow_list, tool_deny_list, allow_in_subagents, forward_coder_headers, created_at, updated_at
 `
 
 type UpsertChatMCPServerParams struct {
@@ -6647,7 +6642,6 @@ type UpsertChatMCPServerParams struct {
 	HeadersKeyID        sql.NullString `db:"headers_key_id" json:"headers_key_id"`
 	ToolAllowList       []string       `db:"tool_allow_list" json:"tool_allow_list"`
 	ToolDenyList        []string       `db:"tool_deny_list" json:"tool_deny_list"`
-	AllowInPlanMode     bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 	AllowInSubagents    bool           `db:"allow_in_subagents" json:"allow_in_subagents"`
 	ForwardCoderHeaders bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
 }
@@ -6662,7 +6656,6 @@ func (q *sqlQuerier) UpsertChatMCPServer(ctx context.Context, arg UpsertChatMCPS
 		arg.HeadersKeyID,
 		pq.Array(arg.ToolAllowList),
 		pq.Array(arg.ToolDenyList),
-		arg.AllowInPlanMode,
 		arg.AllowInSubagents,
 		arg.ForwardCoderHeaders,
 	)
@@ -6676,7 +6669,6 @@ func (q *sqlQuerier) UpsertChatMCPServer(ctx context.Context, arg UpsertChatMCPS
 		&i.HeadersKeyID,
 		pq.Array(&i.ToolAllowList),
 		pq.Array(&i.ToolDenyList),
-		&i.AllowInPlanMode,
 		&i.AllowInSubagents,
 		&i.ForwardCoderHeaders,
 		&i.CreatedAt,

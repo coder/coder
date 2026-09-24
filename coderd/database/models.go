@@ -5195,7 +5195,6 @@ type ChatMCPServer struct {
 	HeadersKeyID        sql.NullString `db:"headers_key_id" json:"headers_key_id"`
 	ToolAllowList       []string       `db:"tool_allow_list" json:"tool_allow_list"`
 	ToolDenyList        []string       `db:"tool_deny_list" json:"tool_deny_list"`
-	AllowInPlanMode     bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 	AllowInSubagents    bool           `db:"allow_in_subagents" json:"allow_in_subagents"`
 	ForwardCoderHeaders bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
 	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
