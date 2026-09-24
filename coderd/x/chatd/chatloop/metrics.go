@@ -23,31 +23,33 @@ const (
 	CompactionResultSuccess = "success"
 	CompactionResultError   = "error"
 	CompactionResultTimeout = "timeout"
-
-	// Label values for StageAnomaliesTotal.
-	// StageAnomalyNegativeElapsed is a stage whose measured duration
-	// was negative and was not observed.
-	StageAnomalyNegativeElapsed = "negative_elapsed"
-	// StageAnomalyInvertedWindow is a stage reconstructed from
-	// timestamps whose end preceded its start and was not observed.
-	StageAnomalyInvertedWindow = "inverted_window"
-	// StageAnomalyMissingTimestamp is a stage reconstructed from
-	// timestamps one of which was unset, and was not observed.
-	StageAnomalyMissingTimestamp = "missing_timestamp"
-	// StageAnomalyFutureStart is a stage whose explicit start was ahead
-	// of this replica's clock; the span was started now instead.
-	StageAnomalyFutureStart = "future_start"
-	// StageAnomalyStaleAnchor is a turn whose trigger timestamp did not
-	// follow the previous turn's anchor on the same runner; the anchor
-	// was clamped to the previous one.
-	StageAnomalyStaleAnchor = "stale_anchor"
 )
 
-// observedStages is the set of stages observed into
-// StageDurationSeconds. It holds the wait, connect, model-call, tool,
-// and commit stages; the stages that only describe chatd's own work
-// inside a step (generation_step, prepare, thinking, compaction) are
-// span-only.
+// StageAnomaly is the `reason` label value of StageAnomaliesTotal.
+type StageAnomaly string
+
+// StageAnomaly values.
+const (
+	// StageAnomalyNegativeElapsed counts a stage whose measured duration
+	// was negative; the sample is dropped.
+	StageAnomalyNegativeElapsed StageAnomaly = "negative_elapsed"
+	// StageAnomalyInvertedWindow counts a stage reconstructed from
+	// timestamps whose end preceded its start; the sample is dropped.
+	StageAnomalyInvertedWindow StageAnomaly = "inverted_window"
+	// StageAnomalyMissingTimestamp counts a stage reconstructed from
+	// timestamps one of which was unset; the sample is dropped.
+	StageAnomalyMissingTimestamp StageAnomaly = "missing_timestamp"
+	// StageAnomalyFutureStart counts a stage whose explicit start was
+	// ahead of this replica's clock; the stage is measured from now.
+	StageAnomalyFutureStart StageAnomaly = "future_start"
+	// StageAnomalyStaleAnchor counts a turn whose trigger timestamp did
+	// not follow the previous turn's anchor on the same runner; the
+	// anchor is clamped to the previous one.
+	StageAnomalyStaleAnchor StageAnomaly = "stale_anchor"
+)
+
+// observedStages are the stages observed into StageDurationSeconds;
+// every other stage is span-only.
 var observedStages = map[Stage]struct{}{
 	StageChatTurn:         {},
 	StageQueueWait:        {},
@@ -75,8 +77,8 @@ var modelStages = map[Stage]struct{}{
 // between 100ms and 10s and sparse out to an hour.
 var stageDurationBuckets = []float64{0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 300, 1800, 3600}
 
-// MetricsOptions configures which optional metric families NewMetrics
-// registers.
+// MetricsOptions configures which optional metric families
+// NewMetricsWithOptions registers.
 type MetricsOptions struct {
 	// StageMetrics registers the chat lifecycle stage families. When
 	// false they are still constructed, against no registerer, so every
@@ -106,9 +108,9 @@ type Metrics struct {
 }
 
 // NewMetrics creates a new Metrics instance registered with the
-// given registerer, with the stage metric families enabled.
+// given registerer, with the optional metric families disabled.
 func NewMetrics(reg prometheus.Registerer) *Metrics {
-	return NewMetricsWithOptions(reg, MetricsOptions{StageMetrics: true})
+	return NewMetricsWithOptions(reg, MetricsOptions{})
 }
 
 // NewMetricsWithOptions creates a new Metrics instance registered with
@@ -163,7 +165,7 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "ttft_seconds",
-			Help:      "Time-to-first-token: wall time from LLM request to first streamed chunk.",
+			Help:      "Time-to-first-token: wall time from LLM request to first streamed chunk. The time_to_first_token stage of model_stage_duration_seconds measures the same window with coarser buckets and is registered only with the chat-stage-metrics experiment.",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		}, []string{"provider", "model"}),
 		StageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
@@ -177,7 +179,7 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "model_stage_duration_seconds",
-			Help:      "Wall time of the stages that are a provider's work on a model: time_to_first_token (request open to first content part, successful windows only), stream (open to close), and provider_attempt (one HTTP round trip, closed on response headers). Also observed on stage_duration_seconds. provider_type is the configured AI provider type (for example bedrock), not the wire protocol other chatd metrics report as provider. Registered only with the chat-stage-metrics experiment.",
+			Help:      "Wall time of the stages that are a provider's work on a model: time_to_first_token (request open to first content part, successful windows only), stream (open to close), and provider_attempt (one HTTP round trip, closed on response headers). Observed only for turn-scoped stages, which are also observed on stage_duration_seconds; background-scoped model stages appear on stage_duration_seconds only. time_to_first_token measures the same window as ttft_seconds, which has finer buckets and is always registered. provider_type is the configured AI provider type (for example bedrock), not the wire protocol other chatd metrics report as provider. Registered only with the chat-stage-metrics experiment.",
 			Buckets:   stageDurationBuckets,
 		}, []string{"stage", "provider_type", "chat_kind", "model"}),
 		StageAnomaliesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
@@ -239,11 +241,11 @@ func NopMetrics() *Metrics {
 }
 
 // RecordStageDuration observes one chat lifecycle stage duration.
-// chatKind is empty when the stage was recorded without a known chat.
 // Stages outside observedStages are dropped silently; negative
 // durations of observed stages are dropped and counted as an anomaly.
-// Stages in modelStages whose model is known are additionally observed
-// on ModelStageDurationSeconds. No-op when m is nil.
+// Turn-scoped stages in modelStages whose model is known are
+// additionally observed on ModelStageDurationSeconds. No-op when m is
+// nil.
 func (m *Metrics) RecordStageDuration(stage Stage, scope Scope, chatKind ChatKind, model StageModel, elapsed time.Duration) {
 	if m == nil {
 		return
@@ -257,7 +259,7 @@ func (m *Metrics) RecordStageDuration(stage Stage, scope Scope, chatKind ChatKin
 	}
 	seconds := elapsed.Seconds()
 	m.StageDurationSeconds.WithLabelValues(string(stage), string(scope), string(chatKind)).Observe(seconds)
-	if model.Model == "" {
+	if scope != ScopeTurn || model.Model == "" {
 		return
 	}
 	if _, modelStage := modelStages[stage]; modelStage {
@@ -265,13 +267,13 @@ func (m *Metrics) RecordStageDuration(stage Stage, scope Scope, chatKind ChatKin
 	}
 }
 
-// RecordStageAnomaly counts a stage observation that was dropped, by
-// reason. No-op when m is nil.
-func (m *Metrics) RecordStageAnomaly(reason string) {
+// RecordStageAnomaly counts a stage observation that was dropped or
+// adjusted, by reason. No-op when m is nil.
+func (m *Metrics) RecordStageAnomaly(reason StageAnomaly) {
 	if m == nil {
 		return
 	}
-	m.StageAnomaliesTotal.WithLabelValues(reason).Inc()
+	m.StageAnomaliesTotal.WithLabelValues(string(reason)).Inc()
 }
 
 // RecordCompaction classifies and records a compaction attempt.
