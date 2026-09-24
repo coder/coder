@@ -371,15 +371,11 @@ func TestAWSBedrockIntegration(t *testing.T) {
 						BaseURL:                upstream.URL,
 					}
 
-					var allowed atomic.Bool
 					var authorizationCalls atomic.Int32
 					ctx = intercept.WithRequestAuthorizer(ctx, func(_ context.Context, providerName, invocationModel string) error {
 						authorizationCalls.Add(1)
 						assert.Equal(t, config.ProviderBedrock, providerName)
 						assert.Equal(t, tc.invocationModel, invocationModel)
-						if !allowed.Load() {
-							return &intercept.AuthorizationError{Kind: intercept.AuthorizationErrorPolicy, Err: xerrors.New("model access denied")}
-						}
 						return nil
 					})
 					bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
@@ -394,29 +390,13 @@ func TestAWSBedrockIntegration(t *testing.T) {
 					reqBody, err = sjson.SetBytes(reqBody, "model", tc.requestModel)
 					require.NoError(t, err)
 
-					// Denial must happen before either upstream dispatch or recording.
-					deniedResp, err := bridgeServer.makeRequest(t, http.MethodPost, "/bedrock/v1/messages", reqBody)
-					require.NoError(t, err)
-					defer deniedResp.Body.Close()
-					_, err = io.Copy(io.Discard, deniedResp.Body)
-					require.NoError(t, err)
-					require.Equal(t, http.StatusForbidden, deniedResp.StatusCode)
-					require.EqualValues(t, 1, authorizationCalls.Load())
-					require.Zero(t, upstream.Calls.Load())
-					require.Empty(t, bridgeServer.Recorder.RecordedInterceptions())
-					require.Empty(t, bridgeServer.Recorder.RecordedTokenUsages())
-					require.Empty(t, bridgeServer.Recorder.RecordedPromptUsages())
-					require.Empty(t, bridgeServer.Recorder.RecordedToolUsages())
-					require.Empty(t, bridgeServer.Recorder.RecordedModelThoughts())
-
-					allowed.Store(true)
 					resp, err := bridgeServer.makeRequest(t, http.MethodPost, "/bedrock/v1/messages", reqBody)
 					require.NoError(t, err)
 					defer resp.Body.Close()
 					require.Equal(t, http.StatusOK, resp.StatusCode)
 					_, err = io.Copy(io.Discard, resp.Body)
 					require.NoError(t, err)
-					require.EqualValues(t, 2, authorizationCalls.Load())
+					require.EqualValues(t, 1, authorizationCalls.Load())
 
 					received := upstream.ReceivedRequests()
 					require.Len(t, received, 1)

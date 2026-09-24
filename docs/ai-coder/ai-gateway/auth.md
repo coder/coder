@@ -56,20 +56,14 @@ On upgrade, Coder adds the site **AI Gateway Unrestricted** role to every existi
 This one-time grant includes service accounts and inactive users, regardless of their organization memberships.
 It doesn't activate inactive users or bypass authentication checks.
 
-Users created after the migration don't receive this grant, even when they join an organization that existed before the upgrade.
-They can use only eligible model configurations unless they hold the site **Owner** or **User Admin** role or receive an explicit unrestricted grant.
-On a fresh installation, the first Owner is created after migrations and has unrestricted access through the Owner role.
-Ordinary users created later don't receive a backfilled grant.
+Users created after the migration receive no backfilled grant, including on fresh installations or when joining pre-upgrade organizations.
+They follow the [model-access rules](#model-access): configured models only, unless a site role grants unrestricted access.
+The first Owner on a fresh installation has unrestricted access through the Owner role.
 
-The upgrade grant is a stored site role, not an organization default role.
-Removing a user from an organization or deleting the organization doesn't revoke it.
+Like other site grants, the upgrade grant survives organization membership removal and organization deletion.
 To limit an existing user to configured models, [revoke the site role](#grant-or-revoke-unrestricted-access).
-Removing **AI Gateway Unrestricted** doesn't remove the unrestricted access provided by **Owner** or site **User Admin**.
 
-If you use site-role IdP sync, the next sync replaces the user's stored site roles with the roles supplied by your sync configuration.
-It can remove the upgrade grant unless your configuration includes `ai-gateway-unrestricted`.
-To retain the grant for selected users, include it in your site-role mapping before their next sync.
-Refer to [IdP-managed site roles](#idp-managed-site-roles).
+[Site-role IdP sync](#idp-managed-site-roles) can remove the upgrade grant on the next sync unless your configuration includes `ai-gateway-unrestricted`.
 
 > [!WARNING]
 > The upgrade stops if a custom role already uses the name `ai-gateway-unrestricted`.
@@ -77,8 +71,8 @@ Refer to [IdP-managed site roles](#idp-managed-site-roles).
 
 ### Grant or revoke unrestricted access
 
-An Owner can assign or remove the site **AI Gateway Unrestricted** role for another user.
-Site User Admins can consume models without configuration restrictions, but they can't assign this site role.
+Only an Owner can assign or remove the site **AI Gateway Unrestricted** role for another user.
+Removing it doesn't remove unrestricted access provided by **Owner** or site **User Admin**.
 You can't edit your own roles.
 For OIDC users with site-role sync enabled, [manage the grant through your IdP](#idp-managed-site-roles) instead.
 
@@ -92,11 +86,9 @@ To change another user's grant in the dashboard:
 1. Select **Confirm**.
    Coder displays "User roles updated successfully."
 
-You can also use the interactive [`coder users edit-roles <username|user_id>` command](../../reference/cli/users_edit-roles.md).
-It preselects the user's current roles and prompts you to select the desired set.
-Select or clear `ai-gateway-unrestricted` while preserving the other selections.
-After you confirm the selection, the command updates the roles without printing a success message.
-The `--roles` flag replaces the full role set, so include every role you intend to retain if you use it.
+Alternatively, run [`coder users edit-roles <username|user_id>`](../../reference/cli/users_edit-roles.md) and select or clear `ai-gateway-unrestricted`, preserving the other preselected roles.
+On confirmation, the command updates the roles without printing a success message.
+If you use `--roles`, include every role you intend to retain: the flag replaces the full role set.
 
 ### IdP-managed site roles
 
@@ -106,7 +98,7 @@ Coder rejects manual role changes for these users through the dashboard, CLI, an
 The site-role mapping uses `CODER_OIDC_USER_ROLE_MAPPING` with the claim configured by `CODER_OIDC_USER_ROLE_FIELD`.
 Add `ai-gateway-unrestricted` to the mapped roles for users who need unrestricted access, preserving any other roles they need.
 To revoke the grant, remove it from the roles the user's claims map to and from any applicable default site roles.
-Coder applies the resulting role set on the next sync.
+On the next sync, Coder replaces the user's stored site roles with the resulting role set.
 Organization-role sync doesn't manage this site grant.
 For configuration details, refer to [OIDC role sync](../../admin/users/idp-sync.md#role-sync).
 

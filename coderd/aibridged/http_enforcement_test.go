@@ -3,6 +3,7 @@ package aibridged_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -27,11 +28,13 @@ func TestServeHTTP_ModelAuthorization(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name      string
-		delegated bool
-		code      uint64
-		status    int
-		wantCalls int
+		name         string
+		delegated    bool
+		stream       bool
+		noCredential bool
+		code         uint64
+		status       int
+		wantCalls    int
 	}{
 		{name: "full_key_allowed", status: http.StatusTeapot, wantCalls: 1},
 		{name: "full_key_policy", code: proto.AuthorizationErrorPolicy, status: http.StatusForbidden},
@@ -40,6 +43,8 @@ func TestServeHTTP_ModelAuthorization(t *testing.T) {
 		{name: "delegated_allowed", delegated: true, status: http.StatusTeapot, wantCalls: 1},
 		{name: "delegated_policy", delegated: true, code: proto.AuthorizationErrorPolicy, status: http.StatusForbidden},
 		{name: "delegated_evaluation", delegated: true, code: proto.AuthorizationErrorEvaluation, status: http.StatusInternalServerError},
+		{name: "denied_before_credentials_blocking", noCredential: true, code: proto.AuthorizationErrorPolicy, status: http.StatusForbidden},
+		{name: "denied_before_credentials_streaming", noCredential: true, stream: true, code: proto.AuthorizationErrorPolicy, status: http.StatusForbidden},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -92,18 +97,20 @@ func TestServeHTTP_ModelAuthorization(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = srv.Shutdown(testutil.Context(t, testutil.WaitShort)) })
 			require.Eventually(t, srv.Ready, testutil.WaitShort, testutil.IntervalFast)
+			cfg := config.OpenAI{Name: "openai", BaseURL: upstream.URL}
+			if !tc.noCredential {
+				cfg.KeyPool = singleKeyPool(t, "openai", "test-provider-key")
+			}
 			require.NoError(t, srv.ReplaceProviders(t.Context(), []aibridge.Provider{
-				aibridge.NewOpenAIProvider(config.OpenAI{
-					Name: "openai", BaseURL: upstream.URL,
-					KeyPool: singleKeyPool(t, "openai", "test-provider-key"),
-				}),
+				aibridge.NewOpenAIProvider(cfg),
 			}))
 
 			ctx := testutil.Context(t, testutil.WaitShort)
 			if tc.delegated {
 				ctx = agplaibridge.WithDelegatedAPIKeyID(ctx, "delegated-key-id")
 			}
-			req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", bytes.NewBufferString(`{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`)).WithContext(ctx)
+			body := fmt.Sprintf(`{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}],"stream":%t}`, tc.stream)
+			req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", bytes.NewBufferString(body)).WithContext(ctx)
 			if !tc.delegated {
 				req.Header.Set("Authorization", "Bearer full-key-secret")
 			}

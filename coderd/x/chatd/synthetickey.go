@@ -26,10 +26,6 @@ var syntheticAPIKeyScopes = database.APIKeyScopes{
 	database.ApiKeyScopeAIGatewayUnrestrictedUse,
 }
 
-func syntheticAPIKeyScopesMatch(scopes database.APIKeyScopes) bool {
-	return slices.Equal(scopes, syntheticAPIKeyScopes)
-}
-
 // GatewayTokenName returns the deterministic token name of the synthetic
 // gateway key for a user. The name is the lookup key: no mapping table exists,
 // so attribution resolves the key by (user_id, token_name, login_type !=
@@ -49,7 +45,7 @@ func (p *Server) ensureSyntheticAPIKeyID(ctx context.Context, ownerID uuid.UUID)
 		UserID:    ownerID,
 		TokenName: GatewayTokenName(ownerID),
 	})
-	if err == nil && syntheticAPIKeyScopesMatch(key.Scopes) && key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)) {
+	if err == nil && slices.Equal(key.Scopes, syntheticAPIKeyScopes) && key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)) {
 		return key.ID, nil
 	}
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -75,7 +71,7 @@ func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (st
 			TokenName: tokenName,
 		})
 		if err == nil {
-			if !syntheticAPIKeyScopesMatch(key.Scopes) {
+			if !slices.Equal(key.Scopes, syntheticAPIKeyScopes) {
 				// An in-flight transport may already hold this ID. Upgrade
 				// scopes in place without changing credentials or expiry.
 				key, err = tx.UpdateChatGatewayAPIKeyScopesByID(ctx, database.UpdateChatGatewayAPIKeyScopesByIDParams{

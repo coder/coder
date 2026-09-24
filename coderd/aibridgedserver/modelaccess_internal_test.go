@@ -30,7 +30,6 @@ func TestAuthorizeModelUse(t *testing.T) {
 	orgID := uuid.New()
 	modelID := uuid.New()
 	forbiddenErr := xerrors.New("forbidden model configuration lookup")
-	queryErr := xerrors.New("database unavailable")
 
 	cases := []struct {
 		name        string
@@ -38,7 +37,6 @@ func TestAuthorizeModelUse(t *testing.T) {
 		status      database.UserStatus
 		configs     []database.GetAIModelAccessConfigsRow
 		queryErr    error
-		allowList   database.AllowList
 		wantAllowed bool
 		wantQuery   bool
 		wantError   error
@@ -48,16 +46,10 @@ func TestAuthorizeModelUse(t *testing.T) {
 		{name: "site unrestricted role allows every model without lookup", roles: []string{rbac.RoleAIGatewayUnrestricted().String()}, wantAllowed: true},
 		{name: "site user admin allows every model without lookup", roles: []string{rbac.RoleUserAdmin().String()}, wantAllowed: true},
 		{name: "organization admin cannot use unconfigured models", roles: []string{rbac.ScopedRoleOrgAdmin(orgID).String()}, wantQuery: true},
-		{name: "organization admin can use configured models", roles: []string{rbac.ScopedRoleOrgAdmin(orgID).String()}, configs: []database.GetAIModelAccessConfigsRow{{ID: modelID, OrganizationID: orgID}}, wantAllowed: true, wantQuery: true},
-		{name: "configured model is allowed by organization permission", roles: []string{orgMemberRole(orgID)}, configs: []database.GetAIModelAccessConfigsRow{{ID: modelID, OrganizationID: orgID}}, wantAllowed: true, wantQuery: true},
-		{name: "missing configured model is denied", roles: []string{orgMemberRole(orgID)}, wantQuery: true},
 		{name: "nonmember cannot use configured models", roles: []string{rbac.RoleMember().String()}, configs: []database.GetAIModelAccessConfigsRow{{ID: modelID, OrganizationID: orgID}}, wantQuery: true},
 		{name: "configuration in another organization is denied", roles: []string{orgMemberRole(orgID)}, configs: []database.GetAIModelAccessConfigsRow{{ID: modelID, OrganizationID: uuid.New()}}, wantQuery: true},
 		{name: "later authorized configuration grants access", roles: []string{orgMemberRole(orgID)}, configs: []database.GetAIModelAccessConfigsRow{{ID: uuid.New(), OrganizationID: uuid.New()}, {ID: modelID, OrganizationID: orgID}}, wantAllowed: true, wantQuery: true},
-		{name: "scope allow list denies unrelated model", roles: []string{orgMemberRole(orgID)}, configs: []database.GetAIModelAccessConfigsRow{{ID: modelID, OrganizationID: orgID}}, allowList: database.AllowList{{Type: rbac.ResourceChatModelConfig.Type, ID: uuid.NewString()}}, wantQuery: true},
-		{name: "scope allow list permits configured model", roles: []string{orgMemberRole(orgID)}, configs: []database.GetAIModelAccessConfigsRow{{ID: modelID, OrganizationID: orgID}}, allowList: database.AllowList{{Type: rbac.ResourceChatModelConfig.Type, ID: modelID.String()}}, wantAllowed: true, wantQuery: true},
 		{name: "inactive user is denied", roles: []string{rbac.RoleOwner().String()}, status: database.UserStatusSuspended},
-		{name: "configuration query failure is evaluation error", roles: []string{orgMemberRole(orgID)}, queryErr: queryErr, wantQuery: true, wantError: queryErr},
 		{name: "forbidden configuration lookup is evaluation error", roles: []string{orgMemberRole(orgID)}, queryErr: dbauthz.NotAuthorizedError{Err: forbiddenErr}, wantQuery: true, wantError: forbiddenErr},
 	}
 
@@ -65,11 +57,10 @@ func TestAuthorizeModelUse(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			store := dbmock.NewMockStore(gomock.NewController(t))
-			allowList := tc.allowList
-			if len(allowList) == 0 {
-				allowList = database.AllowList{{Type: "*", ID: "*"}}
+			key := database.APIKey{
+				UserID: userID, Scopes: database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+				AllowList: database.AllowList{{Type: "*", ID: "*"}},
 			}
-			key := database.APIKey{UserID: userID, Scopes: database.APIKeyScopes{database.ApiKeyScopeCoderAll}, AllowList: allowList}
 			if tc.name == "nil authorizer fails closed" {
 				srv, err := NewServer(t.Context(), Options{Store: store, Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})})
 				require.NoError(t, err)

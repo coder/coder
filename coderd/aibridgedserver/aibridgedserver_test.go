@@ -27,6 +27,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogjson"
@@ -250,10 +251,13 @@ func TestAuthorization_Delegated(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name        string
-		mocksFn     func(db *dbmock.MockStore, apiKey database.APIKey, user database.User)
-		bothFields  bool
-		expectedErr error
+		name         string
+		mocksFn      func(db *dbmock.MockStore, apiKey database.APIKey, user database.User)
+		bothFields   bool
+		provider     *string
+		model        *string
+		expectedErr  error
+		expectedCode uint64
 	}{
 		{
 			name: "valid",
@@ -263,8 +267,9 @@ func TestAuthorization_Delegated(t *testing.T) {
 			},
 		},
 		{
-			name:        "unknown key",
-			expectedErr: aibridgedserver.ErrUnknownKey,
+			name:         "unknown key",
+			expectedErr:  aibridgedserver.ErrUnknownKey,
+			expectedCode: proto.AuthorizationErrorAuthentication,
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, _ database.User) {
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(database.APIKey{}, sql.ErrNoRows)
 			},
@@ -283,6 +288,29 @@ func TestAuthorization_Delegated(t *testing.T) {
 			name:        "both fields set",
 			bothFields:  true,
 			expectedErr: aibridgedserver.ErrAmbiguousAuth,
+		},
+		// No database calls are permitted before malformed pairs are rejected.
+		{
+			name:         "provider only is malformed",
+			provider:     stringPtr("provider"),
+			expectedCode: proto.AuthorizationErrorMalformed,
+		},
+		{
+			name:         "model only is malformed",
+			model:        stringPtr("model"),
+			expectedCode: proto.AuthorizationErrorMalformed,
+		},
+		{
+			name:         "empty provider is malformed",
+			provider:     stringPtr(""),
+			model:        stringPtr("model"),
+			expectedCode: proto.AuthorizationErrorMalformed,
+		},
+		{
+			name:         "empty model is malformed",
+			provider:     stringPtr("provider"),
+			model:        stringPtr(""),
+			expectedCode: proto.AuthorizationErrorMalformed,
 		},
 		{
 			// A bogus secret has no effect on the delegated path because
@@ -395,15 +423,21 @@ func TestAuthorization_Delegated(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 
-			req := &proto.IsAuthorizedRequest{KeyId: keyID}
+			req := &proto.IsAuthorizedRequest{KeyId: keyID, ProviderName: tc.provider, Model: tc.model}
 			if tc.bothFields {
 				req.Key = "anything-anything"
 			}
 
 			resp, err := srv.IsAuthorized(t.Context(), req)
-			if tc.expectedErr != nil {
+			if tc.expectedErr != nil || tc.expectedCode != 0 {
 				require.Error(t, err)
-				require.ErrorIs(t, err, tc.expectedErr)
+				if tc.expectedErr != nil {
+					require.ErrorIs(t, err, tc.expectedErr)
+				}
+				if tc.expectedCode != 0 {
+					require.Equal(t, tc.expectedCode, drpcerr.Code(err))
+				}
+				require.Nil(t, resp)
 				return
 			}
 			require.NoError(t, err)

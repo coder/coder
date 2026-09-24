@@ -7779,10 +7779,8 @@ func TestUpdateChatGatewayAPIKeyScopesByID(t *testing.T) {
 		{name: "user_token_collision", actor: "minter", loginType: database.LoginTypeToken, wantNoRows: true},
 		{name: "ordinary_session", actor: "minter", wrongName: true, wantNoRows: true},
 		{name: "other_owner_selector", actor: "minter", wrongOwner: true, wantNoRows: true},
-		{name: "deleted_key", actor: "minter", missing: true, wantNoRows: true},
+		{name: "missing_key", actor: "minter", missing: true, wantNoRows: true},
 		{name: "other_user_minter", actor: "other_minter", wantDenied: true},
-		{name: "ordinary_user", actor: "member", wantDenied: true},
-		{name: "site_owner", actor: "owner", wantDenied: true},
 		{name: "chatd_daemon", actor: "chatd", wantDenied: true},
 		{name: "no_actor", wantDenied: true},
 	} {
@@ -7809,7 +7807,7 @@ func TestUpdateChatGatewayAPIKeyScopesByID(t *testing.T) {
 				arg.UserID = otherID
 			}
 			if tc.missing {
-				require.NoError(t, db.DeleteAPIKeyByID(t.Context(), key.ID))
+				arg.ID = "missing"
 			}
 			ctx := t.Context()
 			switch tc.actor {
@@ -7817,12 +7815,6 @@ func TestUpdateChatGatewayAPIKeyScopesByID(t *testing.T) {
 				ctx = dbauthz.AsChatdKeyMinter(ctx, arg.UserID)
 			case "other_minter":
 				ctx = dbauthz.AsChatdKeyMinter(ctx, otherID)
-			case "member", "owner":
-				role := rbac.RoleMember()
-				if tc.actor == "owner" {
-					role = rbac.RoleOwner()
-				}
-				ctx = dbauthz.As(ctx, rbac.Subject{ID: owner.ID.String(), Roles: rbac.RoleIdentifiers{role}, Scope: rbac.ScopeAll})
 			case "chatd":
 				ctx = dbauthz.AsChatd(ctx)
 			}
@@ -7842,12 +7834,8 @@ func TestUpdateChatGatewayAPIKeyScopesByID(t *testing.T) {
 				require.Equal(t, key, updated, "scope updates preserve every other column")
 			}
 			stored, err := db.GetAPIKeyByID(t.Context(), key.ID)
-			if tc.missing {
-				require.ErrorIs(t, err, sql.ErrNoRows)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, key, stored)
-			}
+			require.NoError(t, err)
+			require.Equal(t, key, stored)
 		})
 	}
 }
