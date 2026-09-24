@@ -6,7 +6,7 @@ This page is for a Coder deployment administrator running the OAuth2 provider.
 It covers security guidance, current limitations, and upgrade notes for pending changes.
 For enabling the provider and creating an application, refer to [OAuth2 provider](./index.md).
 
-## Security Considerations
+## Security considerations
 
 - **Use HTTPS**: Always use HTTPS in production to protect tokens in transit
 - **Implement PKCE**: PKCE is mandatory for all authorization code clients
