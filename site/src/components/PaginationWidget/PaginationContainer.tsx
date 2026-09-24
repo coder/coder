@@ -32,7 +32,7 @@ export const PaginationContainer: FC<PaginationProps> = ({
 				className="justify-end"
 			/>
 
-			{query.isSuccess && (
+			{query.totalRecords !== undefined && (
 				<PaginationWidgetBase
 					totalRecords={query.totalRecords}
 					totalPages={query.totalPages}

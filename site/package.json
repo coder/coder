@@ -56,7 +56,6 @@
 		"@novnc/novnc": "^1.5.0",
 		"@pierre/diffs": "1.4.0",
 		"@pierre/trees": "1.0.0-beta.6",
-		"@shadcn/react": "0.3.0",
 		"@tanstack/react-query-devtools": "5.82.0",
 		"@xterm/addon-canvas": "0.7.0",
 		"@xterm/addon-fit": "0.11.0",

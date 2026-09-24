@@ -13,7 +13,6 @@ type ResultBase = Omit<
 >;
 
 export const mockPaginationResultBase: ResultBase = {
-	isSuccess: false,
 	currentPage: 1,
 	limit: 25,
 	hasNextPage: false,
@@ -27,7 +26,6 @@ export const mockPaginationResultBase: ResultBase = {
 
 export const mockInitialRenderResult = {
 	...mockPaginationResultBase,
-	isSuccess: false,
 	isPlaceholderData: false,
 	currentOffsetStart: undefined,
 	hasNextPage: false,
@@ -39,7 +37,6 @@ export const mockInitialRenderResult = {
 
 export const mockSuccessResult = {
 	...mockPaginationResultBase,
-	isSuccess: true,
 	isPlaceholderData: false,
 	currentOffsetStart: 1,
 	totalPages: 1,
