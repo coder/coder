@@ -4,7 +4,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -269,13 +268,13 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			Flag:        "start-jitter",
 			Description: "Maximum random delay before each runner creates its chat. Each runner waits a random duration in [0, start-jitter) so initial turns do not all begin at once. Set to 0 to disable.",
 			Default:     "0s",
-			Value:       trimmedDurationOf(&startJitter),
+			Value:       serpent.DurationOf(&startJitter),
 		},
 		{
 			Flag:        "message-jitter",
 			Description: "Maximum random delay before each follow-up turn is sent. Each send waits a random duration in [0, message-jitter) so follow-up turns spread across the run instead of releasing as a synchronized burst. Keep this small (a few seconds). Set to 0 to disable.",
 			Default:     "0s",
-			Value:       trimmedDurationOf(&messageJitter),
+			Value:       serpent.DurationOf(&messageJitter),
 		},
 		{
 			Flag:        "llm-mock-url",
@@ -299,16 +298,3 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 	cleanupStrategy.attach(&cmd.Options)
 	return cmd
 }
-
-// trimmedDuration wraps serpent.Duration so a flag value with surrounding
-// whitespace still parses. Commands assembled by a template or job spec can
-// introduce a stray space (e.g. "5s "), which Go's duration parser rejects.
-type trimmedDuration struct{ inner *serpent.Duration }
-
-func trimmedDurationOf(d *time.Duration) trimmedDuration {
-	return trimmedDuration{inner: serpent.DurationOf(d)}
-}
-
-func (t trimmedDuration) Set(v string) error { return t.inner.Set(strings.TrimSpace(v)) }
-func (t trimmedDuration) String() string     { return t.inner.String() }
-func (t trimmedDuration) Type() string       { return t.inner.Type() }
