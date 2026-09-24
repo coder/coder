@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { FC, PropsWithChildren } from "react";
+import type { FC, ReactNode } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -76,10 +76,12 @@ const dashboardValue = {
 	canViewOrganizationSettings: false,
 };
 
-const Wrapper: FC<PropsWithChildren<{ initialPath?: string }>> = ({
-	children,
-	initialPath = "/agents",
-}) => {
+type WrapperProps = {
+	children: ReactNode;
+	initialPath?: string;
+};
+
+const Wrapper: FC<WrapperProps> = ({ children, initialPath = "/agents" }) => {
 	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
