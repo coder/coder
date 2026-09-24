@@ -370,6 +370,33 @@ describe("useChatContext", () => {
 		expect(queryClient.getQueryData(chatQuery(MockChat.id).queryKey)).toEqual(
 			cleanChat,
 		);
+
+		for (const { nextChat, applyContextSuccess } of [
+			{
+				nextChat: { ...cleanChat, title: "Renamed chat" },
+				applyContextSuccess: true,
+			},
+			{ nextChat: dirtyChat, applyContextSuccess: false },
+			{ nextChat: cleanChat, applyContextSuccess: false },
+		]) {
+			vi.mocked(API.experimental.getChat).mockResolvedValue(
+				structuredClone(nextChat),
+			);
+			await act(async () => {
+				await queryClient.invalidateQueries({
+					queryKey: chatQuery(MockChat.id).queryKey,
+					exact: true,
+				});
+			});
+			await inspect();
+			expect(onInspect).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					applyContextSuccess,
+					applyContextError: null,
+				}),
+			);
+		}
+		expect(API.experimental.refreshChatContext).toHaveBeenCalledTimes(1);
 	});
 
 	it("preserves the pinned snapshot after failure and permits an explicit retry", async () => {
@@ -391,6 +418,19 @@ describe("useChatContext", () => {
 		expect(queryClient.getQueryData(chatQuery(MockChat.id).queryKey)).toEqual(
 			dirtyChat,
 		);
+		vi.mocked(API.experimental.getChat).mockResolvedValue(
+			structuredClone(dirtyChat),
+		);
+		await act(async () => {
+			await queryClient.invalidateQueries({
+				queryKey: chatQuery(MockChat.id).queryKey,
+				exact: true,
+			});
+		});
+		await inspect();
+		expect(onInspect).toHaveBeenLastCalledWith(
+			expect.objectContaining({ applyContextError: failure }),
+		);
 		await apply();
 		await inspect();
 		expect(onInspect).toHaveBeenLastCalledWith(
@@ -401,6 +441,55 @@ describe("useChatContext", () => {
 		);
 		expect(API.experimental.refreshChatContext).toHaveBeenCalledTimes(2);
 	});
+
+	it.each(["before", "after"])(
+		"discards apply errors when context changes %s the request fails",
+		async (timing) => {
+			const failure = new Error("Unable to apply context");
+			let rejectApply: (error: Error) => void = () => {};
+			vi.mocked(API.experimental.refreshChatContext).mockImplementation(
+				() =>
+					new Promise<Chat>((_resolve, reject) => {
+						rejectApply = reject;
+					}),
+			);
+			const { apply, inspect, onInspect, queryClient } = setup();
+			await apply();
+			if (timing === "after") {
+				await act(async () => {
+					rejectApply(failure);
+				});
+				await inspect();
+				expect(onInspect).toHaveBeenLastCalledWith(
+					expect.objectContaining({ applyContextError: failure }),
+				);
+			}
+			vi.mocked(API.experimental.getChat).mockResolvedValue(
+				structuredClone(cleanChat),
+			);
+			await act(async () => {
+				await queryClient.invalidateQueries({
+					queryKey: chatQuery(MockChat.id).queryKey,
+					exact: true,
+				});
+			});
+			if (timing === "before") {
+				await act(async () => {
+					rejectApply(failure);
+				});
+			}
+			await inspect();
+			expect(onInspect).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					observedChat: cleanChat,
+					applyContextError: null,
+					applyContextSuccess: false,
+					isApplyingContext: false,
+				}),
+			);
+			expect(API.experimental.refreshChatContext).toHaveBeenCalledTimes(1);
+		},
+	);
 
 	it.each([
 		{ chat: { ...dirtyChat, archived: true } },

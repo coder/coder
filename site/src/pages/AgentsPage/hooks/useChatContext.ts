@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import {
@@ -94,9 +95,17 @@ export const useChatContext = ({
 					context: observedChat.context,
 				}
 			: null;
+	const [applyResultSnapshot, setApplyResultSnapshot] = useState<{
+		chatId: string;
+		context: TypesGen.Chat["context"];
+	}>();
 	const applyMutation = useMutation(
 		refreshChatContext(queryClient, observedChat.id),
 	);
+	// Query structural sharing preserves this reference while the snapshot is unchanged.
+	const isApplyResultCurrent =
+		applyResultSnapshot?.chatId === observedChat.id &&
+		applyResultSnapshot.context === observedChat.context;
 	const canApply =
 		!observedChat.archived &&
 		!isReadOnly &&
@@ -106,9 +115,24 @@ export const useChatContext = ({
 				if (applyMutation.isPending) {
 					return;
 				}
+				setApplyResultSnapshot(undefined);
 				applyMutation.mutate(undefined, {
-					onSuccess: () => toast.success("Latest context applied."),
-					onError: () => toast.error("Failed to apply latest context."),
+					onSuccess: () => {
+						setApplyResultSnapshot({
+							chatId: observedChat.id,
+							context: queryClient.getQueryData<TypesGen.Chat>(
+								chatQuery(observedChat.id).queryKey,
+							)?.context,
+						});
+						toast.success("Latest context applied.");
+					},
+					onError: () => {
+						setApplyResultSnapshot({
+							chatId: observedChat.id,
+							context: observedChat.context,
+						});
+						toast.error("Failed to apply latest context.");
+					},
 				});
 			}
 		: undefined;
@@ -118,7 +142,7 @@ export const useChatContext = ({
 		contextUsage,
 		onApplyContext,
 		isApplyingContext: applyMutation.isPending,
-		applyContextError: applyMutation.error,
-		applyContextSuccess: applyMutation.isSuccess,
+		applyContextError: isApplyResultCurrent ? applyMutation.error : null,
+		applyContextSuccess: isApplyResultCurrent && applyMutation.isSuccess,
 	};
 };
