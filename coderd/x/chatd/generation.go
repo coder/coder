@@ -124,9 +124,6 @@ type generationOutcome struct {
 type generationActionKind string
 
 const (
-	// generationActionExecuteLocalTools shares its value with the stage
-	// tracer, which classifies a step's own time as tool execution by
-	// this generation_action.
 	generationActionExecuteLocalTools   generationActionKind = chatloop.GenerationActionExecuteLocalTools
 	generationActionEnterRequiresAction generationActionKind = "enter_requires_action"
 	generationActionFinishTurn          generationActionKind = "finish_turn"
@@ -769,13 +766,17 @@ func retryGenerationPhase[T any](ctx context.Context, starter *taskStarter, phas
 }
 
 func (s *taskStarter) waitGenerationPhaseBackoff(ctx context.Context, delay time.Duration) error {
+	_, span := s.server.stages.Start(ctx, chatloop.StageRetryBackoff)
 	timer := s.opts.Clock.NewTimer(delay, "chatworker", "generation-phase-retry")
 	defer timer.Stop()
 	select {
 	case <-timer.C:
+		span.End(nil)
 		return nil
 	case <-ctx.Done():
-		return errors.Join(errTaskExpectedExit, xerrors.Errorf("wait generation phase backoff: %w", ctx.Err()))
+		err := errors.Join(errTaskExpectedExit, xerrors.Errorf("wait generation phase backoff: %w", ctx.Err()))
+		span.End(err)
+		return err
 	}
 }
 

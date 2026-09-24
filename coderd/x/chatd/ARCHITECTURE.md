@@ -860,6 +860,20 @@ The partition is computed from the stage tree. A `TurnAccumulator` rides on the 
 
 A turn whose categories sum to more than its duration is emitted as measured and counted in `coderd_chatd_stage_anomalies_total{reason="overattributed"}`. A finished turn with a non-positive duration is not emitted and is counted as `nonpositive_turn`.
 
+TODO: Every closed turn now emits its partition, whatever its outcome: `coderd_chatd_turn_time_seconds_total` gained an `outcome` label (`completed`, `interrupted`, `error`, `abandoned`) and `coderd_chatd_turns_total` was removed. Divide by `coderd_chatd_turn_outcomes_total` with the same outcome for mean seconds per turn. Replace "invalidated and emit nothing", the `turns_total` references, and the `completed` counting rule above.
+
+TODO: The outcome is computed once in `runnerTurnSpan.closeLocked` and passed to `StageSpan.EndTurn`, which sets `turn_outcome`, counts the outcome, and emits the partition. `TurnAccumulator` only sums categories; it no longer tracks completion or invalidation. A turn with a non-positive duration still counts its outcome; only its partition is dropped.
+
+TODO: `scheduling` is `acquisition` only. `queue_wait` is always a standalone stage outside any turn, so it never reaches a category; drop it from the `scheduling` row.
+
+TODO: The `time_to_first_token` row counts every first-token window closed by an output part, including one whose stream later failed; the `provider_error` row is the rest of a failed stream plus first-token windows that ended without an output part. Reword both rows to match.
+
+TODO: `retry_backoff` also covers the generation phase backoff between prepare and decide attempts (`waitGenerationPhaseBackoff`), which runs inside `prepare` or the step. The task-level retry sleep in `runTaskWithRetry` is still in no stage and lands in `unattributed`.
+
+TODO: Graceful handoff closes the turn early (see the handoff TODO above), so the tail of a handed-off turn between the old owner's close and the new owner's pickup is in no turn's partition. This is accepted.
+
+TODO: `TurnAccumulator` is concurrency safe because stages of one turn end on different goroutines, for example parallel `mcp_connect` stages and `provider_attempt` stages setting the turn's model from the HTTP transport.
+
 ### Event shape
 
 Every event that the runner loop processes has the following shape:

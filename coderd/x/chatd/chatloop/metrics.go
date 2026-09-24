@@ -46,10 +46,11 @@ const (
 	// not follow the previous turn's anchor on the same runner; the
 	// turn starts now and records no acquisition.
 	StageAnomalyStaleAnchor StageAnomaly = "stale_anchor"
-	// StageAnomalyNonPositiveTurn counts a finished turn whose duration
-	// was not positive; its accounting is not emitted.
+	// StageAnomalyNonPositiveTurn counts a closed turn whose duration
+	// was not positive; its outcome is counted and its partition is not
+	// recorded.
 	StageAnomalyNonPositiveTurn StageAnomaly = "nonpositive_turn"
-	// StageAnomalyOverattributed counts a finished turn whose categories
+	// StageAnomalyOverattributed counts a closed turn whose categories
 	// summed to more than its duration; the categories are emitted as
 	// measured, with no unattributed remainder.
 	StageAnomalyOverattributed StageAnomaly = "overattributed"
@@ -104,7 +105,6 @@ type Metrics struct {
 	StageDurationSeconds      *prometheus.HistogramVec
 	ModelStageDurationSeconds *prometheus.HistogramVec
 	TurnTimeSecondsTotal      *prometheus.CounterVec
-	TurnsTotal                *prometheus.CounterVec
 	TurnOutcomesTotal         *prometheus.CounterVec
 	StageAnomaliesTotal       *prometheus.CounterVec
 	CompactionTotal           *prometheus.CounterVec
@@ -195,25 +195,19 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "turn_time_seconds_total",
-			Help:      "Accumulated wall time of finished chat turns split into disjoint categories that sum to the turn duration, added once per turn per category when the turn ends. Divide by turns_total for mean seconds per turn. Only turns that finished normally are counted. Registered only with the chat-stage-metrics experiment.",
-		}, []string{"category", "chat_kind"}),
-		TurnsTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
-			Namespace: metricsNamespace,
-			Subsystem: metricsSubsystem,
-			Name:      "turns_total",
-			Help:      "Total chat turns whose time partition was recorded in turn_time_seconds_total. Only turns that finished normally are counted. Registered only with the chat-stage-metrics experiment.",
-		}, []string{"chat_kind"}),
+			Help:      "Accumulated wall time of closed chat turns by category, added once per category when a turn closes, for every outcome (completed, interrupted, error, abandoned). Categories: scheduling (acquisition, trigger to worker pickup), time_to_first_token (first-token windows closed by an output part), streaming (rest of successful streams), provider_error (rest of failed streams, and first-token windows that ended without an output part), retry_backoff (retry delays), tool_execution (own time of steps that ran local tools), compaction, preparation (prepare and mcp_connect), persistence (step commits), chatd_overhead (own time of other steps), unattributed (the rest of the turn). A turn's categories sum to its duration, except for turns counted as overattributed in stage_anomalies_total, whose categories sum to more. Divide by turn_outcomes_total with the same outcome for mean seconds per turn. Registered only with the chat-stage-metrics experiment.",
+		}, []string{"category", "chat_kind", "outcome"}),
 		TurnOutcomesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "turn_outcomes_total",
-			Help:      "Total chat turns by outcome (completed, interrupted, error, abandoned); every closed turn is counted exactly once, and completed turns are the ones whose time partition is recorded. Registered only with the chat-stage-metrics experiment.",
+			Help:      "Total closed chat turns by outcome (completed, interrupted, error, abandoned); every closed turn is counted exactly once. Every counted turn also records its partition in turn_time_seconds_total, except turns counted as nonpositive_turn in stage_anomalies_total. Registered only with the chat-stage-metrics experiment.",
 		}, []string{"outcome", "chat_kind"}),
 		StageAnomaliesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "stage_anomalies_total",
-			Help:      "Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed, inverted_window (end before start), missing_timestamp (unset start or end), future_start (start ahead of this clock, span started now), stale_anchor (trigger not after the previous turn's anchor, turn started now), nonpositive_turn (turn accounting not emitted), overattributed (categories summed past the turn). Registered only with the chat-stage-metrics experiment.",
+			Help:      "Chat lifecycle stage observations that were dropped, adjusted, or inconsistent, by reason: negative_elapsed, inverted_window (end before start), missing_timestamp (unset start or end), future_start (start ahead of this clock, span started now), stale_anchor (trigger not after the previous turn's anchor, turn started now), nonpositive_turn (turn partition not recorded), overattributed (turn categories summed past the turn, recorded as measured). Registered only with the chat-stage-metrics experiment.",
 		}, []string{"reason"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
@@ -295,7 +289,7 @@ func (m *Metrics) RecordStageDuration(stage Stage, scope Scope, chatKind ChatKin
 }
 
 // RecordStageAnomaly counts a stage observation that was dropped,
-// adjusted, or emitted inconsistent, by reason. No-op when m is nil.
+// adjusted, or inconsistent, by reason. No-op when m is nil.
 func (m *Metrics) RecordStageAnomaly(reason StageAnomaly) {
 	if m == nil {
 		return
@@ -303,23 +297,14 @@ func (m *Metrics) RecordStageAnomaly(reason StageAnomaly) {
 	m.StageAnomaliesTotal.WithLabelValues(string(reason)).Inc()
 }
 
-// RecordTurnCategory adds one category of a turn's time partition to
-// the category counter. Categories with no time are recorded as zero
-// so every category has a series. No-op when m is nil.
-func (m *Metrics) RecordTurnCategory(category Category, chatKind ChatKind, elapsed time.Duration) {
+// RecordTurnCategory adds one category of a closed turn's time
+// partition to the category counter. Categories with no time are
+// recorded as zero so every category has a series. No-op when m is nil.
+func (m *Metrics) RecordTurnCategory(category TurnCategory, chatKind ChatKind, outcome TurnOutcome, elapsed time.Duration) {
 	if m == nil || elapsed < 0 {
 		return
 	}
-	m.TurnTimeSecondsTotal.WithLabelValues(string(category), string(chatKind)).Add(elapsed.Seconds())
-}
-
-// RecordTurn counts one finished turn whose time partition was
-// recorded through RecordTurnCategory. No-op when m is nil.
-func (m *Metrics) RecordTurn(chatKind ChatKind) {
-	if m == nil {
-		return
-	}
-	m.TurnsTotal.WithLabelValues(string(chatKind)).Inc()
+	m.TurnTimeSecondsTotal.WithLabelValues(string(category), string(chatKind), string(outcome)).Add(elapsed.Seconds())
 }
 
 // RecordTurnOutcome counts one closed turn by outcome. No-op when m is

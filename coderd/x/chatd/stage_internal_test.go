@@ -264,49 +264,63 @@ func TestWaitGenerationRetryStage(t *testing.T) {
 			opts:   chatWorkerOptions{Clock: clock},
 		}, clock, recorder
 	}
+	waits := []struct {
+		name  string
+		timer string
+		wait  func(*taskStarter, context.Context, time.Duration) error
+	}{
+		{name: "GenerationRetry", timer: "generation-retry", wait: (*taskStarter).waitGenerationRetry},
+		{name: "PhaseBackoff", timer: "generation-phase-retry", wait: (*taskStarter).waitGenerationPhaseBackoff},
+	}
 
-	t.Run("ElapsedEndsWithoutError", func(t *testing.T) {
-		t.Parallel()
-		starter, clock, recorder := newStarter(t)
-		trap := clock.Trap().NewTimer("chatworker", "generation-retry")
-		defer trap.Close()
+	for _, w := range waits {
+		t.Run(w.name, func(t *testing.T) {
+			t.Parallel()
 
-		done := make(chan error, 1)
-		go func() {
-			done <- starter.waitGenerationRetry(t.Context(), time.Minute)
-		}()
-		trap.MustWait(t.Context()).MustRelease(t.Context())
-		clock.Advance(time.Minute).MustWait(t.Context())
-		require.NoError(t, <-done)
+			t.Run("ElapsedEndsWithoutError", func(t *testing.T) {
+				t.Parallel()
+				starter, clock, recorder := newStarter(t)
+				trap := clock.Trap().NewTimer("chatworker", w.timer)
+				defer trap.Close()
 
-		ended := recorder.Ended()
-		require.Len(t, ended, 1)
-		require.Equal(t, string(chatloop.StageRetryBackoff), ended[0].Name())
-		require.Equal(t, codes.Unset, ended[0].Status().Code)
-	})
+				done := make(chan error, 1)
+				go func() {
+					done <- w.wait(starter, t.Context(), time.Minute)
+				}()
+				trap.MustWait(t.Context()).MustRelease(t.Context())
+				clock.Advance(time.Minute).MustWait(t.Context())
+				require.NoError(t, <-done)
 
-	t.Run("CanceledEndsWithError", func(t *testing.T) {
-		t.Parallel()
-		starter, clock, recorder := newStarter(t)
-		trap := clock.Trap().NewTimer("chatworker", "generation-retry")
-		defer trap.Close()
+				ended := recorder.Ended()
+				require.Len(t, ended, 1)
+				require.Equal(t, string(chatloop.StageRetryBackoff), ended[0].Name())
+				require.Equal(t, codes.Unset, ended[0].Status().Code)
+			})
 
-		ctx, cancel := context.WithCancel(t.Context())
-		done := make(chan error, 1)
-		go func() {
-			done <- starter.waitGenerationRetry(ctx, time.Minute)
-		}()
-		trap.MustWait(t.Context()).MustRelease(t.Context())
-		cancel()
-		err := <-done
-		require.ErrorIs(t, err, errTaskExpectedExit)
-		require.ErrorIs(t, err, context.Canceled)
+			t.Run("CanceledEndsWithError", func(t *testing.T) {
+				t.Parallel()
+				starter, clock, recorder := newStarter(t)
+				trap := clock.Trap().NewTimer("chatworker", w.timer)
+				defer trap.Close()
 
-		ended := recorder.Ended()
-		require.Len(t, ended, 1)
-		require.Equal(t, string(chatloop.StageRetryBackoff), ended[0].Name())
-		require.Equal(t, codes.Error, ended[0].Status().Code)
-	})
+				ctx, cancel := context.WithCancel(t.Context())
+				done := make(chan error, 1)
+				go func() {
+					done <- w.wait(starter, ctx, time.Minute)
+				}()
+				trap.MustWait(t.Context()).MustRelease(t.Context())
+				cancel()
+				err := <-done
+				require.ErrorIs(t, err, errTaskExpectedExit)
+				require.ErrorIs(t, err, context.Canceled)
+
+				ended := recorder.Ended()
+				require.Len(t, ended, 1)
+				require.Equal(t, string(chatloop.StageRetryBackoff), ended[0].Name())
+				require.Equal(t, codes.Error, ended[0].Status().Code)
+			})
+		})
+	}
 }
 
 func TestMCPConnectOutcome(t *testing.T) {
