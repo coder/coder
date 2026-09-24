@@ -226,7 +226,6 @@
 						"importNames": ["AuthContext"],
 						"message": "Use the useAuthContext() or useAuthenticated() hooks instead of the raw AuthContext."
 					},
-					// React event types that share a name with a DOM event type.
 					// Keep in sync with the src/components override below.
 					{
 						"name": "react",
@@ -264,8 +263,7 @@
 			{
 				"types": {
 					"FC": "Use React.FC instead.",
-					// React event and handler types with no DOM equivalent. Event
-					// types that share a DOM name are covered by
+					// Event types that share a DOM name are covered by
 					// no-restricted-imports instead.
 					"BaseSyntheticEvent": "Use React.BaseSyntheticEvent instead.",
 					"ChangeEvent": "Use React.ChangeEvent instead.",
