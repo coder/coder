@@ -22,7 +22,7 @@ of [install](../index.md).
    on the host:
 
    ```sh
-   curl -L https://coder.com/install.sh | sh
+   curl -fsSL https://coder.com/install.sh | sh
    ```
 
 1. If you're running Coder as a system service, you can restart it with `systemctl`:
@@ -55,7 +55,7 @@ See
 1. Run the Coder installation script on the host:
 
    ```sh
-   curl -L https://coder.com/install.sh | sh
+   curl -fsSL https://coder.com/install.sh | sh
    ```
 
    The script will unpack the new `coder` binary version over the one currently
