@@ -29,6 +29,10 @@ describe("WorkspaceBuildFailedAlert", () => {
 		const link = await screen.findByRole("link", {
 			name: "Debug with Coder Agents",
 		});
+		expect(link).toHaveAttribute(
+			"href",
+			`/agents?debug_workspace_build=${MockFailedWorkspaceBuildWithUUID.id}`,
+		);
 		expect(
 			takeDebugWorkspaceBuildIntent(MockFailedWorkspaceBuildWithUUID.id),
 		).toBe(false);
