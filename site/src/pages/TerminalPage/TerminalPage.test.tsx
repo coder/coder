@@ -327,6 +327,30 @@ describe("TerminalPage", () => {
 		});
 	});
 
+	it("sets the browser tab title with workspace and agent context", async () => {
+		createWorkspaceTerminalWebSocket();
+		await renderTerminal();
+
+		await waitFor(() => {
+			expect(document.title).toBe(
+				`Terminal (${MockWorkspaceAgent.name}) - ${MockUserOwner.username}/${MockWorkspace.name} - Coder`,
+			);
+		});
+	});
+
+	it("overrides the browser tab title via an OSC title escape sequence", async () => {
+		const ws = createWorkspaceTerminalWebSocket();
+		await renderTerminal();
+		await ws.nextMessage;
+
+		// OSC 0 sets the icon name and window title.
+		ws.send("\x1b]0;My Custom Title\x07");
+
+		await waitFor(() => {
+			expect(document.title).toBe("My Custom Title");
+		});
+	});
+
 	it("skips confirmation dialog for trusted app commands", async () => {
 		// Override the workspace response so the agent has an app with
 		// a command that matches the ?app= slug.
