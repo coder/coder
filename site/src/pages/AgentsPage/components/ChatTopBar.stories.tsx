@@ -129,10 +129,10 @@ export const SharedChatViewer: Story = {
 };
 
 /**
- * A role with `chat:update` across the organization, such as owner or
- * organization admin, keeps the actions menu on another user's chat.
+ * A custom role granting `chat:update` across the organization keeps the
+ * actions menu on another user's chat.
  */
-export const SharedChatManagedByAdmin: Story = {
+export const SharedChatWithUpdatePermission: Story = {
 	args: {
 		chat: {
 			...MockChat,

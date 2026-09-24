@@ -349,8 +349,8 @@ export const OtherUserChatOwnerFallback: Story = {
 };
 
 /**
- * A user whose role grants `chat:update` on other users' chats, such as an
- * owner or organization admin, can act on the chat but is told whose it is.
+ * A user whose custom role grants `chat:update` on other users' chats can
+ * act on the chat but is told whose it is.
  */
 export const OtherUserChatManaged: Story = {
 	render: () => (

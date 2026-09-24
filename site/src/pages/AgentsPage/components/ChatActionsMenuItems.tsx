@@ -49,9 +49,9 @@ type SeparatorComponent =
 /**
  * Pin, rename, archive, workspace changes, and message sends all go through
  * the server's `chat:update` check, so the UI mirrors it: owners always
- * pass for their own chats, and the organization map covers roles whose
- * `chat:update` is not limited to chats they own. Viewers of a shared chat
- * hold only read access and fail both.
+ * pass for their own chats, and the organization map covers custom roles
+ * granting `chat:update` beyond the chats they own. Viewers of a shared
+ * chat hold only read access and fail both.
  */
 export const canManageChat = (
 	chat: TypesGen.Chat,

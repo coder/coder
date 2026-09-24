@@ -824,9 +824,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		chat.owner_name?.trim() ||
 		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
 	const isChatReadOnly = !isArchived && !canManageChat;
-	// Archived chats show the archive banner instead. Users with
-	// `chat:update` on another user's chat, such as admins, still see whose
-	// chat it is so they know their changes land on that user's chat.
+	// Archived chats show the archive banner instead. A user whose custom
+	// role grants `chat:update` on another user's chat still sees whose chat
+	// it is so they know their changes land on that user's chat.
 	const chatOwnerWarning =
 		!isArchived && currentUser.id !== chat.owner_id
 			? `This chat is owned by ${chatOwnerLabel}.${

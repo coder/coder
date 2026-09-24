@@ -107,8 +107,9 @@ export type ChatUpdatePermissionsByOrganization = Readonly<
 /**
  * One authorization request answering, per organization, whether the user
  * holds `chat:update` on chats they do not own. Omitting `owner_id` from
- * the object asks about every chat in the organization, which members fail
- * and roles such as owner and organization admin pass.
+ * the object asks about every chat in the organization. Built-in roles,
+ * including owner and organization admin, fail this; only a custom role
+ * granting organization-wide chat update passes.
  */
 export const chatUpdatePermissionsByOrganization = (
 	organizationIds: readonly string[],
