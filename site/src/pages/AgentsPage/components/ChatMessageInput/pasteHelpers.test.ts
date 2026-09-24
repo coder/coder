@@ -1,27 +1,12 @@
 // Tests for pasteHelpers utility functions (pure logic, no DOM).
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { readMockFileText } from "#/testHelpers/files";
 import {
 	createPasteFile,
 	getPasteDataTransfer,
 	getPastedPlainText,
 	isLargePaste,
 } from "./pasteHelpers";
-
-beforeAll(() => {
-	if (typeof File.prototype.text !== "function") {
-		Object.defineProperty(File.prototype, "text", {
-			configurable: true,
-			value: function () {
-				return new Promise<string>((resolve, reject) => {
-					const reader = new FileReader();
-					reader.onload = () => resolve(String(reader.result));
-					reader.onerror = () => reject(reader.error);
-					reader.readAsText(this);
-				});
-			},
-		});
-	}
-});
 
 type DataTransferLike = Pick<DataTransfer, "getData" | "files">;
 
@@ -156,7 +141,7 @@ describe("createPasteFile", () => {
 	it("preserves the text content", async () => {
 		const text = "Hello\nWorld";
 		const file = createPasteFile(text);
-		const content = await file.text();
+		const content = await readMockFileText(file);
 		expect(content).toBe(text);
 	});
 });
