@@ -82,7 +82,7 @@ coder:
 ### 3. Configure the Coder service, connection URLs, and cache values
 
 To establish a connection to PostgreSQL, set the `CODER_PG_CONNECTION_URL`
-value. [See our Helm documentation](./kubernetes.md) on configuring the
+value. [See our Helm documentation](./kubernetes/index.md) on configuring the
 PostgreSQL connection URL as a secret. Additionally, if accessing Coder over a
 hostname, set the `CODER_ACCESS_URL` value.
 

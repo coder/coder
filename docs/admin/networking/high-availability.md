@@ -68,7 +68,7 @@ Here's an example 3-node network configuration setup:
 ## Kubernetes
 
 If you installed Coder via
-[our Helm Chart](../../install/server/kubernetes.md#4-install-coder-with-helm), just
+[our Helm Chart](../../install/server/kubernetes/index.md#4-install-coder-with-helm), just
 increase `coder.replicaCount` in `values.yaml`.
 
 If you installed Coder into Kubernetes by some other means, insert the relay URL
@@ -91,4 +91,4 @@ Then, increase the number of pods.
 ## Up next
 
 - [Read more on Coder's networking stack](./index.md)
-- [Install on Kubernetes](../../install/server/kubernetes.md)
+- [Install on Kubernetes](../../install/server/kubernetes/index.md)

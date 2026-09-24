@@ -14,10 +14,10 @@ We publish Coder Community Edition on the AWS Marketplace. Follow the tutorial h
 - [Install Coder Community Edition from AWS Marketplace](./aws-marketplace.md)
 
 Alternatively, install the [CLI binary](../../cli.md) on any Linux machine or
-follow our [Kubernetes](../kubernetes.md) documentation to install Coder on an
+follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an
 existing Kubernetes cluster.
 
-For EKS-specific installation guidance, see the [AWS section in Kubernetes installation docs](../kubernetes.md#aws).
+For EKS-specific installation guidance, see the [AWS section in Kubernetes installation docs](../kubernetes/index.md#aws).
 
 ## GCP
 
@@ -27,7 +27,7 @@ tutorial here:
 - [Install Coder on GCP Compute Engine](./compute-engine.md)
 
 Alternatively, install the [CLI binary](../../cli.md) on any Linux machine or
-follow our [Kubernetes](../kubernetes.md) documentation to install Coder on an
+follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an
 existing GKE cluster.
 
 ## Azure
@@ -37,7 +37,7 @@ Use the following guide to run Coder on an Azure VM:
 - [Install Coder on an Azure VM](./azure-vm.md)
 
 Alternatively, install the [CLI binary](../../cli.md) on any Linux machine or
-follow our [Kubernetes](../kubernetes.md) documentation to install Coder on an
+follow our [Kubernetes](../kubernetes/index.md) documentation to install Coder on an
 existing GKE cluster.
 
 ## Other

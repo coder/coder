@@ -7,7 +7,7 @@ Choose the one that matches the platform your team already operates, or intends 
 
 | Platform                                    | Best suited to                                                               |
 |---------------------------------------------|------------------------------------------------------------------------------|
-| [Kubernetes](./kubernetes.md)               | Production deployments, including high availability with multiple replicas   |
+| [Kubernetes](./kubernetes/index.md)         | Production deployments, including high availability with multiple replicas   |
 | [Rancher](./rancher.md)                     | Kubernetes clusters your team already manages through Rancher                |
 | [OpenShift](./openshift.md)                 | Red Hat OpenShift clusters, which need specific security context settings    |
 | [Docker](./docker.md)                       | A single machine, such as a proof of concept or a small team deployment      |

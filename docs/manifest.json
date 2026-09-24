@@ -204,7 +204,7 @@
 						{
 							"title": "Kubernetes",
 							"description": "Install Coder on a Kubernetes cluster using the official Helm chart for production deployments.",
-							"path": "./install/server/kubernetes.md",
+							"path": "./install/server/kubernetes/index.md",
 							"icon_path": "./images/icons/kubernetes.svg",
 							"children": [
 								{

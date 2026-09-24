@@ -20,7 +20,7 @@ const (
 	calendarEndMarker   = "<!-- RELEASE_CALENDAR_END -->"
 
 	releasesFile     = "docs/reference/releases.md"
-	kubernetesFile   = "docs/install/server/kubernetes.md"
+	kubernetesFile   = "docs/install/server/kubernetes/index.md"
 	rancherFile      = "docs/install/server/rancher.md"
 	changelogURLFmt  = "https://coder.com/changelog/coder-%d-%d"
 	releaseTagURLFmt = "https://github.com/coder/coder/releases/tag/%s"

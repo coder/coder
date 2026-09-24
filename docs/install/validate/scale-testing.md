@@ -13,7 +13,7 @@ capabilities, allowing Coder to efficiently deploy, scale, and manage workspaces
 across a distributed infrastructure. This ensures high availability, fault
 tolerance, and scalability for Coder deployments. Coder is deployed on this
 cluster using the
-[Helm chart](../server/kubernetes.md#4-install-coder-with-helm).
+[Helm chart](../server/kubernetes/index.md#4-install-coder-with-helm).
 
 For more information about scaling, see our [Coder scaling best practices](../../tutorials/best-practices/scale-coder.md).
 

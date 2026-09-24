@@ -48,7 +48,7 @@ coder:
       readOnly: true
 ```
 
-[Upgrade Coder](../../install/server/kubernetes.md#upgrade-coder-via-helm) with these
+[Upgrade Coder](../../install/server/kubernetes/index.md#upgrade-coder-via-helm) with these
 new values.
 
 ### VM control plane
