@@ -166,9 +166,11 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 }) => {
 	const [defaultStore] = useState(() => createChatStore());
 	const store = overrides.store ?? defaultStore;
+	const storyChat = buildChat(chat);
 
 	const props = {
-		chat: buildChat(chat),
+		chat: storyChat,
+		canManageChat: storyChat.owner_id === MockUserOwner.id,
 		persistedError: undefined as ChatDetailError | undefined,
 		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
@@ -342,6 +344,23 @@ export const OtherUserChatOwnerFallback: Story = {
 				owner_name: undefined,
 			}}
 			isInputDisabled
+		/>
+	),
+};
+
+/**
+ * A user whose custom role grants `chat:update` on other users' chats can
+ * act on the chat but is told whose it is.
+ */
+export const OtherUserChatManaged: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			chat={{
+				owner_id: "other-user",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
+			}}
+			canManageChat
 		/>
 	),
 };

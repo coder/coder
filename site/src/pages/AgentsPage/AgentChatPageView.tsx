@@ -109,6 +109,8 @@ type EditingState = {
 
 type AgentChatPageViewProps = {
 	chat: TypesGen.Chat;
+	/** See `useCanManageChat`. When false, the chat renders read-only. */
+	canManageChat: boolean;
 	persistedError: ChatDetailError | undefined;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
@@ -279,6 +281,7 @@ const UserTabContent: FC<UserTabContentProps> = ({
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	chat,
+	canManageChat,
 	persistedError,
 	workspaceAgent,
 	workspace,
@@ -820,10 +823,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const chatOwnerLabel =
 		chat.owner_name?.trim() ||
 		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
-	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
-	const chatOwnerWarning = isOtherUserReadOnly
-		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
-		: undefined;
+	const isChatReadOnly = !isArchived && !canManageChat;
+	// Archived chats show the archive banner instead. A user whose custom
+	// role grants `chat:update` on another user's chat still sees whose chat
+	// it is so they know their changes land on that user's chat.
+	const chatOwnerWarning =
+		!isArchived && currentUser.id !== chat.owner_id
+			? `This chat is owned by ${chatOwnerLabel}.${
+					isChatReadOnly ? " It is read-only." : ""
+				}`
+			: undefined;
 
 	const hasLicense = entitlements.has_license;
 	const canManageLicenses = permissions.viewAllLicenses;
@@ -921,20 +930,18 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								hasFetchMoreError={hasFetchMoreError}
 								onFetchMoreMessages={onFetchMoreMessages}
 								onEditUserMessage={
-									isOtherUserReadOnly
-										? undefined
-										: editing.handleEditUserMessage
+									isChatReadOnly ? undefined : editing.handleEditUserMessage
 								}
 								editingMessageId={editing.editingMessageId}
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}
 								onImplementPlan={
-									isOtherUserReadOnly || !canSubmitChatTurn
+									isChatReadOnly || !canSubmitChatTurn
 										? undefined
 										: onImplementPlan
 								}
 								onSendAskUserQuestionResponse={
-									isOtherUserReadOnly || !canSubmitChatTurn
+									isChatReadOnly || !canSubmitChatTurn
 										? undefined
 										: onSendAskUserQuestionResponse
 								}
@@ -959,7 +966,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										onPromoteQueuedMessage={handlePromoteQueuedMessage}
 										onInterrupt={handleInterrupt}
 										isInputDisabled={isInputDisabled}
-										isReadOnly={isOtherUserReadOnly}
+										isReadOnly={isChatReadOnly}
 										isSendPending={isSubmissionPending}
 										isInterruptPending={isInterruptPending}
 										hasModelOptions={hasModelOptions}

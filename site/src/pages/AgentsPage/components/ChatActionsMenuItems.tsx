@@ -8,6 +8,7 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import { type FC, useId } from "react";
+import type { ChatUpdatePermissionsByOrganization } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	ContextMenuItem,
@@ -46,18 +47,22 @@ type SeparatorComponent =
 	| typeof ContextMenuSeparator;
 
 /**
- * Pin, rename, and archive write to the chat record itself, so from a shared
- * chat they would change the owner's sidebar and title. Sharing only grants
- * read access, and admins who would pass the server's update check should
- * not manage another user's chat from a shared view either, so ownership
- * rather than authorization decides who sees those actions.
+ * Pin, rename, archive, workspace changes, and message sends all go through
+ * the server's `chat:update` check, so the UI mirrors it: owners always
+ * pass for their own chats, and the organization map covers custom roles
+ * granting `chat:update` beyond the chats they own. Viewers of a shared
+ * chat hold only read access and fail both.
  */
 export const canManageChat = (
 	chat: TypesGen.Chat,
 	currentUserId: string,
-): boolean => chat.owner_id === currentUserId;
+	updatePermissions: ChatUpdatePermissionsByOrganization | undefined,
+): boolean =>
+	chat.owner_id === currentUserId ||
+	Boolean(updatePermissions?.[chat.organization_id]);
 
 type ChatMenuActionsOptions = {
+	/** See {@link canManageChat}. */
 	readonly canManage: boolean;
 	/** Whether the menu offers the subagents toggle, the only viewer action. */
 	readonly hasSubagentsToggle?: boolean;
@@ -66,9 +71,9 @@ type ChatMenuActionsOptions = {
 /**
  * Archive state is root-only on the backend and cascades to children, so
  * child chats expose no archive or unarchive actions. An archived child chat
- * therefore has no menu actions at all, and a non-owner only has the
- * subagents toggle; call sites use this to hide the menu trigger instead of
- * rendering an empty menu.
+ * therefore has no menu actions at all, and a user without `chat:update`
+ * only has the subagents toggle; call sites use this to hide the menu
+ * trigger instead of rendering an empty menu.
  */
 export const chatHasMenuActions = (
 	chat: TypesGen.Chat,

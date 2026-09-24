@@ -54,6 +54,7 @@ const chatTopBarOutletContext = {
 	isArchiving: false,
 	archivingChatId: undefined,
 	activeChatChildren: undefined,
+	canManageChat: (chat: TypesGen.Chat) => chat.owner_id === MockUserOwner.id,
 	onOpenRenameDialog,
 	isSidebarCollapsed: false,
 	onToggleSidebarCollapsed: fn(),
@@ -124,6 +125,51 @@ export const SharedChatViewer: Story = {
 			owner_name: "Sharing User",
 			shared: true,
 		},
+	},
+};
+
+/**
+ * A custom role granting `chat:update` across the organization keeps the
+ * actions menu on another user's chat.
+ */
+export const SharedChatWithUpdatePermission: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			owner_id: "sharing-user",
+			owner_username: "sharing-user",
+			owner_name: "Sharing User",
+			shared: true,
+		},
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/chat-1" },
+			routing: [
+				{
+					path: "/",
+					element: (
+						<Outlet
+							context={{
+								...chatTopBarOutletContext,
+								canManageChat: () => true,
+							}}
+						/>
+					),
+					children: [{ path: "agents/:agentId", useStoryElement: true }],
+				},
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open agent actions",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", {
+			name: "Rename chat",
+		});
 	},
 };
 
