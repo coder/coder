@@ -5,7 +5,10 @@ title: OAuth2 provider callback URL schemes
 This page is for a developer choosing a redirect URI for a client, and for a Coder deployment administrator registering or editing an application.
 It covers which redirect URI schemes and hosts Coder accepts, for both admin-created and self-registered applications.
 
-Custom URI schemes (`myapp://`, `vscode://`, `jetbrains://`, etc.) are fully supported for native and desktop applications. The OS routes the redirect back to the registered application without requiring a running HTTP server.
+Custom URI schemes (`myapp://`, `vscode://`, `jetbrains://`, etc.) are fully supported for native and desktop applications.
+The OS routes the redirect back to the registered application without requiring a running HTTP server.
+A private-use scheme must name a path or an authority, as in `com.example.app:/callback` or `com.example.app://auth/callback`.
+The bare form `com.example.app:callback` is rejected.
 
 The out-of-band URN `urn:ietf:wg:oauth:2.0:oob` is accepted from either client type, for clients that display the authorization code for the user to copy rather than receiving it on a redirect. No other URN is accepted.
 
