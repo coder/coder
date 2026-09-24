@@ -59,7 +59,7 @@ func (p *Server) withThinkingDropBlock(
 	return model.WithLanguageModel(&thinkingDropBlockModel{
 		LanguageModel: model.LanguageModel(),
 		logger:        p.logger.With(slog.F("chat_id", chatID)),
-		accepted:      &p.thinkingDropBlock,
+		hints:         &p.thinkingDropBlock,
 		key:           thinkingDropBlockKey{providerID: providerID, model: model.ModelID()},
 		betas:         strings.Join(betas, ","),
 	})
@@ -68,33 +68,41 @@ func (p *Server) withThinkingDropBlock(
 // thinkingDropBlockModel makes Anthropic drop stale signed thinking blocks
 // instead of rejecting the request. chatd rebuilds the system prompt and
 // tools for every request, and some models bind signed thinking blocks to
-// that prefix. A request that gets the binding error is sent again once
-// with the drop_block control. After a provider and model accept the
-// control, every request to them sends it.
+// that prefix. A hint for each provider and model picks whether the first
+// request sends the drop_block control. A 400 before any output retries
+// once with the other choice, and a successful retry updates the hint. The
+// hint can be wrong, for example when BYOK users of one provider send
+// different keys, so it never removes the fallback.
 type thinkingDropBlockModel struct {
 	fantasy.LanguageModel
-	logger   slog.Logger
-	accepted *sync.Map
-	key      thinkingDropBlockKey
-	betas    string
+	logger slog.Logger
+	hints  *sync.Map
+	key    thinkingDropBlockKey
+	betas  string
 }
 
-// Stream retries only when the binding error arrives before any output.
+// Stream retries only when the rejection arrives before any output.
 // fantasy reports the HTTP 400 as a stream part, not as the Stream error.
 func (m *thinkingDropBlockModel) Stream(ctx context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
-	if _, ok := m.accepted.Load(m.key); ok {
-		return m.LanguageModel.Stream(ctx, m.withDropBlock(call))
+	first, fallback := call, m.withDropBlock(call)
+	retryable, updateHint := isThinkingBindingError, func() { m.hints.Store(m.key, struct{}{}) }
+	_, hinted := m.hints.Load(m.key)
+	if hinted {
+		// The error a provider returns for an unsupported beta is
+		// unknown, so any 400 retries without drop_block.
+		first, fallback = fallback, first
+		retryable, updateHint = isBadRequest, func() { m.hints.Delete(m.key) }
 	}
-	stream, err := m.LanguageModel.Stream(ctx, call)
+	stream, err := m.LanguageModel.Stream(ctx, first)
 	if err != nil {
 		return nil, err
 	}
 	return func(yield func(fantasy.StreamPart) bool) {
-		var bindingErr error
+		var rejection error
 		started := false
 		for part := range stream {
-			if !started && part.Type == fantasy.StreamPartTypeError && isThinkingBindingError(part.Error) {
-				bindingErr = part.Error
+			if !started && part.Type == fantasy.StreamPartTypeError && retryable(part.Error) {
+				rejection = part.Error
 				break
 			}
 			started = started || part.Type != fantasy.StreamPartTypeWarnings
@@ -102,22 +110,28 @@ func (m *thinkingDropBlockModel) Stream(ctx context.Context, call fantasy.Call) 
 				return
 			}
 		}
-		if bindingErr != nil {
-			m.retryStream(ctx, call, bindingErr, yield)
+		if rejection == nil {
+			return
 		}
+		m.logger.Warn(ctx, "retrying model call with thinking drop_block toggled",
+			slog.F("provider_id", m.key.providerID),
+			slog.F("model", m.key.model),
+			slog.F("drop_block", !hinted),
+			slogError(rejection),
+		)
+		m.retryStream(ctx, fallback, updateHint, yield)
 	}, nil
 }
 
-// retryStream streams the call again with drop_block. It records the
-// provider and model as accepting drop_block when the retry starts
-// without an error.
-func (m *thinkingDropBlockModel) retryStream(ctx context.Context, call fantasy.Call, bindingErr error, yield func(fantasy.StreamPart) bool) {
-	m.logger.Warn(ctx, "retrying model call with thinking drop_block",
-		slog.F("provider_id", m.key.providerID),
-		slog.F("model", m.key.model),
-		slogError(bindingErr),
-	)
-	stream, err := m.LanguageModel.Stream(ctx, m.withDropBlock(call))
+func isBadRequest(err error) bool {
+	var pe *fantasy.ProviderError
+	return errors.As(err, &pe) && pe.StatusCode == http.StatusBadRequest
+}
+
+// retryStream streams the fallback request and calls updateHint when the
+// fallback starts without an error.
+func (m *thinkingDropBlockModel) retryStream(ctx context.Context, fallback fantasy.Call, updateHint func(), yield func(fantasy.StreamPart) bool) {
+	stream, err := m.LanguageModel.Stream(ctx, fallback)
 	if err != nil {
 		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeError, Error: err})
 		return
@@ -127,7 +141,7 @@ func (m *thinkingDropBlockModel) retryStream(ctx context.Context, call fantasy.C
 		if !decided && part.Type != fantasy.StreamPartTypeWarnings {
 			decided = true
 			if part.Type != fantasy.StreamPartTypeError {
-				m.accepted.Store(m.key, struct{}{})
+				updateHint()
 			}
 		}
 		if !yield(part) {

@@ -38,10 +38,17 @@ func TestThinkingBinding_RetriesWithDropBlock(t *testing.T) {
 			beta:  strings.Contains(req.Header.Get("Anthropic-Beta"), "thinking-binding-controls-2026-08-01"),
 			field: strings.Contains(string(req.Thinking), `"prefix_mismatch_behavior":"drop_block"`),
 		})
-		n := len(sent)
+		n, dropBlock := len(sent), sent[len(sent)-1].field
 		mu.Unlock()
-		if n == 4 {
+		if n == 4 || n == 6 {
 			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("ok")...)
+		}
+		if dropBlock {
+			return chattest.AnthropicResponse{Error: &chattest.ErrorResponse{
+				StatusCode: http.StatusBadRequest,
+				Type:       "invalid_request_error",
+				Message:    "thinking.block_binding: Extra inputs are not permitted",
+			}}
 		}
 		return chattest.AnthropicResponse{Error: &chattest.ErrorResponse{
 			StatusCode: http.StatusBadRequest,
@@ -54,10 +61,11 @@ func TestThinkingBinding_RetriesWithDropBlock(t *testing.T) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 	})
 
-	// The first chat's retry fails, so the second chat still starts
-	// without drop_block. Its retry succeeds, so the third chat sends
-	// drop_block upfront and does not retry.
-	for _, want := range []database.ChatStatus{database.ChatStatusError, database.ChatStatusWaiting, database.ChatStatusError} {
+	// Chat 1's drop_block retry fails, so chat 2 still starts without
+	// drop_block. Chat 2's retry succeeds, so chat 3 sends drop_block
+	// first. That is rejected, and the retry without it succeeds and
+	// clears the hint, so chat 4 starts without drop_block again.
+	for _, want := range []database.ChatStatus{database.ChatStatusError, database.ChatStatusWaiting, database.ChatStatusWaiting, database.ChatStatusError} {
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
 		waitForChatStatus(ctx, t, db, chat.ID, want)
 	}
@@ -65,5 +73,5 @@ func TestThinkingBinding_RetriesWithDropBlock(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	withDropBlock := dropBlockSent{beta: true, field: true}
-	require.Equal(t, []dropBlockSent{{}, withDropBlock, {}, withDropBlock, withDropBlock}, sent)
+	require.Equal(t, []dropBlockSent{{}, withDropBlock, {}, withDropBlock, withDropBlock, {}, {}, withDropBlock}, sent)
 }
