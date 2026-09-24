@@ -799,11 +799,25 @@ One `chat_turn` span covers one prompt, not one runner. A runner keeps ownership
 - Next prompt: if a new prompt starts a generation task while a finished or invalidated turn is still open, `Ensure` closes the old turn first and then opens a new one.
 - Runner exit: the runner ends whatever span is still open when it shuts down.
 
+TODO: `EnterRequiresAction` ends the turn: after its commit the step calls `Complete` and `Settle` closes the turn as `completed`, so `chat_turn` excludes the client's wait. The trigger time also counts the latest tool-result message for a dynamic tool after the last user prompt, so the generation resumed by submitted (or synthesized cancellation) results opens a new turn anchored at that message with its own `acquisition`.
+
+TODO: Promotions no longer open the next turn in `Settle`. Every promoting transition (`FinishTurn`, `FinishInterruption`, `sendMessageE1`, and `PromoteQueued`) returns the queued row's `created_at`, and its caller records a standalone `queue_wait` from it to the promotion. The next `Ensure` opens the promoted turn anchored at the promoted message's `created_at` (the promotion time) and records `acquisition` from there. `Complete` no longer takes a queued time.
+
+TODO: `Settle` closes a turn that `Invalidate` marked as well as one `Complete` finished, so an invalidated turn's span ends at the failure. `Ensure` also closes an open turn as `abandoned` when its trigger is after the open turn's trigger, since the call runs a newer prompt.
+
+TODO: A trigger at or before the previous anchor opens a turn anchored at now (not at the previous anchor) and records no `acquisition`; it still counts `stale_anchor`.
+
+TODO: A runner that acquired its chat from an owner whose heartbeat went stale (`spawnRunnerRequest.TakenOver`) anchors its first turn at now and records no `acquisition`, so the previous owner's work is not reported as pickup delay. The flag is also set when a requires_action chat's owner died before the results arrived, which loses that turn's `acquisition`.
+
+TODO: Graceful handoff closes the turn early: the shutting-down runner ends its turn as `abandoned` and the next owner's turn starts when that owner picks the chat up, so the time between the two is in no turn.
+
 When the span closes by any of these paths it carries exactly one `turn_outcome` attribute: the outcome `Invalidate` recorded when there is one; otherwise `completed` for a turn `Complete` marked finished, and `abandoned` for a turn closed before it finished. An invalidated turn's span ends with the invalidation error, so the trace root reports error status.
 
 The runner cancels the active task and spawns its replacement without waiting for the old goroutine to exit (see [Event processing](#event-processing)), so an old task can still be unwinding while the new one calls `Ensure` and rotates the turn. Each task carries the `turnToken` returned by its own `Ensure` call, and `Complete` and `Settle` do nothing when the token does not identify the open turn. A stale task therefore cannot close the turn that replaced its own.
 
 Queued messages can also be promoted outside a generation step, through `PromoteQueued`. That path records `queue_wait` as a standalone stage, since no turn exists yet to attach it to.
+
+TODO: The sentence above is out of date: every promotion path records `queue_wait` as a standalone stage (see the promotion TODO above).
 
 Work detached from the turn, such as title, summary, and status label generation, runs on a context with the span context stripped and `scope=background`, so its stages start their own trace roots and are separable from turn-scoped stages in the histogram.
 
@@ -830,6 +844,8 @@ Reconstructed stages are recorded after the fact from timestamps captured elsewh
 - `acquisition` and `queue_wait`: described above.
 - `thinking`: one per reasoning part, from the part's start to its completion timestamp in the persisted step.
 - `tool_call`: one per local tool call, from the tool billing recorder's start and completion stamps. The `advisor` tool's nested model call runs inside its `tool_call` and is not instrumented as `stream` or `time_to_first_token`; the tool call is its only stage.
+
+TODO: `tool_call` is now a live stage started in `chatloop` around each local tool call, carrying `tool_name` and `provider`; the tool runs on the stage's context. The span ends in error only when the tool fails to execute (a `Run` error or panic), not when it returns an error result to the model. The `provider` attribute on `prepare`, `generation_step`, `thinking`, and `tool_call` is the model's wire protocol (`Model.Provider()`).
 
 ### Event shape
 

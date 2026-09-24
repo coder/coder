@@ -261,6 +261,7 @@ func (w *chatWorker) acquireCandidate(
 	chatID uuid.UUID,
 ) (bool, error) {
 	runnerID := uuid.New()
+	var takenOver bool
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := store.GetChatByID(ctx, chatID)
@@ -289,6 +290,7 @@ func (w *chatWorker) acquireCandidate(
 			if !stale {
 				return errSkipAcquire
 			}
+			takenOver = true
 		}
 		admitted, err := w.opts.AgentCapacityLimiter.Admit(ctx, store, chat)
 		if err != nil {
@@ -311,7 +313,7 @@ func (w *chatWorker) acquireCandidate(
 	if err != nil {
 		return false, err
 	}
-	if err := manager.Spawn(ctx, spawnRunnerRequest{ChatID: chatID, WorkerID: workerID, RunnerID: runnerID}); err != nil {
+	if err := manager.Spawn(ctx, spawnRunnerRequest{ChatID: chatID, WorkerID: workerID, RunnerID: runnerID, TakenOver: takenOver}); err != nil {
 		if errAbandon := w.abandonAcquiredChat(ctx, workerID, runnerID, chatID); errAbandon != nil {
 			return false, errors.Join(err, errAbandon)
 		}

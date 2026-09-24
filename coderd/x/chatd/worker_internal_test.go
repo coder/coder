@@ -351,3 +351,44 @@ func requireTaskCanceled(t *testing.T, call taskCall) {
 		t.Fatal("task context was not canceled")
 	}
 }
+
+// TestAcquireCandidateReportsTakeover acquires against a real store and
+// checks the spawn request marks only a chat taken from a stale owner.
+func TestAcquireCandidateReportsTakeover(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		staleOwner    bool
+		wantTakenOver bool
+	}{
+		{name: "Unowned"},
+		{name: "StaleOwner", staleOwner: true, wantTakenOver: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			f := newWorkerTestFixture(t)
+			chat := f.createRunningChat(t)
+			if tt.staleOwner {
+				acquireChat(t, f, chat.ID, uuid.New(), uuid.New())
+				_, err := f.sqlDB.ExecContext(ctx, "DELETE FROM chat_heartbeats WHERE chat_id = $1", chat.ID)
+				require.NoError(t, err)
+			}
+			server := newUnstartedServer(t, f.pubsub, f.db)
+			worker, err := newChatWorker(server, testOptions(t, f, nil))
+			require.NoError(t, err)
+			// The manager is not started, so the spawn request stays
+			// buffered on its channel.
+			manager := newRunnerManager(ctx, server, worker.opts)
+
+			acquired, err := worker.acquireCandidate(ctx, worker.opts.WorkerID, manager, chat.ID)
+			require.NoError(t, err)
+			require.True(t, acquired)
+			req := testutil.TryReceive(ctx, t, manager.spawnCh)
+			require.Equal(t, chat.ID, req.ChatID)
+			require.Equal(t, tt.wantTakenOver, req.TakenOver)
+		})
+	}
+}

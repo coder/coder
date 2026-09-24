@@ -11,6 +11,8 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // turnToken identifies one turn. Methods that take a token act only
@@ -21,8 +23,8 @@ type turnToken uint64
 
 // runnerTurnSpan owns the chat_turn span of one runner. The span opens
 // on the first Ensure call, not at construction, and one instance runs
-// several turns in sequence: a finished turn is replaced by a new span
-// when a queued message is promoted or when the next Ensure arrives.
+// several turns in sequence: each Ensure that finds no open turn, or an
+// open turn for an older trigger, starts a new span.
 //
 // A turn closes in two steps: Complete marks it finished and Settle
 // closes the span, so stages still open at Complete end inside the
@@ -53,45 +55,38 @@ type runnerTurnSpan struct {
 	// invalidErr is the error recorded alongside outcome. The span ends
 	// with it.
 	invalidErr error
-	// lastTriggerAt is the anchor the previous turn on this runner
-	// opened with, including a promoted turn anchored at the moment its
-	// message was queued. No later turn is anchored before it.
-	lastTriggerAt time.Time
-	// pendingPromotion is the queued message the finishing transition
-	// promoted, when it promoted one. Settle opens the next turn from
-	// it.
-	pendingPromotion *turnPromotion
+	// triggerAt is the trigger time passed to the Ensure call that
+	// opened the open turn, before any adjustment of the anchor.
+	triggerAt time.Time
+	// lastAnchorAt is the start timestamp of the most recent turn span.
+	// No later turn on this runner starts before it.
+	lastAnchorAt time.Time
+	// takenOver is set until the first turn opens on a runner that
+	// acquired its chat from a previous owner. That turn starts at now
+	// and records no acquisition.
+	takenOver bool
 }
 
-// turnPromotion records a queued message promoted by the transition
-// that finished a turn: when the message was queued and when the
-// promotion happened.
-type turnPromotion struct {
-	queuedAt   time.Time
-	promotedAt time.Time
-}
-
-func newRunnerTurnSpan(stages *chatloop.StageTracer, organizationName func(context.Context, uuid.UUID) string) *runnerTurnSpan {
-	return &runnerTurnSpan{stages: stages, organizationName: organizationName}
+func newRunnerTurnSpan(stages *chatloop.StageTracer, organizationName func(context.Context, uuid.UUID) string, takenOver bool) *runnerTurnSpan {
+	return &runnerTurnSpan{stages: stages, organizationName: organizationName, takenOver: takenOver}
 }
 
 // Ensure returns a context parented to the open chat_turn span and the
 // token of that turn, starting the span when none is open. triggerAt is
 // the time of the event that triggered the turn and becomes the span's
-// start timestamp, so the acquisition stage reconstructed from the same
-// instant falls inside the turn. The acquisition stage carries no model
-// identity; none is known when the turn opens.
-//
-// The anchor never precedes the anchor of the previous turn on this
-// runner: a triggerAt older than that anchor is clamped to it and
-// counted as a stale_anchor anomaly, so a turn started by an event
-// older than the previous turn's trigger does not claim that turn's
-// time as its acquisition. A trigger that lands while the previous
-// turn is still running is a valid anchor and is kept.
+// start timestamp, and an acquisition stage is recorded from it to now
+// inside the turn. The acquisition stage carries no model identity;
+// none is known when the turn opens.
 //
 // A turn that already reached a terminal transition, or that was
-// invalidated, is closed first: the prompt this call runs is a new
-// turn, and folding it into the old span would report the two as one.
+// invalidated, is closed first. An open turn is closed as abandoned
+// when triggerAt is after the trigger it opened for, since the call
+// runs a newer prompt.
+//
+// A new turn starts at now and records no acquisition in two cases:
+// it is the first turn on a runner that took the chat over from a
+// previous owner, or triggerAt is at or before the previous turn's
+// anchor, which is also counted as a stale_anchor anomaly.
 //
 // The span is a standalone trace root. The request that triggered the
 // turn is handled by a different goroutine, and often a different
@@ -113,30 +108,33 @@ func (t *runnerTurnSpan) Ensure(ctx context.Context, chat database.Chat, trigger
 		return ctx, 0
 	}
 	if t.open && (t.finished || t.outcome != "") {
-		t.settleLocked(ctx)
+		t.closeLocked(nil)
 	}
 	if t.open {
-		return t.contextLocked(ctx), t.token
+		if !triggerAt.After(t.triggerAt) {
+			return t.contextLocked(ctx), t.token
+		}
+		t.closeLocked(nil)
 	}
-	// A trigger at or before the previous anchor belongs to a turn that
-	// already opened; anchoring another turn there would count the
-	// same acquisition window twice.
-	if !triggerAt.IsZero() && !t.lastTriggerAt.IsZero() && !triggerAt.After(t.lastTriggerAt) {
-		triggerAt = t.lastTriggerAt
+
+	anchorAt := triggerAt
+	switch {
+	case t.takenOver:
+		anchorAt = time.Time{}
+	case !triggerAt.IsZero() && !t.lastAnchorAt.IsZero() && !triggerAt.After(t.lastAnchorAt):
+		anchorAt = time.Time{}
 		t.stages.RecordAnomaly(chatloop.StageAnomalyStaleAnchor)
 	}
+	t.takenOver = false
 	t.chatID = chat.ID.String()
 	t.chatKind = chatKind(chat)
 	t.organization = organization
-	turnCtx := t.startLocked(ctx, triggerAt)
-	// The window between the trigger message landing in history and a
-	// worker picking the chat up is the acquisition. A turn opened by a
-	// promotion has no acquisition: its head is the queue wait of the
-	// message that opened it, and recording both would count that
-	// window twice. A zero triggerAt gives no start to measure from.
-	if !triggerAt.IsZero() {
+	turnCtx := t.startLocked(ctx, anchorAt)
+	t.triggerAt = triggerAt
+	// A zero anchor has no start to measure acquisition from.
+	if !anchorAt.IsZero() {
 		t.stages.Record(turnCtx, chatloop.StageAcquisition, chatloop.StageModel{},
-			triggerAt, t.stages.Now(), nil,
+			anchorAt, t.stages.Now(), nil,
 			attribute.String(chatloop.AttrChatID, t.chatID))
 	}
 	return t.contextLocked(ctx), t.token
@@ -153,11 +151,10 @@ func (t *runnerTurnSpan) startLocked(ctx context.Context, startAt time.Time) con
 	t.finished = false
 	t.outcome = ""
 	t.invalidErr = nil
-	t.pendingPromotion = nil
-	t.lastTriggerAt = startAt
+	t.lastAnchorAt = startAt
 
-	// The chat kind and organization ride on the context so every stage
-	// of the turn carries them.
+	// StartRootAt reads the chat kind and organization for the chat_turn
+	// span from ctx.
 	ctx = chatloop.ContextWithChatKind(ctx, t.chatKind)
 	ctx = chatloop.ContextWithOrganization(ctx, t.organization)
 	turnCtx, span := t.stages.StartRootAt(ctx, chatloop.StageChatTurn, startAt, nil,
@@ -185,12 +182,7 @@ func (t *runnerTurnSpan) contextLocked(ctx context.Context) context.Context {
 
 // Complete marks the turn identified by token as finished normally.
 // The span stays open until Settle.
-//
-// A non-zero queuedAt is the creation time of a queued message the
-// finishing transition promoted. Settle opens the next turn anchored
-// at it, because the wait that message served and the work it causes
-// belong to the turn it starts rather than the one that released it.
-func (t *runnerTurnSpan) Complete(token turnToken, queuedAt time.Time) {
+func (t *runnerTurnSpan) Complete(token turnToken) {
 	if t == nil {
 		return
 	}
@@ -200,9 +192,6 @@ func (t *runnerTurnSpan) Complete(token turnToken, queuedAt time.Time) {
 		return
 	}
 	t.finished = true
-	if !queuedAt.IsZero() {
-		t.pendingPromotion = &turnPromotion{queuedAt: queuedAt, promotedAt: t.stages.Now()}
-	}
 }
 
 // Invalidate records outcome and err against the turn identified by
@@ -226,39 +215,23 @@ func (t *runnerTurnSpan) Invalidate(token turnToken, outcome chatloop.TurnOutcom
 }
 
 // Settle closes the turn identified by token if Complete marked it
-// finished, and opens the next turn when the finishing transition
-// promoted a queued message. A turn that is not finished is left open.
-func (t *runnerTurnSpan) Settle(ctx context.Context, token turnToken) {
+// finished or Invalidate recorded an outcome for it. Any other turn is
+// left open.
+func (t *runnerTurnSpan) Settle(token turnToken) {
 	if t == nil {
 		return
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if !t.ownsLocked(token) || !t.finished {
+	if !t.ownsLocked(token) || (!t.finished && t.outcome == "") {
 		return
 	}
-	t.settleLocked(ctx)
+	t.closeLocked(nil)
 }
 
 // ownsLocked reports whether token identifies the open turn.
 func (t *runnerTurnSpan) ownsLocked(token turnToken) bool {
 	return t.open && !t.ended && token == t.token
-}
-
-// settleLocked closes the open turn. When the finishing transition
-// promoted a queued message, it opens the next turn anchored at the
-// moment the message was queued and records that message's queue wait
-// against the new turn.
-func (t *runnerTurnSpan) settleLocked(ctx context.Context) {
-	promotion := t.pendingPromotion
-	t.closeLocked(nil)
-	if promotion == nil {
-		return
-	}
-	turnCtx := t.startLocked(ctx, promotion.queuedAt)
-	t.stages.Record(turnCtx, chatloop.StageQueueWait, chatloop.StageModel{},
-		promotion.queuedAt, promotion.promotedAt, nil,
-		attribute.String(chatloop.AttrChatID, t.chatID))
 }
 
 // End closes the chat_turn span. Later calls are ignored.
@@ -299,25 +272,46 @@ func (t *runnerTurnSpan) closeLocked(err error) {
 	t.finished = false
 	t.outcome = ""
 	t.invalidErr = nil
-	t.pendingPromotion = nil
 }
 
 // triggerMessageTime returns the creation time of the message that
-// triggered the turn, which is the last user prompt in history. It
-// returns the zero time when the history holds no user prompt.
-func triggerMessageTime(messages []database.ChatMessage) time.Time {
-	index := lastUserPromptIndex(messages)
-	if index == -1 {
-		return time.Time{}
+// triggered the turn: the last user prompt, or a later tool result for
+// one of dynamicTools, which the client submits to resume a chat that
+// entered requires_action. It returns the zero time when history holds
+// neither.
+func triggerMessageTime(messages []database.ChatMessage, dynamicTools map[string]bool) time.Time {
+	var triggerAt time.Time
+	start := 0
+	if index := lastUserPromptIndex(messages); index != -1 {
+		triggerAt = messages[index].CreatedAt
+		start = index + 1
 	}
-	return messages[index].CreatedAt
+	if len(dynamicTools) == 0 {
+		return triggerAt
+	}
+	for _, msg := range messages[start:] {
+		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleTool || !msg.CreatedAt.After(triggerAt) {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(msg)
+		if err != nil {
+			continue
+		}
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeToolResult && dynamicTools[part.ToolName] {
+				triggerAt = msg.CreatedAt
+				break
+			}
+		}
+	}
+	return triggerAt
 }
 
 // turnTriggerTime returns the time of the event that triggered the
-// turn: the later of the last user prompt's creation and a pending
+// turn: the later of the trigger message's creation and a pending
 // compaction request. It returns the zero time when neither exists.
 func turnTriggerTime(chat database.Chat, messages []database.ChatMessage) time.Time {
-	triggerAt := triggerMessageTime(messages)
+	triggerAt := triggerMessageTime(messages, dynamicToolNamesFromChat(chat))
 	if chat.CompactionRequestedAt.Valid && chat.CompactionRequestedAt.Time.After(triggerAt) {
 		triggerAt = chat.CompactionRequestedAt.Time
 	}

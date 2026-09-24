@@ -403,7 +403,12 @@ func (server *Server) prepareGeneration(
 				chatprovider.CoderHeaders(chat),
 				server.mcpHTTPClient,
 			)
-			connectSpan.End(mcpConnectOutcome(connectSpan, mcpSummaries))
+			connected, failed, connectErr := mcpConnectOutcome(mcpSummaries)
+			connectSpan.SetAttributes(
+				attribute.Int(chatloop.AttrMCPServersConnected, connected),
+				attribute.Int(chatloop.AttrMCPServersFailed, failed),
+			)
+			connectSpan.End(connectErr)
 			return nil
 		})
 	}
@@ -807,28 +812,29 @@ func (server *Server) prepareGeneration(
 	}, nil
 }
 
-// mcpConnectOutcome stamps span with the number of MCP servers that
-// connected and that failed, and returns an error when servers were
-// configured but none connected. A server that connected with no tools
-// counts as connected. Partial failures return nil.
-func mcpConnectOutcome(span *chatloop.StageSpan, summaries []mcpclient.ConnectSummary) error {
-	connected, failed := 0, 0
+// mcpConnectOutcome counts the MCP servers that connected and that
+// failed, and returns an error naming each failed server when servers
+// were configured but none connected. A server that connected with no
+// tools counts as connected. Partial failures return a nil error.
+func mcpConnectOutcome(summaries []mcpclient.ConnectSummary) (connected, failed int, err error) {
+	var failures []string
 	for _, summary := range summaries {
 		switch summary.Outcome {
 		case mcpclient.ConnectOutcomeConnected, mcpclient.ConnectOutcomeNoTools:
 			connected++
 		default:
 			failed++
+			reason := summary.Error
+			if reason == "" {
+				reason = string(summary.Outcome)
+			}
+			failures = append(failures, summary.Slug+": "+reason)
 		}
 	}
-	span.SetAttributes(
-		attribute.Int(chatloop.AttrMCPConnected, connected),
-		attribute.Int(chatloop.AttrMCPFailed, failed),
-	)
 	if failed > 0 && connected == 0 {
-		return xerrors.Errorf("no MCP server connected: %d failed", failed)
+		return connected, failed, xerrors.Errorf("no MCP server connected: %s", strings.Join(failures, "; "))
 	}
-	return nil
+	return connected, failed, nil
 }
 
 func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {

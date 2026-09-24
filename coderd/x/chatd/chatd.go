@@ -1502,7 +1502,10 @@ func (p *Server) SendMessage(
 	requestedPlanMode := opts.PlanMode
 	requestedMCPServerIDs := opts.MCPServerIDs
 
-	var result SendMessageResult
+	var (
+		result           SendMessageResult
+		promotedQueuedAt time.Time
+	)
 	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
@@ -1568,6 +1571,7 @@ func (p *Server) SendMessage(
 		// previous queue head into history; report those inserts so
 		// clients can update their caches.
 		result.InsertedMessages = sendResult.InsertedMessages
+		promotedQueuedAt = sendResult.PromotedQueuedAt
 
 		// File-link errors must roll back the message.
 		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
@@ -1591,6 +1595,7 @@ func (p *Server) SendMessage(
 	// Sidebar watch event keeps the chat list in sync. Stream side
 	// effects are handled by chat:update consumers.
 	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
+	p.recordQueueWait(ctx, result.Chat, promotedQueuedAt, p.stages.Now())
 	return result, nil
 }
 
@@ -2119,7 +2124,6 @@ func (p *Server) PromoteQueued(
 	var (
 		result           PromoteQueuedResult
 		refreshChat      database.Chat
-		refreshedOK      bool
 		promotedQueuedAt time.Time
 	)
 	machine := p.newChatMachine(opts.ChatID)
@@ -2150,27 +2154,14 @@ func (p *Server) PromoteQueued(
 			return xerrors.Errorf("reload chat after promote: %w", err)
 		}
 		refreshChat = refreshed
-		refreshedOK = true
 		return nil
 	})
 	if updateErr != nil {
 		return PromoteQueuedResult{}, updateErr
 	}
 
-	if refreshedOK {
-		p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
-	}
-	if !promotedQueuedAt.IsZero() {
-		var (
-			kind         chatloop.ChatKind
-			organization string
-		)
-		if refreshedOK {
-			kind = chatKind(refreshChat)
-			organization = p.organizationName(ctx, refreshChat.OrganizationID)
-		}
-		p.recordQueueWait(ctx, opts.ChatID, kind, organization, promotedQueuedAt, p.stages.Now())
-	}
+	p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	p.recordQueueWait(ctx, refreshChat, promotedQueuedAt, p.stages.Now())
 	return result, nil
 }
 
@@ -4890,19 +4881,22 @@ func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func(
 	}
 }
 
-// recordQueueWait emits the queue_wait stage for a message that sat
-// queued from queuedAt until promotedAt. The span context is stripped
-// from ctx so the stage is a standalone span rather than a child of
-// the span in ctx, and the scope, chat kind, and organization are set
-// explicitly because ctx does not carry the turn's. An empty kind or
-// organization records the stage without one.
-func (p *Server) recordQueueWait(ctx context.Context, chatID uuid.UUID, kind chatloop.ChatKind, organization string, queuedAt, promotedAt time.Time) {
+// recordQueueWait emits the queue_wait stage for a message of chat that
+// sat queued from queuedAt until promotedAt. A zero queuedAt records
+// nothing. The span context is stripped from ctx so the stage is a
+// standalone span rather than a child of the span in ctx, and the
+// scope, chat kind, and organization are set explicitly because ctx
+// does not carry the turn's.
+func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queuedAt, promotedAt time.Time) {
+	if queuedAt.IsZero() {
+		return
+	}
 	standalone := trace.ContextWithSpanContext(ctx, trace.SpanContext{})
-	standalone = chatloop.ContextWithChatKind(standalone, kind)
-	standalone = chatloop.ContextWithOrganization(standalone, organization)
+	standalone = chatloop.ContextWithChatKind(standalone, chatKind(chat))
+	standalone = chatloop.ContextWithOrganization(standalone, p.organizationName(ctx, chat.OrganizationID))
 	p.stages.RecordAs(standalone, chatloop.StageQueueWait, chatloop.ScopeTurn,
 		chatloop.StageModel{}, queuedAt, promotedAt, nil,
-		attribute.String(chatloop.AttrChatID, chatID.String()),
+		attribute.String(chatloop.AttrChatID, chat.ID.String()),
 	)
 }
 
