@@ -1,7 +1,6 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "vitest"],
-	"jsPlugins": ["./scripts/oxlint-plugin-coder.mjs"],
 	// Turn every default-on category off so nothing runs unless explicitly
 	// enabled below.
 	"categories": { "correctness": "off" },
@@ -128,7 +127,6 @@
 		"consistent-type-definitions": ["error", "type"],
 
 		// --- style (coder-enabled as error) ---
-		"coder/prefer-react-namespace-types": "error",
 		"prefer-as-const": "error",
 		"prefer-enum-initializers": "error",
 		"one-var": ["error", "never"],
@@ -233,6 +231,14 @@
 					{
 						"group": ["**/e2e", "**/e2e/**"],
 						"message": "Application code must never import from the Playwright e2e suite."
+					},
+					// React types start with an uppercase letter, so restrict
+					// uppercase imports from "react" except its uppercase runtime
+					// exports. Keep in sync with the src/components override below.
+					{
+						"regex": "^react$",
+						"allowImportNamePattern": "^(?:[^A-Z].*|Activity|Children|Component|Fragment|Profiler|PureComponent|StrictMode|Suspense)$",
+						"message": "Use the global React namespace for types, e.g. React.FC, instead of importing them."
 					}
 				]
 			}
@@ -303,6 +309,13 @@
 							{
 								"group": ["**/modules", "**/modules/**"],
 								"message": "components/ must not import from modules/. Maintain imports from other components/."
+							},
+							// Overrides replace the rule's options rather than merging
+							// them, so the React types pattern is repeated here.
+							{
+								"regex": "^react$",
+								"allowImportNamePattern": "^(?:[^A-Z].*|Activity|Children|Component|Fragment|Profiler|PureComponent|StrictMode|Suspense)$",
+								"message": "Use the global React namespace for types, e.g. React.FC, instead of importing them."
 							}
 						]
 					}
