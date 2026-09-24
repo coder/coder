@@ -27,7 +27,6 @@ For enabling the provider and creating an application, refer to [OAuth2 provider
 
 The current implementation has these limitations:
 
-- The web UI cannot set or change a scope allowlist; declare one at [Dynamic Client Registration](./index.md#dynamic-client-registration) or set it through the management API, as described under [Scopes](./scopes.md)
 - No client credentials grant support
 - No device authorization grant support (RFC 8628)
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
@@ -92,7 +91,7 @@ For the full error details, refer to ["invalid_scope" returned to your callback]
 To fix an affected application, the party that holds its `registration_access_token` updates the registration with `PUT /oauth2/clients/{client_id}`, so that `scope` lists only names from `scopes_supported` in `GET /.well-known/oauth-authorization-server`.
 If that token is lost, register the application again.
 A Coder administrator can also fix it from the management API by [updating the application](../../../reference/api/enterprise.md#update-oauth2-application) with a `scope` that lists supported names, or with an empty `scope` to remove the allowlist.
-The web UI cannot change it.
+The **Allowed scopes** field on the application page in the web UI makes the same change.
 
 ## Learn more
 

@@ -68,6 +68,7 @@ Treat the setting as a way to stop new authorizations rather than as a way to re
    - **Name**: Your application name
    - **Default callback**: `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop). Select **Add redirect URI** for additional callback URLs.
    - **Icon**: Optional icon URL
+   - **Allowed scopes**: Optional. Refer to [Scopes](./scopes.md).
 4. Select **Create application**.
 
 Coder creates the application and takes you to its details page, which prompts you to generate a client secret.

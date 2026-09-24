@@ -40,6 +40,7 @@ The `error_description` opens with the requested name that caused the rejection:
   `GET /.well-known/oauth-authorization-server`.
 - `scope requests permissions beyond this app's allowed scopes`: the name is supported, but the application's `scope` allowlist does not cover it.
   Request less, or widen the allowlist.
+  If the application registered itself and an administrator has since narrowed its allowlist, refer to [Scopes](./scopes.md).
 - `none of the scopes registered for this app are supported by this deployment`: the application's `scope` allowlist names nothing this deployment offers, so no request against it can succeed, including one that omits `scope`.
   Update the allowlist with supported scopes.
   This description stands alone.

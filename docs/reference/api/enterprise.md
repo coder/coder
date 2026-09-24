@@ -1519,6 +1519,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
   {
     "callback_url": "string",
     "client_type": "confidential",
+    "dynamically_registered": true,
     "endpoints": {
       "authorization": "string",
       "device_authorization": "string",
@@ -1546,21 +1547,22 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 Status Code **200**
 
-| Name                      | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                             |
-|---------------------------|----------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`            | array                                                                | false    |              |                                                                                                                                                                                                         |
-| `» callback_url`          | string                                                               | false    |              | Deprecated: equal to the first entry of redirect_uris. Read redirect_uris instead.                                                                                                                      |
-| `» client_type`           | [codersdk.OAuth2ClientType](schemas.md#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
-| `» endpoints`             | [codersdk.OAuth2AppEndpoints](schemas.md#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
-| `»» authorization`        | string                                                               | false    |              |                                                                                                                                                                                                         |
-| `»» device_authorization` | string                                                               | false    |              | Device authorization is optional.                                                                                                                                                                       |
-| `»» token`                | string                                                               | false    |              |                                                                                                                                                                                                         |
-| `»» token_revoke`         | string                                                               | false    |              |                                                                                                                                                                                                         |
-| `» icon`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
-| `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
-| `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
-| `» redirect_uris`         | array                                                                | false    |              | Redirect uris are the app's registered redirect URIs, primary first.                                                                                                                                    |
-| `» scope`                 | string                                                               | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
+| Name                       | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                             |
+|----------------------------|----------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`             | array                                                                | false    |              |                                                                                                                                                                                                         |
+| `» callback_url`           | string                                                               | false    |              | Deprecated: equal to the first entry of redirect_uris. Read redirect_uris instead.                                                                                                                      |
+| `» client_type`            | [codersdk.OAuth2ClientType](schemas.md#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
+| `» dynamically_registered` | boolean                                                              | false    |              | Dynamically registered is true when the app registered itself through Dynamic Client Registration rather than being created by an admin.                                                                |
+| `» endpoints`              | [codersdk.OAuth2AppEndpoints](schemas.md#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
+| `»» authorization`         | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `»» device_authorization`  | string                                                               | false    |              | Device authorization is optional.                                                                                                                                                                       |
+| `»» token`                 | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `»» token_revoke`          | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» icon`                   | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» id`                     | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
+| `» name`                   | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» redirect_uris`          | array                                                                | false    |              | Redirect uris are the app's registered redirect URIs, primary first.                                                                                                                                    |
+| `» scope`                  | string                                                               | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
 
 #### Enumerated Values
 
@@ -1612,6 +1614,7 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 {
   "callback_url": "string",
   "client_type": "confidential",
+  "dynamically_registered": true,
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -1663,6 +1666,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 {
   "callback_url": "string",
   "client_type": "confidential",
+  "dynamically_registered": true,
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -1730,6 +1734,7 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 {
   "callback_url": "string",
   "client_type": "confidential",
+  "dynamically_registered": true,
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",

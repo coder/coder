@@ -25,12 +25,22 @@ The client may then request anything that allowlist covers, and is granted the w
 An application with no allowlist honors any requested scope, and a request that names no scope is granted `coder:all`.
 
 An application registered through [Dynamic Client Registration](./index.md#dynamic-client-registration) declares its allowlist in the `scope` field of its registration.
-An administrator sets one with the optional, space-separated `scope` field when [creating an application](../../../reference/api/enterprise.md#create-oauth2-application) through the management API.
+An administrator sets one with the **Allowed scopes** field in the web UI, or with the optional, space-separated `scope` field when [creating an application](../../../reference/api/enterprise.md#create-oauth2-application) through the management API.
 When [updating an application](../../../reference/api/enterprise.md#update-oauth2-application), omit `scope` to keep the current allowlist, send a new value to replace it, or send an empty string to clear it and make the application unrestricted.
 The stored value is not checked against the scopes this deployment offers; a name it does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](./troubleshooting.md#invalid_scope-returned-to-your-callback).
-The web UI does not yet set the allowlist.
 
-The consent page states the scope being granted before the user approves it. A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
+Use caution when narrowing the scope allowlist of a self-registered application.
+Many clients request every scope Coder advertises in `scopes_supported` rather than selecting specific scopes; MCP clients that rely on discovery commonly work this way.
+The allowlist is stored on the application and does not affect that advertised list, so the client continues requesting the full set.
+Coder rejects requests that exceed the allowlist rather than trimming their scopes, so every new authorization attempt fails with `invalid_scope`.
+Previously issued tokens retain their scopes.
+Such a client cannot be restricted through its allowlist: narrowing it breaks the client, and clearing it leaves the application unrestricted.
+Only a client that can be configured to request fewer scopes can be narrowed, and whoever operates that client makes the change.
+An allowlist set by an administrator also does not hold against the client: the holder of the application's `registration_access_token` can replace or clear it at any time with `PUT /oauth2/clients/{client_id}`.
+The web UI warns before saving a narrower allowlist, and the application page indicates whether the application was self-registered or created by an administrator.
+
+The consent page states the scope being granted before the user approves it.
+A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
 
 ## Learn more
 
