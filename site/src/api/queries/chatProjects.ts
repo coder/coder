@@ -10,7 +10,7 @@ import { invalidateChatListQueries } from "./chats";
 
 const chatProjectsFamilyKey = ["chat-projects"] as const;
 
-const chatProjectsKey = (organizationId: string | undefined) =>
+export const chatProjectsKey = (organizationId: string | undefined) =>
 	[...chatProjectsFamilyKey, organizationId] as const;
 
 const chatProjectKey = (projectId: string | undefined) =>
