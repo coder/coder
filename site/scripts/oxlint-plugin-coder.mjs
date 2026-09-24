@@ -1,21 +1,20 @@
 // Custom oxlint rules for the Coder frontend, loaded through `jsPlugins` in
 // .oxlintrc.jsonc.
 
-// Cheap text prefilter checked before oxlint deserializes a file's AST. It must
-// match every file the AST check could flag (false positives are fine): a
-// type-only import from "react" always has `type` between `import` and
-// `from "react"` within a single statement. Skipping files here avoids AST
-// deserialization, which dominates the cost of a JS plugin rule.
-const maybeReactTypeImport =
-	/\bimport\b[^;]*?\btype\b[^;]*?\bfrom\s*["']react["']/;
-
-const importedName = (spec) =>
-	spec.imported.type === "Identifier" ? spec.imported.name : spec.imported.value;
-
 /**
- * Flags type-only named imports from "react" and rewrites their references to
- * the global `React` namespace provided by @types/react, e.g. `FC` becomes
- * `React.FC`.
+ * Enforces `React.X` for React types instead of named type imports:
+ *
+ *   import type { FC } from "react";    // flagged
+ *   const Foo: FC = () => null;
+ *
+ *   const Foo: React.FC = () => null;   // preferred, no import needed
+ *
+ * `React` is a global namespace declared by @types/react, so type positions
+ * can use it without importing anything. Value imports such as `useState`
+ * are left alone.
+ *
+ * The autofix rewrites every reference to `React.X` and removes the import
+ * (or just the type specifiers, if value imports remain).
  */
 const preferReactNamespaceTypes = {
 	meta: {
@@ -26,80 +25,152 @@ const preferReactNamespaceTypes = {
 				'Use React.{{name}} instead of importing the type from "react".',
 		},
 	},
-	// `createOnce` (oxlint-specific) enables the `before` hook, which can skip
-	// a file entirely by returning false.
+
+	// oxlint-specific alternative to `create`. It lets the rule define a
+	// `before` hook, which runs before the file's AST is built and can skip
+	// the file by returning false.
 	createOnce(context) {
 		return {
 			before() {
-				return maybeReactTypeImport.test(context.sourceCode.text);
+				return mightHaveReactTypeImport(context.sourceCode.text);
 			},
-			ImportDeclaration(node) {
-				if (node.source.value !== "react") return;
-				const sourceCode = context.sourceCode;
-				const declIsType = node.importKind === "type";
-				const typeSpecs = node.specifiers.filter(
-					(s) =>
-						s.type === "ImportSpecifier" &&
-						(declIsType || s.importKind === "type"),
+
+			ImportDeclaration(declaration) {
+				if (declaration.source.value !== "react") {
+					return;
+				}
+
+				const typeSpecifiers = declaration.specifiers.filter((specifier) =>
+					isTypeOnlySpecifier(declaration, specifier),
 				);
-				if (typeSpecs.length === 0) return;
 
-				const fix = (fixer) => {
-					const fixes = [];
-					for (const spec of typeSpecs) {
-						for (const variable of sourceCode.getDeclaredVariables(spec)) {
-							for (const ref of variable.references) {
-								fixes.push(
-									fixer.replaceText(
-										ref.identifier,
-										`React.${importedName(spec)}`,
-									),
-								);
-							}
-						}
-					}
-					const remaining = node.specifiers.filter(
-						(s) => !typeSpecs.includes(s),
+				// One fix covers every type specifier in the declaration. They
+				// all edit the same import statement, so separate fixes would
+				// overlap and be discarded. It is attached to the first report.
+				const fixAll = (fixer) =>
+					fixDeclaration(
+						fixer,
+						context.sourceCode,
+						declaration,
+						typeSpecifiers,
 					);
-					if (remaining.length === 0) {
-						const end =
-							sourceCode.text[node.range[1]] === "\n"
-								? node.range[1] + 1
-								: node.range[1];
-						fixes.push(fixer.removeRange([node.range[0], end]));
-						return fixes;
-					}
-					const parts = [];
-					const def = remaining.find(
-						(s) => s.type === "ImportDefaultSpecifier",
-					);
-					if (def) parts.push(sourceCode.getText(def));
-					const named = remaining.filter((s) => s.type === "ImportSpecifier");
-					if (named.length > 0) {
-						parts.push(
-							`{ ${named.map((s) => sourceCode.getText(s)).join(", ")} }`,
-						);
-					}
-					fixes.push(
-						fixer.replaceText(node, `import ${parts.join(", ")} from "react";`),
-					);
-					return fixes;
-				};
 
-				typeSpecs.forEach((spec, i) => {
+				typeSpecifiers.forEach((specifier, index) => {
 					context.report({
-						node: spec,
+						node: specifier,
 						messageId: "preferNamespace",
-						data: { name: importedName(spec) },
-						// Attach the whole-declaration fix to one report so fixes
-						// for sibling specifiers do not overlap.
-						fix: i === 0 ? fix : undefined,
+						data: { name: getImportedName(specifier) },
+						fix: index === 0 ? fixAll : undefined,
 					});
 				});
 			},
 		};
 	},
 };
+
+/**
+ * Cheap text check that runs before oxlint builds the AST. Building and
+ * walking the AST is most of the cost of a JS plugin rule, so skipping files
+ * here keeps the rule fast.
+ *
+ * It must return true for every file the rule could flag (false positives are
+ * fine). A type-only import from "react" always has `type` between `import`
+ * and `from "react"` within one statement, which is what the regex matches.
+ */
+function mightHaveReactTypeImport(sourceText) {
+	return /\bimport\b[^;]*?\btype\b[^;]*?\bfrom\s*["']react["']/.test(
+		sourceText,
+	);
+}
+
+/**
+ * True for `FC` in both `import type { FC } from "react"` and
+ * `import { type FC } from "react"`.
+ */
+function isTypeOnlySpecifier(declaration, specifier) {
+	if (specifier.type !== "ImportSpecifier") {
+		return false;
+	}
+	return declaration.importKind === "type" || specifier.importKind === "type";
+}
+
+/**
+ * The name exported by "react", ignoring any local alias: `KeyboardEvent` for
+ * `import { type KeyboardEvent as KE } from "react"`.
+ */
+function getImportedName(specifier) {
+	const { imported } = specifier;
+	return imported.type === "Identifier" ? imported.name : imported.value;
+}
+
+function fixDeclaration(fixer, sourceCode, declaration, typeSpecifiers) {
+	return [
+		...typeSpecifiers.flatMap((specifier) =>
+			replaceReferencesWithNamespace(fixer, sourceCode, specifier),
+		),
+		removeTypeSpecifiers(fixer, sourceCode, declaration, typeSpecifiers),
+	];
+}
+
+/**
+ * Rewrites each use of an imported type to `React.<name>`, using scope
+ * analysis so that unrelated identifiers with the same name are untouched.
+ */
+function replaceReferencesWithNamespace(fixer, sourceCode, specifier) {
+	const replacement = `React.${getImportedName(specifier)}`;
+	return sourceCode
+		.getDeclaredVariables(specifier)
+		.flatMap((variable) => variable.references)
+		.map((reference) => fixer.replaceText(reference.identifier, replacement));
+}
+
+/**
+ * Deletes the whole import statement if it only imported types, otherwise
+ * rewrites it to keep the remaining value imports.
+ */
+function removeTypeSpecifiers(fixer, sourceCode, declaration, typeSpecifiers) {
+	const remaining = declaration.specifiers.filter(
+		(specifier) => !typeSpecifiers.includes(specifier),
+	);
+
+	if (remaining.length === 0) {
+		const [start, end] = declaration.range;
+		const endsWithNewline = sourceCode.text[end] === "\n";
+		return fixer.removeRange([start, endsWithNewline ? end + 1 : end]);
+	}
+
+	return fixer.replaceText(
+		declaration,
+		buildReactImport(sourceCode, remaining),
+	);
+}
+
+/**
+ * Builds `import React, { useState } from "react";` from the given
+ * specifiers. Formatting is normalized, and comments inside the original
+ * braces are not preserved.
+ */
+function buildReactImport(sourceCode, specifiers) {
+	const defaultSpecifier = specifiers.find(
+		(specifier) => specifier.type === "ImportDefaultSpecifier",
+	);
+	const namedSpecifiers = specifiers.filter(
+		(specifier) => specifier.type === "ImportSpecifier",
+	);
+
+	const clauses = [];
+	if (defaultSpecifier) {
+		clauses.push(sourceCode.getText(defaultSpecifier));
+	}
+	if (namedSpecifiers.length > 0) {
+		const names = namedSpecifiers.map((specifier) =>
+			sourceCode.getText(specifier),
+		);
+		clauses.push(`{ ${names.join(", ")} }`);
+	}
+
+	return `import ${clauses.join(", ")} from "react";`;
+}
 
 export default {
 	meta: { name: "coder" },
