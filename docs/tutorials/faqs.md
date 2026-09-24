@@ -538,7 +538,7 @@ like `scp` or `rsync`.
 To achieve this, template admins can use the environment variable
 `CODER_AGENT_BLOCK_FILE_TRANSFER` to enable additional SSH command controls.
 This variable allows the system to check if the executed application is on the
-block list, which includes `scp`, `rsync`, `ftp`, and `nc`.
+block list, which includes `nc`, `rsync`, `scp`, and `sftp`.
 
 ```tf
 resource "docker_container" "workspace" {
@@ -558,6 +558,18 @@ it can help prevent automated file transfers using the specified tools, users
 can still SSH into the workspace and manually initiate file transfers. The
 primary purpose of this feature is to warn and discourage users from downloading
 confidential resources to their local machines.
+
+The `sftp` subsystem is blocked in full, not just the `sftp` command, so any
+workflow that moves files over SFTP stops working. This includes IDE remote
+file browsers that rely on it.
+
+[Coder Desktop file sync](../user-guides/desktop/desktop-connect-sync.md) also
+stops working, though for a different reason. File sync runs Mutagen over SSH,
+and Mutagen installs its remote agent binary with `scp`, which is on the block
+list.
+
+Confirm which workflows your developers depend on before you enable this
+setting.
 
 For more advanced security needs, consider adopting an endpoint security
 solution.
