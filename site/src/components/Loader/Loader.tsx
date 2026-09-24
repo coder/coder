@@ -1,8 +1,7 @@
 import { cn } from "cn";
-import type { ComponentProps, FC } from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
 
-type LoaderProps = ComponentProps<"div"> & {
+type LoaderProps = React.ComponentProps<"div"> & {
 	fullscreen?: boolean;
 	size?: "sm" | "lg";
 	/**
@@ -11,7 +10,7 @@ type LoaderProps = ComponentProps<"div"> & {
 	label?: string;
 };
 
-export const Loader: FC<LoaderProps> = ({
+export const Loader: React.FC<LoaderProps> = ({
 	fullscreen,
 	size = "lg",
 	label,

@@ -1,9 +1,8 @@
 import { cn } from "cn";
 import { ServerIcon } from "lucide-react";
-import type { FC } from "react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
-export const MCPServerIcon: FC<{
+export const MCPServerIcon: React.FC<{
 	iconUrl: string;
 	name: string;
 	className?: string;

@@ -1,6 +1,6 @@
-import { type FC, Fragment, type ReactNode } from "react";
+import { Fragment } from "react";
 
-const formatJSONValue = (value: unknown, depth: number): ReactNode => {
+const formatJSONValue = (value: unknown, depth: number): React.ReactNode => {
 	switch (typeof value) {
 		case "boolean":
 			return <span className="text-syntax-boolean">{String(value)}</span>;
@@ -53,7 +53,7 @@ const formatJSONValue = (value: unknown, depth: number): ReactNode => {
 
 // input is not guaranteed to be valid JSON, so we need to catch any errors
 // and return the original string if it is not valid
-export const JsonPrettyPrinter: FC<{ input: string }> = ({ input }) => {
+export const JsonPrettyPrinter: React.FC<{ input: string }> = ({ input }) => {
 	try {
 		return formatJSONValue(JSON.parse(input), 0);
 	} catch {

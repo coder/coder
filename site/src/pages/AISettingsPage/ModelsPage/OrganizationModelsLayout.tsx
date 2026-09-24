@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useSearchParams } from "react-router";
 import { organizationsPermissions } from "#/api/queries/organizations";
@@ -13,7 +12,7 @@ import {
 	useAccessibleModelOrganizations,
 } from "./organizationModels";
 
-const OrganizationModelsLayout: FC = () => {
+const OrganizationModelsLayout: React.FC = () => {
 	const { organizations } = useDashboard();
 	const [searchParams] = useSearchParams();
 	const accessibleOrganizationsQuery =

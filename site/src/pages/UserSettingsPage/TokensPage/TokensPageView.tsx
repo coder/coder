@@ -1,7 +1,6 @@
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { TrashIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import type { APIKeyWithOwner } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -30,10 +29,10 @@ type TokensPageViewProps = {
 	hasLoaded: boolean;
 	onDelete: (token: APIKeyWithOwner) => void;
 	deleteTokenError?: unknown;
-	children?: ReactNode;
+	children?: React.ReactNode;
 };
 
-export const TokensPageView: FC<TokensPageViewProps> = ({
+export const TokensPageView: React.FC<TokensPageViewProps> = ({
 	tokens,
 	getTokensError,
 	isLoading,
@@ -77,7 +76,7 @@ type TokensTableBodyProps = {
 	onDelete: (token: APIKeyWithOwner) => void;
 };
 
-const TokensTableBody: FC<TokensTableBodyProps> = ({
+const TokensTableBody: React.FC<TokensTableBodyProps> = ({
 	tokens,
 	isLoading,
 	hasLoaded,

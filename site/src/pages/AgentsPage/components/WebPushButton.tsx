@@ -1,5 +1,4 @@
 import { BellIcon, BellOffIcon } from "lucide-react";
-import type { FC } from "react";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
@@ -16,7 +15,7 @@ type WebPushButtonProps = {
 	onToggle?: () => Promise<void> | void;
 };
 
-export const WebPushButton: FC<WebPushButtonProps> = ({
+export const WebPushButton: React.FC<WebPushButtonProps> = ({
 	webPush,
 	onToggle,
 }) => {

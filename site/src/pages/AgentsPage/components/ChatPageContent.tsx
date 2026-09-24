@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
+import { Profiler, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
@@ -117,10 +117,10 @@ type ChatPageTimelineProps = {
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	footer?: ReactNode;
+	footer?: React.ReactNode;
 };
 
-export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
+export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	organizationId,
 	store,
 	chatFiles,
@@ -270,7 +270,7 @@ type ChatPageInputProps = {
 	onModelChange: (modelID: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
-	modelSelectorHelp?: ReactNode;
+	modelSelectorHelp?: React.ReactNode;
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
 	canConfigureAgentSetup: boolean;
@@ -310,7 +310,7 @@ type ChatPageInputProps = {
 	folder?: string;
 };
 
-export const ChatPageInput: FC<ChatPageInputProps> = ({
+export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	chat,
 	store,
 	models,

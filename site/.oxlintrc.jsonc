@@ -1,6 +1,7 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "vitest"],
+	"jsPlugins": ["./scripts/oxlint-plugin-coder.mjs"],
 	// Turn every default-on category off so nothing runs unless explicitly
 	// enabled below.
 	"categories": { "correctness": "off" },
@@ -127,6 +128,7 @@
 		"consistent-type-definitions": ["error", "type"],
 
 		// --- style (coder-enabled as error) ---
+		"coder/prefer-react-namespace-types": "error",
 		"prefer-as-const": "error",
 		"prefer-enum-initializers": "error",
 		"one-var": ["error", "never"],

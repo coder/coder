@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import {
 	Table,
@@ -61,7 +60,9 @@ export { Example as WorkspaceOutdatedTooltip };
 // list. The trigger must stop click + keyboard propagation so the popover
 // opens instead of the parent row's onClick swallowing the activation and
 // navigating away.
-type ClickableRowArgs = ComponentProps<typeof WorkspaceOutdatedTooltip> & {
+type ClickableRowArgs = React.ComponentProps<
+	typeof WorkspaceOutdatedTooltip
+> & {
 	onRowClick: () => void;
 };
 

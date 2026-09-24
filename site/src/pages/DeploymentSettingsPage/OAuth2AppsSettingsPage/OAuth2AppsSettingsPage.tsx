@@ -1,11 +1,10 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getApps, getSettings, putSettings } from "#/api/queries/oauth2";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
 import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
 
-const OAuth2AppsSettingsPage: FC = () => {
+const OAuth2AppsSettingsPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 

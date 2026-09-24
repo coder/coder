@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { workspaceAgentCredentials } from "#/api/queries/workspaces";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
@@ -11,7 +10,10 @@ type AgentExternalProps = {
 	workspace: Workspace;
 };
 
-export const AgentExternal: FC<AgentExternalProps> = ({ agent, workspace }) => {
+export const AgentExternal: React.FC<AgentExternalProps> = ({
+	agent,
+	workspace,
+}) => {
 	const {
 		data: credentials,
 		error,

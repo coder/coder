@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
-import type { FC } from "react";
 import { type Line, LogLine, LogLinePrefix } from "./LogLine";
 
 export const DEFAULT_LOG_LINE_SIDE_PADDING = 24;
@@ -11,7 +10,7 @@ type LogsProps = {
 	className?: string;
 };
 
-export const Logs: FC<LogsProps> = ({
+export const Logs: React.FC<LogsProps> = ({
 	hideTimestamps,
 	lines,
 	className = "",

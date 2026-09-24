@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import { useMutation } from "react-query";
 import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -31,7 +30,9 @@ type ChangePasswordChangeProps = {
 	redirect?: boolean;
 };
 
-const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
+const ChangePasswordPage: React.FC<ChangePasswordChangeProps> = ({
+	redirect,
+}) => {
 	const navigate = useNavigate();
 	const applicationName = getApplicationName();
 	const changePasswordMutation = useMutation(changePasswordWithOTP());

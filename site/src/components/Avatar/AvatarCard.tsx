@@ -1,15 +1,14 @@
 import { cn } from "cn";
-import type { FC, ReactNode } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 
 type AvatarCardProps = {
 	header: string;
 	imgUrl: string;
-	subtitle?: ReactNode;
+	subtitle?: React.ReactNode;
 	maxWidth?: number | "none";
 };
 
-export const AvatarCard: FC<AvatarCardProps> = ({
+export const AvatarCard: React.FC<AvatarCardProps> = ({
 	header,
 	imgUrl,
 	subtitle,

@@ -1,9 +1,8 @@
-import type { FC } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 
-export const AIBridgeSetupAlert: FC = () => {
+export const AIBridgeSetupAlert: React.FC = () => {
 	return (
 		<Alert className="mb-12" severity="warning" prominent>
 			<AlertTitle>

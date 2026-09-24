@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	preferenceSettings,
@@ -98,7 +97,7 @@ const DisplayModeSettings = <T extends string>({
 	);
 };
 
-export const ThinkingDisplaySettings: FC = () => {
+export const ThinkingDisplaySettings: React.FC = () => {
 	return (
 		<DisplayModeSettings
 			title="Thinking display"
@@ -115,7 +114,7 @@ export const ThinkingDisplaySettings: FC = () => {
 	);
 };
 
-export const ShellToolDisplaySettings: FC = () => {
+export const ShellToolDisplaySettings: React.FC = () => {
 	return (
 		<DisplayModeSettings
 			title="Shell output display"
@@ -132,7 +131,7 @@ export const ShellToolDisplaySettings: FC = () => {
 	);
 };
 
-export const CodeDiffDisplaySettings: FC = () => {
+export const CodeDiffDisplaySettings: React.FC = () => {
 	return (
 		<DisplayModeSettings
 			title="Code diff display"

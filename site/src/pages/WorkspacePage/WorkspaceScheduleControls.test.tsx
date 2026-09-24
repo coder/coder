@@ -2,7 +2,6 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import dayjs from "dayjs";
 import { HttpResponse, http } from "msw";
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { API } from "#/api/api";
 import { workspaceByOwnerAndName } from "#/api/queries/workspaces";
@@ -11,7 +10,7 @@ import { render } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
-const Wrapper: FC = () => {
+const Wrapper: React.FC = () => {
 	const { data: workspace } = useQuery(
 		workspaceByOwnerAndName(MockWorkspace.owner_name, MockWorkspace.name),
 	);

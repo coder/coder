@@ -4,7 +4,7 @@ import {
 	Share2Icon,
 	UserPlusIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import {
@@ -61,13 +61,16 @@ type MemberRowMenuProps = {
 	onRemove: () => void;
 };
 
-const ReadRoleBadge: FC = () => (
+const ReadRoleBadge: React.FC = () => (
 	<span className="inline-block shrink-0 rounded-md bg-surface-secondary px-2 py-0.5 text-xs leading-5">
 		Read
 	</span>
 );
 
-const MemberRowMenu: FC<MemberRowMenuProps> = ({ disabled, onRemove }) => (
+const MemberRowMenu: React.FC<MemberRowMenuProps> = ({
+	disabled,
+	onRemove,
+}) => (
 	<DropdownMenu>
 		<DropdownMenuTrigger asChild>
 			<Button
@@ -94,10 +97,10 @@ type AddChatMemberFormProps = {
 	isLoading: boolean;
 	onSubmit: () => void;
 	disabled: boolean;
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
-const AddChatMemberForm: FC<AddChatMemberFormProps> = ({
+const AddChatMemberForm: React.FC<AddChatMemberFormProps> = ({
 	isLoading,
 	onSubmit,
 	disabled,
@@ -124,7 +127,7 @@ type MemberIdentityProps =
 	| { kind: "group"; group: TypesGen.ChatGroup }
 	| { kind: "user"; user: TypesGen.ChatUser };
 
-const MemberIdentity: FC<MemberIdentityProps> = (props) => {
+const MemberIdentity: React.FC<MemberIdentityProps> = (props) => {
 	if (props.kind === "group") {
 		const { group } = props;
 		return (
@@ -161,7 +164,7 @@ type CopyChatLinkButtonProps = {
  * Copies the absolute chat URL so it can be shared from contexts without an
  * address bar, such as an installed PWA.
  */
-const CopyChatLinkButton: FC<CopyChatLinkButtonProps> = ({ chatId }) => {
+const CopyChatLinkButton: React.FC<CopyChatLinkButtonProps> = ({ chatId }) => {
 	const { copyToClipboard, showCopiedSuccess } = useClipboard();
 	const chatLink = new URL(`/agents/${chatId}`, window.location.origin).href;
 
@@ -180,12 +183,12 @@ const CopyChatLinkButton: FC<CopyChatLinkButtonProps> = ({ chatId }) => {
 };
 
 type MobileMemberRowProps = {
-	children: ReactNode;
+	children: React.ReactNode;
 	disabled: boolean;
 	onRemove: () => void;
 };
 
-const MobileMemberRow: FC<MobileMemberRowProps> = ({
+const MobileMemberRow: React.FC<MobileMemberRowProps> = ({
 	children,
 	disabled,
 	onRemove,
@@ -199,11 +202,9 @@ const MobileMemberRow: FC<MobileMemberRowProps> = ({
 	</div>
 );
 
-export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
-	chatId,
-	organizationId,
-	open,
-}) => {
+export const ChatSharingPopoverContent: React.FC<
+	ChatSharingPopoverContentProps
+> = ({ chatId, organizationId, open }) => {
 	const { user: currentUser } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const [selectedOption, setSelectedOption] =
@@ -437,7 +438,7 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 	);
 };
 
-export const ChatShareButton: FC<ChatShareButtonProps> = ({
+export const ChatShareButton: React.FC<ChatShareButtonProps> = ({
 	chatId,
 	organizationId,
 }) => {

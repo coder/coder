@@ -1,6 +1,5 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { FC, ReactNode } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -77,11 +76,14 @@ const dashboardValue = {
 };
 
 type WrapperProps = {
-	children: ReactNode;
+	children: React.ReactNode;
 	initialPath?: string;
 };
 
-const Wrapper: FC<WrapperProps> = ({ children, initialPath = "/agents" }) => {
+const Wrapper: React.FC<WrapperProps> = ({
+	children,
+	initialPath = "/agents",
+}) => {
 	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
@@ -128,7 +130,7 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 // ---- Tests ----
 
 describe("ChatsSidebar section switcher", () => {
-	const LocationProbe: FC = () => {
+	const LocationProbe: React.FC = () => {
 		const location = useLocation();
 		return <div data-testid="location-pathname">{location.pathname}</div>;
 	};

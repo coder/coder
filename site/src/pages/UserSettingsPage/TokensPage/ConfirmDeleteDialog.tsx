@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { APIKeyWithOwner } from "#/api/typesGenerated";
@@ -11,7 +10,7 @@ type ConfirmDeleteDialogProps = {
 	setToken: (arg: APIKeyWithOwner | undefined) => void;
 };
 
-export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
+export const ConfirmDeleteDialog: React.FC<ConfirmDeleteDialogProps> = ({
 	queryKey,
 	token,
 	setToken,

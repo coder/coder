@@ -5,7 +5,7 @@ import {
 	InfoIcon,
 	PencilIcon,
 } from "lucide-react";
-import { type FC, memo, type ReactNode, useState } from "react";
+import { memo, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AlertTitle } from "#/components/Alert/Alert";
@@ -65,7 +65,9 @@ const getChatMessageTextContent = (
 };
 
 // Avoid announcing historical hook notices as live alerts.
-const TimelineNotice: FC<{ children?: ReactNode }> = ({ children }) => (
+const TimelineNotice: React.FC<{ children?: React.ReactNode }> = ({
+	children,
+}) => (
 	<div
 		role="note"
 		className="relative my-1 w-full rounded-lg border border-solid border-border-default bg-surface-secondary p-4 text-left"
@@ -77,7 +79,7 @@ const TimelineNotice: FC<{ children?: ReactNode }> = ({ children }) => (
 	</div>
 );
 
-const LifecycleHookNotice: FC<{
+const LifecycleHookNotice: React.FC<{
 	children: string;
 	urlTransform?: UrlTransform;
 }> = ({ children, urlTransform }) => (

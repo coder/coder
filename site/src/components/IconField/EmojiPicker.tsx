@@ -1,6 +1,6 @@
 import data from "@emoji-mart/data/sets/15/apple.json";
 import EmojiMart from "@emoji-mart/react";
-import { type ComponentProps, type FC, useEffect } from "react";
+import { useEffect } from "react";
 import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";
 import icons from "#/theme/icons.json";
 
@@ -24,11 +24,11 @@ const custom = [
 ];
 
 type EmojiPickerProps = Omit<
-	ComponentProps<typeof EmojiMart>,
+	React.ComponentProps<typeof EmojiMart>,
 	"custom" | "data" | "set" | "theme" | "getSpritesheetURL"
 >;
 
-const EmojiPicker: FC<EmojiPickerProps> = (props) => {
+const EmojiPicker: React.FC<EmojiPickerProps> = (props) => {
 	/**
 	 * Workaround for a bug in the emoji-mart library where custom emoji images render improperly.
 	 * Setting the image width to 100% ensures they display correctly.

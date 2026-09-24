@@ -1,4 +1,4 @@
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
@@ -141,7 +141,7 @@ type AgentCreateFormProps = {
 	isWorkspacesLoading: boolean;
 };
 
-export const AgentCreateForm: FC<AgentCreateFormProps> = ({
+export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	onCreateChat,
 	isCreating,
 	createError,

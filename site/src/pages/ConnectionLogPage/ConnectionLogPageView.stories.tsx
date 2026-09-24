@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { expect, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
@@ -20,7 +19,9 @@ import { pixelWithTablet } from "#/testHelpers/pixel";
 import { docs } from "#/utils/docs";
 import { ConnectionLogPageView } from "./ConnectionLogPageView";
 
-type FilterProps = ComponentProps<typeof ConnectionLogPageView>["filterProps"];
+type FilterProps = React.ComponentProps<
+	typeof ConnectionLogPageView
+>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	query: `username:${MockUserOwner.username}`,

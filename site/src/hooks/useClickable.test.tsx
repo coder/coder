@@ -1,11 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type {
-	ElementType,
-	FC,
-	MouseEventHandler,
-	PropsWithChildren,
-} from "react";
 import { type ClickableAriaRole, useClickable } from "./useClickable";
 
 /**
@@ -15,14 +9,14 @@ import { type ClickableAriaRole, useClickable } from "./useClickable";
  */
 type NonNativeButtonProps<TElement extends HTMLElement = HTMLElement> =
 	Readonly<
-		PropsWithChildren<{
-			as?: Exclude<ElementType, "button">;
+		React.PropsWithChildren<{
+			as?: Exclude<React.ElementType, "button">;
 			role?: ClickableAriaRole;
-			onInteraction: MouseEventHandler<TElement>;
+			onInteraction: React.MouseEventHandler<TElement>;
 		}>
 	>;
 
-const NonNativeButton: FC<NonNativeButtonProps<HTMLElement>> = ({
+const NonNativeButton: React.FC<NonNativeButtonProps<HTMLElement>> = ({
 	as,
 	onInteraction,
 	children,

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { Template, TemplateExample } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 
@@ -6,7 +5,9 @@ type SelectedTemplateProps = {
 	template: Template | TemplateExample;
 };
 
-export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
+export const SelectedTemplate: React.FC<SelectedTemplateProps> = ({
+	template,
+}) => {
 	return (
 		<div className="flex flex-row gap-4 py-5 px-6 rounded-lg bg-surface-primary border border-solid border-border">
 			<Avatar

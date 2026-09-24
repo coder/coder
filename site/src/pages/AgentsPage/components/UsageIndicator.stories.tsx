@@ -1,5 +1,4 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
 import { useQueryClient } from "react-query";
 import { userEvent, within } from "storybook/test";
 import { meAISpendKey } from "#/api/queries/users";
@@ -21,13 +20,13 @@ import {
 } from "#/testHelpers/storybook";
 import { UsageIndicator } from "./UsageIndicator";
 
-const withAISpend = (status: UserAISpendStatus) => (Story: FC) => {
+const withAISpend = (status: UserAISpendStatus) => (Story: React.FC) => {
 	const queryClient = useQueryClient();
 	queryClient.setQueryData(meAISpendKey, status);
 	return <Story />;
 };
 
-const withWorkspaceQuota = (quota: WorkspaceQuota) => (Story: FC) => {
+const withWorkspaceQuota = (quota: WorkspaceQuota) => (Story: React.FC) => {
 	const queryClient = useQueryClient();
 	queryClient.setQueryData(
 		getWorkspaceQuotaQueryKey(
@@ -39,7 +38,7 @@ const withWorkspaceQuota = (quota: WorkspaceQuota) => (Story: FC) => {
 	return <Story />;
 };
 
-const withWorkspaceCount = (count: number) => (Story: FC) => {
+const withWorkspaceCount = (count: number) => (Story: React.FC) => {
 	const queryClient = useQueryClient();
 	queryClient.setQueryData(workspacesKey(userWorkspacesRequest), {
 		workspaces: [],
@@ -49,7 +48,7 @@ const withWorkspaceCount = (count: number) => (Story: FC) => {
 };
 
 const withUnavailableWorkspaceCount = function WithUnavailableWorkspaceCount(
-	Story: FC,
+	Story: React.FC,
 ) {
 	const queryClient = useQueryClient();
 	queryClient.setQueryData(workspacesKey(userWorkspacesRequest), {

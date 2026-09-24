@@ -1,6 +1,6 @@
 import { cva } from "class-variance-authority";
 import { cn } from "cn";
-import { createContext, type PropsWithChildren, useContext } from "react";
+import { createContext, useContext } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import type { StepId } from "./steps";
 
@@ -147,7 +147,7 @@ const stepLabelVariants = cva("font-normal mr-2", {
 	},
 });
 
-type StepIndicatorProps = PropsWithChildren<{
+type StepIndicatorProps = React.PropsWithChildren<{
 	step: number;
 	onClick?: () => void;
 }>;
@@ -198,7 +198,7 @@ const stepDividerVariants = cva(
 	},
 );
 
-type StepDividerProps = PropsWithChildren<{
+type StepDividerProps = React.PropsWithChildren<{
 	className?: string;
 }>;
 

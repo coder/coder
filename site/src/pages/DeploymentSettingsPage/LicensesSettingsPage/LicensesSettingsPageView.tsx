@@ -1,5 +1,4 @@
 import { PlusIcon, RotateCwIcon } from "lucide-react";
-import type { FC } from "react";
 import Confetti from "react-confetti";
 import { Link as RouterLink } from "react-router";
 import type { GetLicensesResponse } from "#/api/api";
@@ -43,7 +42,7 @@ type Props = {
 	agentRuntimeHoursFeature?: Feature;
 };
 
-const LicensesSettingsPageView: FC<Props> = ({
+const LicensesSettingsPageView: React.FC<Props> = ({
 	showConfetti,
 	isLoading,
 	hasUserLimitEntitlementData,

@@ -1,13 +1,6 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
-import {
-	type ComponentProps,
-	type FC,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { watchAgentMetadata } from "#/api/api";
 import type {
@@ -29,7 +22,9 @@ type AgentMetadataViewProps = {
 	metadata: WorkspaceAgentMetadata[];
 };
 
-export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
+export const AgentMetadataView: React.FC<AgentMetadataViewProps> = ({
+	metadata,
+}) => {
 	if (metadata.length === 0) {
 		return null;
 	}
@@ -49,7 +44,7 @@ type AgentMetadataProps = {
 
 const maxSocketErrorRetryCount = 3;
 
-export const AgentMetadata: FC<AgentMetadataProps> = ({
+export const AgentMetadata: React.FC<AgentMetadataProps> = ({
 	agent,
 	initialMetadata,
 }) => {
@@ -136,7 +131,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 	return <AgentMetadataView metadata={activeMetadata} />;
 };
 
-const AgentMetadataSkeleton: FC = () => {
+const AgentMetadataSkeleton: React.FC = () => {
 	return (
 		<div className="flex flex-row items-baseline gap-12">
 			<div className="leading-relaxed flex flex-col overflow-visible shrink-0">
@@ -161,7 +156,7 @@ type MetadataItemProps = {
 	item: WorkspaceAgentMetadata;
 };
 
-const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
+const MetadataItem: React.FC<MetadataItemProps> = ({ item }) => {
 	const staleThreshold = Math.max(
 		item.description.interval + item.description.timeout * 2,
 		// In case there is intense backpressure, we give a little bit of slack.
@@ -220,7 +215,7 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 	);
 };
 
-const StaticWidth: FC<Omit<ComponentProps<"div">, "ref">> = ({
+const StaticWidth: React.FC<Omit<React.ComponentProps<"div">, "ref">> = ({
 	children,
 	...attrs
 }) => {

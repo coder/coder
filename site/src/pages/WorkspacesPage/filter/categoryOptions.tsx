@@ -1,5 +1,4 @@
 import { MoonIcon, RefreshCwOffIcon, Share2Icon } from "lucide-react";
-import type { ReactNode } from "react";
 import type { QueryClient } from "react-query";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import { templates } from "#/api/queries/templates";
@@ -141,12 +140,12 @@ export const getUserFilterOptions = async (
 type AttributeDefinition = {
 	label: string;
 	value: string;
-	icon: ReactNode;
+	icon: React.ReactNode;
 	/** Hidden when the deployment lacks the entitlement gating this attribute. */
 	requiresDormantEntitlement: boolean;
 };
 
-const attributeIcon = (icon: ReactNode): ReactNode => (
+const attributeIcon = (icon: React.ReactNode): React.ReactNode => (
 	<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
 		{icon}
 	</span>

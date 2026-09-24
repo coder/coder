@@ -1,5 +1,5 @@
 import { ListFilterIcon, SearchIcon } from "lucide-react";
-import { type ReactNode, useId } from "react";
+import { useId } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -218,7 +218,7 @@ export function FilterCombobox({
 
 const OPTION_ITEM_CLASS = "gap-2 px-2 py-2.5";
 
-function ResultIcon({ result }: { result: SearchResult }): ReactNode {
+function ResultIcon({ result }: { result: SearchResult }): React.ReactNode {
 	if (result.startIcon) {
 		return <span aria-hidden>{result.startIcon}</span>;
 	}

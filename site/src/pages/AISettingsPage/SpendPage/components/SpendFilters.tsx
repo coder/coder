@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { MaxAISpendPeriodDays, type Organization } from "#/api/typesGenerated";
 import { DateTimeRangePicker } from "#/components/DateTimeRangePicker/DateTimeRangePicker";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
@@ -39,7 +38,7 @@ type SpendFiltersProps = {
 	onPeriodChange: (value: DateTimeRangeValue) => void;
 };
 
-export const SpendFilters: FC<SpendFiltersProps> = ({
+export const SpendFilters: React.FC<SpendFiltersProps> = ({
 	organizations,
 	organization,
 	onOrganizationChange,

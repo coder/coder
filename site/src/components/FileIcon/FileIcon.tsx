@@ -1,4 +1,4 @@
-import { type FC, useMemo } from "react";
+import { useMemo } from "react";
 import setiIconTheme from "./seti-icon-theme.json";
 
 type SetiIconDefinition = {
@@ -256,7 +256,7 @@ type FileIconProps = {
 	style?: React.CSSProperties;
 };
 
-export const FileIcon: FC<FileIconProps> = ({
+export const FileIcon: React.FC<FileIconProps> = ({
 	fileName,
 	filePath,
 	className,

@@ -26,7 +26,6 @@ import {
 	PASTE_COMMAND,
 } from "lexical";
 import {
-	type FC,
 	useEffect,
 	useImperativeHandle,
 	useLayoutEffect,
@@ -72,7 +71,7 @@ import {
 
 // Blocks Cmd+B/I/U and element formatting shortcuts so the editor
 // stays plain-text only.
-const DisableFormattingPlugin: FC = function DisableFormattingPlugin() {
+const DisableFormattingPlugin: React.FC = function DisableFormattingPlugin() {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
@@ -152,7 +151,7 @@ function replacePlainTextInEditor(editor: LexicalEditor, text: string) {
 // Cmd/Ctrl+Shift+V ("paste and match style") is treated as an explicit
 // user intent to paste inline, so the large-paste-to-attachment
 // conversion is bypassed for that shortcut.
-const PasteSanitizationPlugin: FC<{
+const PasteSanitizationPlugin: React.FC<{
 	onFilePaste?: (file: File) => void;
 	allowTextAttachmentPaste?: boolean;
 }> = function PasteSanitizationPlugin({
@@ -286,7 +285,7 @@ const PasteSanitizationPlugin: FC<{
 // Touch keyboards need plain Enter for newlines (CODAGT-210). Pointer
 // capability, not viewport width, keeps narrow desktop windows usable.
 // Cmd/Ctrl+Enter submits on either input type; Shift+Enter stays a newline.
-const EnterKeyPlugin: FC<{
+const EnterKeyPlugin: React.FC<{
 	onEnter?: () => void;
 	sendShortcut: TypesGen.AgentChatSendShortcut;
 }> = function EnterKeyPlugin({ onEnter, sendShortcut }) {
@@ -330,7 +329,7 @@ const EnterKeyPlugin: FC<{
 
 // Fires the onChange callback with the editor's plain-text content
 // on every update.
-const ContentChangePlugin: FC<{
+const ContentChangePlugin: React.FC<{
 	onChange?: (
 		content: string,
 		serializedEditorState: string,
@@ -373,7 +372,7 @@ const ContentChangePlugin: FC<{
 // initialEditorState is provided (a serialized Lexical JSON string),
 // it restores the full editor state including file-reference chips.
 // Falls back to plain-text seeding via initialValue.
-const ValueSyncPlugin: FC<{
+const ValueSyncPlugin: React.FC<{
 	initialValue?: string;
 	initialEditorState?: string;
 }> = function ValueSyncPlugin({ initialValue, initialEditorState }) {
@@ -417,7 +416,7 @@ const ValueSyncPlugin: FC<{
 
 // Exposes the LexicalEditor instance to the parent via a callback
 // so it can be stored in a ref for imperative access.
-const InsertTextPlugin: FC<{
+const InsertTextPlugin: React.FC<{
 	onEditorReady: (editor: LexicalEditor) => void;
 }> = function InsertTextPlugin({ onEditorReady }) {
 	const [editor] = useLexicalComposerContext();
@@ -537,7 +536,7 @@ type ChatMessageInputProps = Omit<
 // Keeps the Lexical editor's editable state in sync with the
 // disabled prop so that the underlying contentEditable element
 // becomes truly non-interactive when the input is disabled.
-const EditableStatePlugin: FC<{ disabled: boolean }> =
+const EditableStatePlugin: React.FC<{ disabled: boolean }> =
 	function EditableStatePlugin({ disabled }) {
 		const [editor] = useLexicalComposerContext();
 

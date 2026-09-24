@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, Fragment } from "react";
+import { Fragment } from "react";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
 import {
@@ -57,7 +57,7 @@ const renderUserInlineContent = (blocks: readonly UserInlineRenderBlock[]) => {
 	);
 };
 
-export const UserMessageContent: FC<{
+export const UserMessageContent: React.FC<{
 	displayState: MessageDisplayState;
 	markdown: string;
 	isEditing?: boolean;

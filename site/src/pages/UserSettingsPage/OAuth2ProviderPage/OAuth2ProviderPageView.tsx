@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -21,7 +20,7 @@ type OAuth2ProviderPageViewProps = {
 	revoke: (app: TypesGen.OAuth2ProviderApp) => void;
 };
 
-const OAuth2ProviderPageView: FC<OAuth2ProviderPageViewProps> = ({
+const OAuth2ProviderPageView: React.FC<OAuth2ProviderPageViewProps> = ({
 	isLoading,
 	error,
 	apps,
@@ -57,7 +56,7 @@ type OAuth2AppRowProps = {
 	revoke: (app: TypesGen.OAuth2ProviderApp) => void;
 };
 
-const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app, revoke }) => {
+const OAuth2AppRow: React.FC<OAuth2AppRowProps> = ({ app, revoke }) => {
 	return (
 		<TableRow key={app.id} data-testid={`app-${app.id}`}>
 			<TableCell>

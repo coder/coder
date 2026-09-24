@@ -8,7 +8,7 @@ import {
 	PlusIcon,
 	SquareTerminalIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import type {
 	Workspace,
 	WorkspaceAgent,
@@ -42,7 +42,7 @@ import { PortsMenuItem } from "../WorkspacePillPorts";
 const singletonTabMenuEntries: readonly {
 	id: SingletonRightPanelTabId;
 	label: string;
-	icon: ReactNode;
+	icon: React.ReactNode;
 }[] = [
 	{ id: "browser", label: "Browser", icon: <GlobeIcon /> },
 	{ id: "desktop", label: "Desktop", icon: <MonitorIcon /> },
@@ -51,7 +51,7 @@ const singletonTabMenuEntries: readonly {
 
 // usePortsData requires a workspace and agent, which are optional props on the
 // parent control, so the hook lives in this conditionally rendered component.
-const AgentPortsSubMenu: FC<{
+const AgentPortsSubMenu: React.FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	host: string;
@@ -78,7 +78,7 @@ const AgentPortsSubMenu: FC<{
 	);
 };
 
-export const RightPanelAddTabControl: FC<{
+export const RightPanelAddTabControl: React.FC<{
 	workspace?: Workspace;
 	agent?: WorkspaceAgent;
 	host?: string;

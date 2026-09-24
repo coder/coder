@@ -1,11 +1,5 @@
 import { cn } from "cn";
 import { ListFilterIcon, SearchIcon, XIcon } from "lucide-react";
-import type {
-	ChangeEventHandler,
-	FC,
-	KeyboardEventHandler,
-	RefObject,
-} from "react";
 
 export type SearchFilter = {
 	readonly key: string;
@@ -15,18 +9,18 @@ export type SearchFilter = {
 type ChatSearchInputProps = {
 	readonly activeResultId: string | undefined;
 	readonly hasResults: boolean;
-	readonly inputRef: RefObject<HTMLInputElement | null>;
+	readonly inputRef: React.RefObject<HTMLInputElement | null>;
 	readonly listboxId: string;
 	readonly filters: readonly SearchFilter[];
 	readonly value: string;
-	readonly onChange: ChangeEventHandler<HTMLInputElement>;
-	readonly onKeyDown: KeyboardEventHandler<HTMLInputElement>;
+	readonly onChange: React.ChangeEventHandler<HTMLInputElement>;
+	readonly onKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
 	readonly onRemoveFilter: (key: string) => void;
 	readonly isDropdownOpen: boolean;
 	readonly onToggleDropdown: () => void;
 };
 
-export const ChatSearchInput: FC<ChatSearchInputProps> = ({
+export const ChatSearchInput: React.FC<ChatSearchInputProps> = ({
 	activeResultId,
 	hasResults,
 	inputRef,

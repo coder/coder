@@ -1,12 +1,6 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
-import {
-	type ComponentProps,
-	type FC,
-	Fragment,
-	useLayoutEffect,
-	useRef,
-} from "react";
+import { Fragment, useLayoutEffect, useRef } from "react";
 import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
 import type { Line } from "#/components/Logs/LogLine";
 import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "#/components/Logs/Logs";
@@ -39,7 +33,7 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 	return completedAt.diff(startedAt, "seconds");
 };
 
-type WorkspaceBuildLogsProps = Omit<ComponentProps<"div">, "ref"> & {
+type WorkspaceBuildLogsProps = Omit<React.ComponentProps<"div">, "ref"> & {
 	hideTimestamps?: boolean;
 	sticky?: boolean;
 	logs: ProvisionerJobLog[];
@@ -47,7 +41,7 @@ type WorkspaceBuildLogsProps = Omit<ComponentProps<"div">, "ref"> & {
 	disableAutoscroll?: boolean;
 };
 
-export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
+export const WorkspaceBuildLogs: React.FC<WorkspaceBuildLogsProps> = ({
 	hideTimestamps,
 	sticky,
 	logs,

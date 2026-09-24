@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -23,7 +23,7 @@ import { pageTitle } from "#/utils/page";
 import { isUUID } from "#/utils/uuid";
 import { EditUserForm } from "./EditUserForm";
 
-const EditUserPage: FC = () => {
+const EditUserPage: React.FC = () => {
 	const { user: usernameOrId } = useParams() as { user: string };
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();

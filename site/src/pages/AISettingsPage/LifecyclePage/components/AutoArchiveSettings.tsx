@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DefaultChatAutoArchiveDays } from "#/api/typesGenerated";
@@ -42,7 +41,7 @@ const validationSchema = Yup.object({
 	}),
 });
 
-export const AutoArchiveSettings: FC<AutoArchiveSettingsProps> = ({
+export const AutoArchiveSettings: React.FC<AutoArchiveSettingsProps> = ({
 	autoArchiveDaysData,
 	isAutoArchiveDaysLoading,
 	isAutoArchiveDaysLoadError,

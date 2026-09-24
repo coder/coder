@@ -1,6 +1,6 @@
-import type { FC, PropsWithChildren } from "react";
-
-export const DividerWithText: FC<PropsWithChildren> = ({ children }) => {
+export const DividerWithText: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	return (
 		<div className="flex items-center">
 			<div className="border-0 border-b-2 border-solid border-border w-full" />

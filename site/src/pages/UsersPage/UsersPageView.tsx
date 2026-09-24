@@ -1,5 +1,5 @@
 import { UserPlusIcon } from "lucide-react";
-import { type ComponentProps, type FC, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -20,12 +20,12 @@ import {
 import { UsersTable, type UsersTableProps } from "./UsersTable";
 
 type UsersPageViewProps = Omit<UsersTableProps, "users" | "onAction"> & {
-	filterProps: ComponentProps<typeof UsersFilter>;
+	filterProps: React.ComponentProps<typeof UsersFilter>;
 	usersQuery: PaginationResult<TypesGen.GetUsersResponse>;
 	canCreateUser?: boolean;
 };
 
-export const UsersPageView: FC<UsersPageViewProps> = ({
+export const UsersPageView: React.FC<UsersPageViewProps> = ({
 	filterProps,
 	usersQuery,
 	canCreateUser,

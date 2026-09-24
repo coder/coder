@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import kebabCase from "lodash/fp/kebabCase";
 import { BellOffIcon, RotateCcwIcon } from "lucide-react";
-import { type FC, Suspense } from "react";
+import { Suspense } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { NavLink, Outlet } from "react-router";
 import { health, refreshHealth } from "#/api/queries/debug";
@@ -29,7 +29,7 @@ const linkStyles = {
 	active: "bg-surface-secondary text-content-primary",
 };
 
-export const HealthLayout: FC = () => {
+export const HealthLayout: React.FC = () => {
 	const queryClient = useQueryClient();
 	const {
 		data: healthStatus,

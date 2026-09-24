@@ -1,11 +1,10 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { provisionerJobs } from "#/api/queries/organizations";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import OrganizationProvisionerJobsPageView from "./OrganizationProvisionerJobsPageView";
 
-const OrganizationProvisionerJobsPage: FC = () => {
+const OrganizationProvisionerJobsPage: React.FC = () => {
 	const { organization } = useOrganizationSettings();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const filter = {

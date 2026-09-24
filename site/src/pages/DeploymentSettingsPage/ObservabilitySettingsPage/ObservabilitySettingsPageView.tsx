@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
 import {
 	SettingsHeader,
@@ -17,7 +16,7 @@ type ObservabilitySettingsPageViewProps = {
 	canViewPremium: boolean;
 };
 
-export const ObservabilitySettingsPageView: FC<
+export const ObservabilitySettingsPageView: React.FC<
 	ObservabilitySettingsPageViewProps
 > = ({ options, featureAuditLogEnabled, canViewPremium }) => {
 	return (

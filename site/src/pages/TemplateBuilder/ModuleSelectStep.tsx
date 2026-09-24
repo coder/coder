@@ -1,5 +1,5 @@
 import { SearchIcon } from "lucide-react";
-import { type FC, type PropsWithChildren, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
@@ -52,7 +52,7 @@ type ModuleConflict = {
 	moduleB: TemplateBuilderModule;
 };
 
-const ModuleName: FC<PropsWithChildren> = ({ children }) => {
+const ModuleName: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
 		<code className="text-content-secondary bg-surface-tertiary mx-1 first:ml-0 px-1.5 py-1 rounded-sm">
 			{children}
@@ -60,7 +60,7 @@ const ModuleName: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
-const ConflictWarning: FC<ModuleConflict> = ({ moduleA, moduleB }) => {
+const ConflictWarning: React.FC<ModuleConflict> = ({ moduleA, moduleB }) => {
 	return (
 		<div>
 			<ModuleName>{moduleA.display_name}</ModuleName> and{" "}
@@ -92,7 +92,7 @@ const MODULE_PRIORITY: readonly string[] = [
 	"kasmvnc",
 ];
 
-export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
+export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 	baseId,
 	selectedModuleIds,
 	onChangeModules,

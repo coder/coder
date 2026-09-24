@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
-import { type FC, useId } from "react";
+import { useId } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type {
 	AdvisorConfig,
@@ -73,7 +73,7 @@ const validateAdvisorConfig = (values: AdvisorSettingsFormValues) => {
 	return errors;
 };
 
-export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
+export const AdvisorSettings: React.FC<AdvisorSettingsProps> = ({
 	advisorConfigData,
 	isAdvisorConfigLoading,
 	isAdvisorConfigFetching,
@@ -190,7 +190,7 @@ type CompactIntegerFieldProps = {
 	className?: string;
 };
 
-const CompactIntegerField: FC<CompactIntegerFieldProps> = ({
+const CompactIntegerField: React.FC<CompactIntegerFieldProps> = ({
 	id,
 	name,
 	label,

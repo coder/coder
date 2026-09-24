@@ -1,11 +1,4 @@
-import {
-	type FC,
-	useCallback,
-	useLayoutEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -51,7 +44,7 @@ function useSafeSearchParams() {
 
 type BatchAction = "delete" | "stop" | "update";
 
-const WorkspacesPage: FC = () => {
+const WorkspacesPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	// We have to be careful with how we use useSearchParams or any other
 	// derived hooks. The URL is global state, but each call to useSearchParams

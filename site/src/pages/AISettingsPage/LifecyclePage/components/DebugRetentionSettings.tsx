@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DefaultChatDebugRetentionDays } from "#/api/typesGenerated";
@@ -41,7 +40,7 @@ const validationSchema = Yup.object({
 	}),
 });
 
-export const DebugRetentionSettings: FC<DebugRetentionSettingsProps> = ({
+export const DebugRetentionSettings: React.FC<DebugRetentionSettingsProps> = ({
 	debugRetentionDaysData,
 	isDebugRetentionDaysLoading,
 	isDebugRetentionDaysLoadError,

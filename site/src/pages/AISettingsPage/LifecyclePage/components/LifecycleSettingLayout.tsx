@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC, FormEventHandler, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
 import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -14,16 +13,16 @@ type LifecycleSettingLayoutProps = {
 	onCheckedChange: (checked: boolean) => void;
 	switchLabel: string;
 	disabled?: boolean;
-	children?: ReactNode;
-	error?: ReactNode;
+	children?: React.ReactNode;
+	error?: React.ReactNode;
 	showSave: boolean;
 	isSaving: boolean;
 	isSavedVisible: boolean;
 	saveDisabled: boolean;
-	onSubmit: FormEventHandler<HTMLFormElement>;
+	onSubmit: React.FormEventHandler<HTMLFormElement>;
 };
 
-export const LifecycleSettingLayout: FC<LifecycleSettingLayoutProps> = ({
+export const LifecycleSettingLayout: React.FC<LifecycleSettingLayoutProps> = ({
 	title,
 	description,
 	docsHref,
@@ -103,7 +102,7 @@ type DaysFieldProps = {
 	max: number;
 };
 
-export const DaysField: FC<DaysFieldProps> = ({
+export const DaysField: React.FC<DaysFieldProps> = ({
 	name,
 	value,
 	onChange,

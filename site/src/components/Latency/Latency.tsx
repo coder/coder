@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { CircleHelpIcon } from "lucide-react";
-import type { FC } from "react";
 import { Abbr } from "#/components/Abbr/Abbr";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -16,7 +15,7 @@ type LatencyProps = {
 	className?: string;
 };
 
-export const Latency: FC<LatencyProps> = ({
+export const Latency: React.FC<LatencyProps> = ({
 	latency,
 	isLoading,
 	className,

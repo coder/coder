@@ -1,11 +1,4 @@
-import {
-	type Dispatch,
-	type SetStateAction,
-	useEffect,
-	useEffectEvent,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { API } from "#/api/api";
 import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
 import type { UploadState } from "../components/AgentChatInput";
@@ -176,9 +169,9 @@ type UseFileAttachmentsReturn = {
 	handleRemoveAttachment: (attachment: number | File) => void;
 	startUpload: (file: File) => void;
 	resetAttachments: () => void;
-	setAttachments: Dispatch<SetStateAction<File[]>>;
-	setPreviewUrls: Dispatch<SetStateAction<Map<File, string>>>;
-	setUploadStates: Dispatch<SetStateAction<Map<File, UploadState>>>;
+	setAttachments: React.Dispatch<React.SetStateAction<File[]>>;
+	setPreviewUrls: React.Dispatch<React.SetStateAction<Map<File, string>>>;
+	setUploadStates: React.Dispatch<React.SetStateAction<Map<File, UploadState>>>;
 };
 
 export function useFileAttachments(

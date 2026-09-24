@@ -1,14 +1,13 @@
-import type { FC, ReactNode } from "react";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 
 type ModelOverrideAlertsProps = {
 	isUnavailableSavedModel: boolean;
-	unavailableMessage: ReactNode;
+	unavailableMessage: React.ReactNode;
 	modelsError: unknown;
-	children?: ReactNode;
+	children?: React.ReactNode;
 };
 
-export const ModelOverrideAlerts: FC<ModelOverrideAlertsProps> = ({
+export const ModelOverrideAlerts: React.FC<ModelOverrideAlertsProps> = ({
 	isUnavailableSavedModel,
 	unavailableMessage,
 	modelsError,

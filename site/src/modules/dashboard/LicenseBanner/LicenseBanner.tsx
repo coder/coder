@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import {
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
 	LicenseAgentRuntimeHoursSoftLimitWarningText,
@@ -174,7 +173,7 @@ const toBannerMessage = (
 	};
 };
 
-export const LicenseBanner: FC = () => {
+export const LicenseBanner: React.FC = () => {
 	const { entitlements } = useDashboard();
 	const { errors } = entitlements;
 	const warnings = [...entitlements.warnings];

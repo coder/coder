@@ -1,4 +1,3 @@
-import type { ComponentProps, FC } from "react";
 import type { AuditLog } from "#/api/typesGenerated";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -27,13 +26,13 @@ type AuditPageViewProps = {
 	isNonInitialPage: boolean;
 	isAuditLogVisible: boolean;
 	error?: unknown;
-	filterProps: ComponentProps<typeof AuditFilter>;
+	filterProps: React.ComponentProps<typeof AuditFilter>;
 	auditsQuery: PaginationResult;
 	showOrgDetails: boolean;
 	permissions: Permissions;
 };
 
-export const AuditPageView: FC<AuditPageViewProps> = ({
+export const AuditPageView: React.FC<AuditPageViewProps> = ({
 	auditLogs,
 	isNonInitialPage,
 	isAuditLogVisible,
@@ -112,7 +111,7 @@ type AuditTableBodyProps = {
 	showOrgDetails: boolean;
 };
 
-const AuditTableBody: FC<AuditTableBodyProps> = ({
+const AuditTableBody: React.FC<AuditTableBodyProps> = ({
 	auditLogs,
 	error,
 	isLoading,

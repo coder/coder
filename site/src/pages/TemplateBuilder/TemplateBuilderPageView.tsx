@@ -1,11 +1,4 @@
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useReducer,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
@@ -73,7 +66,9 @@ type TemplateBuilderPageViewProps = {
 	sessionId: string;
 };
 
-export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
+export const TemplateBuilderPageView: React.FC<
+	TemplateBuilderPageViewProps
+> = ({
 	error,
 	basesData,
 	preselectedBase,
@@ -402,7 +397,7 @@ type StepContentProps = {
 	showValidationErrors: boolean;
 };
 
-const StepContent: FC<StepContentProps> = ({
+const StepContent: React.FC<StepContentProps> = ({
 	stepId,
 	state,
 	dispatch,

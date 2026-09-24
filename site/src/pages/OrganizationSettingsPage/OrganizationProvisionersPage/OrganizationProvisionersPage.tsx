@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams, useSearchParams } from "react-router";
 import { buildInfo } from "#/api/queries/buildInfo";
@@ -12,7 +11,7 @@ import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
 
-const OrganizationProvisionersPage: FC = () => {
+const OrganizationProvisionersPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organization: organizationName } = useParams() as {
 		organization: string;

@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import type { AlertProps } from "#/components/Alert/Alert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button, type ButtonProps } from "#/components/Button/Button";
@@ -13,8 +13,8 @@ import type { ThemeRole } from "#/theme/roles";
 export type Notification = {
 	title: string;
 	severity: AlertProps["severity"];
-	detail?: ReactNode;
-	actions?: ReactNode;
+	detail?: React.ReactNode;
+	actions?: React.ReactNode;
 };
 
 type NotificationSeverity = "warning" | "info";
@@ -22,7 +22,7 @@ type NotificationSeverity = "warning" | "info";
 type NotificationsProps = {
 	items: Notification[];
 	severity: NotificationSeverity;
-	icon: ReactNode;
+	icon: React.ReactNode;
 };
 
 // Maps a ThemeRole severity to Tailwind classes for the role's outline
@@ -68,7 +68,7 @@ const severityStyles: Record<ThemeRole, { svgColor: string; border: string }> =
 		},
 	};
 
-export const Notifications: FC<NotificationsProps> = ({
+export const Notifications: React.FC<NotificationsProps> = ({
 	items,
 	severity,
 	icon,
@@ -111,7 +111,7 @@ type NotificationPillProps = NotificationsProps & {
 	isOpen: boolean;
 };
 
-const NotificationPill: FC<NotificationPillProps> = ({
+const NotificationPill: React.FC<NotificationPillProps> = ({
 	items,
 	severity,
 	icon,
@@ -134,7 +134,9 @@ type NotificationItemProps = {
 	notification: Notification;
 };
 
-const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
+const NotificationItem: React.FC<NotificationItemProps> = ({
+	notification,
+}) => {
 	return (
 		<article className="p-5 leading-normal border-0 border-t border-solid first:border-t-0">
 			<h4 className="m-0 font-medium">{notification.title}</h4>
@@ -148,6 +150,6 @@ const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 	);
 };
 
-export const NotificationActionButton: FC<ButtonProps> = (props) => {
+export const NotificationActionButton: React.FC<ButtonProps> = (props) => {
 	return <Button variant="default" size="sm" {...props} />;
 };

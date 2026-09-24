@@ -7,11 +7,11 @@ import {
 	WrenchIcon,
 } from "lucide-react";
 import { MotionConfigContext, motion } from "motion/react";
-import { type FC, useContext } from "react";
+import { useContext } from "react";
 
 type FloatingIcon = {
 	name: string;
-	icon: FC<{ className?: string }>;
+	icon: React.FC<{ className?: string }>;
 	// Position as percentage offsets from the container center.
 	x: number;
 	y: number;
@@ -33,7 +33,7 @@ const ICONS: FloatingIcon[] = [
  * bar that fills once and holds, and an animated "Building your template..."
  * label.
  */
-export const BuildingTemplateLoader: FC = () => {
+export const BuildingTemplateLoader: React.FC = () => {
 	// skipAnimations jumps to each loop's final keyframe, which is
 	// blank here (icons offscreen, dots faded), so hold a visible frame.
 	const { skipAnimations = false } = useContext(MotionConfigContext);

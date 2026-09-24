@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import {
 	TOOLTIP_DELAY_DURATION,
 	Tooltip,
@@ -17,7 +16,7 @@ type InfoTooltipProps = {
 	type?: InfoTooltipType;
 	size?: InfoTooltipSize;
 	ariaLabel?: string;
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
 const typeIcon: Record<InfoTooltipType, typeof InfoIcon> = {
@@ -35,7 +34,7 @@ const sizeClasses: Record<InfoTooltipSize, string> = {
 	medium: "[&_svg]:size-4",
 };
 
-export const InfoTooltip: FC<InfoTooltipProps> = ({
+export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 	children,
 	type = "info",
 	size = "medium",

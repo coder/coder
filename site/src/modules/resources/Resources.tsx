@@ -1,4 +1,4 @@
-import { type FC, type JSX, useState } from "react";
+import { useState } from "react";
 import type { WorkspaceAgent, WorkspaceResource } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
@@ -10,10 +10,16 @@ const countAgents = (resource: WorkspaceResource) => {
 
 type ResourcesProps = {
 	resources: WorkspaceResource[];
-	agentRow: (agent: WorkspaceAgent, numberOfAgents: number) => JSX.Element;
+	agentRow: (
+		agent: WorkspaceAgent,
+		numberOfAgents: number,
+	) => React.JSX.Element;
 };
 
-export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
+export const Resources: React.FC<ResourcesProps> = ({
+	resources,
+	agentRow,
+}) => {
 	const [shouldDisplayHideResources, setShouldDisplayHideResources] =
 		useState(false);
 	const displayResources = shouldDisplayHideResources

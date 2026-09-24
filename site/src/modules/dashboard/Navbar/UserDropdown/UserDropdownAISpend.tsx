@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { UsageBar } from "#/components/UsageBar/UsageBar";
 import {
 	formatSpendPeriodLabel,
@@ -15,7 +14,7 @@ type UserDropdownAISpendProps = {
 	periodEnd: string;
 };
 
-export const UserDropdownAISpend: FC<UserDropdownAISpendProps> = ({
+export const UserDropdownAISpend: React.FC<UserDropdownAISpendProps> = ({
 	currentSpend,
 	spendLimit,
 	periodStart,

@@ -1,5 +1,4 @@
 import capitalize from "lodash/capitalize";
-import type { FC } from "react";
 import { AuditActions, ResourceTypes } from "#/api/typesGenerated";
 import {
 	Filter,
@@ -54,7 +53,11 @@ type AuditFilterProps = {
 	};
 };
 
-export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
+export const AuditFilter: React.FC<AuditFilterProps> = ({
+	filter,
+	error,
+	menus,
+}) => {
 	const width = menus.organization ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	return (
 		<Filter
@@ -119,7 +122,7 @@ type ActionMenuProps = {
 	width?: number;
 };
 
-const ActionMenu: FC<ActionMenuProps> = ({ menu, width }) => {
+const ActionMenu: React.FC<ActionMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
 			label="Select an action"
@@ -185,7 +188,7 @@ type ResourceTypeMenuProps = {
 	width?: number;
 };
 
-const ResourceTypeMenu: FC<ResourceTypeMenuProps> = ({ menu, width }) => {
+const ResourceTypeMenu: React.FC<ResourceTypeMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
 			label="Select a resource type"

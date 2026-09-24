@@ -1,6 +1,6 @@
 import capitalize from "lodash/capitalize";
 import { ExternalLinkIcon, FileIcon, LayoutGridIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type {
 	WorkspaceAppStatus as APIWorkspaceAppStatus,
 	Workspace,
@@ -34,7 +34,7 @@ type StatusWithAppInfo = APIWorkspaceAppStatus & {
 	app?: WorkspaceApp; // Store the full app object
 };
 
-export const AppStatuses: FC<AppStatusesProps> = ({
+export const AppStatuses: React.FC<AppStatusesProps> = ({
 	workspace,
 	agent,
 	referenceDate,
@@ -169,7 +169,7 @@ type AppLinkProps = {
 	workspace: Workspace;
 };
 
-const AppLink: FC<AppLinkProps> = ({ app, agent, workspace }) => {
+const AppLink: React.FC<AppLinkProps> = ({ app, agent, workspace }) => {
 	const link = useAppLink(app, { agent, workspace });
 
 	return (

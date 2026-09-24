@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
@@ -65,7 +64,9 @@ const settings: readonly {
 	},
 ];
 
-const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
+const OrganizationAgentSettingsView: React.FC<
+	OrganizationAgentSettingsViewProps
+> = ({
 	overrides,
 	enabledModels,
 	providerInfoByID,

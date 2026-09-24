@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
 import { BadgeGroup } from "#/components/Badge/Badge";
 import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
@@ -19,9 +18,9 @@ type NetworkSettingsPageViewProps = {
 	options: SerpentOption[];
 };
 
-export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
-	options,
-}) => (
+export const NetworkSettingsPageView: React.FC<
+	NetworkSettingsPageViewProps
+> = ({ options }) => (
 	<div className="flex flex-col gap-12">
 		<div>
 			<SettingsHeader>

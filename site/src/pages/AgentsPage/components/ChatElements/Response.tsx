@@ -3,7 +3,6 @@ import {
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
 import { cn } from "cn";
-import type { ComponentProps, ReactNode } from "react";
 import {
 	type Components,
 	defaultRehypePlugins,
@@ -15,7 +14,7 @@ import { useTheme } from "#/theme/context";
 import { MarkdownImage } from "./MarkdownImage";
 import { MermaidDiagram } from "./MermaidDiagram";
 
-type ResponseProps = Omit<ComponentProps<"div">, "children"> & {
+type ResponseProps = Omit<React.ComponentProps<"div">, "children"> & {
 	children: string;
 	urlTransform?: UrlTransform;
 	/** Enable streaming-mode Streamdown with incomplete-markdown
@@ -48,7 +47,7 @@ type MarkdownComponentProps = {
 	href?: string;
 	src?: string;
 	alt?: string;
-	children?: ReactNode;
+	children?: React.ReactNode;
 	node?: HastNode;
 	type?: string;
 	checked?: boolean;

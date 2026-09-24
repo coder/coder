@@ -1,5 +1,4 @@
 import { BanIcon, CheckIcon, ChevronRightIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import type {
 	AgentFirewallLog,
 	AIBridgeSessionNetworkCallSummary,
@@ -31,7 +30,7 @@ type NetworkCallsTableProps = {
 	search?: { loaded: number; query: string };
 };
 
-export const NetworkCallsTable: FC<NetworkCallsTableProps> = ({
+export const NetworkCallsTable: React.FC<NetworkCallsTableProps> = ({
 	summary,
 	calls,
 	search,
@@ -84,7 +83,7 @@ export const NetworkCallsTable: FC<NetworkCallsTableProps> = ({
 	);
 };
 
-const NetworkCallsList: FC<{
+const NetworkCallsList: React.FC<{
 	calls: readonly AgentFirewallLog[];
 	search?: { loaded: number; query: string };
 	sessionTotal: number;
@@ -150,7 +149,7 @@ type NetworkCallRowProps = {
 	query: string;
 };
 
-const NetworkCallRow: FC<NetworkCallRowProps> = ({ call, query }) => {
+const NetworkCallRow: React.FC<NetworkCallRowProps> = ({ call, query }) => {
 	const timestamp = formatDateTime(new Date(call.created_at));
 
 	return (
@@ -225,7 +224,7 @@ const NetworkCallRow: FC<NetworkCallRowProps> = ({ call, query }) => {
 	);
 };
 
-const NetworkCallStatusBadge: FC<{ allowed: boolean }> = ({ allowed }) =>
+const NetworkCallStatusBadge: React.FC<{ allowed: boolean }> = ({ allowed }) =>
 	allowed ? (
 		<Badge size="sm" svgSize="xs" className="shrink-0 gap-1">
 			<CheckIcon className="shrink-0" />
@@ -244,10 +243,10 @@ const NetworkCallStatusBadge: FC<{ allowed: boolean }> = ({ allowed }) =>
 
 type NetworkCallDetailRowProps = {
 	label: string;
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
-const NetworkCallDetailRow: FC<NetworkCallDetailRowProps> = ({
+const NetworkCallDetailRow: React.FC<NetworkCallDetailRowProps> = ({
 	label,
 	children,
 }) => (

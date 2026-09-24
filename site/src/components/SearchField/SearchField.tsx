@@ -1,5 +1,5 @@
 import { SearchIcon, XIcon } from "lucide-react";
-import { type Ref, useEffectEvent, useLayoutEffect, useRef } from "react";
+import { useEffectEvent, useLayoutEffect, useRef } from "react";
 import {
 	InputGroup,
 	InputGroupAddon,
@@ -20,7 +20,7 @@ export type SearchFieldProps = {
 	className?: string;
 	autoFocus?: boolean;
 	onBlur?: () => void;
-	ref?: Ref<HTMLInputElement>;
+	ref?: React.Ref<HTMLInputElement>;
 	"aria-label"?: string;
 	"aria-invalid"?: boolean;
 };

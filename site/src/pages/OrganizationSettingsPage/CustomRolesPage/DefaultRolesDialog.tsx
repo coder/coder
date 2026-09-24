@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useState } from "react";
 import type { AssignableRoles } from "#/api/typesGenerated";
 import {
@@ -21,7 +20,7 @@ type DefaultRolesDialogProps = {
 	isUpdating: boolean;
 };
 
-export const DefaultRolesDialog: FC<DefaultRolesDialogProps> = ({
+export const DefaultRolesDialog: React.FC<DefaultRolesDialogProps> = ({
 	open,
 	currentRoles,
 	availableRoles,
@@ -52,7 +51,7 @@ type ActiveProps = {
 	isUpdating: boolean;
 };
 
-const ActiveDefaultRolesDialog: FC<ActiveProps> = ({
+const ActiveDefaultRolesDialog: React.FC<ActiveProps> = ({
 	currentRoles,
 	availableRoles,
 	onCancel,

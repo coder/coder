@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 
@@ -6,7 +5,7 @@ type TrialActivePanelProps = {
 	daysRemaining: number | undefined;
 };
 
-export const TrialActivePanel: FC<TrialActivePanelProps> = ({
+export const TrialActivePanel: React.FC<TrialActivePanelProps> = ({
 	daysRemaining,
 }) => {
 	const showRemaining = daysRemaining !== undefined && daysRemaining > 0;

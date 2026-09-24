@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { aiSpendOrganizations } from "#/api/queries/aiBridge";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -11,7 +10,7 @@ import { canViewAISpend } from "#/pages/AISettingsPage/SpendPage/spendAccess";
 /**
  * A sidebar for AI settings.
  */
-export const AISettingsSidebar: FC = () => {
+export const AISettingsSidebar: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { entitlements, organizations } = useDashboard();
 	const accessibleOrgsQuery = useAccessibleModelOrganizations(organizations);

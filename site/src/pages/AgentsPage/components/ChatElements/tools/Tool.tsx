@@ -1,6 +1,6 @@
 import { File as FileViewer } from "@pierre/diffs/react";
 import { cn } from "cn";
-import { type ComponentProps, type FC, memo } from "react";
+import { memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
@@ -64,7 +64,7 @@ import { WorkspaceLifecycleTool } from "./WorkspaceLifecycleTool";
 
 import { WriteFileTool } from "./WriteFileTool";
 
-type ToolProps = Omit<ComponentProps<"div">, "children"> & {
+type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 	organizationId?: string;
 	name: string;
 	status?: ToolStatus;
@@ -224,7 +224,7 @@ const parseAskUserQuestionResult = (
 	return null;
 };
 
-const ExecuteRenderer: FC<ToolRendererProps> = ({
+const ExecuteRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
@@ -254,7 +254,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ProcessOutputRenderer: FC<ToolRendererProps> = ({
+const ProcessOutputRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	result,
 	isError,
@@ -291,7 +291,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ReadFileRenderer: FC<ToolRendererProps> = ({
+const ReadFileRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
@@ -303,7 +303,7 @@ const ReadFileRenderer: FC<ToolRendererProps> = ({
 	/>
 );
 
-const ReadSkillRenderer: FC<ToolRendererProps> = ({
+const ReadSkillRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
@@ -325,7 +325,7 @@ const ReadSkillRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ReadSkillFileRenderer: FC<ToolRendererProps> = ({
+const ReadSkillFileRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
@@ -352,7 +352,7 @@ const ReadSkillFileRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const WriteFileRenderer: FC<ToolRendererProps> = ({
+const WriteFileRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
@@ -376,7 +376,7 @@ const WriteFileRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const EditFilesRenderer: FC<ToolRendererProps> = ({
+const EditFilesRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
@@ -411,7 +411,7 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 
 // Once the tool finishes, the result becomes a JSON object
 // with workspace metadata.
-const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
+const CreateWorkspaceRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	result,
 	isError,
@@ -438,7 +438,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const SubagentRenderer: FC<ToolRendererProps> = ({
+const SubagentRenderer: React.FC<ToolRendererProps> = ({
 	organizationId,
 	name,
 	status,
@@ -549,7 +549,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ListTemplatesRenderer: FC<ToolRendererProps> = ({
+const ListTemplatesRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	result,
 	isError,
@@ -571,7 +571,7 @@ const ListTemplatesRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ListAgentsRenderer: FC<ToolRendererProps> = ({
+const ListAgentsRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	result,
 	isError,
@@ -599,7 +599,7 @@ const ListAgentsRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ListSubagentModelsRenderer: FC<ToolRendererProps> = ({
+const ListSubagentModelsRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	result,
 	isError,
@@ -617,7 +617,7 @@ const ListSubagentModelsRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ReadTemplateRenderer: FC<ToolRendererProps> = ({
+const ReadTemplateRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	result,
 	isError,
@@ -638,7 +638,7 @@ const ReadTemplateRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ChatClearedRenderer: FC<ToolRendererProps> = ({
+const ChatClearedRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	result,
 	isError,
@@ -653,7 +653,7 @@ const ChatClearedRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
+const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
@@ -681,7 +681,7 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const AskUserQuestionRenderer: FC<ToolRendererProps> = ({
+const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	args,
 	status,
 	result,
@@ -722,7 +722,7 @@ const AskUserQuestionRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ProposePlanRenderer: FC<ToolRendererProps> = ({
+const ProposePlanRenderer: React.FC<ToolRendererProps> = ({
 	args,
 	status,
 	result,
@@ -752,7 +752,7 @@ const ProposePlanRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const AdvisorRenderer: FC<ToolRendererProps> = ({
+const AdvisorRenderer: React.FC<ToolRendererProps> = ({
 	args,
 	status,
 	result,
@@ -797,7 +797,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ComputerRenderer: FC<ToolRendererProps> = ({
+const ComputerRenderer: React.FC<ToolRendererProps> = ({
 	status,
 	result,
 	isError,
@@ -861,11 +861,15 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 
 type ToolFileViewerProps = {
 	label?: string;
-	file: ComponentProps<typeof FileViewer>["file"];
-	options: ComponentProps<typeof FileViewer>["options"];
+	file: React.ComponentProps<typeof FileViewer>["file"];
+	options: React.ComponentProps<typeof FileViewer>["options"];
 };
 
-const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
+const ToolFileViewer: React.FC<ToolFileViewerProps> = ({
+	label,
+	file,
+	options,
+}) => (
 	<>
 		{label && (
 			<div className="mt-2 text-2xs font-medium text-content-secondary">
@@ -898,12 +902,12 @@ const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
 type GenericToolContentProps = {
 	toolInput: string | null;
 	fileContent: ReturnType<typeof getFileContentForViewer>;
-	fileContentOptions: ComponentProps<typeof FileViewer>["options"];
+	fileContentOptions: React.ComponentProps<typeof FileViewer>["options"];
 	isDark: boolean;
 	resultOutput: string | null;
 };
 
-const GenericToolContent: FC<GenericToolContentProps> = ({
+const GenericToolContent: React.FC<GenericToolContentProps> = ({
 	toolInput,
 	fileContent,
 	fileContentOptions,
@@ -953,7 +957,7 @@ const getGenericToolErrorMessage = ({
 	return `${displayName} failed`;
 };
 
-const GenericToolRenderer: FC<ToolRendererProps> = ({
+const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 	name,
 	status,
 	args,
@@ -1075,7 +1079,7 @@ const parseFindToolsMatches = (value: unknown): FindToolsMatch[] | null =>
 			: null;
 	});
 
-const FindToolsRenderer: FC<ToolRendererProps> = (props) => {
+const FindToolsRenderer: React.FC<ToolRendererProps> = (props) => {
 	const parsedArgs = parseArgs(props.args);
 	if (!parsedArgs) {
 		return <GenericToolRenderer {...props} />;
@@ -1131,7 +1135,7 @@ const FindToolsRenderer: FC<ToolRendererProps> = (props) => {
 // renderer shows the error indicator and tooltip.
 // ---------------------------------------------------------------------------
 
-const ProcessSignalRenderer: FC<ToolRendererProps> = (props) => {
+const ProcessSignalRenderer: React.FC<ToolRendererProps> = (props) => {
 	const rec = asRecord(props.result);
 	const isSoftFailure =
 		!props.isError &&
@@ -1143,7 +1147,7 @@ const ProcessSignalRenderer: FC<ToolRendererProps> = (props) => {
 	);
 };
 
-const WorkspaceLifecycleRenderer: FC<ToolRendererProps> = ({
+const WorkspaceLifecycleRenderer: React.FC<ToolRendererProps> = ({
 	name,
 	status,
 	result,
@@ -1174,7 +1178,7 @@ const WorkspaceLifecycleRenderer: FC<ToolRendererProps> = ({
 // Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
 
-export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
+export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	find_tools: FindToolsRenderer,
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,

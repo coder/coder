@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { type FormikTouched, useFormik } from "formik";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
@@ -72,7 +72,7 @@ type TemplateScheduleFormProps = {
 	initialTouched?: FormikTouched<UpdateTemplateMeta>;
 };
 
-export const TemplateScheduleForm: FC<TemplateScheduleFormProps> = ({
+export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 	template,
 	onSubmit,
 	onCancel,

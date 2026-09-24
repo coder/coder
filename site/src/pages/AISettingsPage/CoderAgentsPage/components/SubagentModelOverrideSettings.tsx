@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC, ReactNode } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
@@ -26,7 +25,7 @@ type UpdateModelOverrideRequest = {
 
 type SubagentModelOverrideSettingsProps = {
 	title: string;
-	description?: ReactNode;
+	description?: React.ReactNode;
 	modelOverrideData: ModelOverrideData | undefined;
 	enabledModels: readonly TypesGen.ChatModel[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
@@ -44,7 +43,7 @@ type SubagentModelOverrideSettingsProps = {
 	disabled?: boolean;
 };
 
-export const SubagentModelOverrideSettings: FC<
+export const SubagentModelOverrideSettings: React.FC<
 	SubagentModelOverrideSettingsProps
 > = ({
 	title,

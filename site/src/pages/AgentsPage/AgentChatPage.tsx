@@ -1,4 +1,4 @@
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -99,7 +99,7 @@ import { pickReasoningEffort } from "./utils/reasoningEffort";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
-const AgentChatPage: FC = () => {
+const AgentChatPage: React.FC = () => {
 	const { agentId } = useParams() as { agentId: string };
 	const {
 		chatErrorReasons,
@@ -805,7 +805,7 @@ const AgentChatPage: FC = () => {
 // Keyed so that navigating between agents (changing the :agentId param)
 // fully remounts the component, resetting all internal state (drafts,
 // editing, queries, scroller) cleanly.
-const KeyedAgentChatPage: FC = () => {
+const KeyedAgentChatPage: React.FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	if (!agentId) {
 		return <AgentChatPageNotFoundView />;

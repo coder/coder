@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { AlertColor } from "#/components/Alert/Alert";
 import { AlertVariant, ProvisionerAlert } from "./ProvisionerAlert";
 
@@ -9,7 +8,7 @@ type ProvisionerStatusAlertProps = {
 	variant?: AlertVariant;
 };
 
-export const ProvisionerStatusAlert: FC<ProvisionerStatusAlertProps> = ({
+export const ProvisionerStatusAlert: React.FC<ProvisionerStatusAlertProps> = ({
 	matchingProvisioners,
 	availableProvisioners,
 	tags,
