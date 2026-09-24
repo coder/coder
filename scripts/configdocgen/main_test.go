@@ -38,6 +38,28 @@ func TestSentenceCase(t *testing.T) {
 	}
 }
 
+func TestStripLeadingSymbol(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"emoji prefix", "⚠️ Dangerous", "Dangerous"},
+		{"no prefix", "Networking", "Networking"},
+		{"multiple leading symbols", "☢️ ⚠️ Dangerous", "Dangerous"},
+		{"symbol only", "⚠️", "⚠️"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := stripLeadingSymbol(tc.in); got != tc.want {
+				t.Errorf("stripLeadingSymbol(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestStripGroupPrefix(t *testing.T) {
 	t.Parallel()
 
@@ -159,6 +181,26 @@ func TestCollapse(t *testing.T) {
 	}
 }
 
+// TestRenderDangerousWithDescription verifies the Caution alert uses the
+// Dangerous group's own codersdk description when it has one, instead of the
+// fallback copy.
+func TestRenderDangerousWithDescription(t *testing.T) {
+	t.Parallel()
+
+	dangerous := serpent.Group{Name: "⚠️ Dangerous", YAML: "dangerous", Description: "Custom warning from codersdk."}
+	opts := serpent.OptionSet{
+		{Name: "DANGEROUS: Allow All Cors", Env: "CODER_DANGEROUS_ALLOW_ALL_CORS", Group: &dangerous, Description: "Allow all cross-origin requests."},
+	}
+
+	got := render(buildTree(opts))
+	if !strings.Contains(got, "> [!CAUTION]\n> Custom warning from codersdk.") {
+		t.Errorf("render() should use the group's own description in the Caution alert, got:\n%s", got)
+	}
+	if strings.Contains(got, dangerousCaution) {
+		t.Errorf("render() should not fall back to the default copy when a description is set, got:\n%s", got)
+	}
+}
+
 // TestRenderPipeline exercises buildTree and render end to end: section
 // nesting and ordering, option skipping, deprecated sinking, and the per-option
 // bullet list (environment variable, CLI flag anchor, YAML key, default).
@@ -208,8 +250,11 @@ func TestRenderPipeline(t *testing.T) {
 		"### Email authentication",
 		"#### Identity",
 		"- YAML key: `email.emailAuth.identity`",
-		// The Dangerous group renders as its own section.
-		"## ⚠️ Dangerous",
+		// The Dangerous group renders as its own section, emoji stripped, with
+		// a Caution alert (no description in codersdk, so the fallback copy)
+		// directly under the heading.
+		"## Dangerous",
+		"> [!CAUTION]\n> These options can break your deployment or weaken its security.",
 	}
 	for _, w := range wantContains {
 		if !strings.Contains(got, w) {
@@ -226,8 +271,13 @@ func TestRenderPipeline(t *testing.T) {
 		t.Errorf("active option should render before deprecated option (got indexes %d, %d)", i, j)
 	}
 	// The Dangerous section sorts last among top-level sections.
-	if i, j := strings.Index(got, "## Email"), strings.Index(got, "## ⚠️ Dangerous"); i < 0 || j < 0 || i > j {
+	if i, j := strings.Index(got, "## Email"), strings.Index(got, "## Dangerous"); i < 0 || j < 0 || i > j {
 		t.Errorf("Dangerous section should render last (got indexes %d, %d)", i, j)
+	}
+	// The Caution alert follows the Dangerous heading directly, before its
+	// first option.
+	if i, j, k := strings.Index(got, "## Dangerous"), strings.Index(got, "> [!CAUTION]"), strings.Index(got, "### Allow all cors"); i < 0 || j < 0 || k < 0 || (i >= j || j >= k) {
+		t.Errorf("Caution alert should render between the Dangerous heading and its options (got indexes %d, %d, %d)", i, j, k)
 	}
 	// Hidden and unsettable options never render.
 	if strings.Contains(got, "Hidden") {

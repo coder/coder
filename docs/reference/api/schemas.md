@@ -1584,6 +1584,20 @@ None
 |-------------------------------------|
 | `envbox`, `envbuilder`, `exectrace` |
 
+## codersdk.AppFamilyName
+
+```json
+"vscode"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                            |
+|---------------------------------------------------------------------|
+| `jetbrains`, `reconnecting_pty`, `sftp`, `ssh`, `unknown`, `vscode` |
+
 ## codersdk.AppHostResponse
 
 ```json
@@ -7852,6 +7866,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "collected_at": "2019-08-24T14:15:22Z",
   "next_update_at": "2019-08-24T14:15:22Z",
   "session_count": {
+    "apps": {
+      "property1": {
+        "count": 0,
+        "display_name": "string",
+        "family": "vscode",
+        "icon": "string"
+      },
+      "property2": {
+        "count": 0,
+        "display_name": "string",
+        "family": "vscode",
+        "icon": "string"
+      }
+    },
     "jetbrains": 0,
     "reconnecting_pty": 0,
     "ssh": 0,
@@ -11005,6 +11033,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "callback_url": "string",
   "client_type": "confidential",
+  "dynamically_registered": true,
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -11023,16 +11052,17 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name            | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
-|-----------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `callback_url`  | string                                                     | false    |              | Deprecated: equal to the first entry of redirect_uris. Read redirect_uris instead.                                                                                                                      |
-| `client_type`   | [codersdk.OAuth2ClientType](#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
-| `endpoints`     | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
-| `icon`          | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `id`            | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `name`          | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `redirect_uris` | array of string                                            | false    |              | Redirect uris are the app's registered redirect URIs, primary first.                                                                                                                                    |
-| `scope`         | string                                                     | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
+| Name                     | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
+|--------------------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`           | string                                                     | false    |              | Deprecated: equal to the first entry of redirect_uris. Read redirect_uris instead.                                                                                                                      |
+| `client_type`            | [codersdk.OAuth2ClientType](#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
+| `dynamically_registered` | boolean                                                    | false    |              | Dynamically registered is true when the app registered itself through Dynamic Client Registration rather than being created by an admin.                                                                |
+| `endpoints`              | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
+| `icon`                   | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `id`                     | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `name`                   | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `redirect_uris`          | array of string                                            | false    |              | Redirect uris are the app's registered redirect URIs, primary first.                                                                                                                                    |
+| `scope`                  | string                                                     | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
 
 ## codersdk.OAuth2ProviderAppSecret
 
@@ -13114,7 +13144,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name            | Type            | Required | Restrictions | Description                                                                                                                                                                                                                                                           |
 |-----------------|-----------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `callback_url`  | string          | false    |              | Deprecated: send redirect_uris instead. If both are sent, callback_url must equal the first entry of redirect_uris.                                                                                                                                                   |
-| `icon`          | string          | false    |              |                                                                                                                                                                                                                                                                       |
+| `icon`          | string          | false    |              | Icon replaces the app's stored icon. Omitting it clears the stored icon rather than leaving it unchanged.                                                                                                                                                             |
 | `name`          | string          | true     |              |                                                                                                                                                                                                                                                                       |
 | `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry is the primary. Omit both this and callback_url to keep the stored redirect URIs. Other fields are replaced. Sending an empty list is an error, not a way to keep the stored list. |
 | `scope`         | string          | false    |              | Scope replaces the app's current allowlist. Omit to leave the existing allowlist untouched. Set to an empty string to clear it, making the app unrestricted.                                                                                                          |
@@ -13568,10 +13598,44 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-------------------------|
 | `data`, `error`, `ping` |
 
+## codersdk.SessionCountApp
+
+```json
+{
+  "count": 0,
+  "display_name": "string",
+  "family": "vscode",
+  "icon": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                                             | Required | Restrictions | Description                                                                                      |
+|----------------|--------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------|
+| `count`        | integer                                          | false    |              |                                                                                                  |
+| `display_name` | string                                           | false    |              | Display name is the registry's name for a known app, otherwise the normalized identifier itself. |
+| `family`       | [codersdk.AppFamilyName](#codersdkappfamilyname) | false    |              | Family is the group this app totals under.                                                       |
+| `icon`         | string                                           | false    |              | Icon is a bundled path under /icon/, empty if the app has none.                                  |
+
 ## codersdk.SessionCountDeploymentStats
 
 ```json
 {
+  "apps": {
+    "property1": {
+      "count": 0,
+      "display_name": "string",
+      "family": "vscode",
+      "icon": "string"
+    },
+    "property2": {
+      "count": 0,
+      "display_name": "string",
+      "family": "vscode",
+      "icon": "string"
+    }
+  },
   "jetbrains": 0,
   "reconnecting_pty": 0,
   "ssh": 0,
@@ -13581,12 +13645,14 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-|--------------------|---------|----------|--------------|-------------|
-| `jetbrains`        | integer | false    |              |             |
-| `reconnecting_pty` | integer | false    |              |             |
-| `ssh`              | integer | false    |              |             |
-| `vscode`           | integer | false    |              |             |
+| Name               | Type                                                 | Required | Restrictions | Description                                                                                                                                    |
+|--------------------|------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `apps`             | object                                               | false    |              | Apps holds one entry per reported app name, each carrying the family it totals under. The fields below duplicate those totals for one release. |
+| » `[any property]` | [codersdk.SessionCountApp](#codersdksessioncountapp) | false    |              |                                                                                                                                                |
+| `jetbrains`        | integer                                              | false    |              | Deprecated: total Apps by Family instead.                                                                                                      |
+| `reconnecting_pty` | integer                                              | false    |              | Deprecated: total Apps by Family instead.                                                                                                      |
+| `ssh`              | integer                                              | false    |              | Deprecated: total Apps by Family instead.                                                                                                      |
+| `vscode`           | integer                                              | false    |              | Deprecated: total Apps by Family instead.                                                                                                      |
 
 ## codersdk.SessionLifetime
 

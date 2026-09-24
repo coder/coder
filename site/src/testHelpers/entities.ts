@@ -3868,10 +3868,41 @@ export const MockDeploymentStats: TypesGen.DeploymentStats = {
 	collected_at: "2023-03-06T19:12:55.211625Z",
 	next_update_at: "2023-03-06T19:20:55.211625Z",
 	session_count: {
-		vscode: 128,
+		vscode: 152,
 		jetbrains: 5,
 		ssh: 32,
 		reconnecting_pty: 15,
+		apps: {
+			cursor: {
+				count: 24,
+				display_name: "Cursor",
+				icon: "/icon/cursor.svg",
+				family: "vscode",
+			},
+			vscode: {
+				count: 128,
+				display_name: "VS Code",
+				icon: "/icon/code.svg",
+				family: "vscode",
+			},
+			jetbrains: {
+				count: 5,
+				display_name: "JetBrains",
+				icon: "/icon/jetbrains.svg",
+				family: "jetbrains",
+			},
+			ssh: {
+				count: 32,
+				display_name: "SSH",
+				icon: "/icon/terminal.svg",
+				family: "ssh",
+			},
+			reconnecting_pty: {
+				count: 15,
+				display_name: "Web Terminal",
+				family: "reconnecting_pty",
+			},
+		},
 	},
 	workspaces: {
 		building: 15,
@@ -4979,6 +5010,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 		icon: "/icon/github.svg",
 		scope: "",
 		client_type: "confidential",
+		dynamically_registered: false,
 		endpoints: {
 			authorization: "http://127.0.0.1:3001/oauth2/authorize",
 			token: "http://127.0.0.1:3001/oauth2/token",
@@ -4996,12 +5028,18 @@ export const MockOAuth2ProviderAppPublic: TypesGen.OAuth2ProviderApp = {
 	icon: "/icon/github.svg",
 	scope: "",
 	client_type: "public",
+	dynamically_registered: false,
 	endpoints: {
 		authorization: "http://127.0.0.1:3002/oauth2/authorize",
 		token: "http://127.0.0.1:3002/oauth2/token",
 		device_authorization: "",
 		token_revoke: "http://127.0.0.1:3002/oauth2/revoke",
 	},
+};
+
+export const MockOAuth2ProviderAppDynamic: TypesGen.OAuth2ProviderApp = {
+	...MockOAuth2ProviderApps[0],
+	dynamically_registered: true,
 };
 
 export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {

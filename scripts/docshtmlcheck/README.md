@@ -10,7 +10,7 @@ as `make lint/docs-html` (part of `make lint`).
   `<region>` or `<server>__` is parsed as an unknown HTML tag and stripped from
   the rendered page, so readers see broken text. Wrap placeholders in backticks
   so they render as inline code (see
-  [`docs/about/contributing/documentation.md`](../../docs/about/contributing/documentation.md#placeholders-in-angle-brackets)).
+  [`contributing/documentation.md`](../../contributing/documentation.md#placeholders-in-angle-brackets)).
   This also covers CLI `--help` strings and Swagger annotations, whose text is
   generated into `docs/reference/**`.
 - **Void-element end tags** such as `</br>`. Void elements like `<br>`, `<img>`,

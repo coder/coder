@@ -239,10 +239,11 @@ func TestBuildCommitStepMessages_UsageRuntime(t *testing.T) {
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         slog.Make(),
 		step: stepData{
-			Content:      []fantasy.Content{fantasy.TextContent{Text: "usage"}},
-			Usage:        fantasy.Usage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120, ReasoningTokens: 3, CacheCreationTokens: 4, CacheReadTokens: 5},
-			ContextLimit: sql.NullInt64{Int64: 4096, Valid: true},
-			Runtime:      1500 * time.Millisecond,
+			Content:            []fantasy.Content{fantasy.TextContent{Text: "usage"}},
+			Usage:              fantasy.Usage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120, ReasoningTokens: 3, CacheCreationTokens: 4, CacheReadTokens: 5},
+			ContextLimit:       sql.NullInt64{Int64: 4096, Valid: true},
+			Runtime:            1500 * time.Millisecond,
+			ProviderResponseID: "msg_usage",
 		},
 	})
 	require.NoError(t, err)
@@ -256,6 +257,7 @@ func TestBuildCommitStepMessages_UsageRuntime(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 5, Valid: true}, msg.CacheReadTokens)
 	require.Equal(t, sql.NullInt64{Int64: 4096, Valid: true}, msg.ContextLimit)
 	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, msg.RuntimeMs)
+	require.Equal(t, sql.NullString{String: "msg_usage", Valid: true}, msg.ProviderResponseID)
 }
 
 func TestBuildCommitStepMessages_ToolTimestampsAndMCPConfigIDs(t *testing.T) {
@@ -308,6 +310,7 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 			ContextLimit:           1000,
 			Runtime:                1500 * time.Millisecond,
 			EstimatedContextTokens: 5,
+			ProviderResponseID:     "resp_summary",
 		},
 	})
 	require.NoError(t, err)
@@ -319,11 +322,13 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	require.Equal(t, uuid.NullUUID{UUID: modelConfigID, Valid: true}, got.Messages[0].ModelConfigID)
 	require.Equal(t, "system summary", parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)[0].Text)
 	require.False(t, got.Messages[0].RuntimeMs.Valid)
+	require.False(t, got.Messages[0].ProviderResponseID.Valid)
 
 	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[1].Role)
 	require.Equal(t, database.ChatMessageVisibilityUser, got.Messages[1].Visibility)
 	require.True(t, got.Messages[1].Compressed)
 	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got.Messages[1].RuntimeMs)
+	require.Equal(t, sql.NullString{String: "resp_summary", Valid: true}, got.Messages[1].ProviderResponseID)
 	callPart := parseMessageParts(t, got.Messages[1].Role, got.Messages[1].Content)[0]
 	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, callPart.Type)
 	require.Equal(t, "summary-1", callPart.ToolCallID)
@@ -333,6 +338,7 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	require.Equal(t, database.ChatMessageVisibilityBoth, got.Messages[2].Visibility)
 	require.True(t, got.Messages[2].Compressed)
 	require.False(t, got.Messages[2].RuntimeMs.Valid)
+	require.False(t, got.Messages[2].ProviderResponseID.Valid)
 	resultPart := parseMessageParts(t, got.Messages[2].Role, got.Messages[2].Content)[0]
 	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, resultPart.Type)
 	require.Equal(t, "summary-1", resultPart.ToolCallID)
