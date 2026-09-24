@@ -144,7 +144,7 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 				})
 			}
 
-			sshClient, err := conn.SSHClientUpgrade(ctx)
+			sshClient, err := conn.SSHClient(ctx)
 			require.NoError(t, err)
 			defer sshClient.Close()
 			session, err := sshClient.NewSession()
