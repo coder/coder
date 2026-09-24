@@ -77,24 +77,13 @@ const preferReactNamespaceTypes = {
  *
  * It must return true for every file the rule could flag (false positives are
  * fine). A type-only import from "react" always has `type` between `import`
- * and `from "react"` within one statement, which is what the pattern matches.
+ * and `from "react"` within one statement, which is what the regex matches.
  */
 function mightHaveReactTypeImport(sourceText) {
-	return reactTypeImportPattern.test(sourceText);
+	return /\bimport\b[^;]*?\btype\b[^;]*?\bfrom\s*["']react["']/.test(
+		sourceText,
+	);
 }
-
-// Any characters except `;`, so a match cannot span two statements.
-const withinStatement = "[^;]*?";
-
-const reactTypeImportPattern = new RegExp(
-	[
-		String.raw`\bimport\b`,
-		withinStatement,
-		String.raw`\btype\b`,
-		withinStatement,
-		String.raw`\bfrom\s*["']react["']`,
-	].join(""),
-);
 
 /**
  * True for `FC` in both `import type { FC } from "react"` and
