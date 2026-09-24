@@ -18,31 +18,52 @@ const renderDialog = () => {
 		/>,
 	);
 
-	return { onConfirm, onCancel };
+	return {
+		onConfirm,
+		onCancel,
+		input: screen.getByLabelText("Workspace name"),
+	};
 };
 
 describe("WorkspaceDeleteDialog", () => {
 	it("marks the input invalid instead of confirming when Enter is pressed with a wrong name", async () => {
 		const user = userEvent.setup();
-		const { onConfirm, onCancel } = renderDialog();
+		const { onConfirm, onCancel, input } = renderDialog();
 
-		const input = screen.getByLabelText("Workspace name");
 		await user.type(input, "wrong name{Enter}");
 
 		expect(onConfirm).not.toHaveBeenCalled();
 		expect(onCancel).not.toHaveBeenCalled();
 		expect(input).toHaveFocus();
 		expect(input).toHaveAttribute("aria-invalid", "true");
+		expect(screen.getByRole("alert")).toHaveTextContent("does not match");
+	});
+
+	it("clears the submitted error when the user edits the name", async () => {
+		const user = userEvent.setup();
+		const { input } = renderDialog();
+
+		await user.type(input, "wrong name{Enter}x");
+
+		expect(input).toHaveAttribute("aria-invalid", "false");
+	});
+
+	it("clears the submitted error when the dialog is closed", async () => {
+		const user = userEvent.setup();
+		const { onCancel, input } = renderDialog();
+
+		await user.type(input, "wrong name{Enter}");
+		await user.keyboard("{Escape}");
+
+		expect(onCancel).toHaveBeenCalledTimes(1);
+		expect(input).toHaveAttribute("aria-invalid", "false");
 	});
 
 	it("confirms on Enter when the name matches", async () => {
 		const user = userEvent.setup();
-		const { onConfirm } = renderDialog();
+		const { onConfirm, input } = renderDialog();
 
-		await user.type(
-			screen.getByLabelText("Workspace name"),
-			`${MockWorkspace.name}{Enter}`,
-		);
+		await user.type(input, `${MockWorkspace.name}{Enter}`);
 
 		expect(onConfirm).toHaveBeenCalledWith(false);
 	});

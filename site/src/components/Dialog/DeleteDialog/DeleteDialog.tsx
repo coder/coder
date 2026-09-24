@@ -115,8 +115,9 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 							onFocus={() => setIsFocused(true)}
 							onBlur={() => setIsFocused(false)}
 							onKeyDown={(event) => {
+								// The submit button is disabled for a wrong name, so the
+								// browser skips implicit submission and onSubmit never runs.
 								if (event.key === "Enter" && !deletionConfirmed) {
-									event.preventDefault();
 									setHasSubmittedInvalidConfirmation(true);
 								}
 							}}
