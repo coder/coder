@@ -2,6 +2,7 @@
 title: OAuth2 provider scopes
 ---
 
+This page is for a developer choosing which scope to request, and for a Coder deployment administrator restricting which scopes an application may request.
 An access token is bounded by the scope negotiated when the user authorized it, on top of that user's own permissions. A token can never do more than its user can.
 
 Scope names come from the same vocabulary as [API key scopes](../../users/sessions-tokens.md#api-key-scopes): individual `resource:action` names such as `workspace:ssh`, and `coder:` composites such as `coder:workspaces.access` that stand for a set of them. `coder:all` records an unrestricted grant.

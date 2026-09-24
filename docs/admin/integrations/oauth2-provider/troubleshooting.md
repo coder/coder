@@ -2,7 +2,8 @@
 title: OAuth2 provider troubleshooting
 ---
 
-This page collects the error conditions the OAuth2 provider returns, matched by the exact `error`, `error_description`, or log line you'll see.
+This page is for a developer whose OAuth2 client request failed.
+It collects the error conditions the OAuth2 provider returns, matched by the exact `error`, `error_description`, or log line you'll see.
 For how the provider works, refer to [OAuth2 provider](./index.md) and [Integration patterns](./integration-patterns.md).
 
 ## Common Issues
@@ -17,7 +18,7 @@ Refer to [Enable OAuth2 Provider](./index.md#enable-oauth2-provider).
 
 Ensure the redirect URI in your request exactly matches one of the redirect URIs registered for your application.
 The one exception is the port of a loopback `http://` redirect URI (`localhost`, `127.0.0.1`, `[::1]`), which may differ from the registered one.
-Refer to the note under [Client Authentication Methods](./integration-patterns.md#client-authentication-methods).
+Refer to [Callback URL schemes](./callback-url-schemes.md).
 
 ### "Invalid Callback URL" on the consent page
 

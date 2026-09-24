@@ -2,7 +2,8 @@
 title: OAuth2 provider integration patterns
 ---
 
-How a client authenticates to Coder's OAuth2 provider and completes an authorization: the supported client authentication methods, the standard authorization code flow, the required PKCE (Proof Key for Code Exchange) flow, and the discovery endpoints a client uses to find them.
+This page is for a developer integrating a client with Coder's OAuth2 provider.
+It covers how a client authenticates and completes an authorization: the supported client authentication methods, the standard authorization code flow, the required PKCE (Proof Key for Code Exchange) flow, and the discovery endpoints a client uses to find them.
 For enabling the provider and creating an application, refer to [OAuth2 provider](./index.md).
 For scopes, token refresh and revocation, and accepted redirect URI schemes, refer to [Scopes](./scopes.md), [Token management](./token-management.md), and [Callback URL schemes](./callback-url-schemes.md).
 
@@ -25,13 +26,7 @@ Opening a public client on the **OAuth2 Applications** page shows no client secr
 If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request. To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
 
 > [!IMPORTANT]
-> A public client may use `http://` only with a loopback host (`localhost`, `127.0.0.1`, `[::1]`).
-> An `http://` redirect URI to any other host is rejected, so use `https://` instead.
-> A confidential client has the same restriction but also accepts `.localhost` subdomains over `http://`.
-> Coder ignores the port of an `http://` redirect URI to one of those three loopback hosts, for public and confidential clients alike. RFC 8252 requires this for `127.0.0.1` and `[::1]` so that native apps can choose a port at runtime. Coder applies it to `localhost` too. A `.localhost` subdomain still requires an exact port match.
-> Register `http://127.0.0.1/callback` and present whichever port the client is listening on.
->
-> Which schemes a redirect URI may use is a separate restriction that also differs by client type.
+> Which redirect URI schemes and hosts a client may register, including the loopback host and port rules for public and confidential clients, is a separate restriction from client authentication.
 > Refer to [Callback URL schemes](./callback-url-schemes.md).
 
 A client's type is fixed when it registers.
