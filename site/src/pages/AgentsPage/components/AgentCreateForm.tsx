@@ -65,14 +65,14 @@ export type CreateChatOptions = {
 };
 
 /**
- * Prefilled content for a chat opened from a deep link. The form captures
- * `prefill` on mount, uploads the attachment and, when `autoSend` is set,
- * sends once without user action after the attachment has uploaded and the
- * form can send. Removing or inlining the attachment before then cancels the
- * automatic send. The prefilled text and attachment are never saved as the
- * user's draft, and the saved draft and attachments are not restored into
- * this send. Organization, workspace, MCP, and model selection behave as in
- * any new chat.
+ * Prefilled content for a chat opened from a deep link. `message` and
+ * `attachment` are captured on mount; remount with a new `key` to change them.
+ * The form uploads the attachment and, when `autoSend` is set, sends once
+ * without user action after the attachment has uploaded and the form can send.
+ * Removing or inlining the attachment before then cancels the automatic send.
+ * The prefilled text and attachment are never saved as the user's draft, and
+ * the saved draft and attachments are not restored into this send.
+ * Organization, workspace, MCP, and model selection behave as in any new chat.
  */
 export type AgentCreatePrefill = {
 	message: string;
@@ -186,7 +186,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	prefill,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
-	const isPrefilled = prefill !== undefined;
 	const {
 		initialInputValue,
 		initialEditorState,
@@ -525,7 +524,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			: undefined,
 		{
 			// persist also restores saved draft files into this send.
-			persist: !isPrefilled,
+			persist: prefill === undefined,
 			provider: getProviderForModelOption(modelOptions, selectedModel),
 		},
 	);
@@ -613,9 +612,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const attachPrefillFile = useEffectEvent((file: File) => {
 		handleAttach([file]);
 	});
-	// Uploads are scoped to the selected organization.
+	// Uploads are scoped to the adopted organization.
 	const canAttachPrefillFile =
-		orgSelectionSettled && organizationId !== "" && !isForbidden;
+		orgSelectionSettled &&
+		organizationId !== "" &&
+		organizationAdopted &&
+		!isForbidden;
 	useEffect(() => {
 		if (
 			prefillFile &&
@@ -637,29 +639,30 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		prefillFile !== null &&
 		!attachments.includes(prefillFile);
 
-	// Set once the automatic send resolves, so a failed send can be retried by
-	// hand.
-	const [autoSendSettled, setAutoSendSettled] = useState(false);
-	const autoSendPending =
-		prefill?.autoSend === true && !autoSendSettled && !prefillDetached;
+	// Fires the automatic send at most once and, after a failed send, hands the
+	// composer back for a manual retry. "sending" is set when the send fires
+	// because the send gate can reopen on failure before "settled" renders.
+	const [autoSendState, setAutoSendState] = useState<
+		"pending" | "sending" | "settled"
+	>("pending");
+	const autoSendActive = prefill?.autoSend === true && !prefillDetached;
+	const autoSendPending = autoSendActive && autoSendState === "pending";
 	const isAutoSendReady =
 		autoSendPending &&
 		!isSendGateClosed &&
 		prefillUploadState?.status === "uploaded";
-	const autoSentRef = useRef(false);
 	const sendPrefill = useEffectEvent((message: string) => {
+		setAutoSendState("sending");
 		void handleSendWithAttachments(message).finally(() => {
-			setAutoSendSettled(true);
+			setAutoSendState("settled");
 		});
 	});
-	// At most once: the gate reopens after a failed send and would retry in a
-	// loop.
+	const prefillMessage = prefill?.message;
 	useEffect(() => {
-		if (prefill && isAutoSendReady && !autoSentRef.current) {
-			autoSentRef.current = true;
-			sendPrefill(prefill.message);
+		if (prefillMessage !== undefined && isAutoSendReady) {
+			sendPrefill(prefillMessage);
 		}
-	}, [prefill, isAutoSendReady]);
+	}, [prefillMessage, isAutoSendReady]);
 
 	// Sending while the log upload failed would post the prompt without the
 	// logs.
@@ -755,8 +758,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						onSend={handleSendWithAttachments}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
 						isDisabled={isInputDisabled}
-						// Typing during a pending automatic send would be discarded.
-						isReadOnly={isForbidden || autoSendPending}
+						// Typing during an automatic send would be discarded.
+						isReadOnly={
+							isForbidden || (autoSendActive && autoSendState !== "settled")
+						}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
 						initialEditorState={initialEditorState}

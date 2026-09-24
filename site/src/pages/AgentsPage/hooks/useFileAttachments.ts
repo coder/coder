@@ -229,7 +229,7 @@ export function useFileAttachments(
 		uploadEpoch: number,
 		state: UploadState,
 	) => {
-		if (persist && adoptionEpochRef.current !== uploadEpoch) {
+		if (adoptionEpochRef.current !== uploadEpoch) {
 			return;
 		}
 		setUploadStates((prev) => new Map(prev).set(file, state));
@@ -283,7 +283,9 @@ export function useFileAttachments(
 
 	// Permission refetches can change the org without user action. Replace state
 	// after commit so stale file IDs cannot cross orgs and an abandoned render
-	// cannot prune localStorage through restorePersistedAttachments.
+	// cannot prune localStorage through restorePersistedAttachments. Attachments
+	// are scoped to the org whether or not they persist; only the localStorage
+	// restore depends on persist.
 	const adoptOrganization = useEffectEvent((orgId: string) => {
 		adoptionEpochRef.current += 1;
 		for (const file of attachments) {
@@ -292,16 +294,22 @@ export function useFileAttachments(
 		revokePreviewUrls();
 		setTextContents(new Map());
 		setStateOrgId(orgId);
-		const restored = restorePersistedAttachments(orgId);
+		const restored = persist
+			? restorePersistedAttachments(orgId)
+			: {
+					attachments: [],
+					uploadStates: new Map<File, UploadState>(),
+					previewUrls: new Map<File, string>(),
+				};
 		setAttachments(restored.attachments);
 		setUploadStates(restored.uploadStates);
 		setPreviewUrls(restored.previewUrls);
 	});
 	useEffect(() => {
-		if (persist && organizationId && stateOrgId !== organizationId) {
+		if (organizationId && stateOrgId !== organizationId) {
 			adoptOrganization(organizationId);
 		}
-	}, [persist, stateOrgId, organizationId]);
+	}, [stateOrgId, organizationId]);
 
 	type AttachItem = { file: File; needsResize: boolean };
 
@@ -543,12 +551,11 @@ export function useFileAttachments(
 
 	// Hide state that belongs to another organization. Exposing it could send
 	// stale file IDs or remove persisted attachments from the previous org.
-	const orgMismatch =
-		persist && stateOrgId !== null && stateOrgId !== organizationId;
+	const orgMismatch = stateOrgId !== null && stateOrgId !== organizationId;
 
 	return {
 		organizationAdopted:
-			!persist || (Boolean(organizationId) && stateOrgId === organizationId),
+			Boolean(organizationId) && stateOrgId === organizationId,
 		attachments: orgMismatch ? [] : attachments,
 		textContents: orgMismatch ? new Map<File, string>() : textContents,
 		uploadStates: orgMismatch ? new Map<File, UploadState>() : uploadStates,
