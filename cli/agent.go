@@ -42,7 +42,7 @@ import (
 
 // defaultAgentLogBufferSize is the default number of below-level (debug) log
 // entries the agent keeps in memory and emits when it loses its connection to
-// coderd. It matches the client default so the two implementations agree.
+// coderd.
 const defaultAgentLogBufferSize = 1000
 
 func workspaceAgent() *serpent.Command {
