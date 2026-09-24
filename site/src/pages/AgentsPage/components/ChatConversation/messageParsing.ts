@@ -141,21 +141,14 @@ type MergeToolsOptions = {
 	liveToolResults?: StreamState["toolResults"];
 };
 
-const getMergedToolStatus = (
-	result: ParsedToolResult | undefined,
-	liveResult: StreamState["toolResults"][string] | undefined,
-	isPending: boolean,
-): MergedTool["status"] => {
-	if (result) {
-		return result.isError ? "error" : "completed";
+const getToolResultStatus = (result: {
+	isError: boolean;
+	isStreaming?: boolean;
+}): MergedTool["status"] => {
+	if (result.isStreaming) {
+		return "running";
 	}
-	if (liveResult) {
-		if (liveResult.isStreaming) {
-			return "running";
-		}
-		return liveResult.isError ? "error" : "completed";
-	}
-	return isPending ? "running" : "completed";
+	return result.isError ? "error" : "completed";
 };
 
 export const mergeTools = (
@@ -169,33 +162,33 @@ export const mergeTools = (
 
 	for (const call of calls) {
 		seen.add(call.id);
-		const result = resultById.get(call.id);
+		const durableResult = resultById.get(call.id);
 		// A durable result is final; live data for the same call is stale.
-		const liveResult = result ? undefined : options.liveToolResults?.[call.id];
+		const liveResult = durableResult
+			? undefined
+			: options.liveToolResults?.[call.id];
+		const result = durableResult ?? liveResult;
 		// Extract model_intent from the tool call args if present.
 		const callArgs = call.args as Record<string, unknown> | undefined;
 		const modelIntent =
 			typeof callArgs?.model_intent === "string"
 				? callArgs.model_intent
 				: undefined;
-		const status = getMergedToolStatus(
-			result,
-			liveResult,
-			options.pendingToolCallIDs?.has(call.id) ?? false,
-		);
+		const status = result
+			? getToolResultStatus(result)
+			: options.pendingToolCallIDs?.has(call.id)
+				? "running"
+				: "completed";
 		merged.push({
 			id: call.id,
 			name: call.name,
 			args: call.args,
-			result: result ? result.result : liveResult?.result,
+			result: result?.result,
 			reasoning: liveResult?.reasoning,
-			isError: result?.isError ?? liveResult?.isError ?? false,
-			isMedia: result?.isMedia ?? liveResult?.isMedia,
+			isError: result?.isError ?? false,
+			isMedia: result?.isMedia,
 			status,
-			mcpServerConfigId:
-				call.mcpServerConfigId ||
-				result?.mcpServerConfigId ||
-				liveResult?.mcpServerConfigId,
+			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent,
 			parsedCommands: call.parsedCommands,
 			hookRewritten: call.hookRewritten,

@@ -914,8 +914,16 @@ describe("buildStreamTools", () => {
 });
 
 describe("excludeDurableToolResults", () => {
-	const applyParts = (parts: readonly ChatMessagePart[]): StreamState | null =>
-		parts.reduce<StreamState | null>(applyMessagePartToStreamState, null);
+	const applyParts = (parts: readonly ChatMessagePart[]): StreamState => {
+		const state = parts.reduce<StreamState | null>(
+			applyMessagePartToStreamState,
+			null,
+		);
+		if (!state) {
+			throw new Error("Test parts must produce stream state.");
+		}
+		return state;
+	};
 
 	const durableAdvisorMessage: ChatMessage = {
 		...MockChatMessage,
@@ -1002,7 +1010,6 @@ describe("excludeDurableToolResults", () => {
 		const state = applyParts([{ type: "text", text: "Hello" }]);
 
 		expect(excludeDurableToolResults(state, durableEntries)).toBe(state);
-		expect(excludeDurableToolResults(null, durableEntries)).toBeNull();
 	});
 
 	it("renders one advisor call as one card across the durable/live seam", () => {
@@ -1034,7 +1041,7 @@ describe("excludeDurableToolResults", () => {
 
 		const parsed = parseMessagesWithMergedTools(messages, {
 			pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
-			liveToolResults: streamState?.toolResults,
+			liveToolResults: streamState.toolResults,
 		});
 		const liveStreamState = excludeDurableToolResults(streamState, parsed);
 

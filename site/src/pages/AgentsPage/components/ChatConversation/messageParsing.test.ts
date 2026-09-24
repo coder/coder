@@ -656,17 +656,6 @@ describe("pending durable tool parsing", () => {
 });
 
 describe("live tool result overlay", () => {
-	const msg = (
-		id: number,
-		role: "assistant" | "tool" | "user",
-		parts: ChatMessagePart[],
-	): ChatMessage => ({
-		...MockChatMessage,
-		id,
-		role,
-		content: parts,
-	});
-
 	const advisorArgs = {
 		question: "on or off by default?",
 		model_intent: "Checking the default",
@@ -677,9 +666,14 @@ describe("live tool result overlay", () => {
 		tool_name: "advisor",
 		args: advisorArgs,
 	};
-	const messages = [
-		msg(24, "user", [{ type: "text", text: "Should this be on by default?" }]),
-		msg(25, "assistant", [advisorCall]),
+	const messages: ChatMessage[] = [
+		{
+			...MockChatMessage,
+			id: 24,
+			role: "user",
+			content: [{ type: "text", text: "Should this be on by default?" }],
+		},
+		{ ...MockChatMessage, id: 25, role: "assistant", content: [advisorCall] },
 	];
 	const pendingToolCallIDs = getPendingToolCallIDs(messages, "running");
 
@@ -733,16 +727,21 @@ describe("live tool result overlay", () => {
 	it.each([null, { type: "advice", advice: "Durable advice" }])(
 		"prefers the durable result over a stale live result: %j",
 		(durableResult) => {
-			const resolvedMessages = [
+			const resolvedMessages: ChatMessage[] = [
 				...messages,
-				msg(26, "tool", [
-					{
-						type: "tool-result",
-						tool_call_id: "call-advisor",
-						tool_name: "advisor",
-						result: durableResult,
-					},
-				]),
+				{
+					...MockChatMessage,
+					id: 26,
+					role: "tool",
+					content: [
+						{
+							type: "tool-result",
+							tool_call_id: "call-advisor",
+							tool_name: "advisor",
+							result: durableResult,
+						},
+					],
+				},
 			];
 
 			const parsed = parseMessagesWithMergedTools(resolvedMessages, {

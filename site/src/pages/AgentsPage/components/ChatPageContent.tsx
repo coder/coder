@@ -181,10 +181,8 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	});
 	// Output streamed for a durable call renders on that call's card, so the
 	// live row only shows what no durable message owns yet.
-	const liveStreamState = excludeDurableToolResults(
-		streamState,
-		parsedMessages,
-	);
+	const liveStreamState =
+		streamState && excludeDurableToolResults(streamState, parsedMessages);
 	const liveStatus = deriveLiveStatus({
 		streamState: liveStreamState,
 		retryState,

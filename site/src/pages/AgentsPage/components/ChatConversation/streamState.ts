@@ -113,6 +113,8 @@ export const applyMessagePartToStreamState = (
 					: null) ||
 				`tool-result-${Object.keys(nextState.toolResults).length + 1}-${++nextFallbackID}`;
 			const existing = nextState.toolResults[toolCallID];
+			const isFinalResult = part.result !== undefined || Boolean(part.is_error);
+			const hasDelta = Boolean(part.result_delta || part.reasoning_delta);
 			if (part.result_reset) {
 				const toolResults = { ...nextState.toolResults };
 				delete toolResults[toolCallID];
@@ -122,12 +124,7 @@ export const applyMessagePartToStreamState = (
 					toolResults,
 				};
 			}
-			if (
-				part.result_delta === "" &&
-				!part.reasoning_delta &&
-				part.result === undefined &&
-				!part.is_error
-			) {
+			if (part.result_delta === "" && !hasDelta && !isFinalResult) {
 				return {
 					...nextState,
 					blocks: ensureToolBlock(nextState.blocks, toolCallID),
@@ -140,15 +137,13 @@ export const applyMessagePartToStreamState = (
 				part.result,
 				part.result_delta,
 			);
-			const nextReasoning = part.reasoning_delta
-				? `${existing?.reasoning ?? ""}${part.reasoning_delta}`
-				: existing?.reasoning;
+			// Reasoning is transient, so the final result drops it.
+			const nextReasoning = isFinalResult
+				? undefined
+				: `${existing?.reasoning ?? ""}${part.reasoning_delta ?? ""}` ||
+					undefined;
 			const nextToolName = part.tool_name || existing?.name || "Tool";
-			const isFinalResult = part.result !== undefined || part.is_error;
-			const isStreaming = isFinalResult
-				? false
-				: existing?.isStreaming ||
-					Boolean(part.result_delta || part.reasoning_delta);
+			const isStreaming = !isFinalResult && (existing?.isStreaming || hasDelta);
 			const nextIsError =
 				existing?.isError ||
 				parseToolResultIsError(nextToolName, part, nextResult.value);
@@ -163,7 +158,7 @@ export const applyMessagePartToStreamState = (
 						name: nextToolName,
 						result: nextResult.value,
 						resultRaw: nextResult.rawText,
-						reasoning: isFinalResult ? undefined : nextReasoning,
+						reasoning: nextReasoning,
 						isError: nextIsError,
 						isMedia: part.is_media || existing?.isMedia,
 						isStreaming: isStreaming || undefined,
@@ -302,12 +297,9 @@ export const buildStreamTools = (
  * Returns null when nothing remains, preventing an empty live row.
  */
 export const excludeDurableToolResults = (
-	streamState: StreamState | null,
+	streamState: StreamState,
 	durableEntries: readonly ParsedMessageEntry[],
 ): StreamState | null => {
-	if (!streamState) {
-		return null;
-	}
 	const isOrphanToolBlock = (block: RenderBlock): boolean =>
 		block.type === "tool" && !streamState.toolCalls[block.id];
 	if (!streamState.blocks.some(isOrphanToolBlock)) {
