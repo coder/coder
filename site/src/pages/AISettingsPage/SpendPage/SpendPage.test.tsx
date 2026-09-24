@@ -328,19 +328,27 @@ it("applies user and unconfigured pricing filters", async () => {
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
 
-	await user.type(
-		screen.getByRole("combobox", { name: "Search and filter users…" }),
-		"user01",
+	const filterInput = screen.getByRole("combobox", {
+		name: "Search and filter users…",
+	});
+	await user.click(filterInput);
+	await user.click(await screen.findByRole("option", { name: "User" }));
+	await user.click(await screen.findByRole("option", { name: /user01/ }));
+	await waitFor(() =>
+		expect(searchParam(router, "filter")).toBe("user:user01"),
 	);
-	await user.click(await screen.findByRole("option", { name: "user01" }));
-	await user.click(
-		screen.getByRole("combobox", { name: "Search and filter users…" }),
-	);
+
+	await user.click(filterInput);
 	await user.click(await screen.findByRole("option", { name: "Pricing" }));
 	await user.click(
 		await screen.findByRole("option", {
 			name: "Models with unconfigured pricing",
 		}),
+	);
+	await waitFor(() =>
+		expect(searchParam(router, "filter")).toBe(
+			"user:user01 pricing:unconfigured",
+		),
 	);
 
 	await waitFor(() =>
@@ -351,9 +359,6 @@ it("applies user and unconfigured pricing filters", async () => {
 	);
 	expect(spendSpy.mock.calls.at(-1)?.[1]).not.toHaveProperty("user");
 	expect(spendSpy.mock.calls.at(-1)?.[1]).not.toHaveProperty("pricing");
-	expect(searchParam(router, "filter")).toBe(
-		"user:user01 pricing:unconfigured",
-	);
 	expect(searchParam(router, "page")).toBeNull();
 });
 

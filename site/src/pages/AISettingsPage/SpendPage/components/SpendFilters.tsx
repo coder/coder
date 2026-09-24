@@ -51,23 +51,26 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 	);
 
 	return (
-		<div className="flex flex-wrap gap-2">
-			<FilterCombobox
-				value={filterQuery}
-				onChange={onFilterQueryChange}
-				categories={categories}
-				placeholder="Search and filter users…"
-				className="min-w-72 grow"
-			/>
-			<DateTimeRangePicker
-				now={now}
-				value={period}
-				onChange={onPeriodChange}
-				presets={spendQuickPresets}
-				maxDays={MaxAISpendPeriodDays}
-				minDate={minDate}
-				size="lg"
-			/>
+		<div className="flex flex-wrap gap-2 lg:flex-nowrap">
+			<div className="w-full min-w-0">
+				<FilterCombobox
+					value={filterQuery}
+					onChange={onFilterQueryChange}
+					categories={categories}
+					placeholder="Search and filter users…"
+				/>
+			</div>
+			<div className="shrink-0">
+				<DateTimeRangePicker
+					now={now}
+					value={period}
+					onChange={onPeriodChange}
+					presets={spendQuickPresets}
+					maxDays={MaxAISpendPeriodDays}
+					minDate={minDate}
+					size="lg"
+				/>
+			</div>
 		</div>
 	);
 };
