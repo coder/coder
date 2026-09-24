@@ -261,6 +261,24 @@ func TestResolveScriptOrderSelector(t *testing.T) {
 			},
 		},
 		{
+			name: "UndeclaredScriptInMissingDeclaringModule",
+			// The evaluated module remains in prior state, but its
+			// declaration is absent from the current config. A same-named
+			// root resource must not satisfy the module-scoped selector.
+			modules: []*tfjson.StateModule{{
+				ChildModules: []*tfjson.StateModule{{Address: "module.removed"}},
+			}},
+			config: rootScriptOrderConfigWithScripts(
+				scriptOrderConfigCoderScript("setup"),
+			),
+			moduleAddress: "module.removed",
+			selector:      "coder_script.setup",
+			expected: scriptOrderSelectorResolution{
+				addresses:              nil,
+				scriptResourceDeclared: false,
+			},
+		},
+		{
 			name: "NonManagedScriptDeclarationsAreIgnored",
 			config: rootScriptOrderConfigWithScripts(
 				&tfjson.ConfigResource{
@@ -548,7 +566,7 @@ func TestResolveScriptOrderSelectorRejectsInvalidInput(t *testing.T) {
 		require.ErrorContains(t, err, `parse Terraform resource address "not-an-address"`)
 	})
 
-	t.Run("MalformedModuleAddress", func(t *testing.T) {
+	t.Run("MalformedStateModuleAddress", func(t *testing.T) {
 		t.Parallel()
 
 		selector, err := parseScriptOrderSelector("module.bootstrap")
@@ -557,6 +575,21 @@ func TestResolveScriptOrderSelectorRejectsInvalidInput(t *testing.T) {
 		_, err = resolveScriptOrderSelector([]*tfjson.StateModule{{
 			ChildModules: []*tfjson.StateModule{{Address: "not-an-address"}},
 		}}, rootScriptOrderConfigWithModuleCalls("bootstrap"), "", selector)
+		require.ErrorContains(t, err, `parse module address "not-an-address"`)
+	})
+
+	t.Run("MalformedDeclaringModuleAddress", func(t *testing.T) {
+		t.Parallel()
+
+		selector, err := parseScriptOrderSelector("coder_script.setup")
+		require.NoError(t, err)
+
+		_, err = resolveScriptOrderSelector(
+			nil,
+			rootScriptOrderConfigWithScripts(scriptOrderConfigCoderScript("setup")),
+			"not-an-address",
+			selector,
+		)
 		require.ErrorContains(t, err, `parse module address "not-an-address"`)
 	})
 
