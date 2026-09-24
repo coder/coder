@@ -1065,8 +1065,17 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	return cmd, nil
 }
 
-// Serve starts the server to handle incoming connections on the provided listener.
-// It returns an error if no host keys are set or if there is an issue accepting connections.
+// UpgradedConn is a net.Conn that has a client session ID attached.  Listeners
+// can return these to augment logs for a connection with a client session ID.
+type UpgradedConn interface {
+	net.Conn
+	ClientSessionID() string
+}
+
+// Serve starts the server to handle incoming connections on the provided
+// listener.  It returns an error if no host keys are set or if there is an
+// issue accepting connections.  If the listener returns UpgradedConn, then the
+// client session ID will be extracted from those connections.
 func (s *Server) Serve(l net.Listener) (retErr error) {
 	// Ensure we're not mutating HostSigners as we're reading it.
 	s.mu.RLock()
@@ -1091,23 +1100,23 @@ func (s *Server) Serve(l net.Listener) (retErr error) {
 		if err != nil {
 			return err
 		}
-		// Connections from this listener have no client session ID; only
-		// connections negotiated via the HTTP upgrade path have one.
-		go s.handleConn(l, conn, "")
+		go s.handleConn(l, conn)
 	}
 }
 
-// handleConn serves a single SSH connection.  l is the listener the connection
-// was accepted from, or nil if it was negotiated via the HTTP upgrade path.
-func (s *Server) handleConn(l net.Listener, c net.Conn, clientSessionID string) {
-	addr := "http upgrade"
-	if l != nil {
-		addr = l.Addr().String()
+// handleConn serves a single SSH connection.  l is the listener from which the
+// connection was accepted.  If the conn is an UpgradedConn, then the client
+// session ID will be extracted from it.
+func (s *Server) handleConn(l net.Listener, c net.Conn) {
+	clientSessionID := ""
+	uc, ok := c.(UpgradedConn)
+	if ok {
+		clientSessionID = uc.ClientSessionID()
 	}
 	logger := s.logger.With(
 		slog.F("remote_addr", c.RemoteAddr()),
 		slog.F("local_addr", c.LocalAddr()),
-		slog.F("listen_addr", addr),
+		slog.F("listen_addr", l.Addr()),
 		slog.F("client_session_id", clientSessionID))
 	defer c.Close()
 
@@ -1121,11 +1130,6 @@ func (s *Server) handleConn(l net.Listener, c net.Conn, clientSessionID string) 
 	logger.Info(context.Background(), "started serving ssh connection")
 	// note: srv.ConnectionCompleteCallback logs completion of the connection
 	s.srv.HandleConn(c)
-}
-
-// HandleUpgrade takes an upgraded HTTP connection.
-func (s *Server) HandleUpgrade(c net.Conn, clientSessionID string) {
-	s.handleConn(nil, c, clientSessionID)
 }
 
 // trackListener registers the listener with the server. If the server is

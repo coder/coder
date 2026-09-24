@@ -76,6 +76,28 @@ func TestNewServer_ServeClient(t *testing.T) {
 	<-done
 }
 
+// wrappedListener wraps a net.Listener to augment all connections with the
+// provided client session ID.
+type wrappedListener struct {
+	net.Listener
+	clientSessionID string
+}
+
+type wrappedConn struct {
+	net.Conn
+	clientSessionID string
+}
+
+func (w wrappedConn) ClientSessionID() string { return w.clientSessionID }
+
+func (ln *wrappedListener) Accept() (net.Conn, error) {
+	conn, err := ln.Listener.Accept()
+	return wrappedConn{
+		Conn:            conn,
+		clientSessionID: ln.clientSessionID,
+	}, err
+}
+
 func TestNewServer_UpgradeClient(t *testing.T) {
 	t.Parallel()
 
@@ -92,12 +114,16 @@ func TestNewServer_UpgradeClient(t *testing.T) {
 	defer ln.Close()
 
 	clientSessionID := "0123456789abcdef0123456789abcdef"
+	wln := wrappedListener{
+		ln,
+		clientSessionID,
+	}
+
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		conn, err := ln.Accept()
-		assert.NoError(t, err)
-		s.HandleUpgrade(conn, clientSessionID)
+		err := s.Serve(&wln)
+		assert.Error(t, err) // Server is closed.
 	}()
 
 	c := sshClient(t, ln.Addr().String())

@@ -8,9 +8,13 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -19,14 +23,46 @@ import (
 
 type upgradedConn struct {
 	net.Conn
-	r *bufio.Reader
+	clientSessionID string
+	r               *bufio.Reader
 }
 
 func (c *upgradedConn) Read(p []byte) (int, error) { return c.r.Read(p) }
+func (c *upgradedConn) ClientSessionID() string    { return c.clientSessionID }
 
-// handleTCPUpgrade upgrades an HTTP connection based on the port number,
-// passing along any client session ID that exists on the request context.
-func (a *agent) handleTCPUpgrade(rw http.ResponseWriter, r *http.Request) {
+type httpUpgradeListener struct {
+	mu     sync.Mutex
+	logger slog.Logger
+	addr   net.Addr
+	conn   chan *upgradedConn
+	closed chan struct{}
+}
+
+func (ln *httpUpgradeListener) Accept() (net.Conn, error) {
+	var c *upgradedConn
+	select {
+	case c = <-ln.conn:
+	case <-ln.closed:
+		return nil, xerrors.Errorf("tcp upgrade listener: %w", net.ErrClosed)
+	}
+	return c, nil
+}
+
+func (ln *httpUpgradeListener) Addr() net.Addr { return ln.addr }
+func (ln *httpUpgradeListener) Close() error {
+	ln.mu.Lock()
+	defer ln.mu.Unlock()
+	select {
+	case <-ln.closed:
+	default:
+		close(ln.closed)
+	}
+	return nil
+}
+
+// handler upgrades an HTTP connection based on the port number, passing along
+// any client session ID that exists on the request context.
+func (ln *httpUpgradeListener) handler(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	port, err := strconv.ParseUint(chi.URLParam(r, "port"), 10, 16)
 	if err != nil {
@@ -89,8 +125,21 @@ func (a *agent) handleTCPUpgrade(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.sshServer.HandleUpgrade(&upgradedConn{
-		Conn: conn,
-		r:    brw.Reader,
-	}, clientSessionID)
+	uconn := &upgradedConn{
+		Conn:            conn,
+		clientSessionID: clientSessionID,
+		r:               brw.Reader,
+	}
+
+	t := time.NewTimer(time.Second)
+	defer t.Stop()
+	select {
+	case ln.conn <- uconn:
+		return
+	case <-ln.closed:
+		ln.logger.Info(ctx, "listener closed; closing connection")
+	case <-t.C:
+		ln.logger.Info(ctx, "listener timed out accepting; closing connection")
+	}
+	_ = conn.Close()
 }

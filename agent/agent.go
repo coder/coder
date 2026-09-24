@@ -1981,6 +1981,26 @@ func (a *agent) createTailnet(
 		return nil, err
 	}
 
+	upgradeListener := &httpUpgradeListener{
+		logger: a.logger,
+		// Since this upgrades off the HTTP API, use that port as the address.
+		addr: &net.TCPAddr{
+			Port: workspacesdk.AgentHTTPAPIServerPort,
+		},
+		closed: make(chan struct{}),
+		conn:   make(chan *upgradedConn),
+	}
+	defer func() {
+		if err != nil {
+			_ = upgradeListener.Close()
+		}
+	}()
+	if err = a.trackGoroutine(func() {
+		_ = a.sshServer.Serve(upgradeListener)
+	}); err != nil {
+		return nil, err
+	}
+
 	apiListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort))
 	if err != nil {
 		return nil, xerrors.Errorf("api listener: %w", err)
@@ -1992,7 +2012,7 @@ func (a *agent) createTailnet(
 	}()
 	if err = a.trackGoroutine(func() {
 		defer apiListener.Close()
-		apiHandler := a.apiHandler()
+		apiHandler := a.apiHandler(upgradeListener)
 		server := &http.Server{
 			BaseContext:       func(net.Listener) context.Context { return ctx },
 			Handler:           apiHandler,
