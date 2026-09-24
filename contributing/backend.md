@@ -1,6 +1,4 @@
----
-title: Backend
----
+# Backend
 
 This guide is designed to support both Coder engineers and community contributors in understanding our backend systems and getting started with development.
 
@@ -18,9 +16,9 @@ Need help or have questions? Join the conversation on our [Discord server](https
 
 To understand how the backend fits into the broader system, we recommend reviewing the following resources:
 
-* [General Concepts](../../install/plan/sizing/index.md#general-concepts): Essential concepts and language used to describe how Coder is structured and operated.
+* [General Concepts](../docs/install/plan/sizing/index.md#general-concepts): Essential concepts and language used to describe how Coder is structured and operated.
 
-* [Architecture](../../install/plan/architecture.md): A high-level overview of the infrastructure layout, key services, and how components interact.
+* [Architecture](../docs/install/plan/architecture.md): A high-level overview of the infrastructure layout, key services, and how components interact.
 
 These sections provide the necessary context for navigating and contributing to the backend effectively.
 
@@ -51,78 +49,78 @@ Coder's backend is built using a collection of robust, modern Go libraries and i
 
 The Coder backend is organized into multiple packages and directories, each with a specific purpose. Here's a high-level overview of the most important ones:
 
-* [agent](../../../agent): core logic of a workspace agent, supports DevContainers, remote SSH, startup/shutdown script execution. Protobuf definitions for DRPC communication with `coderd` are kept in [proto](../../../agent/proto).
-* [cli](../../../cli): CLI interface for `coder` command built on [coder/serpent](https://github.com/coder/serpent). Input controls are defined in [cliui](../../../cli/cliui), and [testdata](../../../cli/testdata) contains golden files for common CLI calls
-* [cmd](../../../cmd): entry points for CLI and services, including `coderd`
-* [coderd](../../../coderd): the main API server implementation with [chi](https://github.com/go-chi/chi) endpoints
-  * [audit](../../../coderd/audit): audit log logic, defines target resources, actions and extra fields
-  * [autobuild](../../../coderd/autobuild): core logic of the workspace autobuild executor, periodically evaluates workspaces for next transition actions
-  * [httpmw](../../../coderd/httpmw): HTTP middlewares mainly used to extract parameters from HTTP requests (e.g. current user, template, workspace, OAuth2 account, etc.) and storing them in the request context
-  * [prebuilds](../../../coderd/prebuilds): common interfaces for prebuild workspaces, feature implementation is in [enterprise/prebuilds](../../../enterprise/coderd/prebuilds)
-  * [provisionerdserver](../../../coderd/provisionerdserver): DRPC server for [provisionerd](../../../provisionerd) instances, used to validate and extract Terraform data and resources, and store them in the database.
-  * [rbac](../../../coderd/rbac): RBAC engine for `coderd`, including authz layer, role definitions and custom roles. Built on top of [Open Policy Agent](https://github.com/open-policy-agent/opa) and Rego policies.
-  * [telemetry](../../../coderd/telemetry): records a snapshot with various workspace data for telemetry purposes. Once recorded the reporter sends it to the configured telemetry endpoint.
-  * [tracing](../../../coderd/tracing): extends telemetry with tracing data consistent with [OpenTelemetry specification](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md)
-  * [workspaceapps](../../../coderd/workspaceapps): core logic of a secure proxy to expose workspace apps deployed in a workspace
-  * [wsbuilder](../../../coderd/wsbuilder): wrapper for business logic of creating a workspace build. It encapsulates all database operations required to insert a build record in a transaction.
-* [database](../../../coderd/database): schema migrations, query logic, in-memory database, etc.
-  * [db2sdk](../../../coderd/database/db2sdk): translation between database structures and [codersdk](../../../codersdk) objects used by coderd API.
-  * [dbauthz](../../../coderd/database/dbauthz): AuthZ wrappers for database queries, ideally, every query should verify first if the accessor is eligible to see the query results.
-  * [dbfake](../../../coderd/database/dbfake): helper functions to quickly prepare the initial database state for testing purposes (e.g. create N healthy workspaces and templates), operates on higher level than [dbgen](../../../coderd/database/dbgen)
-  * [dbgen](../../../coderd/database/dbgen): helper functions to insert raw records to the database store, used for testing purposes
-  * [dbmock](../../../coderd/database/dbmock): a store wrapper for database queries, useful to verify if the function has been called, used for testing purposes
-  * [dbpurge](../../../coderd/database/dbpurge): simple wrapper for periodic database cleanup operations
-  * [migrations](../../../coderd/database/migrations): an ordered list of up/down database migrations, use `./create_migration.sh my_migration_name` to modify the database schema
-  * [pubsub](../../../coderd/database/pubsub): PubSub implementation using PostgreSQL and in-memory drop-in replacement
-  * [queries](../../../coderd/database/queries): contains SQL files with queries, `sqlc` compiles them to [Go functions](../../../coderd/database/queries.sql.go)
-  * [sqlc.yaml](../../../coderd/database/sqlc.yaml): defines mappings between SQL types and custom Go structures
-* [codersdk](../../../codersdk): user-facing API entities used by CLI and site to communicate with `coderd` endpoints
-* [dogfood](../../../dogfood): build inputs for the images used by Coder's dogfood workspaces. The workspace templates that consume these images live in an internal Coder infrastructure repository.
-* [enterprise](../../../enterprise): enterprise-only features, notice similar file structure to repository root (`audit`, `cli`, `cmd`, `coderd`, etc.)
-  * [coderd](../../../enterprise/coderd)
-    * [prebuilds](../../../enterprise/coderd/prebuilds): core logic of prebuilt workspaces - reconciliation loop
-* [provisioner](../../../provisioner): supported implementation of provisioners, Terraform and "echo" (for testing purposes)
-* [provisionerd](../../../provisionerd): core logic of provisioner runner to interact provisionerd server, depending on a job acquired it calls template import, dry run or a workspace build
-* [pty](../../../pty): terminal emulation for agent shell
-* [support](../../../support): compile a support bundle with diagnostics
-* [tailnet](../../../tailnet): core logic of Tailnet controller to maintain DERP maps, coordinate connections with agents and peers
-* [vpn](../../../vpn): Coder Desktop (VPN) and tunneling components
+* [agent](../agent): core logic of a workspace agent, supports DevContainers, remote SSH, startup/shutdown script execution. Protobuf definitions for DRPC communication with `coderd` are kept in [proto](../agent/proto).
+* [cli](../cli): CLI interface for `coder` command built on [coder/serpent](https://github.com/coder/serpent). Input controls are defined in [cliui](../cli/cliui), and [testdata](../cli/testdata) contains golden files for common CLI calls
+* [cmd](../cmd): entry points for CLI and services, including `coderd`
+* [coderd](../coderd): the main API server implementation with [chi](https://github.com/go-chi/chi) endpoints
+  * [audit](../coderd/audit): audit log logic, defines target resources, actions and extra fields
+  * [autobuild](../coderd/autobuild): core logic of the workspace autobuild executor, periodically evaluates workspaces for next transition actions
+  * [httpmw](../coderd/httpmw): HTTP middlewares mainly used to extract parameters from HTTP requests (e.g. current user, template, workspace, OAuth2 account, etc.) and storing them in the request context
+  * [prebuilds](../coderd/prebuilds): common interfaces for prebuild workspaces, feature implementation is in [enterprise/prebuilds](../enterprise/coderd/prebuilds)
+  * [provisionerdserver](../coderd/provisionerdserver): DRPC server for [provisionerd](../provisionerd) instances, used to validate and extract Terraform data and resources, and store them in the database.
+  * [rbac](../coderd/rbac): RBAC engine for `coderd`, including authz layer, role definitions and custom roles. Built on top of [Open Policy Agent](https://github.com/open-policy-agent/opa) and Rego policies.
+  * [telemetry](../coderd/telemetry): records a snapshot with various workspace data for telemetry purposes. Once recorded the reporter sends it to the configured telemetry endpoint.
+  * [tracing](../coderd/tracing): extends telemetry with tracing data consistent with [OpenTelemetry specification](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md)
+  * [workspaceapps](../coderd/workspaceapps): core logic of a secure proxy to expose workspace apps deployed in a workspace
+  * [wsbuilder](../coderd/wsbuilder): wrapper for business logic of creating a workspace build. It encapsulates all database operations required to insert a build record in a transaction.
+* [database](../coderd/database): schema migrations, query logic, in-memory database, etc.
+  * [db2sdk](../coderd/database/db2sdk): translation between database structures and [codersdk](../codersdk) objects used by coderd API.
+  * [dbauthz](../coderd/database/dbauthz): AuthZ wrappers for database queries, ideally, every query should verify first if the accessor is eligible to see the query results.
+  * [dbfake](../coderd/database/dbfake): helper functions to quickly prepare the initial database state for testing purposes (e.g. create N healthy workspaces and templates), operates on higher level than [dbgen](../coderd/database/dbgen)
+  * [dbgen](../coderd/database/dbgen): helper functions to insert raw records to the database store, used for testing purposes
+  * [dbmock](../coderd/database/dbmock): a store wrapper for database queries, useful to verify if the function has been called, used for testing purposes
+  * [dbpurge](../coderd/database/dbpurge): simple wrapper for periodic database cleanup operations
+  * [migrations](../coderd/database/migrations): an ordered list of up/down database migrations, use `./create_migration.sh my_migration_name` to modify the database schema
+  * [pubsub](../coderd/database/pubsub): PubSub implementation using PostgreSQL and in-memory drop-in replacement
+  * [queries](../coderd/database/queries): contains SQL files with queries, `sqlc` compiles them to [Go functions](../coderd/database/queries.sql.go)
+  * [sqlc.yaml](../coderd/database/sqlc.yaml): defines mappings between SQL types and custom Go structures
+* [codersdk](../codersdk): user-facing API entities used by CLI and site to communicate with `coderd` endpoints
+* [dogfood](../dogfood): build inputs for the images used by Coder's dogfood workspaces. The workspace templates that consume these images live in an internal Coder infrastructure repository.
+* [enterprise](../enterprise): enterprise-only features, notice similar file structure to repository root (`audit`, `cli`, `cmd`, `coderd`, etc.)
+  * [coderd](../enterprise/coderd)
+    * [prebuilds](../enterprise/coderd/prebuilds): core logic of prebuilt workspaces - reconciliation loop
+* [provisioner](../provisioner): supported implementation of provisioners, Terraform and "echo" (for testing purposes)
+* [provisionerd](../provisionerd): core logic of provisioner runner to interact provisionerd server, depending on a job acquired it calls template import, dry run or a workspace build
+* [pty](../pty): terminal emulation for agent shell
+* [support](../support): compile a support bundle with diagnostics
+* [tailnet](../tailnet): core logic of Tailnet controller to maintain DERP maps, coordinate connections with agents and peers
+* [vpn](../vpn): Coder Desktop (VPN) and tunneling components
 
 ## Testing
 
 The Coder backend includes a rich suite of unit and end-to-end tests. A variety of helper utilities are used throughout the codebase to make testing easier, more consistent, and closer to real behavior.
 
-### [clitest](../../../cli/clitest)
+### [clitest](../cli/clitest)
 
 * Spawns an in-memory `serpent.Command` instance for unit testing
 * Configures an authorized `codersdk` client
 * Once a `serpent.Invocation` is created, tests can execute commands as if invoked by a real user
 
-### [ptytest](../../../pty/ptytest)
+### [ptytest](../pty/ptytest)
 
 * `ptytest` attaches to a `serpent.Invocation` and simulates TTY input/output
 * `pty` provides matchers and "write" operations for interacting with pseudo-terminals
 
-### [coderdtest](../../../coderd/coderdtest)
+### [coderdtest](../coderd/coderdtest)
 
 * Provides shortcuts to spin up an in-memory `coderd` instance
 * Can start an embedded provisioner daemon
 * Supports multi-user testing via `CreateFirstUser` and `CreateAnotherUser`
 * Includes "busy wait" helpers like `AwaitTemplateVersionJobCompleted`
-* [oidctest](../../../coderd/coderdtest/oidctest) can start a fake OIDC provider
+* [oidctest](../coderd/coderdtest/oidctest) can start a fake OIDC provider
 
-### [testutil](../../../testutil)
+### [testutil](../testutil)
 
 * General-purpose testing utilities, including:
-  * [chan.go](../../../testutil/chan.go): helpers for sending/receiving objects from channels (`TrySend`, `RequireReceive`, etc.)
-  * [duration.go](../../../testutil/duration.go): set timeouts for test execution
-  * [eventually.go](../../../testutil/eventually.go): repeatedly poll for a condition using a ticker
-  * [port.go](../../../testutil/port.go): select a free random port
-  * [prometheus.go](../../../testutil/prometheus.go): validate Prometheus metrics with expected values
-  * [pty.go](../../../testutil/pty.go): read output from a terminal until a condition is met
-  * [wait_buffer.go](../../../testutil/wait_buffer.go): thread-safe `io.Writer` that blocks until accumulated output contains a signal (`WaitFor`, `WaitForNth`, `WaitForCond`)
+  * [chan.go](../testutil/chan.go): helpers for sending/receiving objects from channels (`TrySend`, `RequireReceive`, etc.)
+  * [duration.go](../testutil/duration.go): set timeouts for test execution
+  * [eventually.go](../testutil/eventually.go): repeatedly poll for a condition using a ticker
+  * [port.go](../testutil/port.go): select a free random port
+  * [prometheus.go](../testutil/prometheus.go): validate Prometheus metrics with expected values
+  * [pty.go](../testutil/pty.go): read output from a terminal until a condition is met
+  * [wait_buffer.go](../testutil/wait_buffer.go): thread-safe `io.Writer` that blocks until accumulated output contains a signal (`WaitFor`, `WaitForNth`, `WaitForCond`)
 
-### [dbtestutil](../../../coderd/database/dbtestutil)
+### [dbtestutil](../coderd/database/dbtestutil)
 
 * Allows choosing between real and in-memory database backends for tests
 * `WillUsePostgres` is useful for skipping tests in CI environments that don't run Postgres
@@ -171,9 +169,9 @@ There are two types of fixtures that are used to test that migrations don't
 break existing Coder deployments:
 
 * Partial fixtures
-  [`migrations/testdata/fixtures`](../../../coderd/database/migrations/testdata/fixtures)
+  [`migrations/testdata/fixtures`](../coderd/database/migrations/testdata/fixtures)
 * Full database dumps
-  [`migrations/testdata/full_dumps`](../../../coderd/database/migrations/testdata/full_dumps)
+  [`migrations/testdata/full_dumps`](../coderd/database/migrations/testdata/full_dumps)
 
 Both types behave like database migrations (they also
 [`migrate`](https://github.com/golang-migrate/migrate)). Their behavior mirrors
@@ -196,7 +194,7 @@ To add a new partial fixture, run the following command:
 ```
 
 Then add some queries to insert data and commit the file to the repo. See
-[`000024_example.up.sql`](../../../coderd/database/migrations/testdata/fixtures/000024_example.up.sql)
+[`000024_example.up.sql`](../coderd/database/migrations/testdata/fixtures/000024_example.up.sql)
 for an example.
 
 To create a full dump, run a fully fledged Coder deployment and use it to

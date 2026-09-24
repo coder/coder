@@ -118,7 +118,7 @@ New integrations are always in progress. Open an issue to request one. Contribut
 ## Contributing
 
 New contributors are always welcome. If you are new to the Coder codebase, see
-[the contribution guide](https://coder.com/docs/about/contributing/CONTRIBUTING) to get started.
+[the contribution guide](https://github.com/coder/coder/blob/main/CONTRIBUTING.md) to get started.
 
 ## Hiring
 

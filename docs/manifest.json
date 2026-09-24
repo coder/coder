@@ -23,62 +23,6 @@
 							"path": "./support/support-bundle.md"
 						}
 					]
-				},
-				{
-					"title": "Contributing",
-					"description": "Set up your development environment and learn the workflow for contributing code to Coder.",
-					"path": "./about/contributing/CONTRIBUTING.md",
-					"icon_path": "./images/icons/contributing.svg",
-					"children": [
-						{
-							"title": "Code of Conduct",
-							"description": "Read the Contributor Covenant code of conduct that governs participation in the Coder community.",
-							"path": "./about/contributing/CODE_OF_CONDUCT.md",
-							"icon_path": "./images/icons/circle-dot.svg"
-						},
-						{
-							"title": "Documentation",
-							"description": "Follow Coder's style guide conventions for voice, formatting, and terminology when you author documentation.",
-							"path": "./about/contributing/documentation.md",
-							"icon_path": "./images/icons/document.svg"
-						},
-						{
-							"title": "Modules",
-							"description": "Learn how to build and contribute reusable Terraform modules to the Coder Registry.",
-							"path": "./about/contributing/modules.md",
-							"icon_path": "./images/icons/gear.svg"
-						},
-						{
-							"title": "Templates",
-							"description": "Learn how to build and contribute complete workspace templates to the Coder Registry.",
-							"path": "./about/contributing/templates.md",
-							"icon_path": "./images/icons/picture.svg"
-						},
-						{
-							"title": "Backend",
-							"description": "A guide to Coder's backend systems to help engineers and community contributors start backend development.",
-							"path": "./about/contributing/backend.md",
-							"icon_path": "./images/icons/gear.svg"
-						},
-						{
-							"title": "Frontend",
-							"description": "A guide to Coder's frontend codebase and conventions to help you start contributing to the UI.",
-							"path": "./about/contributing/frontend.md",
-							"icon_path": "./images/icons/frontend.svg"
-						},
-						{
-							"title": "Security",
-							"description": "Read Coder's security policy and learn how to responsibly report a security vulnerability.",
-							"path": "./about/contributing/SECURITY.md",
-							"icon_path": "./images/icons/lock.svg"
-						},
-						{
-							"title": "AI Contribution Guidelines",
-							"description": "Follow the rules for pull requests where an AI system is the primary author of the code.",
-							"path": "./about/contributing/AI_CONTRIBUTING.md",
-							"icon_path": "./images/icons/ai_intelligence.svg"
-						}
-					]
 				}
 			]
 		},

@@ -8,7 +8,7 @@
 //   - Swallowed angle-bracket placeholders. An unwrapped placeholder such as
 //     <region> or <server>__ is parsed as an unknown HTML tag and stripped
 //     from the rendered page, so readers see broken text. Placeholders must be
-//     wrapped in backticks (see docs/about/contributing/documentation.md).
+//     wrapped in backticks (see contributing/documentation.md).
 //     This also covers CLI --help strings and Swagger annotations, whose text
 //     is generated into docs/reference/**.
 //   - Structurally invalid or unregistered HTML: end tags for void elements
@@ -218,7 +218,7 @@ func run(roots []string, stdout, stderr io.Writer) int {
 	if htmlIssues > 0 {
 		_, _ = fmt.Fprintf(stderr, "\ndocshtmlcheck: found %d invalid inline HTML issue(s).\n"+
 			"Wrap angle-bracket placeholders in backticks so they render as inline code\n"+
-			"(see docs/about/contributing/documentation.md), fix void-element end tags\n"+
+			"(see contributing/documentation.md), fix void-element end tags\n"+
 			"like </br>, use registered components for custom tags, and close container tags.\n", htmlIssues)
 	}
 	if staleIssues > 0 {
