@@ -5063,6 +5063,7 @@ export type Experiment =
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
+	| "chat-stage-metrics"
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
@@ -5079,6 +5080,7 @@ export const Experiments: Experiment[] = [
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
+	"chat-stage-metrics",
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",

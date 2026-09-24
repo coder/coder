@@ -1915,3 +1915,13 @@ func BenchmarkHTTPCookieConfigMiddleware(b *testing.B) {
 		})
 	}
 }
+
+func TestExperimentsSafeAreKnown(t *testing.T) {
+	t.Parallel()
+
+	// A named experiment that is not listed as known is logged as
+	// unknown when the server reads its configuration.
+	for _, ex := range codersdk.ExperimentsSafe {
+		require.Contains(t, codersdk.ExperimentsKnown, ex)
+	}
+}
