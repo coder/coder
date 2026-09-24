@@ -4620,6 +4620,26 @@ export const DatabaseNotReachable = "database not reachable";
 
 // From healthsdk/healthsdk.go
 /**
+ * DatabasePubsubReport shows whether the embedded NATS pubsub backend is
+ * enabled and connected for this replica.
+ */
+export interface DatabasePubsubReport {
+	/**
+	 * Enabled indicates whether the embedded NATS pubsub backend is enabled
+	 * for this deployment, i.e. the no_nats_pubsub experiment is not set.
+	 */
+	readonly enabled: boolean;
+	/**
+	 * Connected indicates whether this replica is currently connected to the
+	 * embedded NATS pubsub backend. It is false when NATS pubsub is disabled,
+	 * has fallen back to PostgreSQL pubsub (e.g. missing cluster host), or is
+	 * not yet connected.
+	 */
+	readonly connected: boolean;
+}
+
+// From healthsdk/healthsdk.go
+/**
  * DatabaseReport shows the results of pinging the configured database.Conn.
  */
 export interface DatabaseReport extends BaseReport {
@@ -4631,6 +4651,13 @@ export interface DatabaseReport extends BaseReport {
 	readonly latency: string;
 	readonly latency_ms: number;
 	readonly threshold_ms: number;
+	/**
+	 * Pubsub reports the status of the Coder pubsub subsystem, including
+	 * whether this replica is using the embedded NATS pubsub backend in
+	 * addition to PostgreSQL pubsub, which is always available. NATS is
+	 * optional, so it never affects the Severity of this report.
+	 */
+	readonly pubsub: DatabasePubsubReport;
 }
 
 // From codersdk/debug.go

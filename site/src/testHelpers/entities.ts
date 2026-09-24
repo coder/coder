@@ -4452,6 +4452,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 		latency: "92570",
 		latency_ms: 92570,
 		threshold_ms: 92570,
+		pubsub: {
+			enabled: true,
+			connected: true,
+		},
 	},
 	workspace_proxy: {
 		healthy: true,
@@ -4851,6 +4855,10 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
 		latency_ms: 0,
 		reachable: true,
 		threshold_ms: 92570,
+		pubsub: {
+			enabled: true,
+			connected: true,
+		},
 	},
 	derp: {
 		healthy: false,

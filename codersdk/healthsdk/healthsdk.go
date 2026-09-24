@@ -237,6 +237,24 @@ type DatabaseReport struct {
 	Latency     string `json:"latency"`
 	LatencyMS   int64  `json:"latency_ms"`
 	ThresholdMS int64  `json:"threshold_ms"`
+	// Pubsub reports the status of the Coder pubsub subsystem, including
+	// whether this replica is using the embedded NATS pubsub backend in
+	// addition to PostgreSQL pubsub, which is always available. NATS is
+	// optional, so it never affects the Severity of this report.
+	Pubsub DatabasePubsubReport `json:"pubsub"`
+}
+
+// DatabasePubsubReport shows whether the embedded NATS pubsub backend is
+// enabled and connected for this replica.
+type DatabasePubsubReport struct {
+	// Enabled indicates whether the embedded NATS pubsub backend is enabled
+	// for this deployment, i.e. the no_nats_pubsub experiment is not set.
+	Enabled bool `json:"enabled"`
+	// Connected indicates whether this replica is currently connected to the
+	// embedded NATS pubsub backend. It is false when NATS pubsub is disabled,
+	// has fallen back to PostgreSQL pubsub (e.g. missing cluster host), or is
+	// not yet connected.
+	Connected bool `json:"connected"`
 }
 
 // ProvisionerDaemonsReport includes health details of each connected provisioner daemon.
