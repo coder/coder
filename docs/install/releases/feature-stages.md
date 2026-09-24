@@ -99,7 +99,7 @@ available in the documentation.
 
 All features that are not explicitly tagged as `Early access` or `Beta` are considered generally available (GA).
 They have been tested, are stable, and are enabled by default.
-A few GA features are off by default and have a server setting to turn them on.
+A few GA features are off by default; the feature's own page names the server setting that turns it on.
 
 If your Coder license includes an SLA, please consult it for an outline of
 specific expectations.
