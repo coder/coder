@@ -123,11 +123,9 @@ type AgentConn interface {
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
 	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
 	BundleFiles(ctx context.Context, req BundleFilesRequest) ([]byte, error)
-	SSH(ctx context.Context) (*gonet.TCPConn, error)
+	SSH(ctx context.Context) (TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
-	SSHUpgrade(ctx context.Context) (TCPConn, error)
-	SSHClientUpgrade(ctx context.Context) (*ssh.Client, error)
 	SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error)
 	Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error)
 	WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error)
@@ -279,10 +277,20 @@ func (c *agentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 	return conn, nil
 }
 
-// SSH pipes the SSH protocol over the returned net.Conn.
-// This connects to the built-in SSH server in the workspace agent.
-func (c *agentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
-	return c.SSHOnPort(ctx, AgentSSHPort)
+// SSH makes an HTTP request with the client session ID that then upgrades into
+// an SSH connection.  If the agent does not support the endpoint, falls back to
+// dialing the port directly.
+func (c *agentConn) SSH(ctx context.Context) (TCPConn, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	if !c.AwaitReachable(ctx) {
+		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
+	}
+
+	c.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSSH)
+
+	return c.dialTCPUpgrade(ctx, AgentStandardSSHPort)
 }
 
 // SSHOnPort pipes the SSH protocol over the returned net.Conn.
@@ -299,9 +307,29 @@ func (c *agentConn) SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn,
 	return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), port))
 }
 
-// SSHClient calls SSH to create a client
+// SSHClient makes an HTTP request with the client session ID that then upgrades
+// into an SSH client connection.  If the agent does not support the endpoint,
+// falls back to dialing the port directly.
 func (c *agentConn) SSHClient(ctx context.Context) (*ssh.Client, error) {
-	return c.SSHClientOnPort(ctx, AgentSSHPort)
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	netConn, err := c.SSH(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("ssh: %w", err)
+	}
+
+	sshConn, channels, requests, err := ssh.NewClientConn(netConn, "localhost:22", &ssh.ClientConfig{
+		// SSH host validation isn't helpful, because obtaining a peer
+		// connection already signifies user-intent to dial a workspace.
+		// #nosec
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("ssh conn: %w", err)
+	}
+
+	return ssh.NewClient(sshConn, channels, requests), nil
 }
 
 // SSHClientOnPort calls SSH to create a client on a specific port
@@ -330,22 +358,6 @@ func (c *agentConn) SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Clie
 type TCPConn interface {
 	net.Conn
 	CloseWrite() error
-}
-
-// SSHUpgrade makes an HTTP request with the client session ID that then
-// upgrades into an SSH connection.  If the agent does not support the endpoint,
-// falls back to dialing the port directly.
-func (c *agentConn) SSHUpgrade(ctx context.Context) (TCPConn, error) {
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-
-	if !c.AwaitReachable(ctx) {
-		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
-	}
-
-	c.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSSH)
-
-	return c.dialTCPUpgrade(ctx, AgentStandardSSHPort)
 }
 
 // dialTCPUpgrade dials the agent's /tcp HTTP endpoint so we can pass along the
@@ -414,31 +426,6 @@ type upgradeAddr struct {
 
 func (u upgradeAddr) Network() string { return u.addr }
 func (u upgradeAddr) String() string  { return u.addr }
-
-// SSHUpgrade makes an HTTP request with the client session ID that then
-// upgrades into an SSH client connection.  If the agent does not support the
-// endpoint, falls back to dialing the port directly.
-func (c *agentConn) SSHClientUpgrade(ctx context.Context) (*ssh.Client, error) {
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-
-	netConn, err := c.SSHUpgrade(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("ssh: %w", err)
-	}
-
-	sshConn, channels, requests, err := ssh.NewClientConn(netConn, "localhost:22", &ssh.ClientConfig{
-		// SSH host validation isn't helpful, because obtaining a peer
-		// connection already signifies user-intent to dial a workspace.
-		// #nosec
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("ssh conn: %w", err)
-	}
-
-	return ssh.NewClient(sshConn, channels, requests), nil
-}
 
 // Speedtest runs a speedtest against the workspace agent.
 func (c *agentConn) Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {

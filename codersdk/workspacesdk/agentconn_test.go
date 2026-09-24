@@ -226,7 +226,7 @@ func TestAgent_SSHUpgrade_Fallback(t *testing.T) {
 	})
 	require.True(t, clientConn.AwaitReachable(ctx, agentIP))
 
-	sshConn, err := conn.SSHUpgrade(ctx)
+	sshConn, err := conn.SSH(ctx)
 	require.NoError(t, err)
 	defer sshConn.Close()
 
