@@ -55,13 +55,14 @@ func TestWriteResourceSections(t *testing.T) {
 
 	want := "### Group\n\n" +
 		"Actions: `create`, `delete`\n\n" +
-		"| Field | Tracked |\n" +
-		"|-------|---------|\n" +
-		"| `name` | Yes |\n\n" +
+		fieldsTableHeader +
+		"<tr><td><code>name</code></td><td>Yes</td></tr>\n" +
+		"</tbody>\n</table>\n\n" +
 		"### Zeta\n\n" +
-		"| Field | Tracked |\n" +
-		"|-------|---------|\n" +
-		"| `a` | No |\n" +
-		"| `b` | Yes |\n\n"
+		fieldsTableHeader +
+		"<tr><td><code>a</code></td><td>No</td></tr>\n" +
+		"<tr><td><code>b</code></td><td>Yes</td></tr>\n" +
+		"</tbody>\n</table>\n\n"
+	require.Contains(t, fieldsTableHeader, `<th width="75%">Field</th><th width="25%">Tracked</th>`)
 	require.Equal(t, want, buf.String())
 }

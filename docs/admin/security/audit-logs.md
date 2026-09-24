@@ -19,659 +19,770 @@ When a tracked field changes, the change appears in the entry's diff, and untrac
 
 Actions: `create`, `delete`
 
-| Field               | Tracked |
-|---------------------|---------|
-| `created_at`        | No      |
-| `hashed_secret`     | Yes     |
-| `id`                | Yes     |
-| `last_heartbeat_at` | No      |
-| `name`              | Yes     |
-| `secret_prefix`     | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>hashed_secret</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>last_heartbeat_at</code></td><td>No</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>secret_prefix</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### AIProvider
 
 Actions: `create`, `write`, `delete`
 
-| Field             | Tracked |
-|-------------------|---------|
-| `base_url`        | Yes     |
-| `created_at`      | No      |
-| `deleted`         | Yes     |
-| `display_name`    | Yes     |
-| `enabled`         | Yes     |
-| `icon`            | Yes     |
-| `id`              | Yes     |
-| `name`            | Yes     |
-| `settings`        | Yes     |
-| `settings_key_id` | No      |
-| `type`            | Yes     |
-| `updated_at`      | No      |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>base_url</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>deleted</code></td><td>Yes</td></tr>
+<tr><td><code>display_name</code></td><td>Yes</td></tr>
+<tr><td><code>enabled</code></td><td>Yes</td></tr>
+<tr><td><code>icon</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>settings</code></td><td>Yes</td></tr>
+<tr><td><code>settings_key_id</code></td><td>No</td></tr>
+<tr><td><code>type</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+</tbody>
+</table>
 
 ### AIProviderKey
 
 Actions: `create`, `delete`
 
-| Field            | Tracked |
-|------------------|---------|
-| `api_key`        | Yes     |
-| `api_key_key_id` | No      |
-| `created_at`     | No      |
-| `id`             | Yes     |
-| `provider_id`    | Yes     |
-| `updated_at`     | No      |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>api_key</code></td><td>Yes</td></tr>
+<tr><td><code>api_key_key_id</code></td><td>No</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>provider_id</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+</tbody>
+</table>
 
 ### AISeatState
 
 Actions: `create`
 
-| Field                    | Tracked |
-|--------------------------|---------|
-| `first_used_at`          | Yes     |
-| `last_event_description` | Yes     |
-| `last_event_type`        | Yes     |
-| `last_used_at`           | No      |
-| `updated_at`             | No      |
-| `user_id`                | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>first_used_at</code></td><td>Yes</td></tr>
+<tr><td><code>last_event_description</code></td><td>Yes</td></tr>
+<tr><td><code>last_event_type</code></td><td>Yes</td></tr>
+<tr><td><code>last_used_at</code></td><td>No</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### APIKey
 
 Actions: `login`, `logout`, `register`, `create`, `write`, `delete`
 
-| Field              | Tracked |
-|--------------------|---------|
-| `allow_list`       | No      |
-| `created_at`       | Yes     |
-| `expires_at`       | Yes     |
-| `hashed_secret`    | No      |
-| `id`               | No      |
-| `ip_address`       | No      |
-| `last_used`        | Yes     |
-| `lifetime_seconds` | No      |
-| `login_type`       | No      |
-| `scopes`           | No      |
-| `token_name`       | No      |
-| `updated_at`       | No      |
-| `user_id`          | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>allow_list</code></td><td>No</td></tr>
+<tr><td><code>created_at</code></td><td>Yes</td></tr>
+<tr><td><code>expires_at</code></td><td>Yes</td></tr>
+<tr><td><code>hashed_secret</code></td><td>No</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>ip_address</code></td><td>No</td></tr>
+<tr><td><code>last_used</code></td><td>Yes</td></tr>
+<tr><td><code>lifetime_seconds</code></td><td>No</td></tr>
+<tr><td><code>login_type</code></td><td>No</td></tr>
+<tr><td><code>scopes</code></td><td>No</td></tr>
+<tr><td><code>token_name</code></td><td>No</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### AuditOAuthConvertState
 
-| Field             | Tracked |
-|-------------------|---------|
-| `created_at`      | Yes     |
-| `expires_at`      | Yes     |
-| `from_login_type` | Yes     |
-| `to_login_type`   | Yes     |
-| `user_id`         | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>Yes</td></tr>
+<tr><td><code>expires_at</code></td><td>Yes</td></tr>
+<tr><td><code>from_login_type</code></td><td>Yes</td></tr>
+<tr><td><code>to_login_type</code></td><td>Yes</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### Group
 
 Actions: `create`, `write`, `delete`
 
-| Field                     | Tracked |
-|---------------------------|---------|
-| `avatar_url`              | Yes     |
-| `chat_spend_limit_micros` | Yes     |
-| `display_name`            | Yes     |
-| `id`                      | Yes     |
-| `members`                 | Yes     |
-| `name`                    | Yes     |
-| `organization_id`         | No      |
-| `quota_allowance`         | Yes     |
-| `source`                  | No      |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>avatar_url</code></td><td>Yes</td></tr>
+<tr><td><code>chat_spend_limit_micros</code></td><td>Yes</td></tr>
+<tr><td><code>display_name</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>members</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>quota_allowance</code></td><td>Yes</td></tr>
+<tr><td><code>source</code></td><td>No</td></tr>
+</tbody>
+</table>
 
 ### AuditableGroupAIBudget
 
 Actions: `write`, `delete`
 
-| Field                | Tracked |
-|----------------------|---------|
-| `created_at`         | No      |
-| `group_id`           | No      |
-| `group_name`         | No      |
-| `spend_limit`        | Yes     |
-| `spend_limit_micros` | No      |
-| `updated_at`         | No      |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>group_id</code></td><td>No</td></tr>
+<tr><td><code>group_name</code></td><td>No</td></tr>
+<tr><td><code>spend_limit</code></td><td>Yes</td></tr>
+<tr><td><code>spend_limit_micros</code></td><td>No</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+</tbody>
+</table>
 
 ### AuditableOrganizationMember
 
-| Field             | Tracked |
-|-------------------|---------|
-| `created_at`      | Yes     |
-| `organization_id` | No      |
-| `roles`           | Yes     |
-| `updated_at`      | Yes     |
-| `user_id`         | Yes     |
-| `username`        | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>roles</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>Yes</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
+<tr><td><code>username</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### AuditableUserAIBudgetOverride
 
 Actions: `write`, `delete`
 
-| Field                | Tracked |
-|----------------------|---------|
-| `created_at`         | No      |
-| `group_id`           | Yes     |
-| `group_name`         | Yes     |
-| `spend_limit`        | Yes     |
-| `spend_limit_micros` | No      |
-| `updated_at`         | No      |
-| `user_id`            | No      |
-| `username`           | No      |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>group_id</code></td><td>Yes</td></tr>
+<tr><td><code>group_name</code></td><td>Yes</td></tr>
+<tr><td><code>spend_limit</code></td><td>Yes</td></tr>
+<tr><td><code>spend_limit_micros</code></td><td>No</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_id</code></td><td>No</td></tr>
+<tr><td><code>username</code></td><td>No</td></tr>
+</tbody>
+</table>
 
 ### Chat
 
 Actions: `create`, `write`
 
-| Field                         | Tracked |
-|-------------------------------|---------|
-| `agent_id`                    | No      |
-| `archived`                    | Yes     |
-| `build_id`                    | No      |
-| `client_type`                 | No      |
-| `compaction_requested_at`     | No      |
-| `context_aggregate_hash`      | No      |
-| `context_dirty_resources`     | No      |
-| `context_dirty_since`         | No      |
-| `context_error`               | No      |
-| `created_at`                  | No      |
-| `dynamic_tools`               | No      |
-| `generation_attempt`          | No      |
-| `group_acl`                   | Yes     |
-| `heartbeat_at`                | No      |
-| `history_version`             | No      |
-| `id`                          | Yes     |
-| `labels`                      | Yes     |
-| `last_error`                  | No      |
-| `last_model_config_id`        | No      |
-| `last_read_message_id`        | No      |
-| `last_reasoning_effort`       | No      |
-| `last_turn_summary`           | No      |
-| `mcp_server_ids`              | Yes     |
-| `mode`                        | Yes     |
-| `organization_id`             | No      |
-| `owner_id`                    | Yes     |
-| `owner_name`                  | No      |
-| `owner_username`              | No      |
-| `parent_chat_id`              | No      |
-| `pin_order`                   | Yes     |
-| `plan_mode`                   | No      |
-| `queue_version`               | No      |
-| `requires_action_deadline_at` | No      |
-| `retry_state`                 | No      |
-| `retry_state_version`         | No      |
-| `root_chat_id`                | No      |
-| `runner_id`                   | No      |
-| `snapshot_version`            | No      |
-| `started_at`                  | No      |
-| `status`                      | No      |
-| `summary`                     | No      |
-| `summary_generated_at`        | No      |
-| `title`                       | Yes     |
-| `updated_at`                  | No      |
-| `user_acl`                    | Yes     |
-| `worker_id`                   | No      |
-| `workspace_id`                | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>agent_id</code></td><td>No</td></tr>
+<tr><td><code>archived</code></td><td>Yes</td></tr>
+<tr><td><code>build_id</code></td><td>No</td></tr>
+<tr><td><code>client_type</code></td><td>No</td></tr>
+<tr><td><code>compaction_requested_at</code></td><td>No</td></tr>
+<tr><td><code>context_aggregate_hash</code></td><td>No</td></tr>
+<tr><td><code>context_dirty_resources</code></td><td>No</td></tr>
+<tr><td><code>context_dirty_since</code></td><td>No</td></tr>
+<tr><td><code>context_error</code></td><td>No</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>dynamic_tools</code></td><td>No</td></tr>
+<tr><td><code>generation_attempt</code></td><td>No</td></tr>
+<tr><td><code>group_acl</code></td><td>Yes</td></tr>
+<tr><td><code>heartbeat_at</code></td><td>No</td></tr>
+<tr><td><code>history_version</code></td><td>No</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>labels</code></td><td>Yes</td></tr>
+<tr><td><code>last_error</code></td><td>No</td></tr>
+<tr><td><code>last_model_config_id</code></td><td>No</td></tr>
+<tr><td><code>last_read_message_id</code></td><td>No</td></tr>
+<tr><td><code>last_reasoning_effort</code></td><td>No</td></tr>
+<tr><td><code>last_turn_summary</code></td><td>No</td></tr>
+<tr><td><code>mcp_server_ids</code></td><td>Yes</td></tr>
+<tr><td><code>mode</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>owner_id</code></td><td>Yes</td></tr>
+<tr><td><code>owner_name</code></td><td>No</td></tr>
+<tr><td><code>owner_username</code></td><td>No</td></tr>
+<tr><td><code>parent_chat_id</code></td><td>No</td></tr>
+<tr><td><code>pin_order</code></td><td>Yes</td></tr>
+<tr><td><code>plan_mode</code></td><td>No</td></tr>
+<tr><td><code>queue_version</code></td><td>No</td></tr>
+<tr><td><code>requires_action_deadline_at</code></td><td>No</td></tr>
+<tr><td><code>retry_state</code></td><td>No</td></tr>
+<tr><td><code>retry_state_version</code></td><td>No</td></tr>
+<tr><td><code>root_chat_id</code></td><td>No</td></tr>
+<tr><td><code>runner_id</code></td><td>No</td></tr>
+<tr><td><code>snapshot_version</code></td><td>No</td></tr>
+<tr><td><code>started_at</code></td><td>No</td></tr>
+<tr><td><code>status</code></td><td>No</td></tr>
+<tr><td><code>summary</code></td><td>No</td></tr>
+<tr><td><code>summary_generated_at</code></td><td>No</td></tr>
+<tr><td><code>title</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_acl</code></td><td>Yes</td></tr>
+<tr><td><code>worker_id</code></td><td>No</td></tr>
+<tr><td><code>workspace_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### ChatInstructionSettings
 
 Actions: `write`
 
-| Field                               | Tracked |
-|-------------------------------------|---------|
-| `id`                                | No      |
-| `include_default_system_prompt`     | Yes     |
-| `include_default_system_prompt_set` | Yes     |
-| `name`                              | No      |
-| `plan_mode_instructions`            | Yes     |
-| `system_prompt`                     | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>include_default_system_prompt</code></td><td>Yes</td></tr>
+<tr><td><code>include_default_system_prompt_set</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>No</td></tr>
+<tr><td><code>plan_mode_instructions</code></td><td>Yes</td></tr>
+<tr><td><code>system_prompt</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### ChatModelConfig
 
 Actions: `create`, `write`, `delete`
 
-| Field                   | Tracked |
-|-------------------------|---------|
-| `ai_provider_id`        | Yes     |
-| `compression_threshold` | Yes     |
-| `context_limit`         | Yes     |
-| `created_at`            | No      |
-| `created_by`            | Yes     |
-| `deleted`               | Yes     |
-| `deleted_at`            | No      |
-| `display_name`          | Yes     |
-| `enabled`               | Yes     |
-| `group_acl`             | Yes     |
-| `id`                    | No      |
-| `is_default`            | Yes     |
-| `model`                 | Yes     |
-| `options`               | Yes     |
-| `organization_id`       | No      |
-| `updated_at`            | No      |
-| `updated_by`            | Yes     |
-| `user_acl`              | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>ai_provider_id</code></td><td>Yes</td></tr>
+<tr><td><code>compression_threshold</code></td><td>Yes</td></tr>
+<tr><td><code>context_limit</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>created_by</code></td><td>Yes</td></tr>
+<tr><td><code>deleted</code></td><td>Yes</td></tr>
+<tr><td><code>deleted_at</code></td><td>No</td></tr>
+<tr><td><code>display_name</code></td><td>Yes</td></tr>
+<tr><td><code>enabled</code></td><td>Yes</td></tr>
+<tr><td><code>group_acl</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>is_default</code></td><td>Yes</td></tr>
+<tr><td><code>model</code></td><td>Yes</td></tr>
+<tr><td><code>options</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>updated_by</code></td><td>Yes</td></tr>
+<tr><td><code>user_acl</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### ChatOperationalSettings
 
 Actions: `write`
 
-| Field                              | Tracked |
-|------------------------------------|---------|
-| `chat_auto_archive_days`           | Yes     |
-| `chat_debug_retention_days`        | Yes     |
-| `chat_retention_days`              | Yes     |
-| `computer_use_provider`            | Yes     |
-| `debug_logging_allow_users`        | Yes     |
-| `id`                               | No      |
-| `personal_model_overrides_enabled` | Yes     |
-| `workspace_ttl`                    | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>chat_auto_archive_days</code></td><td>Yes</td></tr>
+<tr><td><code>chat_debug_retention_days</code></td><td>Yes</td></tr>
+<tr><td><code>chat_retention_days</code></td><td>Yes</td></tr>
+<tr><td><code>computer_use_provider</code></td><td>Yes</td></tr>
+<tr><td><code>debug_logging_allow_users</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>personal_model_overrides_enabled</code></td><td>Yes</td></tr>
+<tr><td><code>workspace_ttl</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### CustomRole
 
-| Field                | Tracked |
-|----------------------|---------|
-| `created_at`         | No      |
-| `display_name`       | Yes     |
-| `id`                 | No      |
-| `is_system`          | No      |
-| `member_permissions` | Yes     |
-| `name`               | Yes     |
-| `org_permissions`    | Yes     |
-| `organization_id`    | No      |
-| `site_permissions`   | Yes     |
-| `updated_at`         | No      |
-| `user_permissions`   | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>display_name</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>is_system</code></td><td>No</td></tr>
+<tr><td><code>member_permissions</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>org_permissions</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>site_permissions</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_permissions</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### GitSSHKey
 
 Actions: `create`
 
-| Field                | Tracked |
-|----------------------|---------|
-| `created_at`         | No      |
-| `private_key`        | Yes     |
-| `private_key_key_id` | No      |
-| `public_key`         | Yes     |
-| `updated_at`         | No      |
-| `user_id`            | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>private_key</code></td><td>Yes</td></tr>
+<tr><td><code>private_key_key_id</code></td><td>No</td></tr>
+<tr><td><code>public_key</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### GroupSyncSettings
 
-| Field                        | Tracked |
-|------------------------------|---------|
-| `auto_create_missing_groups` | Yes     |
-| `field`                      | Yes     |
-| `legacy_group_name_mapping`  | No      |
-| `mapping`                    | Yes     |
-| `regex_filter`               | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>auto_create_missing_groups</code></td><td>Yes</td></tr>
+<tr><td><code>field</code></td><td>Yes</td></tr>
+<tr><td><code>legacy_group_name_mapping</code></td><td>No</td></tr>
+<tr><td><code>mapping</code></td><td>Yes</td></tr>
+<tr><td><code>regex_filter</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### HealthSettings
 
-| Field                    | Tracked |
-|--------------------------|---------|
-| `dismissed_healthchecks` | Yes     |
-| `id`                     | No      |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>dismissed_healthchecks</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+</tbody>
+</table>
 
 ### License
 
 Actions: `create`, `delete`
 
-| Field         | Tracked |
-|---------------|---------|
-| `exp`         | Yes     |
-| `id`          | No      |
-| `jwt`         | No      |
-| `uploaded_at` | Yes     |
-| `uuid`        | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>exp</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>jwt</code></td><td>No</td></tr>
+<tr><td><code>uploaded_at</code></td><td>Yes</td></tr>
+<tr><td><code>uuid</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### MCPServerConfig
 
 Actions: `create`, `write`, `delete`
 
-| Field                         | Tracked |
-|-------------------------------|---------|
-| `allow_in_plan_mode`          | Yes     |
-| `api_key_header`              | Yes     |
-| `api_key_value`               | Yes     |
-| `api_key_value_key_id`        | No      |
-| `auth_type`                   | Yes     |
-| `availability`                | Yes     |
-| `created_at`                  | No      |
-| `created_by`                  | Yes     |
-| `custom_headers`              | Yes     |
-| `custom_headers_key_id`       | No      |
-| `description`                 | Yes     |
-| `display_name`                | Yes     |
-| `enabled`                     | Yes     |
-| `forward_coder_headers`       | Yes     |
-| `group_acl`                   | Yes     |
-| `icon_url`                    | Yes     |
-| `id`                          | No      |
-| `model_intent`                | Yes     |
-| `oauth2_auth_url`             | Yes     |
-| `oauth2_client_id`            | Yes     |
-| `oauth2_client_secret`        | Yes     |
-| `oauth2_client_secret_key_id` | No      |
-| `oauth2_revocation_url`       | Yes     |
-| `oauth2_scopes`               | Yes     |
-| `oauth2_token_url`            | Yes     |
-| `organization_id`             | No      |
-| `signing_secret`              | Yes     |
-| `signing_secret_key_id`       | No      |
-| `slug`                        | Yes     |
-| `tool_allow_list`             | Yes     |
-| `tool_deny_list`              | Yes     |
-| `transport`                   | Yes     |
-| `updated_at`                  | No      |
-| `updated_by`                  | Yes     |
-| `url`                         | Yes     |
-| `user_acl`                    | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>allow_in_plan_mode</code></td><td>Yes</td></tr>
+<tr><td><code>api_key_header</code></td><td>Yes</td></tr>
+<tr><td><code>api_key_value</code></td><td>Yes</td></tr>
+<tr><td><code>api_key_value_key_id</code></td><td>No</td></tr>
+<tr><td><code>auth_type</code></td><td>Yes</td></tr>
+<tr><td><code>availability</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>created_by</code></td><td>Yes</td></tr>
+<tr><td><code>custom_headers</code></td><td>Yes</td></tr>
+<tr><td><code>custom_headers_key_id</code></td><td>No</td></tr>
+<tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>display_name</code></td><td>Yes</td></tr>
+<tr><td><code>enabled</code></td><td>Yes</td></tr>
+<tr><td><code>forward_coder_headers</code></td><td>Yes</td></tr>
+<tr><td><code>group_acl</code></td><td>Yes</td></tr>
+<tr><td><code>icon_url</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>model_intent</code></td><td>Yes</td></tr>
+<tr><td><code>oauth2_auth_url</code></td><td>Yes</td></tr>
+<tr><td><code>oauth2_client_id</code></td><td>Yes</td></tr>
+<tr><td><code>oauth2_client_secret</code></td><td>Yes</td></tr>
+<tr><td><code>oauth2_client_secret_key_id</code></td><td>No</td></tr>
+<tr><td><code>oauth2_revocation_url</code></td><td>Yes</td></tr>
+<tr><td><code>oauth2_scopes</code></td><td>Yes</td></tr>
+<tr><td><code>oauth2_token_url</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>signing_secret</code></td><td>Yes</td></tr>
+<tr><td><code>signing_secret_key_id</code></td><td>No</td></tr>
+<tr><td><code>slug</code></td><td>Yes</td></tr>
+<tr><td><code>tool_allow_list</code></td><td>Yes</td></tr>
+<tr><td><code>tool_deny_list</code></td><td>Yes</td></tr>
+<tr><td><code>transport</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>updated_by</code></td><td>Yes</td></tr>
+<tr><td><code>url</code></td><td>Yes</td></tr>
+<tr><td><code>user_acl</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### NotificationTemplate
 
-| Field                | Tracked |
-|----------------------|---------|
-| `actions`            | Yes     |
-| `body_template`      | Yes     |
-| `enabled_by_default` | Yes     |
-| `group`              | Yes     |
-| `id`                 | No      |
-| `kind`               | Yes     |
-| `method`             | Yes     |
-| `name`               | Yes     |
-| `title_template`     | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>actions</code></td><td>Yes</td></tr>
+<tr><td><code>body_template</code></td><td>Yes</td></tr>
+<tr><td><code>enabled_by_default</code></td><td>Yes</td></tr>
+<tr><td><code>group</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>kind</code></td><td>Yes</td></tr>
+<tr><td><code>method</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>title_template</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### NotificationsSettings
 
-| Field             | Tracked |
-|-------------------|---------|
-| `id`              | No      |
-| `notifier_paused` | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>notifier_paused</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### OAuth2ProviderApp
 
-| Field                        | Tracked |
-|------------------------------|---------|
-| `callback_url`               | Yes     |
-| `client_id_issued_at`        | No      |
-| `client_secret_expires_at`   | Yes     |
-| `client_type`                | Yes     |
-| `client_uri`                 | Yes     |
-| `contacts`                   | Yes     |
-| `created_at`                 | No      |
-| `dynamically_registered`     | Yes     |
-| `grant_types`                | Yes     |
-| `icon`                       | Yes     |
-| `id`                         | No      |
-| `jwks`                       | Yes     |
-| `jwks_uri`                   | Yes     |
-| `logo_uri`                   | Yes     |
-| `name`                       | Yes     |
-| `policy_uri`                 | Yes     |
-| `redirect_uris`              | Yes     |
-| `registration_access_token`  | Yes     |
-| `registration_client_uri`    | Yes     |
-| `response_types`             | Yes     |
-| `scope`                      | Yes     |
-| `software_id`                | Yes     |
-| `software_version`           | Yes     |
-| `token_endpoint_auth_method` | Yes     |
-| `tos_uri`                    | Yes     |
-| `updated_at`                 | No      |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>callback_url</code></td><td>Yes</td></tr>
+<tr><td><code>client_id_issued_at</code></td><td>No</td></tr>
+<tr><td><code>client_secret_expires_at</code></td><td>Yes</td></tr>
+<tr><td><code>client_type</code></td><td>Yes</td></tr>
+<tr><td><code>client_uri</code></td><td>Yes</td></tr>
+<tr><td><code>contacts</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>dynamically_registered</code></td><td>Yes</td></tr>
+<tr><td><code>grant_types</code></td><td>Yes</td></tr>
+<tr><td><code>icon</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>jwks</code></td><td>Yes</td></tr>
+<tr><td><code>jwks_uri</code></td><td>Yes</td></tr>
+<tr><td><code>logo_uri</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>policy_uri</code></td><td>Yes</td></tr>
+<tr><td><code>redirect_uris</code></td><td>Yes</td></tr>
+<tr><td><code>registration_access_token</code></td><td>Yes</td></tr>
+<tr><td><code>registration_client_uri</code></td><td>Yes</td></tr>
+<tr><td><code>response_types</code></td><td>Yes</td></tr>
+<tr><td><code>scope</code></td><td>Yes</td></tr>
+<tr><td><code>software_id</code></td><td>Yes</td></tr>
+<tr><td><code>software_version</code></td><td>Yes</td></tr>
+<tr><td><code>token_endpoint_auth_method</code></td><td>Yes</td></tr>
+<tr><td><code>tos_uri</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+</tbody>
+</table>
 
 ### OAuth2ProviderAppSecret
 
-| Field            | Tracked |
-|------------------|---------|
-| `app_id`         | No      |
-| `created_at`     | No      |
-| `display_secret` | No      |
-| `hashed_secret`  | No      |
-| `id`             | No      |
-| `last_used_at`   | No      |
-| `secret_prefix`  | No      |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>app_id</code></td><td>No</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>display_secret</code></td><td>No</td></tr>
+<tr><td><code>hashed_secret</code></td><td>No</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>last_used_at</code></td><td>No</td></tr>
+<tr><td><code>secret_prefix</code></td><td>No</td></tr>
+</tbody>
+</table>
 
 ### OAuth2ProviderSettings
 
-| Field                                 | Tracked |
-|---------------------------------------|---------|
-| `dynamic_client_registration_enabled` | Yes     |
-| `id`                                  | No      |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>dynamic_client_registration_enabled</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+</tbody>
+</table>
 
 ### Organization
 
-| Field                        | Tracked |
-|------------------------------|---------|
-| `created_at`                 | No      |
-| `default_org_member_roles`   | Yes     |
-| `deleted`                    | Yes     |
-| `description`                | Yes     |
-| `display_name`               | Yes     |
-| `icon`                       | Yes     |
-| `id`                         | No      |
-| `is_default`                 | Yes     |
-| `name`                       | Yes     |
-| `shareable_workspace_owners` | Yes     |
-| `updated_at`                 | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>default_org_member_roles</code></td><td>Yes</td></tr>
+<tr><td><code>deleted</code></td><td>Yes</td></tr>
+<tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>display_name</code></td><td>Yes</td></tr>
+<tr><td><code>icon</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>is_default</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>shareable_workspace_owners</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### OrganizationSyncSettings
 
-| Field            | Tracked |
-|------------------|---------|
-| `assign_default` | Yes     |
-| `field`          | Yes     |
-| `mapping`        | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>assign_default</code></td><td>Yes</td></tr>
+<tr><td><code>field</code></td><td>Yes</td></tr>
+<tr><td><code>mapping</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### PrebuildsSettings
 
-| Field                   | Tracked |
-|-------------------------|---------|
-| `id`                    | No      |
-| `reconciliation_paused` | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>reconciliation_paused</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### RoleSyncSettings
 
-| Field     | Tracked |
-|-----------|---------|
-| `field`   | Yes     |
-| `mapping` | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>field</code></td><td>Yes</td></tr>
+<tr><td><code>mapping</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### Template
 
 Actions: `write`, `delete`
 
-| Field                               | Tracked |
-|-------------------------------------|---------|
-| `active_version_id`                 | Yes     |
-| `activity_bump`                     | Yes     |
-| `agents_allowed`                    | Yes     |
-| `allow_user_autostart`              | Yes     |
-| `allow_user_autostop`               | Yes     |
-| `allow_user_cancel_workspace_jobs`  | Yes     |
-| `allow_workspace_renames`           | Yes     |
-| `autostart_block_days_of_week`      | Yes     |
-| `autostop_requirement_days_of_week` | Yes     |
-| `autostop_requirement_weeks`        | Yes     |
-| `cors_behavior`                     | Yes     |
-| `created_at`                        | No      |
-| `created_by`                        | Yes     |
-| `created_by_avatar_url`             | No      |
-| `created_by_name`                   | No      |
-| `created_by_username`               | No      |
-| `default_ttl`                       | Yes     |
-| `deleted`                           | No      |
-| `deprecated`                        | Yes     |
-| `description`                       | Yes     |
-| `disable_module_cache`              | Yes     |
-| `display_name`                      | Yes     |
-| `failure_ttl`                       | Yes     |
-| `group_acl`                         | Yes     |
-| `icon`                              | Yes     |
-| `id`                                | Yes     |
-| `max_port_sharing_level`            | Yes     |
-| `name`                              | Yes     |
-| `organization_display_name`         | No      |
-| `organization_icon`                 | No      |
-| `organization_id`                   | No      |
-| `organization_name`                 | No      |
-| `provisioner`                       | Yes     |
-| `require_active_version`            | Yes     |
-| `time_til_autostop_notify`          | Yes     |
-| `time_til_dormant`                  | Yes     |
-| `time_til_dormant_autodelete`       | Yes     |
-| `updated_at`                        | No      |
-| `use_classic_parameter_flow`        | Yes     |
-| `user_acl`                          | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>active_version_id</code></td><td>Yes</td></tr>
+<tr><td><code>activity_bump</code></td><td>Yes</td></tr>
+<tr><td><code>agents_allowed</code></td><td>Yes</td></tr>
+<tr><td><code>allow_user_autostart</code></td><td>Yes</td></tr>
+<tr><td><code>allow_user_autostop</code></td><td>Yes</td></tr>
+<tr><td><code>allow_user_cancel_workspace_jobs</code></td><td>Yes</td></tr>
+<tr><td><code>allow_workspace_renames</code></td><td>Yes</td></tr>
+<tr><td><code>autostart_block_days_of_week</code></td><td>Yes</td></tr>
+<tr><td><code>autostop_requirement_days_of_week</code></td><td>Yes</td></tr>
+<tr><td><code>autostop_requirement_weeks</code></td><td>Yes</td></tr>
+<tr><td><code>cors_behavior</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>created_by</code></td><td>Yes</td></tr>
+<tr><td><code>created_by_avatar_url</code></td><td>No</td></tr>
+<tr><td><code>created_by_name</code></td><td>No</td></tr>
+<tr><td><code>created_by_username</code></td><td>No</td></tr>
+<tr><td><code>default_ttl</code></td><td>Yes</td></tr>
+<tr><td><code>deleted</code></td><td>No</td></tr>
+<tr><td><code>deprecated</code></td><td>Yes</td></tr>
+<tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>disable_module_cache</code></td><td>Yes</td></tr>
+<tr><td><code>display_name</code></td><td>Yes</td></tr>
+<tr><td><code>failure_ttl</code></td><td>Yes</td></tr>
+<tr><td><code>group_acl</code></td><td>Yes</td></tr>
+<tr><td><code>icon</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>max_port_sharing_level</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_display_name</code></td><td>No</td></tr>
+<tr><td><code>organization_icon</code></td><td>No</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>organization_name</code></td><td>No</td></tr>
+<tr><td><code>provisioner</code></td><td>Yes</td></tr>
+<tr><td><code>require_active_version</code></td><td>Yes</td></tr>
+<tr><td><code>time_til_autostop_notify</code></td><td>Yes</td></tr>
+<tr><td><code>time_til_dormant</code></td><td>Yes</td></tr>
+<tr><td><code>time_til_dormant_autodelete</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>use_classic_parameter_flow</code></td><td>Yes</td></tr>
+<tr><td><code>user_acl</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### TemplateVersion
 
 Actions: `create`, `write`
 
-| Field                     | Tracked |
-|---------------------------|---------|
-| `archived`                | Yes     |
-| `created_at`              | No      |
-| `created_by`              | Yes     |
-| `created_by_avatar_url`   | No      |
-| `created_by_name`         | No      |
-| `created_by_username`     | No      |
-| `external_auth_providers` | No      |
-| `has_external_agent`      | No      |
-| `id`                      | Yes     |
-| `job_id`                  | No      |
-| `message`                 | No      |
-| `name`                    | Yes     |
-| `organization_id`         | No      |
-| `readme`                  | Yes     |
-| `source_example_id`       | No      |
-| `template_id`             | Yes     |
-| `updated_at`              | No      |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>archived</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>created_by</code></td><td>Yes</td></tr>
+<tr><td><code>created_by_avatar_url</code></td><td>No</td></tr>
+<tr><td><code>created_by_name</code></td><td>No</td></tr>
+<tr><td><code>created_by_username</code></td><td>No</td></tr>
+<tr><td><code>external_auth_providers</code></td><td>No</td></tr>
+<tr><td><code>has_external_agent</code></td><td>No</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>job_id</code></td><td>No</td></tr>
+<tr><td><code>message</code></td><td>No</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>readme</code></td><td>Yes</td></tr>
+<tr><td><code>source_example_id</code></td><td>No</td></tr>
+<tr><td><code>template_id</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+</tbody>
+</table>
 
 ### User
 
 Actions: `create`, `write`, `delete`
 
-| Field                          | Tracked |
-|--------------------------------|---------|
-| `avatar_url`                   | No      |
-| `chat_spend_limit_micros`      | Yes     |
-| `created_at`                   | No      |
-| `deleted`                      | Yes     |
-| `email`                        | Yes     |
-| `github_com_user_id`           | No      |
-| `hashed_one_time_passcode`     | No      |
-| `hashed_password`              | Yes     |
-| `id`                           | Yes     |
-| `is_service_account`           | Yes     |
-| `is_system`                    | Yes     |
-| `last_seen_at`                 | No      |
-| `login_type`                   | Yes     |
-| `name`                         | Yes     |
-| `one_time_passcode_expires_at` | Yes     |
-| `quiet_hours_schedule`         | Yes     |
-| `rbac_roles`                   | Yes     |
-| `status`                       | Yes     |
-| `updated_at`                   | No      |
-| `username`                     | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>avatar_url</code></td><td>No</td></tr>
+<tr><td><code>chat_spend_limit_micros</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>deleted</code></td><td>Yes</td></tr>
+<tr><td><code>email</code></td><td>Yes</td></tr>
+<tr><td><code>github_com_user_id</code></td><td>No</td></tr>
+<tr><td><code>hashed_one_time_passcode</code></td><td>No</td></tr>
+<tr><td><code>hashed_password</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>is_service_account</code></td><td>Yes</td></tr>
+<tr><td><code>is_system</code></td><td>Yes</td></tr>
+<tr><td><code>last_seen_at</code></td><td>No</td></tr>
+<tr><td><code>login_type</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>one_time_passcode_expires_at</code></td><td>Yes</td></tr>
+<tr><td><code>quiet_hours_schedule</code></td><td>Yes</td></tr>
+<tr><td><code>rbac_roles</code></td><td>Yes</td></tr>
+<tr><td><code>status</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>username</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### UserSecret
 
 Actions: `create`, `write`, `delete`
 
-| Field          | Tracked |
-|----------------|---------|
-| `created_at`   | No      |
-| `description`  | Yes     |
-| `enabled`      | Yes     |
-| `env_name`     | Yes     |
-| `file_path`    | Yes     |
-| `id`           | Yes     |
-| `name`         | Yes     |
-| `updated_at`   | No      |
-| `user_id`      | Yes     |
-| `value`        | Yes     |
-| `value_key_id` | No      |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>enabled</code></td><td>Yes</td></tr>
+<tr><td><code>env_name</code></td><td>Yes</td></tr>
+<tr><td><code>file_path</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
+<tr><td><code>value</code></td><td>Yes</td></tr>
+<tr><td><code>value_key_id</code></td><td>No</td></tr>
+</tbody>
+</table>
 
 ### UserSkill
 
 Actions: `create`, `write`, `delete`
 
-| Field         | Tracked |
-|---------------|---------|
-| `content`     | Yes     |
-| `created_at`  | No      |
-| `description` | Yes     |
-| `id`          | Yes     |
-| `name`        | Yes     |
-| `updated_at`  | No      |
-| `user_id`     | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>content</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### WorkspaceBuild
 
 Actions: `start`, `stop`
 
-| Field                        | Tracked |
-|------------------------------|---------|
-| `build_number`               | No      |
-| `created_at`                 | No      |
-| `daily_cost`                 | No      |
-| `deadline`                   | No      |
-| `has_external_agent`         | No      |
-| `id`                         | No      |
-| `initiator_by_avatar_url`    | No      |
-| `initiator_by_name`          | No      |
-| `initiator_by_username`      | No      |
-| `initiator_id`               | No      |
-| `job_id`                     | No      |
-| `max_deadline`               | No      |
-| `notified_autostop_deadline` | No      |
-| `reason`                     | No      |
-| `template_version_id`        | Yes     |
-| `template_version_preset_id` | No      |
-| `transition`                 | No      |
-| `updated_at`                 | No      |
-| `workspace_id`               | No      |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>build_number</code></td><td>No</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>daily_cost</code></td><td>No</td></tr>
+<tr><td><code>deadline</code></td><td>No</td></tr>
+<tr><td><code>has_external_agent</code></td><td>No</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>initiator_by_avatar_url</code></td><td>No</td></tr>
+<tr><td><code>initiator_by_name</code></td><td>No</td></tr>
+<tr><td><code>initiator_by_username</code></td><td>No</td></tr>
+<tr><td><code>initiator_id</code></td><td>No</td></tr>
+<tr><td><code>job_id</code></td><td>No</td></tr>
+<tr><td><code>max_deadline</code></td><td>No</td></tr>
+<tr><td><code>notified_autostop_deadline</code></td><td>No</td></tr>
+<tr><td><code>reason</code></td><td>No</td></tr>
+<tr><td><code>template_version_id</code></td><td>Yes</td></tr>
+<tr><td><code>template_version_preset_id</code></td><td>No</td></tr>
+<tr><td><code>transition</code></td><td>No</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>workspace_id</code></td><td>No</td></tr>
+</tbody>
+</table>
 
 ### WorkspaceProxy
 
-| Field                 | Tracked |
-|-----------------------|---------|
-| `created_at`          | Yes     |
-| `deleted`             | No      |
-| `derp_enabled`        | Yes     |
-| `derp_only`           | Yes     |
-| `display_name`        | Yes     |
-| `icon`                | Yes     |
-| `id`                  | Yes     |
-| `name`                | Yes     |
-| `region_id`           | Yes     |
-| `token_hashed_secret` | Yes     |
-| `updated_at`          | No      |
-| `url`                 | Yes     |
-| `version`             | Yes     |
-| `wildcard_hostname`   | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>Yes</td></tr>
+<tr><td><code>deleted</code></td><td>No</td></tr>
+<tr><td><code>derp_enabled</code></td><td>Yes</td></tr>
+<tr><td><code>derp_only</code></td><td>Yes</td></tr>
+<tr><td><code>display_name</code></td><td>Yes</td></tr>
+<tr><td><code>icon</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>region_id</code></td><td>Yes</td></tr>
+<tr><td><code>token_hashed_secret</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>url</code></td><td>Yes</td></tr>
+<tr><td><code>version</code></td><td>Yes</td></tr>
+<tr><td><code>wildcard_hostname</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 ### WorkspaceTable
 
-| Field                | Tracked |
-|----------------------|---------|
-| `automatic_updates`  | Yes     |
-| `autostart_schedule` | Yes     |
-| `created_at`         | No      |
-| `deleted`            | No      |
-| `deleting_at`        | Yes     |
-| `dormant_at`         | Yes     |
-| `favorite`           | Yes     |
-| `group_acl`          | Yes     |
-| `id`                 | Yes     |
-| `last_used_at`       | No      |
-| `name`               | Yes     |
-| `next_start_at`      | Yes     |
-| `organization_id`    | No      |
-| `owner_id`           | Yes     |
-| `template_id`        | Yes     |
-| `ttl`                | Yes     |
-| `updated_at`         | No      |
-| `user_acl`           | Yes     |
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>automatic_updates</code></td><td>Yes</td></tr>
+<tr><td><code>autostart_schedule</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>deleted</code></td><td>No</td></tr>
+<tr><td><code>deleting_at</code></td><td>Yes</td></tr>
+<tr><td><code>dormant_at</code></td><td>Yes</td></tr>
+<tr><td><code>favorite</code></td><td>Yes</td></tr>
+<tr><td><code>group_acl</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>last_used_at</code></td><td>No</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>next_start_at</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>owner_id</code></td><td>Yes</td></tr>
+<tr><td><code>template_id</code></td><td>Yes</td></tr>
+<tr><td><code>ttl</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_acl</code></td><td>Yes</td></tr>
+</tbody>
+</table>
 
 <!-- End generated by 'make docs/admin/security/audit-logs.md'. -->
 

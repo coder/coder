@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"flag"
+	"html"
 	"log"
 	"os"
 	"strings"
@@ -119,10 +120,19 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 	return buffer.Bytes(), nil
 }
 
+// fieldsTableHeader opens every resource's fields table. Markdown tables size
+// columns to their content, which puts the Tracked column at a different
+// position in each table. HTML width attributes give every table the same
+// column widths; they are used instead of inline styles or <colgroup> because
+// both GitHub and the docs site sanitizer strip those.
+const fieldsTableHeader = `<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+`
+
 // writeResourceSections writes one section per resource: a heading, the
 // audited actions, and a two-column table of fields and whether each is
-// tracked. Plain Markdown tables stay readable on narrow screens, and each
-// heading gives the resource a linkable anchor.
+// tracked. Each heading gives the resource a linkable anchor.
 func writeResourceSections(buffer *bytes.Buffer, auditableResourcesMap AuditableResourcesMap, actionMap map[string][]codersdk.AuditAction) {
 	for _, resourceName := range maps.SortedKeys(auditableResourcesMap) {
 		readableResourceName := resourceName
@@ -142,17 +152,16 @@ func writeResourceSections(buffer *bytes.Buffer, auditableResourcesMap Auditable
 			_, _ = buffer.WriteString("Actions: " + strings.Join(auditActions, ", ") + "\n\n")
 		}
 
-		_, _ = buffer.WriteString("| Field | Tracked |\n")
-		_, _ = buffer.WriteString("|-------|---------|\n")
+		_, _ = buffer.WriteString(fieldsTableHeader)
 		fields := auditableResourcesMap[resourceName]
 		for _, fieldName := range maps.SortedKeys(fields) {
 			tracked := "No"
 			if fields[fieldName] {
 				tracked = "Yes"
 			}
-			_, _ = buffer.WriteString("| `" + fieldName + "` | " + tracked + " |\n")
+			_, _ = buffer.WriteString("<tr><td><code>" + html.EscapeString(fieldName) + "</code></td><td>" + tracked + "</td></tr>\n")
 		}
-		_ = buffer.WriteByte('\n')
+		_, _ = buffer.WriteString("</tbody>\n</table>\n\n")
 	}
 }
 
