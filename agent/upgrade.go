@@ -97,6 +97,9 @@ func (ln *httpUpgradeListener) handler(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	clientSessionID := tracing.ClientSessionID(r)
+	if clientSessionID == "" {
+		ln.logger.Warn(ctx, "client session ID is missing")
+	}
 
 	hijacker, ok := rw.(http.Hijacker)
 	if !ok {
