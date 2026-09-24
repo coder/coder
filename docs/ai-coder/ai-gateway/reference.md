@@ -64,16 +64,34 @@ For upgrade and rollback ordering, refer to [Version compatibility](./standalone
 
 ## Model authorization
 
-AI Gateway authenticates the Coder token and then checks whether the token's user may use the requested provider and model.
+For bridged model requests, AI Gateway authenticates the Coder token and then checks whether the token's user may use the requested provider and model.
+These are the requests listed as [intercepted APIs](#supported-apis).
 
-The **Owner**, **User Admin**, **Organization Admin**, **AI Gateway Unrestricted**, and **Organization AI Gateway Unrestricted** roles can use any model that passes the deployment's normal license, provider, credential, and budget checks.
+The site **Owner**, **User Admin**, and **AI Gateway Unrestricted** roles permit unrestricted model use.
+An Owner can explicitly assign the site `ai-gateway-unrestricted` role to another user.
+Site User Admins can't assign that role, and **Organization Admin** doesn't grant unrestricted use.
+There is no organization-level unrestricted role.
 
-Other active organization members can use an exact, case-sensitive model ID when an enabled, non-deleted provider configuration matches the provider instance and model.
+Other active users can use only enabled, non-deleted model configurations in non-deleted organizations they belong to.
+The model configuration must match the exact provider instance and case-sensitive model ID.
+A provider configuration alone doesn't grant access, and model user and group ACLs don't govern this authorization check.
 
-API token scopes and resource allow lists remain in effect for model requests.
+API token scopes and resource allow lists remain in effect for bridged model requests, including requests from administrators with unrestricted access.
 The Multiple Organizations entitlement does not grant model access by itself.
 
 Model authorization is separate from provider availability, credentials, budgets, and the outer AI Governance license check.
+
+The upgrade grants `ai-gateway-unrestricted` once to existing non-deleted, non-system users, including service accounts and inactive users.
+New users don't inherit the grant through organization membership.
+Organization membership changes and organization deletion don't revoke an explicit site grant, but site-role IdP sync can replace it.
+Refer to [upgrade behavior](./auth.md#upgrade-behavior) and [grant or revoke unrestricted access](./auth.md#grant-or-revoke-unrestricted-access).
+
+For API role management, use [`GET /api/v2/users/{user}/roles`](../../reference/api/users.md#get-user-roles) and [`PUT /api/v2/users/{user}/roles`](../../reference/api/users.md#assign-role-to-user).
+The `PUT` request replaces the user's role set, so preserve the other roles when adding or removing `ai-gateway-unrestricted`.
+For OIDC users with site-role sync enabled, manage roles through the IdP instead.
+
+Older standalone gateways remain accepted during the compatibility window, but they don't guarantee model restrictions or model-use key-scope enforcement.
+Refer to [standalone version compatibility](./standalone.md#version-compatibility) for upgrade ordering and enforcement requirements.
 
 ## Supported APIs
 

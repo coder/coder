@@ -403,6 +403,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000587RemoveAgentsAccessRole", 587, testMigration000587RemoveAgentsAccessRole},
 		{"Migration000590WorkspaceAgentSessionCounts", 590, testMigration000590WorkspaceAgentSessionCounts},
 		{"Migration000595RemoveTaskPermissions", 595, testMigration000595RemoveTaskPermissions},
+		{"Migration000600AIGatewayModelAccess", 600, testMigration000600AIGatewayModelAccess},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -1635,15 +1636,11 @@ func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next
 	user := dbgen.User(t, db, database.User{
 		RBACRoles: []string{"auditor", "agents-access"},
 	})
-	orgID := uuid.New()
-	// Use the historical schema rather than the current generated organization queries.
-	_, err := sqlDB.ExecContext(t.Context(), `
-		INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles)
-		VALUES ($1, $2, '', '', now(), now(), ARRAY['organization-workspace-access', 'agents-access'])
-	`, orgID, testutil.GetRandomName(t))
-	require.NoError(t, err)
+	org := dbgen.Organization(t, db, database.Organization{
+		DefaultOrgMemberRoles: []string{"organization-workspace-access", "agents-access"},
+	})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: orgID,
+		OrganizationID: org.ID,
 		UserID:         user.ID,
 		Roles:          []string{"organization-auditor", "agents-access"},
 	})
@@ -1656,9 +1653,9 @@ func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next
 	var siteRoles, orgRoles, defaultRoles pq.StringArray
 	err = sqlDB.QueryRowContext(ctx, "SELECT rbac_roles FROM users WHERE id = $1", user.ID).Scan(&siteRoles)
 	require.NoError(t, err)
-	err = sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", orgID, user.ID).Scan(&orgRoles)
+	err = sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", org.ID, user.ID).Scan(&orgRoles)
 	require.NoError(t, err)
-	err = sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", orgID).Scan(&defaultRoles)
+	err = sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", org.ID).Scan(&defaultRoles)
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"auditor"}, []string(siteRoles))
@@ -3920,6 +3917,160 @@ func TestMigration000580ChatModelConfigOrganization(t *testing.T) {
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
+}
+
+func testMigration000600AIGatewayModelAccess(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	const role = "ai-gateway-unrestricted"
+	const orgRole = "organization-ai-gateway-unrestricted"
+	upSQL, err := os.ReadFile("000600_ai_gateway_model_access.up.sql")
+	require.NoError(t, err)
+	downSQL, err := os.ReadFile("000600_ai_gateway_model_access.down.sql")
+	require.NoError(t, err)
+
+	users := []struct {
+		name    string
+		id      uuid.UUID
+		status  string
+		service bool
+		system  bool
+		deleted bool
+		before  pq.StringArray
+		after   pq.StringArray
+	}{
+		{name: "empty", status: "active", before: pq.StringArray{}, after: pq.StringArray{role}},
+		{name: "existing-roles", status: "active", before: pq.StringArray{"template-admin", "user-admin"}, after: pq.StringArray{"template-admin", "user-admin", role}},
+		{name: "owner", status: "active", before: pq.StringArray{"owner"}, after: pq.StringArray{"owner", role}},
+		{name: "already-granted", status: "active", before: pq.StringArray{"template-admin", role, "user-admin"}, after: pq.StringArray{"template-admin", role, "user-admin"}},
+		{name: "service", status: "active", service: true, before: pq.StringArray{"template-admin"}, after: pq.StringArray{"template-admin", role}},
+		{name: "dormant", status: "dormant", before: pq.StringArray{}, after: pq.StringArray{role}},
+		{name: "suspended", status: "suspended", before: pq.StringArray{}, after: pq.StringArray{role}},
+		{name: "system", status: "active", system: true, before: pq.StringArray{"template-admin"}, after: pq.StringArray{"template-admin"}},
+		{name: "deleted", status: "active", deleted: true, before: pq.StringArray{"user-admin"}, after: pq.StringArray{"user-admin"}},
+	}
+	for i := range users {
+		user := &users[i]
+		user.id = uuid.New()
+		email, loginType := user.id.String()+"@example.com", "password"
+		if user.service {
+			email, loginType = "", "none"
+		}
+		_, err := sqlDB.ExecContext(ctx, `
+			INSERT INTO users (id, username, email, hashed_password, created_at, updated_at,
+				status, rbac_roles, login_type, is_service_account, is_system, deleted)
+			VALUES ($1, $2, $3, '', $4, $4, $5, $6, $7, $8, $9, $10)`,
+			user.id, user.id.String(), email, now, user.status, user.before, loginType, user.service, user.system, user.deleted)
+		require.NoError(t, err, user.name)
+	}
+
+	orgs := []struct {
+		id    uuid.UUID
+		roles pq.StringArray
+	}{
+		{uuid.New(), pq.StringArray{}},
+		{uuid.New(), pq.StringArray{"organization-workspace-access", orgRole}},
+	}
+	for _, org := range orgs {
+		_, err := sqlDB.ExecContext(ctx, `
+			INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles)
+			VALUES ($1, $2, '', '', $3, $3, $4)`, org.id, org.id.String(), now, org.roles)
+		require.NoError(t, err)
+	}
+	// The organization role name is available for custom roles and must not
+	// block the upgrade or be removed from organization defaults on rollback.
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO custom_roles (id, name, display_name, organization_id)
+		VALUES ($1, $2, 'Custom Gateway Role', $3)`, uuid.New(), orgRole, orgs[1].id)
+	require.NoError(t, err)
+
+	// Check both site and organization custom-role collisions without leaving
+	// the migration chain dirty after an expected failure.
+	for _, orgID := range []any{nil, orgs[0].id} {
+		tx, err := sqlDB.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = tx.Rollback() })
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO custom_roles (id, name, display_name, organization_id)
+			VALUES ($1, $2, 'Conflicting Gateway Role', $3)`, uuid.New(), role, orgID)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, string(upSQL))
+		require.ErrorContains(t, err, "AI Gateway role name conflicts with an existing custom role")
+		require.NoError(t, tx.Rollback())
+	}
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, 600, version)
+
+	assertUp := func() {
+		t.Helper()
+		for _, user := range users {
+			var roles pq.StringArray
+			err := sqlDB.QueryRowContext(ctx, "SELECT rbac_roles FROM users WHERE id = $1", user.id).Scan(&roles)
+			require.NoError(t, err, user.name)
+			require.Equal(t, user.after, roles, user.name)
+		}
+		for _, org := range orgs {
+			var roles pq.StringArray
+			err := sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", org.id).Scan(&roles)
+			require.NoError(t, err)
+			require.Equal(t, org.roles, roles)
+		}
+	}
+	assertUp()
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	assertUp()
+
+	// Roll back this transaction so the shared chain remains at migration 600.
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+	newUserID := uuid.New()
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO users (id, username, email, hashed_password, created_at, updated_at)
+		VALUES ($1, $2, $3, '', $4, $4)`, newUserID, newUserID.String(), newUserID.String()+"@example.com", now)
+	require.NoError(t, err)
+	var roles pq.StringArray
+	err = tx.QueryRowContext(ctx, "SELECT rbac_roles FROM users WHERE id = $1", newUserID).Scan(&roles)
+	require.NoError(t, err)
+	require.Empty(t, roles, "users created after the upgrade must not inherit unrestricted access")
+	_, err = tx.ExecContext(ctx, "UPDATE users SET rbac_roles = $1 WHERE id = $2",
+		pq.StringArray{role, "template-admin", role, "user-admin"}, newUserID)
+	require.NoError(t, err)
+	// Rollback cleanup applies even to deleted and system users with explicit
+	// grants, unlike the upgrade backfill.
+	for _, user := range users {
+		if user.system || user.deleted {
+			_, err = tx.ExecContext(ctx, "UPDATE users SET rbac_roles = array_append(rbac_roles, $1) WHERE id = $2", role, user.id)
+			require.NoError(t, err)
+		}
+	}
+	_, err = tx.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	for _, user := range users {
+		err := tx.QueryRowContext(ctx, "SELECT rbac_roles FROM users WHERE id = $1", user.id).Scan(&roles)
+		require.NoError(t, err, user.name)
+		want := slices.DeleteFunc(slices.Clone(user.before), func(r string) bool { return r == role })
+		require.Equal(t, want, roles, user.name)
+	}
+	err = tx.QueryRowContext(ctx, "SELECT rbac_roles FROM users WHERE id = $1", newUserID).Scan(&roles)
+	require.NoError(t, err)
+	require.Equal(t, pq.StringArray{"template-admin", "user-admin"}, roles)
+	for _, org := range orgs {
+		err := tx.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", org.id).Scan(&roles)
+		require.NoError(t, err)
+		require.Equal(t, org.roles, roles)
+	}
+	for _, scope := range []string{"ai_gateway_unrestricted:*", "ai_gateway_unrestricted:use", "chat_model_config:use"} {
+		var got string
+		err := tx.QueryRowContext(ctx, "SELECT $1::api_key_scope::text", scope).Scan(&got)
+		require.NoError(t, err, "scope enum values must survive rollback")
+		require.Equal(t, scope, got)
+	}
+	require.NoError(t, tx.Rollback())
 }
 
 func mustJSON(t *testing.T, v any) []byte {

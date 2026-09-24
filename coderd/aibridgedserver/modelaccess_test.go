@@ -45,7 +45,9 @@ func TestResolveModelAccess(t *testing.T) {
 		{name: "nil authorizer fails closed", wantReason: aibridgedserver.ModelAccessError, wantError: xerrors.New("model authorizer is not configured")},
 		{name: "owner allows every model", roles: []string{rbac.RoleOwner().String()}, wantAllowed: true, wantReason: aibridgedserver.ModelAccessAllowed},
 		{name: "site unrestricted role allows every model", roles: []string{rbac.RoleAIGatewayUnrestricted().String()}, wantAllowed: true, wantReason: aibridgedserver.ModelAccessAllowed},
-		{name: "organization unrestricted role allows every model", roles: []string{rbac.ScopedRoleOrgAIGatewayUnrestricted(orgID).String()}, wantAllowed: true, wantReason: aibridgedserver.ModelAccessAllowed},
+		{name: "site user admin allows every model", roles: []string{rbac.RoleUserAdmin().String()}, wantAllowed: true, wantReason: aibridgedserver.ModelAccessAllowed},
+		{name: "organization admin cannot use unconfigured models", roles: []string{rbac.ScopedRoleOrgAdmin(orgID).String()}, wantReason: aibridgedserver.ModelAccessDenied},
+		{name: "organization admin can use configured models", roles: []string{rbac.ScopedRoleOrgAdmin(orgID).String()}, configs: []database.GetAIModelAccessConfigsRow{{ID: modelID, OrganizationID: orgID}}, wantAllowed: true, wantReason: aibridgedserver.ModelAccessAllowed},
 		{name: "configured model is allowed by organization permission", roles: []string{orgMemberRole(orgID)}, configs: []database.GetAIModelAccessConfigsRow{{ID: modelID, OrganizationID: orgID}}, wantAllowed: true, wantReason: aibridgedserver.ModelAccessAllowed},
 		{name: "missing configured model is denied", roles: []string{orgMemberRole(orgID)}, wantReason: aibridgedserver.ModelAccessDenied},
 		{name: "model ACL does not grant access", roles: []string{orgMemberRole(orgID)}, configs: []database.GetAIModelAccessConfigsRow{{ID: modelID, OrganizationID: orgID}}, wantAllowed: true, wantReason: aibridgedserver.ModelAccessAllowed},
@@ -132,7 +134,7 @@ func TestResolveModelAccessDatabase(t *testing.T) {
 	srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{Store: authzDB, Authorizer: rbac.NewStrictAuthorizer(prometheus.NewRegistry()), Logger: logger})
 	require.NoError(t, err)
 
-	org := dbgen.Organization(t, rawDB, database.Organization{DefaultOrgMemberRoles: []string{rbac.RoleOrgAIGatewayUnrestricted()}})
+	org := dbgen.Organization(t, rawDB, database.Organization{})
 	provider := dbgen.AIProvider(t, rawDB, database.AIProvider{})
 	dbgen.ChatModelConfig(t, rawDB, database.ChatModelConfig{OrganizationID: org.ID, Model: "configured", AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}})
 	user := dbgen.User(t, rawDB, database.User{Status: database.UserStatusActive})
@@ -145,32 +147,34 @@ func TestResolveModelAccessDatabase(t *testing.T) {
 		return result
 	}
 
-	require.True(t, access(key, "unknown").Allowed, "default org role grants unrestricted use")
-	_, err = rawDB.UpdateOrganization(t.Context(), database.UpdateOrganizationParams{ID: org.ID, UpdatedAt: dbtime.Now(), Name: org.Name, DisplayName: org.DisplayName, Description: org.Description, Icon: org.Icon, DefaultOrgMemberRoles: []string{}})
-	require.NoError(t, err)
-	require.False(t, access(key, "unknown").Allowed, "removing default role revokes unrestricted use")
-	require.True(t, access(key, "configured").Allowed, "org member may still use configured models")
+	require.False(t, access(key, "unknown").Allowed, "new org members cannot use unconfigured models")
+	require.True(t, access(key, "configured").Allowed, "org members may use configured models")
 
-	_, err = rawDB.UpdateMemberRoles(t.Context(), database.UpdateMemberRolesParams{UserID: user.ID, OrgID: org.ID, GrantedRoles: []string{rbac.RoleOrgAIGatewayUnrestricted()}})
+	_, err = rawDB.UpdateUserRoles(t.Context(), database.UpdateUserRolesParams{ID: user.ID, GrantedRoles: []string{rbac.RoleAIGatewayUnrestricted().Name}})
 	require.NoError(t, err)
-	require.True(t, access(key, "unknown").Allowed, "explicit org role grants unrestricted use")
-	_, err = rawDB.UpdateMemberRoles(t.Context(), database.UpdateMemberRolesParams{UserID: user.ID, OrgID: org.ID})
-	require.NoError(t, err)
-	require.False(t, access(key, "unknown").Allowed, "removing explicit org role revokes use")
-
+	require.True(t, access(key, "unknown").Allowed, "explicit site role grants unrestricted use")
 	require.NoError(t, rawDB.DeleteOrganizationMember(t.Context(), database.DeleteOrganizationMemberParams{OrganizationID: org.ID, UserID: user.ID}))
-	require.False(t, access(key, "configured").Allowed, "removing membership revokes configured use")
-	deletedOrg := dbgen.Organization(t, rawDB, database.Organization{DefaultOrgMemberRoles: []string{rbac.RoleOrgAIGatewayUnrestricted()}})
-	dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: deletedOrg.ID, UserID: user.ID})
-	require.True(t, access(key, "unknown").Allowed)
-	require.NoError(t, rawDB.UpdateOrganizationDeletedByID(t.Context(), database.UpdateOrganizationDeletedByIDParams{ID: deletedOrg.ID, UpdatedAt: dbtime.Now()}))
-	require.False(t, access(key, "unknown").Allowed, "retained membership in a deleted organization cannot grant unrestricted use")
+	require.True(t, access(key, "unknown").Allowed, "site grants do not depend on organization membership")
+	_, err = rawDB.UpdateUserRoles(t.Context(), database.UpdateUserRolesParams{ID: user.ID, GrantedRoles: []string{}})
+	require.NoError(t, err)
+	require.False(t, access(key, "unknown").Allowed, "removing the site role revokes unrestricted use")
+	require.False(t, access(key, "configured").Allowed, "configured use requires membership without a site grant")
 
-	serviceAccount := dbgen.User(t, rawDB, database.User{Status: database.UserStatusActive, IsServiceAccount: true})
-	serviceOrg := dbgen.Organization(t, rawDB, database.Organization{DefaultOrgMemberRoles: []string{rbac.RoleOrgAIGatewayUnrestricted()}})
-	dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: serviceOrg.ID, UserID: serviceAccount.ID})
+	deletedOrg := dbgen.Organization(t, rawDB, database.Organization{})
+	dbgen.ChatModelConfig(t, rawDB, database.ChatModelConfig{OrganizationID: deletedOrg.ID, Model: "configured", AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}})
+	dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: deletedOrg.ID, UserID: user.ID})
+	require.True(t, access(key, "configured").Allowed)
+	require.NoError(t, rawDB.UpdateOrganizationDeletedByID(t.Context(), database.UpdateOrganizationDeletedByIDParams{ID: deletedOrg.ID, UpdatedAt: dbtime.Now()}))
+	require.False(t, access(key, "configured").Allowed, "retained membership in a deleted organization cannot grant configured use")
+
+	serviceAccount := dbgen.User(t, rawDB, database.User{Status: database.UserStatusActive, IsServiceAccount: true, RBACRoles: []string{rbac.RoleAIGatewayUnrestricted().Name}})
+	dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: serviceAccount.ID})
 	serviceKey, _ := dbgen.APIKey(t, rawDB, database.APIKey{UserID: serviceAccount.ID})
-	require.True(t, access(serviceKey, "unknown").Allowed, "service account inherits default org role")
+	require.True(t, access(serviceKey, "unknown").Allowed, "service accounts can receive explicit site grants")
+	_, err = rawDB.UpdateUserRoles(t.Context(), database.UpdateUserRolesParams{ID: serviceAccount.ID, GrantedRoles: []string{}})
+	require.NoError(t, err)
+	require.False(t, access(serviceKey, "unknown").Allowed)
+	require.True(t, access(serviceKey, "configured").Allowed, "service accounts retain configured use after site grant revocation")
 
 	owner := dbgen.User(t, rawDB, database.User{Status: database.UserStatusActive, RBACRoles: []string{rbac.RoleOwner().Name}})
 	scopedKey, _ := dbgen.APIKey(t, rawDB, database.APIKey{UserID: owner.ID, AllowList: database.AllowList{{Type: rbac.ResourceChatModelConfig.Type, ID: uuid.NewString()}}})

@@ -747,9 +747,6 @@ func TestAcquireJob(t *testing.T) {
 				slices.SortFunc(wantedMetadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
 					return strings.Compare(a.Name+a.OrgId, b.Name+b.OrgId)
 				})
-				wantedMetadata.WorkspaceOwnerRbacRoles = append(wantedMetadata.WorkspaceOwnerRbacRoles, &sdkproto.Role{
-					Name: rbac.RoleOrgAIGatewayUnrestricted(), OrgId: pd.OrganizationID.String(),
-				})
 				want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
 					WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 						WorkspaceBuildId: build.ID.String(),

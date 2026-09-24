@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/testutil"
@@ -87,7 +88,9 @@ func TestIntegration(t *testing.T) {
 	t.Logf("Mock MCP server running at: %s", mockMCPServer.URL)
 
 	// Set up mock OpenAI server that returns a tool call response.
+	var upstreamCalls atomic.Int64
 	mockOpenAI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamCalls.Add(1)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{
@@ -232,10 +235,36 @@ func TestIntegration(t *testing.T) {
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("User-Agent", userAgent)
 
+	// New users cannot invoke unconfigured models until explicitly granted access.
+	deniedReq := req.Clone(ctx)
+	deniedReq.Body, err = req.GetBody()
+	require.NoError(t, err)
+	denied := httptest.NewRecorder()
+	srv.ServeHTTP(denied, deniedReq)
+	require.Equal(t, http.StatusForbidden, denied.Code)
+	require.Zero(t, upstreamCalls.Load())
+	_, err = client.UpdateUserRoles(ctx, user.ID.String(), codersdk.UpdateRoles{
+		Roles: []string{rbac.RoleAIGatewayUnrestricted().Name},
+	})
+	require.NoError(t, err)
+
 	// When: aibridged handles the request.
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
+	require.EqualValues(t, 1, upstreamCalls.Load())
+
+	// Revocation applies to the same token and cached Gateway instance.
+	_, err = client.UpdateUserRoles(ctx, user.ID.String(), codersdk.UpdateRoles{Roles: []string{}})
+	require.NoError(t, err)
+	revokedReq := req.Clone(ctx)
+	revokedReq.Body, err = req.GetBody()
+	require.NoError(t, err)
+	revokedReq.Header.Set("Authorization", "Bearer "+apiKey.Key)
+	revoked := httptest.NewRecorder()
+	srv.ServeHTTP(revoked, revokedReq)
+	require.Equal(t, http.StatusForbidden, revoked.Code)
+	require.EqualValues(t, 1, upstreamCalls.Load(), "denied requests must not reach the provider")
 
 	// Then: the interception & related records are stored.
 	interceptions, err := db.GetAIBridgeInterceptions(ctx)
@@ -370,7 +399,7 @@ func TestIntegrationWithMetrics(t *testing.T) {
 		},
 	})
 
-	userClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	userClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleAIGatewayUnrestricted())
 
 	// Create an API token for the user.
 	apiKey, err := userClient.CreateToken(ctx, "me", codersdk.CreateTokenRequest{
@@ -464,7 +493,7 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 		},
 	})
 
-	userClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	userClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleAIGatewayUnrestricted())
 
 	// Create an API token for the user.
 	apiKey, err := userClient.CreateToken(ctx, "me", codersdk.CreateTokenRequest{
@@ -579,7 +608,7 @@ func TestIntegrationRecordsUpstreamError(t *testing.T) {
 		Options: &coderdtest.Options{Database: db, Pubsub: ps},
 	})
 
-	userClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	userClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleAIGatewayUnrestricted())
 	apiKey, err := userClient.CreateToken(ctx, "me", codersdk.CreateTokenRequest{
 		TokenName: fmt.Sprintf("test-key-%d", time.Now().UnixNano()),
 		Lifetime:  time.Hour,

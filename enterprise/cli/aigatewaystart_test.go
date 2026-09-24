@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -172,7 +173,7 @@ func setupAIGatewayDeployment(ctx context.Context, t *testing.T, opts ...aiGatew
 	})
 	require.NoError(t, err)
 
-	userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleAIGatewayUnrestricted())
 
 	return &aiGatewayDeployment{
 		client:       client,

@@ -414,9 +414,6 @@ func TestEditOrganization(t *testing.T) {
 
 		client, first := setup(t)
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		//nolint:gocritic // only owners can read all orgs
-		before, err := client.Organization(ctx, first.OrganizationID)
-		require.NoError(t, err)
 		inv, root := clitest.New(t, "organizations", "edit", "--default-org-member-roles", "")
 		//nolint:gocritic // only owners can update orgs
 		clitest.SetupConfig(t, client, root)
@@ -434,7 +431,7 @@ func TestEditOrganization(t *testing.T) {
 		//nolint:gocritic // only owners can read all orgs
 		org, err := client.Organization(ctx, first.OrganizationID)
 		require.NoError(t, err)
-		require.Equal(t, before.DefaultOrgMemberRoles, org.DefaultOrgMemberRoles)
+		require.Equal(t, rbac.DefaultOrgMemberRoles(), org.DefaultOrgMemberRoles)
 	})
 
 	t.Run("AddingRolesSkipsConfirmation", func(t *testing.T) {
@@ -442,17 +439,14 @@ func TestEditOrganization(t *testing.T) {
 
 		client, first := setup(t)
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		//nolint:gocritic // only owners can read all orgs
-		before, err := client.Organization(ctx, first.OrganizationID)
-		require.NoError(t, err)
-		roles := append(append([]string(nil), before.DefaultOrgMemberRoles...), codersdk.RoleOrganizationAuditor)
+		roles := append(rbac.DefaultOrgMemberRoles(), codersdk.RoleOrganizationAuditor)
 		inv, root := clitest.New(t, "organizations", "edit",
 			"--default-org-member-roles", strings.Join(roles, ","))
 		//nolint:gocritic // only owners can update orgs
 		clitest.SetupConfig(t, client, root)
 		inv.Stdout = new(bytes.Buffer)
 
-		err = inv.WithContext(ctx).Run()
+		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
 		//nolint:gocritic // only owners can read all orgs
@@ -518,21 +512,18 @@ func TestEditOrganization(t *testing.T) {
 
 				client, first := setup(t)
 				ctx := testutil.Context(t, testutil.WaitMedium)
-				//nolint:gocritic // only owners can read all orgs
-				before, err := client.Organization(ctx, first.OrganizationID)
-				require.NoError(t, err)
 				inv, root := clitest.New(t, append([]string{"organizations", "edit", "-y"}, tc.args...)...)
 				//nolint:gocritic // only owners can update orgs
 				clitest.SetupConfig(t, client, root)
 				inv.Stdout = new(bytes.Buffer)
 
-				err = inv.WithContext(ctx).Run()
+				err := inv.WithContext(ctx).Run()
 				require.ErrorContains(t, err, tc.errorContains)
 
 				//nolint:gocritic // only owners can read all orgs
 				org, err := client.Organization(ctx, first.OrganizationID)
 				require.NoError(t, err)
-				require.Equal(t, before.DefaultOrgMemberRoles, org.DefaultOrgMemberRoles)
+				require.Equal(t, rbac.DefaultOrgMemberRoles(), org.DefaultOrgMemberRoles)
 			})
 		}
 	})
@@ -542,9 +533,6 @@ func TestEditOrganization(t *testing.T) {
 
 		client, first := setup(t)
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		//nolint:gocritic // only owners can read all orgs
-		before, err := client.Organization(ctx, first.OrganizationID)
-		require.NoError(t, err)
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 
 		inv, root := clitest.New(t, "organizations", "edit", "-y",
@@ -552,12 +540,12 @@ func TestEditOrganization(t *testing.T) {
 		clitest.SetupConfig(t, memberClient, root)
 		inv.Stdout = new(bytes.Buffer)
 
-		err = inv.WithContext(ctx).Run()
+		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
 
 		//nolint:gocritic // only owners can read all orgs
 		org, err := client.Organization(ctx, first.OrganizationID)
 		require.NoError(t, err)
-		require.Equal(t, before.DefaultOrgMemberRoles, org.DefaultOrgMemberRoles)
+		require.Equal(t, rbac.DefaultOrgMemberRoles(), org.DefaultOrgMemberRoles)
 	})
 }
