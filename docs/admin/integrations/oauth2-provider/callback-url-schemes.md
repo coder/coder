@@ -22,7 +22,11 @@ A public client is limited to `localhost`, `127.0.0.1`, and `[::1]`.
 Every other host must use `https://`, so that an authorization code is never delivered in the clear.
 The management API and Dynamic Client Registration apply the same rule, so an administrator cannot store a target that a client could not register for itself.
 
-Coder ignores the port of an `http://` redirect URI to `localhost`, `127.0.0.1`, or `::1`, for public and confidential clients alike. RFC 8252 requires this for `127.0.0.1` and `::1` so that native apps can choose a port at runtime. Coder applies it to `localhost` too. A `.localhost` subdomain still requires an exact port match. Register `http://127.0.0.1/callback` and present whichever port the client is listening on.
+Coder ignores the port of an `http://` redirect URI to `localhost`, `127.0.0.1`, or `[::1]`, for public and confidential clients alike.
+RFC 8252 requires this for `127.0.0.1` and `[::1]` so that native apps can choose a port at runtime.
+Coder applies it to `localhost` too.
+A `.localhost` subdomain still requires an exact port match.
+Register `http://127.0.0.1/callback` and present whichever port the client is listening on.
 
 These rules apply to every entry in `redirect_uris`, not only the first one.
 
