@@ -9,7 +9,6 @@ import {
 	AgentCreateForm,
 	type CreateChatOptions,
 } from "../../components/AgentCreateForm";
-import { lastModelConfigIDStorageKey } from "./assistants";
 
 type DraftChatProps = {
 	/** Labels that place the chat on the board, sent with the create request. */
@@ -72,9 +71,6 @@ export const DraftChat: FC<DraftChatProps> = ({
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 		});
-		if (model) {
-			localStorage.setItem(lastModelConfigIDStorageKey, model);
-		}
 		onCreated(createdChat.id);
 	};
 
