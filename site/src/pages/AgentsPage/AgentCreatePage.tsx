@@ -2,7 +2,7 @@ import { type FC, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorMessage, isApiError } from "#/api/errors";
 import { createChat } from "#/api/queries/chats";
 import {
 	workspaceBuildById,
@@ -137,11 +137,7 @@ const AgentCreatePage: FC = () => {
 		// The logs query never refetches, so fetch only once the build has failed.
 		enabled: debugBuildFailed,
 	});
-	// A build that has not failed is refetched on Back; if that fails, the last
-	// status is still shown and the failure is not a load error.
-	const debugBuildError =
-		(debugBuild === undefined ? debugBuildQuery.error : null) ??
-		debugBuildLogsQuery.error;
+	const debugBuildError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
 	const prefill: AgentCreatePrefill | undefined =
 		debugBuild && debugBuildFailed && debugBuildLogsQuery.data
 			? {
@@ -249,6 +245,11 @@ const AgentCreatePage: FC = () => {
 			);
 		}
 		if (debugBuildError != null) {
+			// A shared link to a build the viewer cannot see fails the same way on
+			// every reload.
+			const inaccessible =
+				isApiError(debugBuildError) &&
+				[403, 404].includes(debugBuildError.response.status);
 			return (
 				<Alert severity="error" prominent>
 					<AlertTitle>
@@ -258,7 +259,11 @@ const AgentCreatePage: FC = () => {
 						<span className="block">
 							{getErrorMessage(debugBuildError, "The request failed.")}
 						</span>
-						<span className="mt-1 block">Reload the page to try again.</span>
+						<span className="mt-1 block">
+							{inaccessible
+								? "This link points to a workspace build you cannot access."
+								: "Reload the page to try again."}
+						</span>
 					</AlertDescription>
 				</Alert>
 			);

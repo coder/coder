@@ -1,7 +1,13 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { type FC, StrictMode, useEffect, useState } from "react";
+import {
+	type FC,
+	type ReactElement,
+	StrictMode,
+	useEffect,
+	useState,
+} from "react";
 import { onlineManager } from "react-query";
 import {
 	createMemoryRouter,
@@ -32,6 +38,7 @@ import {
 	MockFailedWorkspaceBuildWithUUID,
 	MockUserPreferenceSettings,
 	MockWorkspaceBuildLogs,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	createTestQueryClient,
@@ -99,17 +106,13 @@ const mockPageQueries = () => {
 	};
 };
 
-const renderPage = (route: InitialEntry = deepLink) =>
-	renderWithAuth(<AgentCreatePage />, {
+const renderPage = (
+	route: InitialEntry = deepLink,
+	page: ReactElement = <AgentCreatePage />,
+) =>
+	renderWithAuth(page, {
 		path: "/agents",
 		route,
-		extraRoutes: [{ path: "/agents/:agentId", element: null }],
-	});
-
-const renderPageWith = (Wrapper: FC) =>
-	renderWithAuth(<Wrapper />, {
-		path: "/agents",
-		route: deepLink,
 		extraRoutes: [{ path: "/agents/:agentId", element: null }],
 	});
 
@@ -131,13 +134,6 @@ const SidebarFilterProbe: FC = () => {
 		</button>
 	);
 };
-
-const PageWithSidebarFilters: FC = () => (
-	<>
-		<SidebarFilterProbe />
-		<AgentCreatePage />
-	</>
-);
 
 // StrictMode double-invokes effects only when it wraps the root, so this
 // builds the same tree as renderWithAuth under it.
@@ -164,18 +160,19 @@ const renderPageInStrictMode = () => {
 	return { router };
 };
 
-// Holds the page's replace navigation so the automatic send runs with the
-// build ID still in the URL. useBlocker registers over two effect passes, so
-// the page mounts after them.
-const PageWithHeldStrip: FC = () => {
+// Holds the page's history move (its replace navigation) so the automatic
+// send runs with the build ID still in the URL. useBlocker registers over
+// two effect passes, so the page mounts after them.
+const useBlockerRegistrationPasses = 2;
+const PageWithHeldHistoryMove: FC = () => {
 	useBlocker(({ nextLocation }) => nextLocation.pathname === "/agents");
 	const [passes, setPasses] = useState(0);
 	useEffect(() => {
-		if (passes < 2) {
+		if (passes < useBlockerRegistrationPasses) {
 			setPasses(passes + 1);
 		}
 	}, [passes]);
-	return passes === 2 ? <AgentCreatePage /> : null;
+	return passes === useBlockerRegistrationPasses ? <AgentCreatePage /> : null;
 };
 
 const findChatMessage = () =>
@@ -251,7 +248,7 @@ describe("AgentCreatePage debug deep link", () => {
 		const { createChat } = mockPageQueries();
 		storeDebugWorkspaceBuildIntent(failedBuild.id);
 
-		const { router } = renderPageWith(PageWithHeldStrip);
+		const { router } = renderPage(deepLink, <PageWithHeldHistoryMove />);
 		let searchAtSend: string | undefined;
 		createChat.mockImplementation(async () => {
 			searchAtSend = router.state.location.search;
@@ -353,7 +350,13 @@ describe("AgentCreatePage debug deep link", () => {
 		storeDebugWorkspaceBuildIntent(failedBuild.id);
 		const user = userEvent.setup();
 
-		const { router } = renderPageWith(PageWithSidebarFilters);
+		const { router } = renderPage(
+			deepLink,
+			<>
+				<SidebarFilterProbe />
+				<AgentCreatePage />
+			</>,
+		);
 
 		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(1));
 		await user.click(screen.getByRole("button", { name: "Group by status" }));
@@ -447,7 +450,7 @@ describe("AgentCreatePage debug deep link", () => {
 		expect(getWorkspaceBuild).toHaveBeenCalledTimes(2);
 	});
 
-	it("keeps the last build status when its refetch fails", async () => {
+	it("reports a failed refetch of a build that had not failed", async () => {
 		enableExperiment();
 		const { uploadChatFile } = mockPageQueries();
 		const getWorkspaceBuild = vi
@@ -467,14 +470,38 @@ describe("AgentCreatePage debug deep link", () => {
 
 		await router.navigate(-1);
 
-		await waitFor(() => expect(getWorkspaceBuild).toHaveBeenCalledTimes(2));
-		await screen.findByText(/has not failed \(status: running\)/);
-		expect(
-			screen.queryByText(
-				"Could not load the workspace build or its logs. Nothing was sent.",
-			),
-		).toBeNull();
+		await screen.findByText(
+			"Could not load the workspace build or its logs. Nothing was sent.",
+		);
+		await screen.findByText("Reload the page to try again.");
+		expect(getWorkspaceBuild).toHaveBeenCalledTimes(2);
 		expect(uploadChatFile).not.toHaveBeenCalled();
+	});
+
+	it("tells a viewer without access that the link is not theirs to open", async () => {
+		enableExperiment();
+		const { uploadChatFile, createChat } = mockPageQueries();
+		const notFound = mockApiError({
+			message: "Resource not found or you do not have access to this resource",
+		});
+		vi.spyOn(API, "getWorkspaceBuild").mockRejectedValue({
+			...notFound,
+			response: { ...notFound.response, status: 404 },
+		});
+		storeDebugWorkspaceBuildIntent(failedBuild.id);
+
+		renderPage();
+
+		await screen.findByText(
+			"This link points to a workspace build you cannot access.",
+		);
+		await screen.findByText(
+			"Resource not found or you do not have access to this resource",
+		);
+		expect(screen.queryByText("Reload the page to try again.")).toBeNull();
+		await findChatMessage();
+		expect(uploadChatFile).not.toHaveBeenCalled();
+		expect(createChat).not.toHaveBeenCalled();
 	});
 
 	it("does not retry a failed automatic send until the user presses Send", async () => {
