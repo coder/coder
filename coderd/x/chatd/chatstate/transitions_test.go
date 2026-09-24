@@ -3,6 +3,7 @@ package chatstate_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -541,108 +542,55 @@ func TestTransitionInputValidation(t *testing.T) {
 	})
 }
 
-// TestSendMessageQueueCapUsesConfiguredMax verifies that a
-// SendMessageInput.MaxQueueSize below the default is enforced.
-func TestSendMessageQueueCapUsesConfiguredMax(t *testing.T) {
+func TestSendMessageQueueCap(t *testing.T) {
 	t.Parallel()
-	f := newTestFixture(t)
-	created := createTestChat(t, f)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 
-	const maxQueueSize = 2
-	send := func(ctx context.Context, body string) error {
-		return m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-			_, err := tx.SendMessage(chatstate.SendMessageInput{
-				Message:      userTextMessage(body, f.User.ID, f.Model.ID),
-				BusyBehavior: chatstate.BusyBehaviorQueue,
-				MaxQueueSize: maxQueueSize,
-			})
-			return err
+	for _, maxQueueSize := range []int{-1, 0, 1, 3, codersdk.DefaultChatMaxQueuedMessagesPerChat} {
+		t.Run(fmt.Sprintf("Max%d", maxQueueSize), func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			// createTestChat lands the chat in R0, where BusyBehaviorQueue queues.
+			created := createTestChat(t, f)
+			m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+			send := func(ctx context.Context, body string) error {
+				return m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+					_, err := tx.SendMessage(chatstate.SendMessageInput{
+						Message:      userTextMessage(body, f.User.ID, f.Model.ID),
+						BusyBehavior: chatstate.BusyBehaviorQueue,
+						MaxQueueSize: maxQueueSize,
+					})
+					return err
+				})
+			}
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			if maxQueueSize < 1 {
+				require.ErrorContains(t, send(ctx, "queued"), "max queue size must be positive")
+				count, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
+				require.NoError(t, err)
+				require.Zero(t, count)
+				return
+			}
+
+			for range maxQueueSize {
+				require.NoError(t, send(ctx, "filler"))
+			}
+			chatBefore := f.readChat(ctx, t, created.Chat.ID)
+
+			err := send(ctx, "overflow")
+			require.ErrorIs(t, err, chatstate.ErrMessageQueueFull)
+			var typed *chatstate.MessageQueueFullError
+			require.ErrorAs(t, err, &typed)
+			require.EqualValues(t, maxQueueSize, typed.Max)
+
+			count, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
+			require.NoError(t, err)
+			require.EqualValues(t, maxQueueSize, count)
+			chatAfter := f.readChat(ctx, t, created.Chat.ID)
+			require.Equal(t, chatBefore.SnapshotVersion, chatAfter.SnapshotVersion)
+			require.Equal(t, chatBefore.QueueVersion, chatAfter.QueueVersion)
 		})
 	}
-	ctx := testutil.Context(t, testutil.WaitShort)
-	for range maxQueueSize {
-		require.NoError(t, send(ctx, "filler"))
-	}
-
-	err := send(ctx, "overflow")
-	var typed *chatstate.MessageQueueFullError
-	require.ErrorAs(t, err, &typed)
-	require.EqualValues(t, maxQueueSize, typed.Max)
-	count, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	require.EqualValues(t, maxQueueSize, count)
-}
-
-func TestSendMessageQueueRejectsNonPositiveMax(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	created := createTestChat(t, f)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		_, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userTextMessage("queued", f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorQueue,
-		})
-		return err
-	})
-	require.ErrorContains(t, err, "max queue size must be positive")
-	count, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	require.Zero(t, count)
-}
-
-// TestSendMessageQueueCapRejectsQueueAppend seeds a chat with the
-// maximum queued messages and asserts that the next SendMessage in
-// a queue-appending state returns chatstate.ErrMessageQueueFull and
-// rolls back without persisting another queued row.
-func TestSendMessageQueueCapRejectsQueueAppend(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-
-	// createTestChat lands the chat in R0; SendMessage in R0 with
-	// BusyBehaviorQueue queues. Fill the queue to MaxQueueSize.
-	for i := 0; i < codersdk.DefaultChatMaxQueuedMessagesPerChat; i++ {
-		sendQueuedMessage(t, f, m, "filler")
-	}
-	count, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	require.EqualValues(t, codersdk.DefaultChatMaxQueuedMessagesPerChat, count)
-	chatBefore := f.readChat(ctx, t, created.Chat.ID)
-
-	// The next queue append must fail with ErrMessageQueueFull and a
-	// typed wrapper that exposes the cap.
-	err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		_, serr := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userTextMessage("overflow", f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorQueue,
-			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
-		})
-		return serr
-	})
-	require.Error(t, err)
-	require.ErrorIs(t, err, chatstate.ErrMessageQueueFull,
-		"queue-append over the cap returns ErrMessageQueueFull")
-	var typed *chatstate.MessageQueueFullError
-	require.ErrorAs(t, err, &typed, "ErrMessageQueueFull is carried as a typed error")
-	require.EqualValues(t, codersdk.DefaultChatMaxQueuedMessagesPerChat, typed.Max)
-
-	// The transaction rolled back: queue size, snapshot version,
-	// and queue version are unchanged.
-	countAfter, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	require.EqualValues(t, codersdk.DefaultChatMaxQueuedMessagesPerChat, countAfter,
-		"queue size must not change when the cap rejects the append")
-	chatAfter := f.readChat(ctx, t, created.Chat.ID)
-	require.Equal(t, chatBefore.SnapshotVersion, chatAfter.SnapshotVersion,
-		"failed queue append must not bump snapshot_version")
-	require.Equal(t, chatBefore.QueueVersion, chatAfter.QueueVersion,
-		"failed queue append must not bump queue_version")
 }
 
 func TestSendMessageInterruptRequiresActionReturnsCancellations(t *testing.T) {
