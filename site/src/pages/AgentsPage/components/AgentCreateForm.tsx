@@ -67,13 +67,14 @@ export type CreateChatOptions = {
 };
 
 /**
- * Prefilled content for a chat opened from a deep link. The form uploads the
- * attachment and, when `autoSend` is set, sends once without user action as
- * soon as the send gate opens. It reads `prefill` only on mount. It never
- * reads from or writes to the user's saved draft, workspace, or organization
- * selection; the chat is created in `organizationId` with no workspace and no
- * MCP servers, and the form refuses to send if the user cannot create chats
- * in that organization.
+ * Prefilled content for a chat opened from a deep link. The form captures
+ * `prefill` on mount, uploads the attachment and, when `autoSend` is set,
+ * sends once without user action after the attachment has uploaded and the
+ * form can send. Removing or inlining the attachment before then cancels the
+ * automatic send. The prefilled text and attachment are never saved as the
+ * user's draft, and the saved draft and attachments are not restored into
+ * this send. Organization, workspace, MCP, and model selection behave as in
+ * any new chat.
  */
 export type AgentCreatePrefill = {
 	message: string;
@@ -81,7 +82,6 @@ export type AgentCreatePrefill = {
 		name: string;
 		text: string;
 	};
-	organizationId: string;
 	autoSend: boolean;
 };
 
@@ -89,9 +89,8 @@ export type AgentCreatePrefill = {
  * Persists the empty-state input to localStorage so the draft survives
  * reloads.
  *
- * Once `submitDraft` is called, the stored draft is removed and further
- * content changes are no longer persisted for the lifetime of the hook.
- * Call `resetDraft` to re-enable persistence (e.g. on mutation failure).
+ * `submitDraft` removes the stored draft and stops persisting until
+ * `resetDraft` (e.g. after a failed send).
  *
  * When `prefilledText` is given, it is the initial value and the stored
  * draft is neither read nor modified.
@@ -205,14 +204,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// because the permitted-organizations query may resolve after mount and
 	// change the effective org.
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
-		() =>
-			isPrefilled ? null : localStorage.getItem(selectedWorkspaceIdStorageKey),
+		() => localStorage.getItem(selectedWorkspaceIdStorageKey),
 	);
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
 		() => {
-			const storedOrganizationId = isPrefilled
-				? null
-				: localStorage.getItem(selectedOrganizationIdStorageKey);
+			const storedOrganizationId = localStorage.getItem(
+				selectedOrganizationIdStorageKey,
+			);
 			return (
 				organizations.find(
 					(organization) => organization.id === storedOrganizationId,
@@ -264,37 +262,26 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	) {
 		setPendingOrgChange(null);
 	}
-	// The prefill's organization is not a suggestion: a chat about a build
-	// belongs to the build's organization or is not created at all.
-	const prefillOrg = isPrefilled
-		? (permittedOrgs.find((org) => org.id === prefill.organizationId) ?? null)
-		: null;
-	const prefillOrgDenied =
-		isPrefilled && orgSelectionSettled && prefillOrg === null;
-	const effectiveOrg = isPrefilled
-		? prefillOrg
-		: selectedOrg && selectedOrgIsPermitted
+	const effectiveOrg =
+		selectedOrg && selectedOrgIsPermitted
 			? selectedOrg
 			: (permittedOrgs.find((org) => org.is_default) ??
 				permittedOrgs[0] ??
 				null);
 	const organizationId = effectiveOrg?.id ?? "";
-	// Template-controlled log text must not reach the user's MCP servers.
-	const usesMCPServers = !isPrefilled && Boolean(organizationId);
 	const mcpServersQuery = useQuery({
 		...mcpServerConfigs(organizationId),
-		enabled: usesMCPServers,
+		enabled: Boolean(organizationId),
 	});
-	const mcpServers = usesMCPServers ? (mcpServersQuery.data ?? []) : [];
+	const mcpServers = mcpServersQuery.data ?? [];
 	// Sending before the MCP list resolves would silently drop default-on
 	// selections. Gate on missing data, not isSuccess: a failed background
 	// refetch flips isSuccess off while cached data stays usable.
 	const isMCPSelectionUnresolved =
-		usesMCPServers && mcpServersQuery.data === undefined;
+		Boolean(organizationId) && mcpServersQuery.data === undefined;
 	// Adopt a permitted fallback so later refetches cannot switch the form to a
 	// re-permitted default. The permission guard also avoids a render loop.
 	if (
-		!isPrefilled &&
 		orgSelectionSettled &&
 		!selectedOrg &&
 		effectiveOrg &&
@@ -318,7 +305,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	}
 	useEffect(() => {
-		if (!orgSelectionSettled || isPrefilled) {
+		if (!orgSelectionSettled) {
 			return;
 		}
 		if (selectedOrg) {
@@ -326,12 +313,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		} else {
 			localStorage.removeItem(selectedOrganizationIdStorageKey);
 		}
-	}, [orgSelectionSettled, isPrefilled, selectedOrg]);
+	}, [orgSelectionSettled, selectedOrg]);
 	useEffect(() => {
-		if (!isPrefilled && selectedWorkspaceId === null) {
+		if (selectedWorkspaceId === null) {
 			localStorage.removeItem(selectedWorkspaceIdStorageKey);
 		}
-	}, [isPrefilled, selectedWorkspaceId]);
+	}, [selectedWorkspaceId]);
 	const modelsQuery = useQuery(chatModels(organizationId));
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(organizationId),
@@ -471,9 +458,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	);
 
 	const effectiveMCPServerIds = (() => {
-		if (!usesMCPServers) {
-			return [];
-		}
 		if (userMCPServerIds !== null) {
 			return userMCPServerIds;
 		}
@@ -488,15 +472,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		return getDefaultMCPSelection(mcpServers);
 	})();
 	const handleWorkspaceChange = (value: string | null) => {
-		setSelectedWorkspaceId(value);
-		if (isPrefilled) {
+		if (value === null) {
+			setSelectedWorkspaceId(null);
+			localStorage.removeItem(selectedWorkspaceIdStorageKey);
 			return;
 		}
-		if (value === null) {
-			localStorage.removeItem(selectedWorkspaceIdStorageKey);
-		} else {
-			localStorage.setItem(selectedWorkspaceIdStorageKey, value);
-		}
+		setSelectedWorkspaceId(value);
+		localStorage.setItem(selectedWorkspaceIdStorageKey, value);
 	};
 
 	const selectOrganization = (organization: TypesGen.Organization) => {
@@ -509,7 +491,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setUserSelectedModel(value);
 	};
 
-	const isForbidden = !canCreateChat || noPermittedOrgs || prefillOrgDenied;
+	const isForbidden = !canCreateChat || noPermittedOrgs;
 
 	// Filter workspaces by the selected organization. We use
 	// client-side filtering of the full "owner:me" fetch rather
@@ -637,8 +619,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				)
 			: null,
 	);
-	const prefillAttachedRef = useRef(false);
-	const [prefillAttached, setPrefillAttached] = useState(false);
+	const prefillAttachRequestedRef = useRef(false);
+	const [prefillAttachRequested, setPrefillAttachRequested] = useState(false);
 	const attachPrefillFile = useEffectEvent((file: File) => {
 		handleAttach([file]);
 	});
@@ -646,9 +628,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const canAttachPrefillFile =
 		orgSelectionSettled && organizationId !== "" && !isForbidden;
 	useEffect(() => {
-		if (prefillFile && canAttachPrefillFile && !prefillAttachedRef.current) {
-			prefillAttachedRef.current = true;
-			setPrefillAttached(true);
+		if (
+			prefillFile &&
+			canAttachPrefillFile &&
+			!prefillAttachRequestedRef.current
+		) {
+			prefillAttachRequestedRef.current = true;
+			setPrefillAttachRequested(true);
 			attachPrefillFile(prefillFile);
 		}
 	}, [prefillFile, canAttachPrefillFile]);
@@ -658,7 +644,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// Removing or inlining the chip hands the composer back to the user; an
 	// automatic send must not go out without the logs it describes.
 	const prefillDetached =
-		prefillAttached &&
+		prefillAttachRequested &&
 		prefillFile !== null &&
 		!attachments.includes(prefillFile);
 
@@ -695,14 +681,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		<>
 			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-0 sm:h-full sm:flex-1 sm:items-center">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
-					{prefillOrgDenied ? (
-						<Alert severity="error">
-							<AlertTitle>
-								You cannot create chats in this build's organization. Nothing
-								was sent.
-							</AlertTitle>
-						</Alert>
-					) : isForbidden ? (
+					{isForbidden ? (
 						<ChatAccessDeniedAlert />
 					) : createError ? (
 						isApiError(createError) &&
@@ -764,7 +743,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					)}
 					{showOrganizations &&
 						orgSelectionSettled &&
-						!isPrefilled &&
 						permittedOrgs.length > 1 && (
 							<CompactOrgSelector
 								value={effectiveOrg}
@@ -822,10 +800,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						onMCPAuthComplete={() => void mcpServersQuery.refetch()}
 						workspaceOptions={filteredWorkspaces}
 						selectedWorkspaceId={effectiveWorkspaceId}
-						// Do not persist a workspace until its organization is authorized. A
-						// prefilled chat is created without one.
+						// Do not persist a workspace until its organization is authorized.
 						onWorkspaceChange={
-							!isPrefilled && orgSelectionSettled && !noPermittedOrgs
+							orgSelectionSettled && !noPermittedOrgs
 								? handleWorkspaceChange
 								: undefined
 						}

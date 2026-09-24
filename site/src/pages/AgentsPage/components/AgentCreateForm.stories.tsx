@@ -2186,10 +2186,8 @@ const workspaceBuildDebugPrefill = {
 			MockWorkspaceBuildLogs,
 		),
 	},
-	organizationId: MockDefaultOrganization.id,
 };
 
-// Keeps the sent prompt and attachment on screen.
 export const AutoSendWorkspaceBuildDebug: Story = {
 	args: {
 		...defaultArgs,
@@ -2223,7 +2221,7 @@ export const WorkspaceBuildDebugUploadFailed: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "uploadChatFile").mockRejectedValue(
-			mockApiError({ message: "File exceeds the maximum size of 10 MiB." }),
+			mockApiError({ message: "Failed to read file from request." }),
 		);
 	},
 };

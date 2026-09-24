@@ -37,7 +37,7 @@ export const workspaceBuildByNumber = (
 const workspaceBuildByIdKey = (workspaceBuildId: string) =>
 	["workspaceBuilds", workspaceBuildId] as const;
 
-export function workspaceBuild(workspaceBuildId: string) {
+export function workspaceBuildById(workspaceBuildId: string) {
 	return {
 		queryKey: workspaceBuildByIdKey(workspaceBuildId),
 		queryFn: () => API.getWorkspaceBuild(workspaceBuildId),

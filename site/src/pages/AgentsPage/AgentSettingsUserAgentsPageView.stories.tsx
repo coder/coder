@@ -3,7 +3,10 @@ import { useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockUnsetChatPersonalModelOverride,
+} from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -23,17 +26,6 @@ const buildModelConfig = (
 	context_limit: 1_000_000,
 	created_at: "2026-03-12T12:00:00.000Z",
 	updated_at: "2026-03-12T12:00:00.000Z",
-	...overrides,
-});
-
-const buildOverride = (
-	context: TypesGen.ChatPersonalModelOverrideContext,
-	overrides: Partial<TypesGen.ChatPersonalModelOverride> = {},
-): TypesGen.ChatPersonalModelOverride => ({
-	context,
-	mode: context === "root" ? "chat_default" : "deployment_default",
-	model_config_id: "",
-	is_set: false,
 	...overrides,
 });
 
@@ -148,9 +140,9 @@ const buildOverridesResponse = (
 	overrides: Partial<TypesGen.UserChatPersonalModelOverridesResponse> = {},
 ): TypesGen.UserChatPersonalModelOverridesResponse => ({
 	enabled: true,
-	root: buildOverride("root"),
-	general: buildOverride("general"),
-	explore: buildOverride("explore"),
+	root: MockUnsetChatPersonalModelOverride("root"),
+	general: MockUnsetChatPersonalModelOverride("general"),
+	explore: MockUnsetChatPersonalModelOverride("explore"),
 	deployment_defaults: buildDeploymentDefaults({
 		general: buildDeploymentDefault("general", {
 			model_config_id: claudeModelConfig.id,
@@ -192,7 +184,7 @@ const buildArgs = (
 });
 
 const organization2OverridesResponse = buildOverridesResponse({
-	root: buildOverride("root", {
+	root: MockUnsetChatPersonalModelOverride("root", {
 		mode: "model",
 		model_config_id: organization2ModelConfig.id,
 		is_set: true,
@@ -267,15 +259,15 @@ export const EnabledWithNoSavedValues: Story = {
 export const EnabledWithSavedValues: Story = {
 	args: buildArgs({
 		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
+			root: MockUnsetChatPersonalModelOverride("root", {
 				mode: "chat_default",
 				is_set: true,
 			}),
-			general: buildOverride("general", {
+			general: MockUnsetChatPersonalModelOverride("general", {
 				mode: "deployment_default",
 				is_set: true,
 			}),
-			explore: buildOverride("explore", {
+			explore: MockUnsetChatPersonalModelOverride("explore", {
 				mode: "model",
 				model_config_id: claudeModelConfig.id,
 				is_set: true,
@@ -360,7 +352,7 @@ export const SavedReasoningModel: Story = {
 			},
 		],
 		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
+			root: MockUnsetChatPersonalModelOverride("root", {
 				mode: "model",
 				model_config_id: defaultModelConfig.id,
 				is_set: true,
@@ -419,7 +411,7 @@ export const SavedLowReasoningEffort: Story = {
 	args: buildArgs({
 		modelOptions: [reasoningModelOption],
 		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
+			root: MockUnsetChatPersonalModelOverride("root", {
 				mode: "model",
 				model_config_id: reasoningModelConfig.id,
 				reasoning_effort: "low",
@@ -448,12 +440,12 @@ export const SavedLowReasoningEffort: Story = {
 export const UnavailableSavedModels: Story = {
 	args: buildArgs({
 		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
+			root: MockUnsetChatPersonalModelOverride("root", {
 				mode: "model",
 				model_config_id: disabledModelConfig.id,
 				is_set: true,
 			}),
-			general: buildOverride("general", {
+			general: MockUnsetChatPersonalModelOverride("general", {
 				mode: "model",
 				model_config_id: inaccessibleModelConfig.id,
 				is_set: true,
@@ -466,17 +458,17 @@ export const ModelsError: Story = {
 	args: buildArgs({
 		modelsError: new Error("Failed to load models."),
 		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
+			root: MockUnsetChatPersonalModelOverride("root", {
 				mode: "model",
 				model_config_id: claudeModelConfig.id,
 				is_set: true,
 			}),
-			general: buildOverride("general", {
+			general: MockUnsetChatPersonalModelOverride("general", {
 				mode: "model",
 				model_config_id: claudeModelConfig.id,
 				is_set: true,
 			}),
-			explore: buildOverride("explore", {
+			explore: MockUnsetChatPersonalModelOverride("explore", {
 				mode: "model",
 				model_config_id: claudeModelConfig.id,
 				is_set: true,
@@ -595,7 +587,7 @@ export const NoAvailableOrganizationModels: Story = {
 		modelOptions: [],
 		models: [disabledModelConfig],
 		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
+			root: MockUnsetChatPersonalModelOverride("root", {
 				mode: "model",
 				model_config_id: "model-stale",
 				is_set: true,
@@ -643,7 +635,7 @@ export const AdminDisabledReadOnly: Story = {
 	args: buildArgs({
 		overridesData: buildOverridesResponse({
 			enabled: false,
-			root: buildOverride("root", {
+			root: MockUnsetChatPersonalModelOverride("root", {
 				mode: "model",
 				model_config_id: defaultModelConfig.id,
 				is_set: true,
@@ -655,7 +647,7 @@ export const AdminDisabledReadOnly: Story = {
 export const InvalidRootDeploymentDefault: Story = {
 	args: buildArgs({
 		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
+			root: MockUnsetChatPersonalModelOverride("root", {
 				mode: "deployment_default",
 				is_set: true,
 			}),

@@ -2,9 +2,9 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { onlineManager } from "react-query";
+import type { InitialEntry } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import type * as TypesGen from "#/api/typesGenerated";
 import {
 	buildDebugWorkspaceBuildPath,
 	debugWorkspaceBuildIntentStorageKey,
@@ -12,21 +12,19 @@ import {
 } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
-	MockChatModel,
 	MockChatModelProviderDescriptor,
+	MockDefaultChatModel,
 	MockUnsetUserChatPersonalModelOverrides,
 } from "#/testHelpers/chatModels";
 import {
-	MockDefaultOrganization,
-	MockFailedWorkspaceBuild,
+	MockFailedWorkspaceBuildWithUUID,
 	MockUserPreferenceSettings,
-	MockWorkspace,
 	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import AgentCreatePage from "./AgentCreatePage";
-import { selectedWorkspaceIdStorageKey } from "./components/AgentCreateForm";
+import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { readAgentAttachmentText } from "./utils/fileAttachmentLimits";
 import {
 	debugWorkspaceBuildLogsFileName,
@@ -39,17 +37,7 @@ vi.mock("./components/AgentPageHeader", () => ({
 	AgentPageHeader: () => null,
 }));
 
-const defaultModel: TypesGen.ChatModel = {
-	...MockChatModel,
-	id: "model-config-1",
-	organization_id: MockDefaultOrganization.id,
-	is_default: true,
-};
-
-const failedBuild: TypesGen.WorkspaceBuild = {
-	...MockFailedWorkspaceBuild("start"),
-	id: "9f0e7d0e-4b2b-4ac9-8f1a-1a7a1f0c9d11",
-};
+const failedBuild = MockFailedWorkspaceBuildWithUUID;
 
 const deepLink = `${buildDebugWorkspaceBuildPath(failedBuild.id)}&archived=archived`;
 
@@ -67,7 +55,7 @@ const mockPageQueries = () => {
 		MockWorkspaceBuildLogs,
 	);
 	vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
-		models: [defaultModel],
+		models: [MockDefaultChatModel],
 		providers: [MockChatModelProviderDescriptor],
 		unsupported_providers: [],
 	});
@@ -90,7 +78,7 @@ const mockPageQueries = () => {
 	};
 };
 
-const renderPage = (route = deepLink) =>
+const renderPage = (route: InitialEntry = deepLink) =>
 	renderWithAuth(<AgentCreatePage />, {
 		path: "/agents",
 		route,
@@ -99,6 +87,12 @@ const renderPage = (route = deepLink) =>
 
 const findChatMessage = () =>
 	screen.findByRole("textbox", { name: "Chat message" });
+
+const findEnabledSendButton = async () => {
+	const sendButton = await screen.findByRole("button", { name: "Send" });
+	await waitFor(() => expect(sendButton).toBeEnabled());
+	return sendButton;
+};
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -110,7 +104,6 @@ describe("AgentCreatePage debug deep link", () => {
 	it("sends the build logs once after the button click", async () => {
 		enableExperiment();
 		const { uploadChatFile, createChat } = mockPageQueries();
-		localStorage.setItem(selectedWorkspaceIdStorageKey, MockWorkspace.id);
 		storeDebugWorkspaceBuildIntent(failedBuild.id);
 
 		const { router } = renderPage();
@@ -125,10 +118,7 @@ describe("AgentCreatePage debug deep link", () => {
 		);
 		expect(createChat).toHaveBeenCalledWith(
 			expect.objectContaining({
-				organization_id: failedBuild.job.organization_id,
-				workspace_id: undefined,
-				mcp_server_ids: undefined,
-				model_config_id: defaultModel.id,
+				model_config_id: MockDefaultChatModel.id,
 				client_type: "ui",
 				content: [
 					{ type: "text", text: debugWorkspaceBuildPrompt(failedBuild) },
@@ -156,15 +146,15 @@ describe("AgentCreatePage debug deep link", () => {
 
 		const { router } = renderPage();
 
-		const sendButton = await screen.findByRole("button", { name: "Send" });
-		await waitFor(() => expect(sendButton).toBeEnabled());
+		const sendButton = await findEnabledSendButton();
 		expect(uploadChatFile).toHaveBeenCalledTimes(1);
 		expect(createChat).not.toHaveBeenCalled();
-		// The layout forwards location.search to every link, so the param is
-		// dropped from the URL once it has been read.
+		// The layout forwards location.search to every link, so the build ID
+		// moves out of the URL into history state.
 		expect(router.state.location).toMatchObject({
 			pathname: "/agents",
 			search: "?archived=archived",
+			state: { debugWorkspaceBuild: failedBuild.id },
 		});
 		expect(router.state.historyAction).toBe("REPLACE");
 
@@ -181,23 +171,52 @@ describe("AgentCreatePage debug deep link", () => {
 		);
 	});
 
-	it("only prefills when the build belongs to someone else", async () => {
+	it("keeps the prefill across a reload through history state, without sending", async () => {
 		enableExperiment();
-		const { createChat } = mockPageQueries();
-		vi.spyOn(API, "getWorkspaceBuild").mockResolvedValue({
-			...failedBuild,
-			workspace_owner_id: "another-user-id",
+		const { uploadChatFile, createChat } = mockPageQueries();
+
+		renderPage({
+			pathname: "/agents",
+			search: "?archived=archived",
+			state: { debugWorkspaceBuild: failedBuild.id },
 		});
-		storeDebugWorkspaceBuildIntent(failedBuild.id);
 
-		renderPage();
-
-		const sendButton = await screen.findByRole("button", { name: "Send" });
-		await waitFor(() => expect(sendButton).toBeEnabled());
+		await findEnabledSendButton();
+		expect(uploadChatFile).toHaveBeenCalledTimes(1);
 		expect(createChat).not.toHaveBeenCalled();
-		expect(
-			localStorage.getItem(debugWorkspaceBuildIntentStorageKey),
-		).toBeNull();
+	});
+
+	it("drops the prefill on New chat and does not send again on Back", async () => {
+		enableExperiment();
+		const { uploadChatFile, createChat } = mockPageQueries();
+		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
+		storeDebugWorkspaceBuildIntent(failedBuild.id);
+		createChat.mockRejectedValue(new Error("server error"));
+
+		const { router } = renderPage();
+
+		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
+		await screen.findByText("server error");
+
+		// New chat navigates to the same route with the forwarded search only.
+		await router.navigate({
+			pathname: "/agents",
+			search: "?archived=archived",
+		});
+		await waitFor(() =>
+			expect(
+				screen.getByRole("textbox", { name: "Chat message" }),
+			).toHaveTextContent("draft the user typed earlier"),
+		);
+		expect(localStorage.getItem(emptyInputStorageKey)).toContain(
+			"draft the user typed earlier",
+		);
+
+		await router.navigate(-1);
+
+		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(2));
+		await findEnabledSendButton();
+		expect(createChat).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not retry a failed automatic send until the user presses Send", async () => {
@@ -213,8 +232,7 @@ describe("AgentCreatePage debug deep link", () => {
 
 		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
 		await screen.findByText("server error");
-		const sendButton = screen.getByRole("button", { name: "Send" });
-		await waitFor(() => expect(sendButton).toBeEnabled());
+		const sendButton = await findEnabledSendButton();
 		expect(createChat).toHaveBeenCalledTimes(1);
 
 		await user.click(sendButton);
@@ -284,7 +302,7 @@ describe("AgentCreatePage debug deep link", () => {
 		renderPage();
 
 		await screen.findByText(
-			"Could not load the failed workspace build. Nothing was sent.",
+			"Could not load the workspace build or its logs. Nothing was sent.",
 		);
 		await screen.findByText("boom");
 		await findChatMessage();
@@ -309,7 +327,7 @@ describe("AgentCreatePage debug deep link", () => {
 		renderPage();
 
 		await screen.findByText(
-			"Could not load the failed workspace build. Nothing was sent.",
+			"Could not load the workspace build or its logs. Nothing was sent.",
 		);
 		await screen.findByText("logs unavailable");
 		await findChatMessage();

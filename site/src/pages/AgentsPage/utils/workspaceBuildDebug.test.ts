@@ -154,8 +154,12 @@ describe("formatWorkspaceBuildLogsForDebug", () => {
 	});
 
 	it("counts only log lines as omitted and relabels the surviving stage", () => {
+		// Two of these fit within the budget; the third does not.
+		const bigLine = "z".repeat(
+			Math.ceil(debugWorkspaceBuildLogsMaxBytes * 0.55),
+		);
 		const text = formatWorkspaceBuildLogsForDebug(failedBuild, [
-			...logLines(3, () => "z".repeat(70 * 1024)),
+			...logLines(3, () => bigLine),
 			...logLines(2, (index) => `kept ${index}`).map((log) => ({
 				...log,
 				stage: "Cleaning up",
@@ -176,7 +180,10 @@ describe("formatWorkspaceBuildLogsForDebug", () => {
 	it("keeps the tail of a single line that is over budget", () => {
 		const text = formatWorkspaceBuildLogsForDebug(failedBuild, [
 			...logLines(1, () => "first"),
-			...logLines(1, () => `${"a".repeat(200 * 1024)}END`),
+			...logLines(
+				1,
+				() => `${"a".repeat(debugWorkspaceBuildLogsMaxBytes * 2)}END`,
+			),
 		]);
 
 		expect(byteLength(text)).toBeLessThanOrEqual(
@@ -191,5 +198,42 @@ describe("formatWorkspaceBuildLogsForDebug", () => {
 		);
 		expect(text.endsWith("aaaEND\n")).toBe(true);
 		expect(text).not.toContain("[info] first");
+	});
+
+	// The cut lands inside a 3-byte character in two of every three offsets.
+	it.each(["END", "END1", "END12"])(
+		"drops a partial character at the cut (%s)",
+		(suffix) => {
+			const text = formatWorkspaceBuildLogsForDebug(
+				failedBuild,
+				logLines(
+					1,
+					() => `${"│".repeat(debugWorkspaceBuildLogsMaxBytes)}${suffix}`,
+				),
+			);
+
+			expect(text).not.toContain("\uFFFD");
+			expect(text.endsWith(`│${suffix}\n`)).toBe(true);
+		},
+	);
+
+	it("caps an oversized job error in the header", () => {
+		const text = formatWorkspaceBuildLogsForDebug(
+			{
+				...failedBuild,
+				job: {
+					...failedBuild.job,
+					error: `summary first ${"e".repeat(debugWorkspaceBuildLogsMaxBytes * 2)}`,
+				},
+			},
+			logs,
+		);
+
+		expect(byteLength(text)).toBeLessThanOrEqual(
+			debugWorkspaceBuildLogsMaxBytes,
+		);
+		expect(text).toContain("Job error: summary first eee");
+		expect(text).toContain("(error truncated)");
+		expect(text).toContain("[error] Error: Invalid value for variable");
 	});
 });

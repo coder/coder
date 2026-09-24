@@ -1,22 +1,24 @@
 import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
-import { sanitizeChatFileName } from "./chatAttachments";
 
 export const debugWorkspaceBuildPrompt = (build: WorkspaceBuild): string =>
 	`Workspace ${build.workspace_owner_name}/${build.workspace_name} failed to ${build.transition}. Review the attached log information, determine why the workspace failed to ${build.transition}, and what resolving action the user can take. Respond with a 2-3 sentence summary of what the problem is and the action the user can take. Be concise, and keep it at a 15-year-old level. Do not start a new workspace.`;
 
+// Owner and workspace names match UsernameValidRegex, so this is already a
+// safe file name; the form sanitizes attachment names regardless.
 export const debugWorkspaceBuildLogsFileName = (
 	build: WorkspaceBuild,
 ): string =>
-	sanitizeChatFileName(
-		`workspace-build-logs-${build.workspace_owner_name}-${build.workspace_name}-${build.build_number}.txt`,
-	);
+	`workspace-build-logs-${build.workspace_owner_name}-${build.workspace_name}-${build.build_number}.txt`;
 
 // Same value as chatprompt.syntheticPasteInlineBudget, in bytes. chatd applies
 // that budget only to pasted-text files, so this trim is the only cap on the
 // attachment, which is replayed on every turn.
+/** @internal Exported for testing. */
 export const debugWorkspaceBuildLogsMaxBytes = 128 * 1024;
 // Room for the omission marker and a re-emitted stage header.
 const markerReserveBytes = 512;
+// job.error has no server-side limit; Terraform puts the summary first.
+const jobErrorMaxBytes = 8 * 1024;
 
 const utf8 = new TextEncoder();
 // Includes the newline that joins the lines.
@@ -25,20 +27,27 @@ const lineBytes = (line: string): number => utf8.encode(line).length + 1;
 const sum = (lines: readonly string[]): number =>
 	lines.reduce((total, line) => total + lineBytes(line), 0);
 
-// Keeps the last `maxBytes` of `text`, dropping any partial leading character.
-const tailWithinBytes = (text: string, maxBytes: number): string => {
+// Decodes a byte slice, dropping any partial character at the cut.
+const decodeWithinBytes = (
+	text: string,
+	maxBytes: number,
+	keep: "head" | "tail",
+): string => {
 	const bytes = utf8.encode(text);
 	if (bytes.length <= maxBytes) {
 		return text;
 	}
-	return new TextDecoder()
-		.decode(bytes.subarray(bytes.length - maxBytes))
-		.replace(/^\uFFFD+/, "");
+	const slice =
+		keep === "head"
+			? bytes.subarray(0, maxBytes)
+			: bytes.subarray(bytes.length - maxBytes);
+	return new TextDecoder().decode(slice).replace(/^\uFFFD+|\uFFFD+$/g, "");
 };
 
 type LogLine = {
 	text: string;
-	// Set on log output so a trimmed block can be labelled again.
+	// Set only on log output: labels a trimmed block and marks the line as
+	// counted in the omitted total.
 	stageHeader?: string;
 };
 
@@ -60,7 +69,10 @@ export const formatWorkspaceBuildLogsForDebug = (
 		header.push(`Job error code: ${build.job.error_code}`);
 	}
 	if (build.job.error) {
-		header.push(`Job error: ${build.job.error}`);
+		const error = decodeWithinBytes(build.job.error, jobErrorMaxBytes, "head");
+		header.push(
+			`Job error: ${error}${error === build.job.error ? "" : " (error truncated)"}`,
+		);
 	}
 	if (build.job.logs_overflowed) {
 		header.push(
@@ -122,7 +134,11 @@ export const formatWorkspaceBuildLogsForDebug = (
 			"[the start of the next line was omitted to fit the attachment size limit]",
 		);
 		kept = [
-			tailWithinBytes(first.text, Math.max(lineBudget - sum(markers), 0)),
+			decodeWithinBytes(
+				first.text,
+				Math.max(lineBudget - sum(markers), 0),
+				"tail",
+			),
 		];
 	}
 	return `${[...header, ...markers, ...kept].join("\n")}\n`;

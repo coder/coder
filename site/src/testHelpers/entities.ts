@@ -1588,6 +1588,12 @@ export const MockFailedWorkspaceBuild = (
 	template_version_preset_id: null,
 });
 
+// The agents create page only accepts a UUID build ID.
+export const MockFailedWorkspaceBuildWithUUID: TypesGen.WorkspaceBuild = {
+	...MockFailedWorkspaceBuild("start"),
+	id: "9f0e7d0e-4b2b-4ac9-8f1a-1a7a1f0c9d11",
+};
+
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
 	...MockWorkspaceBuild,
 	id: "2",

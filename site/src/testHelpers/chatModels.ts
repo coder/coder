@@ -7,6 +7,7 @@ import type {
 	UserChatPersonalModelOverridesResponse,
 } from "#/api/typesGenerated";
 import { MOCK_TIMESTAMP } from "./chatEntities";
+import { MockDefaultOrganization } from "./entities";
 
 export const MockChatModel: ChatModel = {
 	organization_id: "00000000-0000-0000-0000-000000000000",
@@ -20,6 +21,13 @@ export const MockChatModel: ChatModel = {
 	compression_threshold: 70,
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
+};
+
+export const MockDefaultChatModel: ChatModel = {
+	...MockChatModel,
+	id: "model-config-1",
+	organization_id: MockDefaultOrganization.id,
+	is_default: true,
 };
 
 export const MockChatProviderConfig: ChatProviderConfig = {
@@ -51,22 +59,24 @@ export const MockChatModelProviderDescriptor: ChatModelProviderDescriptor = {
 	available: true,
 };
 
-const unsetPersonalModelOverride = (
+export const MockUnsetChatPersonalModelOverride = (
 	context: ChatPersonalModelOverride["context"],
-	mode: ChatPersonalModelOverride["mode"],
+	overrides: Partial<ChatPersonalModelOverride> = {},
 ): ChatPersonalModelOverride => ({
 	context,
-	mode,
+	// The API reports chat_default for an unset root override.
+	mode: context === "root" ? "chat_default" : "deployment_default",
 	model_config_id: "",
 	is_set: false,
+	...overrides,
 });
 
 export const MockUnsetUserChatPersonalModelOverrides: UserChatPersonalModelOverridesResponse =
 	{
 		enabled: true,
-		root: unsetPersonalModelOverride("root", "chat_default"),
-		general: unsetPersonalModelOverride("general", "deployment_default"),
-		explore: unsetPersonalModelOverride("explore", "deployment_default"),
+		root: MockUnsetChatPersonalModelOverride("root"),
+		general: MockUnsetChatPersonalModelOverride("general"),
+		explore: MockUnsetChatPersonalModelOverride("explore"),
 		deployment_defaults: {
 			general: { context: "general", model_config_id: "" },
 			explore: { context: "explore", model_config_id: "" },

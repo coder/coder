@@ -1,11 +1,11 @@
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { createChat } from "#/api/queries/chats";
 import {
-	workspaceBuild,
+	workspaceBuildById,
 	workspaceBuildLogs,
 } from "#/api/queries/workspaceBuilds";
 import { workspaces } from "#/api/queries/workspaces";
@@ -39,38 +39,47 @@ import {
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
+// The deep link's build ID moves from the query string into history state on
+// the first render, so it survives reload and Back but not the layout's
+// links, which forward location.search to a fresh entry.
+type DebugLinkState = { debugWorkspaceBuild: string };
+
+const readDebugLinkState = (state: unknown): string | null =>
+	typeof state === "object" &&
+	state !== null &&
+	"debugWorkspaceBuild" in state &&
+	typeof state.debugWorkspaceBuild === "string"
+		? state.debugWorkspaceBuild
+		: null;
+
 type DebugLink =
 	| { kind: "none" }
 	| { kind: "experiment-disabled" }
 	| { kind: "invalid" }
-	| { kind: "build"; buildId: string; clicked: boolean };
+	| { kind: "build"; buildId: string };
 
 const readDebugLink = (
-	param: string | null,
+	value: string | null,
 	experiments: readonly TypesGen.Experiment[],
 ): DebugLink => {
-	if (param === null) {
+	if (value === null) {
 		return { kind: "none" };
 	}
 	if (!experiments.includes("enable-ai-workspace-debug")) {
 		return { kind: "experiment-disabled" };
 	}
-	if (!isUUID(param)) {
+	if (!isUUID(value)) {
 		return { kind: "invalid" };
 	}
-	return {
-		kind: "build",
-		buildId: param,
-		clicked: takeDebugWorkspaceBuildIntent(param),
-	};
+	return { kind: "build", buildId: value };
 };
 
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();
-	const [searchParams, setSearchParams] = useSearchParams();
-	const { permissions, user } = useAuthenticated();
+	const [searchParams] = useSearchParams();
+	const { permissions } = useAuthenticated();
 	const { experiments } = useDashboard();
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
@@ -78,38 +87,51 @@ const AgentCreatePage: FC = () => {
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
-	// Consumed once per page load. The intent is taken in the same step so a
-	// second tab for the same link cannot also read it.
-	const [debugLink] = useState(() =>
-		readDebugLink(
-			searchParams.get(debugWorkspaceBuildSearchParam),
-			experiments,
-		),
-	);
-	// The layout's links forward location.search, so the param must not stay
-	// in the URL once it has been read.
-	useEffect(() => {
-		if (searchParams.has(debugWorkspaceBuildSearchParam)) {
-			const next = new URLSearchParams(searchParams);
-			next.delete(debugWorkspaceBuildSearchParam);
-			setSearchParams(next, { replace: true });
-		}
-	}, [searchParams, setSearchParams]);
+	const debugLinkParam = searchParams.get(debugWorkspaceBuildSearchParam);
+	const debugLinkValue = debugLinkParam ?? readDebugLinkState(location.state);
+	const debugLink = readDebugLink(debugLinkValue, experiments);
 	const debugBuildId = debugLink.kind === "build" ? debugLink.buildId : null;
+	useEffect(() => {
+		if (debugLinkParam === null) {
+			return;
+		}
+		const search = new URLSearchParams(searchParams);
+		search.delete(debugWorkspaceBuildSearchParam);
+		const state: DebugLinkState = { debugWorkspaceBuild: debugLinkParam };
+		navigate(
+			{ pathname: location.pathname, search: search.toString() },
+			{ replace: true, state },
+		);
+	}, [debugLinkParam, location.pathname, navigate, searchParams]);
+	// Taken after commit, not during render, so a render React discards cannot
+	// consume the click. The ref keeps StrictMode's second effect run from
+	// taking (and losing) it again, and leaving the prefill disarms it so Back
+	// cannot send a second time.
+	const [debugClicked, setDebugClicked] = useState(false);
+	const debugIntentTakenRef = useRef(false);
+	useEffect(() => {
+		if (debugBuildId === null) {
+			setDebugClicked(false);
+			return;
+		}
+		if (debugIntentTakenRef.current) {
+			return;
+		}
+		debugIntentTakenRef.current = true;
+		setDebugClicked(takeDebugWorkspaceBuildIntent(debugBuildId));
+	}, [debugBuildId]);
 	const debugBuildQuery = useQuery({
-		...workspaceBuild(debugBuildId ?? ""),
+		...workspaceBuildById(debugBuildId ?? ""),
 		enabled: debugBuildId !== null,
 		// A refetch after an error would mount the prefilled form after the page
 		// already reported that nothing was sent.
-		refetchOnMount: false,
 		refetchOnReconnect: false,
-		refetchOnWindowFocus: false,
 	});
 	const debugBuild = debugBuildQuery.data;
 	const debugBuildFailed = debugBuild?.job.status === "failed";
 	const debugBuildLogsQuery = useQuery({
 		...workspaceBuildLogs(debugBuildId ?? ""),
-		// The logs query caches forever, which is only right for a finished build.
+		// The logs query never refetches, so fetch only once the build has failed.
 		enabled: debugBuildFailed,
 	});
 	const debugBuildError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
@@ -124,16 +146,10 @@ const AgentCreatePage: FC = () => {
 							debugBuildLogsQuery.data,
 						),
 					},
-					organizationId: debugBuild.job.organization_id,
-					// Someone else's build output is only sent after the viewer has
-					// seen it and pressed Send.
-					autoSend:
-						debugLink.kind === "build" &&
-						debugLink.clicked &&
-						debugBuild.workspace_owner_id === user.id,
+					autoSend: debugClicked,
 				}
 			: undefined;
-	// AgentCreateForm reads prefill only on mount.
+	// AgentCreateForm captures prefill on mount.
 	const isDebugBuildLoading =
 		debugBuildId !== null &&
 		debugBuildError == null &&
@@ -175,9 +191,12 @@ const AgentCreatePage: FC = () => {
 		if (model) {
 			localStorage.setItem(lastModelConfigIDStorageKey, model);
 		}
+		// The strip above may not have committed yet when an automatic send runs.
+		const search = new URLSearchParams(location.search);
+		search.delete(debugWorkspaceBuildSearchParam);
 		navigate({
 			pathname: buildAgentChatPath({ chatId: createdChat.id }),
-			search: location.search,
+			search: search.toString(),
 		});
 	};
 
@@ -218,7 +237,8 @@ const AgentCreatePage: FC = () => {
 				<Alert severity="info">
 					<AlertTitle>This debug link is not valid</AlertTitle>
 					<AlertDescription>
-						The link does not carry a workspace build ID. Nothing was sent.
+						The workspace build ID in this link is not valid. Open the failed
+						workspace and click Debug with Coder Agents again. Nothing was sent.
 					</AlertDescription>
 				</Alert>
 			);
@@ -227,10 +247,13 @@ const AgentCreatePage: FC = () => {
 			return (
 				<Alert severity="error" prominent>
 					<AlertTitle>
-						Could not load the failed workspace build. Nothing was sent.
+						Could not load the workspace build or its logs. Nothing was sent.
 					</AlertTitle>
 					<AlertDescription>
-						{getErrorMessage(debugBuildError, "The request failed.")}
+						<span className="block">
+							{getErrorMessage(debugBuildError, "The request failed.")}
+						</span>
+						<span className="mt-1 block">Reload the page to try again.</span>
 					</AlertDescription>
 				</Alert>
 			);
@@ -242,7 +265,7 @@ const AgentCreatePage: FC = () => {
 					<AlertDescription>
 						Build #{debugBuild.build_number} of workspace{" "}
 						{debugBuild.workspace_owner_name}/{debugBuild.workspace_name} has
-						not failed (status: {debugBuild.job.status}).
+						not failed (status: {debugBuild.job.status}). Nothing was sent.
 					</AlertDescription>
 				</Alert>
 			);

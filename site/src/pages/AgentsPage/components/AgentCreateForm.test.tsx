@@ -1,21 +1,19 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act, StrictMode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
-	MockChatModel,
 	MockChatModelProviderDescriptor,
+	MockDefaultChatModel,
 	MockUnsetUserChatPersonalModelOverrides,
 } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
-	MockOrganization2,
 	MockUserPreferenceSettings,
-	MockWorkspace,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
@@ -24,26 +22,19 @@ import {
 	AgentCreateForm,
 	type AgentCreatePrefill,
 	emptyInputStorageKey,
-	selectedOrganizationIdStorageKey,
-	selectedWorkspaceIdStorageKey,
 } from "./AgentCreateForm";
 
-const dashboard = vi.hoisted(() => ({
-	current: {
-		organizations: [] as TypesGen.Organization[],
-		showOrganizations: false,
-	},
-}));
-
 vi.mock("#/modules/dashboard/useDashboard", () => ({
-	useDashboard: () => dashboard.current,
+	useDashboard: () => ({
+		organizations: [MockDefaultOrganization],
+		showOrganizations: false,
+	}),
 }));
 
-const defaultModel: TypesGen.ChatModel = {
-	...MockChatModel,
-	id: "model-config-1",
-	organization_id: MockDefaultOrganization.id,
-	is_default: true,
+const modelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	models: [MockDefaultChatModel],
+	providers: [MockChatModelProviderDescriptor],
+	unsupported_providers: [],
 };
 
 const prefill: AgentCreatePrefill = {
@@ -52,7 +43,6 @@ const prefill: AgentCreatePrefill = {
 		name: "workspace-build-logs.txt",
 		text: "Error: exit status 1\n",
 	},
-	organizationId: MockDefaultOrganization.id,
 	autoSend: true,
 };
 
@@ -67,13 +57,7 @@ const userDraftAttachments = JSON.stringify([
 ]);
 
 const mockFormQueries = () => {
-	vi.spyOn(API.experimental, "getChatModels").mockImplementation(
-		async (organizationId) => ({
-			models: [{ ...defaultModel, organization_id: organizationId }],
-			providers: [MockChatModelProviderDescriptor],
-			unsupported_providers: [],
-		}),
-	);
+	vi.spyOn(API.experimental, "getChatModels").mockResolvedValue(modelCatalog);
 	vi.spyOn(
 		API.experimental,
 		"getUserChatPersonalModelOverrides",
@@ -81,23 +65,6 @@ const mockFormQueries = () => {
 	vi.spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 	vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
 		MockUserPreferenceSettings,
-	);
-};
-
-// The permitted-organizations query authorizes each organization separately.
-const mockOrganizations = (permitted: Record<string, boolean>) => {
-	dashboard.current = {
-		organizations: [MockDefaultOrganization, MockOrganization2],
-		showOrganizations: true,
-	};
-	vi.spyOn(API, "getOrganizations").mockResolvedValue([
-		MockDefaultOrganization,
-		MockOrganization2,
-	]);
-	vi.spyOn(API, "checkAuthorization").mockImplementation(async (request) =>
-		Object.fromEntries(
-			Object.keys(request.checks).map((key) => [key, permitted[key] ?? true]),
-		),
 	);
 };
 
@@ -114,8 +81,8 @@ const renderForm = (
 					createError={undefined}
 					canCreateChat
 					canConfigureAgentSetup={false}
-					workspaceCount={1}
-					workspaceOptions={[MockWorkspace]}
+					workspaceCount={0}
+					workspaceOptions={[]}
 					workspacesError={undefined}
 					isWorkspacesLoading={false}
 					prefill={prefill}
@@ -125,34 +92,20 @@ const renderForm = (
 		</StrictMode>,
 	);
 
-const chatMessage = () => screen.getByRole("textbox", { name: "Chat message" });
-
-beforeEach(() => {
-	dashboard.current = {
-		organizations: [MockDefaultOrganization],
-		showOrganizations: false,
-	};
-});
-
 afterEach(() => {
 	vi.restoreAllMocks();
 	localStorage.clear();
 });
 
 describe("AgentCreateForm prefill", () => {
-	it("uploads the attachment once, then sends once with only that file and no workspace", async () => {
+	it("uploads the attachment once, then sends once with only that file", async () => {
 		mockFormQueries();
 		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
 		localStorage.setItem(persistedAttachmentsStorageKey, userDraftAttachments);
-		localStorage.setItem(selectedWorkspaceIdStorageKey, MockWorkspace.id);
 		const upload = createDeferred<TypesGen.UploadChatFileResponse>();
 		const uploadChatFile = vi
 			.spyOn(API.experimental, "uploadChatFile")
 			.mockReturnValue(upload.promise);
-		const getMCPServerConfigs = vi.spyOn(
-			API.experimental,
-			"getMCPServerConfigs",
-		);
 		const onCreateChat = vi.fn().mockResolvedValue(undefined);
 
 		renderForm(onCreateChat);
@@ -166,8 +119,6 @@ describe("AgentCreateForm prefill", () => {
 		);
 		expect(uploadOrganizationId).toBe(MockDefaultOrganization.id);
 		expect(onCreateChat).not.toHaveBeenCalled();
-		// Typing during the pending send would be discarded.
-		expect(chatMessage()).toHaveAttribute("aria-disabled", "true");
 
 		await act(async () => {
 			upload.resolve({ id: "uploaded-logs" });
@@ -178,71 +129,40 @@ describe("AgentCreateForm prefill", () => {
 			message: "Why did this build fail?",
 			fileIDs: ["uploaded-logs"],
 			workspaceId: undefined,
-			model: defaultModel.id,
+			model: MockDefaultChatModel.id,
 			reasoningEffort: undefined,
 			organizationId: MockDefaultOrganization.id,
 			mcpServerIds: undefined,
 			planMode: undefined,
 		});
 		expect(uploadChatFile).toHaveBeenCalledTimes(1);
-		expect(getMCPServerConfigs).not.toHaveBeenCalled();
 		expect(localStorage.getItem(emptyInputStorageKey)).toBe(
 			"draft the user typed earlier",
 		);
 		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBe(
 			userDraftAttachments,
 		);
-		expect(localStorage.getItem(selectedWorkspaceIdStorageKey)).toBe(
-			MockWorkspace.id,
-		);
 	});
 
-	it("uses the build's organization, not the stored one", async () => {
+	it("auto-sends a prefill whose file name needs sanitizing", async () => {
 		mockFormQueries();
-		mockOrganizations({});
-		localStorage.setItem(
-			selectedOrganizationIdStorageKey,
-			MockDefaultOrganization.id,
-		);
 		const uploadChatFile = vi
 			.spyOn(API.experimental, "uploadChatFile")
 			.mockResolvedValue({ id: "uploaded-logs" });
 		const onCreateChat = vi.fn().mockResolvedValue(undefined);
 
 		renderForm(onCreateChat, {
-			prefill: { ...prefill, organizationId: MockOrganization2.id },
+			prefill: {
+				...prefill,
+				attachment: { ...prefill.attachment, name: "build logs (1).txt" },
+			},
 		});
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(uploadChatFile.mock.calls[0][1]).toBe(MockOrganization2.id);
+		expect(uploadChatFile.mock.calls[0][0].name).not.toBe("build logs (1).txt");
 		expect(onCreateChat).toHaveBeenCalledWith(
-			expect.objectContaining({ organizationId: MockOrganization2.id }),
+			expect.objectContaining({ fileIDs: ["uploaded-logs"] }),
 		);
-		expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
-			MockDefaultOrganization.id,
-		);
-	});
-
-	it("neither uploads nor sends when the user cannot create chats in the build's organization", async () => {
-		mockFormQueries();
-		mockOrganizations({ [MockOrganization2.id]: false });
-		const uploadChatFile = vi
-			.spyOn(API.experimental, "uploadChatFile")
-			.mockResolvedValue({ id: "uploaded-logs" });
-		const onCreateChat = vi.fn().mockResolvedValue(undefined);
-
-		renderForm(onCreateChat, {
-			prefill: { ...prefill, organizationId: MockOrganization2.id },
-		});
-
-		await screen.findByText(
-			"You cannot create chats in this build's organization. Nothing was sent.",
-		);
-		await act(async () => {
-			await Promise.resolve();
-		});
-		expect(uploadChatFile).not.toHaveBeenCalled();
-		expect(onCreateChat).not.toHaveBeenCalled();
 	});
 
 	it("waits for the model catalog before sending", async () => {
@@ -265,16 +185,12 @@ describe("AgentCreateForm prefill", () => {
 		expect(onCreateChat).not.toHaveBeenCalled();
 
 		await act(async () => {
-			catalog.resolve({
-				models: [defaultModel],
-				providers: [MockChatModelProviderDescriptor],
-				unsupported_providers: [],
-			});
+			catalog.resolve(modelCatalog);
 		});
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		expect(onCreateChat).toHaveBeenCalledWith(
-			expect.objectContaining({ model: defaultModel.id }),
+			expect.objectContaining({ model: MockDefaultChatModel.id }),
 		);
 	});
 
@@ -355,10 +271,19 @@ describe("AgentCreateForm prefill", () => {
 			upload.resolve({ id: "uploaded-logs" });
 		});
 
-		await waitFor(() =>
-			expect(chatMessage()).toHaveAttribute("aria-disabled", "false"),
-		);
+		const sendButton = screen.getByRole("button", { name: "Send" });
+		await waitFor(() => expect(sendButton).toBeEnabled());
 		expect(onCreateChat).not.toHaveBeenCalled();
+
+		await user.click(sendButton);
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(onCreateChat).toHaveBeenCalledWith(
+			expect.objectContaining({
+				message: "Why did this build fail?",
+				fileIDs: undefined,
+			}),
+		);
 	});
 
 	it("only prefills without auto-send, and sends on Send", async () => {
@@ -382,7 +307,6 @@ describe("AgentCreateForm prefill", () => {
 			expect.objectContaining({
 				message: "Why did this build fail?",
 				fileIDs: ["uploaded-logs"],
-				workspaceId: undefined,
 			}),
 		);
 	});

@@ -28,7 +28,7 @@ import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
-	MockFailedWorkspace,
+	MockFailedWorkspaceBuildWithUUID,
 	MockNoPermissions,
 	MockOrganization2,
 	MockPermissions,
@@ -1089,26 +1089,19 @@ export const SettingsViewCoderAgentsLink: Story = {
 	},
 };
 
-// The create page only accepts a UUID build ID.
-const debugWorkspaceBuild: TypesGen.WorkspaceBuild = {
-	...MockFailedWorkspace.latest_build,
-	id: "9f0e7d0e-4b2b-4ac9-8f1a-1a7a1f0c9d11",
-};
-
-const debugWorkspaceBuildRouter = reactRouterParameters({
-	location: {
-		path: "/agents",
-		searchParams: {
-			[debugWorkspaceBuildSearchParam]: debugWorkspaceBuild.id,
+const debugWorkspaceBuildRouter = (buildId: string) =>
+	reactRouterParameters({
+		location: {
+			path: "/agents",
+			searchParams: { [debugWorkspaceBuildSearchParam]: buildId },
 		},
-	},
-	routing: [agentsRouting, aiSettingsRouting],
-});
+		routing: [agentsRouting, aiSettingsRouting],
+	});
 
 export const DebugWorkspaceBuildLoading: Story = {
 	parameters: {
 		experiments: ["enable-ai-workspace-debug"],
-		reactRouter: debugWorkspaceBuildRouter,
+		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuildWithUUID.id),
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaceBuild").mockReturnValue(new Promise(() => {}));
@@ -1118,7 +1111,7 @@ export const DebugWorkspaceBuildLoading: Story = {
 export const DebugWorkspaceBuildLoadError: Story = {
 	parameters: {
 		experiments: ["enable-ai-workspace-debug"],
-		reactRouter: debugWorkspaceBuildRouter,
+		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuildWithUUID.id),
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaceBuild").mockRejectedValue(
@@ -1130,16 +1123,44 @@ export const DebugWorkspaceBuildLoadError: Story = {
 	},
 };
 
+export const DebugWorkspaceBuildLogsLoadError: Story = {
+	parameters: {
+		experiments: ["enable-ai-workspace-debug"],
+		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuildWithUUID.id),
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceBuild").mockResolvedValue(
+			MockFailedWorkspaceBuildWithUUID,
+		);
+		spyOn(API, "getWorkspaceBuildLogs").mockRejectedValue(
+			mockApiError({ message: "Internal error fetching provisioner logs." }),
+		);
+	},
+};
+
 export const DebugWorkspaceBuildNotFailed: Story = {
 	parameters: {
 		experiments: ["enable-ai-workspace-debug"],
-		reactRouter: debugWorkspaceBuildRouter,
+		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuildWithUUID.id),
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaceBuild").mockResolvedValue({
-			...debugWorkspaceBuild,
+			...MockFailedWorkspaceBuildWithUUID,
 			status: "running",
-			job: { ...debugWorkspaceBuild.job, status: "succeeded" },
+			job: { ...MockFailedWorkspaceBuildWithUUID.job, status: "succeeded" },
 		});
+	},
+};
+
+export const DebugWorkspaceBuildInvalidLink: Story = {
+	parameters: {
+		experiments: ["enable-ai-workspace-debug"],
+		reactRouter: debugWorkspaceBuildRouter("not-a-build-id"),
+	},
+};
+
+export const DebugWorkspaceBuildExperimentDisabled: Story = {
+	parameters: {
+		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuildWithUUID.id),
 	},
 };
