@@ -1198,6 +1198,7 @@ func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
 // @Produce json
 // @Param request body codersdk.CreateChatRequest true "Create chat request"
 // @Success 201 {object} codersdk.Chat
+// @Failure 400 {object} codersdk.Response
 // @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
 // @Router /api/v2/chats [post]
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {

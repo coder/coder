@@ -644,6 +644,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
 | Status | Meaning                                                                 | Description                  | Schema                                           |
 |--------|-------------------------------------------------------------------------|------------------------------|--------------------------------------------------|
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                      | [codersdk.Chat](schemas.md#codersdkchat)         |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | Bad Request                  | [codersdk.Response](schemas.md#codersdkresponse) |
 | 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 256 KiB | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
