@@ -44,7 +44,7 @@ const (
 	StageAnomalyFutureStart StageAnomaly = "future_start"
 	// StageAnomalyStaleAnchor counts a turn whose trigger timestamp did
 	// not follow the previous turn's anchor on the same runner; the
-	// anchor is clamped to the previous one.
+	// turn starts now and records no acquisition.
 	StageAnomalyStaleAnchor StageAnomaly = "stale_anchor"
 )
 
@@ -185,7 +185,7 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "stage_anomalies_total",
-			Help:      "Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed and inverted_window (end before start, clock skew), missing_timestamp (unset start or end), future_start (start ahead of this replica's clock, span started now), stale_anchor (turn anchor clamped to the previous turn's anchor). Registered only with the chat-stage-metrics experiment.",
+			Help:      "Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed and inverted_window (end before start, clock skew), missing_timestamp (unset start or end), future_start (start ahead of this replica's clock, span started now), stale_anchor (trigger not after the previous turn's anchor, turn started now). Registered only with the chat-stage-metrics experiment.",
 		}, []string{"reason"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,

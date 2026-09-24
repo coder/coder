@@ -304,7 +304,10 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		return xerrors.Errorf("convert buffered parts: %w", err)
 	}
 
-	var committed database.Chat
+	var (
+		committed        database.Chat
+		promotedQueuedAt time.Time
+	)
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := loadChatForTask(ctx, store, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
 		if err != nil {
@@ -320,11 +323,13 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		if len(committedCancels) > 0 {
 			messages = append(append([]chatstate.Message{}, partialMessages...), committedCancels...)
 		}
-		if _, err := tx.FinishInterruption(chatstate.FinishInterruptionInput{
+		finishResult, err := tx.FinishInterruption(chatstate.FinishInterruptionInput{
 			PartialMessages: messages,
-		}); err != nil {
+		})
+		if err != nil {
 			return xerrors.Errorf("finish interruption: %w", err)
 		}
+		promotedQueuedAt = finishResult.PromotedQueuedAt
 		committed, err = store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load committed chat: %w", err)
@@ -338,6 +343,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		return normalizeTaskTransitionError(err, "finish interruption")
 	}
 	input.DebugTurn.RecordOutcome(chatdebug.StatusInterrupted)
+	s.server.recordQueueWait(ctx, committed, promotedQueuedAt, s.server.stages.Now())
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
