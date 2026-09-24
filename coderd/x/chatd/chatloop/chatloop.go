@@ -19,6 +19,7 @@ import (
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -127,6 +128,8 @@ type GenerateAssistantOptions struct {
 	OnModelStreamStart func()
 	Logger             slog.Logger
 	Metrics            *Metrics
+	Stages             *StageTracer
+	StageModel         StageModel
 }
 
 // AssistantOutcome is the durable assistant-side result from one model call.
@@ -331,8 +334,12 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		opts.OnModelStreamStart()
 	}
 	stepCtx := chatdebug.ReuseStep(ctx)
+	streamCtx, streamSpan := opts.Stages.Start(stepCtx, StageStream,
+		attribute.String(AttrProvider, provider),
+	)
+	streamSpan.SetModel(opts.StageModel)
 	attempt, streamErr := guardedStream(
-		stepCtx,
+		streamCtx,
 		provider,
 		modelName,
 		opts.Clock,
@@ -341,8 +348,11 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 			return opts.Model.Stream(attemptCtx, call)
 		},
 		opts.Metrics,
+		opts.Stages,
+		opts.StageModel,
 	)
 	if streamErr != nil {
+		streamSpan.End(streamErr)
 		wrappedErr := wrapProviderStreamError(errorProvider, streamErr)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
 		if classified.Retryable {
@@ -351,9 +361,17 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		return AssistantOutcome{}, wrappedErr
 	}
 	defer attempt.release()
+	// Releasing the attempt closes the time_to_first_token window, so it
+	// must happen before the stream stage ends: a window still open then
+	// would be counted outside the stream that contains it.
+	endStream := func(err error) {
+		attempt.release()
+		streamSpan.End(err)
+	}
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
 	if err := attempt.finish(processErr); err != nil {
+		endStream(err)
 		wrappedErr := wrapProviderStreamError(errorProvider, err)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
 		if classified.Retryable {
@@ -363,6 +381,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	}
 
 	contextLimit := extractContextLimitWithFallback(result.providerMetadata, opts.ContextLimitFallback)
+	endStream(nil)
 	result.content = chatsanitize.SanitizeAnthropicProviderToolStepContent(
 		ctx, opts.Logger, provider, modelName,
 		"assistant_helper", 0, result.finishReason, result.content,
@@ -776,6 +795,10 @@ func WithStreamWatchdog(ctx context.Context, kick func(silence time.Duration)) c
 	return context.WithValue(ctx, streamWatchdogKey{}, kick)
 }
 
+// errNoFirstToken marks a time_to_first_token window that ended when
+// the attempt was released before any part streamed or failed.
+var errNoFirstToken = xerrors.New("stream ended before the first token")
+
 func guardedStream(
 	parent context.Context,
 	provider, model string,
@@ -783,6 +806,8 @@ func guardedStream(
 	timeout time.Duration,
 	openStream func(context.Context) (fantasy.StreamResponse, error),
 	metrics *Metrics,
+	stages *StageTracer,
+	stageModel StageModel,
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
 	kick, _ := parent.Value(streamWatchdogKey{}).(func(time.Duration))
@@ -791,34 +816,64 @@ func guardedStream(
 	}
 	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
 	kick(timeout)
+	streamStart := clock.Now()
+	_, ttftSpan := stages.Start(parent, StageTimeToFirstToken,
+		attribute.String(AttrProvider, provider),
+	)
+	ttftSpan.SetModel(stageModel)
+	var ttftOnce sync.Once
+	// finishTTFT closes the time_to_first_token window exactly once. A
+	// nil err is the first streamed content part and feeds both the TTFT
+	// and the stage histogram, so both histograms hold only windows a
+	// first content part closed. Any non-nil err (an open failure, an error
+	// part, or errNoFirstToken for a window released without a part)
+	// ends the span with the error and is not observed.
+	finishTTFT := func(err error) {
+		ttftOnce.Do(func() {
+			if err != nil {
+				ttftSpan.EndWithoutObservation(err)
+				return
+			}
+			metrics.TTFTSeconds.WithLabelValues(provider, model).Observe(
+				clock.Since(streamStart).Seconds(),
+			)
+			ttftSpan.End(nil)
+		})
+	}
 	var releaseOnce sync.Once
 	release := func() {
 		releaseOnce.Do(func() {
 			guard.Disarm()
 			cancelAttempt(nil)
+			finishTTFT(errNoFirstToken)
 		})
 	}
 
-	streamStart := clock.Now()
 	stream, err := openStream(attemptCtx)
 	if err != nil {
 		err = classifyStreamSilenceTimeout(attemptCtx, provider, err)
+		finishTTFT(err)
 		release()
 		return guardedAttempt{}, err
 	}
 
-	recordTTFT := sync.OnceFunc(func() {
-		metrics.TTFTSeconds.WithLabelValues(provider, model).Observe(
-			clock.Since(streamStart).Seconds(),
-		)
-	})
 	return guardedAttempt{
 		ctx: attemptCtx,
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
 				guard.Reset()
 				kick(timeout)
-				recordTTFT()
+				switch part.Type {
+				case fantasy.StreamPartTypeError:
+					// An error part is a failed attempt, not a first token.
+					finishTTFT(part.Error)
+				case fantasy.StreamPartTypeWarnings, fantasy.StreamPartTypeFinish:
+					// Warnings precede content and finish follows it; neither
+					// is model output, so the window stays open. A stream that
+					// finishes without content is closed by release.
+				default:
+					finishTTFT(nil)
+				}
 				if !yield(part) {
 					return
 				}
