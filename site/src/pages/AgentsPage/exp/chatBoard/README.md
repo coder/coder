@@ -123,17 +123,8 @@ Sidebar
 
 ## Data model
 
-| Label                       | On        | Meaning                                    |
-| --------------------------- | --------- | ------------------------------------------ |
-| `board/column`              | members   | column name; absent means Inbox            |
-| `board/group`               | members   | id of the chat that carries the card data  |
-| `board/title`               | primary   | topic title; absent means the chat's title |
-| `board/color`               | primary   | one of the theme accent names              |
-| `board/pos`                 | primary   | placement key; higher sorts first          |
-| `board/comment.N.timestamp` | primary   | note N, Unix milliseconds                  |
-| `board/comment.N.M`         | primary   | note N, chunk M (256 byte label limit)     |
-| `board/effort.N`            | primary   | effort name N; a card can carry several    |
-| `board/assistant`           | assistant | id of the card, or `board`; not a card     |
+The label table is `LABEL_SCHEMA` in `assistantSpecs.ts`. The board
+assistant gets it in its prompt, so it lives there and not here.
 
 Writes replace the whole label map of a chat. Regrouping and note moves
 snapshot the previous maps of every touched chat so they can be undone.

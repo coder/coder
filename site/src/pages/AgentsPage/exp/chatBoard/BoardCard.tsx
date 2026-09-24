@@ -342,6 +342,8 @@ const EffortsSubMenu: FC<EffortsSubMenuProps> = ({
 				className="text-xs text-content-primary"
 				onSave={(name) => onToggle(name, true)}
 				onDone={() => undefined}
+				// Hovering an effort item moves focus to it mid-word.
+				saveOnBlur={false}
 			/>
 		</div>
 	</>

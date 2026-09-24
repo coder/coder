@@ -13,7 +13,7 @@ const COMMENT_PREFIX = `${BOARD_LABEL_PREFIX}comment.`;
 // One piece of work spread over several cards, or an ad hoc set like
 // "This week". A card can belong to many.
 const EFFORT_PREFIX = `${BOARD_LABEL_PREFIX}effort.`;
-/** On a card's assistant chat: the card id. Such chats are not cards themselves. */
+/** On an assistant chat: its card's id, or `board` for the board assistant. Such chats are not cards themselves. */
 export const ASSISTANT_KEY = `${BOARD_LABEL_PREFIX}assistant`;
 
 // Server limit on a label value, see coderd/httpapi/chatlabels.go.
@@ -277,14 +277,17 @@ const stripCommentLabels = (
 ): Record<string, string> =>
 	withoutKeys(labels, (k) => k.startsWith(COMMENT_PREFIX));
 
-const effortKeyPattern = /^board\/effort\.(\d+)$/;
+// Writes clear every key under the prefix, so a stray key cannot outlive a
+// rewrite or ride a handoff; reads skip keys without a numeric index.
+const isEffortKey = (key: string) => key.startsWith(EFFORT_PREFIX);
 
 /** Effort names on a primary, by index, trimmed, without blanks or repeats. */
 export const parseEfforts = (labels: Record<string, string>): string[] => {
 	const byIndex: [number, string][] = [];
 	for (const [key, value] of Object.entries(labels)) {
-		const match = effortKeyPattern.exec(key);
-		if (match) byIndex.push([Number(match[1]), value]);
+		if (!isEffortKey(key)) continue;
+		const index = Number(key.slice(EFFORT_PREFIX.length));
+		if (Number.isInteger(index)) byIndex.push([index, value]);
 	}
 	return cleanEfforts(byIndex.sort(([a], [b]) => a - b).map(([, v]) => v));
 };
@@ -298,7 +301,7 @@ export const setEffortsLabels = (
 	labels: Record<string, string>,
 	names: readonly string[],
 ): Record<string, string> => {
-	const out = withoutKeys(labels, (k) => effortKeyPattern.test(k));
+	const out = withoutKeys(labels, isEffortKey);
 	for (const [index, name] of cleanEfforts(names).entries()) {
 		out[`${EFFORT_PREFIX}${index}`] = name;
 	}
@@ -328,7 +331,7 @@ export const stripCardLabels = (
 			k === GROUP_KEY ||
 			k === COLOR_KEY ||
 			k === POSITION_KEY ||
-			k.startsWith(EFFORT_PREFIX),
+			isEffortKey(k),
 	);
 
 /** The card-level data a primary carries (title, color, position, comments, efforts), for handing to a new primary. */
@@ -342,7 +345,7 @@ export const takeCardLabels = (
 				k === COLOR_KEY ||
 				k === POSITION_KEY ||
 				k.startsWith(COMMENT_PREFIX) ||
-				k.startsWith(EFFORT_PREFIX),
+				isEffortKey(k),
 		),
 	);
 
