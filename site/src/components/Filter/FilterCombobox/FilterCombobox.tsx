@@ -573,15 +573,19 @@ function OptionRowContent({
 	return (
 		<>
 			{icon ? <OptionIcon>{icon}</OptionIcon> : null}
-			<span
-				className={truncate ? "min-w-0 truncate" : undefined}
-				title={truncate && typeof label === "string" ? label : undefined}
-			>
-				{label}
+			{/* The check slot is always rendered so selecting a row does not shift
+			    its text, and it sits on the label's first line when the label wraps. */}
+			<span className="flex min-w-0 flex-1 items-start gap-2">
+				<span
+					className={cn("min-w-0 flex-1", truncate && "truncate")}
+					title={truncate && typeof label === "string" ? label : undefined}
+				>
+					{label}
+				</span>
+				<span aria-hidden className="flex h-lh shrink-0 items-center">
+					<CheckIcon className={cn("size-4", !selected && "invisible")} />
+				</span>
 			</span>
-			{selected && (
-				<CheckIcon aria-hidden className="ml-auto size-4 shrink-0" />
-			)}
 		</>
 	);
 }
