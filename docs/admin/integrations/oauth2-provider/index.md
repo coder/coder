@@ -52,7 +52,7 @@ coder:
 Existing applications, secrets, and user authorizations are kept while the provider is off and work again when you turn it on.
 Turning the provider off does not invalidate access tokens it already issued.
 Those tokens keep authenticating to the regular Coder API while the OAuth2 refresh and revocation endpoints return 404.
-Treat the setting as a way to stop new authorizations rather than as a way to revoke access, and revoke the tokens or delete the application before you disable the provider.
+Treat the setting as a way to stop new authorizations rather than as a way to revoke access, and delete the application before you disable the provider if you need to cut off every user's existing tokens too.
 
 ## Create OAuth2 applications
 

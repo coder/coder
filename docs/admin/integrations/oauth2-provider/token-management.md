@@ -2,7 +2,7 @@
 title: OAuth2 provider token management
 ---
 
-Refresh an access token, revoke a token or all of an application's tokens, and delete an application.
+Refresh an access token, revoke a token, revoke your own authorization for an application, and delete an application.
 For the authentication methods used in these requests, refer to [Client Authentication Methods](./integration-patterns.md#client-authentication-methods).
 
 ## Refresh Tokens
@@ -66,9 +66,9 @@ response does not confirm that the token existed or belonged to your client. A
 confidential client that fails to authenticate receives HTTP 401 with
 `error=invalid_client` and nothing is revoked.
 
-## Revoke Access
+## Revoke your authorization for an application
 
-Revoke all tokens for an application:
+Revoke your own authorization codes and tokens for an application, using the session token that authorized them:
 
 ```sh
 curl -X DELETE \
@@ -76,12 +76,14 @@ curl -X DELETE \
   "$CODER_URL/oauth2/tokens?client_id=$CLIENT_ID"
 ```
 
-This ends existing sessions but leaves the application registered, so it can authorize again.
+This ends your own sessions with the application but leaves the application registered, so it can authorize again, and does not affect any other user's tokens for it.
+For a cutoff that affects every user, delete the application or one of its client secrets, as described under [Delete an Application](#delete-an-application).
 
 ## Delete an Application
 
-Deleting an application is a separate operation from revoking its tokens.
-It removes the registration itself, so the client cannot authorize again without being registered anew.
+Deleting an application is a separate operation from revoking a single user's tokens.
+It removes the registration itself, so the client cannot authorize again without being registered anew, and it revokes every token issued under it, for every user.
+Deleting one of an application's client secrets has the same effect on every token issued under that secret.
 
 In the web UI, navigate to **Deployment Settings** > **OAuth2 Applications**, select the application on the **Applications** tab, then select **Delete**.
 This requires permission to delete OAuth2 applications.
