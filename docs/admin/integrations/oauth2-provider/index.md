@@ -7,8 +7,8 @@ title: OAuth2 provider
 > Set `CODER_OAUTH2_PROVIDER_ENABLE=true` to turn it on.
 > The `oauth2` experiment has been removed.
 
-Coder can act as an OAuth2 authorization server, allowing third-party applications to authenticate users through Coder and access the Coder API on their behalf. This enables integrations where external applications can leverage Coder's authentication and user management.
-Refer to [Security and limitations](./security.md) for what this deployment can't do yet.
+Coder can act as an OAuth2 authorization server, allowing third-party applications to authenticate users through Coder and access the Coder API on their behalf.
+This enables integrations where external applications can leverage Coder's authentication and user management.
 
 ## Requirements
 
