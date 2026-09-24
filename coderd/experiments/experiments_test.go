@@ -197,10 +197,9 @@ func TestDecisions(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]struct {
-		rule   *experiments.Rule
-		static bool
-		want   bool
-		// wantUserLoads is the expected number of attribute loads.
+		rule          *experiments.Rule
+		static        bool
+		want          bool
 		wantUserLoads int64
 	}{
 		"none static on":     {static: true, want: true},
@@ -299,13 +298,12 @@ func TestFailClosed(t *testing.T) {
 			return storeWith(t, userID, condition(`user.roles[5] == "owner"`))
 		}},
 		"cost overrun": {store: func(t *testing.T, userID uuid.UUID) experiments.Store {
-			s := experimentstest.Store{
+			return experimentstest.Store{
 				StoredRules: map[codersdk.Experiment]experiments.StoredRule{
 					scoped: experimentstest.StoredRule(t, *condition(`user.groups.all(a, user.groups.all(b, a != b || true))`)),
 				},
 				Users: map[uuid.UUID]experiments.User{userID: {Groups: manyGroups}},
 			}
-			return s
 		}},
 		"canceled context": {
 			store: func(t *testing.T, userID uuid.UUID) experiments.Store {
