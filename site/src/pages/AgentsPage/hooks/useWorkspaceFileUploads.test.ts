@@ -2,6 +2,7 @@ import { renderHook as renderHookBase, waitFor } from "@testing-library/react";
 import { act, createElement, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockApiError } from "#/testHelpers/entities";
 import { useWorkspaceFileUploads } from "./useWorkspaceFileUploads";
 
 vi.mock("#/api/api", () => ({
@@ -66,8 +67,16 @@ describe("useWorkspaceFileUploads", () => {
 		);
 	});
 
-	it("records an error when the upload fails", async () => {
-		uploadMock.mockRejectedValueOnce(new Error("boom"));
+	it("records the server message and detail when the upload fails", async () => {
+		uploadMock.mockRejectedValueOnce(
+			Object.assign(
+				new Error("Request failed with status code 502"),
+				mockApiError({
+					message: "Failed to upload file to workspace agent.",
+					detail: "The workspace agent could not be reached.",
+				}),
+			),
+		);
 		const { result } = renderHook(() =>
 			useWorkspaceFileUploads("chat-1", "ws-1"),
 		);
@@ -79,7 +88,32 @@ describe("useWorkspaceFileUploads", () => {
 		await waitFor(() => {
 			expect(result.current.uploads[0].status).toBe("error");
 		});
-		expect(result.current.uploads[0].error).toBeTruthy();
+		expect(result.current.uploads[0].error).toBe(
+			"Failed to upload file to workspace agent. The workspace agent could not be reached.",
+		);
+	});
+
+	it("marks files beyond the concurrency limit as queued", () => {
+		uploadMock.mockImplementation(() => new Promise(() => {}));
+		const { result } = renderHook(() =>
+			useWorkspaceFileUploads("chat-1", "ws-1"),
+		);
+
+		act(() => {
+			result.current.attach([
+				makeFile("a.bin"),
+				makeFile("b.bin"),
+				makeFile("c.bin"),
+				makeFile("d.bin"),
+			]);
+		});
+
+		expect(result.current.uploads.map((upload) => upload.status)).toEqual([
+			"uploading",
+			"uploading",
+			"uploading",
+			"queued",
+		]);
 	});
 
 	it("errors immediately without a chat id", () => {

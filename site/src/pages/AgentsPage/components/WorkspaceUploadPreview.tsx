@@ -13,6 +13,8 @@ import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
 
 const uploadStatusLabel = (upload: WorkspaceFileUpload): string => {
 	switch (upload.status) {
+		case "queued":
+			return "Waiting to upload...";
 		case "uploading":
 			return "Uploading to workspace...";
 		case "uploaded":

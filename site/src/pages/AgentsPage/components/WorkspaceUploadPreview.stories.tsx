@@ -69,6 +69,11 @@ export const MixedStates: Story = {
 				status: "uploading",
 			},
 			{
+				id: "queued-2",
+				file: createMockFile("logs.tar", "application/x-tar"),
+				status: "queued",
+			},
+			{
 				id: "error-2",
 				file: createMockFile("huge.iso", "application/x-iso9660-image"),
 				status: "error",
