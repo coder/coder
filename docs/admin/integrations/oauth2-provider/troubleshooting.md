@@ -134,7 +134,7 @@ the composite.
 
 `POST /oauth2/tokens` with `grant_type=refresh_token` and `POST /oauth2/revoke` answer HTTP 401 with `error=invalid_client` when a confidential client does not authenticate.
 The usual causes are a `client_secret` that was omitted, a secret that belongs to a different client, or a secret that has since been deleted or rotated.
-Present the client's current secret, as HTTP Basic or as a form parameter, following [Refresh Tokens](./token-management.md#refresh-tokens).
+Present the client's current secret, as HTTP Basic or as a form parameter, following [Refresh tokens](./token-management.md#refresh-tokens).
 The refresh token is not consumed and nothing is revoked by the refusal, so the retry needs no new authorization.
 If the secret was deleted, the tokens issued under it were revoked with it, and the client must authorize again.
 Public clients have no secret and never receive this error for omitting one.
