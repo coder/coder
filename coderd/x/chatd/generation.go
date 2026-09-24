@@ -126,7 +126,6 @@ const (
 	generationActionFinishTurn          generationActionKind = "finish_turn"
 	generationActionCompact             generationActionKind = "compact"
 	generationActionGenerateAssistant   generationActionKind = "generate_assistant"
-	generationActionPromoteQueued       generationActionKind = "promote_queued"
 )
 
 type generationFinishReason string
@@ -198,17 +197,6 @@ type generationDecisionInput struct {
 	compactionNeeded           bool
 	compactionThresholdPercent int32
 	compactionContextLimit     int64
-	queuedMessages             []database.ChatQueuedMessage
-}
-
-// generateOrPromoteQueued returns the decision for a model call. When
-// the queue holds a steer or interrupt row, the queued rows that are
-// due move into history first.
-func generateOrPromoteQueued(queue []database.ChatQueuedMessage) generationDecision {
-	if len(chatstate.StepDeliveryPrefix(queue)) > 0 {
-		return generationDecision{kind: generationActionPromoteQueued}
-	}
-	return generationDecision{kind: generationActionGenerateAssistant}
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
@@ -271,11 +259,11 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	case compactionStatusNeeded:
 		return generationDecision{kind: generationActionCompact}, nil
 	case compactionStatusAfterCompaction:
-		return generateOrPromoteQueued(input.queuedMessages), nil
+		return generationDecision{kind: generationActionGenerateAssistant}, nil
 	case compactionStatusStillOverLimit:
 		return generationDecision{}, terminalGeneration(errCompactionStillOverLimit)
 	case compactionStatusNotNeeded:
-		return generateOrPromoteQueued(input.queuedMessages), nil
+		return generationDecision{kind: generationActionGenerateAssistant}, nil
 	default:
 		return generationDecision{}, terminalGeneration(xerrors.New("unknown compaction status"))
 	}
@@ -445,7 +433,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	}
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	for {
-		chat, messages, queue, err := loadGenerationState(ctx, machine, input)
+		chat, messages, err := loadGenerationState(ctx, machine, input)
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
@@ -479,9 +467,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		cleanup := prepared.Cleanup
 		var decision generationDecision
 		if input.StopNudges.consume(stopNudgeKey(prepared.Messages)) {
-			// A stop nudge follows a complete assistant message, so no
-			// tool call is pending and due queued rows can go first.
-			decision = generateOrPromoteQueued(queue)
+			decision = generationDecision{kind: generationActionGenerateAssistant}
 		} else {
 			decision, err = retryGenerationPhase(ctx, s, "decide", func() (generationDecision, error) {
 				return decideGenerationAction(generationDecisionInput{
@@ -495,7 +481,6 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 					compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
 					compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
 					compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
-					queuedMessages:             queue,
 				})
 			})
 		}
@@ -526,8 +511,6 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			return s.finishGenerationTurn(ctx, machine, input, generationAttemptNotRequired)
 		case generationActionGenerateAssistant:
 			actionErr = s.generateAssistant(ctx, machine, input, prepared)
-		case generationActionPromoteQueued:
-			actionErr = s.promoteQueuedBeforeStep(ctx, machine, input, prepared)
 		case generationActionExecuteLocalTools:
 			actionErr = s.executeLocalTools(ctx, machine, input, prepared, decision)
 		case generationActionCompact:
@@ -576,16 +559,13 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	}
 }
 
-// loadGenerationState reads the chat, its messages, and its queue from
-// one snapshot.
 func loadGenerationState(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-) (database.Chat, []database.ChatMessage, []database.ChatQueuedMessage, error) {
+) (database.Chat, []database.ChatMessage, error) {
 	var chat database.Chat
 	var messages []database.ChatMessage
-	var queue []database.ChatQueuedMessage
 	err := machine.ReadLock(ctx, func(store database.Store) error {
 		loadedChat, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true})
 		if err != nil {
@@ -598,19 +578,14 @@ func loadGenerationState(
 		if err != nil {
 			return xerrors.Errorf("load chat messages: %w", err)
 		}
-		loadedQueue, err := store.GetChatQueuedMessagesByPosition(ctx, input.ChatID)
-		if err != nil {
-			return xerrors.Errorf("load queued messages: %w", err)
-		}
 		chat = loadedChat
 		messages = loadedMessages
-		queue = loadedQueue
 		return nil
 	})
 	if err != nil {
-		return database.Chat{}, nil, nil, normalizeTaskInfrastructureError(err, "lock chat for generation")
+		return database.Chat{}, nil, normalizeTaskInfrastructureError(err, "lock chat for generation")
 	}
-	return chat, messages, queue, nil
+	return chat, messages, nil
 }
 
 func (*taskStarter) recordGenerationRetry(
@@ -751,9 +726,12 @@ func (s *taskStarter) generateAssistant(
 	input chatWorkerTaskStartInput,
 	prepared generationPrepared,
 ) error {
-	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
+	attempt, promoted, err := s.beginAssistantAttempt(ctx, machine, input)
 	if err != nil {
-		return xerrors.Errorf("begin generation attempt: %w", err)
+		return xerrors.Errorf("begin assistant attempt: %w", err)
+	}
+	if promoted {
+		return nil
 	}
 	defer attempt.closeEpisode()
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
@@ -1183,41 +1161,41 @@ type generationAttempt struct {
 	closeEpisode func()
 }
 
-func (s *taskStarter) beginGenerationAttempt(
+// recordGenerationAttempt applies RecordGenerationAttempt and returns
+// the new attempt number with the committed chat.
+func recordGenerationAttempt(
 	ctx context.Context,
-	machine *chatstate.ChatMachine,
-	input chatWorkerTaskStartInput,
-) (generationAttempt, error) {
-	var attempt int64
-	var committed database.Chat
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
-			return xerrors.Errorf("load chat for task: %w", err)
-		}
-		result, err := tx.RecordGenerationAttempt(chatstate.RecordGenerationAttemptInput{})
-		if err != nil {
-			return xerrors.Errorf("tx.RecordGenerationAttempt: %w", err)
-		}
-		attempt = result.GenerationAttempt
-		committed, err = store.GetChatByID(ctx, input.ChatID)
-		if err != nil {
-			return xerrors.Errorf("load committed chat: %w", err)
-		}
-		return nil
-	})
+	tx *chatstate.Tx,
+	store database.Store,
+	chatID uuid.UUID,
+) (int64, database.Chat, error) {
+	result, err := tx.RecordGenerationAttempt(chatstate.RecordGenerationAttemptInput{})
 	if err != nil {
-		return generationAttempt{}, normalizeTaskTransitionError(err, "record generation attempt")
+		return 0, database.Chat{}, xerrors.Errorf("tx.RecordGenerationAttempt: %w", err)
 	}
+	committed, err := store.GetChatByID(ctx, chatID)
+	if err != nil {
+		return 0, database.Chat{}, xerrors.Errorf("load committed chat: %w", err)
+	}
+	return result.GenerationAttempt, committed, nil
+}
+
+func (s *taskStarter) openGenerationAttempt(
+	ctx context.Context,
+	input chatWorkerTaskStartInput,
+	committed database.Chat,
+	number int64,
+) (generationAttempt, error) {
 	key := messagepartbuffer.Key{
 		ChatID:            input.ChatID,
 		HistoryVersion:    committed.HistoryVersion,
-		GenerationAttempt: attempt,
+		GenerationAttempt: number,
 	}
 	if err := s.opts.MessagePartBuffer.CreateEpisode(key); err != nil && ctx.Err() == nil {
 		return generationAttempt{}, taskRetryableError{err: xerrors.Errorf("create message part episode: %w", err)}
 	}
 	return generationAttempt{
-		number: attempt,
+		number: number,
 		publish: func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 			_ = s.opts.MessagePartBuffer.AddPart(key, role, part)
 		},
@@ -1234,6 +1212,65 @@ func (s *taskStarter) beginGenerationAttempt(
 			_ = s.opts.MessagePartBuffer.CloseEpisode(key)
 		},
 	}, nil
+}
+
+func (s *taskStarter) beginGenerationAttempt(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+) (generationAttempt, error) {
+	var number int64
+	var committed database.Chat
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
+			return xerrors.Errorf("load chat for task: %w", err)
+		}
+		var err error
+		number, committed, err = recordGenerationAttempt(ctx, tx, store, input.ChatID)
+		return err
+	})
+	if err != nil {
+		return generationAttempt{}, normalizeTaskTransitionError(err, "record generation attempt")
+	}
+	return s.openGenerationAttempt(ctx, input, committed, number)
+}
+
+// beginAssistantAttempt starts the model call for the next assistant
+// step. When the queue holds due rows, it promotes them in the same
+// transaction instead, and returns promoted. The caller must then
+// return: the history change starts a new generation task.
+func (s *taskStarter) beginAssistantAttempt(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+) (attempt generationAttempt, promoted bool, err error) {
+	var number int64
+	var committed database.Chat
+	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
+			return xerrors.Errorf("load chat for task: %w", err)
+		}
+		result, err := tx.PromoteQueuedBeforeStep(chatstate.PromoteQueuedBeforeStepInput{})
+		if err != nil {
+			return xerrors.Errorf("tx.PromoteQueuedBeforeStep: %w", err)
+		}
+		if len(result.PromotedMessages) > 0 {
+			promoted = true
+			committed = result.Chat
+			return nil
+		}
+		number, committed, err = recordGenerationAttempt(ctx, tx, store, input.ChatID)
+		return err
+	})
+	if err != nil {
+		return generationAttempt{}, false, normalizeTaskTransitionError(err, "begin assistant attempt")
+	}
+	if promoted {
+		s.routeStateHint(ctx, stateUpdateFromChat(committed))
+		return generationAttempt{}, true, nil
+	}
+	attempt, err = s.openGenerationAttempt(ctx, input, committed, number)
+	return attempt, false, err
 }
 
 type generationCommitHooks struct {
@@ -1351,40 +1388,6 @@ func (s *taskStarter) enterRequiresAction(
 		Chat: committed,
 		Kind: runnerActionKindEnterRequiresAction,
 	})
-}
-
-// promoteQueuedBeforeStep moves the queued rows that are due before the
-// next model call into history. The history insert makes the runner
-// start a new generation task, and that task calls the model.
-func (s *taskStarter) promoteQueuedBeforeStep(
-	ctx context.Context,
-	machine *chatstate.ChatMachine,
-	input chatWorkerTaskStartInput,
-	prepared generationPrepared,
-) error {
-	var result chatstate.PromoteQueuedBeforeStepResult
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := loadChatForGeneration(ctx, store, input, generationAttemptNotRequired); err != nil {
-			return xerrors.Errorf("load chat for task: %w", err)
-		}
-		promoted, err := tx.PromoteQueuedBeforeStep(chatstate.PromoteQueuedBeforeStepInput{})
-		if err != nil {
-			return xerrors.Errorf("tx.PromoteQueuedBeforeStep: %w", err)
-		}
-		result = promoted
-		return nil
-	})
-	if err != nil {
-		return normalizeTaskTransitionError(err, "promote queued messages")
-	}
-	if len(result.PromotedMessages) > 0 {
-		s.routeStateHint(ctx, stateUpdateFromChat(result.Chat))
-		return nil
-	}
-	// The rows were deleted after the decision. Without a history or
-	// status change the runner starts no new task, so call the model
-	// here instead of stalling the chat.
-	return s.generateAssistant(ctx, machine, input, prepared)
 }
 
 // generationAttemptFence controls whether a terminal generation

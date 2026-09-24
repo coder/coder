@@ -1382,6 +1382,14 @@ func (tx *Tx) PromoteQueuedBeforeStep(_ PromoteQueuedBeforeStepInput) (PromoteQu
 	if err != nil {
 		return PromoteQueuedBeforeStepResult{}, err
 	}
+	queue, err := tx.store.GetChatQueuedMessagesByPosition(tx.ctx, tx.chatID)
+	if err != nil {
+		return PromoteQueuedBeforeStepResult{}, xerrors.Errorf("get queued messages: %w", err)
+	}
+	due := StepDeliveryPrefix(queue)
+	if len(due) == 0 {
+		return PromoteQueuedBeforeStepResult{Chat: chat}, nil
+	}
 	pendingAll, err := pendingAllToolCallIDs(tx.ctx, tx.store, chat)
 	if err != nil {
 		return PromoteQueuedBeforeStepResult{}, err
@@ -1391,14 +1399,6 @@ func (tx *Tx) PromoteQueuedBeforeStep(_ PromoteQueuedBeforeStepInput) (PromoteQu
 			TransitionPromoteQueuedBeforeStep, from,
 			"outstanding tool calls block queued promotion",
 		)
-	}
-	queue, err := tx.store.GetChatQueuedMessagesByPosition(tx.ctx, tx.chatID)
-	if err != nil {
-		return PromoteQueuedBeforeStepResult{}, xerrors.Errorf("get queued messages: %w", err)
-	}
-	due := StepDeliveryPrefix(queue)
-	if len(due) == 0 {
-		return PromoteQueuedBeforeStepResult{Chat: chat}, nil
 	}
 	msgs := make([]Message, 0, len(due))
 	for _, row := range due {
