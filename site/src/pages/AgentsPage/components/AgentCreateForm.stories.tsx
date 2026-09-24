@@ -471,25 +471,24 @@ export const RootOverrideMissingFromCatalog: Story = {
 	},
 };
 
-export const LastUsedModelFallbackWithoutRootOverride: Story = {
+export const OrganizationDefaultModelWithoutRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		localStorage.setItem("agents.last-model-config-id", claudeModelConfigID);
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+			canvas.getByRole("combobox", { name: "GPT-4o" }),
 		).toBeInTheDocument();
-		await submitMessage(canvasElement, "create with last used model");
+		await submitMessage(canvasElement, "create with the default model");
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
-		expect(getCreateOptions(args.onCreateChat).model).toBe(claudeModelConfigID);
+		expect(getCreateOptions(args.onCreateChat).model).toBe(modelID);
 	},
 };
 
@@ -1351,7 +1350,7 @@ export const WithOrganizationPicker: Story = {
 	},
 };
 
-export const DelayedAuthorizationPreservesForeignPersistedModel: Story = {
+export const DelayedAuthorizationResolvesPermittedOrganization: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
@@ -1372,10 +1371,6 @@ export const DelayedAuthorizationPreservesForeignPersistedModel: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		localStorage.setItem(
-			"agents.last-model-config-id",
-			organization2ModelConfig.id,
-		);
 		mockPermittedOrganizations(
 			{
 				[MockDefaultOrganization.id]: false,

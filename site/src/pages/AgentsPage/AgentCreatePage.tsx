@@ -37,8 +37,6 @@ import {
 	formatWorkspaceBuildLogsForDebug,
 } from "./utils/workspaceBuildDebug";
 
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-
 // The deep link's build ID moves from the query string into history state on
 // the first render, so it survives reload and Back but not the layout's
 // links, which forward location.search to a fresh entry.
@@ -188,9 +186,6 @@ const AgentCreatePage: FC = () => {
 		};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
-		if (model) {
-			localStorage.setItem(lastModelConfigIDStorageKey, model);
-		}
 		// The strip above may not have committed yet when an automatic send runs.
 		const search = new URLSearchParams(location.search);
 		search.delete(debugWorkspaceBuildSearchParam);

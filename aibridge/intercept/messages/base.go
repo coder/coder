@@ -63,7 +63,12 @@ var bedrockSupportedBetaFlags = map[string]bool{
 	"tool-search-tool-2025-10-19": true,
 	// Supported on Claude Opus 4.5.
 	"tool-examples-2025-10-29": true,
+	// Enables the thinking.block_binding body field. Not gated per model:
+	// clients send it only to models that enforce thinking block binding.
+	bedrockBetaThinkingBinding: true,
 }
+
+const bedrockBetaThinkingBinding = "thinking-binding-controls-2026-08-01"
 
 // BedrockRuntime carries everything a Bedrock-backed interception needs: the
 // static Bedrock config plus the AWS credentials provider. The messages
@@ -558,6 +563,13 @@ func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 	updated, err = i.reqPayload.removeUnsupportedBedrockFields(i.clientHeaders, exemptFields...)
 	if err != nil {
 		i.logger.Warn(context.Background(), "failed to remove unsupported fields for Bedrock", slog.Error(err))
+		return
+	}
+	i.reqPayload = updated
+
+	updated, err = i.reqPayload.convertThinkingBlockBindingForBedrock(i.clientHeaders)
+	if err != nil {
+		i.logger.Warn(context.Background(), "failed to convert thinking block binding for Bedrock", slog.Error(err))
 		return
 	}
 	i.reqPayload = updated
