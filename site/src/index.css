@@ -746,7 +746,9 @@
 		}
 	}
 
-	/* Must stay in this layer: a layered !important beats an unlayered one. */
+	/* Kept outside the @supports guard on purpose: the overflow rules apply
+	regardless of scrollbar-gutter support. Must stay in this layer, since a
+	layered !important beats an unlayered one. */
 	html[data-agents-layout] {
 		overflow: hidden;
 		scrollbar-gutter: auto;
