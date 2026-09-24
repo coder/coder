@@ -176,7 +176,6 @@ const AgentsPageLayout: FC = () => {
 	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
 		searchParams,
 		setSearchParams,
-		location.state,
 	);
 	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
 

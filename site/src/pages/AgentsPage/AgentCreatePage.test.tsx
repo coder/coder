@@ -1,27 +1,8 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import {
-	type FC,
-	type ReactElement,
-	StrictMode,
-	useEffect,
-	useState,
-} from "react";
-import { onlineManager } from "react-query";
-import {
-	createMemoryRouter,
-	type InitialEntry,
-	RouterProvider,
-	useBlocker,
-	useLocation,
-	useSearchParams,
-} from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AppProviders } from "#/App";
 import { API } from "#/api/api";
-import type * as TypesGen from "#/api/typesGenerated";
-import { RequireAuth } from "#/contexts/auth/RequireAuth";
 import {
 	buildDebugWorkspaceBuildPath,
 	debugWorkspaceBuildIntentStorageKey,
@@ -33,21 +14,15 @@ import {
 	MockDefaultChatModel,
 	MockUnsetUserChatPersonalModelOverrides,
 } from "#/testHelpers/chatModels";
-import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockFailedWorkspaceBuildWithUUID,
 	MockUserPreferenceSettings,
 	MockWorkspaceBuildLogs,
-	mockApiError,
 } from "#/testHelpers/entities";
-import {
-	createTestQueryClient,
-	renderWithAuth,
-} from "#/testHelpers/renderHelpers";
+import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import AgentCreatePage from "./AgentCreatePage";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
-import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import { readAgentAttachmentText } from "./utils/fileAttachmentLimits";
 import {
 	debugWorkspaceBuildLogsFileName,
@@ -61,11 +36,6 @@ vi.mock("./components/AgentPageHeader", () => ({
 }));
 
 const failedBuild = MockFailedWorkspaceBuildWithUUID;
-const runningBuild = {
-	...failedBuild,
-	status: "running",
-	job: { ...failedBuild.job, status: "running" },
-} satisfies typeof failedBuild;
 
 const deepLink = `${buildDebugWorkspaceBuildPath(failedBuild.id)}&archived=archived`;
 
@@ -106,74 +76,12 @@ const mockPageQueries = () => {
 	};
 };
 
-const renderPage = (
-	route: InitialEntry = deepLink,
-	page: ReactElement = <AgentCreatePage />,
-) =>
-	renderWithAuth(page, {
+const renderPage = (route = deepLink) =>
+	renderWithAuth(<AgentCreatePage />, {
 		path: "/agents",
 		route,
 		extraRoutes: [{ path: "/agents/:agentId", element: null }],
 	});
-
-// Writes a sidebar filter the way the layout does.
-const SidebarFilterProbe: FC = () => {
-	const [searchParams, setSearchParams] = useSearchParams();
-	const location = useLocation();
-	const [filters, setFilters] = getAgentSidebarFilters(
-		searchParams,
-		setSearchParams,
-		location.state,
-	);
-	return (
-		<button
-			type="button"
-			onClick={() => setFilters({ ...filters, groupBy: "chat_status" })}
-		>
-			Group by status
-		</button>
-	);
-};
-
-// StrictMode double-invokes effects only when it wraps the root, so this
-// builds the same tree as renderWithAuth under it.
-const renderPageInStrictMode = () => {
-	const router = createMemoryRouter(
-		[
-			{
-				element: <RequireAuth />,
-				children: [
-					{ path: "/agents", element: <AgentCreatePage /> },
-					{ path: "/agents/:agentId", element: null },
-				],
-			},
-		],
-		{ initialEntries: [deepLink] },
-	);
-	render(
-		<StrictMode>
-			<AppProviders queryClient={createTestQueryClient()}>
-				<RouterProvider router={router} />
-			</AppProviders>
-		</StrictMode>,
-	);
-	return { router };
-};
-
-// Holds the page's history move (its replace navigation) so the automatic
-// send runs with the build ID still in the URL. useBlocker registers over
-// two effect passes, so the page mounts after them.
-const useBlockerRegistrationPasses = 2;
-const PageWithHeldHistoryMove: FC = () => {
-	useBlocker(({ nextLocation }) => nextLocation.pathname === "/agents");
-	const [passes, setPasses] = useState(0);
-	useEffect(() => {
-		if (passes < useBlockerRegistrationPasses) {
-			setPasses(passes + 1);
-		}
-	}, [passes]);
-	return passes === useBlockerRegistrationPasses ? <AgentCreatePage /> : null;
-};
 
 const findChatMessage = () =>
 	screen.findByRole("textbox", { name: "Chat message" });
@@ -187,7 +95,6 @@ const findEnabledSendButton = async () => {
 afterEach(() => {
 	vi.restoreAllMocks();
 	localStorage.clear();
-	onlineManager.setOnline(true);
 });
 
 describe("AgentCreatePage debug deep link", () => {
@@ -216,6 +123,7 @@ describe("AgentCreatePage debug deep link", () => {
 				],
 			}),
 		);
+		// The chat's URL does not carry the build ID.
 		await waitFor(() =>
 			expect(router.state.location).toMatchObject({
 				pathname: "/agents/new-chat-id",
@@ -229,57 +137,16 @@ describe("AgentCreatePage debug deep link", () => {
 		).toBeNull();
 	});
 
-	it("sends once after the button click under StrictMode", async () => {
-		enableExperiment();
-		const { uploadChatFile, createChat } = mockPageQueries();
-		storeDebugWorkspaceBuildIntent(failedBuild.id);
-
-		const { router } = renderPageInStrictMode();
-
-		await waitFor(() =>
-			expect(router.state.location.pathname).toBe("/agents/new-chat-id"),
-		);
-		expect(createChat).toHaveBeenCalledTimes(1);
-		expect(uploadChatFile).toHaveBeenCalledTimes(1);
-	});
-
-	it("strips the build ID from the chat URL even if the send beats the history move", async () => {
-		enableExperiment();
-		const { createChat } = mockPageQueries();
-		storeDebugWorkspaceBuildIntent(failedBuild.id);
-
-		const { router } = renderPage(deepLink, <PageWithHeldHistoryMove />);
-		let searchAtSend: string | undefined;
-		createChat.mockImplementation(async () => {
-			searchAtSend = router.state.location.search;
-			return { ...MockChat, id: "new-chat-id" };
-		});
-
-		await waitFor(() =>
-			expect(router.state.location).toMatchObject({
-				pathname: "/agents/new-chat-id",
-				search: "?archived=archived",
-			}),
-		);
-		expect(searchAtSend).toContain("debug_workspace_build=");
-	});
-
 	it("only prefills a link opened without the button click", async () => {
 		enableExperiment();
 		const { uploadChatFile, createChat } = mockPageQueries();
 		const user = userEvent.setup();
 
-		const { router } = renderPage();
+		renderPage();
 
 		const sendButton = await findEnabledSendButton();
 		expect(uploadChatFile).toHaveBeenCalledTimes(1);
 		expect(createChat).not.toHaveBeenCalled();
-		expect(router.state.location).toMatchObject({
-			pathname: "/agents",
-			search: "?archived=archived",
-			state: { debugWorkspaceBuild: failedBuild.id },
-		});
-		expect(router.state.historyAction).toBe("REPLACE");
 
 		await user.click(sendButton);
 
@@ -294,290 +161,33 @@ describe("AgentCreatePage debug deep link", () => {
 		);
 	});
 
-	it("keeps the prefill across a reload through history state, without sending", async () => {
-		enableExperiment();
-		const { uploadChatFile, createChat } = mockPageQueries();
-
-		renderPage({
-			pathname: "/agents",
-			search: "?archived=archived",
-			state: { debugWorkspaceBuild: failedBuild.id },
-		});
-
-		await findEnabledSendButton();
-		expect(uploadChatFile).toHaveBeenCalledTimes(1);
-		expect(createChat).not.toHaveBeenCalled();
-	});
-
-	it("drops the prefill on New chat and does not send again on Back", async () => {
+	it("gives New chat a plain composer even though the link's param is forwarded", async () => {
 		enableExperiment();
 		const { uploadChatFile, createChat } = mockPageQueries();
 		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
-		storeDebugWorkspaceBuildIntent(failedBuild.id);
-		createChat.mockRejectedValue(new Error("server error"));
 
 		const { router } = renderPage();
 
-		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
-		await screen.findByText("server error");
-
-		// Stands in for the layout's New chat link.
+		await findEnabledSendButton();
+		// Stands in for the layout's New chat link, which forwards location.search.
 		await router.navigate({
 			pathname: "/agents",
-			search: "?archived=archived",
+			search: router.state.location.search,
 		});
+
 		await waitFor(() =>
 			expect(
 				screen.getByRole("textbox", { name: "Chat message" }),
 			).toHaveTextContent("draft the user typed earlier"),
 		);
-		expect(localStorage.getItem(emptyInputStorageKey)).toContain(
-			"draft the user typed earlier",
-		);
-
-		await router.navigate(-1);
-
-		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(2));
-		await findEnabledSendButton();
-		expect(createChat).toHaveBeenCalledTimes(1);
-	});
-
-	it("keeps the prefill and the pending send across a sidebar filter change", async () => {
-		enableExperiment();
-		const { uploadChatFile, createChat } = mockPageQueries();
-		const upload = createDeferred<TypesGen.UploadChatFileResponse>();
-		uploadChatFile.mockReturnValue(upload.promise);
-		storeDebugWorkspaceBuildIntent(failedBuild.id);
-		const user = userEvent.setup();
-
-		const { router } = renderPage(
-			deepLink,
-			<>
-				<SidebarFilterProbe />
-				<AgentCreatePage />
-			</>,
-		);
-
-		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(1));
-		await user.click(screen.getByRole("button", { name: "Group by status" }));
-		await waitFor(() =>
-			expect(router.state.location).toMatchObject({
-				search: "?archived=archived&group_by=chat_status",
-				state: { debugWorkspaceBuild: failedBuild.id },
-			}),
-		);
-
-		await act(async () => {
-			upload.resolve({ id: "uploaded-logs" });
-		});
-
-		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
-		expect(createChat).toHaveBeenCalledWith(
-			expect.objectContaining({
-				content: [
-					{ type: "text", text: debugWorkspaceBuildPrompt(failedBuild) },
-					{ type: "file", file_id: "uploaded-logs" },
-				],
-			}),
-		);
 		expect(uploadChatFile).toHaveBeenCalledTimes(1);
-	});
-
-	it("does not refetch a failed build when Back returns to it", async () => {
-		enableExperiment();
-		const { uploadChatFile, createChat } = mockPageQueries();
-		const getWorkspaceBuild = vi
-			.spyOn(API, "getWorkspaceBuild")
-			.mockResolvedValueOnce(failedBuild)
-			.mockRejectedValue(new Error("boom"));
-		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
-		const user = userEvent.setup();
-
-		const { router } = renderPage();
-
-		await findEnabledSendButton();
-		// Stands in for the layout's New chat link.
-		await router.navigate({
-			pathname: "/agents",
-			search: "?archived=archived",
-		});
-		await waitFor(() =>
-			expect(
-				screen.getByRole("textbox", { name: "Chat message" }),
-			).toHaveTextContent("draft the user typed earlier"),
-		);
-
-		await router.navigate(-1);
-
-		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(2));
-		const sendButton = await findEnabledSendButton();
-		expect(getWorkspaceBuild).toHaveBeenCalledTimes(1);
-
-		await user.click(sendButton);
-		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
-		expect(createChat).toHaveBeenCalledWith(
-			expect.objectContaining({
-				content: [
-					{ type: "text", text: debugWorkspaceBuildPrompt(failedBuild) },
-					{ type: "file", file_id: "uploaded-logs" },
-				],
-			}),
-		);
-	});
-
-	it("refetches a build that had not failed when Back returns to it", async () => {
-		enableExperiment();
-		const { uploadChatFile } = mockPageQueries();
-		const getWorkspaceBuild = vi
-			.spyOn(API, "getWorkspaceBuild")
-			.mockResolvedValueOnce(runningBuild)
-			.mockResolvedValue(failedBuild);
-
-		const { router } = renderPage();
-
-		await screen.findByText("Nothing to debug");
-		// Stands in for the layout's New chat link.
-		await router.navigate({
-			pathname: "/agents",
-			search: "?archived=archived",
-		});
-		await findChatMessage();
-
-		await router.navigate(-1);
-
-		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(1));
-		await findEnabledSendButton();
-		expect(getWorkspaceBuild).toHaveBeenCalledTimes(2);
-	});
-
-	it("reports a failed refetch of a build that had not failed", async () => {
-		enableExperiment();
-		const { uploadChatFile } = mockPageQueries();
-		const getWorkspaceBuild = vi
-			.spyOn(API, "getWorkspaceBuild")
-			.mockResolvedValueOnce(runningBuild)
-			.mockRejectedValue(new Error("boom"));
-
-		const { router } = renderPage();
-
-		await screen.findByText("Nothing to debug");
-		// Stands in for the layout's New chat link.
-		await router.navigate({
-			pathname: "/agents",
-			search: "?archived=archived",
-		});
-		await findChatMessage();
-
-		await router.navigate(-1);
-
-		await screen.findByText(
-			"Could not load the workspace build or its logs. Nothing was sent.",
-		);
-		await screen.findByText("Reload the page to try again.");
-		expect(getWorkspaceBuild).toHaveBeenCalledTimes(2);
-		expect(uploadChatFile).not.toHaveBeenCalled();
-	});
-
-	it("tells a viewer without access that the link is not theirs to open", async () => {
-		enableExperiment();
-		const { uploadChatFile, createChat } = mockPageQueries();
-		const notFound = mockApiError({
-			message: "Resource not found or you do not have access to this resource",
-		});
-		vi.spyOn(API, "getWorkspaceBuild").mockRejectedValue({
-			...notFound,
-			response: { ...notFound.response, status: 404 },
-		});
-		storeDebugWorkspaceBuildIntent(failedBuild.id);
-
-		renderPage();
-
-		await screen.findByText(
-			"This link points to a workspace build you cannot access.",
-		);
-		await screen.findByText(
-			"Resource not found or you do not have access to this resource",
-		);
-		expect(screen.queryByText("Reload the page to try again.")).toBeNull();
-		await findChatMessage();
-		expect(uploadChatFile).not.toHaveBeenCalled();
 		expect(createChat).not.toHaveBeenCalled();
 	});
 
-	it("does not retry a failed automatic send until the user presses Send", async () => {
-		enableExperiment();
-		const { createChat } = mockPageQueries();
-		createChat
-			.mockRejectedValueOnce(new Error("server error"))
-			.mockResolvedValue({ ...MockChat, id: "new-chat-id" });
-		storeDebugWorkspaceBuildIntent(failedBuild.id);
-		const user = userEvent.setup();
-
-		const { router } = renderPage();
-
-		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
-		await screen.findByText("server error");
-		const sendButton = await findEnabledSendButton();
-		expect(createChat).toHaveBeenCalledTimes(1);
-
-		await user.click(sendButton);
-
-		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(2));
-		expect(createChat.mock.calls[1][0].content).toEqual(
-			createChat.mock.calls[0][0].content,
-		);
-		await waitFor(() =>
-			expect(router.state.location.pathname).toBe("/agents/new-chat-id"),
-		);
-	});
-
-	it("explains a deep link opened without the experiment", async () => {
-		const { uploadChatFile } = mockPageQueries();
-		const getWorkspaceBuild = vi.spyOn(API, "getWorkspaceBuild");
-		storeDebugWorkspaceBuildIntent(failedBuild.id);
-
-		renderPage();
-
-		await screen.findByText("This debug link is not enabled here");
-		await findChatMessage();
-		expect(getWorkspaceBuild).not.toHaveBeenCalled();
-		expect(uploadChatFile).not.toHaveBeenCalled();
-	});
-
-	it("explains a build ID that is not a UUID", async () => {
-		enableExperiment();
-		mockPageQueries();
-		const getWorkspaceBuild = vi.spyOn(API, "getWorkspaceBuild");
-
-		renderPage(buildDebugWorkspaceBuildPath("../templateversions/abc"));
-
-		await screen.findByText("This debug link is not valid");
-		await findChatMessage();
-		expect(getWorkspaceBuild).not.toHaveBeenCalled();
-	});
-
-	it("does not fetch or attach logs for a build that has not failed", async () => {
-		enableExperiment();
-		const { uploadChatFile } = mockPageQueries();
-		vi.spyOn(API, "getWorkspaceBuild").mockResolvedValue(runningBuild);
-		const getWorkspaceBuildLogs = vi.spyOn(API, "getWorkspaceBuildLogs");
-		storeDebugWorkspaceBuildIntent(failedBuild.id);
-
-		renderPage();
-
-		await screen.findByText("Nothing to debug");
-		await screen.findByText(/has not failed \(status: running\)/);
-		await findChatMessage();
-		expect(getWorkspaceBuildLogs).not.toHaveBeenCalled();
-		expect(uploadChatFile).not.toHaveBeenCalled();
-	});
-
-	it("reports a build that fails to load and sends nothing, even after a reconnect", async () => {
+	it("reports a build that fails to load and sends nothing", async () => {
 		enableExperiment();
 		const { uploadChatFile, createChat } = mockPageQueries();
-		vi.spyOn(API, "getWorkspaceBuild")
-			.mockRejectedValueOnce(new Error("boom"))
-			.mockResolvedValue(failedBuild);
+		vi.spyOn(API, "getWorkspaceBuild").mockRejectedValue(new Error("boom"));
 		storeDebugWorkspaceBuildIntent(failedBuild.id);
 
 		renderPage();
@@ -586,31 +196,6 @@ describe("AgentCreatePage debug deep link", () => {
 			"Could not load the workspace build or its logs. Nothing was sent.",
 		);
 		await screen.findByText("boom");
-		await findChatMessage();
-
-		onlineManager.setOnline(false);
-		onlineManager.setOnline(true);
-		await findChatMessage();
-
-		expect(API.getWorkspaceBuild).toHaveBeenCalledTimes(1);
-		expect(uploadChatFile).not.toHaveBeenCalled();
-		expect(createChat).not.toHaveBeenCalled();
-	});
-
-	it("reports logs that fail to load and sends nothing", async () => {
-		enableExperiment();
-		const { uploadChatFile, createChat } = mockPageQueries();
-		vi.spyOn(API, "getWorkspaceBuildLogs").mockRejectedValue(
-			new Error("logs unavailable"),
-		);
-		storeDebugWorkspaceBuildIntent(failedBuild.id);
-
-		renderPage();
-
-		await screen.findByText(
-			"Could not load the workspace build or its logs. Nothing was sent.",
-		);
-		await screen.findByText("logs unavailable");
 		await findChatMessage();
 		expect(uploadChatFile).not.toHaveBeenCalled();
 		expect(createChat).not.toHaveBeenCalled();

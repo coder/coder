@@ -7,7 +7,6 @@ import type { JSX, ReactNode } from "react";
 import { QueryClient } from "react-query";
 import {
 	createMemoryRouter,
-	type InitialEntry,
 	type RouteObject,
 	RouterProvider,
 } from "react-router";
@@ -69,8 +68,8 @@ export const render = (element: ReactNode) => {
 };
 
 export type RenderWithAuthOptions = {
-	// The current URL, /workspaces/123, or a location with history state
-	route?: InitialEntry;
+	// The current URL, /workspaces/123
+	route?: string;
 	// The route path, /workspaces/:workspaceId
 	path?: string;
 	// Extra routes to add to the router. It is helpful when having redirecting

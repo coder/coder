@@ -2183,19 +2183,6 @@ const workspaceBuildDebugPrefill = {
 	},
 };
 
-export const AutoSendWorkspaceBuildDebug: Story = {
-	args: {
-		...defaultArgs,
-		onCreateChat: fn(() => new Promise<void>(() => {})),
-		prefill: { ...workspaceBuildDebugPrefill, autoSend: true },
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
-			id: "workspace-build-logs-file",
-		});
-	},
-};
-
 export const PrefilledWorkspaceBuildDebug: Story = {
 	args: {
 		...defaultArgs,

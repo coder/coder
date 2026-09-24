@@ -14,8 +14,7 @@ export const buildDebugWorkspaceBuildPath = (buildId: string): string =>
 export const debugWorkspaceBuildIntentStorageKey =
 	"agents.debug-workspace-build-intent";
 // Bounds how long a click can wait before a matching tab loses auto-send.
-/** @internal Exported for testing. */
-export const debugWorkspaceBuildIntentMaxAgeMs = 5 * 60 * 1000;
+const debugWorkspaceBuildIntentMaxAgeMs = 5 * 60 * 1000;
 
 type DebugWorkspaceBuildIntent = {
 	buildId: string;
