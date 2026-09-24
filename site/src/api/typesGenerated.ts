@@ -11759,6 +11759,19 @@ export interface WorkspaceBuild {
 
 // From codersdk/workspacebuilds.go
 /**
+ * WorkspaceBuildDebugEventRequest is the request body for
+ * POST /api/v2/workspacebuilds/{workspacebuild}/debug-events.
+ */
+export interface WorkspaceBuildDebugEventRequest {
+	/**
+	 * ID identifies this click so a later step of the funnel can be
+	 * attributed to it.
+	 */
+	readonly id: string;
+}
+
+// From codersdk/workspacebuilds.go
+/**
  * WorkspaceBuildParameter represents a parameter specific for a workspace build.
  */
 export interface WorkspaceBuildParameter {

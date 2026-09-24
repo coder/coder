@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -772,6 +773,45 @@ func (api *API) notifyWorkspaceUpdated(
 	); err != nil {
 		log.Warn(ctx, "failed to notify of workspace update", slog.Error(err))
 	}
+}
+
+// @Summary Report a workspace build debug click
+// @ID report-a-workspace-build-debug-click
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Builds
+// @Param workspacebuild path string true "Workspace build ID"
+// @Param request body codersdk.WorkspaceBuildDebugEventRequest true "Debug event"
+// @Success 204
+// @Router /api/v2/workspacebuilds/{workspacebuild}/debug-events [post]
+func (api *API) postWorkspaceBuildDebugEvent(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	// The build param middleware already returned 404 to anyone who cannot
+	// read the workspace, which is the same audience that sees the action.
+	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+
+	var req codersdk.WorkspaceBuildDebugEventRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		WorkspaceBuildDebugEvents: []telemetry.WorkspaceBuildDebugEvent{
+			{
+				ID:               req.ID,
+				EventType:        telemetry.WorkspaceBuildDebugEventClick,
+				UserID:           apiKey.UserID,
+				WorkspaceID:      workspaceBuild.WorkspaceID,
+				WorkspaceBuildID: workspaceBuild.ID,
+				Transition:       string(workspaceBuild.Transition),
+				Reason:           string(workspaceBuild.Reason),
+				CreatedAt:        dbtime.Now(),
+			},
+		},
+	})
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Cancel workspace build

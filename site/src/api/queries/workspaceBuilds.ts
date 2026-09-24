@@ -7,6 +7,7 @@ import { API } from "#/api/api";
 import type {
 	ProvisionerJobLog,
 	WorkspaceBuild,
+	WorkspaceBuildDebugEventRequest,
 	WorkspaceBuildParameter,
 	WorkspaceBuildsRequest,
 } from "#/api/typesGenerated";
@@ -43,6 +44,16 @@ export function workspaceBuildById(workspaceBuildId: string) {
 		queryFn: () => API.getWorkspaceBuild(workspaceBuildId),
 	} as const satisfies QueryOptions<WorkspaceBuild>;
 }
+
+type ReportWorkspaceBuildDebugClickArgs = {
+	workspaceBuildId: string;
+	req: WorkspaceBuildDebugEventRequest;
+};
+
+export const reportWorkspaceBuildDebugClick = () => ({
+	mutationFn: ({ workspaceBuildId, req }: ReportWorkspaceBuildDebugClickArgs) =>
+		API.reportWorkspaceBuildDebugClick(workspaceBuildId, req),
+});
 
 export const workspaceBuildsKey = (workspaceId: string) => [
 	"workspaceBuilds",

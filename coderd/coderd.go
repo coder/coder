@@ -1852,6 +1852,7 @@ func New(options *Options) *API {
 			)
 			r.Get("/", api.workspaceBuild)
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
+			r.Post("/debug-events", api.postWorkspaceBuildDebugEvent)
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)

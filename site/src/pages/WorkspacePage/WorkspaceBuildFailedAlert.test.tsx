@@ -1,11 +1,13 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import { takeDebugWorkspaceBuildIntent } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockFailedWorkspaceBuildWithUUID } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
+import { isUUID } from "#/utils/uuid";
 import { WorkspaceBuildFailedAlert } from "./WorkspaceBuildFailedAlert";
 
 afterEach(() => {
@@ -14,12 +16,15 @@ afterEach(() => {
 });
 
 describe("WorkspaceBuildFailedAlert", () => {
-	it("records the click so the agents create page can send on the user's behalf", async () => {
+	it("records the click for the create page and reports it for telemetry", async () => {
 		server.use(
 			http.get("/api/v2/experiments", () =>
 				HttpResponse.json(["enable-ai-workspace-debug"]),
 			),
 		);
+		const reportClick = vi
+			.spyOn(API, "reportWorkspaceBuildDebugClick")
+			.mockResolvedValue();
 		const user = userEvent.setup();
 
 		renderWithAuth(
@@ -38,5 +43,9 @@ describe("WorkspaceBuildFailedAlert", () => {
 		expect(
 			takeDebugWorkspaceBuildIntent(MockFailedWorkspaceBuildWithUUID.id),
 		).toBe(true);
+		await waitFor(() => expect(reportClick).toHaveBeenCalledTimes(1));
+		const [buildId, request] = reportClick.mock.calls[0];
+		expect(buildId).toBe(MockFailedWorkspaceBuildWithUUID.id);
+		expect(isUUID(request.id)).toBe(true);
 	});
 });
