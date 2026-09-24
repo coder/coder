@@ -12,7 +12,7 @@ import {
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
-import { authorizationKey } from "./authCheck";
+import { authorizationKey, checkAuthorization } from "./authCheck";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -98,6 +98,38 @@ const canonicalWorkspaceIds = (
 ): readonly string[] => {
 	return [...new Set(workspaceIds)].sort();
 };
+
+/** Whether the user may update every chat in an organization, by org ID. */
+export type ChatUpdatePermissionsByOrganization = Readonly<
+	Record<string, boolean>
+>;
+
+/**
+ * One authorization request answering, per organization, whether the user
+ * holds `chat:update` on chats they do not own. Omitting `owner_id` from
+ * the object asks about every chat in the organization, which members fail
+ * and roles such as owner and organization admin pass.
+ */
+export const chatUpdatePermissionsByOrganization = (
+	organizationIds: readonly string[],
+) =>
+	queryOptions({
+		...checkAuthorization<ChatUpdatePermissionsByOrganization>({
+			checks: Object.fromEntries(
+				organizationIds.map((organizationId) => [
+					organizationId,
+					{
+						object: {
+							resource_type: "chat",
+							organization_id: organizationId,
+						},
+						action: "update",
+					},
+				]),
+			),
+		}),
+		enabled: organizationIds.length > 0,
+	});
 
 export const chatsByWorkspace = (workspaceIds: readonly string[]) => {
 	const sorted = canonicalWorkspaceIds(workspaceIds);

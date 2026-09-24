@@ -19,7 +19,6 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
-import { chatUpdateChecks } from "../hooks/useCanManageChat";
 import { ChatTopBar } from "./ChatTopBar";
 
 // Probe element rendered at /agents to verify search params are preserved
@@ -55,6 +54,7 @@ const chatTopBarOutletContext = {
 	isArchiving: false,
 	archivingChatId: undefined,
 	activeChatChildren: undefined,
+	canManageChat: (chat: TypesGen.Chat) => chat.owner_id === MockUserOwner.id,
 	onOpenRenameDialog,
 	isSidebarCollapsed: false,
 	onToggleSidebarCollapsed: fn(),
@@ -73,7 +73,7 @@ const defaultProps = {
 const meta: Meta<typeof ChatTopBar> = {
 	title: "pages/AgentsPage/ChatTopBar",
 	component: ChatTopBar,
-	decorators: [withAuthProvider, withDashboardProvider],
+	decorators: [withAuthProvider],
 	beforeEach: () => {
 		requestArchiveAgent.mockClear();
 		requestArchiveAndDeleteWorkspace.mockClear();
@@ -139,19 +139,27 @@ export const SharedChatManagedByAdmin: Story = {
 			owner_id: "sharing-user",
 			owner_username: "sharing-user",
 			owner_name: "Sharing User",
-			organization_id: MockDefaultOrganization.id,
 			shared: true,
 		},
 	},
 	parameters: {
-		queries: [
-			{
-				key: getAuthorizationKey({
-					checks: chatUpdateChecks([MockDefaultOrganization.id]),
-				}),
-				data: { [MockDefaultOrganization.id]: true },
-			},
-		],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/chat-1" },
+			routing: [
+				{
+					path: "/",
+					element: (
+						<Outlet
+							context={{
+								...chatTopBarOutletContext,
+								canManageChat: () => true,
+							}}
+						/>
+					),
+					children: [{ path: "agents/:agentId", useStoryElement: true }],
+				},
+			],
+		}),
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
@@ -623,6 +631,7 @@ export const PreservesArchivedFilterOnMobileBack: Story = {
 };
 
 export const ShareChatButton: Story = {
+	decorators: [withDashboardProvider],
 	args: {
 		chat: {
 			...MockChat,

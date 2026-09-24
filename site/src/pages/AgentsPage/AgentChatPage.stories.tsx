@@ -81,6 +81,7 @@ const AgentChatPageLayout: FC = () => {
 							isArchiving: false,
 							archivingChatId: undefined,
 							activeChatChildren: undefined,
+							canManageChat: (chat) => chat.owner_id === MockUserOwner.id,
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},

@@ -25,6 +25,7 @@ import {
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
+	chatUpdatePermissionsByOrganization,
 	infiniteChats,
 	invalidateChatCostTree,
 	invalidateChatDiffContents,
@@ -64,6 +65,7 @@ import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { canManageChat } from "./components/ChatActionsMenuItems";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -78,7 +80,6 @@ import {
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
-import { useCanManageChat } from "./hooks/useCanManageChat";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
@@ -114,6 +115,11 @@ export type AgentsPageOutletContext = {
 	 * the actions disabled after a child finishes.
 	 */
 	activeChatChildren: readonly TypesGen.Chat[] | undefined;
+	/**
+	 * Whether the current user may pin, rename, archive, reconfigure, or
+	 * message the chat; see `canManageChat` in ChatActionsMenuItems.
+	 */
+	canManageChat: (chat: TypesGen.Chat) => boolean;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	/** Opens the shared rename dialog so both menus drive the same instance. */
 	onOpenRenameDialog?: (chat: TypesGen.Chat) => void;
@@ -173,7 +179,11 @@ const AgentsPageLayout: FC = () => {
 		defaultOrganizationId || (organizations[0]?.id ?? "");
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 	const canManageAgentSettings = canAccessCoderAgentsSettings(permissions);
-	const canManageChat = useCanManageChat();
+	const chatUpdatePermissionsQuery = useQuery(
+		chatUpdatePermissionsByOrganization(user.organization_ids),
+	);
+	const canManageChatAsUser = (chat: TypesGen.Chat) =>
+		canManageChat(chat, user.id, chatUpdatePermissionsQuery.data);
 
 	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
 		searchParams,
@@ -735,6 +745,7 @@ const AgentsPageLayout: FC = () => {
 		isArchiving,
 		archivingChatId,
 		activeChatChildren: chatList.find((c) => c.id === agentId)?.children,
+		canManageChat: canManageChatAsUser,
 		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
@@ -763,7 +774,7 @@ const AgentsPageLayout: FC = () => {
 					<ChatsSidebar
 						chats={chatList}
 						currentUserId={user.id}
-						canManageChat={canManageChat}
+						canManageChat={canManageChatAsUser}
 						chatErrorReasons={sidebarChatErrorReasons}
 						modelConfigs={organizationModels.models}
 						isLoadingModelConfigs={organizationModels.isLoading}

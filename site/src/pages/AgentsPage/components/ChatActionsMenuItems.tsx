@@ -8,6 +8,7 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import { type FC, useId } from "react";
+import type { ChatUpdatePermissionsByOrganization } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	ContextMenuItem,
@@ -45,8 +46,23 @@ type SeparatorComponent =
 	| typeof DropdownMenuSeparator
 	| typeof ContextMenuSeparator;
 
+/**
+ * Pin, rename, archive, workspace changes, and message sends all go through
+ * the server's `chat:update` check, so the UI mirrors it: owners always
+ * pass for their own chats, and the organization map covers roles whose
+ * `chat:update` is not limited to chats they own. Viewers of a shared chat
+ * hold only read access and fail both.
+ */
+export const canManageChat = (
+	chat: TypesGen.Chat,
+	currentUserId: string,
+	updatePermissions: ChatUpdatePermissionsByOrganization | undefined,
+): boolean =>
+	chat.owner_id === currentUserId ||
+	Boolean(updatePermissions?.[chat.organization_id]);
+
 type ChatMenuActionsOptions = {
-	/** See `useCanManageChat`. */
+	/** See {@link canManageChat}. */
 	readonly canManage: boolean;
 	/** Whether the menu offers the subagents toggle, the only viewer action. */
 	readonly hasSubagentsToggle?: boolean;
@@ -72,7 +88,7 @@ export const chatHasMenuActions = (
 
 type ChatActionsMenuItemsProps = {
 	readonly chat: TypesGen.Chat;
-	/** See `useCanManageChat`. When false, only the subagents toggle renders. */
+	/** See {@link canManageChat}. When false, only the subagents toggle renders. */
 	readonly canManage: boolean;
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;

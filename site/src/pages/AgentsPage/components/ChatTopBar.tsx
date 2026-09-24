@@ -25,7 +25,6 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
-import { useCanManageChat } from "../hooks/useCanManageChat";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import {
 	ChatActionsMenuItems,
@@ -96,7 +95,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	panel,
 }) => {
 	const { isEmbedded } = useEmbedContext();
-	const canManageChat = useCanManageChat();
 	const location = useLocation();
 	const parentChatID = getParentChatID(chat);
 	const parentChatQuery = useQuery({
@@ -131,6 +129,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 		requestPinAgent,
 		requestUnpinAgent,
 		onOpenRenameDialog,
+		canManageChat,
 		isArchiving = false,
 		archivingChatId,
 		activeChatChildren,
@@ -139,7 +138,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	const chatTitle = chat?.title;
 	const isArchived = chat?.archived ?? false;
 	const isSharedChat = chat?.shared;
-	const canManage = chat !== undefined && canManageChat(chat);
+	const canManage = chat !== undefined && Boolean(canManageChat?.(chat));
 	const hasWorkspace = Boolean(chat?.workspace_id);
 	const isArchivingThisChat = Boolean(
 		isArchiving &&
