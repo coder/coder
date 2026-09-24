@@ -43,10 +43,11 @@ export type FilterCategory = {
 	/** Applied chips show only the option label, without the category prefix. */
 	inlineOptionsLabelOnly?: boolean;
 	/**
-	 * Leave the category out of the menu while it has at most one option, since
-	 * filtering by it would not narrow the results.
+	 * Keep the category in the menu while it has at most one option. Such
+	 * categories are left out by default, since filtering by them would not
+	 * narrow the results. Does not apply to inline categories.
 	 */
-	hideWhenSingleOption?: boolean;
+	showWhenSingleOption?: boolean;
 	/**
 	 * Switch shown below the category's options, on by default. While on,
 	 * options commit under `chipKey` instead of the category key, e.g. Owner
