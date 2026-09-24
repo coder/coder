@@ -39,6 +39,8 @@ const renderView = (organization: typeof MockOrganization | undefined) => {
 			filterQuery=""
 			onFilterQueryChange={onFilterQueryChange}
 			canFilterDimensions
+			onExportCSV={vi.fn()}
+			isExportingCSV={false}
 			reportQuery={pendingReportQuery}
 		/>,
 	);

@@ -1,6 +1,7 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import dayjs from "dayjs";
+import { saveAs } from "file-saver";
 import { createMemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { API, withDefaultFeatures } from "#/api/api";
@@ -30,6 +31,7 @@ const sessionViewerPermissions: Permissions = {
 	viewAnyAIBridgeInterception: true,
 };
 const auth = { permissions: sessionViewerPermissions };
+vi.mock("file-saver", () => ({ saveAs: vi.fn() }));
 vi.mock("#/hooks/useAuthenticated", () => ({
 	useAuthenticated: () => ({
 		user: MockUserMember,
@@ -401,6 +403,30 @@ it("applies the provider filter and resets pagination", async () => {
 	);
 	expect(searchParam(router, "filter")).toBe("provider:openai");
 	expect(searchParam(router, "page")).toBeNull();
+});
+
+it("exports the filtered period as CSV", async () => {
+	const user = userEvent.setup({ skipHover: true });
+	const csv = new Blob(["user_id,username\n"], { type: "text/csv" });
+	const exportSpy = vi
+		.spyOn(API, "exportOrganizationAISpend")
+		.mockResolvedValue(csv);
+	renderSpend(`${initialSearch}&filter=provider%3Aopenai`);
+	await screen.findByRole("table", { name: "Spend by user" });
+
+	await user.click(screen.getByRole("button", { name: "Export CSV" }));
+
+	await waitFor(() =>
+		expect(saveAs).toHaveBeenCalledWith(
+			csv,
+			`ai-spend-export-${MockOrganization.name}-2026-02-10-to-2026-03-12.csv`,
+		),
+	);
+	expect(exportSpy).toHaveBeenCalledWith(MockOrganization.id, {
+		...period,
+		provider_name: "openai",
+		model: undefined,
+	});
 });
 
 it("requests the next page offset", async () => {

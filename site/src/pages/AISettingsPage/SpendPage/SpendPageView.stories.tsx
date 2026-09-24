@@ -52,6 +52,8 @@ const meta = {
 		filterQuery: "",
 		onFilterQueryChange: fn(),
 		canFilterDimensions: true,
+		onExportCSV: fn(),
+		isExportingCSV: false,
 		reportQuery: mockReportQuery,
 	},
 } satisfies Meta<typeof SpendPageView>;
@@ -142,6 +144,10 @@ export const OrganizationFlyout: Story = {
 			}),
 		);
 	},
+};
+
+export const ExportingCSV: Story = {
+	args: { isExportingCSV: true },
 };
 
 export const SingleOrganization: Story = {

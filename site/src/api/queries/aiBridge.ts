@@ -8,6 +8,7 @@ import type {
 	AIBridgeListSessionsResponse,
 	AIBridgeProvider,
 	AIBridgeSessionThreadsResponse,
+	OrganizationAISpendDetailsFilter,
 	OrganizationAISpendFilter,
 	OrganizationAISpendReport,
 	Pagination,
@@ -102,6 +103,16 @@ export const paginatedOrganizationAISpend = (
 				: undefined,
 	};
 };
+
+export const exportOrganizationAISpend = () => ({
+	mutationFn: ({
+		organizationId,
+		filter,
+	}: {
+		organizationId: string;
+		filter: OrganizationAISpendDetailsFilter;
+	}) => API.exportOrganizationAISpend(organizationId, filter),
+});
 
 export const infiniteSessionThreads = (sessionId: string) => {
 	return {

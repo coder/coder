@@ -1,8 +1,12 @@
+import { saveAs } from "file-saver";
 import { type FC, useState } from "react";
-import { useQuery } from "react-query";
+import { useMutation, useQuery } from "react-query";
 import { useSearchParams } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail } from "#/api/errors";
 import {
 	aiSpendOrganizations,
+	exportOrganizationAISpend,
 	paginatedOrganizationAISpend,
 } from "#/api/queries/aiBridge";
 import type { OrganizationAISpendFilter } from "#/api/typesGenerated";
@@ -172,6 +176,39 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	}
 	const minDate = retention?.start ? new Date(retention.start) : undefined;
 
+	const exportMutation = useMutation(exportOrganizationAISpend());
+	const onExportCSV = () => {
+		if (organization === undefined) {
+			return;
+		}
+		exportMutation.mutate(
+			{
+				organizationId: organization.id,
+				filter: {
+					period_start: spendFilter.period_start,
+					period_end: spendFilter.period_end,
+					provider_name: dimensions.provider_name,
+					model: dimensions.model,
+				},
+			},
+			{
+				onSuccess: (csv) => {
+					// Matches the name the server sends in Content-Disposition.
+					const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
+					saveAs(
+						csv,
+						`ai-spend-export-${organization.name}-${dateOnly(period.start)}-to-${dateOnly(period.end)}.csv`,
+					);
+				},
+				onError: (error) => {
+					toast.error("Failed to export CSV.", {
+						description: getErrorDetail(error),
+					});
+				},
+			},
+		);
+	};
+
 	return (
 		<>
 			<title>{pageTitle("User spend", "AI Settings")}</title>
@@ -190,6 +227,8 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				filterQuery={filterQuery}
 				onFilterQueryChange={setFilterQuery}
 				canFilterDimensions={canFilterDimensions}
+				onExportCSV={onExportCSV}
+				isExportingCSV={exportMutation.isPending}
 				reportQuery={reportQuery}
 			/>
 		</>

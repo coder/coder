@@ -34,6 +34,8 @@ type SpendPageViewProps = {
 	filterQuery: string;
 	onFilterQueryChange: (query: string) => void;
 	canFilterDimensions: boolean;
+	onExportCSV: () => void;
+	isExportingCSV: boolean;
 	reportQuery: SpendReportQuery;
 };
 
@@ -84,6 +86,8 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 	filterQuery,
 	onFilterQueryChange,
 	canFilterDimensions,
+	onExportCSV,
+	isExportingCSV,
 	reportQuery,
 }) => {
 	if (isOrganizationsLoading) {
@@ -137,6 +141,8 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 				filterQuery={filterQuery}
 				onFilterQueryChange={onFilterQueryChange}
 				canFilterDimensions={canFilterDimensions}
+				onExportCSV={onExportCSV}
+				isExportingCSV={isExportingCSV}
 				now={now}
 				period={period}
 				minDate={minDate}

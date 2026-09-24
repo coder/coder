@@ -3,6 +3,7 @@ import {
 	BoxIcon,
 	Building2Icon,
 	CloudIcon,
+	DownloadIcon,
 	UserIcon,
 	UsersIcon,
 } from "lucide-react";
@@ -17,6 +18,7 @@ import { groupsByOrganization } from "#/api/queries/groups";
 import { users } from "#/api/queries/users";
 import { MaxAISpendPeriodDays, type Organization } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { Button } from "#/components/Button/Button";
 import { DateTimeRangePicker } from "#/components/DateTimeRangePicker/DateTimeRangePicker";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
@@ -25,6 +27,7 @@ import type {
 	FilterOption,
 } from "#/components/Filter/FilterCombobox/types";
 import { getOrganizationLabel } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
 import { AIBridgeModelIcon } from "#/pages/AIBridgePage/icons/AIBridgeModelIcon";
@@ -42,6 +45,8 @@ type SpendFiltersProps = {
 	period: DateTimeRangeValue;
 	minDate: Date | undefined;
 	onPeriodChange: (value: DateTimeRangeValue) => void;
+	onExportCSV: () => void;
+	isExportingCSV: boolean;
 };
 
 export const SpendFilters: FC<SpendFiltersProps> = ({
@@ -54,6 +59,8 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 	period,
 	minDate,
 	onPeriodChange,
+	onExportCSV,
+	isExportingCSV,
 }) => {
 	const queryClient = useQueryClient();
 	const categories = useMemo(
@@ -89,6 +96,18 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 					size="lg"
 				/>
 			</div>
+			<Button
+				variant="outline"
+				size="lg"
+				className="shrink-0"
+				disabled={isExportingCSV}
+				onClick={onExportCSV}
+			>
+				<Spinner loading={isExportingCSV}>
+					<DownloadIcon />
+				</Spinner>
+				Export CSV
+			</Button>
 		</div>
 	);
 };
