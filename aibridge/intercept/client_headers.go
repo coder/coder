@@ -81,8 +81,8 @@ func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 }
 
 // BuildUpstreamHeaders produces the header set for an upstream SDK request.
-// It starts from the prepared client headers, preserves provider auth and SDK
-// actor headers, then applies identity from the authenticated request actor.
+// It starts from the prepared client headers, preserves provider auth, then
+// applies identity from the authenticated request actor.
 func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, authHeaderName string, cfg Config, actor *aibcontext.Actor) http.Header {
 	headers := PrepareClientHeaders(clientHeaders)
 	if headers == nil {
@@ -92,13 +92,6 @@ func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, auth
 	// Preserve the auth header set by the SDK from the provider configuration.
 	if v := sdkHeader.Get(authHeaderName); v != "" {
 		headers.Set(authHeaderName, v)
-	}
-
-	// Preserve actor headers injected by other SDK options.
-	for name, values := range sdkHeader {
-		if IsActorHeader(name) {
-			headers[name] = values
-		}
 	}
 
 	if cfg.SendActorHeaders {
