@@ -80,6 +80,9 @@ function workspaceBuildLogsKey(workspaceBuildId: string) {
 	return ["workspaceBuilds", workspaceBuildId, "logs"] as const;
 }
 
+// Avoids holding logs in cache forever.
+export const workspaceBuildLogsGcTime = 10 * 60 * 1000;
+
 // Fetches build logs via REST. Completed build logs are immutable,
 // so the query uses infinite staleTime to cache across re-mounts
 // (e.g. collapsible expand/collapse cycles).
@@ -88,7 +91,7 @@ export function workspaceBuildLogs(workspaceBuildId: string) {
 		queryKey: workspaceBuildLogsKey(workspaceBuildId),
 		queryFn: () => API.getWorkspaceBuildLogs(workspaceBuildId),
 		staleTime: Number.POSITIVE_INFINITY,
-		gcTime: 10 * 60 * 1000, // 10 minutes. Avoids holding logs in cache forever.
+		gcTime: workspaceBuildLogsGcTime,
 		refetchOnMount: false,
 		refetchOnReconnect: false,
 		refetchOnWindowFocus: false,

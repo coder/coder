@@ -7,6 +7,7 @@ import { createChat } from "#/api/queries/chats";
 import {
 	workspaceBuildById,
 	workspaceBuildLogs,
+	workspaceBuildLogsGcTime,
 } from "#/api/queries/workspaceBuilds";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -121,13 +122,13 @@ const AgentCreatePage: FC = () => {
 	const debugBuildQuery = useQuery({
 		...workspaceBuildById(debugBuildId ?? ""),
 		enabled: debugBuildId !== null,
-		// A finished build does not change, and a refetch after an error would
+		// A failed build does not change, and a refetch after an error would
 		// mount the prefilled form after the page already reported that nothing
 		// was sent. Cached as long as its logs, which the prefill also needs.
-		staleTime: Number.POSITIVE_INFINITY,
-		gcTime: 10 * 60 * 1000,
+		staleTime: (query) =>
+			query.state.data?.job.status === "failed" ? Number.POSITIVE_INFINITY : 0,
+		gcTime: workspaceBuildLogsGcTime,
 		refetchOnReconnect: false,
-		refetchOnWindowFocus: false,
 	});
 	const debugBuild = debugBuildQuery.data;
 	const debugBuildFailed = debugBuild?.job.status === "failed";
@@ -136,11 +137,11 @@ const AgentCreatePage: FC = () => {
 		// The logs query never refetches, so fetch only once the build has failed.
 		enabled: debugBuildFailed,
 	});
-	// A failed refetch keeps the data the prefill is built from, so it is not a
-	// load error.
+	// A build that has not failed is refetched on Back; if that fails, the last
+	// status is still shown and the failure is not a load error.
 	const debugBuildError =
 		(debugBuild === undefined ? debugBuildQuery.error : null) ??
-		(debugBuildLogsQuery.data === undefined ? debugBuildLogsQuery.error : null);
+		debugBuildLogsQuery.error;
 	const prefill: AgentCreatePrefill | undefined =
 		debugBuild && debugBuildFailed && debugBuildLogsQuery.data
 			? {
@@ -155,7 +156,8 @@ const AgentCreatePage: FC = () => {
 					autoSend: debugClicked,
 				}
 			: undefined;
-	// AgentCreateForm captures prefill on mount.
+	// Hold the form until the prefill is ready: AgentCreateForm reads message
+	// and attachment only on mount.
 	const isDebugBuildLoading =
 		debugBuildId !== null &&
 		debugBuildError == null &&

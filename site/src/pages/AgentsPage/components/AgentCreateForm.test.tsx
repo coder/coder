@@ -78,8 +78,10 @@ const renderForm = (
 	onCreateChat: () => Promise<void>,
 	props: Partial<Parameters<typeof AgentCreateForm>[0]> = {},
 	queryClient = createTestQueryClient(),
-) =>
-	render(
+) => {
+	const element = (
+		overrides: Partial<Parameters<typeof AgentCreateForm>[0]>,
+	) => (
 		<StrictMode>
 			<AppProviders queryClient={queryClient}>
 				<AgentCreateForm
@@ -94,10 +96,17 @@ const renderForm = (
 					isWorkspacesLoading={false}
 					prefill={prefill}
 					{...props}
+					{...overrides}
 				/>
 			</AppProviders>
-		</StrictMode>,
+		</StrictMode>
 	);
+	const result = render(element({}));
+	return {
+		rerender: (overrides: Partial<Parameters<typeof AgentCreateForm>[0]>) =>
+			result.rerender(element(overrides)),
+	};
+};
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -129,8 +138,7 @@ describe("AgentCreateForm prefill", () => {
 		);
 		expect(uploadOrganizationId).toBe(MockDefaultOrganization.id);
 		expect(onCreateChat).not.toHaveBeenCalled();
-		// The composer is locked while the automatic send is pending, because
-		// the send posts the prefill message, not the editor's content.
+		// The composer is read-only while the automatic send is pending.
 		const message = screen.getByRole("textbox", { name: "Chat message" });
 		await user.click(message);
 		await user.paste(" and how do I fix it?");
@@ -158,6 +166,28 @@ describe("AgentCreateForm prefill", () => {
 		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBe(
 			userDraftAttachments,
 		);
+	});
+
+	it("sends once and stays read-only while the automatic send is in flight", async () => {
+		mockFormQueries();
+		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "uploaded-logs",
+		});
+		const onCreateChat = vi.fn().mockReturnValue(new Promise(() => {}));
+		const user = userEvent.setup();
+
+		const { rerender } = renderForm(onCreateChat);
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		// The page reports the mutation, then a gate flip that must not resend.
+		rerender({ isCreating: true });
+		rerender({ isCreating: false });
+		const message = screen.getByRole("textbox", { name: "Chat message" });
+		await user.click(message);
+		await user.paste(" and how do I fix it?");
+
+		expect(message).toHaveTextContent(/^Why did this build fail\?$/);
+		expect(onCreateChat).toHaveBeenCalledTimes(1);
 	});
 
 	it("auto-sends a prefill whose file name needs sanitizing", async () => {
@@ -327,7 +357,7 @@ describe("AgentCreateForm prefill", () => {
 		);
 	});
 
-	it("drops the logs and the automatic send when their organization is revoked", async () => {
+	it("uploads the logs again and sends to the new organization when theirs is revoked", async () => {
 		mockFormQueries();
 		dashboard.showOrganizations = true;
 		dashboard.organizations = [MockDefaultOrganization, MockOrganization2];
@@ -340,12 +370,15 @@ describe("AgentCreateForm prefill", () => {
 				permittedOrganization === MockDefaultOrganization,
 			[MockOrganization2.id]: permittedOrganization === MockOrganization2,
 		}));
-		const upload = createDeferred<TypesGen.UploadChatFileResponse>();
+		const uploadToOrg2 = createDeferred<TypesGen.UploadChatFileResponse>();
 		const uploadChatFile = vi
 			.spyOn(API.experimental, "uploadChatFile")
-			.mockReturnValue(upload.promise);
+			.mockImplementation((_file, organizationId) =>
+				organizationId === MockOrganization2.id
+					? uploadToOrg2.promise
+					: Promise.resolve({ id: "file-in-org1" }),
+			);
 		const onCreateChat = vi.fn().mockResolvedValue(undefined);
-		const user = userEvent.setup();
 		const queryClient = createTestQueryClient();
 
 		renderForm(onCreateChat, {}, queryClient);
@@ -362,22 +395,17 @@ describe("AgentCreateForm prefill", () => {
 			});
 		});
 		await act(async () => {
-			upload.resolve({ id: "file-in-org2" });
+			uploadToOrg2.resolve({ id: "file-in-org2" });
 		});
-
-		const sendButton = screen.getByRole("button", { name: "Send" });
-		await waitFor(() => expect(sendButton).toBeEnabled());
-		expect(onCreateChat).not.toHaveBeenCalled();
-
-		await user.click(sendButton);
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		expect(onCreateChat).toHaveBeenCalledWith(
 			expect.objectContaining({
 				organizationId: MockDefaultOrganization.id,
-				fileIDs: undefined,
+				fileIDs: ["file-in-org1"],
 			}),
 		);
-		expect(uploadChatFile).toHaveBeenCalledTimes(1);
+		expect(uploadChatFile).toHaveBeenCalledTimes(2);
+		expect(uploadChatFile.mock.calls[1][1]).toBe(MockDefaultOrganization.id);
 	});
 });
