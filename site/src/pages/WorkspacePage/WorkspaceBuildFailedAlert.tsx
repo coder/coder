@@ -5,10 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import {
-	buildDebugWorkspaceBuildPath,
-	storeDebugWorkspaceBuildIntent,
-} from "#/modules/workspaces/workspaceBuildDebugLink";
+import { buildDebugWorkspaceBuildPath } from "#/modules/workspaces/workspaceBuildDebugLink";
 
 type WorkspaceBuildFailedAlertProps = {
 	build: WorkspaceBuild;
@@ -33,7 +30,6 @@ export const WorkspaceBuildFailedAlert: FC<WorkspaceBuildFailedAlertProps> = ({
 							href={buildDebugWorkspaceBuildPath(build.id)}
 							target="_blank"
 							rel="noreferrer"
-							onClick={() => storeDebugWorkspaceBuildIntent(build.id)}
 						>
 							Debug with Coder Agents
 							<SquareArrowOutUpRightIcon />

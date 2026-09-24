@@ -1,17 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { StrictMode } from "react";
-import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AppProviders } from "#/App";
 import { API } from "#/api/api";
-import { RequireAuth } from "#/contexts/auth/RequireAuth";
-import {
-	buildDebugWorkspaceBuildPath,
-	debugWorkspaceBuildIntentStorageKey,
-	storeDebugWorkspaceBuildIntent,
-} from "#/modules/workspaces/workspaceBuildDebugLink";
+import { buildDebugWorkspaceBuildPath } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockChatModelProviderDescriptor,
@@ -23,10 +15,7 @@ import {
 	MockUserPreferenceSettings,
 	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
-import {
-	createTestQueryClient,
-	renderWithAuth,
-} from "#/testHelpers/renderHelpers";
+import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import AgentCreatePage from "./AgentCreatePage";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
@@ -89,29 +78,6 @@ const renderPage = (route = deepLink) =>
 		extraRoutes: [{ path: "/agents/:agentId", element: null }],
 	});
 
-const renderPageInStrictMode = () => {
-	const router = createMemoryRouter(
-		[
-			{
-				element: <RequireAuth />,
-				children: [
-					{ path: "/agents", element: <AgentCreatePage /> },
-					{ path: "/agents/:agentId", element: null },
-				],
-			},
-		],
-		{ initialEntries: [deepLink] },
-	);
-	render(
-		<StrictMode>
-			<AppProviders queryClient={createTestQueryClient()}>
-				<RouterProvider router={router} />
-			</AppProviders>
-		</StrictMode>,
-	);
-	return router;
-};
-
 const findChatMessage = () =>
 	screen.findByRole("textbox", { name: "Chat message" });
 
@@ -127,14 +93,15 @@ afterEach(() => {
 });
 
 describe("AgentCreatePage debug deep link", () => {
-	it("sends the build logs once after the button click", async () => {
+	it("prefills the prompt and the build logs, and sends them on Send", async () => {
 		enableExperiment();
 		const { uploadChatFile, createChat } = mockPageQueries();
-		storeDebugWorkspaceBuildIntent(failedBuild.id);
+		const user = userEvent.setup();
 
 		const { router } = renderPage();
 
-		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
+		const sendButton = await findEnabledSendButton();
+		expect(uploadChatFile).toHaveBeenCalledTimes(1);
 		const [uploadedFile] = uploadChatFile.mock.calls[0];
 		expect(uploadedFile.name).toBe(
 			"workspace-build-logs-TestUser-test-workspace-1.txt",
@@ -142,10 +109,14 @@ describe("AgentCreatePage debug deep link", () => {
 		expect(await readAgentAttachmentText(uploadedFile)).toBe(
 			formatWorkspaceBuildLogsForDebug(failedBuild, MockWorkspaceBuildLogs),
 		);
+		expect(createChat).not.toHaveBeenCalled();
+
+		await user.click(sendButton);
+
+		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
 		expect(createChat).toHaveBeenCalledWith(
 			expect.objectContaining({
 				model_config_id: MockDefaultChatModel.id,
-				client_type: "ui",
 				content: [
 					{ type: "text", text: debugWorkspaceBuildPrompt(failedBuild) },
 					{ type: "file", file_id: "uploaded-logs" },
@@ -157,49 +128,6 @@ describe("AgentCreatePage debug deep link", () => {
 			expect(router.state.location).toMatchObject({
 				pathname: "/agents/new-chat-id",
 				search: "?archived=archived",
-			}),
-		);
-		expect(uploadChatFile).toHaveBeenCalledTimes(1);
-		// A reload or a second tab must not send again.
-		expect(
-			localStorage.getItem(debugWorkspaceBuildIntentStorageKey),
-		).toBeNull();
-	});
-
-	it("sends once after the button click under StrictMode", async () => {
-		enableExperiment();
-		const { uploadChatFile, createChat } = mockPageQueries();
-		storeDebugWorkspaceBuildIntent(failedBuild.id);
-
-		const router = renderPageInStrictMode();
-
-		await waitFor(() =>
-			expect(router.state.location.pathname).toBe("/agents/new-chat-id"),
-		);
-		expect(createChat).toHaveBeenCalledTimes(1);
-		expect(uploadChatFile).toHaveBeenCalledTimes(1);
-	});
-
-	it("only prefills a link opened without the button click", async () => {
-		enableExperiment();
-		const { uploadChatFile, createChat } = mockPageQueries();
-		const user = userEvent.setup();
-
-		renderPage();
-
-		const sendButton = await findEnabledSendButton();
-		expect(uploadChatFile).toHaveBeenCalledTimes(1);
-		expect(createChat).not.toHaveBeenCalled();
-
-		await user.click(sendButton);
-
-		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
-		expect(createChat).toHaveBeenCalledWith(
-			expect.objectContaining({
-				content: [
-					{ type: "text", text: debugWorkspaceBuildPrompt(failedBuild) },
-					{ type: "file", file_id: "uploaded-logs" },
-				],
 			}),
 		);
 	});
@@ -227,17 +155,14 @@ describe("AgentCreatePage debug deep link", () => {
 		expect(createChat).not.toHaveBeenCalled();
 	});
 
-	it("reports a build that fails to load and sends nothing", async () => {
+	it("reports a build that fails to load", async () => {
 		enableExperiment();
 		const { uploadChatFile, createChat } = mockPageQueries();
 		vi.spyOn(API, "getWorkspaceBuild").mockRejectedValue(new Error("boom"));
-		storeDebugWorkspaceBuildIntent(failedBuild.id);
 
 		renderPage();
 
-		await screen.findByText(
-			"Could not load the workspace build or its logs. Nothing was sent.",
-		);
+		await screen.findByText("Could not load the workspace build or its logs");
 		await screen.findByText("boom");
 		await findChatMessage();
 		expect(uploadChatFile).not.toHaveBeenCalled();
