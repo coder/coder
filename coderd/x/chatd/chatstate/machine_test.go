@@ -236,51 +236,6 @@ func TestChatMachine_Update_PassesBumpedInitialChat(t *testing.T) {
 	require.Equal(t, before.HistoryVersion, got.HistoryVersion)
 }
 
-// TestChatMachine_TryUpdate_SkipsWhenRowLocked verifies TryUpdate does not
-// block on a chat row another transaction holds: it returns acquired=false
-// without running the callback, and succeeds once the lock is released.
-func TestChatMachine_TryUpdate_SkipsWhenRowLocked(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-
-	held := make(chan struct{})
-	release := make(chan struct{})
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- f.DB.InTx(func(store database.Store) error {
-			if _, err := store.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID); err != nil {
-				return err
-			}
-			close(held)
-			<-release
-			return nil
-		}, nil)
-	}()
-
-	<-held
-	ran := false
-	chat, acquired, err := m.TryUpdate(ctx, func(_ *chatstate.Tx, _ database.Store, _ database.Chat) error {
-		ran = true
-		return nil
-	})
-	require.NoError(t, err)
-	require.False(t, acquired, "lock is held, TryUpdate must not acquire")
-	require.False(t, ran, "callback must not run when the lock is unavailable")
-	require.Equal(t, database.Chat{}, chat)
-
-	close(release)
-	require.NoError(t, <-errCh)
-
-	_, acquired, err = m.TryUpdate(ctx, func(_ *chatstate.Tx, _ database.Store, _ database.Chat) error {
-		return nil
-	})
-	require.NoError(t, err)
-	require.True(t, acquired, "lock is free, TryUpdate must acquire")
-}
-
 func TestChatMachine_Lock_DoesNotBumpSnapshot(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)

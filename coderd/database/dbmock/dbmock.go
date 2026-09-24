@@ -9809,21 +9809,6 @@ func (mr *MockStoreMockRecorder) TryAcquireLock(ctx, pgTryAdvisoryXactLock any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryAcquireLock", reflect.TypeOf((*MockStore)(nil).TryAcquireLock), ctx, pgTryAdvisoryXactLock)
 }
 
-// TryLockChatAndBumpSnapshotVersion mocks base method.
-func (m *MockStore) TryLockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.Chat, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TryLockChatAndBumpSnapshotVersion", ctx, id)
-	ret0, _ := ret[0].(database.Chat)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// TryLockChatAndBumpSnapshotVersion indicates an expected call of TryLockChatAndBumpSnapshotVersion.
-func (mr *MockStoreMockRecorder) TryLockChatAndBumpSnapshotVersion(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryLockChatAndBumpSnapshotVersion", reflect.TypeOf((*MockStore)(nil).TryLockChatAndBumpSnapshotVersion), ctx, id)
-}
-
 // UnarchiveChatByID mocks base method.
 func (m *MockStore) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	m.ctrl.T.Helper()

@@ -159,55 +159,11 @@ func (m *ChatMachine) Update(
 	ctx context.Context,
 	fn func(*Tx, database.Store, database.Chat) error,
 ) (database.Chat, error) {
-	chat, _, err := m.runUpdate(ctx, fn, func(store database.Store) (database.Chat, error) {
-		chat, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return database.Chat{}, ErrChatNotFound
-		}
-		return chat, err
-	})
-	return chat, err
-}
-
-// errChatRowUnavailable is the internal sentinel TryUpdate uses to signal
-// that the chat row lock could not be taken without blocking (another
-// transaction holds it, or the row is gone). It never escapes TryUpdate.
-var errChatRowUnavailable = xerrors.New("chatstate: chat row unavailable")
-
-// TryUpdate behaves like Update but acquires the chat row lock without
-// blocking. When another transaction already holds the row lock, TryUpdate
-// makes no changes, does not run fn, and returns acquired=false so the caller
-// can move on instead of convoying on the row. Worker acquisition uses this
-// so competing replicas spread across candidates rather than serializing on
-// the same hot rows.
-func (m *ChatMachine) TryUpdate(
-	ctx context.Context,
-	fn func(*Tx, database.Store, database.Chat) error,
-) (database.Chat, bool, error) {
-	return m.runUpdate(ctx, fn, func(store database.Store) (database.Chat, error) {
-		chat, err := store.TryLockChatAndBumpSnapshotVersion(ctx, m.chatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return database.Chat{}, errChatRowUnavailable
-		}
-		return chat, err
-	})
-}
-
-// runUpdate is the shared body of Update and TryUpdate. lockAndBump takes the
-// chat row lock and bumps snapshot_version; it maps a missing/locked row to
-// ErrChatNotFound or errChatRowUnavailable so runUpdate can classify the
-// outcome. When lockAndBump reports errChatRowUnavailable the callback never
-// runs and runUpdate returns acquired=false with a nil error.
-func (m *ChatMachine) runUpdate(
-	ctx context.Context,
-	fn func(*Tx, database.Store, database.Chat) error,
-	lockAndBump func(database.Store) (database.Chat, error),
-) (database.Chat, bool, error) {
 	if m.store == nil {
-		return database.Chat{}, false, xerrors.New("chatstate: ChatMachine has nil store")
+		return database.Chat{}, xerrors.New("chatstate: ChatMachine has nil store")
 	}
 	if m.publisher == nil {
-		return database.Chat{}, false, xerrors.New("chatstate: ChatMachine has nil publisher")
+		return database.Chat{}, xerrors.New("chatstate: ChatMachine has nil publisher")
 	}
 
 	buffer := NewPublishBuffer(m.publisher)
@@ -215,10 +171,10 @@ func (m *ChatMachine) runUpdate(
 
 	var final database.Chat
 	err := m.store.InTx(func(store database.Store) error {
-		initialChat, err := lockAndBump(store)
+		initialChat, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID)
 		if err != nil {
-			if errors.Is(err, ErrChatNotFound) || errors.Is(err, errChatRowUnavailable) {
-				return err
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrChatNotFound
 			}
 			return xerrors.Errorf("lock chat and bump snapshot: %w", err)
 		}
@@ -257,16 +213,13 @@ func (m *ChatMachine) runUpdate(
 		}
 		return nil
 	}, nil)
-	if errors.Is(err, errChatRowUnavailable) {
-		return database.Chat{}, false, nil
-	}
 	if err != nil {
-		return database.Chat{}, false, err
+		return database.Chat{}, err
 	}
 	if err := buffer.Flush(); err != nil {
-		return database.Chat{}, false, err
+		return database.Chat{}, err
 	}
-	return final, true, nil
+	return final, nil
 }
 
 // Lock locks the chat row with FOR NO KEY UPDATE and runs fn in a

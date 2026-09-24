@@ -1495,12 +1495,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().LockChatAndBumpSnapshotVersion(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns(chat)
 	}))
-	s.Run("TryLockChatAndBumpSnapshotVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().TryLockChatAndBumpSnapshotVersion(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns(chat)
-	}))
 	s.Run("UpdateChatExecutionState", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatExecutionStateParams{ID: chat.ID, Status: database.ChatStatusRunning}

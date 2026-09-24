@@ -1466,15 +1466,6 @@ type sqlcQuerier interface {
 	// This must be called from within a transaction. The lock will be automatically
 	// released when the transaction ends.
 	TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error)
-	// Non-blocking variant of LockChatAndBumpSnapshotVersion used by worker
-	// acquisition. SKIP LOCKED makes the row lock non-blocking: if another
-	// transaction already holds the chat row (a concurrent transition or a
-	// competing acquisition), the inner SELECT returns no row, the UPDATE
-	// touches nothing, and the query returns no rows instead of queuing behind
-	// the holder. Callers treat "no rows" as "not claimable this pass" and move
-	// on, so competing acquirers spread across candidates instead of convoying
-	// on the same row.
-	TryLockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
 	// This will always work regardless of the current state of the template version.
 	UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error

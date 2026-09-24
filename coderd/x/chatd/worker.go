@@ -261,7 +261,7 @@ func (w *chatWorker) acquireCandidate(
 ) (bool, error) {
 	runnerID := uuid.New()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	_, acquired, err := machine.TryUpdate(ctx, func(tx *chatstate.Tx, store database.Store, initialChat database.Chat) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, initialChat database.Chat) error {
 		chat := initialChat
 		queueCount, err := store.CountChatQueuedMessages(ctx, chatID)
 		if err != nil {
@@ -303,11 +303,6 @@ func (w *chatWorker) acquireCandidate(
 	}
 	if err != nil {
 		return false, err
-	}
-	if !acquired {
-		// Another replica or a concurrent transition holds the row this pass;
-		// skip rather than block so acquirers spread across candidates.
-		return false, nil
 	}
 	if err := manager.Spawn(ctx, spawnRunnerRequest{ChatID: chatID, WorkerID: workerID, RunnerID: runnerID}); err != nil {
 		if errAbandon := w.abandonAcquiredChat(ctx, workerID, runnerID, chatID); errAbandon != nil {

@@ -7365,18 +7365,6 @@ func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
 	return q.db.TryAcquireLock(ctx, id)
 }
 
-func (q *querier) TryLockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.Chat, error) {
-	chat, err := q.db.GetChatByID(ctx, id)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
-	}
-	_ = chat
-	return q.db.TryLockChatAndBumpSnapshotVersion(ctx, id)
-}
-
 func (q *querier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, id)
 	if err != nil {

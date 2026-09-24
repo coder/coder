@@ -5168,14 +5168,6 @@ func (m queryMetricsStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXact
 	return r0, r1
 }
 
-func (m queryMetricsStore) TryLockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.Chat, error) {
-	start := time.Now()
-	r0, r1 := m.s.TryLockChatAndBumpSnapshotVersion(ctx, id)
-	m.queryLatencies.WithLabelValues("TryLockChatAndBumpSnapshotVersion").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "TryLockChatAndBumpSnapshotVersion").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.UnarchiveChatByID(ctx, id)
