@@ -10,7 +10,7 @@ import {
 } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { createDeferred } from "#/testHelpers/deferred";
+import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	boardChats,
 	boardChatsKey,
@@ -88,7 +88,7 @@ describe("boardChats", () => {
 	});
 
 	it("relabels the board cache before the request", async () => {
-		const request = createDeferred<void>();
+		const request: Deferred<void> = createDeferred();
 		vi.spyOn(API.experimental, "updateChat").mockReturnValue(request.promise);
 		const queryClient = new QueryClient();
 		queryClient.setQueryData(boardChatsKey, boardPage([chat("a"), chat("b")]));
@@ -105,7 +105,7 @@ describe("boardChats", () => {
 	});
 
 	it("keeps the board's labels on a refetch while a write is queued", async () => {
-		const request = createDeferred<void>();
+		const request: Deferred<void> = createDeferred();
 		vi.spyOn(API.experimental, "updateChat").mockReturnValue(request.promise);
 		const staleList = createDeferred<Chat[]>();
 		vi.spyOn(API.experimental, "getChats")
@@ -160,7 +160,7 @@ describe("boardChats", () => {
 	});
 
 	it("keeps the board's labels from a response requested before a write settled", async () => {
-		const request = createDeferred<void>();
+		const request: Deferred<void> = createDeferred();
 		vi.spyOn(API.experimental, "updateChat").mockReturnValue(request.promise);
 		const staleList = createDeferred<Chat[]>();
 		vi.spyOn(API.experimental, "getChats").mockReturnValueOnce(
@@ -190,11 +190,11 @@ describe("boardChats", () => {
 	});
 
 	it("sends board writes to the server one at a time in call order", async () => {
-		const requests: Array<ReturnType<typeof createDeferred<void>>> = [];
+		const requests: Array<Deferred<void>> = [];
 		const spy = vi
 			.spyOn(API.experimental, "updateChat")
 			.mockImplementation(() => {
-				const request = createDeferred<void>();
+				const request: Deferred<void> = createDeferred();
 				requests.push(request);
 				return request.promise;
 			});

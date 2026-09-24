@@ -7,11 +7,6 @@ import type { Chat, CreateChatRequest } from "#/api/typesGenerated";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { ASSISTANT_KEY, type BoardCard } from "./boardLabels";
 
-// Same key the chat pages write when the user picks a model
-// (submitChatTurn.ts, AgentCreateForm.tsx). Copied rather than imported so
-// the experiment adds no surface to those modules.
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-
 // The assistant reads and acts on other chats, which needs a workspace with
 // the Coder tooling. One shared workspace serves every card's assistant.
 const WORKSPACE_NAME = "agents-kanban";
@@ -138,7 +133,6 @@ const createCardAssistant = async ({
 			workspaces({ q: `owner:me name:${WORKSPACE_NAME}` }),
 		);
 		const workspace = found.find((w) => w.name === WORKSPACE_NAME);
-		const model = localStorage.getItem(lastModelConfigIDStorageKey);
 		const chat = await create({
 			organization_id: card.primary.organization_id,
 			content: [
@@ -148,7 +142,6 @@ const createCardAssistant = async ({
 			workspace_id: workspace?.id,
 			labels: { [ASSISTANT_KEY]: card.id },
 			client_type: "ui",
-			...(model ? { model_config_id: model } : {}),
 		});
 		// The board reads assistant ids from the list; seeding it lets the next
 		// open find this chat before the refetch delivers it.
