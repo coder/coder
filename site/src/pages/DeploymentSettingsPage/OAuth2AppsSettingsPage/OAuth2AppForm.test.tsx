@@ -960,6 +960,12 @@ describe("narrowsAllowlist", () => {
 			narrows: true,
 		},
 		{
+			label: "swapping one scope for another",
+			stored: "workspace:ssh",
+			next: ["workspace:read"],
+			narrows: true,
+		},
+		{
 			label: "clearing the list",
 			stored: "workspace:ssh",
 			next: [],
