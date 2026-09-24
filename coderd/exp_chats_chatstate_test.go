@@ -38,10 +38,11 @@ func driveChatToWaiting(ctx context.Context, t *testing.T, api *coderd.API, chat
 	t.Helper()
 	chatdCtx := dbauthz.AsChatd(ctx) //nolint:gocritic // Test fixture mirrors chatd background transitions.
 	machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chatID)
-	require.NoError(t, machine.Update(chatdCtx, func(tx *chatstate.Tx, store database.Store) error {
+	_, updateErr := machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store, _ database.Chat) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
-	}))
+	})
+	require.NoError(t, updateErr)
 }
 
 // driveChatToRequiresAction commits an assistant message with a single
@@ -71,7 +72,7 @@ func driveChatToRequiresAction(
 	require.NoError(t, err)
 
 	machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chat.ID)
-	require.NoError(t, machine.Update(chatdCtx, func(tx *chatstate.Tx, store database.Store) error {
+	_, updateErr := machine.Update(chatdCtx, func(tx *chatstate.Tx, _ database.Store, _ database.Chat) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{{
 				Role:           database.ChatMessageRoleAssistant,
@@ -86,7 +87,8 @@ func driveChatToRequiresAction(
 		}
 		_, err = tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
 		return err
-	}))
+	})
+	require.NoError(t, updateErr)
 	return toolCallID
 }
 

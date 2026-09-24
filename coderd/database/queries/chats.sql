@@ -2576,6 +2576,81 @@ chats_expanded AS (
 SELECT *
 FROM chats_expanded;
 
+-- name: TryLockChatAndBumpSnapshotVersion :one
+-- Non-blocking variant of LockChatAndBumpSnapshotVersion used by worker
+-- acquisition. SKIP LOCKED makes the row lock non-blocking: if another
+-- transaction already holds the chat row (a concurrent transition or a
+-- competing acquisition), the inner SELECT returns no row, the UPDATE
+-- touches nothing, and the query returns no rows instead of queuing behind
+-- the holder. Callers treat "no rows" as "not claimable this pass" and move
+-- on, so competing acquirers spread across candidates instead of convoying
+-- on the same row.
+WITH bumped_chat AS (
+    UPDATE chats
+    SET snapshot_version = snapshot_version + 1
+    WHERE id = (
+        SELECT id FROM chats
+        WHERE id = @id::uuid
+        FOR NO KEY UPDATE SKIP LOCKED
+    )
+    RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        bumped_chat.id,
+        bumped_chat.owner_id,
+        bumped_chat.workspace_id,
+        bumped_chat.title,
+        bumped_chat.status,
+        bumped_chat.worker_id,
+        bumped_chat.started_at,
+        bumped_chat.heartbeat_at,
+        bumped_chat.created_at,
+        bumped_chat.updated_at,
+        bumped_chat.parent_chat_id,
+        bumped_chat.root_chat_id,
+        bumped_chat.last_model_config_id,
+        bumped_chat.last_reasoning_effort,
+        bumped_chat.archived,
+        bumped_chat.last_error,
+        bumped_chat.mode,
+        bumped_chat.mcp_server_ids,
+        bumped_chat.labels,
+        bumped_chat.build_id,
+        bumped_chat.agent_id,
+        bumped_chat.pin_order,
+        bumped_chat.last_read_message_id,
+        bumped_chat.dynamic_tools,
+        bumped_chat.organization_id,
+        bumped_chat.plan_mode,
+        bumped_chat.client_type,
+        bumped_chat.last_turn_summary,
+        bumped_chat.summary,
+        bumped_chat.summary_generated_at,
+        bumped_chat.snapshot_version,
+        bumped_chat.history_version,
+        bumped_chat.queue_version,
+        bumped_chat.generation_attempt,
+        bumped_chat.retry_state,
+        bumped_chat.retry_state_version,
+        bumped_chat.runner_id,
+        bumped_chat.requires_action_deadline_at,
+        COALESCE(root.user_acl, bumped_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, bumped_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name,
+        bumped_chat.context_aggregate_hash,
+        bumped_chat.context_dirty_since,
+        bumped_chat.context_dirty_resources,
+        bumped_chat.context_error,
+        bumped_chat.compaction_requested_at
+    FROM bumped_chat
+    LEFT JOIN chats root ON root.id = COALESCE(bumped_chat.root_chat_id, bumped_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = bumped_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
+
 -- name: UpdateChatExecutionState :one
 -- Atomically updates the execution-state-managed fields on a chat:
 -- status, archived, last_error, ownership identifiers, the
