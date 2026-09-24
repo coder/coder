@@ -194,6 +194,29 @@ export const paginatedOrganizationAISpend = (
 	};
 };
 
+/**
+ * Every user matching the filter, for summaries that the paged report does
+ * not carry, such as which models lack pricing across all users.
+ */
+export const organizationAISpendAllUsers = (
+	organizationId: string,
+	filter: OrganizationAISpendQuery,
+) => ({
+	queryKey: [
+		...organizationAISpendScopeKey(organizationId, filter),
+		"allUsers",
+	],
+	queryFn: async () => {
+		const report = await getOrganizationAISpendUsersFilteredInBrowser(
+			organizationId,
+			filter,
+			Number.POSITIVE_INFINITY,
+			0,
+		);
+		return report.users;
+	},
+});
+
 export const exportOrganizationAISpend = () => ({
 	mutationFn: async ({
 		organizationId,

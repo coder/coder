@@ -17,6 +17,7 @@ import { SpendFilters } from "./components/SpendFilters";
 import {
 	type SpendReportQuery,
 	SpendUsersTable,
+	type UnpricedModelsInfo,
 } from "./components/SpendUsersTable";
 
 type SpendPageViewProps = {
@@ -37,6 +38,7 @@ type SpendPageViewProps = {
 	onExportCSV: () => void;
 	isExportingCSV: boolean;
 	reportQuery: SpendReportQuery;
+	unpricedModels: UnpricedModelsInfo;
 };
 
 export const SpendPageView: FC<SpendPageViewProps> = ({
@@ -89,6 +91,7 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 	onExportCSV,
 	isExportingCSV,
 	reportQuery,
+	unpricedModels,
 }) => {
 	if (isOrganizationsLoading) {
 		return <Loader />;
@@ -148,7 +151,11 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 				minDate={minDate}
 				onPeriodChange={onPeriodChange}
 			/>
-			<SpendUsersTable reportQuery={reportQuery} />
+			<SpendUsersTable
+				reportQuery={reportQuery}
+				period={period}
+				unpricedModels={unpricedModels}
+			/>
 		</>
 	);
 };

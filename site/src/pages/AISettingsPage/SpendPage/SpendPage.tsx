@@ -1,5 +1,5 @@
 import { saveAs } from "file-saver";
-import { type FC, useState } from "react";
+import { type FC, useMemo, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -8,9 +8,15 @@ import {
 	aiSpendOrganizations,
 	exportOrganizationAISpend,
 	type OrganizationAISpendQuery,
+	organizationAISpendAllUsers,
 	paginatedOrganizationAISpend,
 } from "#/api/queries/aiBridge";
-import type { OrganizationAISpendFilter } from "#/api/typesGenerated";
+import { allAIModelPrices } from "#/api/queries/aiProviders";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import type {
+	OrganizationAISpendFilter,
+	OrganizationAISpendUser,
+} from "#/api/typesGenerated";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import {
 	parseFilterQuery,
@@ -27,6 +33,18 @@ import {
 import { pageTitle } from "#/utils/page";
 import { SpendPageView } from "./SpendPageView";
 import { defaultSpendPeriod } from "./spendPeriod";
+import { findUnpricedModels, pricedModelKeys } from "./unpricedModels";
+
+const modelPricePermissionChecks = {
+	readModelPrices: {
+		object: { resource_type: "ai_model_price" },
+		action: "read",
+	},
+	updateModelPrices: {
+		object: { resource_type: "ai_model_price" },
+		action: "update",
+	},
+} as const;
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
@@ -180,6 +198,55 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	}
 	const minDate = retention?.start ? new Date(retention.start) : undefined;
 
+	const modelPricePermissionsQuery = useQuery({
+		...checkAuthorization({ checks: modelPricePermissionChecks }),
+		enabled: isSpendAvailable,
+	});
+	const modelPricesQuery = useQuery({
+		...allAIModelPrices(),
+		enabled: modelPricePermissionsQuery.data?.readModelPrices === true,
+	});
+	const pricedKeys = useMemo(
+		() =>
+			modelPricesQuery.data
+				? pricedModelKeys(modelPricesQuery.data)
+				: undefined,
+		[modelPricesQuery.data],
+	);
+	// The summary names unpriced models across every matching user, which the
+	// paged report does not carry.
+	const allUsersQuery = useQuery({
+		...organizationAISpendAllUsers(organization?.id ?? "", spendFilter),
+		enabled:
+			organization !== undefined &&
+			pricedKeys !== undefined &&
+			(reportQuery.data?.totals.unpriced_usage_count ?? 0) > 0,
+	});
+	const totalUnpricedModels =
+		pricedKeys && allUsersQuery.data
+			? [
+					...new Set(
+						allUsersQuery.data
+							.filter((user) => user.unpriced_usage_count > 0)
+							.flatMap((user) => findUnpricedModels(user, pricedKeys)),
+					),
+				].sort()
+			: undefined;
+	const unpricedModels = {
+		forUser: (user: OrganizationAISpendUser) =>
+			pricedKeys ? findUnpricedModels(user, pricedKeys) : undefined,
+		total: totalUnpricedModels,
+		setPricingHref:
+			modelPricePermissionsQuery.data?.updateModelPrices && organization
+				? {
+						pathname: "/ai/settings/models",
+						search: new URLSearchParams({
+							[modelOrganizationSearchParam]: organization.name,
+						}).toString(),
+					}
+				: undefined,
+	};
+
 	const exportMutation = useMutation(exportOrganizationAISpend());
 	const onExportCSV = () => {
 		if (organization === undefined) {
@@ -236,6 +303,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				onExportCSV={onExportCSV}
 				isExportingCSV={exportMutation.isPending}
 				reportQuery={reportQuery}
+				unpricedModels={unpricedModels}
 			/>
 		</>
 	);

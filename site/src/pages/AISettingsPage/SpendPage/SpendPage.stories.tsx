@@ -116,10 +116,24 @@ const meta = {
 			MockOrganization,
 			MockOrganization2,
 		]);
-		spyOn(API, "checkAuthorization").mockResolvedValue({
-			[MockOrganization.id]: true,
-			[MockOrganization2.id]: true,
-		});
+		spyOn(API, "checkAuthorization").mockImplementation(async (req) =>
+			"readModelPrices" in req.checks
+				? { readModelPrices: true, updateModelPrices: true }
+				: { [MockOrganization.id]: true, [MockOrganization2.id]: true },
+		);
+		spyOn(API.experimental, "getAIModelPrices").mockResolvedValue([
+			{
+				provider: "anthropic",
+				model: "claude-opus-4-6",
+				input_price: 5_000_000,
+				output_price: 25_000_000,
+				cache_read_price: null,
+				cache_write_price: null,
+				source: "default",
+				created_at: "2026-03-01T00:00:00Z",
+				updated_at: "2026-03-01T00:00:00Z",
+			},
+		]);
 		spyOn(API, "getOrganizationAISpendUsers").mockImplementation(
 			async (_organizationId, params) => {
 				const users = filterMockSpendUsers(params);
@@ -314,5 +328,23 @@ export const SecondPage: Story = {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("table", { name: "Spend by user" });
 		await userEvent.click(canvas.getByRole("button", { name: "Next page" }));
+	},
+};
+
+export const UnpricedModelsSummary: Story = {
+	parameters: { reactRouter: explicitRange },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("table", { name: "Spend by user" });
+		await userEvent.hover(
+			canvas.getByRole("button", { name: "Model pricing missing" }),
+		);
+		const tooltip = await screen.findByRole("tooltip");
+		await within(tooltip).findByText("gpt-5.4");
+		await expect(
+			within(tooltip).getByRole("link", {
+				name: "Set pricing for these models",
+			}),
+		).toBeInTheDocument();
 	},
 };

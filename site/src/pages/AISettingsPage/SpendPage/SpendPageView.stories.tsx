@@ -55,6 +55,11 @@ const meta = {
 		onExportCSV: fn(),
 		isExportingCSV: false,
 		reportQuery: mockReportQuery,
+		unpricedModels: {
+			forUser: () => undefined,
+			total: undefined,
+			setPricingHref: undefined,
+		},
 	},
 } satisfies Meta<typeof SpendPageView>;
 

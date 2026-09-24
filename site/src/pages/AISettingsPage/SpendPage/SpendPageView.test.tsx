@@ -42,6 +42,11 @@ const renderView = (organization: typeof MockOrganization | undefined) => {
 			onExportCSV={vi.fn()}
 			isExportingCSV={false}
 			reportQuery={pendingReportQuery}
+			unpricedModels={{
+				forUser: () => undefined,
+				total: undefined,
+				setPricingHref: undefined,
+			}}
 		/>,
 	);
 	return { onFilterQueryChange, onOrganizationChange };

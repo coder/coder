@@ -65,7 +65,10 @@ const initialSearch = new URLSearchParams({
 	endDate: period.period_end,
 }).toString();
 
-function mockSpendApi(report: Partial<OrganizationAISpendReport> = {}) {
+function mockSpendApi(
+	report: Partial<OrganizationAISpendReport> = {},
+	canManageModelPrices = false,
+) {
 	const users: OrganizationAISpendUser[] = Array.from(
 		{ length: 12 },
 		(_, i) => ({
@@ -79,10 +82,14 @@ function mockSpendApi(report: Partial<OrganizationAISpendReport> = {}) {
 		MockOrganization,
 		MockOrganization2,
 	]);
-	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
-		[MockOrganization.id]: true,
-		[MockOrganization2.id]: true,
-	});
+	vi.spyOn(API, "checkAuthorization").mockImplementation(async (req) =>
+		"readModelPrices" in req.checks
+			? {
+					readModelPrices: canManageModelPrices,
+					updateModelPrices: canManageModelPrices,
+				}
+			: { [MockOrganization.id]: true, [MockOrganization2.id]: true },
+	);
 	const buildReport = (
 		params: Parameters<typeof API.getOrganizationAISpendUsers>[1],
 	): OrganizationAISpendReport => ({
@@ -105,8 +112,12 @@ function mockSpendApi(report: Partial<OrganizationAISpendReport> = {}) {
 function renderSpend(
 	search = initialSearch,
 	report: Partial<OrganizationAISpendReport> = {},
+	canManageModelPrices = false,
 ) {
-	const { spendSpy, buildReport, users } = mockSpendApi(report);
+	const { spendSpy, buildReport, users } = mockSpendApi(
+		report,
+		canManageModelPrices,
+	);
 	vi.spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
 	vi.spyOn(API, "getAIBridgeClients").mockResolvedValue(["Claude Code"]);
 	vi.spyOn(API, "getAIBridgeModels").mockResolvedValue(["gpt-4o"]);
@@ -374,6 +385,63 @@ it("applies user and unconfigured pricing filters", async () => {
 	);
 	await screen.findByText("No AI Gateway spend found");
 	expect(spendSpy.mock.calls.at(-1)?.[1]).not.toHaveProperty("pricing");
+});
+
+it("lists unpriced models and links admins to set their pricing", async () => {
+	const users = [
+		{
+			...MockOrganizationAISpendUser,
+			user_id: "user-1",
+			username: "user01",
+			name: "User 1",
+			providers: ["openai"],
+			models: ["gpt-5.4", "gpt-custom"],
+			unpriced_usage_count: 2,
+		},
+	];
+	vi.spyOn(API.experimental, "getAIModelPrices").mockResolvedValue([
+		{
+			provider: "openai",
+			model: "gpt-5.4",
+			input_price: 1,
+			output_price: 2,
+			cache_read_price: null,
+			cache_write_price: null,
+			source: "default",
+			created_at: "",
+			updated_at: "",
+		},
+	]);
+	const { spendSpy } = renderSpend(
+		initialSearch,
+		{
+			count: 1,
+			totals: { cost_micros: 2_500_000, unpriced_usage_count: 2 },
+			users,
+		},
+		true,
+	);
+	const user = userEvent.setup();
+
+	await screen.findByRole("table", { name: "Spend by user" });
+	await waitFor(() =>
+		expect(spendSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			expect.objectContaining({ limit: 100 }),
+		),
+	);
+	await user.hover(
+		screen.getByRole("button", { name: "Model pricing missing for User 1" }),
+	);
+	const tooltip = await screen.findByRole("tooltip");
+	await waitFor(() =>
+		expect(
+			within(tooltip).getByRole("list", { name: "Models without pricing" }),
+		).toHaveTextContent(/^gpt-custom$/),
+	);
+	expect(
+		within(tooltip).getByRole("link", { name: "Set pricing for these models" }),
+	).toHaveAttribute("href", `/ai/settings/models?org=${MockOrganization.name}`);
 });
 
 it("filters by group members and unconfigured pricing in the browser", async () => {
