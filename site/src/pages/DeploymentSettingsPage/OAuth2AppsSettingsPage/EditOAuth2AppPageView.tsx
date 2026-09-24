@@ -202,6 +202,7 @@ export const EditOAuth2AppPageView: FC = () => {
 					<OAuth2AppForm
 						key={app.id}
 						app={app}
+						clientType={app.client_type}
 						onSubmit={async (req) => {
 							try {
 								const updated = await putAppMutation.mutateAsync({

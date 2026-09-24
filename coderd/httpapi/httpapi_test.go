@@ -500,12 +500,20 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 
 		// The client connection will receive a little bit of additional data on
 		// top of the main payload. Have to make sure check has tolerance for
-		// extra data being present
+		// extra data being present. Read until the payload shows up; EOF only
+		// arrives after the close handshake times out against this raw pipe.
 		serverBytes, err := json.Marshal(serverPayload)
 		require.NoError(t, err)
-		clientBytes, err := io.ReadAll(writer.clientConn)
-		require.NoError(t, err)
-		require.True(t, bytes.Contains(clientBytes, serverBytes))
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok)
+		require.NoError(t, writer.clientConn.SetReadDeadline(deadline))
+		var clientBytes []byte
+		buf := make([]byte, 1024)
+		for !bytes.Contains(clientBytes, serverBytes) {
+			n, err := writer.clientConn.Read(buf)
+			require.NoError(t, err)
+			clientBytes = append(clientBytes, buf[:n]...)
+		}
 	})
 
 	t.Run("Signals to outside consumer when socket has been closed", func(t *testing.T) {
@@ -603,18 +611,21 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 	t.Run("Sends a heartbeat to the socket on a fixed internal of time to keep connections alive", func(t *testing.T) {
 		t.Parallel()
 
-		// Need add at least three heartbeats for something to be reliably
-		// counted as an interval, but also need some wiggle room
+		// One tick of the mock clock must produce a heartbeat; read a few
+		// bytes of it to prove it was written.
 		heartbeatCount := 3
-		hbDuration := time.Duration(heartbeatCount) * httpapi.HeartbeatInterval
-		timeout := hbDuration + (5 * time.Second)
+		timeout := testutil.WaitShort
 
 		ctx := testutil.Context(t, timeout)
-		wsw := httpapi.NewWSWatcher(quartz.NewReal(), nil)
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().NewTicker("WSWatcher")
+		defer trap.Close()
+		wsw := httpapi.NewWSWatcher(mClock, nil)
 		req := newBaseRequest(ctx)
 		writer := newOneWayWriter(t)
 		_, _, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil), wsw)(writer, req)
 		require.NoError(t, err)
+		trap.MustWait(ctx).MustRelease(ctx)
 
 		type Result struct {
 			Err     error
@@ -640,6 +651,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 			resultC <- Result{nil, true}
 		}()
 
+		mClock.Advance(httpapi.HeartbeatInterval).MustWait(ctx)
 		result := <-resultC
 		require.NoError(t, result.Err)
 		require.True(t, result.Success)
@@ -771,17 +783,20 @@ func TestServerSentEventSender(t *testing.T) {
 	t.Run("Sends a heartbeat to the client on a fixed internal of time to keep connections alive", func(t *testing.T) {
 		t.Parallel()
 
-		// Need add at least three heartbeats for something to be reliably
-		// counted as an interval, but also need some wiggle room
+		// One tick of the mock clock must produce a heartbeat; read a few
+		// bytes of it to prove it was written.
 		heartbeatCount := 3
-		hbDuration := time.Duration(heartbeatCount) * httpapi.HeartbeatInterval
-		timeout := hbDuration + (5 * time.Second)
+		timeout := testutil.WaitShort
 
 		ctx := testutil.Context(t, timeout)
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().NewTicker("ServerSentEventSender")
+		defer trap.Close()
 		req := newBaseRequest(ctx)
 		writer := newServerSentWriter(t)
-		_, _, err := httpapi.ServerSentEventSender(writer, req)
+		_, _, err := httpapi.ServerSentEventSenderWithClock(mClock)(writer, req)
 		require.NoError(t, err)
+		trap.MustWait(ctx).MustRelease(ctx)
 
 		type Result struct {
 			Err     error
@@ -807,6 +822,7 @@ func TestServerSentEventSender(t *testing.T) {
 			resultC <- Result{nil, true}
 		}()
 
+		mClock.Advance(httpapi.HeartbeatInterval).MustWait(ctx)
 		result := <-resultC
 		require.NoError(t, result.Err)
 		require.True(t, result.Success)

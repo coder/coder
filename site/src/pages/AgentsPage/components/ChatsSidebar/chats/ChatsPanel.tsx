@@ -299,6 +299,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		isLoadingModelConfigs,
 		chatErrorReasons,
 		activeChatId,
+		currentUserId,
 		isArchiving,
 		archivingChatId,
 		toggleExpanded,

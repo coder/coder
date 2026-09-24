@@ -149,6 +149,8 @@ export function getExternalImageStylesFromUrl(
  * don't look their best in all of our themes with the default fullcolor mode.
  */
 export const defaultParametersForBuiltinIcons = new Map<string, string>([
+	["/icon/amp.svg", "monochrome"],
+	["/icon/apple.svg", "monochrome"],
 	["/icon/apple-black.svg", "monochrome"],
 	["/icon/auggie.svg", "monochrome"],
 	["/icon/anthropic.svg", "monochrome"],
@@ -159,6 +161,7 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/coder.svg", "monochrome"],
 	["/icon/container.svg", "monochrome"],
 	["/icon/copyparty.svg", "blackWithColor"],
+	["/icon/delta.svg", "monochrome"],
 	["/icon/database.svg", "monochrome"],
 	["/icon/devcontainers.svg", "monochrome"],
 	["/icon/devin.svg", "monochrome"],
@@ -179,9 +182,9 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/okta.svg", "monochrome"],
 	["/icon/openai-codex.svg", "monochrome"],
 	["/icon/openai.svg", "monochrome"],
+	["/icon/opencode.svg", "whiteWithColor"],
 	["/icon/openrouter.svg", "monochrome"],
 	["/icon/openwebui.svg", "monochrome"],
-	["/icon/perplexica.svg", "monochrome"],
 	["/icon/roo-code.svg", "whiteWithColor"],
 	["/icon/rust.svg", "monochrome"],
 	["/icon/tasks.svg", "monochrome"],
