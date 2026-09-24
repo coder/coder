@@ -115,8 +115,5 @@ func decodeRule(stored StoredRule) (Rule, error) {
 	if err := json.Unmarshal(stored.Value, &rule); err != nil {
 		return Rule{}, xerrors.Errorf("decode rule: %w", err)
 	}
-	if err := checkShape(rule); err != nil {
-		return rule, err
-	}
-	return rule, nil
+	return rule, checkShape(rule)
 }
