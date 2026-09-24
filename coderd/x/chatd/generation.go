@@ -200,6 +200,9 @@ type generationDecisionInput struct {
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
+	if input.maxSteps < 1 {
+		return generationDecision{}, terminalGeneration(xerrors.Errorf("max steps must be positive, got %d", input.maxSteps))
+	}
 	localCalls, dynamicCalls, err := unresolvedToolCallsFromHistory(input.messages, input.dynamicToolNames)
 	if err != nil {
 		return generationDecision{}, err
@@ -248,7 +251,7 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	if complete {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, nil
 	}
-	if input.maxSteps > 0 && currentTurnStepCount(input.messages) >= input.maxSteps {
+	if currentTurnStepCount(input.messages) >= input.maxSteps {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonMaxSteps}, nil
 	}
 	compactionRequirement := compactionRequirementNotNeeded
