@@ -46,9 +46,6 @@ coder_ai_gateway_key_pool_exhaustions_total{provider="",outcome=""} 0
 # HELP coder_ai_gateway_key_pool_failover_attempts The number of keys attempted before success or exhaustion, per interception for bridged requests and per request for passthrough requests.
 # TYPE coder_ai_gateway_key_pool_failover_attempts histogram
 coder_ai_gateway_key_pool_failover_attempts{provider=""} 0
-# HELP coder_ai_gateway_key_pool_state The number of keys currently in each state (state: valid, temporary, permanent).
-# TYPE coder_ai_gateway_key_pool_state gauge
-coder_ai_gateway_key_pool_state{provider="",state=""} 0
 # HELP coder_ai_gateway_key_pool_state_transitions_total The number of API key state transitions during failover (reason: rate_limited, unauthorized).
 # TYPE coder_ai_gateway_key_pool_state_transitions_total counter
 coder_ai_gateway_key_pool_state_transitions_total{provider="",reason=""} 0
