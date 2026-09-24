@@ -10,6 +10,7 @@ import {
 	updateChatProject,
 } from "#/api/queries/chatProjects";
 import { userChatProviderConfigs } from "#/api/queries/chats";
+import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
@@ -111,12 +112,25 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		canManageAgentSettings = false,
 		currentUserId,
 	} = props;
-	const { organizations, experiments } = useDashboard();
+	const { organizations, showOrganizations, experiments } = useDashboard();
 	const organizationId: string | undefined =
 		getDefaultOrganizationId(organizations) ?? organizations[0]?.id;
 	const chatProjectsEnabled = experiments.includes("chat-projects");
 	const queryClient = useQueryClient();
-	// The sidebar lists and creates projects in the default organization.
+	// Same organizations the composer offers for a new chat. The selector
+	// appears only when this list has more than one entry.
+	const permittedOrgsQuery = useQuery({
+		...permittedOrganizations({
+			object: { resource_type: "chat", owner_id: "me" },
+			action: "create",
+		}),
+		enabled: chatProjectsEnabled && showOrganizations,
+	});
+	const creatableOrganizations = showOrganizations
+		? (permittedOrgsQuery.data ?? [])
+		: organizations;
+	// The sidebar lists projects in the default organization. Create sends
+	// the organization chosen in the dialog.
 	const projectsQuery = useQuery({
 		...chatProjects(organizationId),
 		enabled: chatProjectsEnabled && organizationId !== undefined,
@@ -140,7 +154,11 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				? document.activeElement
 				: null;
 		if (dialog.mode === "create") {
-			if (!organizationId) {
+			const selectionSettled =
+				!showOrganizations ||
+				permittedOrgsQuery.isFetched ||
+				permittedOrgsQuery.isError;
+			if (selectionSettled && creatableOrganizations.length === 0) {
 				return;
 			}
 			createProjectMutation.reset();
@@ -152,17 +170,28 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const handleProjectSubmit = (request: {
 		name: string;
 		description: string;
+		organization_id?: string;
 	}) => {
 		if (projectDialog?.mode === "edit") {
 			updateProjectMutation.mutate(
-				{ projectId: projectDialog.project.id, request },
+				{
+					projectId: projectDialog.project.id,
+					request: {
+						name: request.name,
+						description: request.description,
+					},
+				},
 				{ onSuccess: closeProjectDialog },
 			);
 			return;
 		}
-		if (projectDialog?.mode === "create" && organizationId) {
+		if (projectDialog?.mode === "create" && request.organization_id) {
 			createProjectMutation.mutate(
-				{ organization_id: organizationId, ...request },
+				{
+					organization_id: request.organization_id,
+					name: request.name,
+					description: request.description,
+				},
 				{ onSuccess: closeProjectDialog },
 			);
 		}
@@ -286,6 +315,9 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 			<ChatProjectDialog
 				project={
 					projectDialog?.mode === "edit" ? projectDialog.project : undefined
+				}
+				organizations={
+					projectDialog?.mode === "create" ? creatableOrganizations : []
 				}
 				open={projectDialog !== null}
 				onOpenChange={(open) => {
