@@ -59,7 +59,7 @@ import {
 } from "./ChatConversation/messageParsing";
 import {
 	buildStreamTools,
-	excludeDurableToolResults,
+	excludeDurableCallResults,
 } from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
@@ -161,6 +161,22 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	);
 	const isChatCompleted = !hasStream;
 
+	const liveStreamState =
+		streamState && excludeDurableCallResults(streamState, messagesByID);
+	const liveStatus = deriveLiveStatus({
+		streamState: liveStreamState,
+		retryState,
+		reconnectState,
+		streamError,
+		persistedError: persistedError ?? null,
+		isAwaitingFirstStreamChunk,
+		chatStatus,
+	});
+	const streamTools = buildStreamTools(
+		liveStreamState?.toolCalls,
+		liveStreamState?.toolResults,
+	);
+
 	const messages = orderedMessageIDs
 		.map((messageID) => {
 			const message = messagesByID.get(messageID);
@@ -179,23 +195,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		pendingToolCallIDs,
 		liveToolResults: streamState?.toolResults,
 	});
-	// Output streamed for a durable call renders on that call's card, so the
-	// live row only shows what no durable message owns yet.
-	const liveStreamState =
-		streamState && excludeDurableToolResults(streamState, parsedMessages);
-	const liveStatus = deriveLiveStatus({
-		streamState: liveStreamState,
-		retryState,
-		reconnectState,
-		streamError,
-		persistedError: persistedError ?? null,
-		isAwaitingFirstStreamChunk,
-		chatStatus,
-	});
-	const streamTools = buildStreamTools(
-		liveStreamState?.toolCalls,
-		liveStreamState?.toolResults,
-	);
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
 	const onRenderProfiler = useOnRenderProfiler();

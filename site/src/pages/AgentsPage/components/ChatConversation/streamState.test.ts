@@ -9,7 +9,7 @@ import {
 	applyMessagePartToStreamState,
 	buildStreamTools,
 	createEmptyStreamState,
-	excludeDurableToolResults,
+	excludeDurableCallResults,
 } from "./streamState";
 import type { StreamState } from "./types";
 
@@ -913,7 +913,7 @@ describe("buildStreamTools", () => {
 	});
 });
 
-describe("excludeDurableToolResults", () => {
+describe("excludeDurableCallResults", () => {
 	const applyParts = (parts: readonly ChatMessagePart[]): StreamState => {
 		const state = parts.reduce<StreamState | null>(
 			applyMessagePartToStreamState,
@@ -925,7 +925,7 @@ describe("excludeDurableToolResults", () => {
 		return state;
 	};
 
-	const durableAdvisorMessage: ChatMessage = {
+	const mockDurableAdvisorMessage: ChatMessage = {
 		...MockChatMessage,
 		id: 25,
 		role: "assistant",
@@ -934,15 +934,20 @@ describe("excludeDurableToolResults", () => {
 				type: "tool-call",
 				tool_call_id: "call-advisor",
 				tool_name: "advisor",
-				args: { question: "on or off by default?" },
+				args: {
+					question: "on or off by default?",
+					model_intent: "Checking the default",
+				},
 			},
 		],
 	};
-	const durableEntries = parseMessagesWithMergedTools([durableAdvisorMessage]);
+	const mockMessagesByID = new Map([
+		[mockDurableAdvisorMessage.id, mockDurableAdvisorMessage],
+	]);
 
 	// The server persists the assistant message before the tool runs, so
 	// these parts arrive with no live tool-call for the same ID.
-	const advisorResultParts: ChatMessagePart[] = [
+	const mockAdvisorResultParts: ChatMessagePart[] = [
 		{
 			type: "tool-result",
 			tool_call_id: "call-advisor",
@@ -958,9 +963,9 @@ describe("excludeDurableToolResults", () => {
 	];
 
 	it("removes a streamed result whose call is durable and leaves no live output", () => {
-		const state = applyParts(advisorResultParts);
+		const state = applyParts(mockAdvisorResultParts);
 
-		expect(excludeDurableToolResults(state, durableEntries)).toBeNull();
+		expect(excludeDurableCallResults(state, mockMessagesByID)).toBeNull();
 	});
 
 	it("keeps live tool calls, unrelated results, and text", () => {
@@ -971,7 +976,7 @@ describe("excludeDurableToolResults", () => {
 				tool_name: "execute",
 				args: { command: "ls" },
 			},
-			...advisorResultParts,
+			...mockAdvisorResultParts,
 			{
 				type: "tool-result",
 				tool_call_id: "call-orphan",
@@ -981,7 +986,7 @@ describe("excludeDurableToolResults", () => {
 			{ type: "text", text: "Done" },
 		]);
 
-		const live = excludeDurableToolResults(state, durableEntries);
+		const live = excludeDurableCallResults(state, mockMessagesByID);
 
 		expect(live?.blocks).toEqual([
 			{ type: "tool", id: "call-live" },
@@ -992,7 +997,7 @@ describe("excludeDurableToolResults", () => {
 		expect(Object.keys(live?.toolResults ?? {})).toEqual(["call-orphan"]);
 	});
 
-	it("keeps a result whose call is also live", () => {
+	it("drops a live call that shares a durable call's ID", () => {
 		const state = applyParts([
 			{
 				type: "tool-call",
@@ -1000,21 +1005,19 @@ describe("excludeDurableToolResults", () => {
 				tool_name: "advisor",
 				args: { question: "on or off by default?" },
 			},
-			...advisorResultParts,
+			...mockAdvisorResultParts,
 		]);
 
-		expect(excludeDurableToolResults(state, durableEntries)).toBe(state);
+		expect(excludeDurableCallResults(state, mockMessagesByID)).toBeNull();
 	});
 
 	it("returns the same stream when nothing belongs to a durable call", () => {
 		const state = applyParts([{ type: "text", text: "Hello" }]);
 
-		expect(excludeDurableToolResults(state, durableEntries)).toBe(state);
+		expect(excludeDurableCallResults(state, mockMessagesByID)).toBe(state);
 	});
 
-	it("renders one advisor call as one card across the durable/live seam", () => {
-		// The call is durable before live deltas arrive; a retry removes only
-		// the transient output.
+	it("overlays streamed advisor output on the durable call and leaves no live tool", () => {
 		const messages: ChatMessage[] = [
 			{
 				...MockChatMessage,
@@ -1022,30 +1025,16 @@ describe("excludeDurableToolResults", () => {
 				role: "user",
 				content: [{ type: "text", text: "Should this be on by default?" }],
 			},
-			{
-				...durableAdvisorMessage,
-				content: [
-					{
-						type: "tool-call",
-						tool_call_id: "call-advisor",
-						tool_name: "advisor",
-						args: {
-							question: "on or off by default?",
-							model_intent: "Checking the default",
-						},
-					},
-				],
-			},
+			mockDurableAdvisorMessage,
 		];
-		const streamState = applyParts(advisorResultParts);
+		const parseWith = (streamState: StreamState) =>
+			parseMessagesWithMergedTools(messages, {
+				pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
+				liveToolResults: streamState.toolResults,
+			});
+		const streamState = applyParts(mockAdvisorResultParts);
 
-		const parsed = parseMessagesWithMergedTools(messages, {
-			pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
-			liveToolResults: streamState.toolResults,
-		});
-		const liveStreamState = excludeDurableToolResults(streamState, parsed);
-
-		expect(parsed[1]?.parsed.tools).toEqual([
+		expect(parseWith(streamState)[1]?.parsed.tools).toEqual([
 			expect.objectContaining({
 				id: "call-advisor",
 				status: "running",
@@ -1054,23 +1043,24 @@ describe("excludeDurableToolResults", () => {
 				result: "Turn it on",
 			}),
 		]);
-		expect(liveStreamState).toBeNull();
-		expect(
-			buildStreamTools(
-				liveStreamState?.toolCalls,
-				liveStreamState?.toolResults,
-			),
-		).toEqual([]);
+		expect(excludeDurableCallResults(streamState, mockMessagesByID)).toBeNull();
 
-		const afterReset = parseMessagesWithMergedTools(messages, {
-			pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
-			liveToolResults: undefined,
-		});
-		expect(afterReset[1]?.parsed.tools[0]).toMatchObject({
+		// A retry resets the transient output but keeps the call running.
+		const resetState = applyParts([
+			...mockAdvisorResultParts,
+			{
+				type: "tool-result",
+				tool_call_id: "call-advisor",
+				tool_name: "advisor",
+				result_reset: true,
+			},
+		]);
+		expect(parseWith(resetState)[1]?.parsed.tools[0]).toMatchObject({
 			status: "running",
 			reasoning: undefined,
 			result: undefined,
 		});
+		expect(excludeDurableCallResults(resetState, mockMessagesByID)).toBeNull();
 	});
 });
 

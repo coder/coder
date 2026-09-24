@@ -138,10 +138,11 @@ type MergeToolsOptions = {
 	// Live results for calls whose assistant message is already durable. The
 	// server persists that message before its tools run, so a streamed result
 	// has no live call to attach to and renders on the durable call instead.
+	// Absent when no stream is active.
 	liveToolResults?: StreamState["toolResults"];
 };
 
-const getToolResultStatus = (result: {
+export const getToolResultStatus = (result: {
 	isError: boolean;
 	isStreaming?: boolean;
 }): MergedTool["status"] => {
@@ -360,11 +361,9 @@ export const getEditableUserMessagePayload = (
 	};
 };
 
-type ParseMessagesWithMergedToolsOptions = MergeToolsOptions;
-
 export const parseMessagesWithMergedTools = (
 	messages: readonly TypesGen.ChatMessage[],
-	options: ParseMessagesWithMergedToolsOptions = {},
+	options: MergeToolsOptions = {},
 ): ParsedMessageEntry[] => {
 	const rawParsed = messages.map((message) => ({
 		message,

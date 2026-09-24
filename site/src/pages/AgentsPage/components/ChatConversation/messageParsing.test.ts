@@ -656,15 +656,15 @@ describe("pending durable tool parsing", () => {
 });
 
 describe("live tool result overlay", () => {
-	const advisorArgs = {
+	const mockAdvisorArgs = {
 		question: "on or off by default?",
 		model_intent: "Checking the default",
 	};
-	const advisorCall: ChatMessagePart = {
+	const mockAdvisorCall: ChatMessagePart = {
 		type: "tool-call",
 		tool_call_id: "call-advisor",
 		tool_name: "advisor",
-		args: advisorArgs,
+		args: mockAdvisorArgs,
 	};
 	const messages: ChatMessage[] = [
 		{
@@ -673,7 +673,12 @@ describe("live tool result overlay", () => {
 			role: "user",
 			content: [{ type: "text", text: "Should this be on by default?" }],
 		},
-		{ ...MockChatMessage, id: 25, role: "assistant", content: [advisorCall] },
+		{
+			...MockChatMessage,
+			id: 25,
+			role: "assistant",
+			content: [mockAdvisorCall],
+		},
 	];
 	const pendingToolCallIDs = getPendingToolCallIDs(messages, "running");
 
@@ -696,7 +701,7 @@ describe("live tool result overlay", () => {
 			expect.objectContaining({
 				id: "call-advisor",
 				status: "running",
-				args: advisorArgs,
+				args: mockAdvisorArgs,
 				modelIntent: "Checking the default",
 				result: "Turn it on",
 				reasoning: "Weighing the default",

@@ -13,6 +13,7 @@ type AdvisorToolProps = {
 	isError: boolean;
 	resultType?: AdvisorToolResultType;
 	advice?: string;
+	/** Streamed advisor reasoning, present only while the advisor runs. */
 	reasoning?: string;
 	errorMessage?: string;
 	modelIntent?: string;
@@ -36,6 +37,8 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 	const isRunning = status === "running";
 	const showLimitReached = resultType === "limit_reached";
 	const showError = isError || resultType === "error";
+	const showThinking = isRunning && reasoningText.length > 0;
+	const showAdvice = adviceText.length > 0 || !isRunning;
 
 	const intent = formatModelIntentLabel(modelIntent);
 	const label = showLimitReached
@@ -97,9 +100,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 										You have reached the advisor limit for this conversation.
 									</p>
 								</div>
-							) : isRunning &&
-								adviceText.length === 0 &&
-								reasoningText.length === 0 ? (
+							) : !showThinking && !showAdvice ? (
 								<div
 									role="status"
 									className="text-[13px] text-content-secondary"
@@ -108,7 +109,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 								</div>
 							) : (
 								<div className="space-y-3">
-									{isRunning && reasoningText.length > 0 && (
+									{showThinking && (
 										<section
 											aria-label="Advisor thinking"
 											className="space-y-1"
@@ -124,9 +125,9 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 											</Response>
 										</section>
 									)}
-									{(adviceText.length > 0 || !isRunning) && (
+									{showAdvice && (
 										<section aria-label="Advisor advice" className="space-y-1">
-											{isRunning && reasoningText.length > 0 && (
+											{showThinking && (
 												<p className="m-0 text-[13px] font-medium text-content-secondary">
 													Advice
 												</p>

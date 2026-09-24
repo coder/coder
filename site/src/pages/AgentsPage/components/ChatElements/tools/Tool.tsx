@@ -70,6 +70,7 @@ type ToolProps = Omit<ComponentProps<"div">, "children"> & {
 	status?: ToolStatus;
 	args?: unknown;
 	result?: unknown;
+	/** Streamed advisor reasoning, present only while the advisor runs. */
 	reasoning?: string;
 	isError?: boolean;
 	/** Set when the server persisted the result as {data, mime_type, text}. */
@@ -111,6 +112,7 @@ type ToolRendererProps = {
 	status: ToolStatus;
 	args: unknown;
 	result: unknown;
+	/** Streamed advisor reasoning, present only while the advisor runs. */
 	reasoning?: string;
 	isError: boolean;
 	isMedia?: boolean;

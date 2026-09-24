@@ -1,13 +1,12 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { appendTextBlock } from "./blockUtils";
-import { ensureToolBlock, parseToolResultIsError } from "./messageParsing";
+import {
+	ensureToolBlock,
+	getToolResultStatus,
+	parseToolResultIsError,
+} from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
-import type {
-	MergedTool,
-	ParsedMessageEntry,
-	RenderBlock,
-	StreamState,
-} from "./types";
+import type { MergedTool, RenderBlock, StreamState } from "./types";
 
 let nextFallbackID = 0;
 
@@ -233,13 +232,7 @@ export const applyMessagePartToStreamState = (
 const getStreamToolStatus = (
 	result: StreamState["toolResults"][string] | undefined,
 ): MergedTool["status"] => {
-	if (!result) {
-		return "running";
-	}
-	if (result.isStreaming) {
-		return "running";
-	}
-	return result.isError ? "error" : "completed";
+	return result ? getToolResultStatus(result) : "running";
 };
 
 export const buildStreamTools = (
@@ -293,28 +286,34 @@ export const buildStreamTools = (
 };
 
 /**
- * Removes live output already rendered on a durable tool call's card.
+ * Removes live tool output whose tool call is durable. The durable call's
+ * card renders that output instead (see `MergeToolsOptions.liveToolResults`).
  * Returns null when nothing remains, preventing an empty live row.
+ *
+ * Takes the store's message map rather than parsed messages so that
+ * per-chunk stream updates never invalidate the transcript parse.
  */
-export const excludeDurableToolResults = (
+export const excludeDurableCallResults = (
 	streamState: StreamState,
-	durableEntries: readonly ParsedMessageEntry[],
+	messagesByID: ReadonlyMap<number, TypesGen.ChatMessage>,
 ): StreamState | null => {
-	const isOrphanToolBlock = (block: RenderBlock): boolean =>
-		block.type === "tool" && !streamState.toolCalls[block.id];
-	if (!streamState.blocks.some(isOrphanToolBlock)) {
+	if (!streamState.blocks.some((block) => block.type === "tool")) {
 		return streamState;
 	}
-
-	const durableToolCallIDs = new Set(
-		durableEntries.flatMap(({ parsed }) =>
-			parsed.toolCalls.map((call) => call.id),
-		),
-	);
-	const isDurableOrphan = (id: string): boolean =>
-		durableToolCallIDs.has(id) && !streamState.toolCalls[id];
+	const durableCallIDs = new Set<string>();
+	for (const message of messagesByID.values()) {
+		for (const part of message.content ?? []) {
+			if (
+				part.type === "tool-call" &&
+				part.tool_call_id &&
+				!part.provider_executed
+			) {
+				durableCallIDs.add(part.tool_call_id);
+			}
+		}
+	}
 	const blocks = streamState.blocks.filter(
-		(block) => block.type !== "tool" || !isDurableOrphan(block.id),
+		(block) => block.type !== "tool" || !durableCallIDs.has(block.id),
 	);
 	if (blocks.length === streamState.blocks.length) {
 		return streamState;
@@ -322,10 +321,14 @@ export const excludeDurableToolResults = (
 	if (blocks.length === 0) {
 		return null;
 	}
-	const toolResults = Object.fromEntries(
-		Object.entries(streamState.toolResults).filter(
-			([id]) => !isDurableOrphan(id),
-		),
-	);
-	return { ...streamState, blocks, toolResults };
+	const withoutDurableCalls = <T>(entries: Record<string, T>) =>
+		Object.fromEntries(
+			Object.entries(entries).filter(([id]) => !durableCallIDs.has(id)),
+		);
+	return {
+		...streamState,
+		blocks,
+		toolCalls: withoutDurableCalls(streamState.toolCalls),
+		toolResults: withoutDurableCalls(streamState.toolResults),
+	};
 };
