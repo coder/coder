@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { QueryClient } from "react-query";
@@ -339,6 +339,25 @@ describe("AgentCreateForm workspace file uploads", () => {
 		await submitMessage("inspect this archive");
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		await attachImageFile();
+
+		expect(toast.error).toHaveBeenCalledWith(attachDuringSubmitMessage);
+	});
+
+	it("rejects pasted files while the submit is pending", async () => {
+		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
+		const { onCreateChat } = renderForm();
+		onCreateChat.mockReturnValue(new Promise<void>(() => {}));
+
+		await attachZipFile();
+		await submitMessage("inspect this archive");
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		fireEvent.paste(screen.getByRole("textbox", { name: "Chat message" }), {
+			clipboardData: {
+				files: [new File(["png"], "image.png", { type: "image/png" })],
+				types: ["Files"],
+				getData: () => "",
+			},
+		});
 
 		expect(toast.error).toHaveBeenCalledWith(attachDuringSubmitMessage);
 	});

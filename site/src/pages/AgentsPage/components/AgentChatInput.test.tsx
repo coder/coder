@@ -249,6 +249,47 @@ describe("AgentChatInput", () => {
 		);
 	});
 
+	it("refuses pasted workspace files while a send is pending", () => {
+		const onAttach = vi.fn();
+		const onWorkspaceAttach = vi.fn();
+		const toastError = vi.spyOn(toast, "error");
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [],
+					onAttach: onWorkspaceAttach,
+					onRemove: vi.fn(),
+				}}
+				isDisabled={false}
+				isLoading
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		fireEvent.paste(screen.getByRole("textbox", { name: "Chat message" }), {
+			clipboardData: {
+				files: [createMockFile("dataset.zip", "application/zip")],
+				types: ["Files"],
+				getData: () => "",
+			},
+		});
+
+		expect(onWorkspaceAttach).not.toHaveBeenCalled();
+		expect(onAttach).not.toHaveBeenCalled();
+		expect(toastError).toHaveBeenCalledWith(
+			"Wait for the current message to finish sending, then add the file again.",
+		);
+	});
+
 	it("asks for a workspace when workspace uploads are wired but unavailable", () => {
 		const onAttach = vi.fn();
 		const toastError = vi.spyOn(toast, "error");

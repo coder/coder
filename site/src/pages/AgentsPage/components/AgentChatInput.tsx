@@ -1273,6 +1273,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<ChatMessageInput
 					ref={internalRef}
 					onFilePaste={onAttach ? handleFilePaste : undefined}
+					acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
 					onPaste={resetPromptCycle}
 					aria-label="Chat message"
 					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
