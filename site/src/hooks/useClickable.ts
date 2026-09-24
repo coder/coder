@@ -57,14 +57,24 @@ export const useClickable = <
 		 * 99% of the time, you shouldn't be able to tell the difference, but one
 		 * edge case behavior is that holding down Enter will continually fire
 		 * events, while holding down Space won't fire anything until you let go.
+		 *
+		 * Both handlers ignore events from descendants (inputs, nested buttons,
+		 * and portaled dialogs, since React events bubble through portals) so
+		 * that typing Enter or Space inside them does not activate this element.
 		 */
 		onKeyDown: (event) => {
+			if (event.target !== event.currentTarget) {
+				return;
+			}
 			if (event.key === "Enter") {
 				ref.current?.click();
 				event.stopPropagation();
 			}
 		},
 		onKeyUp: (event) => {
+			if (event.target !== event.currentTarget) {
+				return;
+			}
 			if (event.key === " ") {
 				ref.current?.click();
 				event.stopPropagation();

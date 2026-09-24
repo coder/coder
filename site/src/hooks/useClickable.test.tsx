@@ -6,6 +6,7 @@ import type {
 	MouseEventHandler,
 	PropsWithChildren,
 } from "react";
+import { createPortal } from "react-dom";
 import { type ClickableAriaRole, useClickable } from "./useClickable";
 
 /**
@@ -148,6 +149,23 @@ describe(useClickable.name, () => {
 		// Focus over to element, hold down Space for an indefinite amount of time,
 		// move focus away from element, and then release Space
 		await user.keyboard("[Tab]{ >}[Tab]{/ }");
+		expect(mockCallback).not.toBeCalled();
+	});
+
+	it("Ignores Enter and Space from descendants, including portaled content", async () => {
+		const mockCallback = vi.fn();
+		const user = userEvent.setup();
+		render(
+			<NonNativeButton role="button" onInteraction={mockCallback}>
+				<input aria-label="Inline input" />
+				{createPortal(<input aria-label="Portaled input" />, document.body)}
+			</NonNativeButton>,
+		);
+
+		for (const name of ["Inline input", "Portaled input"]) {
+			screen.getByLabelText(name).focus();
+			await user.keyboard("a b{Enter}");
+		}
 		expect(mockCallback).not.toBeCalled();
 	});
 });

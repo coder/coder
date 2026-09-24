@@ -1,17 +1,34 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { FC, ReactNode } from "react";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { MockWorkspace } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
-const renderDialog = () => {
+const ClickableRow: FC<{ onClick: () => void; children: ReactNode }> = ({
+	onClick,
+	children,
+}) => {
+	const { hover, ...rowProps } = useClickableTableRow({ onClick });
+	return (
+		<table>
+			<tbody>
+				<tr {...rowProps}>
+					<td>{children}</td>
+				</tr>
+			</tbody>
+		</table>
+	);
+};
+
+const renderInClickableRow = () => {
 	const onConfirm = vi.fn();
 	const onCancel = vi.fn();
-	const onAncestorKeyDown = vi.fn();
+	const onRowClick = vi.fn();
 
 	render(
-		// Stands in for a clickable table row that navigates on Enter.
-		<div onKeyDown={onAncestorKeyDown}>
+		<ClickableRow onClick={onRowClick}>
 			<WorkspaceDeleteDialog
 				workspace={MockWorkspace}
 				canDeleteFailedWorkspace={false}
@@ -19,42 +36,38 @@ const renderDialog = () => {
 				onConfirm={onConfirm}
 				onCancel={onCancel}
 			/>
-		</div>,
+		</ClickableRow>,
 	);
 
-	return { onConfirm, onCancel, onAncestorKeyDown };
+	return { onConfirm, onCancel, onRowClick };
 };
 
 describe("WorkspaceDeleteDialog", () => {
-	it("does not confirm or leak Enter to ancestors when the name is wrong", async () => {
+	it("does not confirm or activate the parent row when typing a wrong name with spaces and pressing Enter", async () => {
 		const user = userEvent.setup();
-		const { onConfirm, onCancel, onAncestorKeyDown } = renderDialog();
+		const { onConfirm, onCancel, onRowClick } = renderInClickableRow();
 
 		const input = screen.getByLabelText("Workspace name");
-		await user.type(input, "wrong-name");
-		await user.keyboard("{Enter}");
+		await user.type(input, "wrong name{Enter}", { skipClick: true });
 
 		expect(onConfirm).not.toHaveBeenCalled();
 		expect(onCancel).not.toHaveBeenCalled();
-		expect(onAncestorKeyDown).not.toHaveBeenCalledWith(
-			expect.objectContaining({ key: "Enter" }),
-		);
+		expect(onRowClick).not.toHaveBeenCalled();
+		expect(input).toHaveValue("wrong name");
 		expect(input).toHaveFocus();
 	});
 
-	it("confirms on Enter without leaking it to ancestors when the name matches", async () => {
+	it("confirms on Enter without activating the parent row when the name matches", async () => {
 		const user = userEvent.setup();
-		const { onConfirm, onAncestorKeyDown } = renderDialog();
+		const { onConfirm, onRowClick } = renderInClickableRow();
 
 		await user.type(
 			screen.getByLabelText("Workspace name"),
-			MockWorkspace.name,
+			`${MockWorkspace.name}{Enter}`,
+			{ skipClick: true },
 		);
-		await user.keyboard("{Enter}");
 
 		expect(onConfirm).toHaveBeenCalledWith(false);
-		expect(onAncestorKeyDown).not.toHaveBeenCalledWith(
-			expect.objectContaining({ key: "Enter" }),
-		);
+		expect(onRowClick).not.toHaveBeenCalled();
 	});
 });

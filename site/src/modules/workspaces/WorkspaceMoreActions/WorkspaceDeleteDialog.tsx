@@ -116,14 +116,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 							onFocus={() => setIsFocused(true)}
 							onBlur={() => setIsFocused(false)}
 							onKeyDown={(event) => {
-								if (event.key !== "Enter") {
-									return;
-								}
-								// React events bubble through portals, so without this a
-								// clickable ancestor (e.g. a workspaces table row) treats
-								// Enter as a click and navigates away.
-								event.stopPropagation();
-								if (!deletionConfirmed) {
+								if (event.key === "Enter" && !deletionConfirmed) {
 									event.preventDefault();
 									setHasSubmittedInvalidConfirmation(true);
 								}
