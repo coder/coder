@@ -32,6 +32,16 @@ type Config struct {
 	// to 0 to send all turns without an inter-phase pause.
 	TurnStartDelay time.Duration `json:"turn_start_delay"`
 
+	// StartJitter staggers the start of each runner by a random duration in
+	// [0, StartJitter) so the initial turns do not all begin at once. Set to
+	// 0 to start every runner as soon as the harness launches it.
+	StartJitter time.Duration `json:"start_jitter"`
+
+	// MessageJitter delays each follow-up turn send by a random duration in
+	// [0, MessageJitter) so follow-up turns spread across the run instead of
+	// releasing as a synchronized burst. Set to 0 to send with no delay.
+	MessageJitter time.Duration `json:"message_jitter"`
+
 	// TurnStartReadyWaitGroup coordinates the gap between the initial turn
 	// finishing and the follow-up turns. Each runner signals exactly
 	// once after its first turn reaches a terminal status, or when it
@@ -59,6 +69,12 @@ func (c Config) Validate() error {
 	}
 	if c.TurnStartDelay < 0 {
 		return xerrors.Errorf("validate turn_start_delay: must not be negative")
+	}
+	if c.StartJitter < 0 {
+		return xerrors.Errorf("validate start_jitter: must not be negative")
+	}
+	if c.MessageJitter < 0 {
+		return xerrors.Errorf("validate message_jitter: must not be negative")
 	}
 	if c.TurnStartDelay > 0 && c.Turns > 1 {
 		if c.TurnStartReadyWaitGroup == nil {
