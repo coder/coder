@@ -62,7 +62,7 @@ const labelOnlyChipClassName =
 	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
 
 const flyoutPanelClassName =
-	"relative flex w-(--radix-popover-trigger-width) max-w-full shrink-0 flex-col rounded-md border border-border bg-surface-primary shadow-md sm:absolute sm:left-[calc(100%-0.25rem)] sm:z-10 sm:w-max sm:min-w-40 sm:self-start";
+	"relative flex w-(--radix-popover-trigger-width) max-w-full shrink-0 flex-col rounded-md border border-border bg-surface-primary shadow-md sm:absolute sm:left-[calc(100%-0.25rem)] sm:z-10 sm:w-max sm:min-w-40 sm:max-w-[min(32rem,calc(100vw_-_20rem))] sm:self-start";
 
 // While the menu is open on mobile the field leaves the page flow and pins
 // below the navbar, so the software keyboard cannot squeeze the dropdown.
@@ -560,13 +560,25 @@ type OptionRowContentProps = Readonly<{
 	icon?: ReactNode;
 	label: ReactNode;
 	selected: boolean;
+	/** Clip long labels with an ellipsis instead of widening the panel. */
+	truncate?: boolean;
 }>;
 
-function OptionRowContent({ icon, label, selected }: OptionRowContentProps) {
+function OptionRowContent({
+	icon,
+	label,
+	selected,
+	truncate = false,
+}: OptionRowContentProps) {
 	return (
 		<>
 			{icon ? <OptionIcon>{icon}</OptionIcon> : null}
-			<span>{label}</span>
+			<span
+				className={truncate ? "min-w-0 truncate" : undefined}
+				title={truncate && typeof label === "string" ? label : undefined}
+			>
+				{label}
+			</span>
 			{selected && (
 				<CheckIcon aria-hidden className="ml-auto size-4 shrink-0" />
 			)}
@@ -983,7 +995,7 @@ function HoverCategoryPanel({
 			onToggleScope={onToggleScope}
 			onMouseEnter={onMouseEnter}
 		>
-			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+			<div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pr-1">
 				{filteredOptions.map((option) => {
 					const token = option.token ?? chipToken(chipKey, option.value);
 					const selected = selectedTokens.includes(token);
@@ -1003,6 +1015,7 @@ function HoverCategoryPanel({
 								icon={option.startIcon}
 								label={option.label}
 								selected={selected}
+								truncate
 							/>
 						</button>
 					);
@@ -1090,7 +1103,7 @@ function CategoryOptionsList({
 			scope={scope}
 			onToggleScope={onToggleScope}
 		>
-			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
+			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain p-0 pr-1">
 				{options?.map((option) => {
 					const item = option.token ?? chipToken(chipKey, option.value);
 					const selected = selectedTokens.includes(item);
@@ -1108,6 +1121,7 @@ function CategoryOptionsList({
 								icon={option.startIcon}
 								label={option.label}
 								selected={selected}
+								truncate
 							/>
 						</FilterComboboxItem>
 					);

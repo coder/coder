@@ -129,6 +129,33 @@ export const ProviderMenu: Story = {
 	},
 };
 
+const longModelNames = [
+	"alibaba/qwen3-next-80b-a3b-thinking",
+	"anthropic.claude-opus-4-1-20250805-v1:0",
+	"arcee-ai/trinity-large-thinking-preview",
+	"au.anthropic.claude-opus-4-6-20260115-v1:0",
+	"gpt-4o",
+];
+
+export const ModelMenuLongNames: Story = {
+	parameters: { reactRouter: explicitRange },
+	beforeEach: () => {
+		spyOn(API, "getAIBridgeModels").mockResolvedValue(longModelNames);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("combobox", { name: "Search and filter users…" }),
+		);
+		await userEvent.hover(
+			await screen.findByRole("option", { name: /^Model$/ }),
+		);
+		await screen.findByRole("button", {
+			name: "alibaba/qwen3-next-80b-a3b-thinking",
+		});
+	},
+};
+
 export const UnconfiguredPricingFilter: Story = {
 	parameters: {
 		reactRouter: reactRouterParameters({
