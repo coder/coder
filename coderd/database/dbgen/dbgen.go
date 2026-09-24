@@ -91,7 +91,10 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		labels = pqtype.NullRawMessage{RawMessage: raw, Valid: true}
 	}
 
-	chat, err := db.InsertChat(genCtx, database.InsertChatParams{
+	// Owners cannot create or update other users' chats, so seed as the
+	// system actor.
+	//nolint:gocritic // See above.
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(genCtx), database.InsertChatParams{
 		ID:                uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
 		OrganizationID:    takeFirst(seed.OrganizationID, uuid.New()),
 		OwnerID:           takeFirst(seed.OwnerID, uuid.New()),
@@ -123,7 +126,10 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	}
 	role := takeFirst(seed.Role, database.ChatMessageRoleUser)
 
-	msgs, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
+	// Owners cannot create or update other users' chats, so seed as the
+	// system actor.
+	//nolint:gocritic // See above.
+	msgs, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(genCtx), database.InsertChatMessagesParams{
 		ChatID:              seed.ChatID,
 		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
 		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
