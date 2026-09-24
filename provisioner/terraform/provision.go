@@ -219,7 +219,7 @@ func (s *server) Plan(
 
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
 	planLogs := &errorCapturingSink{logSink: sess}
-	resp, err := e.plan(ctx, killCtx, env, vars, planLogs, request)
+	result, err := e.plan(ctx, killCtx, env, vars, planLogs, request)
 	endStage(err)
 	if err != nil && s.session(sess.Files).initSkipped && planLogs.needsInit() {
 		// Init only linked cached providers. If Terraform says that was not
@@ -235,13 +235,21 @@ func (s *server) Plan(
 			return provisionersdk.PlanErrorf("initialize terraform: %s", initErr.Error())
 		}
 		endStage = e.timings.startStage(database.ProvisionerJobTimingStagePlan)
-		resp, err = e.plan(ctx, killCtx, env, vars, sess, request)
+		result, err = e.plan(ctx, killCtx, env, vars, sess, request)
 		endStage(err)
 	}
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
 
+	sessState := s.session(sess.Files)
+	sessState.plan = result.plan
+	sessState.graph = result.graph
+	if result.graphErr != nil {
+		s.logger.Warn(ctx, "terraform graph failed during plan, the graph stage will retry it", slog.Error(result.graphErr))
+	}
+
+	resp := result.complete
 	resp.Timings = e.timings.aggregate()
 	return resp
 }
@@ -261,12 +269,21 @@ func (s *server) Graph(
 	}
 	logTerraformEnvVars(sess)
 
+	// Plan already parsed the plan file and computed the graph for this
+	// session, so reuse both instead of spawning Terraform again.
+	sessState := s.session(sess.Files)
+	defer s.forgetSession(sess.Files)
+
 	modules := []*tfjson.StateModule{}
 	switch request.Source {
 	case proto.GraphSource_SOURCE_PLAN:
-		plan, err := e.parsePlan(ctx, killCtx, e.files.PlanFilePath())
-		if err != nil {
-			return provisionersdk.GraphError("parse plan for graph: %s", err)
+		plan := sessState.plan
+		if plan == nil {
+			var err error
+			plan, err = e.parsePlan(ctx, killCtx, e.files.PlanFilePath())
+			if err != nil {
+				return provisionersdk.GraphError("parse plan for graph: %s", err)
+			}
 		}
 
 		modules = planModules(plan)
@@ -283,7 +300,11 @@ func (s *server) Graph(
 	}
 
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
-	rawGraph, err := e.graph(ctx, killCtx)
+	rawGraph := sessState.graph
+	var err error
+	if rawGraph == "" {
+		rawGraph, err = e.graph(ctx, killCtx)
+	}
 	endStage(err)
 	if err != nil {
 		return provisionersdk.GraphError("generate graph: %s", err)

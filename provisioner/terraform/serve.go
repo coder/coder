@@ -9,6 +9,7 @@ import (
 
 	"github.com/cli/safeexec"
 	"github.com/hashicorp/go-version"
+	tfjson "github.com/hashicorp/terraform-json"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
@@ -174,6 +175,13 @@ type sessionState struct {
 	// running `terraform init`, so Plan can fall back to a real init if
 	// the shortcut turns out to be insufficient.
 	initSkipped bool
+
+	// plan is the parsed plan file and graph the `terraform graph` output
+	// from the most recent successful Plan, kept so the Graph RPC can skip
+	// running those commands again. graph is empty when the eager graph
+	// failed.
+	plan  *tfjson.Plan
+	graph string
 }
 
 // sessionStateRetention bounds how long state for a session whose final RPC
@@ -216,6 +224,14 @@ func (s *server) resetSession(files tfpath.Layout) *sessionState {
 	st := &sessionState{createdAt: now}
 	s.sessions[files.WorkDirectory()] = st
 	return st
+}
+
+// forgetSession drops the state for a working directory. Sessions call it
+// when their last RPC completes so the map does not grow with every job.
+func (s *server) forgetSession(files tfpath.Layout) {
+	s.sessionsMut.Lock()
+	defer s.sessionsMut.Unlock()
+	delete(s.sessions, files.WorkDirectory())
 }
 
 // terraformVersion returns the version of the configured Terraform binary,
