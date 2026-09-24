@@ -175,8 +175,14 @@ func TestConnectAll_LateServerReaped(t *testing.T) {
 		func(*http.Request) *mcp.Server { return srv },
 		&mcp.StreamableHTTPOptions{Stateless: true},
 	)
+	// The server holds every request until ConnectAll has given up on it.
+	release := make(chan struct{})
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(2 * time.Second)
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
 		handler.ServeHTTP(w, r)
 	}))
 	t.Cleanup(ts.Close)
@@ -192,6 +198,7 @@ func TestConnectAll_LateServerReaped(t *testing.T) {
 	)
 	elapsed := time.Since(start)
 	t.Cleanup(cleanup)
+	close(release)
 
 	require.Less(t, elapsed, 4*timeout,
 		"ConnectAll took %s, budget was %s", elapsed, timeout)

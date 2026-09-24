@@ -14,6 +14,7 @@ const meta = {
 	title: "pages/DeploymentSettingsPage/OAuth2AppForm",
 	component: OAuth2AppForm,
 	args: {
+		clientType: "confidential",
 		onSubmit: fn(),
 		isUpdating: false,
 		disabled: false,

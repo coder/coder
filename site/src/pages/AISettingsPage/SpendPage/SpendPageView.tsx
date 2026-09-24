@@ -2,7 +2,7 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
+import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
@@ -28,10 +28,9 @@ type SpendPageViewProps = {
 	onOrganizationChange: (organization: TypesGen.Organization) => void;
 	isOrganizationsLoading: boolean;
 	organizationsError: unknown;
-	dateRange: DateRangeValue | undefined;
+	period: DateTimeRangeValue;
 	minDate: Date | undefined;
-	isRetentionLoading: boolean;
-	onDateRangeChange: (value: DateRangeValue) => void;
+	onPeriodChange: (value: DateTimeRangeValue) => void;
 	filterMenus: SpendFilterMenus | undefined;
 	reportQuery: SpendReportQuery;
 };
@@ -77,10 +76,9 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 	onOrganizationChange,
 	isOrganizationsLoading,
 	organizationsError,
-	dateRange,
+	period,
 	minDate,
-	isRetentionLoading,
-	onDateRangeChange,
+	onPeriodChange,
 	filterMenus,
 	reportQuery,
 }) => {
@@ -135,10 +133,9 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 				onOrganizationChange={onOrganizationChange}
 				menus={filterMenus}
 				now={now}
-				dateRange={dateRange}
+				period={period}
 				minDate={minDate}
-				isRetentionLoading={isRetentionLoading}
-				onDateRangeChange={onDateRangeChange}
+				onPeriodChange={onPeriodChange}
 			/>
 			<SpendUsersTable reportQuery={reportQuery} />
 		</>

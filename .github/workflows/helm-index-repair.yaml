@@ -1,0 +1,145 @@
+# One-off repair for the helm.coder.com chart index.
+#
+# Concurrent release runs used to overwrite each other's index.yaml entries,
+# leaving published chart tarballs unlisted (for example 2.36.6). This
+# workflow re-adds the entries for a version whose tarballs are already in
+# the bucket. It never rebuilds or re-uploads chart tarballs.
+name: Helm index repair
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Chart version to re-add to index.yaml (for example 2.36.6).
+        type: string
+        required: true
+      dry_run:
+        description: Compute and print the merged index and the upload command without writing to the bucket.
+        type: boolean
+        required: true
+        default: true
+
+permissions: {}
+
+concurrency: ${{ github.workflow }}
+
+jobs:
+  # Only allow maintainers/admins to write to the public chart repository.
+  check-perms:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Allow only maintainers/admins
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const {data} = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor
+            });
+            const role = data.role_name || data.user?.role_name || data.permission;
+            const perms = data.user?.permissions || {};
+            core.info(`Actor ${context.actor} permission=${data.permission}, role_name=${role}`);
+
+            const allowed =
+              role === 'admin' ||
+              role === 'maintain' ||
+              perms.admin === true ||
+              perms.maintain === true;
+
+            if (!allowed) core.setFailed('Denied: requires maintain or admin');
+
+  repair:
+    needs: [check-perms]
+    runs-on: ubuntu-latest
+    permissions:
+      # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+      id-token: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup GCloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # 3.0.1
+
+      - name: Repair index.yaml
+        env:
+          VERSION: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          version="${VERSION#v}"
+          bucket=gs://helm.coder.com/v2
+          index_url="$bucket/index.yaml"
+          mkdir -p repair && cd repair
+
+          # The chart digests recorded in index.yaml must match the bytes
+          # actually served, so the tarballs are taken from the bucket rather
+          # than rebuilt or pulled from the GitHub release.
+          found=0
+          for chart in coder provisioner ai-gateway; do
+            tgz="${chart}_helm_${version}.tgz"
+            if gsutil -q stat "$bucket/$tgz"; then
+              gsutil cp "$bucket/$tgz" .
+              found=$((found + 1))
+            else
+              echo "::warning::$tgz is not in the bucket, skipping"
+            fi
+          done
+          if [[ $found -eq 0 ]]; then
+            echo "::error::no chart tarballs for $version exist in $bucket; nothing to repair" >&2
+            exit 1
+          fi
+
+          # Pin the read to a generation so the upload precondition below
+          # guarantees nobody (including a running release) wrote in between.
+          generation="$(gsutil stat "$index_url" | awk '/^ *Generation:/ {print $2}')"
+          gsutil cp "$index_url" index.yaml
+          after="$(gsutil stat "$index_url" | awk '/^ *Generation:/ {print $2}')"
+          if [[ $generation != "$after" ]]; then
+            echo "::error::index.yaml changed while downloading (generation $generation -> $after); is a release running?" >&2
+            exit 1
+          fi
+          cp index.yaml index.yaml.before
+
+          helm repo index . --url https://helm.coder.com/v2 --merge index.yaml
+
+          list_versions() {
+            yq '.entries | to_entries[] | .key + " " + .value[].version' "$1" | sort
+          }
+          list_versions index.yaml.before > versions.before
+          list_versions index.yaml > versions.after
+          if [[ -n "$(comm -23 versions.before versions.after)" ]]; then
+            echo "::error::merge would remove existing entries, refusing to continue:" >&2
+            comm -23 versions.before versions.after >&2
+            exit 1
+          fi
+          added="$(comm -13 versions.before versions.after)"
+          if [[ -z $added ]]; then
+            echo "index.yaml already lists every $version tarball found in the bucket; nothing to do"
+            exit 0
+          fi
+          echo "Entries to add:"
+          echo "$added"
+          echo
+          echo "index.yaml diff:"
+          diff -u index.yaml.before index.yaml || true
+
+          upload=(gsutil -h "Cache-Control:no-cache,max-age=0" -h "x-goog-if-generation-match:${generation}" cp index.yaml "$index_url")
+          if [[ $DRY_RUN == "true" ]]; then
+            echo
+            echo "Dry run. Would run:"
+            printf '  %q' "${upload[@]}"
+            echo
+            exit 0
+          fi
+          "${upload[@]}"
+          echo "Uploaded index.yaml (previous generation $generation)"
