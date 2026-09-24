@@ -12,7 +12,6 @@
 	"ignoreBinaries": ["make", "protoc"],
 	"ignoreDependencies": [
 		"@babel/plugin-syntax-typescript",
-		// Loaded through Oxlint's jsPlugins configuration.
 		"@shadcn/lint",
 		"@tailwindcss/typography",
 		"@types/react-virtualized-auto-sizer",
