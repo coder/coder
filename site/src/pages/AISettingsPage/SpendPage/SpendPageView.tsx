@@ -133,6 +133,7 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 			{refetchErrorAlert}
 			<SpendFilters
 				organizations={organizations}
+				organization={organization}
 				filterQuery={filterQuery}
 				onFilterQueryChange={onFilterQueryChange}
 				canFilterDimensions={canFilterDimensions}

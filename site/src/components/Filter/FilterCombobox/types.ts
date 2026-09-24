@@ -34,7 +34,7 @@ export type FilterCategory = {
 	chipKeys?: readonly string[];
 	/** Render this category's options as top-level toggle rows instead of a submenu. */
 	inlineOptions?: boolean;
-	/** Heading shown above top-level options. Defaults to `${label} is…`. */
+	/** Heading shown above top-level options. Defaults to `${label} is…`; empty hides it. */
 	inlineOptionsLabel?: string;
 	/** Keep option icons when rendering the category as top-level rows. */
 	inlineOptionIcons?: boolean;

@@ -109,20 +109,25 @@ export const PricingPreset: Story = {
 	args: { filterQuery: "pricing:unconfigured" },
 };
 
-export const SingleOrganization: Story = {
-	args: { organizations: [MockOrganization] },
+const openFilterMenu: Story["play"] = async ({ canvasElement }) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("combobox", {
+			name: "Search and filter users…",
+		}),
+	);
 };
 
-export const OrganizationMenu: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("combobox", { name: "Search and filter users…" }),
-		);
-		await userEvent.click(
-			await canvas.findByRole("option", { name: "Organization" }),
-		);
-	},
+export const FilterMenu: Story = {
+	play: openFilterMenu,
+};
+
+export const FilterMenuPricingSelected: Story = {
+	args: { filterQuery: "pricing:unconfigured" },
+	play: openFilterMenu,
+};
+
+export const SingleOrganization: Story = {
+	args: { organizations: [MockOrganization] },
 };
 
 export const RequestedOrganizationDenied: Story = {

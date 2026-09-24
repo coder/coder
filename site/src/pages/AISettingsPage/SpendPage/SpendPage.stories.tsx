@@ -122,10 +122,10 @@ export const ProviderMenu: Story = {
 		await userEvent.click(
 			await canvas.findByRole("combobox", { name: "Search and filter users…" }),
 		);
-		await userEvent.click(
+		await userEvent.hover(
 			await screen.findByRole("option", { name: "Provider" }),
 		);
-		await screen.findByRole("option", { name: /OpenAI/ });
+		await screen.findByRole("button", { name: /OpenAI/ });
 	},
 };
 

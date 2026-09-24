@@ -140,7 +140,7 @@ const searchParam = (
 ) => new URLSearchParams(router.state.location.search).get(key);
 
 it("requests the default organization and switches organizations from the first page", async () => {
-	const user = userEvent.setup();
+	const user = userEvent.setup({ skipHover: true });
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
 	expect(spendSpy).toHaveBeenCalledWith(
@@ -153,7 +153,7 @@ it("requests the default organization and switches organizations from the first 
 	);
 	await user.click(await screen.findByRole("option", { name: "Organization" }));
 	await user.click(
-		await screen.findByRole("option", { name: MockOrganization2.display_name }),
+		await screen.findByRole("button", { name: MockOrganization2.display_name }),
 	);
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
@@ -180,7 +180,7 @@ it("requests the last 7 days when the URL has no dates", async () => {
 });
 
 it("requests no spend for a denied organization until another one is picked", async () => {
-	const user = userEvent.setup();
+	const user = userEvent.setup({ skipHover: true });
 	const { router, spendSpy } = renderSpend(`${initialSearch}&org=missing`);
 	await screen.findByRole("alert");
 	expect(spendSpy).not.toHaveBeenCalled();
@@ -205,7 +205,7 @@ it("requests no spend for a denied organization until another one is picked", as
 });
 
 it("applies a date preset and resets pagination", async () => {
-	const user = userEvent.setup();
+	const user = userEvent.setup({ skipHover: true });
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
 	await user.click(screen.getByRole("button", { name: /Feb 10.*Mar 12/ }));
@@ -226,7 +226,7 @@ it("applies a date preset and resets pagination", async () => {
 });
 
 it("keeps the retention bound while a filtered report is pending", async () => {
-	const user = userEvent.setup();
+	const user = userEvent.setup({ skipHover: true });
 	const retentionStart = fixedNow.subtract(10, "day");
 	const { spendSpy } = renderSpend(initialSearch, {
 		retention_start: retentionStart.toISOString(),
@@ -239,7 +239,7 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 		screen.getByRole("combobox", { name: "Search and filter users…" }),
 	);
 	await user.click(await screen.findByRole("option", { name: "Provider" }));
-	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
+	await user.click(await screen.findByRole("button", { name: /OpenAI/ }));
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
 			MockOrganization.id,
@@ -280,7 +280,7 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 });
 
 it("applies a second range from the keyboard after the first one resolves", async () => {
-	const user = userEvent.setup();
+	const user = userEvent.setup({ skipHover: true });
 	const { spendSpy } = renderSpend();
 	await screen.findByRole("table", { name: "Spend by user" });
 
@@ -324,7 +324,7 @@ it("shows spend without dimension filters to viewers who cannot read AI sessions
 });
 
 it("applies user and unconfigured pricing filters", async () => {
-	const user = userEvent.setup();
+	const user = userEvent.setup({ skipHover: true });
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
 
@@ -333,16 +333,15 @@ it("applies user and unconfigured pricing filters", async () => {
 	});
 	await user.click(filterInput);
 	await user.click(await screen.findByRole("option", { name: "User" }));
-	await user.click(await screen.findByRole("option", { name: /user01/ }));
+	await user.click(await screen.findByRole("button", { name: /user01/ }));
 	await waitFor(() =>
 		expect(searchParam(router, "filter")).toBe("user:user01"),
 	);
 
 	await user.click(filterInput);
-	await user.click(await screen.findByRole("option", { name: "Pricing" }));
 	await user.click(
 		await screen.findByRole("option", {
-			name: "Models with unconfigured pricing",
+			name: "Uses models with unconfigured pricing",
 		}),
 	);
 	await waitFor(() =>
@@ -363,7 +362,7 @@ it("applies user and unconfigured pricing filters", async () => {
 });
 
 it("applies the organization filter", async () => {
-	const user = userEvent.setup();
+	const user = userEvent.setup({ skipHover: true });
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
 
@@ -372,7 +371,7 @@ it("applies the organization filter", async () => {
 	);
 	await user.click(await screen.findByRole("option", { name: "Organization" }));
 	await user.click(
-		await screen.findByRole("option", { name: MockOrganization2.display_name }),
+		await screen.findByRole("button", { name: MockOrganization2.display_name }),
 	);
 
 	await waitFor(() =>
@@ -386,14 +385,14 @@ it("applies the organization filter", async () => {
 });
 
 it("applies the provider filter and resets pagination", async () => {
-	const user = userEvent.setup();
+	const user = userEvent.setup({ skipHover: true });
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
 	await user.click(
 		screen.getByRole("combobox", { name: "Search and filter users…" }),
 	);
 	await user.click(await screen.findByRole("option", { name: "Provider" }));
-	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
+	await user.click(await screen.findByRole("button", { name: /OpenAI/ }));
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
 			MockOrganization.id,
@@ -405,7 +404,7 @@ it("applies the provider filter and resets pagination", async () => {
 });
 
 it("requests the next page offset", async () => {
-	const user = userEvent.setup();
+	const user = userEvent.setup({ skipHover: true });
 	const { router, spendSpy } = renderSpend();
 	await screen.findByRole("table", { name: "Spend by user" });
 	await user.click(screen.getByRole("button", { name: "Next page" }));

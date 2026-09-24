@@ -702,9 +702,11 @@ function MainPanel({
 					className="mt-2 border-t border-border pt-2 first:mt-0 first:border-t-0 first:pt-0"
 					key={label}
 				>
-					<FilterComboboxLabel className="pt-0 opacity-80">
-						{label}
-					</FilterComboboxLabel>
+					{label && (
+						<FilterComboboxLabel className="pt-0 opacity-80">
+							{label}
+						</FilterComboboxLabel>
+					)}
 					{options.map(({ categoryKey, option, selected, showIcon }) => {
 						const token = option.token ?? chipToken(categoryKey, option.value);
 						return (

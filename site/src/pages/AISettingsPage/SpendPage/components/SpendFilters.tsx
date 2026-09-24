@@ -1,3 +1,11 @@
+import {
+	AppWindowIcon,
+	BoxIcon,
+	Building2Icon,
+	CloudIcon,
+	UserIcon,
+	UsersIcon,
+} from "lucide-react";
 import { type FC, useMemo } from "react";
 import { type QueryClient, useQueryClient } from "react-query";
 import {
@@ -5,21 +13,28 @@ import {
 	aiBridgeModels,
 	aiBridgeProviders,
 } from "#/api/queries/aiBridge";
+import { groupsByOrganization } from "#/api/queries/groups";
 import { users } from "#/api/queries/users";
 import { MaxAISpendPeriodDays, type Organization } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { DateTimeRangePicker } from "#/components/DateTimeRangePicker/DateTimeRangePicker";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
-import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
+import type {
+	FilterCategory,
+	FilterOption,
+} from "#/components/Filter/FilterCombobox/types";
 import { getOrganizationLabel } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
 import { AIBridgeModelIcon } from "#/pages/AIBridgePage/icons/AIBridgeModelIcon";
 import { spendQuickPresets } from "../spendPeriod";
 
+const OPTIONS_LIMIT = 25;
+
 type SpendFiltersProps = {
 	organizations: readonly Organization[];
+	organization: Organization;
 	filterQuery: string;
 	onFilterQueryChange: (query: string) => void;
 	canFilterDimensions: boolean;
@@ -31,6 +46,7 @@ type SpendFiltersProps = {
 
 export const SpendFilters: FC<SpendFiltersProps> = ({
 	organizations,
+	organization,
 	filterQuery,
 	onFilterQueryChange,
 	canFilterDimensions,
@@ -42,12 +58,13 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 	const queryClient = useQueryClient();
 	const categories = useMemo(
 		() =>
-			buildSpendFilterCategories(
+			buildSpendFilterCategories({
 				organizations,
+				organizationName: organization.name,
 				canFilterDimensions,
 				queryClient,
-			),
-		[organizations, canFilterDimensions, queryClient],
+			}),
+		[organizations, organization.name, canFilterDimensions, queryClient],
 	);
 
 	return (
@@ -58,6 +75,7 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 					onChange={onFilterQueryChange}
 					categories={categories}
 					placeholder="Search and filter users…"
+					className="w-full min-w-0"
 				/>
 			</div>
 			<div className="shrink-0">
@@ -75,117 +93,163 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 	);
 };
 
-const buildSpendFilterCategories = (
-	organizations: readonly Organization[],
-	canFilterDimensions: boolean,
-	queryClient: Pick<QueryClient, "fetchQuery">,
-): readonly FilterCategory[] => {
-	const categories: FilterCategory[] = [
-		{
-			key: "org",
-			label: "Organization",
-			getOptions: async (query) => {
-				const normalizedQuery = query.trim().toLowerCase();
-				return organizations
-					.filter((organization) => {
-						if (!normalizedQuery) {
-							return true;
-						}
-						return [organization.name, organization.display_name]
-							.join(" ")
-							.toLowerCase()
-							.includes(normalizedQuery);
-					})
-					.map((organization) => ({
-						label: getOrganizationLabel(organization, organizations),
-						value: organization.name,
-					}));
-			},
-		},
-		{
-			key: "user",
-			label: "User",
-			getOptions: async (query) => {
-				const usersRes = await queryClient.fetchQuery(
-					users({ q: query, limit: 25 }),
-				);
-				return usersRes.users.map((user) => ({
-					label: user.username,
-					value: user.username,
-					startIcon: (
-						<Avatar fallback={user.username} src={user.avatar_url} size="sm" />
-					),
-					subtitle: user.name,
-				}));
-			},
-		},
-		{
-			key: "pricing",
-			label: "Pricing",
-			getOptions: async (query) => {
-				const option = {
-					label: "Models with unconfigured pricing",
-					value: "unconfigured",
-					subtitle: "Users with usage excluded from spend",
-				};
-				return option.label.toLowerCase().includes(query.trim().toLowerCase())
-					? [option]
-					: [];
-			},
-		},
-	];
+const matchesQuery = (query: string, ...fields: readonly string[]) => {
+	const normalized = query.trim().toLowerCase();
+	return (
+		normalized.length === 0 ||
+		fields.some((field) => field.toLowerCase().includes(normalized))
+	);
+};
 
-	if (!canFilterDimensions) {
-		return categories;
-	}
+const unconfiguredPricingOption: FilterOption = {
+	label: "Uses models with unconfigured pricing",
+	value: "unconfigured",
+};
 
-	return [
-		...categories,
-		{
-			key: "provider",
-			label: "Provider",
-			getOptions: async () => {
-				const providers = await queryClient.fetchQuery(aiBridgeProviders());
-				return providers.map((provider) => ({
-					value: provider.name,
-					label: provider.display_name || provider.name,
+type BuildSpendFilterCategoriesOptions = Readonly<{
+	organizations: readonly Organization[];
+	organizationName: string;
+	canFilterDimensions: boolean;
+	queryClient: Pick<QueryClient, "fetchQuery">;
+}>;
+
+const buildSpendFilterCategories = ({
+	organizations,
+	organizationName,
+	canFilterDimensions,
+	queryClient,
+}: BuildSpendFilterCategoriesOptions): readonly FilterCategory[] => {
+	const user: FilterCategory = {
+		key: "user",
+		label: "User",
+		icon: <UserIcon />,
+		getOptions: async (query) => {
+			const usersRes = await queryClient.fetchQuery(
+				users({ q: query, limit: OPTIONS_LIMIT }),
+			);
+			return usersRes.users.map((user) => ({
+				label: user.username,
+				value: user.username,
+				startIcon: (
+					<Avatar fallback={user.username} src={user.avatar_url} size="sm" />
+				),
+			}));
+		},
+	};
+
+	const group: FilterCategory = {
+		key: "group",
+		label: "Group",
+		icon: <UsersIcon />,
+		getOptions: async (query) => {
+			const groups = await queryClient.fetchQuery(
+				groupsByOrganization(organizationName),
+			);
+			return groups
+				.filter((group) => matchesQuery(query, group.name, group.display_name))
+				.map((group) => ({
+					label: group.display_name || group.name,
+					value: group.name,
 					startIcon: (
-						<ProviderIcon provider={provider.type} icon={provider.icon} />
+						<Avatar
+							fallback={group.display_name || group.name}
+							src={group.avatar_url}
+							size="sm"
+						/>
 					),
 				}));
-			},
 		},
-		{
-			key: "model",
-			label: "Model",
-			getOptions: async (query) => {
-				const models = await queryClient.fetchQuery(
-					aiBridgeModels({ model: query, limit: 25 }),
-				);
-				return models.map((model) => ({
-					label: model,
-					value: model,
-					startIcon: (
-						<AIBridgeModelIcon model={model} className="size-icon-sm" />
-					),
-				}));
-			},
-		},
-		{
-			key: "client",
-			label: "Client",
-			getOptions: async (query) => {
-				const clients = await queryClient.fetchQuery(
-					aiBridgeClients({ q: query, limit: 25 }),
-				);
-				return clients.map((client) => ({
-					label: client,
-					value: client,
-					startIcon: (
-						<AIBridgeClientIcon client={client} className="size-icon-sm" />
-					),
-				}));
-			},
-		},
-	];
+	};
+
+	// Provider, model, and client options come from deployment-wide AI Gateway
+	// endpoints, so only viewers of every session get those categories.
+	const dimensions: FilterCategory[] = canFilterDimensions
+		? [
+				{
+					key: "provider",
+					label: "Provider",
+					icon: <CloudIcon />,
+					getOptions: async (query) => {
+						const providers = await queryClient.fetchQuery(aiBridgeProviders());
+						return providers
+							.filter((provider) =>
+								matchesQuery(query, provider.name, provider.display_name),
+							)
+							.map((provider) => ({
+								value: provider.name,
+								label: provider.display_name || provider.name,
+								startIcon: (
+									<ProviderIcon provider={provider.type} icon={provider.icon} />
+								),
+							}));
+					},
+				},
+				{
+					key: "model",
+					label: "Model",
+					icon: <BoxIcon />,
+					getOptions: async (query) => {
+						const models = await queryClient.fetchQuery(
+							aiBridgeModels({ model: query, limit: OPTIONS_LIMIT }),
+						);
+						return models.map((model) => ({
+							label: model,
+							value: model,
+							startIcon: (
+								<AIBridgeModelIcon model={model} className="size-icon-sm" />
+							),
+						}));
+					},
+				},
+				{
+					key: "client",
+					label: "Client",
+					icon: <AppWindowIcon />,
+					getOptions: async (query) => {
+						const clients = await queryClient.fetchQuery(
+							aiBridgeClients({ q: query, limit: OPTIONS_LIMIT }),
+						);
+						return clients.map((client) => ({
+							label: client,
+							value: client,
+							startIcon: (
+								<AIBridgeClientIcon client={client} className="size-icon-sm" />
+							),
+						}));
+					},
+				},
+			]
+		: [];
+
+	const organization: FilterCategory = {
+		key: "org",
+		label: "Organization",
+		icon: <Building2Icon />,
+		hideWhenSingleOption: true,
+		getOptions: async (query) =>
+			organizations
+				.filter((organization) =>
+					matchesQuery(query, organization.name, organization.display_name),
+				)
+				.map((organization) => ({
+					label: getOrganizationLabel(organization, organizations),
+					value: organization.name,
+				})),
+	};
+
+	const pricing: FilterCategory = {
+		key: "pricing",
+		label: "Pricing",
+		inlineOptions: true,
+		inlineOptionsLabel: "",
+		// Icon-less rows otherwise always render in the primary color; this keeps
+		// the row secondary until it is selected.
+		inlineOptionIcons: true,
+		getOptions: async (query) =>
+			matchesQuery(query, unconfiguredPricingOption.label)
+				? [unconfiguredPricingOption]
+				: [],
+	};
+
+	return [user, group, ...dimensions, organization, pricing];
 };

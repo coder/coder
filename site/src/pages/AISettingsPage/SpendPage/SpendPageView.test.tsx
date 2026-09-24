@@ -46,7 +46,7 @@ const renderView = (organization: typeof MockOrganization | undefined) => {
 };
 
 it("reports the organization picked from the unified filter", async () => {
-	const user = userEvent.setup();
+	const user = userEvent.setup({ skipHover: true });
 	const { onFilterQueryChange } = renderView(MockOrganization);
 
 	await user.click(
@@ -54,7 +54,7 @@ it("reports the organization picked from the unified filter", async () => {
 	);
 	await user.click(await screen.findByRole("option", { name: "Organization" }));
 	await user.click(
-		await screen.findByRole("option", { name: MockOrganization2.display_name }),
+		await screen.findByRole("button", { name: MockOrganization2.display_name }),
 	);
 
 	expect(onFilterQueryChange).toHaveBeenCalledWith(
@@ -63,7 +63,7 @@ it("reports the organization picked from the unified filter", async () => {
 });
 
 it("reports the organization picked to recover from a denied one", async () => {
-	const user = userEvent.setup();
+	const user = userEvent.setup({ skipHover: true });
 	const { onOrganizationChange } = renderView(undefined);
 
 	await user.click(
