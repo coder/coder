@@ -2,9 +2,9 @@
 title: OAuth2 provider security and limitations
 ---
 
-This page is for a Coder deployment administrator running the OAuth2 provider.
-It covers security guidance, current limitations, and upgrade notes for pending changes.
-For enabling the provider and creating an application, refer to [OAuth2 provider](./index.md).
+This page covers security guidance, current limitations, and upgrade notes for pending changes.
+
+- [OAuth2 provider](./index.md): how to turn on the provider and create an application
 
 ## Security considerations
 

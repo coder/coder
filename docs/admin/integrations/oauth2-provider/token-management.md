@@ -4,7 +4,9 @@ title: OAuth2 provider token management
 
 This page covers three different readers: a developer refreshing or revoking a token, any Coder user ending their own authorization for an application, and a deployment administrator deleting an application.
 It covers how to refresh an access token, revoke a token, revoke your own authorization for an application, and delete an application.
-For the client authentication methods used to refresh or revoke a token, refer to [Client authentication methods](./integration-patterns.md#client-authentication-methods); the other two operations authenticate with your Coder session token.
+
+- [Client authentication methods](./integration-patterns.md#client-authentication-methods): how to prove identity when refreshing or revoking a token.
+  The other two actions on this page use your own Coder login instead.
 
 ## Refresh tokens
 

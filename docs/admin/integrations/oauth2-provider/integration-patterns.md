@@ -2,10 +2,12 @@
 title: OAuth2 provider integration patterns
 ---
 
-This page is for a developer integrating a client with Coder's OAuth2 provider.
-It covers how a client authenticates and completes an authorization: the supported client authentication methods, the standard authorization code flow, the required PKCE (Proof Key for Code Exchange) flow, and the discovery endpoints a client uses to find them.
-For enabling the provider and creating an application, refer to [OAuth2 provider](./index.md).
-For scopes, token refresh and revocation, and accepted redirect URI schemes, refer to [Scopes](./scopes.md), [Token management](./token-management.md), and [Callback URL schemes](./callback-url-schemes.md).
+This page covers how a client proves who it is and completes a login: the supported ways to prove identity, the standard login steps, the required PKCE (Proof Key for Code Exchange) step, and how a client finds the right web addresses to use.
+
+- [OAuth2 provider](./index.md): turn on the provider and create an application
+- [Scopes](./scopes.md): control what a client is allowed to access
+- [Token management](./token-management.md): refresh, cancel, or delete access
+- [Callback URL schemes](./callback-url-schemes.md): which redirect addresses are allowed
 
 ## Client authentication methods
 

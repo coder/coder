@@ -2,9 +2,10 @@
 title: OAuth2 provider troubleshooting
 ---
 
-This page is for a developer whose OAuth2 client request failed.
-It collects the error conditions the OAuth2 provider returns, matched by the exact `error`, `error_description`, or log line you'll see.
-For how the provider works, refer to [OAuth2 provider](./index.md) and [Integration patterns](./integration-patterns.md).
+This page collects the error conditions the OAuth2 provider returns, matched by the exact `error`, `error_description`, or log line you'll see.
+
+- [OAuth2 provider](./index.md): how to turn on and set up the provider
+- [Integration patterns](./integration-patterns.md): how a client is supposed to connect and log in
 
 ## OAuth2 endpoints return 404
 
