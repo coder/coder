@@ -18,7 +18,8 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
-import { AIBridgeModelIcon } from "#/pages/AIBridgePage/icons/AIBridgeModelIcon";
+import { ClientsBadge } from "#/pages/AIBridgePage/ClientsBadge";
+import { ModelsBadge } from "#/pages/AIBridgePage/ModelsBadge";
 import { ProvidersBadge } from "#/pages/AIBridgePage/ProvidersBadge";
 import { SpendAmount } from "./SpendAmount";
 
@@ -91,7 +92,8 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({ reportQuery }) => {
 							<TableRow>
 								<TableHead className="w-36 @3xl:w-48">User</TableHead>
 								<TableHead className="w-28 @3xl:w-36">Providers</TableHead>
-								<TableHead>Top models</TableHead>
+								<TableHead className="w-28 @3xl:w-36">Models</TableHead>
+								<TableHead className="w-28 @3xl:w-36">Clients</TableHead>
 								<TableHead className="w-24 text-right @3xl:w-28">
 									Spend
 								</TableHead>
@@ -136,7 +138,10 @@ const SpendUserRow: FC<SpendUserRowProps> = ({ user }) => (
 			<ProvidersBadge providers={user.providers} />
 		</TableCell>
 		<TableCell>
-			<TopModelsList models={user.models.slice(0, 5)} />
+			<ModelsBadge models={user.models} />
+		</TableCell>
+		<TableCell>
+			<ClientsBadge clients={user.clients} />
 		</TableCell>
 		<TableCell className="text-right">
 			<SpendAmount
@@ -147,34 +152,6 @@ const SpendUserRow: FC<SpendUserRowProps> = ({ user }) => (
 		</TableCell>
 	</TableRow>
 );
-
-const TopModelsList: FC<{ models: readonly string[] }> = ({ models }) => {
-	if (models.length === 0) {
-		return <span className="text-xs text-content-secondary">No models</span>;
-	}
-
-	return (
-		<div className="flex flex-col gap-1">
-			<div>
-				<div className="text-sm text-content-primary">Top models</div>
-				<div className="text-xs text-content-secondary">(Based on cost)</div>
-			</div>
-			<ul className="m-0 flex list-none flex-col gap-1 p-0">
-				{models.map((model) => (
-					<li
-						key={model}
-						className="flex min-w-0 items-center gap-1.5 text-xs text-content-secondary"
-					>
-						<AIBridgeModelIcon model={model} className="size-icon-xs" />
-						<span className="truncate" title={model}>
-							{model}
-						</span>
-					</li>
-				))}
-			</ul>
-		</div>
-	);
-};
 
 type SpendTotalProps = {
 	report: TypesGen.OrganizationAISpendReport;
