@@ -228,7 +228,7 @@ A misspelled parameter is ignored on the same rule, so what you see is the failu
 Two failures stay on Coder rather than reaching your callback, because in both cases the callback is not yet trustworthy:
 
 - A `redirect_uri` that does not parse, or that does not exactly match one of the redirect URIs registered for the application.
-  Redirecting to it would defeat the check that just rejected it, so Coder answers 400 (see ["Invalid redirect_uri"](#invalid-redirect_uri)).
+  Redirecting to it would defeat the check that just rejected it, so Coder answers 400 (refer to ["Invalid redirect_uri"](#invalid-redirect_uri)).
 - A `client_id` sent more than once, or one that does not name the application the callback was matched against.
   Coder cannot tell whose registration it is about to redirect to.
 
