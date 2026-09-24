@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func mustUpdate(ctx context.Context, t *testing.T, m *chatstate.ChatMachine, fn func(*chatstate.Tx, database.Store) error) {
+func mustUpdate(ctx context.Context, t *testing.T, m *chatstate.ChatMachine, fn func(*chatstate.Tx, database.Store, database.Chat) error) {
 	t.Helper()
 	_, err := m.Update(ctx, fn)
 	require.NoError(t, err)
@@ -39,7 +39,7 @@ func sendQueuedMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, b
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	var send chatstate.SendMessageResult
-	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(body, f.User.ID, f.Model.ID),
@@ -58,7 +58,7 @@ func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	var send chatstate.SendMessageResult
-	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(body, f.User.ID, f.Model.ID),

@@ -145,12 +145,19 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 // Callbacks that return an error roll back the transaction (rolling
 // back the automatic snapshot bump) and publish nothing.
 //
+// The bumped chat row is passed to fn as initialChat so callbacks can run
+// pre-transition fence checks against it without issuing their own read.
+// initialChat reflects the state at the start of the transaction (only
+// snapshot_version is advanced); it is NOT refreshed as fn applies
+// transitions, so callbacks that need post-mutation state must read it
+// back through the transition results or the transaction store.
+//
 // On success Update returns the post-transition chat it already loads to
 // build the publish message, so callers can use it instead of issuing a
 // redundant read on the same row.
 func (m *ChatMachine) Update(
 	ctx context.Context,
-	fn func(*Tx, database.Store) error,
+	fn func(*Tx, database.Store, database.Chat) error,
 ) (database.Chat, error) {
 	if m.store == nil {
 		return database.Chat{}, xerrors.New("chatstate: ChatMachine has nil store")
@@ -164,7 +171,8 @@ func (m *ChatMachine) Update(
 
 	var final database.Chat
 	err := m.store.InTx(func(store database.Store) error {
-		if _, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID); err != nil {
+		initialChat, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID)
+		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
 			}
@@ -175,7 +183,7 @@ func (m *ChatMachine) Update(
 			store:  store,
 			chatID: m.chatID,
 		}
-		if err := fn(tx, store); err != nil {
+		if err := fn(tx, store, initialChat); err != nil {
 			return err
 		}
 		chat, state, err := tx.loadState()

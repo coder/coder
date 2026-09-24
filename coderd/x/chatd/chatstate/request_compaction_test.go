@@ -30,7 +30,7 @@ func requestCompaction(t *testing.T, f *testFixture) (uuid.UUID, *chatstate.Chat
 
 	worker := uuid.New()
 	runner := uuid.New()
-	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: worker, RunnerID: runner})
 		return err
 	})
@@ -44,7 +44,7 @@ func requestCompaction(t *testing.T, f *testFixture) (uuid.UUID, *chatstate.Chat
 	require.False(t, stale, "owned runner heartbeat must be fresh")
 	ownershipBefore := f.Pub.ownershipPublishCount()
 
-	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
 		return err
 	})
@@ -75,7 +75,7 @@ func TestRequestCompaction_PreservedByAcquireAndQueueAppend(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	chatID, m := requestCompaction(t, f)
 
-	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: uuid.New(), RunnerID: uuid.New()})
 		return err
 	})
@@ -83,7 +83,7 @@ func TestRequestCompaction_PreservedByAcquireAndQueueAppend(t *testing.T) {
 	chat := f.readChat(ctx, t, chatID)
 	require.True(t, chat.CompactionRequestedAt.Valid, "Acquire preserves the marker")
 
-	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("queued while compacting", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
@@ -106,7 +106,7 @@ func TestRequestCompaction_ConsumedByCommitStep(t *testing.T) {
 
 	assistant := userTextMessage("mid-step", f.User.ID, f.Model.ID)
 	assistant.Role = database.ChatMessageRoleAssistant
-	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{assistant},
 		})
@@ -119,7 +119,7 @@ func TestRequestCompaction_ConsumedByCommitStep(t *testing.T) {
 
 	summary := userTextMessage("summary", f.User.ID, f.Model.ID)
 	summary.Role = database.ChatMessageRoleAssistant
-	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages:                 []chatstate.Message{summary},
 			ConsumeCompactionRequest: true,
@@ -176,7 +176,7 @@ func TestRequestCompaction_ClearedOnTerminalTransitions(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			chatID, m := requestCompaction(t, f)
 
-			mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
+			mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 				return tc.apply(tx)
 			})
 
@@ -197,18 +197,18 @@ func TestRequestCompaction_ClearedByNewTurn(t *testing.T) {
 	chatID, m := requestCompaction(t, f)
 
 	// Finish the pending turn (clears), then re-request and edit.
-	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
 	})
 
-	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
 		return err
 	})
 
 	target := firstUserMessageID(ctx, t, f, chatID)
-	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.EditMessage(chatstate.EditMessageInput{
 			MessageID: target,
 			CreatedBy: f.User.ID,
@@ -251,7 +251,7 @@ func TestRequestCompaction_FreshHistoryEpoch(t *testing.T) {
 			before := f.readChat(ctx, t, seeded.chatID)
 
 			m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
-			mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store) error {
+			mustUpdate(ctx, t, m, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 				_, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
 				return err
 			})
@@ -283,7 +283,7 @@ func TestRequestCompaction_RejectedWhenBusyOrArchived(t *testing.T) {
 			seeded := seedState(t, f, from)
 			m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
 
-			_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 				_, rerr := tx.RequestCompaction(chatstate.RequestCompactionInput{})
 				return rerr
 			})

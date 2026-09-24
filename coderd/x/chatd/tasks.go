@@ -307,11 +307,11 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	var committed database.Chat
 	// Keep the in-transaction reload: committedStateAfterUpdateError needs the
 	// committed chat even on a commit-time error, when Update returns zero.
-	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := loadChatForTask(ctx, store, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
-		if err != nil {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, initialChat database.Chat) error {
+		if err := verifyTaskFence(initialChat, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
+		chat := initialChat
 		messages := partialMessages
 		// Reuse the captured interrupt instant so database delay does not
 		// inflate billing.
@@ -446,11 +446,11 @@ func (s *taskStarter) cancelRequiresAction(
 	var committed database.Chat
 	// Keep the in-transaction reload: committedStateAfterUpdateError needs the
 	// committed chat even on a commit-time error, when Update returns zero.
-	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := loadChatForTask(ctx, store, input, database.ChatStatusRequiresAction, taskFenceOptions{requireHistory: true})
-		if err != nil {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, initialChat database.Chat) error {
+		if err := verifyTaskFence(initialChat, input, database.ChatStatusRequiresAction, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
+		chat := initialChat
 		if chat.RequiresActionDeadlineAt.Valid {
 			now, err := store.GetDatabaseNow(ctx)
 			if err != nil {
@@ -463,10 +463,11 @@ func (s *taskStarter) cancelRequiresAction(
 		if _, err := tx.CancelRequiresAction(chatstate.CancelRequiresActionInput{Reason: reason}); err != nil {
 			return xerrors.Errorf("cancel requires action: %w", err)
 		}
-		committed, err = store.GetChatByID(ctx, input.ChatID)
+		loaded, err := store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load committed chat: %w", err)
 		}
+		committed = loaded
 		return nil
 	})
 	if err != nil {
@@ -481,7 +482,7 @@ func (s *taskStarter) cancelRequiresAction(
 func (s *taskStarter) StartAbandon(ctx context.Context, input chatWorkerTaskStartInput) error {
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	mismatch := false
-	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		chat, err := store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {

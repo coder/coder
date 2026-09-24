@@ -391,7 +391,7 @@ func TestGenerateAndStoreChatSummary_UsesTitleGenerationModel(t *testing.T) {
 	chat := created.Chat
 
 	machine := chatstate.NewChatMachine(db, ps, chat.ID)
-	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, _ database.Store) error {
+	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, _ database.Store, _ database.Chat) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{
 				{

@@ -175,7 +175,7 @@ func TestWorker_MessageBumpSendsChatToQueueBack(t *testing.T) {
 	require.NoError(t, err)
 
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, older.ID)
-	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, _ database.Store) error {
+	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, _ database.Store, _ database.Chat) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(t, "move me", f.user.ID, f.model.ID, f.apiKey.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,

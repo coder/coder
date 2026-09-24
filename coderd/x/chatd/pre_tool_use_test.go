@@ -944,7 +944,7 @@ func seedPendingToolCall(
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(db, ps, created.Chat.ID)
-	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, _ database.Store) error {
+	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, _ database.Store, _ database.Chat) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleAssistant,

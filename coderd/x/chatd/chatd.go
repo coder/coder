@@ -1544,7 +1544,7 @@ func (p *Server) SendMessage(
 
 	var result SendMessageResult
 	machine := p.newChatMachine(opts.ChatID)
-	refreshed, updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	refreshed, updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -1886,7 +1886,7 @@ func (p *Server) EditMessage(
 		editedCutoffT time.Time
 	)
 	machine := p.newChatMachine(opts.ChatID)
-	refreshed, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	refreshed, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2116,7 +2116,7 @@ func (p *Server) DeleteQueued(
 	}
 
 	machine := p.newChatMachine(chatID)
-	_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ database.Chat) error {
 		_, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
 		})
@@ -2141,7 +2141,7 @@ func (p *Server) PromoteQueued(
 
 	var result PromoteQueuedResult
 	machine := p.newChatMachine(opts.ChatID)
-	refreshed, updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	refreshed, updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2235,7 +2235,7 @@ func (p *Server) SubmitToolResults(
 	}
 
 	var statusConflict *ToolResultStatusConflictError
-	refreshed, updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	refreshed, updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		locked, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2337,7 +2337,7 @@ func (p *Server) InterruptChat(
 	}
 
 	machine := p.newChatMachine(chat.ID)
-	refreshed, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	refreshed, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ database.Chat) error {
 		if _, err := tx.Interrupt(chatstate.InterruptInput{
 			Reason: "Tool execution interrupted by user",
 		}); err != nil {
@@ -2377,7 +2377,7 @@ func (p *Server) CompactChat(
 
 	var refreshed database.Chat
 	machine := p.newChatMachine(chat.ID)
-	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		lockedChat, err := store.GetChatByID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2434,7 +2434,7 @@ func (p *Server) ClearChat(
 
 	var refreshed database.Chat
 	machine := p.newChatMachine(chat.ID)
-	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		lockedChat, err := store.GetChatByID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2500,7 +2500,7 @@ func (p *Server) ReconcileInvalidStateChat(
 	}
 
 	machine := p.newChatMachine(chat.ID)
-	refreshed, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	refreshed, err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ database.Chat) error {
 		if _, err := tx.ReconcileInvalidState(chatstate.ReconcileInvalidStateInput{}); err != nil {
 			return err
 		}

@@ -25,7 +25,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func mustUpdate(ctx context.Context, t *testing.T, m *chatstate.ChatMachine, fn func(*chatstate.Tx, database.Store) error) {
+func mustUpdate(ctx context.Context, t *testing.T, m *chatstate.ChatMachine, fn func(*chatstate.Tx, database.Store, database.Chat) error) {
 	t.Helper()
 	_, err := m.Update(ctx, fn)
 	require.NoError(t, err)

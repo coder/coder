@@ -23,7 +23,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func mustUpdate(ctx context.Context, t *testing.T, m *chatstate.ChatMachine, fn func(*chatstate.Tx, database.Store) error) {
+func mustUpdate(ctx context.Context, t *testing.T, m *chatstate.ChatMachine, fn func(*chatstate.Tx, database.Store, database.Chat) error) {
 	t.Helper()
 	_, err := m.Update(ctx, fn)
 	require.NoError(t, err)
@@ -200,7 +200,7 @@ func (f *workerTestFixture) createRequiresActionChat(t *testing.T) database.Chat
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, res.Chat.ID)
-	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{
 				assistantToolCallMessage(t, f.model.ID, toolName),
@@ -209,7 +209,7 @@ func (f *workerTestFixture) createRequiresActionChat(t *testing.T) database.Chat
 		return err
 	})
 
-	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
 		return err
 	})
@@ -431,7 +431,7 @@ func finishTurn(t *testing.T, f *workerTestFixture, chatID uuid.UUID) database.C
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
 	})
@@ -445,7 +445,7 @@ func commitAssistantStep(t *testing.T, f *workerTestFixture, chatID uuid.UUID, t
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{assistantTextMessage(t, text, f.model.ID)},
 		})
@@ -461,7 +461,7 @@ func interruptChat(t *testing.T, f *workerTestFixture, chatID uuid.UUID) databas
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(t, "interrupt", f.user.ID, f.model.ID, f.apiKey.ID),
 			BusyBehavior: chatstate.BusyBehaviorInterrupt,
@@ -478,7 +478,7 @@ func acquireChat(t *testing.T, f *workerTestFixture, chatID uuid.UUID, workerID 
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, store database.Store) error {
+	mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: workerID, RunnerID: runnerID})
 		return err
 	})

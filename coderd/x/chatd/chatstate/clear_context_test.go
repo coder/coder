@@ -20,7 +20,7 @@ func TestClearContext_RequiresBoundaryMessages(t *testing.T) {
 	seeded := seedState(t, f, chatstate.StateW)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
 
-	_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ database.Chat) error {
 		_, err := tx.ClearContext(chatstate.ClearContextInput{})
 		return err
 	})

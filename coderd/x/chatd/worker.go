@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"sync"
 	"time"
@@ -262,14 +261,8 @@ func (w *chatWorker) acquireCandidate(
 ) (bool, error) {
 	runnerID := uuid.New()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := store.GetChatByID(ctx, chatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errSkipAcquire
-		}
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, initialChat database.Chat) error {
+		chat := initialChat
 		queueCount, err := store.CountChatQueuedMessages(ctx, chatID)
 		if err != nil {
 			return xerrors.Errorf("count queue: %w", err)
@@ -324,19 +317,15 @@ func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownCleanupTimeout)
 	defer cancel()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	_, err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := store.GetChatByID(cleanupCtx, chatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errSkipAcquire
-		}
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
+	_, err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, _ database.Store, initialChat database.Chat) error {
+		chat := initialChat
 		if !chat.WorkerID.Valid || chat.WorkerID.UUID != workerID || !chat.RunnerID.Valid || chat.RunnerID.UUID != runnerID {
 			return errSkipAcquire
 		}
-		_, err = tx.Abandon(chatstate.AbandonInput{})
-		return err
+		if _, err := tx.Abandon(chatstate.AbandonInput{}); err != nil {
+			return err
+		}
+		return nil
 	})
 	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) {
 		return nil

@@ -550,7 +550,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		t.Helper()
 		ctx := chatdTestContext(t)
 		machine := chatstate.NewChatMachine(server.db, server.pubsub, chat.ID)
-		mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, store database.Store) error {
+		mustUpdate(ctx, t, machine, func(tx *chatstate.Tx, store database.Store, _ database.Chat) error {
 			_, err := tx.CommitStep(chatstate.CommitStepInput{
 				Messages: []chatstate.Message{
 					{
