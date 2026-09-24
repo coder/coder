@@ -3,7 +3,6 @@ import {
 	CheckIcon,
 	ChevronRightIcon,
 	ListFilterIcon,
-	PlusIcon,
 	SearchIcon,
 } from "lucide-react";
 import {
@@ -377,7 +376,7 @@ export function FilterCombobox({
 							).toLowerCase();
 							const displayText = prefix ? chipToken(prefix, value) : value;
 							return (
-								<span key={token} className="inline-flex">
+								<span key={token} className="inline-flex min-w-0 max-w-full">
 									<FilterComboboxChip
 										value={token}
 										removeLabel={`Remove ${displayText}`}
@@ -393,13 +392,13 @@ export function FilterCombobox({
 										<FilterComboboxChip
 											removeLabel={`Remove ${scopePillLabel}`}
 											onRemove={() => actions.toggleScope(category.key)}
+											// Only the pill shrinks, so the pair never overflows the field.
 											className={cn(
 												labelOnlyChipClassName,
-												"rounded-l-none border-l-border",
+												"min-w-0 rounded-l-none border-l-border",
 											)}
 										>
-											<PlusIcon aria-hidden />
-											{scopePillLabel}
+											<span className="min-w-0 truncate">{scopePillLabel}</span>
 										</FilterComboboxChip>
 									)}
 								</span>
@@ -799,7 +798,7 @@ function FlyoutScopeToggle({
 			{/* Zero basis so the label wraps to the panel width set by the list. */}
 			<label
 				htmlFor={id}
-				className="w-0 min-w-0 flex-1 text-sm text-content-secondary"
+				className="w-0 min-w-0 flex-1 text-xs text-content-secondary"
 			>
 				{label}
 			</label>

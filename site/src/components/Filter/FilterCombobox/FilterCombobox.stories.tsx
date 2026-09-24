@@ -586,29 +586,31 @@ export const TypedInlinePrefix: Story = {
 	},
 };
 
+const scopedOwnerCategories: FilterCategory[] = [
+	{
+		key: "owner",
+		label: "Owner",
+		icon: <UserIcon />,
+		chipKeys: ["owner", "user"],
+		scopeToggle: {
+			label: (owner) =>
+				owner
+					? `Include workspaces shared with ${owner}`
+					: "Include shared workspaces",
+			chipKey: "user",
+			pillLabel: "shared with owner",
+		},
+		getOptions: async (query) => filterOptions(ownerOptions, query),
+	},
+];
+
 // A category scope toggle sits below the option list; the applied chip is
 // joined by a shared with owner pill while the toggle is on.
 export const ScopeToggle: Story = {
 	render: () => (
 		<FilterComboboxHarness
 			initialQuery="user:alice"
-			categories={[
-				{
-					key: "owner",
-					label: "Owner",
-					icon: <UserIcon />,
-					chipKeys: ["owner", "user"],
-					scopeToggle: {
-						label: (owner) =>
-							owner
-								? `Include workspaces shared with ${owner}`
-								: "Include shared workspaces",
-						chipKey: "user",
-						pillLabel: "shared with owner",
-					},
-					getOptions: async (query) => filterOptions(ownerOptions, query),
-				},
-			]}
+			categories={scopedOwnerCategories}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -637,6 +639,27 @@ export const ScopeToggleTypedMatch: Story = {
 		await within(canvasElement.ownerDocument.body).findByRole("switch", {
 			name: "Include workspaces shared with alice",
 		});
+	},
+};
+
+// A long owner name next to the shared with owner pill. At desktop width the
+// pill label shows in full.
+export const ScopePillFullLabel: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alexandra-montgomery"
+			categories={scopedOwnerCategories}
+		/>
+	),
+};
+
+// On a phone the pill label truncates so the chip pair stays inside the field.
+export const ScopePillTruncatesWhenNarrow: Story = {
+	...ScopePillFullLabel,
+	parameters: {
+		layout: "fullscreen",
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 };
 
