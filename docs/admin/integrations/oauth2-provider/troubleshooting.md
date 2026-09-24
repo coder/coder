@@ -30,10 +30,9 @@ does not, so a bad URL is never echoed back to a browser.
 
 ## "invalid_scope" returned to your callback
 
-The authorization endpoint validates the `scope` parameter. When it cannot
-grant what was asked for, it redirects to your registered callback with
-`error=invalid_scope` rather than issuing a code. The `error_description`
-opens with the requested name that caused the rejection:
+The authorization endpoint validates the `scope` parameter.
+When it cannot grant what was asked for, it redirects to your registered callback with `error=invalid_scope` rather than issuing a code.
+The `error_description` opens with the requested name that caused the rejection:
 
 - `unknown or unsupported scope`: this deployment does not offer that name to
   OAuth2 clients. It may not exist, or it may exist and be internal-only, which
