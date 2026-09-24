@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -51,7 +50,7 @@ func TestStoreChatAttachment_Success(t *testing.T) {
 	)
 	tx.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
 		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
+		MaxFileLinks: storeChatAttachmentTestCap,
 		FileIds:      []uuid.UUID{fileID},
 	}).Return(int32(0), nil)
 
@@ -94,7 +93,7 @@ func TestStoreChatAttachment_UsesDetectNameForClassification(t *testing.T) {
 	)
 	tx.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
 		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
+		MaxFileLinks: storeChatAttachmentTestCap,
 		FileIds:      []uuid.UUID{fileID},
 	}).Return(int32(0), nil)
 
@@ -138,7 +137,7 @@ func TestStoreChatAttachment_AllowsUnsupportedPromptInputType(t *testing.T) {
 	)
 	tx.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
 		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
+		MaxFileLinks: storeChatAttachmentTestCap,
 		FileIds:      []uuid.UUID{fileID},
 	}).Return(int32(0), nil)
 
@@ -236,7 +235,7 @@ func TestStoreChatAttachment_LinkError(t *testing.T) {
 	tx.EXPECT().InsertChatFile(gomock.Any(), gomock.Any()).Return(database.InsertChatFileRow{ID: fileID}, nil)
 	tx.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
 		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
+		MaxFileLinks: storeChatAttachmentTestCap,
 		FileIds:      []uuid.UUID{fileID},
 	}).Return(int32(0), context.DeadlineExceeded)
 
@@ -260,7 +259,7 @@ func TestStoreChatAttachment_SerializesCapCheck(t *testing.T) {
 		LastModelConfigID: model.ID,
 	})
 
-	for i := range codersdk.DefaultChatMaxAttachmentsPerChat - 1 {
+	for i := range storeChatAttachmentTestCap - 1 {
 		insertLinkedChatFile(
 			ctx,
 			t,
@@ -352,16 +351,20 @@ WHERE datname = current_database()
 	// evicts the oldest file instead of exceeding the cap.
 	files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, files, codersdk.DefaultChatMaxAttachmentsPerChat)
+	require.Len(t, files, storeChatAttachmentTestCap)
 	require.NotEqual(t, "existing-00.txt", files[0].Name)
 
 	var fileCount int
 	require.NoError(t, rawDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_files").Scan(&fileCount))
-	require.Equal(t, codersdk.DefaultChatMaxAttachmentsPerChat, fileCount)
+	require.Equal(t, storeChatAttachmentTestCap, fileCount)
 }
 
+// storeChatAttachmentTestCap differs from the codersdk default so the tests
+// fail if storeChatAttachment ignores the server's configured limit.
+const storeChatAttachmentTestCap = 3
+
 func newStoreChatAttachmentTestServer(db database.Store) *Server {
-	return &Server{db: db, chatLimits: Limits{}.withDefaults()}
+	return &Server{db: db, chatLimits: Limits{MaxAttachmentsPerChat: storeChatAttachmentTestCap}.withDefaults()}
 }
 
 func expectStoreChatAttachmentInTx(t *testing.T, db, tx *dbmock.MockStore) {

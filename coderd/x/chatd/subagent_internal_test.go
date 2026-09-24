@@ -82,6 +82,7 @@ type internalTestServerConfig struct {
 	startWorker      bool
 	experiments      codersdk.Experiments
 	transportFactory *atomic.Pointer[aibridge.TransportFactory]
+	limits           Limits
 }
 
 type internalTestServerOpt func(*internalTestServerConfig)
@@ -117,6 +118,12 @@ func withInternalTestServerExperiments(experiments codersdk.Experiments) interna
 func withInternalTestServerTransportFactory(factory aibridge.TransportFactory) internalTestServerOpt {
 	return func(cfg *internalTestServerConfig) {
 		cfg.transportFactory = aibridgeTestFactoryPointer(factory)
+	}
+}
+
+func withInternalTestServerLimits(limits Limits) internalTestServerOpt {
+	return func(cfg *internalTestServerConfig) {
+		cfg.limits = limits
 	}
 }
 
@@ -157,6 +164,7 @@ func newInternalTestServer(
 		ProviderAPIKeys:            keys,
 		Experiments:                experimentsOrDefault(cfg.experiments),
 		AIBridgeTransportFactory:   cfg.transportFactory,
+		Limits:                     cfg.limits,
 	})
 	if cfg.startWorker {
 		server.Start()

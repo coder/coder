@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -27,6 +29,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -581,7 +584,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	generated := &generatedChatTitle{}
-	server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
+	server := &Server{db: db, pubsub: dbpubsub.NewInMemory(), chatLimits: Limits{}.withDefaults()}
 	server.maybeGenerateChatTitle(
 		ctx,
 		chat,
@@ -609,6 +612,129 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 	gotTitle, ok := generated.Load()
 	require.True(t, ok)
 	require.Equal(t, wantTitle, gotTitle)
+}
+
+// TestQuickgenFollowsConfiguredRetries verifies that title and summary
+// generation stop retrying at the server's configured retry limit. The
+// unconfigured default is not exercised because 25 real backoffs take minutes.
+func TestQuickgenFollowsConfiguredRetries(t *testing.T) {
+	t.Parallel()
+
+	limits := Limits{MaxGenerationRetries: 1}
+	rateLimited := &fantasy.ProviderError{StatusCode: http.StatusTooManyRequests, Message: "rate limited"}
+
+	t.Run("Title", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		owner := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "test-model"})
+		userPrompt := "summarize failed workspace build logs"
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             chatprompt.FallbackTitle(userPrompt),
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+		})
+		message := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText(userPrompt))
+		message.ID = 1
+
+		var calls atomic.Int32
+		model := &chattest.FakeModel{
+			GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				calls.Add(1)
+				return nil, rateLimited
+			},
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+			withInternalTestServerLimits(limits))
+		generated := &generatedChatTitle{}
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		server.maybeGenerateChatTitle(
+			ctx,
+			chat,
+			[]database.ChatMessage{message},
+			nil,
+			resolvedModelCall{
+				model:    chatprovider.NewModel(model, nil),
+				dbConfig: database.ChatModelConfig{Model: "test-model"},
+			},
+			modelBuildOptions{},
+			generated,
+			logger,
+			nil,
+		)
+
+		require.EqualValues(t, 2, calls.Load(), "one configured retry allows exactly two model calls")
+		_, ok := generated.Load()
+		require.False(t, ok)
+	})
+
+	t.Run("Summary", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+			Type: database.AIProviderTypeOpenai,
+		}, "test-key")
+		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Model:          "gpt-4o-mini",
+			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+			OrganizationID: org.ID,
+		}, func(p *database.InsertChatModelConfigParams) {
+			p.Enabled = true
+		})
+
+		var requests atomic.Int32
+		factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			requests.Add(1)
+			return &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited","type":"rate_limit_error"}}`)),
+			}, nil
+		})}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+			withInternalTestServerTransportFactory(factory),
+			withInternalTestServerLimits(limits),
+		)
+
+		ctx := chatdTestContext(t)
+		created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "summary retries",
+			ClientType:        database.ChatClientTypeApi,
+			InitialMessages: []chatstate.Message{{
+				Role:           database.ChatMessageRoleUser,
+				Content:        mustMarshalText(t, strings.Repeat("Investigate the failing workspace build. ", 10)),
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+			}},
+		})
+		require.NoError(t, err)
+
+		server.generateAndStoreChatSummary(ctx, logger, created.Chat)
+
+		require.EqualValues(t, 2, requests.Load(), "one configured retry allows exactly two provider requests")
+		fetched, err := db.GetChatByID(ctx, created.Chat.ID)
+		require.NoError(t, err)
+		require.False(t, fetched.Summary.Valid)
+	})
 }
 
 func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {

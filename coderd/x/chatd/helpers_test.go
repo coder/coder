@@ -282,12 +282,18 @@ func testOptions(t *testing.T, f *workerTestFixture, starter chatWorkerTaskStart
 // newUnstartedServer builds a real Server backed by the given pubsub and
 // store. The server is never started; it only provides the dependencies
 // that workers and task starters dereference.
-func newUnstartedServer(t *testing.T, ps dbpubsub.Pubsub, db database.Store) *Server {
+func newUnstartedServer(t *testing.T, ps dbpubsub.Pubsub, db database.Store, opts ...internalTestServerOpt) *Server {
 	t.Helper()
+	var cfg internalTestServerConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	server := New(ps, Config{
 		Logger:    testutil.Logger(t),
 		Database:  db,
 		ReplicaID: uuid.New(),
+		Clock:     cfg.clock,
+		Limits:    cfg.limits,
 	})
 	t.Cleanup(func() { _ = server.Close() })
 	return server
