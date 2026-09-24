@@ -4,6 +4,7 @@ import { MockFailedWorkspace } from "#/testHelpers/entities";
 import {
 	buildDebugWorkspaceBuildPath,
 	debugWorkspaceBuildLogsFileName,
+	debugWorkspaceBuildPrompt,
 	debugWorkspaceBuildSearchParam,
 	formatWorkspaceBuildLogsForDebug,
 } from "./workspaceBuildDebug";
@@ -60,6 +61,14 @@ describe("buildDebugWorkspaceBuildPath", () => {
 		expect(url.pathname).toBe("/agents");
 		expect(url.searchParams.get(debugWorkspaceBuildSearchParam)).toBe(
 			"build id/with?chars",
+		);
+	});
+});
+
+describe("debugWorkspaceBuildPrompt", () => {
+	it("names the failed transition", () => {
+		expect(debugWorkspaceBuildPrompt("stop")).toBe(
+			"This workspace failed to stop. Review the attached log information, determine why the workspace failed to stop, and what resolving action the user can take. Respond with a 2-3 sentence summary of what the problem is and action the user can take. Be concise, and keep it at a 15-year-old level. Do not start a new workspace.",
 		);
 	});
 });

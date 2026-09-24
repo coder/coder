@@ -2,7 +2,9 @@ import type {
 	AIModelPrice,
 	ChatModel,
 	ChatModelProviderDescriptor,
+	ChatPersonalModelOverride,
 	ChatProviderConfig,
+	UserChatPersonalModelOverridesResponse,
 } from "#/api/typesGenerated";
 import { MOCK_TIMESTAMP } from "./chatEntities";
 
@@ -48,6 +50,28 @@ export const MockChatModelProviderDescriptor: ChatModelProviderDescriptor = {
 	allow_user_api_key: false,
 	available: true,
 };
+
+const unsetPersonalModelOverride = (
+	context: ChatPersonalModelOverride["context"],
+): ChatPersonalModelOverride => ({
+	context,
+	mode: "deployment_default",
+	model_config_id: "",
+	is_set: false,
+});
+
+/** Personal model overrides with nothing set, so catalog defaults apply. */
+export const MockUserChatPersonalModelOverrides: UserChatPersonalModelOverridesResponse =
+	{
+		enabled: true,
+		root: unsetPersonalModelOverride("root"),
+		general: unsetPersonalModelOverride("general"),
+		explore: unsetPersonalModelOverride("explore"),
+		deployment_defaults: {
+			general: { context: "general", model_config_id: "" },
+			explore: { context: "explore", model_config_id: "" },
+		},
+	};
 
 // Prices are micro-units per million tokens.
 export const MockGPT5ModelPrice: AIModelPrice = {

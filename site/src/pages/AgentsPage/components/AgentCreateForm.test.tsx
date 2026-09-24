@@ -7,12 +7,14 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
+	MockUserChatPersonalModelOverrides,
 } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
 	MockUserPreferenceSettings,
 } from "#/testHelpers/entities";
+import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import { AgentCreateForm, emptyInputStorageKey } from "./AgentCreateForm";
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
@@ -35,27 +37,6 @@ const modelCatalog: TypesGen.OrganizationChatModelsResponse = {
 	unsupported_providers: [],
 };
 
-const unsetOverride = (
-	context: TypesGen.ChatPersonalModelOverride["context"],
-): TypesGen.ChatPersonalModelOverride => ({
-	context,
-	mode: "deployment_default",
-	model_config_id: "",
-	is_set: false,
-});
-
-const personalModelOverrides: TypesGen.UserChatPersonalModelOverridesResponse =
-	{
-		enabled: true,
-		root: unsetOverride("root"),
-		general: unsetOverride("general"),
-		explore: unsetOverride("explore"),
-		deployment_defaults: {
-			general: { context: "general", model_config_id: "" },
-			explore: { context: "explore", model_config_id: "" },
-		},
-	};
-
 const autoSubmit = {
 	message: "Why did this build fail?",
 	attachment: {
@@ -63,6 +44,16 @@ const autoSubmit = {
 		content: "Error: exit status 1\n",
 	},
 };
+
+const userDraftAttachments = JSON.stringify([
+	{
+		fileId: "user-draft-file",
+		fileName: "notes.txt",
+		fileType: "text/plain",
+		lastModified: 1000,
+		organizationId: MockDefaultOrganization.id,
+	},
+]);
 
 // jsdom's File does not implement Blob.text().
 const readFileText = (file: File) =>
@@ -78,7 +69,7 @@ const mockFormQueries = () => {
 	vi.spyOn(
 		API.experimental,
 		"getUserChatPersonalModelOverrides",
-	).mockResolvedValue(personalModelOverrides);
+	).mockResolvedValue(MockUserChatPersonalModelOverrides);
 	vi.spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 	vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
 		MockUserPreferenceSettings,
@@ -112,6 +103,7 @@ describe("AgentCreateForm autoSubmit", () => {
 	it("uploads the attachment, then creates the chat once with the message and file", async () => {
 		mockFormQueries();
 		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
+		localStorage.setItem(persistedAttachmentsStorageKey, userDraftAttachments);
 		const upload = createDeferred<TypesGen.UploadChatFileResponse>();
 		const uploadChatFile = vi
 			.spyOn(API.experimental, "uploadChatFile")
@@ -144,6 +136,22 @@ describe("AgentCreateForm autoSubmit", () => {
 		expect(localStorage.getItem(emptyInputStorageKey)).toBe(
 			"draft the user typed earlier",
 		);
+		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBe(
+			userDraftAttachments,
+		);
+	});
+
+	it("does not save the attachment as a draft when the send fails", async () => {
+		mockFormQueries();
+		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "uploaded-logs",
+		});
+		const onCreateChat = vi.fn().mockRejectedValue(new Error("server error"));
+
+		renderForm(onCreateChat);
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBeNull();
 	});
 
 	it("does not send when the attachment upload fails", async () => {

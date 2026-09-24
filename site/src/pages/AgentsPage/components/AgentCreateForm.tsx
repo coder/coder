@@ -519,7 +519,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? organizationId || undefined
 			: undefined,
 		{
-			persist: true,
+			// Auto-submitted attachments must not be saved as, or sent alongside,
+			// the attachments the user left in the normal composer.
+			persist: autoSubmit === undefined,
 			provider: getProviderForModelOption(modelOptions, selectedModel),
 		},
 	);
@@ -593,37 +595,31 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		!hasModelOptions ||
 		Boolean(aiGatewayDisabled);
 
-	// Attaching before organization adoption is lost when persisted attachments
-	// restore, and adoption can repeat when permissions resolve to another
-	// organization, so the attachment is keyed by the adopting organization.
-	const [autoSubmitAttachment, setAutoSubmitAttachment] = useState<{
-		organizationId: string;
-		file: File;
-	} | null>(null);
+	const [autoSubmitFile, setAutoSubmitFile] = useState<File | null>(null);
 	const attachAutoSubmitFile = useEffectEvent(
 		(attachment: AgentCreateAutoSubmit["attachment"]) => {
 			const file = new File([attachment.content], attachment.name, {
 				type: "text/plain",
 			});
-			setAutoSubmitAttachment({ organizationId, file });
+			setAutoSubmitFile(file);
 			handleAttach([file]);
 		},
 	);
-	const activeAutoSubmitAttachment =
-		autoSubmitAttachment?.organizationId === organizationId
-			? autoSubmitAttachment
-			: null;
+	// The upload needs the settled organization, which is also what the send
+	// gate waits for.
+	const canAttachAutoSubmitFile =
+		orgSelectionSettled && organizationId !== "" && autoSubmitFile === null;
 	useEffect(() => {
-		if (autoSubmit && organizationAdopted && !activeAutoSubmitAttachment) {
+		if (autoSubmit && canAttachAutoSubmitFile) {
 			attachAutoSubmitFile(autoSubmit.attachment);
 		}
-	}, [autoSubmit, organizationAdopted, activeAutoSubmitAttachment]);
+	}, [autoSubmit, canAttachAutoSubmitFile]);
 
 	const isAutoSubmitReady =
 		autoSubmit !== undefined &&
 		!isInputDisabled &&
-		activeAutoSubmitAttachment !== null &&
-		uploadStates.get(activeAutoSubmitAttachment.file)?.status === "uploaded";
+		autoSubmitFile !== null &&
+		uploadStates.get(autoSubmitFile)?.status === "uploaded";
 	const autoSubmitSentRef = useRef(false);
 	const sendAutoSubmit = useEffectEvent((message: string) => {
 		void handleSendWithAttachments(message);

@@ -1,4 +1,8 @@
-import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
+import type {
+	ProvisionerJobLog,
+	WorkspaceBuild,
+	WorkspaceTransition,
+} from "#/api/typesGenerated";
 import { sanitizeChatFileName } from "./chatAttachments";
 
 /**
@@ -7,8 +11,10 @@ import { sanitizeChatFileName } from "./chatAttachments";
  */
 export const debugWorkspaceBuildSearchParam = "debug_workspace_build";
 
-export const debugWorkspaceBuildPrompt =
-	"This workspace failed to startup. Review the attached log information, determine why the workspace failed to start, and what resolving action the user can take. Respond with a 2-3 sentence summary of what the problem is and action the user can take. Be concise, and keep it at a 15 years old level. Do not start a new workspace.";
+export const debugWorkspaceBuildPrompt = (
+	transition: WorkspaceTransition,
+): string =>
+	`This workspace failed to ${transition}. Review the attached log information, determine why the workspace failed to ${transition}, and what resolving action the user can take. Respond with a 2-3 sentence summary of what the problem is and action the user can take. Be concise, and keep it at a 15-year-old level. Do not start a new workspace.`;
 
 export const buildDebugWorkspaceBuildPath = (buildId: string): string =>
 	`/agents?${debugWorkspaceBuildSearchParam}=${encodeURIComponent(buildId)}`;

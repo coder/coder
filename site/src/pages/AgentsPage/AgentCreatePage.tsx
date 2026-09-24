@@ -63,7 +63,7 @@ const AgentCreatePage: FC = () => {
 	const autoSubmit: AgentCreateAutoSubmit | undefined =
 		debugBuildQuery.data && debugBuildLogsQuery.data
 			? {
-					message: debugWorkspaceBuildPrompt,
+					message: debugWorkspaceBuildPrompt(debugBuildQuery.data.transition),
 					attachment: {
 						name: debugWorkspaceBuildLogsFileName(debugBuildQuery.data),
 						content: formatWorkspaceBuildLogsForDebug(
@@ -121,8 +121,7 @@ const AgentCreatePage: FC = () => {
 		nextSearchParams.delete(debugWorkspaceBuildSearchParam);
 		navigate({
 			pathname: buildAgentChatPath({ chatId: createdChat.id }),
-			search:
-				debugBuildId === null ? location.search : nextSearchParams.toString(),
+			search: nextSearchParams.toString(),
 		});
 	};
 

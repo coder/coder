@@ -2198,7 +2198,9 @@ export const AutoSubmitWorkspaceBuildDebug: Story = {
 		...defaultArgs,
 		onCreateChat: fn(() => new Promise<void>(() => {})),
 		autoSubmit: {
-			message: debugWorkspaceBuildPrompt,
+			message: debugWorkspaceBuildPrompt(
+				MockFailedWorkspace.latest_build.transition,
+			),
 			attachment: {
 				name: debugWorkspaceBuildLogsFileName(MockFailedWorkspace.latest_build),
 				content: formatWorkspaceBuildLogsForDebug(

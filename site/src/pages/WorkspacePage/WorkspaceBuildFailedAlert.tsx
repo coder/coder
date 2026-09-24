@@ -34,7 +34,7 @@ export const WorkspaceBuildFailedAlert: FC<WorkspaceBuildFailedAlertProps> = ({
 						<a
 							href={buildDebugWorkspaceBuildPath(build.id)}
 							target="_blank"
-							rel="noopener"
+							rel="noreferrer"
 						>
 							Debug with Coder Agents
 							<SquareArrowOutUpRightIcon />
