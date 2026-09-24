@@ -49,7 +49,9 @@ The current implementation has these limitations:
 - A cleartext `http://` redirect URI to a host that is not local is rejected.
   Earlier versions accepted one through the management API for a confidential application, although Dynamic Client Registration always refused it.
   An application that stored one keeps working, but it cannot be saved again until its list uses `https://` or a local host, as described under [Callback URL schemes](./callback-url-schemes.md).
-- A redirect URI with a private-use scheme must name a path or an authority, as in `com.example.app:/callback` or `com.example.app://auth/callback`. The bare form `com.example.app:callback` is rejected. Dynamic Client Registration accepted it in earlier versions. A client that registered one can re-register with one of the other two forms, or an administrator can correct it with the same `PUT`.
+- A redirect URI with a private-use scheme must name a path or an authority, as described under [Callback URL schemes](./callback-url-schemes.md).
+  Dynamic Client Registration accepted the bare form, such as `com.example.app:callback`, in earlier versions.
+  A client that registered one can re-register with an accepted form, or an administrator can correct it with the same `PUT`.
 
 ## Upgrade notes
 
