@@ -409,9 +409,14 @@ export function FilterCombobox({
 														{scopePillLabel}
 													</span>
 												</TooltipTrigger>
-												{/* Narrow and balanced so the message wraps to two lines. */}
-												<TooltipContent className="max-w-48 text-balance">
-													{scopeFor(category.key)?.label}
+												<TooltipContent>
+													{splitIntoTwoLines(
+														scopeFor(category.key)?.label ?? "",
+													).map((line) => (
+														<span key={line} className="block">
+															{line}
+														</span>
+													))}
 												</TooltipContent>
 											</Tooltip>
 										</FilterComboboxChip>
@@ -784,6 +789,30 @@ function FlyoutSearch({ label, value, onChange }: FlyoutSearchProps) {
 }
 
 type ScopeState = Readonly<{ widened: boolean; label: string }>;
+
+/**
+ * Splits text at the space nearest its middle, so a tooltip shows it as two
+ * even lines and sizes to the longer one.
+ */
+function splitIntoTwoLines(text: string): string[] {
+	const middle = text.length / 2;
+	let splitAt = -1;
+	for (
+		let index = text.indexOf(" ");
+		index !== -1;
+		index = text.indexOf(" ", index + 1)
+	) {
+		if (
+			splitAt === -1 ||
+			Math.abs(index - middle) < Math.abs(splitAt - middle)
+		) {
+			splitAt = index;
+		}
+	}
+	return splitAt === -1
+		? [text]
+		: [text.slice(0, splitAt), text.slice(splitAt + 1)];
+}
 
 type FlyoutScopeToggleProps = Readonly<{
 	categoryKey: string;
