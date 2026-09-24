@@ -1,6 +1,3 @@
-// Custom oxlint rules for the Coder frontend, loaded through `jsPlugins` in
-// .oxlintrc.jsonc.
-
 /**
  * Enforces `React.X` for React types instead of named type imports:
  *
@@ -12,9 +9,6 @@
  * `React` is a global namespace declared by @types/react, so type positions
  * can use it without importing anything. Value imports such as `useState`
  * are left alone.
- *
- * The autofix rewrites every reference to `React.X` and removes the import
- * (or just the type specifiers, if value imports remain).
  */
 const preferReactNamespaceTypes = {
 	meta: {
@@ -46,7 +40,7 @@ const preferReactNamespaceTypes = {
 
 				// One fix covers every type specifier in the declaration. They
 				// all edit the same import statement, so separate fixes would
-				// overlap and be discarded. It is attached to the first report.
+				// overlap and be discarded.
 				const fixAll = (fixer) => [
 					...typeSpecifiers.flatMap((specifier) =>
 						replaceReferencesWithNamespace(
@@ -103,10 +97,10 @@ function isTypeOnlySpecifier(declaration, specifier) {
 }
 
 /**
- * Rewrites each use of an imported type to `React.<name>`, using scope
- * analysis so that unrelated identifiers with the same name are untouched.
- * `<name>` is the name exported by "react", so aliases are resolved:
- * `KE` from `import { type KeyboardEvent as KE }` becomes `React.KeyboardEvent`.
+ * Uses scope analysis, so unrelated identifiers with the same name are
+ * untouched. The replacement uses the name exported by "react", so aliases are
+ * resolved: `KE` from `import { type KeyboardEvent as KE }` becomes
+ * `React.KeyboardEvent`.
  */
 function replaceReferencesWithNamespace(fixer, sourceCode, specifier) {
 	const replacement = `React.${specifier.imported.name}`;
@@ -116,10 +110,6 @@ function replaceReferencesWithNamespace(fixer, sourceCode, specifier) {
 		.map((reference) => fixer.replaceText(reference.identifier, replacement));
 }
 
-/**
- * Deletes the whole import statement if it only imported types, otherwise
- * rewrites it to keep the remaining value imports.
- */
 function removeTypeSpecifiers(fixer, sourceCode, declaration, typeSpecifiers) {
 	const remaining = declaration.specifiers.filter(
 		(specifier) => !typeSpecifiers.includes(specifier),
@@ -138,9 +128,8 @@ function removeTypeSpecifiers(fixer, sourceCode, declaration, typeSpecifiers) {
 }
 
 /**
- * Builds `import React, { useState } from "react";` from the given
- * specifiers. Formatting is normalized, and comments inside the original
- * braces are not preserved.
+ * Formatting is normalized, and comments inside the original braces are not
+ * preserved.
  */
 function buildReactImport(sourceCode, specifiers) {
 	const defaultSpecifier = specifiers.find(
