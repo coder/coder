@@ -16,7 +16,7 @@ This enables integrations where external applications can leverage Coder's authe
 - `CODER_OAUTH2_PROVIDER_ENABLE=true` set on the control plane
 - HTTPS recommended for production deployments
 
-## Enable OAuth2 Provider
+## Enable OAuth2 provider
 
 The provider is off by default.
 While it is off, the OAuth2 endpoints and discovery documents return 404 and the **OAuth2 Applications** page is hidden.
