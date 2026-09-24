@@ -49,7 +49,9 @@ it("reports the organization picked from the unified filter", async () => {
 	const user = userEvent.setup();
 	const { onFilterQueryChange } = renderView(MockOrganization);
 
-	await user.click(screen.getByRole("combobox", { name: "Filter spend" }));
+	await user.click(
+		screen.getByRole("combobox", { name: "Search and filter users…" }),
+	);
 	await user.click(await screen.findByRole("option", { name: "Organization" }));
 	await user.click(
 		await screen.findByRole("option", { name: MockOrganization2.display_name }),

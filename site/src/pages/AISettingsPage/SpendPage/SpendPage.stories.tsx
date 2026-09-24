@@ -120,7 +120,7 @@ export const ProviderMenu: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("combobox", { name: "Filter spend" }),
+			await canvas.findByRole("combobox", { name: "Search and filter users…" }),
 		);
 		await userEvent.click(
 			await screen.findByRole("option", { name: "Provider" }),

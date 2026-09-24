@@ -117,7 +117,7 @@ export const OrganizationMenu: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("combobox", { name: "Filter spend" }),
+			canvas.getByRole("combobox", { name: "Search and filter users…" }),
 		);
 		await userEvent.click(
 			await canvas.findByRole("option", { name: "Organization" }),

@@ -56,7 +56,7 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 				value={filterQuery}
 				onChange={onFilterQueryChange}
 				categories={categories}
-				placeholder="Filter spend"
+				placeholder="Search and filter users…"
 				className="min-w-72 grow"
 			/>
 			<DateTimeRangePicker

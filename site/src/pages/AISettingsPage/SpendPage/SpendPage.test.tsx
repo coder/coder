@@ -148,7 +148,9 @@ it("requests the default organization and switches organizations from the first 
 		expect.objectContaining({ ...period, offset: 10, limit: 10 }),
 	);
 
-	await user.click(screen.getByRole("combobox", { name: "Filter spend" }));
+	await user.click(
+		screen.getByRole("combobox", { name: "Search and filter users…" }),
+	);
 	await user.click(await screen.findByRole("option", { name: "Organization" }));
 	await user.click(
 		await screen.findByRole("option", { name: MockOrganization2.display_name }),
@@ -233,7 +235,9 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 
 	// Leave the refiltered report pending so its retention bound never arrives.
 	spendSpy.mockImplementationOnce(() => new Promise(() => {}));
-	await user.click(screen.getByRole("combobox", { name: "Filter spend" }));
+	await user.click(
+		screen.getByRole("combobox", { name: "Search and filter users…" }),
+	);
 	await user.click(await screen.findByRole("option", { name: "Provider" }));
 	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
 	await waitFor(() =>
@@ -325,11 +329,13 @@ it("applies user and unconfigured pricing filters", async () => {
 	await screen.findByRole("table", { name: "Spend by user" });
 
 	await user.type(
-		screen.getByRole("combobox", { name: "Filter spend" }),
+		screen.getByRole("combobox", { name: "Search and filter users…" }),
 		"user01",
 	);
 	await user.click(await screen.findByRole("option", { name: "user01" }));
-	await user.click(screen.getByRole("combobox", { name: "Filter spend" }));
+	await user.click(
+		screen.getByRole("combobox", { name: "Search and filter users…" }),
+	);
 	await user.click(await screen.findByRole("option", { name: "Pricing" }));
 	await user.click(
 		await screen.findByRole("option", {
@@ -356,7 +362,9 @@ it("applies the organization filter", async () => {
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
 
-	await user.click(screen.getByRole("combobox", { name: "Filter spend" }));
+	await user.click(
+		screen.getByRole("combobox", { name: "Search and filter users…" }),
+	);
 	await user.click(await screen.findByRole("option", { name: "Organization" }));
 	await user.click(
 		await screen.findByRole("option", { name: MockOrganization2.display_name }),
@@ -376,7 +384,9 @@ it("applies the provider filter and resets pagination", async () => {
 	const user = userEvent.setup();
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
-	await user.click(screen.getByRole("combobox", { name: "Filter spend" }));
+	await user.click(
+		screen.getByRole("combobox", { name: "Search and filter users…" }),
+	);
 	await user.click(await screen.findByRole("option", { name: "Provider" }));
 	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
 	await waitFor(() =>
