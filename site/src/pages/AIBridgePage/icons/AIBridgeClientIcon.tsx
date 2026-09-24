@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { CircleQuestionMarkIcon } from "lucide-react";
+import { CircleDashedIcon } from "lucide-react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 export const AIBridgeClientIcon = ({
@@ -10,6 +10,7 @@ export const AIBridgeClientIcon = ({
 	client: string | null;
 } & React.ComponentProps<"svg">) => {
 	const iconClassName = "shrink-0";
+	const fallbackIconClassName = "text-content-secondary opacity-80";
 	// This should be kept in sync with the client names in
 	// the AI Bridge bridge.go file.
 	// https://github.com/coder/aibridge/blob/main/bridge.go#L31-L32
@@ -109,8 +110,8 @@ export const AIBridgeClientIcon = ({
 			);
 		default:
 			return (
-				<CircleQuestionMarkIcon
-					className={cn(iconClassName, className)}
+				<CircleDashedIcon
+					className={cn(iconClassName, fallbackIconClassName, className)}
 					{...props}
 				/>
 			);

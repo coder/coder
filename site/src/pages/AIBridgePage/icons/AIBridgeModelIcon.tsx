@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { CircleQuestionMarkIcon } from "lucide-react";
+import { CircleDashedIcon } from "lucide-react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 // Infers the model family from a model name string.
@@ -44,6 +44,7 @@ export const AIBridgeModelIcon = ({
 	model: string;
 } & React.ComponentProps<"svg">) => {
 	const iconClassName = "shrink-0";
+	const fallbackIconClassName = "text-content-secondary opacity-80";
 	const family = inferModelFamily(model);
 	switch (family) {
 		case "claude":
@@ -69,8 +70,8 @@ export const AIBridgeModelIcon = ({
 			);
 		default:
 			return (
-				<CircleQuestionMarkIcon
-					className={cn(iconClassName, className)}
+				<CircleDashedIcon
+					className={cn(iconClassName, fallbackIconClassName, className)}
 					{...props}
 				/>
 			);
