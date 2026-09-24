@@ -172,7 +172,7 @@ type phaseRetryResult[T any] struct {
 func newGenerationPhaseTestStarter(t *testing.T, clock quartz.Clock) *taskStarter {
 	t.Helper()
 	require.NotNil(t, clock)
-	return &taskStarter{opts: chatWorkerOptions{
+	return &taskStarter{server: &Server{}, opts: chatWorkerOptions{
 		Clock:                   clock,
 		Logger:                  testutil.NewFakeSink(t).Logger(),
 		TaskRetryInitialBackoff: time.Millisecond,
