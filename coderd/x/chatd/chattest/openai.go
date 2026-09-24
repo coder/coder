@@ -43,15 +43,13 @@ type OpenAIReasoningItem struct {
 // OpenAIWebSearchCall configures a streamed web_search_call output item for the
 // Responses API test server.
 type OpenAIWebSearchCall struct {
-	ID string `json:"id,omitempty"`
-	// Queries are reported in action.queries.
+	ID      string   `json:"id,omitempty"`
 	Queries []string `json:"queries,omitempty"`
-	// Query is reported in the deprecated action.query.
-	Query string `json:"query,omitempty"`
+	Query   string   `json:"query,omitempty"`
 	// Sources are the consulted URLs reported in action.sources. Like
-	// OpenAI, the server only returns them when the request includes
-	// web_search_call.action.sources, and only in the response.completed
-	// output rather than in response.output_item.done.
+	// OpenAI, the server returns them only when the request includes
+	// web_search_call.action.sources. It lists them only in the
+	// response.completed output.
 	Sources []string `json:"sources,omitempty"`
 }
 

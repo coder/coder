@@ -33,7 +33,7 @@ func WebSearchTool(options *codersdk.ChatModelOpenAIProviderOptions) (fantasy.To
 
 // WebSearchResult is the tool result persisted for a provider-executed
 // OpenAI web_search call so the chat UI can show which URLs the search
-// consulted. The provider only reports them in response metadata, which API
+// consulted. Fantasy reports them only in provider metadata, which API
 // responses strip. The queries are in the call input.
 type WebSearchResult struct {
 	// Sources are the URLs the search consulted. They are distinct

@@ -30,10 +30,10 @@ const parseQueryList = (value: unknown): string[] | undefined => {
 
 /**
  * Reads a provider-executed web_search call. OpenAI Responses calls carry
- * {queries: [...]} as input once the search has finished, and the server
- * persists the consulted sources as the result, {sources?: [{url}]}, when
- * the response completes. Anthropic calls carry {query} before the search
- * runs and persist an empty result.
+ * {queries: [...]} once the search has finished, but their result,
+ * {sources?: [{url}]}, arrives only when the whole response completes, so
+ * searchFinished marks them done before the result exists. Anthropic calls
+ * carry {query} before the search runs and persist an empty result.
  */
 export const getWebSearchToolData = (
 	args: unknown,
