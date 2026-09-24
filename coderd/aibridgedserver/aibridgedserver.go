@@ -813,12 +813,12 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 
 	if modelContext {
-		access, err := s.ResolveModelAccess(ctx, key, in.GetProviderName(), in.GetModel())
+		allowed, err := s.authorizeModelUse(ctx, key, in.GetProviderName(), in.GetModel())
 		if err != nil {
 			s.logger.Error(ctx, "model authorization evaluation failed", slog.Error(err))
 			return nil, drpcerr.WithCode(xerrors.New("authorization evaluation failed"), proto.AuthorizationErrorEvaluation)
 		}
-		if !access.Allowed {
+		if !allowed {
 			return nil, drpcerr.WithCode(xerrors.New("unauthorized"), proto.AuthorizationErrorPolicy)
 		}
 	}

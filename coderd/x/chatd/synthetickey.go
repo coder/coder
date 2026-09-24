@@ -75,26 +75,32 @@ func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (st
 			TokenName: tokenName,
 		})
 		if err == nil {
-			if syntheticAPIKeyScopesMatch(key.Scopes) {
-				keyID = key.ID
-				if key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)) {
-					return nil
-				}
-				err = tx.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
-					ID:        key.ID,
-					LastUsed:  key.LastUsed,
-					ExpiresAt: p.clock.Now().Add(syntheticAPIKeyLifetime),
-					IPAddress: key.IPAddress,
+			if !syntheticAPIKeyScopesMatch(key.Scopes) {
+				// An in-flight transport may already hold this ID. Upgrade
+				// scopes in place without changing credentials or expiry.
+				key, err = tx.UpdateChatGatewayAPIKeyScopesByID(ctx, database.UpdateChatGatewayAPIKeyScopesByIDParams{
+					ID:     key.ID,
+					UserID: ownerID,
+					Scopes: syntheticAPIKeyScopes,
 				})
 				if err != nil {
-					return xerrors.Errorf("extend synthetic API key: %w", err)
+					return xerrors.Errorf("update synthetic API key scopes: %w", err)
 				}
+			}
+			keyID = key.ID
+			if key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)) {
 				return nil
 			}
-			if err := tx.DeleteAPIKeyByID(ctx, key.ID); err != nil {
-				return xerrors.Errorf("delete legacy synthetic API key: %w", err)
+			err = tx.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
+				ID:        key.ID,
+				LastUsed:  key.LastUsed,
+				ExpiresAt: p.clock.Now().Add(syntheticAPIKeyLifetime),
+				IPAddress: key.IPAddress,
+			})
+			if err != nil {
+				return xerrors.Errorf("extend synthetic API key: %w", err)
 			}
-			err = sql.ErrNoRows
+			return nil
 		}
 		if !xerrors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("get synthetic API key: %w", err)

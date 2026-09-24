@@ -193,17 +193,6 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		interceptor, err := p.CreateInterceptor(w, r.WithContext(ctx), tracer)
 		if err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to create interceptor: %v", err))
-			var authErr *intercept.AuthorizationError
-			if errors.As(err, &authErr) && (authErr.Kind == intercept.AuthorizationErrorAuthentication || authErr.Kind == intercept.AuthorizationErrorPolicy) {
-				logger.Warn(ctx, "request authorization denied", slog.F("provider", p.Name()))
-				http.Error(w, "unauthorized", http.StatusForbidden)
-				return
-			}
-			if errors.As(err, &authErr) {
-				logger.Error(ctx, "request authorization failed", slog.Error(err), slog.F("provider", p.Name()))
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
 			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 				routing.WriteRequestBodyTooLarge(ctx, w)
 			} else {

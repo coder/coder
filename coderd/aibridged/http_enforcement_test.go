@@ -23,7 +23,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestServeHTTP_ModelAuthorizationBlocksBeforeRecorderAndUpstream(t *testing.T) {
+func TestServeHTTP_ModelAuthorization(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -31,9 +31,13 @@ func TestServeHTTP_ModelAuthorizationBlocksBeforeRecorderAndUpstream(t *testing.
 		delegated bool
 		code      uint64
 		status    int
+		wantCalls int
 	}{
+		{name: "full_key_allowed", status: http.StatusTeapot, wantCalls: 1},
 		{name: "full_key_policy", code: proto.AuthorizationErrorPolicy, status: http.StatusForbidden},
 		{name: "full_key_evaluation", code: proto.AuthorizationErrorEvaluation, status: http.StatusInternalServerError},
+		{name: "full_key_unknown_error", code: 9999, status: http.StatusInternalServerError},
+		{name: "delegated_allowed", delegated: true, status: http.StatusTeapot, wantCalls: 1},
 		{name: "delegated_policy", delegated: true, code: proto.AuthorizationErrorPolicy, status: http.StatusForbidden},
 		{name: "delegated_evaluation", delegated: true, code: proto.AuthorizationErrorEvaluation, status: http.StatusInternalServerError},
 	} {
@@ -41,9 +45,12 @@ func TestServeHTTP_ModelAuthorizationBlocksBeforeRecorderAndUpstream(t *testing.
 			t.Parallel()
 
 			var upstreamCalls atomic.Int32
-			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				upstreamCalls.Add(1)
-				w.WriteHeader(http.StatusOK)
+				if r.Header.Get("Authorization") != "Bearer test-provider-key" {
+					t.Error("upstream request did not use the configured provider credential")
+				}
+				w.WriteHeader(http.StatusTeapot)
 			}))
 			t.Cleanup(upstream.Close)
 
@@ -70,9 +77,14 @@ func TestServeHTTP_ModelAuthorizationBlocksBeforeRecorderAndUpstream(t *testing.
 					require.NotNil(t, in.Model)
 					require.Equal(t, "openai", in.GetProviderName())
 					require.Equal(t, "gpt-4o", in.GetModel())
+					if tc.code == 0 {
+						return &proto.IsAuthorizedResponse{}, nil
+					}
 					return nil, drpcerr.WithCode(context.Canceled, tc.code)
 				})
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
+			client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).Times(tc.wantCalls).Return(&proto.RecordInterceptionResponse{}, nil)
+			client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).Times(tc.wantCalls)
 
 			srv, err := aibridged.New(t.Context(), func(context.Context) (aibridged.DRPCClient, error) {
 				return client, nil
@@ -81,7 +93,10 @@ func TestServeHTTP_ModelAuthorizationBlocksBeforeRecorderAndUpstream(t *testing.
 			t.Cleanup(func() { _ = srv.Shutdown(testutil.Context(t, testutil.WaitShort)) })
 			require.Eventually(t, srv.Ready, testutil.WaitShort, testutil.IntervalFast)
 			require.NoError(t, srv.ReplaceProviders(t.Context(), []aibridge.Provider{
-				aibridge.NewOpenAIProvider(config.OpenAI{Name: "openai", BaseURL: upstream.URL}),
+				aibridge.NewOpenAIProvider(config.OpenAI{
+					Name: "openai", BaseURL: upstream.URL,
+					KeyPool: singleKeyPool(t, "openai", "test-provider-key"),
+				}),
 			}))
 
 			ctx := testutil.Context(t, testutil.WaitShort)
@@ -97,7 +112,7 @@ func TestServeHTTP_ModelAuthorizationBlocksBeforeRecorderAndUpstream(t *testing.
 			srv.ServeHTTP(rw, req)
 
 			require.Equal(t, tc.status, rw.Code)
-			require.Zero(t, upstreamCalls.Load())
+			require.EqualValues(t, tc.wantCalls, upstreamCalls.Load())
 		})
 	}
 }

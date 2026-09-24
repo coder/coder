@@ -9,12 +9,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -29,25 +34,63 @@ func TestSyntheticAPIKeyUpgradesLegacyScopes(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
-	user := dbgen.User(t, db, database.User{})
-	legacy, _ := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    user.ID,
-		LoginType: user.LoginType,
-		ExpiresAt: time.Now().Add(24 * time.Hour),
-		Scopes:    database.APIKeyScopes{database.ApiKeyScopeApiKeyRead},
-		TokenName: GatewayTokenName(user.ID),
-	})
-	server := &Server{db: db, clock: quartz.NewReal()}
+	authzDB := dbauthz.New(db, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
+	for _, scopes := range []struct {
+		name  string
+		value database.APIKeyScopes
+	}{
+		{"read_only", database.APIKeyScopes{database.ApiKeyScopeApiKeyRead}},
+		{"all", database.APIKeyScopes{database.ApiKeyScopeCoderAll}},
+	} {
+		for _, expiry := range []struct {
+			name      string
+			remaining time.Duration
+			renew     bool
+		}{
+			{"healthy", 7 * 24 * time.Hour, false},
+			{"renew_margin", syntheticAPIKeyRenewMargin, true},
+			{"near_expiry", time.Hour, true},
+			{"expired", -time.Hour, true},
+		} {
+			t.Run(scopes.name+"/"+expiry.name, func(t *testing.T) {
+				t.Parallel()
+				clock := quartz.NewMock(t)
+				clock.Set(dbtime.Now()).MustWait(t.Context())
+				user := dbgen.User(t, db, database.User{})
+				legacy, _ := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					LoginType: user.LoginType,
+					ExpiresAt: clock.Now().Add(expiry.remaining),
+					Scopes:    scopes.value,
+					AllowList: database.AllowList{{Type: rbac.ResourceChatModelConfig.Type, ID: uuid.NewString()}},
+					TokenName: GatewayTokenName(user.ID),
+				})
+				server := &Server{db: authzDB, clock: clock}
 
-	keyID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
-	require.NoError(t, err)
-	require.NotEqual(t, legacy.ID, keyID)
-
-	upgraded, err := db.GetAPIKeyByID(t.Context(), keyID)
-	require.NoError(t, err)
-	require.Equal(t, syntheticAPIKeyScopes, upgraded.Scopes)
-	_, err = db.GetAPIKeyByID(t.Context(), legacy.ID)
-	require.ErrorIs(t, err, sql.ErrNoRows)
+				keyID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
+				require.NoError(t, err)
+				require.Equal(t, legacy.ID, keyID)
+				upgraded, err := db.GetAPIKeyByID(t.Context(), legacy.ID)
+				require.NoError(t, err)
+				want := legacy
+				want.Scopes = database.APIKeyScopes{
+					database.ApiKeyScopeApiKeyRead,
+					database.ApiKeyScopeChatModelConfigUse,
+					database.ApiKeyScopeAIGatewayUnrestrictedUse,
+				}
+				if expiry.renew {
+					want.ExpiresAt = clock.Now().Add(syntheticAPIKeyLifetime).In(legacy.ExpiresAt.Location())
+				}
+				require.Equal(t, want, upgraded, "only scopes and near-expiry expiration may change")
+				secondID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
+				require.NoError(t, err)
+				require.Equal(t, legacy.ID, secondID)
+				again, err := db.GetAPIKeyByID(t.Context(), secondID)
+				require.NoError(t, err)
+				require.Equal(t, upgraded, again)
+			})
+		}
+	}
 }
 
 func TestSyntheticAPIKeyLifecycle(t *testing.T) {
@@ -143,6 +186,100 @@ func TestSyntheticAPIKeyIgnoresUserTokenCollision(t *testing.T) {
 	unchanged, err := db.GetAPIKeyByID(t.Context(), collision.ID)
 	require.NoError(t, err)
 	require.WithinDuration(t, collisionExpiry, unchanged.ExpiresAt, time.Millisecond)
+	require.Equal(t, collision, unchanged)
+
+	// A scope upgrade must also leave the colliding bearer token untouched.
+	legacy, err := db.UpdateChatGatewayAPIKeyScopesByID(t.Context(), database.UpdateChatGatewayAPIKeyScopesByIDParams{
+		ID: syntheticID, UserID: user.ID, Scopes: database.APIKeyScopes{database.ApiKeyScopeApiKeyRead},
+	})
+	require.NoError(t, err)
+	upgradedID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
+	require.NoError(t, err)
+	require.Equal(t, legacy.ID, upgradedID)
+	unchanged, err = db.GetAPIKeyByID(t.Context(), collision.ID)
+	require.NoError(t, err)
+	require.Equal(t, collision, unchanged)
+}
+
+// Only the unlocked reads pass through this wrapper. Transactional rereads
+// use the wrapped store's InTx, so all callers start with the legacy scopes.
+type syntheticKeyReadBarrierStore struct {
+	database.Store
+	read    chan<- struct{}
+	release <-chan struct{}
+}
+
+func (s syntheticKeyReadBarrierStore) GetChatGatewayAPIKey(ctx context.Context, arg database.GetChatGatewayAPIKeyParams) (database.APIKey, error) {
+	key, err := s.Store.GetChatGatewayAPIKey(ctx, arg)
+	select {
+	case s.read <- struct{}{}:
+	case <-ctx.Done():
+		return database.APIKey{}, ctx.Err()
+	}
+	select {
+	case <-s.release:
+		return key, err
+	case <-ctx.Done():
+		return database.APIKey{}, ctx.Err()
+	}
+}
+
+func TestSyntheticAPIKeyConcurrentUpgrade(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	authzDB := dbauthz.New(db, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
+	clock := quartz.NewMock(t)
+	clock.Set(dbtime.Now()).MustWait(ctx)
+	user := dbgen.User(t, db, database.User{})
+	legacy, _ := dbgen.APIKey(t, db, database.APIKey{
+		UserID: user.ID, LoginType: user.LoginType,
+		ExpiresAt: clock.Now().Add(time.Hour),
+		Scopes:    database.APIKeyScopes{database.ApiKeyScopeApiKeyRead},
+		TokenName: GatewayTokenName(user.ID),
+	})
+	const workers = 8
+	read := make(chan struct{}, workers)
+	release := make(chan struct{})
+	server := &Server{
+		db:    syntheticKeyReadBarrierStore{Store: authzDB, read: read, release: release},
+		clock: clock,
+	}
+	ids := make([]string, workers)
+	errs := make([]error, workers)
+	var wg sync.WaitGroup
+	for i := range workers {
+		wg.Go(func() {
+			ids[i], errs[i] = server.ensureSyntheticAPIKeyID(ctx, user.ID)
+		})
+	}
+	for range workers {
+		select {
+		case <-read:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	close(release)
+	wg.Wait()
+	for i := range workers {
+		require.NoError(t, errs[i])
+		require.Equal(t, legacy.ID, ids[i])
+	}
+	keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+		UserID: user.ID, LoginType: user.LoginType, IncludeExpired: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	want := legacy
+	want.Scopes = database.APIKeyScopes{
+		database.ApiKeyScopeApiKeyRead,
+		database.ApiKeyScopeChatModelConfigUse,
+		database.ApiKeyScopeAIGatewayUnrestrictedUse,
+	}
+	want.ExpiresAt = clock.Now().Add(syntheticAPIKeyLifetime).In(legacy.ExpiresAt.Location())
+	require.Equal(t, want, keys[0])
 }
 
 func TestSyntheticAPIKeySurvivesSuspension(t *testing.T) {

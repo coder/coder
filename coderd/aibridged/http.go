@@ -13,6 +13,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
@@ -134,24 +135,17 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	)
 	resp, err := client.IsAuthorized(ctx, authReq)
 	if err != nil {
-		if authErr := authorizationErrorFromDRPC(err); authErr != nil {
-			if s.metrics != nil {
-				s.metrics.AuthorizationCount.WithLabelValues(string(authorizationOutcomeForError(authErr.Kind))).Inc()
-			}
-			if authErr.Kind == intercept.AuthorizationErrorAuthentication || authErr.Kind == intercept.AuthorizationErrorPolicy {
-				logger.Warn(ctx, "key authorization denied", slog.Error(err))
-				http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
-			} else {
-				logger.Error(ctx, "key authorization evaluation failed", slog.Error(err))
-				http.Error(rw, ErrBudgetCheck.Error(), http.StatusInternalServerError)
-			}
-			return
-		}
+		authErr := authorizationErrorFromDRPC(err)
 		if s.metrics != nil {
-			s.metrics.AuthorizationCount.WithLabelValues(string(intercept.AuthorizationOutcomeError)).Inc()
+			s.metrics.AuthorizationCount.WithLabelValues(authorizationOutcomeForError(authErr.Kind)).Inc()
 		}
-		logger.Error(ctx, "key authorization failed", slog.Error(err))
-		http.Error(rw, ErrBudgetCheck.Error(), http.StatusInternalServerError)
+		if authErr.Kind == intercept.AuthorizationErrorAuthentication || authErr.Kind == intercept.AuthorizationErrorPolicy {
+			logger.Warn(ctx, "key authorization denied", slog.Error(err))
+			http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
+		} else {
+			logger.Error(ctx, "key authorization evaluation failed", slog.Error(err))
+			http.Error(rw, "internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -210,16 +204,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			return nil
 		}
-		kind := intercept.AuthorizationErrorEvaluation
-		switch drpcerr.Code(err) {
-		case proto.AuthorizationErrorAuthentication:
-			kind = intercept.AuthorizationErrorAuthentication
-		case proto.AuthorizationErrorPolicy:
-			kind = intercept.AuthorizationErrorPolicy
-		case proto.AuthorizationErrorMalformed:
-			kind = intercept.AuthorizationErrorMalformed
-		}
-		return &intercept.AuthorizationError{Kind: kind, Err: err}
+		return authorizationErrorFromDRPC(err)
 	})
 
 	// Rewire request context to include actor.
@@ -246,27 +231,26 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 }
 
 func authorizationErrorFromDRPC(err error) *intercept.AuthorizationError {
+	kind := intercept.AuthorizationErrorEvaluation
 	switch drpcerr.Code(err) {
 	case proto.AuthorizationErrorAuthentication:
-		return &intercept.AuthorizationError{Kind: intercept.AuthorizationErrorAuthentication, Err: err}
+		kind = intercept.AuthorizationErrorAuthentication
 	case proto.AuthorizationErrorPolicy:
-		return &intercept.AuthorizationError{Kind: intercept.AuthorizationErrorPolicy, Err: err}
+		kind = intercept.AuthorizationErrorPolicy
 	case proto.AuthorizationErrorMalformed:
-		return &intercept.AuthorizationError{Kind: intercept.AuthorizationErrorMalformed, Err: err}
-	case proto.AuthorizationErrorEvaluation:
-		return &intercept.AuthorizationError{Kind: intercept.AuthorizationErrorEvaluation, Err: err}
-	default:
-		return nil
+		kind = intercept.AuthorizationErrorMalformed
 	}
+	return &intercept.AuthorizationError{Kind: kind, Err: err}
 }
 
-func authorizationOutcomeForError(kind intercept.AuthorizationErrorKind) intercept.AuthorizationOutcome {
+func authorizationOutcomeForError(kind intercept.AuthorizationErrorKind) string {
 	if kind == intercept.AuthorizationErrorAuthentication || kind == intercept.AuthorizationErrorPolicy {
-		return intercept.AuthorizationOutcomeDenied
+		return metrics.AuthorizationOutcomeDenied
 	}
-	return intercept.AuthorizationOutcomeError
+	return metrics.AuthorizationOutcomeError
 }
 
+// attributionFromAuthorization extracts workspace attribution from an
 // IsAuthorizedResponse. The proto carries only workspace_id for attribution;
 // organization and workspace name are not returned.
 func attributionFromAuthorization(resp *proto.IsAuthorizedResponse) (agplaibridge.Attribution, error) {

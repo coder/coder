@@ -13,15 +13,6 @@ const (
 	AuthorizationErrorMalformed
 )
 
-// AuthorizationOutcome is a bounded request authorization result.
-type AuthorizationOutcome string
-
-const (
-	AuthorizationOutcomeAllowed AuthorizationOutcome = "allowed"
-	AuthorizationOutcomeDenied  AuthorizationOutcome = "denied"
-	AuthorizationOutcomeError   AuthorizationOutcome = "error"
-)
-
 // AuthorizationError is returned by a request authorization hook.
 type AuthorizationError struct {
 	Kind AuthorizationErrorKind

@@ -86,6 +86,20 @@ SET
 WHERE
 	id = $1;
 
+-- name: UpdateChatGatewayAPIKeyScopesByID :one
+-- Preserve delegated IDs and credentials when upgrading synthetic key scopes.
+-- User-created tokens with colliding names must never be updated.
+UPDATE
+	api_keys
+SET
+	scopes = @scopes
+WHERE
+	id = @id AND
+	user_id = @user_id AND
+	login_type != 'token' AND
+	token_name = 'chatd_' || user_id::text || '_session_token'
+RETURNING *;
+
 -- name: DeleteAPIKeyByID :exec
 DELETE FROM
 	api_keys

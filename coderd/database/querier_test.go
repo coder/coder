@@ -3832,7 +3832,6 @@ func TestGetAIModelAccessConfigs(t *testing.T) {
 	}
 
 	require.Empty(t, query(member.ID, providerName, model))
-	require.Empty(t, query(outsider.ID, providerName, model))
 
 	config := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		OrganizationID: org.ID,
@@ -3845,9 +3844,22 @@ func TestGetAIModelAccessConfigs(t *testing.T) {
 	require.Len(t, rows, 1)
 	require.Equal(t, config.ID, rows[0].ID)
 	require.Equal(t, org.ID, rows[0].OrganizationID)
+	require.Empty(t, query(outsider.ID, providerName, model))
+	require.Empty(t, query(member.ID, "other-"+providerName, model))
+	require.Empty(t, query(member.ID, providerName, "other-"+model))
+	require.Empty(t, query(member.ID, providerName, strings.ToUpper(model)))
 
 	// ACLs, credentials, and provider enabled state are outside this query's contract.
 	_, err := sqlDB.ExecContext(ctx, `UPDATE ai_providers SET enabled = FALSE WHERE id = $1`, provider.ID)
+	require.NoError(t, err)
+	require.Len(t, query(member.ID, providerName, model), 1)
+
+	// A deleted provider is excluded even when it is enabled.
+	_, err = sqlDB.ExecContext(ctx, `UPDATE ai_providers SET enabled = TRUE, deleted = TRUE WHERE id = $1`, provider.ID)
+	require.NoError(t, err)
+	require.Empty(t, query(member.ID, providerName, model))
+
+	_, err = sqlDB.ExecContext(ctx, `UPDATE ai_providers SET deleted = FALSE WHERE id = $1`, provider.ID)
 	require.NoError(t, err)
 	require.Len(t, query(member.ID, providerName, model), 1)
 
