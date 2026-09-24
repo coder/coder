@@ -23,10 +23,10 @@ import {
 	WorkspaceUpdateDialogs,
 } from "../WorkspaceUpdateDialogs";
 
-interface WorkspaceOutdatedTooltipProps {
+type WorkspaceOutdatedTooltipProps = {
 	workspace: Workspace;
 	children?: ReactNode;
-}
+};
 
 export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 	workspace,

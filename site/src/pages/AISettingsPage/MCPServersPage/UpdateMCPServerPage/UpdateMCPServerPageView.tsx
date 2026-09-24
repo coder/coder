@@ -4,7 +4,7 @@ import { pageTitle } from "#/utils/page";
 import { MCPServerForm } from "../components/MCPServerForm";
 import { OrganizationPicker } from "../components/OrganizationPicker";
 
-interface UpdateMCPServerPageViewProps {
+type UpdateMCPServerPageViewProps = {
 	server: TypesGen.MCPServerConfig;
 	organizations: readonly TypesGen.Organization[];
 	organization: TypesGen.Organization;
@@ -20,7 +20,7 @@ interface UpdateMCPServerPageViewProps {
 	onDeleteServer?: (serverId: string) => Promise<void>;
 	onToggleEnabled?: (enabled: boolean) => void;
 	onCancel: () => void;
-}
+};
 
 const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 	server,

@@ -141,6 +141,7 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		ContextLimit:        []int64{seed.ContextLimit.Int64},
 		Compressed:          []bool{seed.Compressed},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
+		ProviderResponseID:  []string{seed.ProviderResponseID.String},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
@@ -395,6 +396,8 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		APIKeyValueKeyID:        seed.APIKeyValueKeyID,
 		CustomHeaders:           seed.CustomHeaders,
 		CustomHeadersKeyID:      seed.CustomHeadersKeyID,
+		SigningSecret:           seed.SigningSecret,
+		SigningSecretKeyID:      seed.SigningSecretKeyID,
 		ToolAllowList:           takeFirstSlice(seed.ToolAllowList, []string{}),
 		ToolDenyList:            takeFirstSlice(seed.ToolDenyList, []string{}),
 		Availability:            takeFirst(seed.Availability, "default_off"),
@@ -1999,6 +2002,7 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 		CredentialHint:              takeFirst(seed.CredentialHint, ""),
 		AgentFirewallSessionID:      seed.AgentFirewallSessionID,
 		AgentFirewallSequenceNumber: seed.AgentFirewallSequenceNumber,
+		WorkspaceID:                 seed.WorkspaceID,
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{

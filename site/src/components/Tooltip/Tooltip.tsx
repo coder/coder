@@ -20,7 +20,7 @@ export const TooltipTrigger = TooltipPrimitive.Trigger;
 
 export const TooltipArrow = TooltipPrimitive.Arrow;
 
-type TooltipContentProps = React.ComponentPropsWithRef<
+type TooltipContentProps = React.ComponentProps<
 	typeof TooltipPrimitive.Content
 > & {
 	disablePortal?: boolean;
@@ -38,6 +38,7 @@ export const TooltipContent: React.FC<TooltipContentProps> = ({
 			className={cn(
 				"z-50 overflow-hidden rounded-md bg-surface-primary px-3 py-2 text-xs font-medium text-content-secondary",
 				"border border-solid border-border animate-in fade-in-0 zoom-in-95",
+				"origin-(--radix-popper-transform-origin)",
 				"data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
 				"data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2",
 				"data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",

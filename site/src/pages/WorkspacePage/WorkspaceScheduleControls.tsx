@@ -31,10 +31,10 @@ import {
 } from "#/utils/schedule";
 import { isWorkspaceOn } from "#/utils/workspace";
 
-interface WorkspaceScheduleContainerProps {
+type WorkspaceScheduleContainerProps = {
 	children?: ReactNode;
 	onClickIcon?: () => void;
-}
+};
 
 const WorkspaceScheduleContainer: FC<WorkspaceScheduleContainerProps> = ({
 	children,
@@ -73,11 +73,11 @@ const WorkspaceScheduleContainer: FC<WorkspaceScheduleContainerProps> = ({
 	);
 };
 
-interface WorkspaceScheduleControlsProps {
+type WorkspaceScheduleControlsProps = {
 	workspace: Workspace;
 	template: Template;
 	canUpdateSchedule: boolean;
-}
+};
 
 export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
 	workspace,
@@ -110,11 +110,11 @@ export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
 	);
 };
 
-interface AutostopDisplayProps {
+type AutostopDisplayProps = {
 	workspace: Workspace;
 	template: Template;
 	canUpdateSchedule: boolean;
-}
+};
 
 const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	workspace,

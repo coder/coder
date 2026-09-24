@@ -18,7 +18,7 @@ import {
 // of the row on wide viewports.
 const FILTER_WIDTH = 150;
 
-interface ListSessionsFilterProps {
+type ListSessionsFilterProps = {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
 	menus: {
@@ -29,7 +29,7 @@ interface ListSessionsFilterProps {
 	};
 	timeRange: DateTimeRangeValue;
 	onTimeRangeChange: (value: DateTimeRangeValue) => void;
-}
+};
 
 export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 	filter,

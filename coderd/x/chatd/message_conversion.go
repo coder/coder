@@ -207,6 +207,7 @@ func assistantMessage(
 	// invocation shorter than a millisecond persists the same way an
 	// unmeasured one does.
 	msg.RuntimeMs = nullInt64IfNonZero(step.Runtime.Milliseconds())
+	msg.ProviderResponseID = sql.NullString{String: step.ProviderResponseID, Valid: step.ProviderResponseID != ""}
 	return msg
 }
 
@@ -356,6 +357,7 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 
 	assistantMsg := baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent)
 	assistantMsg.RuntimeMs = nullInt64IfNonZero(input.compaction.Runtime.Milliseconds())
+	assistantMsg.ProviderResponseID = sql.NullString{String: input.compaction.ProviderResponseID, Valid: input.compaction.ProviderResponseID != ""}
 	messages := []chatstate.Message{
 		{
 			Role:           database.ChatMessageRoleUser,

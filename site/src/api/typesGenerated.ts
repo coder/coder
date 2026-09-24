@@ -12,15 +12,29 @@ export interface ACLAvailable {
 
 // From codersdk/aibridge.go
 /**
- * AIBridgeAgenticAction represents a tool call with associated
- * thinking blocks and token usage from one or more interceptions.
+ * AIBridgeAgenticAction represents data from one interception, including
+ * tool calls, thinking blocks, and token usage. Tool-less child interceptions
+ * are represented as actions with an empty ToolCalls slice.
  */
 export interface AIBridgeAgenticAction {
+	readonly interception_id: string;
 	readonly model: string;
+	/**
+	 * Attribution contains attribution data from this interception.
+	 * Unknown attribution is serialized as an empty object.
+	 */
+	readonly attribution: AIBridgeAttribution;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
 	readonly thinking: readonly AIBridgeModelThought[];
 	readonly tool_calls: readonly AIBridgeToolCall[];
 }
+
+// From codersdk/aibridge.go
+/**
+ * AIBridgeAttribution contains the attribution fields recorded for one
+ * interception.
+ */
+export type AIBridgeAttribution = Record<string, string>;
 
 // From codersdk/deployment.go
 export interface AIBridgeConfig {
@@ -227,6 +241,11 @@ export interface AIBridgeThread {
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * Attribution contains attribution data from the root interception.
+	 * Unknown attribution is serialized as an empty object.
+	 */
+	readonly attribution: AIBridgeAttribution;
 	readonly agentic_actions: readonly AIBridgeAgenticAction[];
 	/**
 	 * ErrorType is the categorized terminal upstream error from the root
@@ -2953,6 +2972,7 @@ export interface ChatModelOpenAIProviderOptions {
 	readonly metadata?: Record<string, unknown>;
 	readonly prompt_cache_key?: string;
 	readonly safety_identifier?: string;
+	readonly reasoning_mode?: string;
 	readonly service_tier?: string;
 	readonly structured_outputs?: boolean;
 	readonly strict_json_schema?: boolean;
@@ -3896,26 +3916,16 @@ export interface CreateChatModelRequest {
 
 // From codersdk/chats.go
 /**
- * CreateChatProviderConfigRequest creates a chat provider config.
- */
-export interface CreateChatProviderConfigRequest {
-	readonly provider: string;
-	readonly display_name?: string;
-	readonly icon?: string;
-	readonly api_key?: string;
-	readonly base_url?: string;
-	readonly enabled?: boolean;
-	readonly central_api_key_enabled?: boolean;
-	readonly allow_user_api_key?: boolean;
-	readonly allow_central_api_key_fallback?: boolean;
-}
-
-// From codersdk/chats.go
-/**
  * CreateChatRequest is the request to create a new chat.
  */
 export interface CreateChatRequest {
 	readonly organization_id: string;
+	/**
+	 * OwnerID makes another user the chat owner. It defaults to the
+	 * caller. The chat runs with the owner's credentials, so setting it
+	 * requires site-wide authority over that user.
+	 */
+	readonly owner_id?: string;
 	readonly content: readonly ChatInputPart[];
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
@@ -4018,6 +4028,11 @@ export interface CreateMCPServerConfigRequest {
 	 * headers on every outgoing MCP request. See MCPServerConfig.
 	 */
 	readonly forward_coder_headers: boolean;
+	/**
+	 * SigningSecret signs forwarded identity headers and request bodies.
+	 * Configure the same secret on the MCP server. It is never returned.
+	 */
+	readonly signing_secret?: string;
 }
 
 // From codersdk/organizations.go
@@ -4271,7 +4286,7 @@ export interface CreateUserChatProviderKeyRequest {
 }
 
 // From codersdk/users.go
-export interface CreateUserRequestWithOrgs {
+export interface CreateUserRequest {
 	readonly email: string;
 	readonly username: string;
 	readonly name: string;
@@ -5111,7 +5126,7 @@ export type Experiment =
 	| "example"
 	| "mcp-server-http"
 	| "mcp-tool-search"
-	| "nats_pubsub"
+	| "no_nats_pubsub"
 	| "notifications"
 	| "workspace-build-updates"
 	| "workspace-capable-licensing"
@@ -5127,7 +5142,7 @@ export const Experiments: Experiment[] = [
 	"example",
 	"mcp-server-http",
 	"mcp-tool-search",
-	"nats_pubsub",
+	"no_nats_pubsub",
 	"notifications",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
@@ -5225,7 +5240,7 @@ export interface ExternalAuthConfig {
 	 *
 	 * Git clone makes use of this by parsing the URL from:
 	 * 'Username for "https://github.com":'
-	 * And sending it to the Coder server to match against the Regex.
+	 * And sending it to the control plane to match against the Regex.
 	 */
 	readonly regex: string;
 	/**
@@ -5935,10 +5950,6 @@ export const LicenseAgentRuntimeUsageUnavailableErrorText =
 export const LicenseExpiryClaim = "license_expires";
 
 // From codersdk/licenses.go
-export const LicenseManagedAgentLimitExceededWarningText =
-	"You have built more workspaces with managed agents than your license allows.";
-
-// From codersdk/licenses.go
 export const LicenseTelemetryRequiredErrorText =
 	"License requires telemetry but telemetry is disabled";
 
@@ -6109,6 +6120,7 @@ export interface MCPServerConfig {
 	 * chat identity to third-party servers.
 	 */
 	readonly forward_coder_headers: boolean;
+	readonly has_signing_secret: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
@@ -6190,12 +6202,24 @@ export interface MatchedProvisioners {
  */
 export const MaxAIModelPricesBytes = 1048576; // 1 MiB
 
+// From codersdk/aiproviders.go
+/**
+ * MaxAIProviderAPIKeys is the maximum number of API keys per AI provider.
+ */
+export const MaxAIProviderAPIKeys = 5;
+
 // From codersdk/aibridge.go
 /**
  * MaxAISpendLimitMicros is the highest AI spend limit that can be configured,
  * $1,000,000 per member per budget period.
  */
 export const MaxAISpendLimitMicros = 1000000000000;
+
+// From codersdk/aibridge.go
+/**
+ * MaxAISpendPeriodDays bounds explicit AI spend reporting windows.
+ */
+export const MaxAISpendPeriodDays = 31;
 
 // From codersdk/chats.go
 /**
@@ -6779,8 +6803,22 @@ export interface OAuth2ProtectedResourceMetadata {
 export interface OAuth2ProviderApp {
 	readonly id: string;
 	readonly name: string;
+	/**
+	 * RedirectURIs are the app's registered redirect URIs, primary first.
+	 */
+	readonly redirect_uris: readonly string[];
+	/**
+	 * @deprecated equal to the first entry of redirect_uris. Read
+	 * redirect_uris instead.
+	 */
 	readonly callback_url: string;
 	readonly icon: string;
+	/**
+	 * Scope is the space-separated list of scopes this app's tokens may be
+	 * granted. Empty means unrestricted. A non-empty value with no names is a
+	 * configured allowlist that grants nothing.
+	 */
+	readonly scope: string;
 	/**
 	 * ClientType is "confidential" or "public".
 	 */
@@ -6878,6 +6916,18 @@ export const OAuth2RedirectCookie = "oauth_redirect";
  */
 export const OAuth2RedirectURICookie = "oauth_redirect_uri";
 
+// From codersdk/oauth2_validation.go
+/**
+ * OAuth2RedirectURIMaxBytes is the longest a single redirect URI may be.
+ */
+export const OAuth2RedirectURIMaxBytes = 2048;
+
+// From codersdk/oauth2_validation.go
+/**
+ * OAuth2RedirectURIsMaxCount is the most redirect URIs an app may register.
+ */
+export const OAuth2RedirectURIsMaxCount = 32;
+
 // From codersdk/oauth2.go
 export type OAuth2RevocationTokenTypeHint = "access_token" | "refresh_token";
 
@@ -6885,6 +6935,20 @@ export const OAuth2RevocationTokenTypeHints: OAuth2RevocationTokenTypeHint[] = [
 	"access_token",
 	"refresh_token",
 ];
+
+// From codersdk/oauth2_validation.go
+/**
+ * OAuth2ScopeListMaxBytes bounds the length of an app's stored scope list.
+ * The full public catalog fits in well under this.
+ */
+export const OAuth2ScopeListMaxBytes = 4096;
+
+// From codersdk/oauth2_validation.go
+/**
+ * OAuth2ScopeListMaxNames bounds how many space-separated names an app's
+ * scope list may hold. The public catalog is about half this size.
+ */
+export const OAuth2ScopeListMaxNames = 100;
 
 // From codersdk/client.go
 /**
@@ -7082,6 +7146,19 @@ export interface Organization extends MinimalOrganization {
 	 * next request.
 	 */
 	readonly default_org_member_roles: readonly string[];
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendDetailsFilter narrows organization AI spend.
+ */
+export interface OrganizationAISpendDetailsFilter {
+	readonly period_start?: string;
+	readonly period_end?: string;
+	readonly user_id?: string;
+	readonly group_id?: string;
+	readonly provider_name?: string;
+	readonly model?: string;
 }
 
 // From codersdk/aibridge.go
@@ -7518,14 +7595,34 @@ export interface Permission {
 // From codersdk/oauth2.go
 export interface PostOAuth2ProviderAppRequest {
 	readonly name: string;
-	readonly callback_url: string;
+	/**
+	 * RedirectURIs is the ordered list of URIs the app may redirect to. The
+	 * first entry is the primary. Required, unless the deprecated
+	 * callback_url is sent instead.
+	 */
+	readonly redirect_uris?: readonly string[];
+	/**
+	 * @deprecated send redirect_uris instead. If both are sent, callback_url
+	 * must equal the first entry of redirect_uris.
+	 */
+	readonly callback_url?: string;
 	readonly icon: string;
+	/**
+	 * Scope is the space-separated list of scopes this app's tokens may be
+	 * granted. Leave empty, or omit, for unrestricted.
+	 */
+	readonly scope?: string;
 }
 
 // From codersdk/workspaces.go
 export interface PostWorkspaceUsageRequest {
 	readonly agent_id: string;
-	readonly app_name: UsageAppName;
+	/**
+	 * AppName is any name for the app reporting usage. The server normalizes
+	 * it at ingestion, so a new app needs no server change. The UsageAppName
+	 * constants are the well-known names.
+	 */
+	readonly app_name: string;
 }
 
 // From codersdk/deployment.go
@@ -8032,8 +8129,29 @@ export interface PutExtendWorkspaceRequest {
 // From codersdk/oauth2.go
 export interface PutOAuth2ProviderAppRequest {
 	readonly name: string;
-	readonly callback_url: string;
+	/**
+	 * RedirectURIs is the ordered list of URIs the app may redirect to. The
+	 * first entry is the primary. Omit both this and callback_url to keep the
+	 * stored redirect URIs. Other fields are replaced. Sending an empty list
+	 * is an error, not a way to keep the stored list.
+	 */
+	readonly redirect_uris?: readonly string[];
+	/**
+	 * @deprecated send redirect_uris instead. If both are sent, callback_url
+	 * must equal the first entry of redirect_uris.
+	 */
+	readonly callback_url?: string;
+	/**
+	 * Icon replaces the app's stored icon. Omitting it clears the stored
+	 * icon rather than leaving it unchanged.
+	 */
 	readonly icon: string;
+	/**
+	 * Scope replaces the app's current allowlist. Omit to leave the existing
+	 * allowlist untouched. Set to an empty string to clear it, making the app
+	 * unrestricted.
+	 */
+	readonly scope?: string;
 }
 
 // From codersdk/rbacresources_gen.go
@@ -9899,21 +10017,6 @@ export interface UpdateChatPlanModeInstructionsRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatProviderConfigRequest updates a chat provider config.
- */
-export interface UpdateChatProviderConfigRequest {
-	readonly display_name?: string;
-	readonly icon?: string;
-	readonly api_key?: string;
-	readonly base_url?: string;
-	readonly enabled?: boolean;
-	readonly central_api_key_enabled?: boolean;
-	readonly allow_user_api_key?: boolean;
-	readonly allow_central_api_key_fallback?: boolean;
-}
-
-// From codersdk/chats.go
-/**
  * UpdateChatRequest is the request to update a chat.
  */
 export interface UpdateChatRequest {
@@ -10054,6 +10157,11 @@ export interface UpdateMCPServerConfigRequest {
 	 * headers are forwarded on every outgoing MCP request.
 	 */
 	readonly forward_coder_headers?: boolean;
+	/**
+	 * SigningSecret replaces the shared signing key. Omit to preserve it;
+	 * an empty string clears it. It is never returned.
+	 */
+	readonly signing_secret?: string;
 }
 
 // From codersdk/notifications.go
@@ -11747,6 +11855,12 @@ export interface WorkspaceHealth {
 // From codersdk/workspaces.go
 export interface WorkspaceOptions {
 	readonly include_deleted?: boolean;
+	/**
+	 * IncludeRelated selects which related data to load alongside the workspace.
+	 * A nil value loads everything; a non-nil value is encoded into the
+	 * include_related query parameter and loads only the selected data.
+	 */
+	readonly include_related?: string;
 }
 
 // From codersdk/workspaceproxy.go

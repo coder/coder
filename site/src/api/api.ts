@@ -423,6 +423,9 @@ export class ParameterValidationError extends Error {
 	}
 }
 
+type OrganizationAISpendParams = TypesGen.OrganizationAISpendFilter &
+	TypesGen.OrganizationAISpendPage;
+
 export type GetProvisionerJobsParams = {
 	status?: string;
 	limit?: number;
@@ -521,6 +524,15 @@ class ApiMethods {
 
 		return response.data;
 	};
+
+	getExternalAPIKeyScopes =
+		async (): Promise<TypesGen.ExternalAPIKeyScopes> => {
+			const response = await this.axios.get<TypesGen.ExternalAPIKeyScopes>(
+				"/api/v2/auth/scopes",
+			);
+
+			return response.data;
+		};
 
 	getUserLoginType = async (): Promise<TypesGen.UserLoginType> => {
 		const response = await this.axios.get<TypesGen.UserLoginType>(
@@ -1502,7 +1514,7 @@ class ApiMethods {
 	};
 
 	createUser = async (
-		user: TypesGen.CreateUserRequestWithOrgs,
+		user: TypesGen.CreateUserRequest,
 	): Promise<TypesGen.User> => {
 		const response = await this.axios.post<TypesGen.User>(
 			"/api/v2/users",
@@ -2902,49 +2914,42 @@ class ApiMethods {
 		templateId: string,
 		req: TypesGen.UpdateNotificationTemplateMethod,
 	) => {
-		const res = await this.axios.put<void>(
+		await this.axios.put(
 			`/api/v2/notifications/templates/${templateId}/method`,
 			req,
 		);
-		return res.data;
 	};
 
 	postTestNotification = async () => {
-		await this.axios.post<void>("/api/v2/notifications/test");
+		await this.axios.post("/api/v2/notifications/test");
 	};
 
 	createWebPushSubscription = async (
 		userId: string,
 		req: TypesGen.WebpushSubscription,
 	) => {
-		await this.axios.post<void>(
-			`/api/v2/users/${userId}/webpush/subscription`,
-			req,
-		);
+		await this.axios.post(`/api/v2/users/${userId}/webpush/subscription`, req);
 	};
 
 	deleteWebPushSubscription = async (
 		userId: string,
 		req: TypesGen.DeleteWebpushSubscription,
 	) => {
-		await this.axios.delete<void>(
-			`/api/v2/users/${userId}/webpush/subscription`,
-			{
-				data: req,
-			},
-		);
+		await this.axios.delete(`/api/v2/users/${userId}/webpush/subscription`, {
+			data: req,
+		});
 	};
 
 	requestOneTimePassword = async (
 		req: TypesGen.RequestOneTimePasscodeRequest,
 	) => {
-		await this.axios.post<void>("/api/v2/users/otp/request", req);
+		await this.axios.post("/api/v2/users/otp/request", req);
 	};
 
 	changePasswordWithOTP = async (
 		req: TypesGen.ChangePasswordWithOneTimePasscodeRequest,
 	) => {
-		await this.axios.post<void>("/api/v2/users/otp/change-password", req);
+		await this.axios.post("/api/v2/users/otp/change-password", req);
 	};
 
 	workspaceBuildTimings = async (workspaceBuildId: string) => {
@@ -3050,10 +3055,12 @@ class ApiMethods {
 	};
 
 	markAllInboxNotificationsAsRead = async () => {
-		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
+		await this.axios.put("/api/v2/notifications/inbox/mark-all-as-read");
 	};
 
-	getAIBridgeModels = async (options: SearchParamOptions) => {
+	getAIBridgeModels = async (
+		options: TypesGen.Pagination & { model?: string },
+	) => {
 		const url = getURLWithSearchParams(`${aiGatewayPath}/models`, options);
 
 		const response = await this.axios.get<string[]>(url);
@@ -3091,6 +3098,25 @@ class ApiMethods {
 		);
 		const response =
 			await this.axios.get<TypesGen.AIBridgeSessionThreadsResponse>(url);
+		return response.data;
+	};
+
+	getOrganizationAISpendUsers = async (
+		organizationId: string,
+		{ limit, offset, ...filter }: OrganizationAISpendParams,
+	): Promise<TypesGen.OrganizationAISpendReport> => {
+		// Like the Go SDK, a zero page value means the server default; the
+		// endpoint rejects an explicit limit=0.
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organizationId}/ai/spend/users`,
+			{
+				...filter,
+				limit: limit !== undefined && limit > 0 ? limit : undefined,
+				offset: offset !== undefined && offset > 0 ? offset : undefined,
+			},
+		);
+		const response =
+			await this.axios.get<TypesGen.OrganizationAISpendReport>(url);
 		return response.data;
 	};
 
@@ -4032,13 +4058,13 @@ function createWebSocket(
 }
 
 // Other non-API methods defined here to make it a little easier to find them.
-interface ClientApi extends ApiMethods {
+type ClientApi = ApiMethods & {
 	getCsrfToken: () => string;
 	setSessionToken: (token: string) => void;
 	getSessionToken: () => string | undefined;
 	setHost: (host: string | undefined) => void;
 	getAxiosInstance: () => AxiosInstance;
-}
+};
 
 /** @public Exported for use by external consumers (e.g., VS Code extension). */
 export class Api extends ApiMethods implements ClientApi {

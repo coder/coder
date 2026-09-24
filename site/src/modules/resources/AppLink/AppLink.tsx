@@ -35,12 +35,12 @@ export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
 	web_terminal: "Terminal",
 };
 
-interface AppLinkProps {
+type AppLinkProps = {
 	workspace: TypesGen.Workspace;
 	app: TypesGen.WorkspaceApp;
 	agent: TypesGen.WorkspaceAgent;
 	grouped?: boolean;
-}
+};
 
 export const AppLink: FC<AppLinkProps> = ({
 	app,

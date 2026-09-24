@@ -1,6 +1,6 @@
 import { File as FileViewer } from "@pierre/diffs/react";
 import { cn } from "cn";
-import { type ComponentPropsWithRef, type FC, memo } from "react";
+import { type ComponentProps, type FC, memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
@@ -64,7 +64,7 @@ import {
 
 import { WriteFileTool } from "./WriteFileTool";
 
-interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
+type ToolProps = Omit<ComponentProps<"div">, "children"> & {
 	organizationId?: string;
 	name: string;
 	status?: ToolStatus;
@@ -100,7 +100,7 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	hookRewritten?: boolean;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
-}
+};
 
 // Props passed to each tool-specific renderer function. Each renderer
 // only computes the expensive values it needs from the raw args/result.
@@ -861,8 +861,8 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 
 type ToolFileViewerProps = {
 	label?: string;
-	file: ComponentPropsWithRef<typeof FileViewer>["file"];
-	options: ComponentPropsWithRef<typeof FileViewer>["options"];
+	file: ComponentProps<typeof FileViewer>["file"];
+	options: ComponentProps<typeof FileViewer>["options"];
 };
 
 const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
@@ -898,7 +898,7 @@ const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
 type GenericToolContentProps = {
 	toolInput: string | null;
 	fileContent: ReturnType<typeof getFileContentForViewer>;
-	fileContentOptions: ComponentPropsWithRef<typeof FileViewer>["options"];
+	fileContentOptions: ComponentProps<typeof FileViewer>["options"];
 	isDark: boolean;
 	resultOutput: string | null;
 };

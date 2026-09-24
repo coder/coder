@@ -5,11 +5,19 @@
 			"reasoningEffort": "high"
 		},
 		{
+			"modelIdentifier": "claude-mythos-5-1",
+			"reasoningEffort": "high"
+		},
+		{
 			"modelIdentifier": "claude-fable-5",
 			"reasoningEffort": "high"
 		},
 		{
 			"modelIdentifier": "claude-mythos-5",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-opus-5-5",
 			"reasoningEffort": "high"
 		},
 		{
@@ -57,6 +65,12 @@
 			"modelIdentifier": "claude-fable-5"
 		},
 		{
+			"modelIdentifier": "claude-mythos-5"
+		},
+		{
+			"modelIdentifier": "claude-opus-5-5"
+		},
+		{
 			"modelIdentifier": "claude-opus-5"
 		},
 		{
@@ -66,10 +80,22 @@
 			"modelIdentifier": "claude-opus-4-8"
 		},
 		{
+			"modelIdentifier": "claude-opus-4-7"
+		},
+		{
 			"modelIdentifier": "claude-sonnet-4-6"
 		},
 		{
 			"modelIdentifier": "claude-haiku-4-5"
+		},
+		{
+			"modelIdentifier": "gpt-6-astra"
+		},
+		{
+			"modelIdentifier": "gpt-6-sol"
+		},
+		{
+			"modelIdentifier": "gpt-6-luna"
 		},
 		{
 			"modelIdentifier": "gpt-5.6-sol"
@@ -84,6 +110,15 @@
 			"modelIdentifier": "gpt-5.5"
 		},
 		{
+			"modelIdentifier": "gpt-5.4"
+		},
+		{
+			"modelIdentifier": "gpt-5.4-mini"
+		},
+		{
+			"modelIdentifier": "gpt-5.3-codex"
+		},
+		{
 			"modelIdentifier": "deepseek-v4-flash"
 		}
 	],
@@ -95,6 +130,10 @@
 		{
 			"modelIdentifier": "anthropic.claude-sonnet-5",
 			"aliases": ["global.anthropic.claude-sonnet-5"]
+		},
+		{
+			"modelIdentifier": "anthropic.claude-opus-5-5",
+			"aliases": ["global.anthropic.claude-opus-5-5"]
 		},
 		{
 			"modelIdentifier": "anthropic.claude-opus-5",
@@ -115,6 +154,10 @@
 		{
 			"modelIdentifier": "anthropic.claude-opus-4-8",
 			"aliases": ["global.anthropic.claude-opus-4-8"]
+		},
+		{
+			"modelIdentifier": "anthropic.claude-opus-4-7",
+			"aliases": ["global.anthropic.claude-opus-4-7"]
 		}
 	],
 	"google": [
@@ -129,11 +172,28 @@
 		},
 		{
 			"modelIdentifier": "gemini-3.6-flash"
+		},
+		{
+			"modelIdentifier": "gemini-3.1-pro-preview"
+		},
+		{
+			"modelIdentifier": "gemini-flash-lite-latest"
+		},
+		{
+			"modelIdentifier": "gemini-3.5-flash-lite"
 		}
 	],
 	"openai": [
 		{
 			"modelIdentifier": "gpt-6-astra",
+			"reasoningEffort": "medium"
+		},
+		{
+			"modelIdentifier": "gpt-6-sol",
+			"reasoningEffort": "medium"
+		},
+		{
+			"modelIdentifier": "gpt-6-luna",
 			"reasoningEffort": "medium"
 		},
 		{
@@ -174,6 +234,15 @@
 	],
 	"openrouter": [
 		{
+			"modelIdentifier": "openai/gpt-6-astra"
+		},
+		{
+			"modelIdentifier": "openai/gpt-6-sol"
+		},
+		{
+			"modelIdentifier": "openai/gpt-6-luna"
+		},
+		{
 			"modelIdentifier": "openai/gpt-5.6-sol"
 		},
 		{
@@ -183,13 +252,25 @@
 			"modelIdentifier": "openai/gpt-5.6-luna"
 		},
 		{
+			"modelIdentifier": "openai/gpt-5.5"
+		},
+		{
+			"modelIdentifier": "openai/gpt-5.4-mini"
+		},
+		{
 			"modelIdentifier": "openai/gpt-oss-120b"
 		},
 		{
 			"modelIdentifier": "moonshotai/kimi-k3"
 		},
 		{
+			"modelIdentifier": "moonshotai/kimi-k2.7-code"
+		},
+		{
 			"modelIdentifier": "z-ai/glm-5.3"
+		},
+		{
+			"modelIdentifier": "z-ai/glm-5.3-flash"
 		},
 		{
 			"modelIdentifier": "z-ai/glm-5.2"
@@ -201,6 +282,9 @@
 			"modelIdentifier": "anthropic/claude-fable-5"
 		},
 		{
+			"modelIdentifier": "anthropic/claude-opus-5.5"
+		},
+		{
 			"modelIdentifier": "anthropic/claude-opus-5"
 		},
 		{
@@ -210,10 +294,25 @@
 			"modelIdentifier": "anthropic/claude-opus-4.8"
 		},
 		{
+			"modelIdentifier": "anthropic/claude-opus-4.7"
+		},
+		{
 			"modelIdentifier": "anthropic/claude-sonnet-4.6"
 		},
 		{
 			"modelIdentifier": "anthropic/claude-haiku-4.5"
+		},
+		{
+			"modelIdentifier": "google/gemini-3.8-flash"
+		},
+		{
+			"modelIdentifier": "google/gemini-3.7-flash"
+		},
+		{
+			"modelIdentifier": "google/gemini-3.6-flash"
+		},
+		{
+			"modelIdentifier": "deepseek/deepseek-v4.1-flash"
 		},
 		{
 			"modelIdentifier": "deepseek/deepseek-v4-flash"
@@ -226,10 +325,31 @@
 			"displayName": "Qwen3.8 Max"
 		},
 		{
+			"modelIdentifier": "qwen/qwen3.8-flash"
+		},
+		{
 			"modelIdentifier": "qwen/qwen3-coder-next"
+		},
+		{
+			"modelIdentifier": "x-ai/grok-4.7"
+		},
+		{
+			"modelIdentifier": "x-ai/grok-4.6"
+		},
+		{
+			"modelIdentifier": "minimax/minimax-m3"
 		}
 	],
 	"vercel": [
+		{
+			"modelIdentifier": "openai/gpt-6-astra"
+		},
+		{
+			"modelIdentifier": "openai/gpt-6-sol"
+		},
+		{
+			"modelIdentifier": "openai/gpt-6-luna"
+		},
 		{
 			"modelIdentifier": "openai/gpt-5.6-sol"
 		},
@@ -240,13 +360,25 @@
 			"modelIdentifier": "openai/gpt-5.6-luna"
 		},
 		{
+			"modelIdentifier": "openai/gpt-5.5"
+		},
+		{
+			"modelIdentifier": "openai/gpt-5.4-mini"
+		},
+		{
 			"modelIdentifier": "openai/gpt-oss-120b"
 		},
 		{
 			"modelIdentifier": "moonshotai/kimi-k3"
 		},
 		{
+			"modelIdentifier": "moonshotai/kimi-k2.7-code"
+		},
+		{
 			"modelIdentifier": "zai/glm-5.3"
+		},
+		{
+			"modelIdentifier": "zai/glm-5.3-flash"
 		},
 		{
 			"modelIdentifier": "zai/glm-5.2"
@@ -258,6 +390,9 @@
 			"modelIdentifier": "anthropic/claude-fable-5"
 		},
 		{
+			"modelIdentifier": "anthropic/claude-opus-5.5"
+		},
+		{
 			"modelIdentifier": "anthropic/claude-opus-5"
 		},
 		{
@@ -267,16 +402,47 @@
 			"modelIdentifier": "anthropic/claude-opus-4.8"
 		},
 		{
+			"modelIdentifier": "anthropic/claude-opus-4.7"
+		},
+		{
 			"modelIdentifier": "anthropic/claude-sonnet-4.6"
 		},
 		{
 			"modelIdentifier": "anthropic/claude-haiku-4.5"
 		},
 		{
+			"modelIdentifier": "google/gemini-3.8-flash"
+		},
+		{
+			"modelIdentifier": "google/gemini-3.7-flash"
+		},
+		{
+			"modelIdentifier": "google/gemini-3.6-flash"
+		},
+		{
+			"modelIdentifier": "deepseek/deepseek-v4.1-flash"
+		},
+		{
 			"modelIdentifier": "deepseek/deepseek-v4-flash"
 		},
 		{
 			"modelIdentifier": "deepseek/deepseek-v4-pro"
+		},
+		{
+			"modelIdentifier": "alibaba/qwen3.8-max-0902",
+			"displayName": "Qwen3.8 Max"
+		},
+		{
+			"modelIdentifier": "alibaba/qwen3.8-flash"
+		},
+		{
+			"modelIdentifier": "spacexai/grok-4.7"
+		},
+		{
+			"modelIdentifier": "spacexai/grok-4.6"
+		},
+		{
+			"modelIdentifier": "minimax/minimax-m3"
 		}
 	]
 }

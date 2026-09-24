@@ -73,17 +73,18 @@ providers and connects to workspaces only when tool execution is needed.</small>
 
 ### Automatic workspace provisioning
 
-Not every chat requires a workspace. The agent runs in the control plane and can
-answer questions, discuss architecture, or plan an approach without any
-infrastructure. Workspaces are only provisioned when the agent needs to take
-action — reading code, running commands, or editing files.
+Not every chat requires a workspace.
+The agent uses the conversation and available tools when they're sufficient for your request.
+If missing tools, skills, MCP integrations, or context block progress, the agent creates a suitable workspace and uses its capabilities to continue.
+Workspaces also support reading code, running commands, and editing files.
+Requests to fix a bug or build an app authorize the necessary workspace setup; you don't need to ask for a workspace separately.
+Questions and self-contained code examples don't need a workspace when the conversation and available tools are sufficient.
 
 This means:
 
 - **Faster responses** — conversations that don't require workspace access
   start immediately with no provisioning delay.
-- **Lower infrastructure cost** — workspaces are only created when the agent
-  needs to do real development work.
+- **Lower infrastructure cost**: the agent uses existing tools and context when they can complete your request without a workspace.
 
 When a workspace _is_ needed, the agent reads the templates available to that user —
 including their descriptions and parameters — selects the appropriate one, and
@@ -96,6 +97,12 @@ Administrators can also block agents on a template, which hides it from the agen
 Refer to [Platform Controls](./platform-controls/index.md#template-routing) for that setting.
 
 **Examples of what triggers workspace creation:**
+
+The examples in the first column assume the available tools and context are sufficient.
+Any request, including planning or Q&A, can require a workspace if the agent lacks the capabilities or context to complete it.
+Creating a workspace doesn't change the current mode's tool restrictions: workspace MCP tools remain unavailable in Plan Mode.
+Workspace skills, MCP tools, and context can finish loading after the workspace reports ready.
+The agent can continue with available file and shell tools, but provisioning doesn't guarantee immediate access to a missing MCP tool.
 
 | No workspace needed                                  | Workspace provisioned                                    |
 |------------------------------------------------------|----------------------------------------------------------|

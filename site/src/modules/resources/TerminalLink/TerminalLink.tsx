@@ -4,12 +4,12 @@ import { getTerminalHref, openAppInNewWindow } from "#/modules/apps/apps";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
-interface TerminalLinkProps {
+type TerminalLinkProps = {
 	workspaceName: string;
 	agentName?: string;
 	userName?: string;
 	containerName?: string;
-}
+};
 
 /**
  * Generate a link to a terminal connected to the provided workspace agent.  If

@@ -6,10 +6,10 @@ import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { agentVersionStatus, getDisplayVersionStatus } from "#/utils/workspace";
 import { AgentOutdatedTooltip } from "./AgentOutdatedTooltip";
 
-interface AgentVersionProps {
+type AgentVersionProps = {
 	agent: WorkspaceAgent;
 	onUpdate: () => void;
-}
+};
 
 export const AgentVersion: FC<AgentVersionProps> = ({ agent, onUpdate }) => {
 	const { metadata } = useEmbeddedMetadata();

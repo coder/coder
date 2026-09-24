@@ -6,7 +6,7 @@ import { Command as CommandPrimitive, useCommandState } from "cmdk";
 import { cn } from "cn";
 import { InfoIcon, XIcon } from "lucide-react";
 import {
-	type ComponentPropsWithoutRef,
+	type ComponentProps,
 	type KeyboardEvent,
 	type ReactNode,
 	type Ref,
@@ -33,7 +33,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useDebouncedValue } from "#/hooks/debounce";
 
-export interface Option {
+export type Option = {
 	value: string;
 	label: string;
 	icon?: string;
@@ -43,12 +43,12 @@ export interface Option {
 	fixed?: boolean;
 	/** Group the options by providing key. */
 	[key: string]: string | boolean | undefined;
-}
-interface GroupOption {
+};
+type GroupOption = {
 	[key: string]: Option[];
-}
+};
 
-interface MultiSelectComboboxProps {
+type MultiSelectComboboxProps = {
 	value?: Option[];
 	defaultOptions?: Option[];
 	/** manually controlled options */
@@ -95,25 +95,25 @@ interface MultiSelectComboboxProps {
 	/** Allow user to create option when there is no option matched. */
 	creatable?: boolean;
 	/** Props of `Command` */
-	commandProps?: ComponentPropsWithoutRef<typeof Command>;
+	commandProps?: Omit<ComponentProps<typeof Command>, "ref">;
 	/** Props of `CommandInput` */
 	inputProps?: Omit<
-		ComponentPropsWithoutRef<typeof CommandPrimitive.Input>,
-		"value" | "placeholder" | "disabled"
+		ComponentProps<typeof CommandPrimitive.Input>,
+		"ref" | "value" | "placeholder" | "disabled"
 	>;
 	/** hide or show the button that clears all the selected options. */
 	hideClearAllButton?: boolean;
 	/** Test ID for testing purposes */
 	"data-testid"?: string;
 	ref?: Ref<MultiSelectComboboxRef>;
-}
+};
 
-interface MultiSelectComboboxRef {
+type MultiSelectComboboxRef = {
 	selectedValue: Option[];
 	input: HTMLInputElement;
 	focus: () => void;
 	reset: () => void;
-}
+};
 
 function transitionToGroupOption(options: Option[], groupBy?: string) {
 	if (options.length === 0) {
@@ -160,7 +160,7 @@ function isOptionsExist(groupOption: GroupOption, targetOption: Option[]) {
  * @reference: https://github.com/hsuanyi-chou/shadcn-ui-expansions/issues/34#issuecomment-1949561607
  **/
 const CommandEmpty: React.FC<
-	React.ComponentPropsWithRef<typeof CommandPrimitive.Empty>
+	React.ComponentProps<typeof CommandPrimitive.Empty>
 > = ({ className, ...props }) => {
 	const render = useCommandState((state) => state.filtered.count === 0);
 
@@ -605,7 +605,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 						className={`absolute top-1 z-10 w-full rounded-md
 								border border-solid border-border
 								bg-surface-primary text-content-primary shadow-md outline-hidden
-								animate-in scroll-mt-44 scroll-mb-10`}
+								animate-in origin-top scroll-mt-44 scroll-mb-10`}
 						onPointerLeave={() => {
 							setOnScrollbar(false);
 						}}

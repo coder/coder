@@ -11,7 +11,6 @@ package dbmock
 
 import (
 	context "context"
-	json "encoding/json"
 	reflect "reflect"
 	time "time"
 
@@ -4723,6 +4722,21 @@ func (m *MockStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) 
 func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppByID", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppByID), ctx, id)
+}
+
+// GetOAuth2ProviderAppByIDForUpdate mocks base method.
+func (m *MockStore) GetOAuth2ProviderAppByIDForUpdate(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2ProviderAppByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.OAuth2ProviderApp)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2ProviderAppByIDForUpdate indicates an expected call of GetOAuth2ProviderAppByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppByIDForUpdate), ctx, id)
 }
 
 // GetOAuth2ProviderAppCodeByID mocks base method.
@@ -12332,17 +12346,17 @@ func (mr *MockStoreMockRecorder) UpsertTelemetryItem(ctx, arg any) *gomock.Call 
 }
 
 // UpsertTemplateUsageStats mocks base method.
-func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error {
+func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertTemplateUsageStats", ctx, appFamilies)
+	ret := m.ctrl.Call(m, "UpsertTemplateUsageStats", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpsertTemplateUsageStats indicates an expected call of UpsertTemplateUsageStats.
-func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx, appFamilies any) *gomock.Call {
+func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx, appFamilies)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx)
 }
 
 // UpsertUserAIBudgetOverride mocks base method.

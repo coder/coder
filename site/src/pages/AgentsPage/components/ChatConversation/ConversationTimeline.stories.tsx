@@ -1,4 +1,3 @@
-import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import {
 	expect,
@@ -12,6 +11,7 @@ import {
 } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
+import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { ChatMessageScroller } from "../ChatMessageScroller";
 import { ConversationTimeline } from "./ConversationTimeline";

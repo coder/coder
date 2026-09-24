@@ -5,7 +5,6 @@ package dbmetrics
 
 import (
 	"context"
-	"encoding/json"
 	"slices"
 	"time"
 
@@ -2518,6 +2517,14 @@ func (m queryMetricsStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid
 	r0, r1 := m.s.GetOAuth2ProviderAppByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuth2ProviderAppByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOAuth2ProviderAppByIDForUpdate(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderAppByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuth2ProviderAppByIDForUpdate").Inc()
 	return r0, r1
 }
 
@@ -6561,9 +6568,9 @@ func (m queryMetricsStore) UpsertTelemetryItem(ctx context.Context, arg database
 	return r0
 }
 
-func (m queryMetricsStore) UpsertTemplateUsageStats(ctx context.Context, arg json.RawMessage) error {
+func (m queryMetricsStore) UpsertTemplateUsageStats(ctx context.Context) error {
 	start := time.Now()
-	r0 := m.s.UpsertTemplateUsageStats(ctx, arg)
+	r0 := m.s.UpsertTemplateUsageStats(ctx)
 	m.queryLatencies.WithLabelValues("UpsertTemplateUsageStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertTemplateUsageStats").Inc()
 	return r0

@@ -954,7 +954,8 @@ inserted AS (
         cache_read_tokens,
         context_limit,
         compressed,
-        runtime_ms
+        runtime_ms,
+        provider_response_id
     )
     SELECT
         allocated.id,
@@ -974,7 +975,8 @@ inserted AS (
         NULLIF((@cache_read_tokens::bigint[])[allocated.ord], 0),
         NULLIF((@context_limit::bigint[])[allocated.ord], 0),
         (@compressed::boolean[])[allocated.ord],
-        NULLIF((@runtime_ms::bigint[])[allocated.ord], 0)
+        NULLIF((@runtime_ms::bigint[])[allocated.ord], 0),
+        NULLIF((@provider_response_id::text[])[allocated.ord], '')
     FROM allocated
     RETURNING *
 )

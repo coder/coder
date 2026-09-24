@@ -17,7 +17,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	"charm.land/fantasy/schema"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -67,6 +67,10 @@ type PersistedStep struct {
 	// Runtime is the wall-clock duration from opening to consuming the
 	// model stream.
 	Runtime time.Duration
+	// ProviderResponseID is the response ID the model endpoint reported, if
+	// any. Through the AI Gateway, Anthropic Messages responses carry the
+	// gateway's interception ID instead of the upstream message ID.
+	ProviderResponseID string
 	// BatchRuntime is the union of billed local-tool execution intervals.
 	// Parallel calls count once and serial calls count from their own start.
 	BatchRuntime time.Duration
@@ -222,13 +226,20 @@ type GenerateCompactionOptions struct {
 	ModelConfigID    uuid.UUID
 
 	// SummaryCall is copied before GenerateCompaction attaches the summary
-	// prompt.
+	// prompt and prepared tool definitions.
 	SummaryCall fantasy.Call
+	// ToolDefinitions is copied from the parent generation request so the
+	// summary call uses the exact same ordered definitions.
+	ToolDefinitions []fantasy.Tool
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 
 	// Clock measures the summary call duration. Required.
 	Clock quartz.Clock
+
+	// StreamSilenceTimeout bounds how long the summary stream may go
+	// without yielding a part. Defaults to defaultStreamSilenceTimeout.
+	StreamSilenceTimeout time.Duration
 
 	// OnModelStreamStart runs immediately before the summary model call,
 	// at the instant CompactionResult.Runtime starts measuring.
@@ -257,6 +268,7 @@ type stepResult struct {
 	content              []fantasy.Content
 	usage                fantasy.Usage
 	providerMetadata     fantasy.ProviderMetadata
+	providerResponseID   string
 	finishReason         fantasy.FinishReason
 	toolCalls            []fantasy.ToolCallContent
 	toolCallCreatedAt    map[string]time.Time
@@ -312,7 +324,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 
 	call := opts.CallTemplate
 	call.Prompt = prepared
-	call.Tools = buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
+	call.Tools = BuildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
 
 	stepStart := opts.Clock.Now()
 	if opts.OnModelStreamStart != nil {
@@ -374,6 +386,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		Usage:                result.usage,
 		ContextLimit:         contextLimit,
 		Runtime:              opts.Clock.Since(stepStart),
+		ProviderResponseID:   result.providerResponseID,
 		ToolCallCreatedAt:    result.toolCallCreatedAt,
 		ToolResultCreatedAt:  result.toolResultCreatedAt,
 		ReasoningStartedAt:   result.reasoningStartedAt,
@@ -993,6 +1006,7 @@ func processStepStream(
 			result.usage = part.Usage
 			result.finishReason = part.FinishReason
 			result.providerMetadata = part.ProviderMetadata
+			result.providerResponseID = providerResponseID(part)
 
 		case fantasy.StreamPartTypeError:
 			return result, part.Error
@@ -1000,6 +1014,22 @@ func processStepStream(
 	}
 
 	return result, nil
+}
+
+// providerResponseID returns the response ID from a finish part.
+// Anthropic and Bedrock report the message ID as the part ID, and the OpenAI
+// Responses API reports it in provider metadata. Chat Completions providers
+// report neither.
+func providerResponseID(part fantasy.StreamPart) string {
+	if part.ID != "" {
+		return part.ID
+	}
+	for _, metadata := range part.ProviderMetadata {
+		if responses, ok := metadata.(*fantasyopenai.ResponsesProviderMetadata); ok && responses != nil {
+			return responses.ResponseID
+		}
+	}
+	return ""
 }
 
 type toolExecutionResult struct {
@@ -1536,49 +1566,6 @@ func isSerialToolCall(toolMap map[string]fantasy.AgentTool, toolNameAliases map[
 	}
 	serial, ok := tool.(serialToolCaller)
 	return ok && serial.SerialToolCalls()
-}
-
-// buildToolDefinitions converts AgentTool definitions into the
-// fantasy.Tool slice expected by fantasy.Call. When activeTools
-// is non-empty, only function tools whose name appears in the
-// list are included. Provider tool definitions are always
-// appended unconditionally.
-func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, providerTools []ProviderTool) []fantasy.Tool {
-	prepared := make([]fantasy.Tool, 0, len(tools)+len(providerTools))
-	for _, tool := range tools {
-		info := tool.Info()
-		if !isToolActive(info.Name, activeTools) {
-			continue
-		}
-
-		// Substitute an empty object for nil properties so that a tool
-		// with no parameters never serializes "properties" to null,
-		// which OpenAI rejects.
-		properties := info.Parameters
-		if properties == nil {
-			properties = map[string]any{}
-		}
-		inputSchema := map[string]any{
-			"type":       "object",
-			"properties": properties,
-		}
-		// Only include "required" when non-empty so that a nil slice
-		// never serializes to null, which OpenAI rejects.
-		if len(info.Required) > 0 {
-			inputSchema["required"] = info.Required
-		}
-		schema.Normalize(inputSchema)
-		prepared = append(prepared, fantasy.FunctionTool{
-			Name:            info.Name,
-			Description:     info.Description,
-			InputSchema:     inputSchema,
-			ProviderOptions: tool.ProviderOptions(),
-		})
-	}
-	for _, pt := range providerTools {
-		prepared = append(prepared, pt.Definition)
-	}
-	return prepared
 }
 
 func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {

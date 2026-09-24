@@ -62,9 +62,10 @@ export const InputGroupAddon: React.FC<
 	);
 };
 
-export const InputGroupInput: React.FC<
-	React.ComponentPropsWithRef<typeof Input>
-> = ({ className, ...props }) => {
+export const InputGroupInput: React.FC<React.ComponentProps<typeof Input>> = ({
+	className,
+	...props
+}) => {
 	return (
 		<Input
 			className={cn(

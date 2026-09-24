@@ -2,10 +2,10 @@ import { BookOpenTextIcon, BugIcon, MessageSquareIcon } from "lucide-react";
 import type { ComponentProps, FC } from "react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
-interface SupportIconProps {
+type SupportIconProps = {
 	icon: string;
 	className?: string;
-}
+};
 
 export const SupportIcon: FC<SupportIconProps> = ({ icon, className }) => {
 	switch (icon) {
