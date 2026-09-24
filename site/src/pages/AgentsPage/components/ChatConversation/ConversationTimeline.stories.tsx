@@ -883,8 +883,6 @@ export const UserMessageWithExpiredImage: Story = {
 			name: "Image expired",
 		});
 
-		// The tooltip names the attachment cap and describes retention
-		// generically so the copy survives any operator-chosen window.
 		await hoverAttachmentTile(expiredTile);
 	},
 };
@@ -1163,8 +1161,6 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 			name: "Attachment expired",
 		});
 
-		// The tooltip names the attachment cap and describes retention
-		// generically so the copy survives any operator-chosen window.
 		await hoverAttachmentTile(expiredTile);
 	},
 };

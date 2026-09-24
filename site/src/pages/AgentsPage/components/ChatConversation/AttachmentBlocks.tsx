@@ -227,7 +227,7 @@ const fileAttachmentFailureLabels: AttachmentFailureLabels = {
 };
 
 const expiredAttachmentExplanation =
-	"A chat keeps only its most recent attachments, and older attachments are removed. Attachments that no chat references are deleted after this deployment's retention window.";
+	"Attaching a file beyond a chat's attachment limit permanently deletes the chat's earliest-uploaded attachments. Attachments that no chat references are deleted after this deployment's retention window.";
 
 const AttachmentFallbackTile: FC<{
 	state: AttachmentFailure;
