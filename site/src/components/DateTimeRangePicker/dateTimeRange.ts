@@ -121,7 +121,7 @@ export const formatCustomLabel = (start: Date, end: Date): string => {
 		return `${from.format("MMMM D")}-${to.format("D")}`;
 	}
 	if (from.isSame(to, "year")) {
-		return `${from.format("MMMM D")} - ${to.format("MMMM D")}`;
+		return `${from.format("MMM D")} - ${to.format("MMM D")}`;
 	}
-	return `${from.format("MMMM D, YYYY")} - ${to.format("MMMM D, YYYY")}`;
+	return `${from.format("MMM D, YYYY")} - ${to.format("MMM D, YYYY")}`;
 };

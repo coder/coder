@@ -60,7 +60,7 @@ const RANGE_ORDER_MESSAGE = "End must be after start";
 const rangeLengthMessage = (maxDays: number) =>
 	`Range must not exceed ${maxDays} days`;
 const rangeStartMessage = (minDate: Date) =>
-	`Start must be on or after ${dayjs(minDate).format("MMMM D, YYYY h:mm A")}`;
+	`Start must be on or after ${dayjs(minDate).format("MMM D, YYYY h:mm A")}`;
 
 // maxDays bounds the exact duration, since that is what APIs enforce, rather
 // than a count of calendar days.
