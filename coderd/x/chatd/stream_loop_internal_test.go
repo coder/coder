@@ -90,13 +90,101 @@ func TestStreamLoopSyncHintDecision(t *testing.T) {
 	}
 }
 
+func TestStreamLoopNeedsDBRead(t *testing.T) {
+	t.Parallel()
+
+	base := streamLocalState{
+		snapshotVersion:   5,
+		historyVersion:    2,
+		queueVersion:      3,
+		retryVersion:      4,
+		status:            database.ChatStatusRunning,
+		generationAttempt: 1,
+	}
+	for _, tt := range []struct {
+		name string
+		hint streamSyncHint
+		want bool
+	}{
+		{
+			name: "status only change served from hint",
+			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 3, retryVersion: 4, status: database.ChatStatusWaiting, generationAttempt: 1},
+		},
+		{
+			name: "worker only change served from hint",
+			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 3, retryVersion: 4, status: database.ChatStatusRunning, workerID: uuid.NullUUID{UUID: uuid.New(), Valid: true}, generationAttempt: 1},
+		},
+		{
+			name: "generation only change served from hint",
+			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 3, retryVersion: 4, status: database.ChatStatusRunning, generationAttempt: 2},
+		},
+		{
+			name: "new history needs db",
+			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 3, queueVersion: 3, retryVersion: 4, status: database.ChatStatusRunning, generationAttempt: 1},
+			want: true,
+		},
+		{
+			name: "new queue needs db",
+			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 4, retryVersion: 4, status: database.ChatStatusRunning, generationAttempt: 1},
+			want: true,
+		},
+		{
+			name: "new retry needs db",
+			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 3, retryVersion: 5, status: database.ChatStatusRunning, generationAttempt: 1},
+			want: true,
+		},
+		{
+			name: "entering error needs db",
+			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 3, retryVersion: 4, status: database.ChatStatusError, generationAttempt: 1},
+			want: true,
+		},
+		{
+			name: "entering requires_action needs db",
+			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 3, retryVersion: 4, status: database.ChatStatusRequiresAction, generationAttempt: 1},
+			want: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			loop := &streamLoop{state: base}
+			require.Equal(t, tt.want, loop.needsDBRead(tt.hint))
+		})
+	}
+}
+
+// TestStreamLoopSyncStatusFromHintSkipsDB proves a version/status-only change is
+// served entirely from the pubsub hint: the mock store has no expectations, so
+// any DB access fails the test.
+func TestStreamLoopSyncStatusFromHintSkipsDB(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	loop := newStreamLoop(database.Chat{ID: chatID}, db, slogtest.Make(t, nil), 0)
+	loop.state.snapshotVersion = 5
+	loop.state.status = database.ChatStatusRunning
+
+	events, _, changed, err := loop.sync(ctx, streamSyncHint{
+		snapshotVersion: 6,
+		status:          database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	require.True(t, changed)
+	requireEventTypes(t, events, codersdk.ChatStreamEventTypeStatus)
+	require.Equal(t, codersdk.ChatStatusWaiting, events[0].Status.Status)
+	require.Equal(t, int64(6), loop.state.snapshotVersion)
+	require.Equal(t, database.ChatStatusWaiting, loop.state.status)
+}
+
 func TestStreamLoopMessageSyncAfterIDAndEdits(t *testing.T) {
 	t.Parallel()
 
 	chatID := uuid.New()
 	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 1)
 	initial := streamDBSnapshot{
-		chat: database.Chat{
+		chat: database.GetChatStreamStateRow{
 			ID:              chatID,
 			Status:          database.ChatStatusRunning,
 			SnapshotVersion: 1,
@@ -117,7 +205,7 @@ func TestStreamLoopMessageSyncAfterIDAndEdits(t *testing.T) {
 	require.Equal(t, int64(2), events[0].Message.ID)
 
 	edited := streamDBSnapshot{
-		chat: database.Chat{
+		chat: database.GetChatStreamStateRow{
 			ID:              chatID,
 			Status:          database.ChatStatusRunning,
 			SnapshotVersion: 2,
@@ -148,7 +236,7 @@ func TestStreamLoopHistoryReset(t *testing.T) {
 	loop.state.knownMessages[2] = 1
 
 	events := loop.applyDBSnapshot(streamDBSnapshot{
-		chat: database.Chat{
+		chat: database.GetChatStreamStateRow{
 			ID:              chatID,
 			Status:          database.ChatStatusRunning,
 			SnapshotVersion: 2,
@@ -192,7 +280,7 @@ func TestStreamLoopQueueStatusRetryErrorActionRequiredAndPreviewReset(t *testing
 	loop.state.status = database.ChatStatusRunning
 
 	events := loop.applyDBSnapshot(streamDBSnapshot{
-		chat: database.Chat{
+		chat: database.GetChatStreamStateRow{
 			ID:                chatID,
 			Status:            database.ChatStatusError,
 			SnapshotVersion:   2,
@@ -218,7 +306,7 @@ func TestStreamLoopQueueStatusRetryErrorActionRequiredAndPreviewReset(t *testing
 
 	actionLoop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
 	actionEvents := actionLoop.applyDBSnapshot(streamDBSnapshot{
-		chat: database.Chat{
+		chat: database.GetChatStreamStateRow{
 			ID:              chatID,
 			Status:          database.ChatStatusRequiresAction,
 			SnapshotVersion: 1,
@@ -247,7 +335,7 @@ func TestStreamLoopActionRequiredFromHistory(t *testing.T) {
 		Args:       json.RawMessage(`{"url":"https://example.com"}`),
 	}}, false)
 	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
-	action, err := loop.actionRequiredFromHistory(database.Chat{
+	action, err := loop.actionRequiredFromHistory(database.GetChatStreamStateRow{
 		ID:           chatID,
 		DynamicTools: pqtype.NullRawMessage{RawMessage: toolDefs, Valid: true},
 	}, []database.ChatMessage{assistant})
@@ -307,7 +395,7 @@ func TestStreamLoopInitialSyncRecoversWithoutHint(t *testing.T) {
 		Status:          database.ChatStatusWaiting,
 		SnapshotVersion: 2,
 	}, nil)
-	tx.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
+	tx.EXPECT().GetChatStreamState(gomock.Any(), chatID).Return(database.GetChatStreamStateRow{
 		ID:              chatID,
 		Status:          database.ChatStatusWaiting,
 		SnapshotVersion: 2,

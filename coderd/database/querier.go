@@ -534,6 +534,10 @@ type sqlcQuerier interface {
 	GetChatRetentionDays(ctx context.Context) (int32, error)
 	// GetChatSiteConfigValue returns raw text and row presence for an audited chat site configuration.
 	GetChatSiteConfigValue(ctx context.Context, configKey string) (GetChatSiteConfigValueRow, error)
+	// Lean single-chat projection for the stream loop. Avoids the chats_expanded
+	// join (owner, ACL, root self-join) the stream does not read, cutting CPU on
+	// the hot per-subscriber sync path.
+	GetChatStreamState(ctx context.Context, id uuid.UUID) (GetChatStreamStateRow, error)
 	GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]GetChatStreamSyncRowsRow, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)
 	// GetChatSystemPromptConfig returns both chat system prompt settings in a

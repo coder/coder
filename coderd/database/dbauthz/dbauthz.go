@@ -3672,6 +3672,13 @@ func (q *querier) GetChatSiteConfigValue(ctx context.Context, configKey string) 
 	return q.db.GetChatSiteConfigValue(ctx, configKey)
 }
 
+func (q *querier) GetChatStreamState(ctx context.Context, id uuid.UUID) (database.GetChatStreamStateRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return database.GetChatStreamStateRow{}, err
+	}
+	return q.db.GetChatStreamState(ctx, id)
+}
+
 func (q *querier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]database.GetChatStreamSyncRowsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return nil, err

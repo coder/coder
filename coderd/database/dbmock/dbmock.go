@@ -3404,6 +3404,21 @@ func (mr *MockStoreMockRecorder) GetChatSiteConfigValue(ctx, configKey any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatSiteConfigValue", reflect.TypeOf((*MockStore)(nil).GetChatSiteConfigValue), ctx, configKey)
 }
 
+// GetChatStreamState mocks base method.
+func (m *MockStore) GetChatStreamState(ctx context.Context, id uuid.UUID) (database.GetChatStreamStateRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatStreamState", ctx, id)
+	ret0, _ := ret[0].(database.GetChatStreamStateRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatStreamState indicates an expected call of GetChatStreamState.
+func (mr *MockStoreMockRecorder) GetChatStreamState(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatStreamState", reflect.TypeOf((*MockStore)(nil).GetChatStreamState), ctx, id)
+}
+
 // GetChatStreamSyncRows mocks base method.
 func (m *MockStore) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]database.GetChatStreamSyncRowsRow, error) {
 	m.ctrl.T.Helper()

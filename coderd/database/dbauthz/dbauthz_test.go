@@ -1011,6 +1011,12 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByIDForShare(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(chat)
 	}))
+	s.Run("GetChatStreamState", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		row := database.GetChatStreamStateRow{ID: id}
+		dbm.EXPECT().GetChatStreamState(gomock.Any(), id).Return(row, nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(row)
+	}))
 	s.Run("GetChatStreamSyncRows", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New(), uuid.New()}
 		rows := []database.GetChatStreamSyncRowsRow{{ID: ids[0]}}

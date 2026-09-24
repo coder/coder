@@ -55,7 +55,7 @@ type streamSyncHint struct {
 }
 
 type streamDBSnapshot struct {
-	chat database.Chat
+	chat database.GetChatStreamStateRow
 
 	changedMessages []database.ChatMessage
 	historyReset    bool
@@ -97,7 +97,67 @@ func (l *streamLoop) sync(ctx context.Context, hint streamSyncHint) ([]codersdk.
 	if !l.shouldFetch(hint) {
 		return nil, l.currentRelayTarget(), false, nil
 	}
+	if !l.needsDBRead(hint) {
+		return l.applyHint(hint), l.currentRelayTarget(), true, nil
+	}
 	return l.syncDB(ctx)
+}
+
+// needsDBRead reports whether applying the hint requires loading chat state or
+// messages from the database. Version/status-only changes are served from the
+// pubsub hint alone, which carries every field the loop compares. A DB read is
+// only needed to fetch message deltas, queued messages, or the last_error /
+// retry_state / dynamic_tools payloads the hint does not carry.
+func (l *streamLoop) needsDBRead(hint streamSyncHint) bool {
+	if hint.historyVersion > l.state.historyVersion {
+		return true
+	}
+	if hint.queueVersion > l.state.queueVersion {
+		return true
+	}
+	if hint.retryVersion > l.state.retryVersion {
+		return true
+	}
+	// Entering error or requires_action needs the last_error / dynamic_tools
+	// payload (and message history) to build the event.
+	if hint.status != l.state.status &&
+		(hint.status == database.ChatStatusError || hint.status == database.ChatStatusRequiresAction) {
+		return true
+	}
+	return false
+}
+
+// applyHint emits the events derivable from the pubsub hint without a DB read:
+// status changes and preview resets. needsDBRead guarantees no message, queue,
+// error, action, or retry event is due when this runs.
+func (l *streamLoop) applyHint(hint streamSyncHint) []codersdk.ChatStreamEvent {
+	events := make([]codersdk.ChatStreamEvent, 0, 2)
+	generationChanged := hint.generationAttempt != l.state.generationAttempt
+
+	if hint.status != l.state.status {
+		events = append(events, codersdk.ChatStreamEvent{
+			Type:   codersdk.ChatStreamEventTypeStatus,
+			ChatID: l.chatID,
+			Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(hint.status)},
+		})
+	}
+
+	if generationChanged && hint.generationAttempt != 0 {
+		l.state.lastPartSeq = 0
+		events = append(events, codersdk.ChatStreamEvent{
+			Type:   codersdk.ChatStreamEventTypePreviewReset,
+			ChatID: l.chatID,
+		})
+	}
+
+	l.state.snapshotVersion = hint.snapshotVersion
+	l.state.historyVersion = hint.historyVersion
+	l.state.queueVersion = hint.queueVersion
+	l.state.retryVersion = hint.retryVersion
+	l.state.status = hint.status
+	l.state.workerID = hint.workerID
+	l.state.generationAttempt = hint.generationAttempt
+	return events
 }
 
 func (l *streamLoop) syncDB(ctx context.Context) ([]codersdk.ChatStreamEvent, streamRelayTarget, bool, error) {
@@ -140,7 +200,7 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 	var snapshot streamDBSnapshot
 	machine := chatstate.NewChatMachine(l.db, nil, l.chatID)
 	err := machine.ReadLock(ctx, func(tx database.Store) error {
-		chat, err := tx.GetChatByID(ctx, l.chatID)
+		chat, err := tx.GetChatStreamState(ctx, l.chatID)
 		if err != nil {
 			return xerrors.Errorf("get chat for stream: %w", err)
 		}
@@ -203,7 +263,7 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 	return snapshot, nil
 }
 
-func (*streamLoop) actionRequiredFromHistory(chat database.Chat, messages []database.ChatMessage) (*codersdk.ChatStreamActionRequired, error) {
+func (*streamLoop) actionRequiredFromHistory(chat database.GetChatStreamStateRow, messages []database.ChatMessage) (*codersdk.ChatStreamActionRequired, error) {
 	dynamicToolNames, err := parseDynamicToolNames(chat.DynamicTools)
 	if err != nil {
 		return nil, xerrors.Errorf("parse dynamic tools for stream: %w", err)
@@ -337,7 +397,7 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 	return events
 }
 
-func (l *streamLoop) chatError(chat database.Chat) *codersdk.ChatError {
+func (l *streamLoop) chatError(chat database.GetChatStreamStateRow) *codersdk.ChatError {
 	if !chat.LastError.Valid || len(chat.LastError.RawMessage) == 0 {
 		return &codersdk.ChatError{
 			Message: "The chat request failed unexpectedly.",
@@ -364,7 +424,7 @@ func (l *streamLoop) chatError(chat database.Chat) *codersdk.ChatError {
 	return &payload
 }
 
-func (l *streamLoop) retryEvent(chat database.Chat) *codersdk.ChatStreamEvent {
+func (l *streamLoop) retryEvent(chat database.GetChatStreamStateRow) *codersdk.ChatStreamEvent {
 	if !chat.RetryState.Valid || len(chat.RetryState.RawMessage) == 0 {
 		return nil
 	}

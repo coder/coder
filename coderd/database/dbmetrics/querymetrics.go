@@ -1816,6 +1816,14 @@ func (m queryMetricsStore) GetChatSiteConfigValue(ctx context.Context, configKey
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatStreamState(ctx context.Context, id uuid.UUID) (database.GetChatStreamStateRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatStreamState(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatStreamState").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatStreamState").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]database.GetChatStreamSyncRowsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatStreamSyncRows(ctx, ids)

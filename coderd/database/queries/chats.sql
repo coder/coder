@@ -2891,6 +2891,24 @@ WHERE chat_heartbeats.chat_id = chat_ids.chat_id
 -- transitions that abandon a lease.
 DELETE FROM chat_heartbeats WHERE chat_id = @chat_id::uuid;
 
+-- name: GetChatStreamState :one
+-- Lean single-chat projection for the stream loop. Avoids the chats_expanded
+-- join (owner, ACL, root self-join) the stream does not read, cutting CPU on
+-- the hot per-subscriber sync path.
+SELECT
+    id,
+    snapshot_version,
+    history_version,
+    queue_version,
+    retry_state_version,
+    retry_state,
+    generation_attempt,
+    status,
+    worker_id,
+    last_error,
+    dynamic_tools
+FROM chats
+WHERE id = @id::uuid;
 
 -- name: GetChatStreamSyncRows :many
 SELECT

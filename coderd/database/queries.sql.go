@@ -9566,6 +9566,59 @@ func (q *sqlQuerier) GetChatQueuedMessagesByPosition(ctx context.Context, chatID
 	return items, nil
 }
 
+const getChatStreamState = `-- name: GetChatStreamState :one
+SELECT
+    id,
+    snapshot_version,
+    history_version,
+    queue_version,
+    retry_state_version,
+    retry_state,
+    generation_attempt,
+    status,
+    worker_id,
+    last_error,
+    dynamic_tools
+FROM chats
+WHERE id = $1::uuid
+`
+
+type GetChatStreamStateRow struct {
+	ID                uuid.UUID             `db:"id" json:"id"`
+	SnapshotVersion   int64                 `db:"snapshot_version" json:"snapshot_version"`
+	HistoryVersion    int64                 `db:"history_version" json:"history_version"`
+	QueueVersion      int64                 `db:"queue_version" json:"queue_version"`
+	RetryStateVersion int64                 `db:"retry_state_version" json:"retry_state_version"`
+	RetryState        pqtype.NullRawMessage `db:"retry_state" json:"retry_state"`
+	GenerationAttempt int64                 `db:"generation_attempt" json:"generation_attempt"`
+	Status            ChatStatus            `db:"status" json:"status"`
+	WorkerID          uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	LastError         pqtype.NullRawMessage `db:"last_error" json:"last_error"`
+	DynamicTools      pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+}
+
+// Lean single-chat projection for the stream loop. Avoids the chats_expanded
+// join (owner, ACL, root self-join) the stream does not read, cutting CPU on
+// the hot per-subscriber sync path.
+func (q *sqlQuerier) GetChatStreamState(ctx context.Context, id uuid.UUID) (GetChatStreamStateRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatStreamState, id)
+	var i GetChatStreamStateRow
+	err := row.Scan(
+		&i.ID,
+		&i.SnapshotVersion,
+		&i.HistoryVersion,
+		&i.QueueVersion,
+		&i.RetryStateVersion,
+		&i.RetryState,
+		&i.GenerationAttempt,
+		&i.Status,
+		&i.WorkerID,
+		&i.LastError,
+		&i.DynamicTools,
+	)
+	return i, err
+}
+
 const getChatStreamSyncRows = `-- name: GetChatStreamSyncRows :many
 SELECT
     id,
