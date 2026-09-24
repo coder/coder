@@ -111,8 +111,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    request OpenAI web_search_call sources, keep action.queries, report
 //    the queries in the tool call input, and take streamed web search
 //    results from the terminal response.
-// See: https://github.com/coder/fantasy/commits/d13309249b22
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260924155011-d13309249b22
+// See: https://github.com/coder/fantasy/commits/eac1a8f7323a
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260924164541-eac1a8f7323a
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
