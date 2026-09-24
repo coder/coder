@@ -52,13 +52,23 @@ describe("PortForwardPopoverView", () => {
 		).toHaveLength(MockSharedPortsResponse.shares.length);
 	});
 
-	it("opens the typed port in a new tab and strips leading zeros", async () => {
+	it("opens the typed port in a new tab, ignoring leading zeros and whitespace", async () => {
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
 		renderPopover();
 
-		await typePort("09999{enter}");
+		await typePort(" 09999 {enter}");
 
 		expect(open).toHaveBeenCalledWith(expectedURL(9999), "_blank");
+	});
+
+	it("does not connect when the text is not only a port number", async () => {
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
+		renderPopover();
+
+		await typePort("8080abc{enter}");
+		await userEvent.click(screen.getByRole("button", { name: "Connect" }));
+
+		expect(open).not.toHaveBeenCalled();
 	});
 
 	it("does not connect to a port outside the valid range", async () => {

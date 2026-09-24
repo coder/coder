@@ -129,8 +129,10 @@ type OpenPortFormValues = {
 const MIN_PORT = 9;
 const MAX_PORT = 65535;
 
+// Number() rejects trailing text such as "8080abc" that parseInt would accept,
+// keeping the Connect button in step with the list filter.
 const parsePort = (value: string): number | undefined => {
-	const port = Number.parseInt(value, 10);
+	const port = Number(value);
 	return Number.isInteger(port) && port >= MIN_PORT && port <= MAX_PORT
 		? port
 		: undefined;
@@ -356,7 +358,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 								<SearchField
 									className="h-9 flex-1 [&_input]:h-9"
 									value={portQuery}
-									onChange={setPortQuery}
+									onChange={(query) => setPortQuery(query.trim())}
 									placeholder="Filter ports..."
 									aria-label="Filter ports"
 								/>
