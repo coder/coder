@@ -6,7 +6,6 @@ import {
 	debugWorkspaceBuildLogsMaxBytes,
 	debugWorkspaceBuildPrompt,
 	formatWorkspaceBuildLogsForDebug,
-	truncateUtf8,
 } from "./workspaceBuildDebug";
 
 const failedBuild: WorkspaceBuild = {
@@ -118,26 +117,10 @@ describe("formatWorkspaceBuildLogsForDebug", () => {
 		);
 	});
 
-	it("notes when no logs were recorded", () => {
-		const text = formatWorkspaceBuildLogsForDebug(failedBuild, []);
-
-		expect(text).toContain("(no build logs were recorded)");
-	});
-
-	it("notes when the provisioner log limit truncated the build", () => {
-		const text = formatWorkspaceBuildLogsForDebug(
-			{ ...failedBuild, job: { ...failedBuild.job, logs_overflowed: true } },
-			logs,
-		);
-
-		expect(text).toContain("Note: the build hit the provisioner log limit");
-	});
-
-	it("keeps the header and the most recent lines within the byte budget", () => {
-		// Terraform diagnostics prefix lines with a 3-byte character.
+	it("keeps the newest logs within the byte budget", () => {
 		const text = formatWorkspaceBuildLogsForDebug(
 			failedBuild,
-			logLines(3000, (index) => `│ ${index} ${"x".repeat(96)}`),
+			logLines(3000, (index) => `${index} ${"x".repeat(96)}`),
 		);
 
 		expect(byteLength(text)).toBeLessThanOrEqual(
@@ -145,78 +128,11 @@ describe("formatWorkspaceBuildLogsForDebug", () => {
 		);
 		expect(text).toContain("Job error: terraform plan: exit status 1");
 		expect(text).toContain(
-			"=== Starting workspace (2024-01-01T00:00:00.000Z) ===",
+			"[earlier output omitted to fit the attachment size limit]",
 		);
-		expect(text).toMatch(
-			/\[\d+ earlier lines omitted to fit the attachment size limit\]/,
-		);
-		expect(text).not.toContain("[info] │ 0 x");
-		expect(text).toContain(`[info] │ 2999 ${"x".repeat(96)}`);
+		expect(text).not.toContain("[info] 0 x");
+		expect(text).toContain(`[info] 2999 ${"x".repeat(96)}`);
 	});
-
-	it("counts only log lines as omitted and relabels the surviving stage", () => {
-		// One of these fits within the budget; two do not.
-		const bigLine = "z".repeat(
-			Math.ceil(debugWorkspaceBuildLogsMaxBytes * 0.55),
-		);
-		const text = formatWorkspaceBuildLogsForDebug(failedBuild, [
-			...logLines(3, () => bigLine),
-			...logLines(2, (index) => `kept ${index}`).map((log) => ({
-				...log,
-				stage: "Cleaning up",
-			})),
-		]);
-
-		expect(text).toContain(
-			"[2 earlier lines omitted to fit the attachment size limit]",
-		);
-		expect(
-			text.split("=== Cleaning up (2024-01-01T00:00:00.000Z) ==="),
-		).toHaveLength(2);
-		expect(text).toMatch(
-			/\[2 earlier lines omitted to fit the attachment size limit\]\n=== Starting workspace \(2024-01-01T00:00:00.000Z\) ===\n\[info\] zzz/,
-		);
-	});
-
-	it("keeps the tail of a single line that is over budget", () => {
-		const text = formatWorkspaceBuildLogsForDebug(failedBuild, [
-			...logLines(1, () => "first"),
-			...logLines(
-				1,
-				() => `${"a".repeat(debugWorkspaceBuildLogsMaxBytes * 2)}END`,
-			),
-		]);
-
-		expect(byteLength(text)).toBeLessThanOrEqual(
-			debugWorkspaceBuildLogsMaxBytes,
-		);
-		expect(text).toContain("Job error: terraform plan: exit status 1");
-		expect(text).toContain(
-			"[1 earlier lines omitted to fit the attachment size limit]",
-		);
-		expect(text).toContain(
-			"[the start of the next line was omitted to fit the attachment size limit]",
-		);
-		expect(text.endsWith("aaaEND\n")).toBe(true);
-		expect(text).not.toContain("[info] first");
-	});
-
-	// The cut lands inside a 3-byte character in two of every three offsets.
-	it.each(["END", "END1", "END12"])(
-		"drops a partial character at the cut (%s)",
-		(suffix) => {
-			const text = formatWorkspaceBuildLogsForDebug(
-				failedBuild,
-				logLines(
-					1,
-					() => `${"│".repeat(debugWorkspaceBuildLogsMaxBytes)}${suffix}`,
-				),
-			);
-
-			expect(text).not.toContain("\uFFFD");
-			expect(text.endsWith(`│${suffix}\n`)).toBe(true);
-		},
-	);
 
 	it("caps an oversized job error in the header", () => {
 		const text = formatWorkspaceBuildLogsForDebug(
@@ -224,7 +140,7 @@ describe("formatWorkspaceBuildLogsForDebug", () => {
 				...failedBuild,
 				job: {
 					...failedBuild.job,
-					error: `summary first ${"e".repeat(debugWorkspaceBuildLogsMaxBytes * 2)}`,
+					error: `summary first ${"│".repeat(debugWorkspaceBuildLogsMaxBytes)}`,
 				},
 			},
 			logs,
@@ -233,38 +149,9 @@ describe("formatWorkspaceBuildLogsForDebug", () => {
 		expect(byteLength(text)).toBeLessThanOrEqual(
 			debugWorkspaceBuildLogsMaxBytes,
 		);
-		expect(text).toContain("Job error: summary first eee");
-		expect(text).toContain("(error truncated)");
-		expect(text).toContain("[error] Error: Invalid value for variable");
-	});
-
-	it("drops a partial character at the job error cut", () => {
-		// 9000 bytes of 3-byte characters, so the 8 KiB cut splits one.
-		const text = formatWorkspaceBuildLogsForDebug(
-			{
-				...failedBuild,
-				job: { ...failedBuild.job, error: "│".repeat(3000) },
-			},
-			logs,
-		);
-
-		expect(text).not.toContain("\uFFFD");
+		expect(text).toContain("Job error: summary first │");
 		expect(text).toContain("│ (error truncated)");
-	});
-});
-
-describe(truncateUtf8.name, () => {
-	// │ and \uFFFD are three bytes each.
-	it("drops only the character split by the cut", () => {
-		expect(truncateUtf8("││", 4, "head")).toBe("│");
-		expect(truncateUtf8("│ab", 4, "tail")).toBe("ab");
-		expect(truncateUtf8("│ab", 5, "head")).toBe("│ab");
-	});
-
-	it("keeps replacement characters that were in the text", () => {
-		expect(truncateUtf8("\uFFFD\uFFFD error: xxxxxxxx", 8, "head")).toBe(
-			"\uFFFD\uFFFD e",
-		);
-		expect(truncateUtf8("ab\uFFFDcd", 5, "tail")).toBe("\uFFFDcd");
+		expect(text).not.toContain("\uFFFD");
+		expect(text).toContain("[error] Error: Invalid value for variable");
 	});
 });

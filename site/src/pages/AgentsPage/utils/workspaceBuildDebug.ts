@@ -15,21 +15,16 @@ export const debugWorkspaceBuildLogsFileName = (
 // attachment, which is replayed on every turn.
 /** @internal Exported for testing. */
 export const debugWorkspaceBuildLogsMaxBytes = 128 * 1024;
-// Room for the omission marker and a re-emitted stage header.
-const markerReserveBytes = 512;
 // job.error has no server-side limit; Terraform puts the summary first.
 const jobErrorMaxBytes = 8 * 1024;
+const omittedMarker =
+	"[earlier output omitted to fit the attachment size limit]\n";
 
 const utf8 = new TextEncoder();
-// Includes the newline that joins the lines.
-const lineBytes = (line: string): number => utf8.encode(line).length + 1;
-
-const linesBytes = (lines: readonly string[]): number =>
-	lines.reduce((total, line) => total + lineBytes(line), 0);
+const byteLength = (text: string): number => utf8.encode(text).length;
 
 // Truncates text to maxBytes of UTF-8, dropping a character split by the cut.
-/** @internal Exported for testing. */
-export const truncateUtf8 = (
+const truncateUtf8 = (
 	text: string,
 	maxBytes: number,
 	keep: "head" | "tail",
@@ -51,16 +46,9 @@ export const truncateUtf8 = (
 	return new TextDecoder().decode(bytes.subarray(start));
 };
 
-type LogLine = {
-	text: string;
-	// Set only on log output: labels a trimmed block and marks the line as
-	// counted in the omitted total.
-	stageHeader?: string;
-};
-
 /**
- * Formats a build and its provisioner logs as the plain text chat attachment.
- * Keeps the header and the most recent log lines within the byte budget.
+ * Formats a build and its provisioner logs as the plain text chat attachment:
+ * a header, then the newest log lines that fit within the byte budget.
  */
 export const formatWorkspaceBuildLogsForDebug = (
 	build: WorkspaceBuild,
@@ -88,65 +76,28 @@ export const formatWorkspaceBuildLogsForDebug = (
 	}
 	header.push("", "Build logs:");
 
-	const lines: LogLine[] = [];
-	let currentStage: string | undefined;
-	let stageHeader: string | undefined;
+	const lines: string[] = [];
+	let stage: string | undefined;
 	for (const log of logs) {
-		if (log.stage !== currentStage) {
-			currentStage = log.stage;
-			stageHeader = `=== ${log.stage} (${log.created_at}) ===`;
-			lines.push({ text: "" }, { text: stageHeader });
+		if (log.stage !== stage) {
+			stage = log.stage;
+			lines.push("", `=== ${log.stage} (${log.created_at}) ===`);
 		}
-		lines.push({ text: `[${log.log_level}] ${log.output}`, stageHeader });
+		lines.push(`[${log.log_level}] ${log.output}`);
 	}
 	if (logs.length === 0) {
-		lines.push({ text: "(no build logs were recorded)" });
+		lines.push("(no build logs were recorded)");
 	}
 
-	const headerBytes = linesBytes(header);
-	const texts = lines.map((line) => line.text);
-	if (headerBytes + linesBytes(texts) <= debugWorkspaceBuildLogsMaxBytes) {
-		return `${[...header, ...texts].join("\n")}\n`;
+	const headerText = `${header.join("\n")}\n`;
+	const body = `${lines.join("\n")}\n`;
+	const bodyBudget = debugWorkspaceBuildLogsMaxBytes - byteLength(headerText);
+	if (byteLength(body) <= bodyBudget) {
+		return headerText + body;
 	}
-
-	const lineBudget =
-		debugWorkspaceBuildLogsMaxBytes - headerBytes - markerReserveBytes;
-	let start = lines.length;
-	let used = 0;
-	while (start > 0 && used + lineBytes(texts[start - 1]) <= lineBudget) {
-		used += lineBytes(texts[start - 1]);
-		start--;
-	}
-	// Even the last line alone can be over budget; keep its tail then.
-	const truncateLast = start === lines.length;
-	if (truncateLast) {
-		start = lines.length - 1;
-	}
-	const first = lines[start];
-	const omitted = lines
-		.slice(0, start)
-		.filter((line) => line.stageHeader).length;
-	const markers: string[] = [];
-	if (omitted > 0) {
-		markers.push(
-			`[${omitted} earlier lines omitted to fit the attachment size limit]`,
-		);
-	}
-	if (first.stageHeader) {
-		markers.push(first.stageHeader);
-	}
-	let kept = texts.slice(start);
-	if (truncateLast) {
-		markers.push(
-			"[the start of the next line was omitted to fit the attachment size limit]",
-		);
-		kept = [
-			truncateUtf8(
-				first.text,
-				Math.max(lineBudget - linesBytes(markers), 0),
-				"tail",
-			),
-		];
-	}
-	return `${[...header, ...markers, ...kept].join("\n")}\n`;
+	return (
+		headerText +
+		omittedMarker +
+		truncateUtf8(body, bodyBudget - byteLength(omittedMarker), "tail")
+	);
 };

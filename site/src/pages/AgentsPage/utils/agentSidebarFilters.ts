@@ -86,8 +86,6 @@ const writeSidebarFilters = (
 export const getAgentSidebarFilters = (
 	searchParams: URLSearchParams,
 	setSearchParams: SetURLSearchParams,
-	// The current entry's history state; the filter write replaces that entry.
-	locationState: unknown,
 ): AgentSidebarFiltersResult => {
 	const prStatuses = canonicalizeChatListPRStatuses(
 		(searchParams.get("pr_status") ?? "").split(",").filter(Boolean),
@@ -128,7 +126,7 @@ export const getAgentSidebarFilters = (
 				writeSidebarFilters(updated, next);
 				return updated;
 			},
-			{ replace: true, state: locationState },
+			{ replace: true },
 		);
 	};
 

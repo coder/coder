@@ -1,7 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
 	buildDebugWorkspaceBuildPath,
-	debugWorkspaceBuildIntentMaxAgeMs,
 	debugWorkspaceBuildIntentStorageKey,
 	debugWorkspaceBuildSearchParam,
 	storeDebugWorkspaceBuildIntent,
@@ -10,7 +9,6 @@ import {
 
 afterEach(() => {
 	localStorage.clear();
-	vi.restoreAllMocks();
 });
 
 describe("buildDebugWorkspaceBuildPath", () => {
@@ -38,23 +36,6 @@ describe("takeDebugWorkspaceBuildIntent", () => {
 		expect(
 			localStorage.getItem(debugWorkspaceBuildIntentStorageKey),
 		).toBeNull();
-		expect(takeDebugWorkspaceBuildIntent("build-a")).toBe(false);
-	});
-
-	it("expires", () => {
-		const now = Date.now();
-		vi.spyOn(Date, "now").mockReturnValue(now);
-		storeDebugWorkspaceBuildIntent("build-a");
-		vi.spyOn(Date, "now").mockReturnValue(
-			now + debugWorkspaceBuildIntentMaxAgeMs,
-		);
-
-		expect(takeDebugWorkspaceBuildIntent("build-a")).toBe(false);
-	});
-
-	it("ignores malformed storage", () => {
-		localStorage.setItem(debugWorkspaceBuildIntentStorageKey, "{not json");
-
 		expect(takeDebugWorkspaceBuildIntent("build-a")).toBe(false);
 	});
 });

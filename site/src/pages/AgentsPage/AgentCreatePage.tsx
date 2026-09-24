@@ -1,13 +1,12 @@
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage, isApiError } from "#/api/errors";
+import { getErrorMessage } from "#/api/errors";
 import { createChat } from "#/api/queries/chats";
 import {
 	workspaceBuildById,
 	workspaceBuildLogs,
-	workspaceBuildLogsGcTime,
 } from "#/api/queries/workspaceBuilds";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -38,41 +37,6 @@ import {
 	formatWorkspaceBuildLogsForDebug,
 } from "./utils/workspaceBuildDebug";
 
-// The deep link's build ID moves from the query string into history state
-// after the first render, so it survives reload and Back but not the layout's
-// links, which forward location.search to a fresh entry.
-type DebugLinkState = { debugWorkspaceBuild: string };
-
-const readDebugLinkState = (state: unknown): string | null =>
-	typeof state === "object" &&
-	state !== null &&
-	"debugWorkspaceBuild" in state &&
-	typeof state.debugWorkspaceBuild === "string"
-		? state.debugWorkspaceBuild
-		: null;
-
-type DebugLink =
-	| { kind: "none" }
-	| { kind: "experiment-disabled" }
-	| { kind: "invalid" }
-	| { kind: "build"; buildId: string };
-
-const readDebugLink = (
-	value: string | null,
-	experiments: readonly TypesGen.Experiment[],
-): DebugLink => {
-	if (value === null) {
-		return { kind: "none" };
-	}
-	if (!experiments.includes("enable-ai-workspace-debug")) {
-		return { kind: "experiment-disabled" };
-	}
-	if (!isUUID(value)) {
-		return { kind: "invalid" };
-	}
-	return { kind: "build", buildId: value };
-};
-
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
@@ -86,48 +50,33 @@ const AgentCreatePage: FC = () => {
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
-	const debugLinkParam = searchParams.get(debugWorkspaceBuildSearchParam);
-	const debugLinkValue = debugLinkParam ?? readDebugLinkState(location.state);
-	const debugLink = readDebugLink(debugLinkValue, experiments);
-	const debugBuildId = debugLink.kind === "build" ? debugLink.buildId : null;
-	useEffect(() => {
-		if (debugLinkParam === null) {
-			return;
+	// Read once and tied to this history entry: the layout's links forward
+	// location.search, so a later entry with the same param must not prefill
+	// again. Only a real click on the workspace page sends without user action.
+	const [debugLink] = useState(() => {
+		const buildId = searchParams.get(debugWorkspaceBuildSearchParam);
+		if (
+			buildId === null ||
+			!isUUID(buildId) ||
+			!experiments.includes("enable-ai-workspace-debug")
+		) {
+			return null;
 		}
-		const search = new URLSearchParams(searchParams);
-		search.delete(debugWorkspaceBuildSearchParam);
-		const state: DebugLinkState = { debugWorkspaceBuild: debugLinkParam };
-		navigate(
-			{ pathname: location.pathname, search: search.toString() },
-			{ replace: true, state },
-		);
-	}, [debugLinkParam, location.pathname, navigate, searchParams]);
-	// Taken after commit, not during render, so a render React discards cannot
-	// consume the click. The ref keeps StrictMode's second effect run from
-	// taking (and losing) it again, and leaving the prefill disarms it so Back
-	// cannot send a second time.
-	const [debugClicked, setDebugClicked] = useState(false);
-	const debugIntentTakenRef = useRef(false);
-	useEffect(() => {
-		if (debugBuildId === null) {
-			setDebugClicked(false);
-			return;
-		}
-		if (debugIntentTakenRef.current) {
-			return;
-		}
-		debugIntentTakenRef.current = true;
-		setDebugClicked(takeDebugWorkspaceBuildIntent(debugBuildId));
-	}, [debugBuildId]);
+		return {
+			key: location.key,
+			buildId,
+			autoSend: takeDebugWorkspaceBuildIntent(buildId),
+		};
+	});
+	const debugBuildId =
+		debugLink !== null && debugLink.key === location.key
+			? debugLink.buildId
+			: null;
 	const debugBuildQuery = useQuery({
 		...workspaceBuildById(debugBuildId ?? ""),
 		enabled: debugBuildId !== null,
-		// A failed build does not change, and a refetch after an error would
-		// mount the prefilled form after the page already reported that nothing
-		// was sent. Cached as long as its logs, which the prefill also needs.
-		staleTime: (query) =>
-			query.state.data?.job.status === "failed" ? Number.POSITIVE_INFINITY : 0,
-		gcTime: workspaceBuildLogsGcTime,
+		// A refetch after an error would mount the prefilled form after the page
+		// already reported that nothing was sent.
 		refetchOnReconnect: false,
 	});
 	const debugBuild = debugBuildQuery.data;
@@ -139,7 +88,7 @@ const AgentCreatePage: FC = () => {
 	});
 	const debugBuildError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
 	const prefill: AgentCreatePrefill | undefined =
-		debugBuild && debugBuildFailed && debugBuildLogsQuery.data
+		debugLink && debugBuild && debugBuildFailed && debugBuildLogsQuery.data
 			? {
 					message: debugWorkspaceBuildPrompt(debugBuild),
 					attachment: {
@@ -149,7 +98,7 @@ const AgentCreatePage: FC = () => {
 							debugBuildLogsQuery.data,
 						),
 					},
-					autoSend: debugClicked,
+					autoSend: debugLink.autoSend,
 				}
 			: undefined;
 	// Hold the form until the prefill is ready: AgentCreateForm reads message
@@ -192,7 +141,7 @@ const AgentCreatePage: FC = () => {
 		};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
-		// The strip above may not have committed yet when an automatic send runs.
+		// The param stays in this entry's URL; keep it out of the chat's.
 		const search = new URLSearchParams(location.search);
 		search.delete(debugWorkspaceBuildSearchParam);
 		navigate({
@@ -221,49 +170,14 @@ const AgentCreatePage: FC = () => {
 	};
 
 	const debugAlert = (() => {
-		if (debugLink.kind === "experiment-disabled") {
-			return (
-				<Alert severity="info">
-					<AlertTitle>This debug link is not enabled here</AlertTitle>
-					<AlertDescription>
-						Debugging workspace builds with Coder Agents requires the{" "}
-						<code>enable-ai-workspace-debug</code> experiment, which is off on
-						this deployment. Nothing was sent.
-					</AlertDescription>
-				</Alert>
-			);
-		}
-		if (debugLink.kind === "invalid") {
-			return (
-				<Alert severity="info">
-					<AlertTitle>This debug link is not valid</AlertTitle>
-					<AlertDescription>
-						The workspace build ID in this link is not valid. Open the failed
-						workspace and click Debug with Coder Agents again. Nothing was sent.
-					</AlertDescription>
-				</Alert>
-			);
-		}
 		if (debugBuildError != null) {
-			// A shared link to a build the viewer cannot see fails the same way on
-			// every reload.
-			const inaccessible =
-				isApiError(debugBuildError) &&
-				[403, 404].includes(debugBuildError.response.status);
 			return (
 				<Alert severity="error" prominent>
 					<AlertTitle>
 						Could not load the workspace build or its logs. Nothing was sent.
 					</AlertTitle>
 					<AlertDescription>
-						<span className="block">
-							{getErrorMessage(debugBuildError, "The request failed.")}
-						</span>
-						<span className="mt-1 block">
-							{inaccessible
-								? "This link points to a workspace build you cannot access."
-								: "Reload the page to try again."}
-						</span>
+						{getErrorMessage(debugBuildError, "The request failed.")}
 					</AlertDescription>
 				</Alert>
 			);

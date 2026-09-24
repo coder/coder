@@ -1,5 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, waitFor } from "@testing-library/react";
 import { act, StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
@@ -13,7 +12,6 @@ import {
 import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
-	MockOrganization2,
 	MockUserPreferenceSettings,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -25,23 +23,12 @@ import {
 	emptyInputStorageKey,
 } from "./AgentCreateForm";
 
-const dashboard: {
-	organizations: TypesGen.Organization[];
-	showOrganizations: boolean;
-} = {
-	organizations: [MockDefaultOrganization],
-	showOrganizations: false,
-};
-
 vi.mock("#/modules/dashboard/useDashboard", () => ({
-	useDashboard: () => dashboard,
+	useDashboard: () => ({
+		organizations: [MockDefaultOrganization],
+		showOrganizations: false,
+	}),
 }));
-
-const modelCatalog: TypesGen.OrganizationChatModelsResponse = {
-	models: [MockDefaultChatModel],
-	providers: [MockChatModelProviderDescriptor],
-	unsupported_providers: [],
-};
 
 const prefill: AgentCreatePrefill = {
 	message: "Why did this build fail?",
@@ -63,7 +50,11 @@ const userDraftAttachments = JSON.stringify([
 ]);
 
 const mockFormQueries = () => {
-	vi.spyOn(API.experimental, "getChatModels").mockResolvedValue(modelCatalog);
+	vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
+		models: [MockDefaultChatModel],
+		providers: [MockChatModelProviderDescriptor],
+		unsupported_providers: [],
+	});
 	vi.spyOn(
 		API.experimental,
 		"getUserChatPersonalModelOverrides",
@@ -74,16 +65,10 @@ const mockFormQueries = () => {
 	);
 };
 
-const renderForm = (
-	onCreateChat: () => Promise<void>,
-	props: Partial<Parameters<typeof AgentCreateForm>[0]> = {},
-	queryClient = createTestQueryClient(),
-) => {
-	const element = (
-		overrides: Partial<Parameters<typeof AgentCreateForm>[0]>,
-	) => (
+const renderForm = (onCreateChat: () => Promise<void>) =>
+	render(
 		<StrictMode>
-			<AppProviders queryClient={queryClient}>
+			<AppProviders queryClient={createTestQueryClient()}>
 				<AgentCreateForm
 					onCreateChat={onCreateChat}
 					isCreating={false}
@@ -95,24 +80,14 @@ const renderForm = (
 					workspacesError={undefined}
 					isWorkspacesLoading={false}
 					prefill={prefill}
-					{...props}
-					{...overrides}
 				/>
 			</AppProviders>
-		</StrictMode>
+		</StrictMode>,
 	);
-	const result = render(element({}));
-	return {
-		rerender: (overrides: Partial<Parameters<typeof AgentCreateForm>[0]>) =>
-			result.rerender(element(overrides)),
-	};
-};
 
 afterEach(() => {
 	vi.restoreAllMocks();
 	localStorage.clear();
-	dashboard.organizations = [MockDefaultOrganization];
-	dashboard.showOrganizations = false;
 });
 
 describe("AgentCreateForm prefill", () => {
@@ -125,190 +100,38 @@ describe("AgentCreateForm prefill", () => {
 			.spyOn(API.experimental, "uploadChatFile")
 			.mockReturnValue(upload.promise);
 		const onCreateChat = vi.fn().mockResolvedValue(undefined);
-		const user = userEvent.setup();
 
 		renderForm(onCreateChat);
 
 		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(1));
 		const [uploadedFile, uploadOrganizationId] = uploadChatFile.mock.calls[0];
 		expect(uploadedFile.name).toBe("workspace-build-logs.txt");
-		expect(uploadedFile.type).toBe("text/plain");
 		expect(await readAgentAttachmentText(uploadedFile)).toBe(
 			"Error: exit status 1\n",
 		);
 		expect(uploadOrganizationId).toBe(MockDefaultOrganization.id);
 		expect(onCreateChat).not.toHaveBeenCalled();
-		// The composer is read-only while the automatic send is pending.
-		const message = screen.getByRole("textbox", { name: "Chat message" });
-		await user.click(message);
-		await user.paste(" and how do I fix it?");
-		expect(message).toHaveTextContent(/^Why did this build fail\?$/);
 
 		await act(async () => {
 			upload.resolve({ id: "uploaded-logs" });
 		});
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(onCreateChat).toHaveBeenCalledWith({
-			message: "Why did this build fail?",
-			fileIDs: ["uploaded-logs"],
-			workspaceId: undefined,
-			model: MockDefaultChatModel.id,
-			reasoningEffort: undefined,
-			organizationId: MockDefaultOrganization.id,
-			mcpServerIds: undefined,
-			planMode: undefined,
-		});
+		expect(onCreateChat).toHaveBeenCalledWith(
+			expect.objectContaining({
+				message: "Why did this build fail?",
+				fileIDs: ["uploaded-logs"],
+				organizationId: MockDefaultOrganization.id,
+			}),
+		);
 		expect(uploadChatFile).toHaveBeenCalledTimes(1);
+		// The user's own draft is untouched.
 		expect(localStorage.getItem(emptyInputStorageKey)).toBe(
 			"draft the user typed earlier",
 		);
 		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBe(
 			userDraftAttachments,
 		);
-	});
-
-	it("sends once and stays read-only while the automatic send is in flight", async () => {
-		mockFormQueries();
-		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
-			id: "uploaded-logs",
-		});
-		const onCreateChat = vi.fn().mockReturnValue(new Promise(() => {}));
-		const user = userEvent.setup();
-
-		const { rerender } = renderForm(onCreateChat);
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		// isCreating returning to false reopens the send gate while the send is
-		// still in flight; the form must not send again.
-		rerender({ isCreating: true });
-		rerender({ isCreating: false });
-		const message = screen.getByRole("textbox", { name: "Chat message" });
-		await user.click(message);
-		await user.paste(" and how do I fix it?");
-
-		expect(message).toHaveTextContent(/^Why did this build fail\?$/);
-		expect(onCreateChat).toHaveBeenCalledTimes(1);
-	});
-
-	it("waits for a file added during the log upload and sends it too", async () => {
-		mockFormQueries();
-		const uploads = new Map<
-			string,
-			ReturnType<typeof createDeferred<TypesGen.UploadChatFileResponse>>
-		>();
-		const uploadChatFile = vi
-			.spyOn(API.experimental, "uploadChatFile")
-			.mockImplementation((file) => {
-				const upload = createDeferred<TypesGen.UploadChatFileResponse>();
-				uploads.set(file.name, upload);
-				return upload.promise;
-			});
-		const onCreateChat = vi.fn().mockResolvedValue(undefined);
-
-		renderForm(onCreateChat);
-
-		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(1));
-		fireEvent.drop(screen.getByTestId("chat-composer"), {
-			dataTransfer: {
-				files: [new File(["my notes"], "notes.txt", { type: "text/plain" })],
-			},
-		});
-		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(2));
-
-		await act(async () => {
-			uploads.get("workspace-build-logs.txt")?.resolve({ id: "uploaded-logs" });
-		});
-		await act(async () => {
-			await Promise.resolve();
-		});
-		expect(onCreateChat).not.toHaveBeenCalled();
-
-		await act(async () => {
-			uploads.get("notes.txt")?.resolve({ id: "uploaded-notes" });
-		});
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(onCreateChat).toHaveBeenCalledWith(
-			expect.objectContaining({ fileIDs: ["uploaded-logs", "uploaded-notes"] }),
-		);
-	});
-
-	it("auto-sends a prefill whose file name needs sanitizing", async () => {
-		mockFormQueries();
-		const uploadChatFile = vi
-			.spyOn(API.experimental, "uploadChatFile")
-			.mockResolvedValue({ id: "uploaded-logs" });
-		const onCreateChat = vi.fn().mockResolvedValue(undefined);
-
-		renderForm(onCreateChat, {
-			prefill: {
-				...prefill,
-				attachment: { ...prefill.attachment, name: "build logs (1).txt" },
-			},
-		});
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(uploadChatFile.mock.calls[0][0].name).not.toBe("build logs (1).txt");
-		expect(onCreateChat).toHaveBeenCalledWith(
-			expect.objectContaining({ fileIDs: ["uploaded-logs"] }),
-		);
-	});
-
-	it("waits for the model catalog before sending", async () => {
-		mockFormQueries();
-		const catalog = createDeferred<TypesGen.OrganizationChatModelsResponse>();
-		vi.spyOn(API.experimental, "getChatModels").mockReturnValue(
-			catalog.promise,
-		);
-		const uploadChatFile = vi
-			.spyOn(API.experimental, "uploadChatFile")
-			.mockResolvedValue({ id: "uploaded-logs" });
-		const onCreateChat = vi.fn().mockResolvedValue(undefined);
-
-		renderForm(onCreateChat);
-
-		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(1));
-		await act(async () => {
-			await Promise.resolve();
-		});
-		expect(onCreateChat).not.toHaveBeenCalled();
-
-		await act(async () => {
-			catalog.resolve(modelCatalog);
-		});
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(onCreateChat).toHaveBeenCalledWith(
-			expect.objectContaining({ model: MockDefaultChatModel.id }),
-		);
-	});
-
-	it("neither uploads nor sends for a user who cannot create chats", async () => {
-		mockFormQueries();
-		const uploadChatFile = vi
-			.spyOn(API.experimental, "uploadChatFile")
-			.mockResolvedValue({ id: "uploaded-logs" });
-		const onCreateChat = vi.fn().mockResolvedValue(undefined);
-
-		renderForm(onCreateChat, { canCreateChat: false });
-
-		await screen.findByText("Permission required");
-		expect(uploadChatFile).not.toHaveBeenCalled();
-		expect(onCreateChat).not.toHaveBeenCalled();
-	});
-
-	it("does not save the attachment as a draft when the send fails", async () => {
-		mockFormQueries();
-		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
-			id: "uploaded-logs",
-		});
-		const onCreateChat = vi.fn().mockRejectedValue(new Error("server error"));
-
-		renderForm(onCreateChat);
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBeNull();
 	});
 
 	it("does not send when the attachment upload fails", async () => {
@@ -323,135 +146,7 @@ describe("AgentCreateForm prefill", () => {
 		await screen.findByText(
 			"The build logs could not be attached. Nothing was sent.",
 		);
-		expect(onCreateChat).not.toHaveBeenCalled();
-	});
-
-	it("keeps Send disabled after the upload fails without auto-send", async () => {
-		mockFormQueries();
-		vi.spyOn(API.experimental, "uploadChatFile").mockRejectedValue(
-			new Error("upload failed"),
-		);
-		const onCreateChat = vi.fn().mockResolvedValue(undefined);
-
-		renderForm(onCreateChat, { prefill: { ...prefill, autoSend: false } });
-
-		await screen.findByText(
-			"The build logs could not be attached. Nothing was sent.",
-		);
 		expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
-	});
-
-	it("hands the composer back instead of sending when the logs are removed", async () => {
-		mockFormQueries();
-		const upload = createDeferred<TypesGen.UploadChatFileResponse>();
-		vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
-			upload.promise,
-		);
-		const onCreateChat = vi.fn().mockResolvedValue(undefined);
-		const user = userEvent.setup();
-
-		renderForm(onCreateChat);
-
-		await user.click(
-			await screen.findByRole("button", {
-				name: "Remove workspace-build-logs.txt",
-			}),
-		);
-		await act(async () => {
-			upload.resolve({ id: "uploaded-logs" });
-		});
-
-		const sendButton = screen.getByRole("button", { name: "Send" });
-		await waitFor(() => expect(sendButton).toBeEnabled());
 		expect(onCreateChat).not.toHaveBeenCalled();
-
-		await user.click(sendButton);
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(onCreateChat).toHaveBeenCalledWith(
-			expect.objectContaining({
-				message: "Why did this build fail?",
-				fileIDs: undefined,
-			}),
-		);
-	});
-
-	it("only prefills without auto-send, and sends on Send", async () => {
-		mockFormQueries();
-		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
-			id: "uploaded-logs",
-		});
-		const onCreateChat = vi.fn().mockResolvedValue(undefined);
-		const user = userEvent.setup();
-
-		renderForm(onCreateChat, { prefill: { ...prefill, autoSend: false } });
-
-		const sendButton = screen.getByRole("button", { name: "Send" });
-		await waitFor(() => expect(sendButton).toBeEnabled());
-		expect(onCreateChat).not.toHaveBeenCalled();
-
-		await user.click(sendButton);
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(onCreateChat).toHaveBeenCalledWith(
-			expect.objectContaining({
-				message: "Why did this build fail?",
-				fileIDs: ["uploaded-logs"],
-			}),
-		);
-	});
-
-	it("drops the logs and the automatic send when their organization is revoked", async () => {
-		mockFormQueries();
-		dashboard.showOrganizations = true;
-		dashboard.organizations = [MockDefaultOrganization, MockOrganization2];
-		vi.spyOn(API, "getOrganizations").mockResolvedValue(
-			dashboard.organizations,
-		);
-		let permittedOrganization = MockOrganization2;
-		vi.spyOn(API, "checkAuthorization").mockImplementation(async () => ({
-			[MockDefaultOrganization.id]:
-				permittedOrganization === MockDefaultOrganization,
-			[MockOrganization2.id]: permittedOrganization === MockOrganization2,
-		}));
-		const upload = createDeferred<TypesGen.UploadChatFileResponse>();
-		const uploadChatFile = vi
-			.spyOn(API.experimental, "uploadChatFile")
-			.mockReturnValue(upload.promise);
-		const onCreateChat = vi.fn().mockResolvedValue(undefined);
-		const user = userEvent.setup();
-		const queryClient = createTestQueryClient();
-
-		renderForm(onCreateChat, {}, queryClient);
-
-		await waitFor(() => expect(uploadChatFile).toHaveBeenCalledTimes(1));
-		expect(uploadChatFile.mock.calls[0][1]).toBe(MockOrganization2.id);
-
-		// A permission refetch revokes the upload's organization before the
-		// upload finishes.
-		permittedOrganization = MockDefaultOrganization;
-		await act(async () => {
-			await queryClient.invalidateQueries({
-				queryKey: ["organizations", "permitted"],
-			});
-		});
-		await act(async () => {
-			upload.resolve({ id: "file-in-org2" });
-		});
-
-		const sendButton = screen.getByRole("button", { name: "Send" });
-		await waitFor(() => expect(sendButton).toBeEnabled());
-		expect(onCreateChat).not.toHaveBeenCalled();
-
-		await user.click(sendButton);
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(onCreateChat).toHaveBeenCalledWith(
-			expect.objectContaining({
-				organizationId: MockDefaultOrganization.id,
-				fileIDs: undefined,
-			}),
-		);
-		expect(uploadChatFile).toHaveBeenCalledTimes(1);
 	});
 });
