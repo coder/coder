@@ -19902,6 +19902,10 @@ const docTemplate = `{
                 "kind": {
                     "$ref": "#/definitions/codersdk.ChatContextResourceKind"
                 },
+                "plugin_name": {
+                    "description": "PluginName is the owning Agent Plugin's name. It is the manifest name\nfor the plugin kind and the attributing plugin for skill and\nmcp_server kinds shipped inside a plugin; empty otherwise.",
+                    "type": "string"
+                },
                 "size_bytes": {
                     "description": "SizeBytes is the original payload size in bytes.",
                     "type": "integer"
@@ -19940,13 +19944,15 @@ const docTemplate = `{
                 "instruction_file",
                 "skill",
                 "mcp_config",
-                "mcp_server"
+                "mcp_server",
+                "plugin"
             ],
             "x-enum-varnames": [
                 "ChatContextResourceKindInstructionFile",
                 "ChatContextResourceKindSkill",
                 "ChatContextResourceKindMCPConfig",
-                "ChatContextResourceKindMCPServer"
+                "ChatContextResourceKindMCPServer",
+                "ChatContextResourceKindPlugin"
             ]
         },
         "codersdk.ChatContextResourceStatus": {

@@ -184,6 +184,9 @@ const (
 	ChatContextResourceKindSkill           ChatContextResourceKind = "skill"
 	ChatContextResourceKindMCPConfig       ChatContextResourceKind = "mcp_config"
 	ChatContextResourceKindMCPServer       ChatContextResourceKind = "mcp_server"
+	// ChatContextResourceKindPlugin is an Agent Plugin manifest
+	// (plugin.json).
+	ChatContextResourceKindPlugin ChatContextResourceKind = "plugin"
 )
 
 // ChatContextResource is one pinned workspace-context resource the chat's
@@ -200,6 +203,10 @@ type ChatContextResource struct {
 	// SkillName and SkillDescription are populated only for skill kinds.
 	SkillName        string `json:"skill_name,omitempty"`
 	SkillDescription string `json:"skill_description,omitempty"`
+	// PluginName is the owning Agent Plugin's name. It is the manifest name
+	// for the plugin kind and the attributing plugin for skill and
+	// mcp_server kinds shipped inside a plugin; empty otherwise.
+	PluginName string `json:"plugin_name,omitempty"`
 	// Tools lists the tools exposed by an MCP server. Populated only for the
 	// mcp_server kind; nil otherwise.
 	Tools []ChatContextTool `json:"tools,omitempty"`
