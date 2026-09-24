@@ -1,16 +1,15 @@
 import { cn } from "cn";
-import { CircleDashedIcon } from "lucide-react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 export const AIBridgeClientIcon = ({
 	client,
 	className,
-	...props
 }: {
 	client: string | null;
-} & React.ComponentProps<"svg">) => {
+	className?: string;
+}) => {
 	const iconClassName = "shrink-0";
-	const fallbackIconClassName = "text-content-secondary opacity-80";
+	const fallbackIconClassName = "shrink-0 rounded-full bg-surface-tertiary";
 	// This should be kept in sync with the client names in
 	// the AI Bridge bridge.go file.
 	// https://github.com/coder/aibridge/blob/main/bridge.go#L31-L32
@@ -110,10 +109,7 @@ export const AIBridgeClientIcon = ({
 			);
 		default:
 			return (
-				<CircleDashedIcon
-					className={cn(iconClassName, fallbackIconClassName, className)}
-					{...props}
-				/>
+				<span aria-hidden className={cn(fallbackIconClassName, className)} />
 			);
 	}
 };
