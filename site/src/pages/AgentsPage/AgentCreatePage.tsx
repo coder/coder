@@ -19,8 +19,6 @@ import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
 
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
@@ -64,9 +62,6 @@ const AgentCreatePage: FC = () => {
 		};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
-		if (model) {
-			localStorage.setItem(lastModelConfigIDStorageKey, model);
-		}
 		navigate({
 			pathname: buildAgentChatPath({ chatId: createdChat.id }),
 			search: location.search,
