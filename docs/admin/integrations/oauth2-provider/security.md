@@ -9,29 +9,19 @@ For enabling the provider and creating an application, refer to [OAuth2 provider
 ## Security considerations
 
 - **Use HTTPS**: Always use HTTPS in production to protect tokens in transit
-- **Implement PKCE**: PKCE is mandatory for all authorization code clients
-  (public and confidential)
-- **Validate redirect URLs**: Only register trusted redirect URIs. Dangerous
-  schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the control
-  plane, custom URI schemes for native apps (`myapp://`) are permitted, and
-  public clients additionally cannot use `mailto:`, `tel:`, or `sms:`
+- **Implement PKCE**: PKCE is mandatory for all authorization code clients (public and confidential)
+- **Validate redirect URLs**: Only register trusted redirect URIs.
+  Dangerous schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the control plane, custom URI schemes for native apps (`myapp://`) are permitted, and public clients additionally cannot use `mailto:`, `tel:`, or `sms:`
 - **Rotate secrets**: Periodically rotate client secrets using the management API
-- **Rate limits**: every `/oauth2` endpoint and both `/.well-known` discovery
-  endpoints draw on the login rate limit of 60 requests per minute. Each
-  endpoint counts on its own, so a caller that exhausts one can still reach the
-  others. Requests with no Coder session are counted per IP address, and the
-  rest are counted per user. A caller over the limit receives HTTP 429 with a
-  `temporarily_unavailable` error body. The limit is fixed. Running the
-  deployment with `--dangerous-disable-rate-limits` turns it off, and a user
-  with the Owner role can bypass it on a single request with the
-  `X-Coder-Bypass-Ratelimit` header
-- **Refresh tokens are not self-sufficient**: a confidential client must present
-  its `client_secret` to refresh or revoke, so a leaked token alone cannot mint
-  new access tokens or end another client's session
-- **No CORS on the authorization endpoint**: `/oauth2/authorize` is reached
-  only by browser navigation and sends no CORS headers, as OAuth 2.1 requires.
-  The token, registration, revocation, and metadata endpoints do allow
-  cross-origin requests so that browser-based clients can call them
+- **Rate limits**: every `/oauth2` endpoint and both `/.well-known` discovery endpoints draw on the login rate limit of 60 requests per minute.
+  Each endpoint counts on its own, so a caller that exhausts one can still reach the others.
+  Requests with no Coder session are counted per IP address, and the rest are counted per user.
+  A caller over the limit receives HTTP 429 with a `temporarily_unavailable` error body.
+  The limit is fixed.
+  Running the deployment with `--dangerous-disable-rate-limits` turns it off, and a user with the Owner role can bypass it on a single request with the `X-Coder-Bypass-Ratelimit` header
+- **Refresh tokens are not self-sufficient**: a confidential client must present its `client_secret` to refresh or revoke, so a leaked token alone cannot mint new access tokens or end another client's session
+- **No CORS on the authorization endpoint**: `/oauth2/authorize` is reached only by browser navigation and sends no CORS headers, as OAuth 2.1 requires.
+  The token, registration, revocation, and metadata endpoints do allow cross-origin requests so that browser-based clients can call them
 
 ## Limitations
 
@@ -69,21 +59,16 @@ The `redirect_uris` list is now the source of truth for an application's callbac
 
 ### Refresh `scope` narrowing is now enforced
 
-A `scope` on a refresh request was parsed and discarded in earlier versions, so a
-client sending one wider than its grant refreshed successfully. It is now
-enforced, and such a request answers HTTP 400 with `error=invalid_scope`. The
-refresh token is not consumed, so a client that drops the parameter or asks for
-less recovers without re-authorizing.
+A `scope` on a refresh request was parsed and discarded in earlier versions, so a client sending one wider than its grant refreshed successfully.
+It is now enforced, and such a request answers HTTP 400 with `error=invalid_scope`.
+The refresh token is not consumed, so a client that drops the parameter or asks for less recovers without re-authorizing.
 
 ### Refresh and revocation now require `client_secret`
 
-Earlier versions did not check `client_secret` on a refresh or at the RFC 7009
-revocation endpoint, so a confidential client could refresh or revoke with a
-wrong secret or none. Both now authenticate confidential clients exactly as the
-authorization code grant does, and a request without a valid secret answers
-HTTP 401 with `error=invalid_client`. The refresh token is not consumed and
-nothing is revoked, so a client that adds its secret recovers without
-re-authorizing. Public clients are unaffected.
+Earlier versions did not check `client_secret` on a refresh or at the RFC 7009 revocation endpoint, so a confidential client could refresh or revoke with a wrong secret or none.
+Both now authenticate confidential clients exactly as the authorization code grant does, and a request without a valid secret answers HTTP 401 with `error=invalid_client`.
+The refresh token is not consumed and nothing is revoked, so a client that adds its secret recovers without re-authorizing.
+Public clients are unaffected.
 
 ### Dynamic Client Registration `scope` enforcement
 
