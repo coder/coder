@@ -288,7 +288,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 											className={cn(
 												"min-w-0 overflow-hidden text-[13px] leading-4",
 												errorReason
-													? "line-clamp-1 whitespace-normal text-content-destructive wrap-anywhere"
+													? "line-clamp-1 whitespace-normal text-content-secondary wrap-anywhere"
 													: "truncate text-content-secondary",
 											)}
 											title={subtitle}
