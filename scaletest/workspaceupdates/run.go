@@ -80,7 +80,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	// http.DefaultTransport, which is shared across all runners. That causes
 	// all user WebSocket connections to reuse the same TCP connection pool and
 	// land on the same coderd replica, concentrating load.
-	newUserClient, err := loadtestutil.DupClientCopyingHeaders(ctx, r.client, nil)
+	newUserClient, err := loadtestutil.DupClientCopyingHeaders(r.client, nil)
 	if err != nil {
 		return xerrors.Errorf("create user client: %w", err)
 	}

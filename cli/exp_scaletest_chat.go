@@ -158,7 +158,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 						return xerrors.Errorf("validate config for workspace %d chat %d: %w", workspaceIndex, chatIndex, err)
 					}
 
-					runnerClient, err := loadtestutil.DupClientCopyingHeaders(inv.Context(), client, BypassHeader)
+					runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
 					if err != nil {
 						return xerrors.Errorf("duplicate client for workspace %d chat %d: %w", workspaceIndex, chatIndex, err)
 					}

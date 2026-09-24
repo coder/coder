@@ -115,7 +115,7 @@ func (r *RootCmd) scaletestCreateUsers() *serpent.Command {
 
 				// Use an independent client per runner so they don't reuse TCP
 				// connections, which can unbalance requests among Coder replicas.
-				runnerClient, err := loadtestutil.DupClientCopyingHeaders(inv.Context(), client, BypassHeader)
+				runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
 				if err != nil {
 					return xerrors.Errorf("create runner client: %w", err)
 				}

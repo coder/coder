@@ -10,49 +10,71 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// DupClientCopyingHeaders duplicates the Client, but with an independent underlying HTTP transport, so that it will not
-// share connections with the client being duplicated. It copies any headers already on the existing transport as
-// [codersdk.HeaderTransport] and add the headers in the argument.
-func DupClientCopyingHeaders(ctx context.Context, client *codersdk.Client, header http.Header) (*codersdk.Client, error) {
+// DupClientCopyingHeaders duplicates the client with an independent underlying
+// HTTP transport while retaining its header providers. Additional headers take
+// precedence over headers from the original client.
+func DupClientCopyingHeaders(client *codersdk.Client, header http.Header) (*codersdk.Client, error) {
 	nc := codersdk.New(client.URL, codersdk.WithLogger(client.Logger()))
 	nc.SessionTokenProvider = client.SessionTokenProvider
-	newHeader, t, err := extractHeaderAndInnerTransport(ctx, client.HTTPClient.Transport)
+	getHeaders, t, err := extractHeaderAndInnerTransport(client.HTTPClient.Transport)
 	if err != nil {
 		return nil, xerrors.Errorf("extract headers: %w", err)
 	}
-	maps.Copy(newHeader, header)
-
+	header = header.Clone()
 	nc.HTTPClient.Transport = &codersdk.HeaderTransport{
 		Transport: t.Clone(),
-		Provider:  codersdk.StaticHeaderProvider{Header: newHeader},
+		Provider: dynamicHeaderProvider{getHeaders: func(ctx context.Context) (http.Header, error) {
+			headers, err := getHeaders(ctx)
+			if err != nil {
+				return nil, err
+			}
+			maps.Copy(headers, header.Clone())
+			return headers, nil
+		}},
 	}
 	return nc, nil
 }
 
-func extractHeaderAndInnerTransport(ctx context.Context, rt http.RoundTripper) (http.Header, *http.Transport, error) {
+type dynamicHeaderProvider struct {
+	getHeaders func(context.Context) (http.Header, error)
+}
+
+func (p dynamicHeaderProvider) Headers(ctx context.Context) (http.Header, error) {
+	return p.getHeaders(ctx)
+}
+
+func extractHeaderAndInnerTransport(rt http.RoundTripper) (func(context.Context) (http.Header, error), *http.Transport, error) {
 	if t, ok := rt.(*http.Transport); ok {
-		// base case
-		return make(http.Header), t, nil
+		return func(context.Context) (http.Header, error) {
+			return make(http.Header), nil
+		}, t, nil
 	}
 	if ht, ok := rt.(*codersdk.HeaderTransport); ok {
-		headers, t, err := extractHeaderAndInnerTransport(ctx, ht.Transport)
+		getHeaders, t, err := extractHeaderAndInnerTransport(ht.Transport)
 		if err != nil {
 			return nil, nil, err
 		}
-		if ht.Provider != nil {
-			provided, err := ht.Provider.Headers(ctx)
+		return func(ctx context.Context) (http.Header, error) {
+			headers, err := getHeaders(ctx)
 			if err != nil {
-				return nil, nil, xerrors.Errorf("get headers: %w", err)
+				return nil, err
 			}
-			maps.Copy(headers, provided)
-		}
-		return headers, t, nil
+			if ht.Provider != nil {
+				provided, err := ht.Provider.Headers(ctx)
+				if err != nil {
+					return nil, err
+				}
+				maps.Copy(headers, provided.Clone())
+			}
+			return headers, nil
+		}, t, nil
 	}
-	// unrecognized RoundTripper. Just return a default transport, since we only care about preserving headers.
+	// Unrecognized RoundTripper: use a default transport and preserve headers.
 	t, ok := http.DefaultTransport.(*http.Transport)
 	if !ok {
-		// unhittable, unless the Go stdlib changes.
 		return nil, nil, xerrors.New("DefaultTransport is not *http.Transport")
 	}
-	return make(http.Header), t, nil
+	return func(context.Context) (http.Header, error) {
+		return make(http.Header), nil
+	}, t, nil
 }

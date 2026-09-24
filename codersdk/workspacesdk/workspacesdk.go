@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/baggage"
@@ -288,11 +289,17 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	controller.ResumeTokenCtrl = tailnet.NewBasicResumeTokenController(options.Logger, clk)
 
 	ip := tailnet.TailscaleServicePrefix.RandomAddr()
-	var header http.Header
+	var getHeaders func() http.Header
 	if headerTransport, ok := c.client.HTTPClient.Transport.(*codersdk.HeaderTransport); ok && headerTransport.Provider != nil {
-		header, err = headerTransport.Provider.Headers(ctx)
-		if err != nil {
-			return nil, xerrors.Errorf("get headers: %w", err)
+		getHeaders = func() http.Header {
+			refreshCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			headers, err := headerTransport.Provider.Headers(refreshCtx)
+			if err != nil {
+				options.Logger.Error(ctx, "get connection headers", slog.Error(err))
+				return nil
+			}
+			return headers
 		}
 	}
 	var telemetrySink tailnet.TelemetrySink
@@ -306,7 +313,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:             connInfo.DERPMap,
-		DERPHeader:          &header,
+		DERPGetHeaders:      getHeaders,
 		DERPTLSConfig:       c.client.DERPTLSConfig(),
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
@@ -321,6 +328,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	}
 	defer func() {
 		if err != nil {
+			cancel()
 			_ = conn.Close()
 		}
 	}()

@@ -1847,12 +1847,18 @@ func (a *agent) createTailnet(
 	keySeed int64,
 ) (_ *tailnet.Conn, err error) {
 	// Inject `CODER_AGENT_HEADER` into the DERP header.
-	var header http.Header
+	var getHeaders func() http.Header
 	if client, ok := a.client.(*agentsdk.Client); ok {
 		if headerTransport, ok := client.SDK.HTTPClient.Transport.(*codersdk.HeaderTransport); ok && headerTransport.Provider != nil {
-			header, err = headerTransport.Provider.Headers(ctx)
-			if err != nil {
-				return nil, xerrors.Errorf("get headers: %w", err)
+			getHeaders = func() http.Header {
+				refreshCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+				defer cancel()
+				headers, err := headerTransport.Provider.Headers(refreshCtx)
+				if err != nil {
+					a.logger.Error(ctx, "get connection headers", slog.Error(err))
+					return nil
+				}
+				return headers
 			}
 		}
 	}
@@ -1861,7 +1867,7 @@ func (a *agent) createTailnet(
 		Addresses:           a.wireguardAddresses(agentID),
 		DERPMap:             derpMap,
 		DERPForceWebSockets: derpForceWebSockets,
-		DERPHeader:          &header,
+		DERPGetHeaders:      getHeaders,
 		DERPTLSConfig:       a.derpTLSConfig,
 		Logger:              a.logger.Named("net.tailnet"),
 		ListenPort:          a.tailnetListenPort,

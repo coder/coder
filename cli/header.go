@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"slices"
 	"strings"
 	"time"
 
@@ -28,20 +27,19 @@ const jwtExpirationSkew = 10 * time.Second
 
 // headerTransport resolves initial headers so command errors surface at startup.
 func headerTransport(ctx context.Context, serverURL *url.URL, header []string, headerCommand string) (*codersdk.HeaderTransport, error) {
+	headers, err := parseHeaders(header)
+	if err != nil {
+		return nil, err
+	}
 	var provider codersdk.HeaderProvider
 	if headerCommand == "" {
-		headers, err := parseHeaders(header)
-		if err != nil {
-			return nil, err
-		}
 		provider = codersdk.StaticHeaderProvider{Header: headers}
 	} else {
 		provider = &commandHeaderProvider{
-			ctx:       ctx,
-			serverURL: serverURL,
-			static:    slices.Clone(header),
-			command:   headerCommand,
-			clock:     quartz.NewReal(),
+			serverURL:     serverURL,
+			staticHeaders: headers,
+			command:       headerCommand,
+			clock:         quartz.NewReal(),
 		}
 		if _, err := provider.Headers(ctx); err != nil {
 			return nil, err
@@ -54,11 +52,10 @@ func headerTransport(ctx context.Context, serverURL *url.URL, header []string, h
 }
 
 type commandHeaderProvider struct {
-	ctx       context.Context
-	serverURL *url.URL
-	static    []string
-	command   string
-	clock     quartz.Clock
+	serverURL     *url.URL
+	staticHeaders http.Header
+	command       string
+	clock         quartz.Clock
 
 	sf singleflight.Group
 	// Cache access is serialized inside sf.Do. Published maps are immutable.
@@ -66,21 +63,21 @@ type commandHeaderProvider struct {
 	expires time.Time
 }
 
-func (p *commandHeaderProvider) Headers(context.Context) (http.Header, error) {
+func (p *commandHeaderProvider) Headers(ctx context.Context) (http.Header, error) {
 	value, err, _ := p.sf.Do("headers", func() (any, error) {
 		if p.cached != nil && (p.expires.IsZero() || p.clock.Now().Before(p.expires)) {
-			return p.cached, nil
+			return p.cached.Clone(), nil
 		}
-		lines, err := runHeaderCommand(p.ctx, p.serverURL, p.command)
+		lines, err := runHeaderCommand(ctx, p.serverURL, p.command)
 		if err != nil {
 			return nil, err
 		}
-		headers, err := parseHeaders(append(slices.Clone(p.static), lines...))
+		headers, err := parseHeaders(lines)
 		if err != nil {
 			return nil, err
 		}
 		p.cached, p.expires = headers, headerExpiry(headers)
-		return headers, nil
+		return headers.Clone(), nil
 	})
 	if err != nil {
 		return nil, err
@@ -89,7 +86,16 @@ func (p *commandHeaderProvider) Headers(context.Context) (http.Header, error) {
 	if !ok {
 		return nil, xerrors.New("unexpected header cache result")
 	}
-	return headers.Clone(), nil
+	merged := p.staticHeaders.Clone()
+	if merged == nil {
+		merged = make(http.Header)
+	}
+	for name, values := range headers {
+		for _, value := range values {
+			merged.Add(name, value)
+		}
+	}
+	return merged, nil
 }
 
 func runHeaderCommand(ctx context.Context, serverURL *url.URL, command string) ([]string, error) {

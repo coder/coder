@@ -82,7 +82,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		// workspace creation gets its own HTTP connection pool. This prevents
 		// HTTP/2 connection multiplexing from causing all workspace GET requests
 		// to route to a single backend pod during load testing.
-		client, err = loadtestutil.DupClientCopyingHeaders(ctx, r.client, nil)
+		client, err = loadtestutil.DupClientCopyingHeaders(r.client, nil)
 		if err != nil {
 			return xerrors.Errorf("duplicate client: %w", err)
 		}
