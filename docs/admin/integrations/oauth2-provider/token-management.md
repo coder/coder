@@ -6,7 +6,7 @@ This page covers three different readers: a developer refreshing or revoking a t
 It covers how to refresh an access token, revoke a token, revoke your own authorization for an application, and delete an application.
 For the client authentication methods used to refresh or revoke a token, refer to [Client Authentication Methods](./integration-patterns.md#client-authentication-methods); the other two operations authenticate with your Coder session token.
 
-## Refresh Tokens
+## Refresh tokens
 
 Refresh an expired access token.
 
@@ -44,7 +44,7 @@ curl -X POST \
   "$CODER_URL/oauth2/tokens"
 ```
 
-## Revoke a Token
+## Revoke a token
 
 Revoke one refresh token or access token through the
 [RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009) endpoint that
@@ -80,7 +80,7 @@ curl -X DELETE \
 This ends your own sessions with the application but leaves the application registered, so it can authorize again, and does not affect any other user's tokens for it.
 For a cutoff that affects every user, delete the application or one of its client secrets, as described under [Delete an Application](#delete-an-application).
 
-## Delete an Application
+## Delete an application
 
 Deleting an application is a separate operation from revoking a single user's tokens.
 It removes the registration itself, so the client cannot authorize again without being registered anew, and it revokes every token issued under it, for every user.

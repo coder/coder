@@ -6,35 +6,29 @@ This page is for a developer whose OAuth2 client request failed.
 It collects the error conditions the OAuth2 provider returns, matched by the exact `error`, `error_description`, or log line you'll see.
 For how the provider works, refer to [OAuth2 provider](./index.md) and [Integration patterns](./integration-patterns.md).
 
-## Common Issues
-
-### OAuth2 endpoints return 404
+## OAuth2 endpoints return 404
 
 The provider is off.
 Set `CODER_OAUTH2_PROVIDER_ENABLE=true` and restart the server.
 Refer to [Enable OAuth2 Provider](./index.md#enable-oauth2-provider).
 
-### "Invalid redirect_uri"
+## "Invalid redirect_uri"
 
 Ensure the redirect URI in your request exactly matches one of the redirect URIs registered for your application.
 The one exception is the port of a loopback `http://` redirect URI (`localhost`, `127.0.0.1`, `[::1]`), which may differ from the registered one.
 Refer to [Callback URL schemes](./callback-url-schemes.md).
 
-### "Invalid Callback URL" on the consent page
+## "Invalid Callback URL" on the consent page
 
-If you see this error when authorizing, one of the application's registered
-redirect URIs is not usable: either it does not parse as a URL, or it uses a
-blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`). The same cause
-answers `server_error` on `POST /oauth2/authorize`. Use
-`GET /api/v2/oauth2-provider/apps/{app}` to see every registered redirect
-URI, then update the application with a corrected `redirect_uris` list as
-shown under [Management API](./index.md#create-an-application-with-the-api). Refer to
-[Callback URL schemes](./callback-url-schemes.md) for which values are accepted.
+If you see this error when authorizing, one of the application's registered redirect URIs is not usable: either it does not parse as a URL, or it uses a blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`).
+The same cause answers `server_error` on `POST /oauth2/authorize`.
+Use `GET /api/v2/oauth2-provider/apps/{app}` to see every registered redirect URI, then update the application with a corrected `redirect_uris` list as shown under [Management API](./index.md#create-an-application-with-the-api).
+Refer to [Callback URL schemes](./callback-url-schemes.md) for which values are accepted.
 
 The `coderd` log records the application ID and the stored value. The response
 does not, so a bad URL is never echoed back to a browser.
 
-### "invalid_scope" returned to your callback
+## "invalid_scope" returned to your callback
 
 The authorization endpoint validates the `scope` parameter. When it cannot
 grant what was asked for, it redirects to your registered callback with
@@ -61,7 +55,7 @@ The token endpoint validates a refresh request's `scope` too, and answers
 `invalid_scope` in the response body rather than by redirect. See
 ["invalid_scope" for a refresh that names a scope](#invalid_scope-for-a-refresh-that-names-a-scope).
 
-### "invalid_grant" for a scope the deployment cannot mint
+## "invalid_grant" for a scope the deployment cannot mint
 
 `POST /oauth2/tokens` mints the access token with the scope recorded on the
 authorization code, or on the refresh token when refreshing. If that stored
@@ -99,7 +93,7 @@ Codes issued before the upgrade that added scope columns carry `coder:all`, reco
 For an application with a narrower `scope` allowlist, those codes are refused with `scope is no longer allowed by this app's registered scopes` until they expire, which takes at most 10 minutes.
 Authorizing again issues a code within the current allowlist.
 
-### "invalid_scope" for a refresh that names a scope
+## "invalid_scope" for a refresh that names a scope
 
 `POST /oauth2/tokens` answers HTTP 400 with `error=invalid_scope` when a refresh
 request names a `scope` the control plane will not grant. This is the token endpoint,
@@ -138,26 +132,20 @@ confers `organization_member:read`, which a workspace build needs and which
 can name will fail to create a workspace. Refresh without a `scope` to return to
 the composite.
 
-### "invalid_client" for a refresh or a revocation
+## "invalid_client" for a refresh or a revocation
 
-`POST /oauth2/tokens` with `grant_type=refresh_token` and `POST /oauth2/revoke`
-answer HTTP 401 with `error=invalid_client` when a confidential client does not
-authenticate. The usual causes are a `client_secret` that was omitted, a secret
-that belongs to a different client, or a secret that has since been deleted or
-rotated. Present the client's current secret, as HTTP Basic or as a form
-parameter, following [Refresh Tokens](./token-management.md#refresh-tokens). The refresh token is
-not consumed and nothing is revoked by the refusal, so the retry needs no new
-authorization. If the secret was deleted, the tokens issued under it were
-revoked with it, and the client must authorize again. Public clients have no
-secret and never receive this error for omitting one.
+`POST /oauth2/tokens` with `grant_type=refresh_token` and `POST /oauth2/revoke` answer HTTP 401 with `error=invalid_client` when a confidential client does not authenticate.
+The usual causes are a `client_secret` that was omitted, a secret that belongs to a different client, or a secret that has since been deleted or rotated.
+Present the client's current secret, as HTTP Basic or as a form parameter, following [Refresh Tokens](./token-management.md#refresh-tokens).
+The refresh token is not consumed and nothing is revoked by the refusal, so the retry needs no new authorization.
+If the secret was deleted, the tokens issued under it were revoked with it, and the client must authorize again.
+Public clients have no secret and never receive this error for omitting one.
 
-### "invalid_request" for `client_secret` in the query string
+## "invalid_request" for `client_secret` in the query string
 
-`POST /oauth2/tokens` and `POST /oauth2/revoke` answer HTTP 400 with
-`error=invalid_request` when `client_secret` appears in the URL query string.
-OAuth 2.1 section 2.4.1 allows the secret in the request body or the
-`Authorization` header only. Send it as a form parameter or as HTTP Basic,
-following [Client Authentication Methods](./integration-patterns.md#client-authentication-methods).
+`POST /oauth2/tokens` and `POST /oauth2/revoke` answer HTTP 400 with `error=invalid_request` when `client_secret` appears in the URL query string.
+OAuth 2.1 section 2.4.1 allows the secret in the request body or the `Authorization` header only.
+Send it as a form parameter or as HTTP Basic, following [Client Authentication Methods](./integration-patterns.md#client-authentication-methods).
 
 The rule covers `client_secret` only. Coder still reads `refresh_token`,
 `code`, and the revocation `token` from the query string. Send those in the
@@ -206,7 +194,7 @@ to authorize again.
 Earlier releases accepted the parameter in the query string. An integration
 that relied on that has to move it into the body or the header.
 
-### "unsupported_response_type" returned to your callback
+## "unsupported_response_type" returned to your callback
 
 Coder supports the authorization code flow only, so `response_type=code` is the single accepted value.
 `GET /.well-known/oauth-authorization-server` reports it in `response_types_supported`.
@@ -217,7 +205,7 @@ This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
 Earlier releases answered on Coder instead: `GET` rendered an "Unsupported Response Type" page and `POST` returned a 400 with a JSON body.
 An integration that watched for either now has to read the error from its own callback.
 
-### "invalid_request" for `code_challenge_method`
+## "invalid_request" for `code_challenge_method`
 
 Coder supports the `S256` challenge method only.
 `plain` sends the verifier itself as the challenge, so anything that can observe the authorization request can complete the exchange, which is what PKCE exists to prevent.
@@ -226,7 +214,7 @@ Omitting the parameter is allowed and means `S256`.
 An unsupported method redirects to your registered callback with `error=invalid_request`, an `error_description` that names the method, and the `state` you sent.
 This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
 
-### "invalid_request" for a rejected parameter
+## "invalid_request" for a rejected parameter
 
 Coder validates every authorization parameter before issuing a code, and reports all the failing fields together in one `error_description`.
 Each entry reads `field: reason`, and entries are separated by a semicolon and a space.
@@ -249,7 +237,7 @@ Two failures stay on Coder rather than reaching your callback, because in both c
 Earlier releases answered on Coder for all of these: `GET` rendered an "Invalid Query Parameters" page and `POST` returned a 400 with a JSON body.
 An integration that watched for either now has to read the error from its own callback.
 
-### "invalid_request" from `POST /oauth2/tokens` for a repeated parameter
+## "invalid_request" from `POST /oauth2/tokens` for a repeated parameter
 
 The token endpoint ignores parameters it does not read, as RFC 6749 Section 3.2 requires, so an OIDC `nonce`, a `client_assertion`, or a vendor extension does not fail the exchange.
 A misspelled parameter is ignored on the same rule, so what you see is the failure caused by the parameter you meant to send being absent.
@@ -260,7 +248,7 @@ The error is `invalid_request`, except for a repeated `grant_type`, which answer
 Earlier releases returned 400 `invalid_request` for any parameter the endpoint did not recognize.
 An integration that relied on that error to catch a misspelled optional parameter no longer receives it.
 
-### "invalid_target" for a rejected `resource`
+## "invalid_target" for a rejected `resource`
 
 `resource` must be an absolute URI without a fragment (RFC 8707).
 A value that is not redirects to your registered callback with `error=invalid_target`, an `error_description` naming the field, and the `state` you sent.
@@ -269,11 +257,11 @@ A value that is not redirects to your registered callback with `error=invalid_ta
 If anything else in the request also failed, the answer is `invalid_request` instead, naming every failing field.
 Correct them all before retrying: a retry that fixes only `resource` fails again.
 
-### "PKCE verification failed"
+## "PKCE verification failed"
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
 
-### "public clients may not use the mailto/tel/sms scheme"
+## "public clients may not use the mailto/tel/sms scheme"
 
 This error appears during client registration when a public client
 (`token_endpoint_auth_method: none`) registers a redirect URI using the

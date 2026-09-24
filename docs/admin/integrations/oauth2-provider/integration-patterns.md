@@ -7,17 +7,21 @@ It covers how a client authenticates and completes an authorization: the support
 For enabling the provider and creating an application, refer to [OAuth2 provider](./index.md).
 For scopes, token refresh and revocation, and accepted redirect URI schemes, refer to [Scopes](./scopes.md), [Token management](./token-management.md), and [Callback URL schemes](./callback-url-schemes.md).
 
-## Client Authentication Methods
+## Client authentication methods
 
 Coder supports the following OAuth2 client authentication methods at the token endpoint (`/oauth2/tokens`):
 
 - `client_secret_basic` (recommended): HTTP Basic authentication (RFC 6749 §2.3.1). The username is `client_id` and the password is `client_secret`.
 - `client_secret_post`: Form-based authentication where `client_id` and `client_secret` are sent in the request body.
-- `none`: No client secret. The client is a public client and authenticates with PKCE alone (RFC 7591 §2, OAuth 2.1 §2.1). Available only through [Dynamic Client Registration](./index.md#dynamic-client-registration), which is disabled by default, since a client's type is set when it registers and apps created through the admin UI or API are always confidential.
+- `none`: No client secret.
+  The client is a public client and authenticates with PKCE alone (RFC 7591 §2, OAuth 2.1 §2.1).
+  Available only through [Dynamic Client Registration](./index.md#dynamic-client-registration), which is disabled by default, since a client's type is set when it registers and apps created through the admin UI or API are always confidential.
 
 Coder supports both basic authentication and form-based authentication for compatibility; existing integrations using `client_secret_post` do not need to change.
 
-Send `client_secret` in the request body or in the `Authorization` header. `POST /oauth2/tokens` and `POST /oauth2/revoke` reject a `client_secret` value in the URL query string with `invalid_request`, because OAuth 2.1 section 2.4.1 does not allow it there. Refer to ["invalid_request" for `client_secret` in the query string](./troubleshooting.md#invalid_request-for-client_secret-in-the-query-string) for the exceptions and the log line to search for.
+Send `client_secret` in the request body or in the `Authorization` header.
+`POST /oauth2/tokens` and `POST /oauth2/revoke` reject a `client_secret` value in the URL query string with `invalid_request`, because OAuth 2.1 section 2.4.1 does not allow it there.
+Refer to ["invalid_request" for `client_secret` in the query string](./troubleshooting.md#invalid_request-for-client_secret-in-the-query-string) for the exceptions and the log line to search for.
 
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
 
@@ -39,7 +43,7 @@ Coder reports `client_secret_basic` for those clients so that what it reports ma
 
 If client authentication fails, the token endpoint returns **HTTP 401** with an OAuth2 `invalid_client` error and a `WWW-Authenticate: Basic realm="coder"` response header.
 
-## Standard OAuth2 Flow
+## Standard OAuth2 flow
 
 1. **Authorization Request**: Redirect users to Coder's authorization endpoint:
 
@@ -90,7 +94,7 @@ If client authentication fails, the token endpoint returns **HTTP 401** with an 
 > above is shown for reference but omits the mandatory `code_challenge`
 > parameter. See [PKCE Flow](#pkce-flow-required) for the complete flow.
 
-## PKCE Flow (Required)
+## PKCE flow (required)
 
 PKCE is **required** for all OAuth2 authorization code flows. Coder enforces
 PKCE in compliance with the OAuth 2.1 specification. Both public and
@@ -153,7 +157,7 @@ confidential clients must include PKCE parameters:
      "$CODER_URL/oauth2/tokens"
    ```
 
-## Discovery Endpoints
+## Discovery endpoints
 
 Coder provides OAuth2 discovery endpoints for programmatic integration:
 
@@ -162,9 +166,11 @@ Coder provides OAuth2 discovery endpoints for programmatic integration:
 
 These endpoints return server capabilities and endpoint URLs according to [RFC 8414](https://datatracker.ietf.org/doc/html/rfc8414) and [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728).
 
-`token_endpoint_auth_methods_supported` lists every method the token endpoint accepts, including `none`. It is not gated on [Dynamic Client Registration](./index.md#dynamic-client-registration), since existing public clients still exchange tokens when new registrations are disabled. `registration_endpoint` is advertised only while Dynamic Client Registration is enabled, so that field, not this one, tells a client whether it can register a new public client.
+`token_endpoint_auth_methods_supported` lists every method the token endpoint accepts, including `none`.
+It is not gated on [Dynamic Client Registration](./index.md#dynamic-client-registration), since existing public clients still exchange tokens when new registrations are disabled.
+`registration_endpoint` is advertised only while Dynamic Client Registration is enabled, so that field, not this one, tells a client whether it can register a new public client.
 
-## Standards Compliance
+## Standards compliance
 
 This implementation follows established OAuth2 standards including
 [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) (OAuth2 core),
