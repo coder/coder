@@ -1725,10 +1725,46 @@ type coderConnectOpts struct {
 }
 
 func runCoderConnectStdio(ctx context.Context, opts coderConnectOpts) error {
-	var conn io.ReadWriteCloser
+	var conn net.Conn
 	if err := retryWithInterval(ctx, opts.logger, sshRetryInterval, sshMaxAttempts, func() error {
+		headers := http.Header{}
+		// Propagate any baggage and add the session ID.
+		if opts.clientSessionID != "" {
+			member, err := baggage.NewMemberRaw(tracing.SessionIDBaggageKey, opts.clientSessionID)
+			if err != nil {
+				return err
+			}
+			bctx := propagation.Baggage{}.Extract(ctx, propagation.HeaderCarrier(headers))
+			bag, err := baggage.FromContext(bctx).SetMember(member)
+			if err != nil {
+				return err
+			}
+			bctx = baggage.ContextWithBaggage(bctx, bag)
+			propagation.Baggage{}.Inject(bctx, propagation.HeaderCarrier(headers))
+		}
+
+		dialer := testOrDefaultDialer(ctx)
+		client := http.Client{
+			// Redirects are blocked to prevent misuse.
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+			Transport: &http.Transport{
+				// Disable keep alives as we're usually only making a single
+				// request, and this triggers goleak in tests
+				DisableKeepAlives: true,
+				DialContext:       dialer.DialContext,
+			},
+		}
+
 		var err error
-		conn, err = dialTCPUpgrade(ctx, opts)
+		addr := fmt.Sprintf("%s:%d", opts.host, opts.httpPort)
+		conn, err = workspacesdk.DialTCPUpgrade(ctx, addr, &client, headers, workspacesdk.AgentStandardSSHPort)
+		if errors.Is(err, workspacesdk.ErrAgentTCPUpgradeUnsupported) {
+			// Fall back to dialing the port directly.
+			addr = fmt.Sprintf("%s:%d", opts.host, opts.tcpPort)
+			conn, err = dialer.DialContext(ctx, "tcp", addr)
+		}
 		return err
 	}); err != nil {
 		return err
@@ -1743,69 +1779,6 @@ func runCoderConnectStdio(ctx context.Context, opts coderConnectOpts) error {
 	})
 
 	return nil
-}
-
-// dialTCPUpgrade dials the agent's /tcp HTTP endpoint so we can pass along the
-// client session ID via the baggage header.  The connection is then upgraded
-// into the desired connection type based on the port.
-func dialTCPUpgrade(ctx context.Context, opts coderConnectOpts) (io.ReadWriteCloser, error) {
-	dialer := testOrDefaultDialer(ctx)
-
-	apiURL := fmt.Sprintf("http://%s:%d/api/v0/tcp/%d", opts.host, opts.httpPort, opts.tcpPort)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, xerrors.Errorf("new http api request to %q: %w", apiURL, err)
-	}
-	req.Header.Set("Connection", "Upgrade")
-	req.Header.Set("Upgrade", "tcp")
-
-	// Propagate any baggage and add the session ID.
-	if opts.clientSessionID != "" {
-		member, err := baggage.NewMemberRaw(tracing.SessionIDBaggageKey, opts.clientSessionID)
-		if err != nil {
-			return nil, err
-		}
-		bctx := propagation.Baggage{}.Extract(ctx, propagation.HeaderCarrier(req.Header))
-		bag, err := baggage.FromContext(bctx).SetMember(member)
-		if err != nil {
-			return nil, err
-		}
-		bctx = baggage.ContextWithBaggage(bctx, bag)
-		propagation.Baggage{}.Inject(bctx, propagation.HeaderCarrier(req.Header))
-	}
-
-	client := http.Client{
-		// Redirects are blocked to prevent misuse.
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-		Transport: &http.Transport{
-			// Disable keep alives as we're usually only making a single
-			// request, and this triggers goleak in tests
-			DisableKeepAlives: true,
-			DialContext:       dialer.DialContext,
-		},
-	}
-
-	//nolint:bodyclose // On success the caller is responsible for closing.
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, xerrors.Errorf("do upgrade request to %q: %w", apiURL, err)
-	}
-	if resp.StatusCode != http.StatusSwitchingProtocols {
-		_ = resp.Body.Close()
-		// Fall back to dialing the port directly.
-		return dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", opts.host, opts.tcpPort))
-	}
-
-	respBody := resp.Body
-	conn, ok := respBody.(io.ReadWriteCloser)
-	if !ok {
-		_ = respBody.Close()
-		return nil, xerrors.Errorf("response body is not a io.ReadWriteCloser: %T", respBody)
-	}
-
-	return conn, nil
 }
 
 type StdioRwc struct {

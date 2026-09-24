@@ -290,7 +290,17 @@ func (c *agentConn) SSH(ctx context.Context) (TCPConn, error) {
 
 	c.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSSH)
 
-	return c.dialTCPUpgrade(ctx, AgentStandardSSHPort)
+	c.headersMu.RLock()
+	extraHeaders := c.extraHeaders.Clone()
+	c.headersMu.RUnlock()
+
+	addr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
+	conn, err := DialTCPUpgrade(ctx, addr.String(), c.apiClient(ctx), extraHeaders, AgentStandardSSHPort)
+	if errors.Is(err, ErrAgentTCPUpgradeUnsupported) {
+		// Fall back to dialing the port directly.
+		return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentStandardSSHPort))
+	}
+	return conn, err
 }
 
 // SSHOnPort pipes the SSH protocol over the returned net.Conn.
@@ -360,11 +370,14 @@ type TCPConn interface {
 	CloseWrite() error
 }
 
-// dialTCPUpgrade dials the agent's /tcp HTTP endpoint so we can pass along the
-// client session ID via the baggage header.  The connection is then upgraded
-// into the desired connection type based on the port.
-func (c *agentConn) dialTCPUpgrade(ctx context.Context, port uint16) (TCPConn, error) {
-	addr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
+var ErrAgentTCPUpgradeUnsupported = xerrors.New("agent does not support the tcp upgrade endpoint")
+
+// DialTCPUpgrade dials the agent's /tcp HTTP endpoint which allows sending
+// extra data to the agent via headers.  These must include the client session
+// ID or the connection will be refused.  The agent will then upgrade the
+// connection based on the port.  Returns ErrAgentTCPUpgradeUnsupported if the
+// agent does not support the endpoint.
+func DialTCPUpgrade(ctx context.Context, addr string, client *http.Client, headers http.Header, port uint16) (TCPConn, error) {
 	apiURL := fmt.Sprintf("http://%s/api/v0/tcp/%d", addr, port)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
@@ -373,22 +386,19 @@ func (c *agentConn) dialTCPUpgrade(ctx context.Context, port uint16) (TCPConn, e
 	req.Header.Set("Connection", "Upgrade")
 	req.Header.Set("Upgrade", "tcp")
 
-	// The client session ID is found in the extra headers.
-	c.headersMu.RLock()
-	for k, v := range c.extraHeaders {
+	// The client session ID baggage is found in the extra headers.
+	for k, v := range headers {
 		req.Header[k] = v
 	}
-	c.headersMu.RUnlock()
 
 	//nolint:bodyclose // On success the caller is responsible for closing.
-	resp, err := c.apiClient(ctx).Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, xerrors.Errorf("do upgrade request to %q: %w", apiURL, err)
 	}
 	if resp.StatusCode != http.StatusSwitchingProtocols {
 		_ = resp.Body.Close()
-		// Fall back to dialing the port directly.
-		return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), port))
+		return nil, ErrAgentTCPUpgradeUnsupported
 	}
 
 	respBody := resp.Body
@@ -399,8 +409,10 @@ func (c *agentConn) dialTCPUpgrade(ctx context.Context, port uint16) (TCPConn, e
 	}
 
 	return &upgradedConn{
-		rawConn: conn,
-		addr:    upgradeAddr{addr: "ssh"},
+		rawConn:    conn,
+		remoteAddr: upgradeAddr{"tcp", addr},
+		// For now setting a fake local address.
+		localAddr: upgradeAddr{"ssh", "ssh"},
 	}, nil
 }
 
@@ -411,20 +423,22 @@ type rawConn interface {
 
 type upgradedConn struct {
 	rawConn
-	addr upgradeAddr
+	remoteAddr net.Addr
+	localAddr  net.Addr
 }
 
-func (u *upgradedConn) LocalAddr() net.Addr              { return u.addr }
-func (u *upgradedConn) RemoteAddr() net.Addr             { return u.addr }
+func (u *upgradedConn) LocalAddr() net.Addr              { return u.localAddr }
+func (u *upgradedConn) RemoteAddr() net.Addr             { return u.remoteAddr }
 func (*upgradedConn) SetDeadline(_ time.Time) error      { return nil }
 func (*upgradedConn) SetReadDeadline(_ time.Time) error  { return nil }
 func (*upgradedConn) SetWriteDeadline(_ time.Time) error { return nil }
 
 type upgradeAddr struct {
-	addr string
+	network string
+	addr    string
 }
 
-func (u upgradeAddr) Network() string { return u.addr }
+func (u upgradeAddr) Network() string { return u.network }
 func (u upgradeAddr) String() string  { return u.addr }
 
 // Speedtest runs a speedtest against the workspace agent.
