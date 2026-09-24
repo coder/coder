@@ -8,8 +8,8 @@ const meta: Meta<typeof ContextUsageIndicator> = {
 	args: {
 		onOpenDetails: fn(),
 		usage: {
-			usedTokens: 26_000,
-			contextLimitTokens: 1_100_000,
+			usedTokens: 211_400,
+			contextLimitTokens: 1_000_000,
 			compressionThreshold: 70,
 		},
 	},

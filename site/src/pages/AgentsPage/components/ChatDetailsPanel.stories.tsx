@@ -172,6 +172,18 @@ export const SnapshotError: Story = {
 	play: expandResources,
 };
 export const NoUsage: Story = { args: { usage: null }, play: expandResources };
+export const NoUsageCollapsed: Story = { args: NoUsage.args };
+export const UsageWithoutInventory: Story = {
+	args: { usage: { ...meta.args?.usage, context: undefined } },
+};
+export const UsageWithoutContextLimit: Story = {
+	args: { usage: { usedTokens: 26_000, context: MockChatContextClean } },
+	play: expandResources,
+};
+export const ZeroUsage: Story = {
+	args: { usage: { ...meta.args?.usage, usedTokens: 0 } },
+	play: expandResources,
+};
 export const EmptyContext: Story = {
 	args: { usage: { context: { ...MockChatContextClean, resources: [] } } },
 	play: expandResources,

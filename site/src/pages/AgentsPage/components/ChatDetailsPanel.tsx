@@ -277,7 +277,7 @@ const DetailsSections: FC<
 					count={
 						inventory.known
 							? `${inventory.files.length} ${inventory.files.length === 1 ? "file" : "files"}`
-							: "Unknown"
+							: undefined
 					}
 					compactContent={<ChatDetailsUsage usage={usage} compact />}
 				>
@@ -301,7 +301,7 @@ const DetailsSections: FC<
 					count={
 						inventory.known
 							? `${inventory.skills.length} ${inventory.skills.length === 1 ? "skill" : "skills"}`
-							: "Unknown"
+							: undefined
 					}
 				>
 					{inventory.skills.length === 0 && (
@@ -324,7 +324,7 @@ const DetailsSections: FC<
 								" of " +
 								inventory.servers.length +
 								" connected"
-							: "Unknown"
+							: undefined
 					}
 					warning={
 						inventory.connectedServers < inventory.servers.length ||

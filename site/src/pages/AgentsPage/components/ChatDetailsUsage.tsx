@@ -1,5 +1,8 @@
 import type { FC } from "react";
-import { formatContextTokenCount } from "../utils/contextUsage";
+import {
+	compactionThresholdLabel,
+	formatContextTokenCount,
+} from "../utils/contextUsage";
 import { compactionTriggerTokens } from "../utils/modelOptions";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 
@@ -9,35 +12,24 @@ export const ChatDetailsUsage: FC<{
 }> = ({ usage, compact = false }) => {
 	const used = usage?.usedTokens;
 	const limit = usage?.contextLimitTokens;
-	const percent =
-		used !== undefined &&
-		Number.isFinite(used) &&
-		used >= 0 &&
-		limit !== undefined &&
-		Number.isFinite(limit) &&
-		limit > 0
-			? (used / limit) * 100
-			: undefined;
+	const hasUsage = used !== undefined && Number.isFinite(used) && used >= 0;
+	const hasLimit = limit !== undefined && Number.isFinite(limit) && limit > 0;
+	const percent = hasUsage && hasLimit ? (used / limit) * 100 : undefined;
 	const percentLabel =
-		percent === undefined ? "Unknown" : `${Math.round(percent)}%`;
+		percent === undefined ? undefined : `${Math.round(percent)}%`;
 	const threshold = usage?.compressionThreshold;
-	const thresholdLabel =
-		threshold === undefined || !Number.isFinite(threshold)
-			? "Auto-compaction threshold unavailable"
-			: threshold === 100
-				? "Auto-compaction disabled"
-				: "Compacts at " +
-					(threshold < 0 || threshold > 100 ? 70 : threshold) +
-					"%";
+	const thresholdLabel = compactionThresholdLabel(threshold);
 	const trigger =
 		threshold !== undefined && limit !== undefined
 			? compactionTriggerTokens(limit, threshold)
 			: undefined;
-	const tokensLabel =
-		formatContextTokenCount(used) +
-		" of " +
-		formatContextTokenCount(limit) +
-		" tokens used";
+	const tokensLabel = hasUsage
+		? hasLimit
+			? `${formatContextTokenCount(used)} of ${formatContextTokenCount(limit)} tokens used.`
+			: `${formatContextTokenCount(used)} tokens used. Context window size unavailable.`
+		: hasLimit
+			? `Token usage unavailable. Context window: ${formatContextTokenCount(limit)} tokens.`
+			: "Token usage and context window size unavailable.";
 	const bar = (
 		<span
 			aria-hidden="true"
@@ -54,7 +46,7 @@ export const ChatDetailsUsage: FC<{
 		</span>
 	);
 	if (compact)
-		return (
+		return percent === undefined ? null : (
 			<span className="flex w-24 max-w-full items-center gap-2 text-xs font-normal text-content-secondary">
 				<span className="min-w-8 flex-1">{bar}</span>
 				<span>{percentLabel}</span>{" "}
@@ -69,13 +61,10 @@ export const ChatDetailsUsage: FC<{
 				<span>
 					{usage?.estimated ? "Estimated context usage" : "Context usage"}
 				</span>
-				<span>{percentLabel}</span>
+				{percentLabel && <span>{percentLabel}</span>}
 			</div>
-			{bar}
-			<p className="m-0 text-xs text-content-secondary">
-				{percent === undefined ? "Context usage unavailable. " : ""}
-				{tokensLabel}.
-			</p>
+			{percent !== undefined && bar}
+			<p className="m-0 text-xs text-content-secondary">{tokensLabel}</p>
 			<p className="m-0 text-xs text-content-secondary">
 				{thresholdLabel}
 				{trigger !== undefined && threshold !== 100

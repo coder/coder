@@ -1,5 +1,4 @@
 import type { AgentContextUsage } from "../components/ContextUsageIndicator";
-import { compactionTriggerTokens } from "./modelOptions";
 
 /** Formats context counts consistently in the ring and Details panel. */
 export const formatContextTokenCount = (
@@ -13,25 +12,32 @@ export const formatContextTokenCount = (
 	return `${Number((value / divisor).toFixed(1))}${divisor === 1_000_000 ? "M" : "K"}`;
 };
 
-/** Textual equivalent of the automatic-compaction budget, including unknown states. */
+/** Describes usage against the full context window, including unavailable data. */
 export const contextUsageLabel = (usage: AgentContextUsage | null): string => {
 	const used = usage?.usedTokens;
 	const hasUsage = used !== undefined && Number.isFinite(used) && used >= 0;
-	const threshold = usage?.compressionThreshold;
-	const trigger = compactionTriggerTokens(usage?.contextLimitTokens, threshold);
+	const limit = usage?.contextLimitTokens;
+	const hasLimit = limit !== undefined && Number.isFinite(limit) && limit > 0;
 	let label: string;
-	if (threshold === 100) {
-		label = hasUsage
-			? `${formatContextTokenCount(used, true)} tokens used; automatic compaction is disabled`
-			: "Context usage unavailable; automatic compaction is disabled";
-	} else if (!hasUsage) {
+	if (!hasUsage) {
 		label = "Context usage unavailable";
-	} else if (trigger === undefined) {
-		label = `${formatContextTokenCount(used, true)} tokens used; auto-compaction budget unavailable`;
+	} else if (!hasLimit) {
+		label = `${formatContextTokenCount(used, true)} tokens used; context window size unavailable`;
 	} else {
-		label = `${formatContextTokenCount(used, true)} of ${formatContextTokenCount(trigger, true)} before auto-compaction`;
+		const percent = Math.round((used / limit) * 100);
+		label = `${percent}% - ${formatContextTokenCount(used, true)} / ${formatContextTokenCount(limit, true)} context used`;
 	}
 	return usage?.estimated
 		? `${label} (estimated from compaction summary only)`
 		: label;
+};
+
+/** Describes whether and when automatic compaction is enabled. */
+export const compactionThresholdLabel = (
+	threshold: number | undefined,
+): string => {
+	if (threshold === undefined || !Number.isFinite(threshold))
+		return "Auto-compaction threshold unavailable";
+	if (threshold === 100) return "Auto-compaction disabled";
+	return `Compacts at ${threshold < 0 || threshold > 100 ? 70 : threshold}%`;
 };

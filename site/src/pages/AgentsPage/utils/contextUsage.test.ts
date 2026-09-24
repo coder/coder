@@ -1,46 +1,62 @@
 import { describe, expect, it } from "vitest";
-import { contextUsageLabel, formatContextTokenCount } from "./contextUsage";
+import {
+	compactionThresholdLabel,
+	contextUsageLabel,
+	formatContextTokenCount,
+} from "./contextUsage";
 
 describe("contextUsageLabel", () => {
-	it("uses the trigger budget instead of the full window", () => {
-		expect(
-			contextUsageLabel({
-				usedTokens: 26_000,
-				contextLimitTokens: 1_100_000,
-				compressionThreshold: 70,
-			}),
-		).toBe("26K of 770K before auto-compaction");
-	});
+	it.each([0, 70, 100, undefined])(
+		"uses the full window with a %s threshold",
+		(compressionThreshold) => {
+			expect(
+				contextUsageLabel({
+					usedTokens: 211_400,
+					contextLimitTokens: 1_000_000,
+					compressionThreshold,
+				}),
+			).toBe("21% - 211.4K / 1M context used");
+		},
+	);
 	it("does not invent missing numbers", () => {
 		expect(contextUsageLabel(null)).toBe("Context usage unavailable");
 		expect(contextUsageLabel({ usedTokens: 26_000 })).toBe(
-			"26K tokens used; auto-compaction budget unavailable",
+			"26K tokens used; context window size unavailable",
 		);
 		expect(contextUsageLabel({ usedTokens: Number.NaN })).toBe(
 			"Context usage unavailable",
 		);
-	});
-	it("qualifies disabled compaction, zero threshold, and estimates", () => {
-		expect(contextUsageLabel({ compressionThreshold: 100 })).toBe(
-			"Context usage unavailable; automatic compaction is disabled",
-		);
 		expect(
-			contextUsageLabel({
-				usedTokens: 0,
-				contextLimitTokens: 100,
-				compressionThreshold: 0,
-			}),
-		).toBe("0 of 1 before auto-compaction");
+			contextUsageLabel({ usedTokens: 26_000, contextLimitTokens: 0 }),
+		).toBe("26K tokens used; context window size unavailable");
+	});
+	it("preserves measured zero and qualifies estimates", () => {
+		expect(
+			contextUsageLabel({ usedTokens: 0, contextLimitTokens: 1_000 }),
+		).toBe("0% - 0 / 1K context used");
 		expect(
 			contextUsageLabel({
 				usedTokens: 350,
-				contextLimitTokens: 1000,
-				compressionThreshold: 70,
+				contextLimitTokens: 1_000,
 				estimated: true,
 			}),
 		).toBe(
-			"350 of 700 before auto-compaction (estimated from compaction summary only)",
+			"35% - 350 / 1K context used (estimated from compaction summary only)",
 		);
+	});
+});
+describe("compactionThresholdLabel", () => {
+	it.each([
+		[70, "Compacts at 70%"],
+		[0, "Compacts at 0%"],
+		[100, "Auto-compaction disabled"],
+		[-1, "Compacts at 70%"],
+		[101, "Compacts at 70%"],
+		[undefined, "Auto-compaction threshold unavailable"],
+		[Number.NaN, "Auto-compaction threshold unavailable"],
+		[Number.POSITIVE_INFINITY, "Auto-compaction threshold unavailable"],
+	])("describes the %s threshold", (threshold, expected) => {
+		expect(compactionThresholdLabel(threshold)).toBe(expected);
 	});
 });
 describe("formatContextTokenCount", () => {

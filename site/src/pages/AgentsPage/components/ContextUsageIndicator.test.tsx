@@ -18,7 +18,7 @@ describe("ContextUsageIndicator", () => {
 		);
 		await user.tab();
 		const trigger = screen.getByRole("button", {
-			name: "Context usage: 26K of 770K before auto-compaction",
+			name: "Context usage: 2% - 26K / 1.1M context used; Compacts at 70%",
 		});
 		expect(trigger).toHaveFocus();
 		await user.keyboard("{Enter}");

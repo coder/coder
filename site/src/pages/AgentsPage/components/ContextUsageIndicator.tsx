@@ -7,7 +7,10 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { contextUsageLabel } from "../utils/contextUsage";
+import {
+	compactionThresholdLabel,
+	contextUsageLabel,
+} from "../utils/contextUsage";
 import { SvgRingProgress } from "./SvgRingProgress";
 
 export type AgentContextUsage = {
@@ -37,6 +40,7 @@ export const ContextUsageIndicator: FC<{
 	const suppressFocusOpen = useRef(false);
 	const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const label = contextUsageLabel(usage);
+	const thresholdLabel = compactionThresholdLabel(usage?.compressionThreshold);
 	const used = usage?.usedTokens;
 	const limit = usage?.contextLimitTokens;
 	const percent =
@@ -87,7 +91,7 @@ export const ContextUsageIndicator: FC<{
 				<button
 					type="button"
 					ref={triggerRef}
-					aria-label={`Context usage: ${label}`}
+					aria-label={`Context usage: ${label}; ${thresholdLabel}`}
 					className={cn(
 						"flex size-8 shrink-0 items-center justify-center rounded-full border-0 bg-transparent p-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-content-link forced-colors:text-[ButtonText]",
 						percent >= 95
@@ -148,7 +152,10 @@ export const ContextUsageIndicator: FC<{
 						triggerRef.current?.focus();
 				}}
 			>
-				<span className="min-w-0">{label}</span>
+				<div className="flex min-w-0 flex-col gap-1">
+					<span>{label}</span>
+					<span className="text-content-secondary">{thresholdLabel}</span>
+				</div>
 				<Button
 					variant="subtle"
 					size="sm"
