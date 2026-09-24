@@ -96,9 +96,9 @@ If client authentication fails, the token endpoint returns **HTTP 401** with an 
 
 ## PKCE flow (required)
 
-PKCE is **required** for all OAuth2 authorization code flows. Coder enforces
-PKCE in compliance with the OAuth 2.1 specification. Both public and
-confidential clients must include PKCE parameters:
+PKCE is **required** for all OAuth2 authorization code flows.
+Coder enforces PKCE in compliance with the OAuth 2.1 specification.
+Both public and confidential clients must include PKCE parameters:
 
 > [!NOTE]
 > `code_verifier` and `code_challenge` must each be 43-128 characters from
