@@ -57,10 +57,7 @@ describe("getAttributeFilterOptions", () => {
 			canFilterDormant: false,
 		});
 
-		expect(options.map((option) => option.token)).toEqual([
-			"outdated:true",
-			"shared:true",
-		]);
+		expect(options.map((option) => option.token)).toEqual(["outdated:true"]);
 	});
 
 	it("shows the dormant attribute with the entitlement", async () => {
@@ -71,7 +68,6 @@ describe("getAttributeFilterOptions", () => {
 		expect(options.map((option) => option.token)).toEqual([
 			"outdated:true",
 			"dormant:true",
-			"shared:true",
 		]);
 	});
 

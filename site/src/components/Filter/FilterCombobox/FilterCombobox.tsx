@@ -21,6 +21,12 @@ import {
 	InputGroupAddon,
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
+import { Switch } from "#/components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
@@ -97,12 +103,16 @@ export function FilterCombobox({
 		statusMessage,
 		listedCategories,
 		filteringCategories,
+		scopeMatchKey,
 		browseCategoryOptions,
 		valueSuggestions,
 		inlineOptions,
 		mainInlineOptions,
 		chipValues,
 		highlightedItem,
+		scopeWidened,
+		scopeValue,
+		optionChipKey,
 		typeaheadError,
 		actions,
 	} = useFilterCombobox({
@@ -132,6 +142,15 @@ export function FilterCombobox({
 		flyout.menuOpen === open ? flyout.categoryKey : null;
 	const setFlyoutCategoryKey = (categoryKey: string | null) =>
 		setFlyout({ categoryKey, menuOpen: open });
+	// Typing a scope toggle label (e.g. `shared`) opens that category's flyout
+	// while its row is highlighted, so the toggle is visible.
+	const shownFlyoutKey =
+		flyoutCategoryKey ??
+		(!isCoarsePointer &&
+		scopeMatchKey !== null &&
+		highlightedItem === scopeMatchKey
+			? scopeMatchKey
+			: null);
 	const categoryRows = useRef(new Map<string, HTMLDivElement>());
 	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const cancelHoverSwitch = () => {
@@ -171,7 +190,7 @@ export function FilterCombobox({
 	};
 	// Side panels align with the row that opened them. Measured after commit so
 	// keyboard-entered categories line up too, not only pointer-hovered ones.
-	const panelCategoryKey = activeCategoryKey ?? flyoutCategoryKey;
+	const panelCategoryKey = activeCategoryKey ?? shownFlyoutKey;
 	const [panelOffset, setPanelOffset] = useState(0);
 	useLayoutEffect(() => {
 		setPanelOffset(
@@ -194,16 +213,22 @@ export function FilterCombobox({
 		updateFlyoutCategory(isCategoryRow ? highlighted : null, !isCategoryRow);
 	};
 	const flyoutCategory = categories.find(
-		(category) => category.key === flyoutCategoryKey,
+		(category) => category.key === shownFlyoutKey,
 	);
 	// Typed text narrows the category rows, so a click enters the category like
-	// Enter does instead of opening a flyout.
+	// Enter does and only a scope match gets a flyout.
 	const flyoutOptions =
 		activeCategoryKey === null &&
-		flyoutCategoryKey !== null &&
-		!filteringCategories
-			? browseCategoryOptions.get(flyoutCategoryKey)
+		shownFlyoutKey !== null &&
+		(!filteringCategories || shownFlyoutKey === scopeMatchKey)
+			? browseCategoryOptions.get(shownFlyoutKey)
 			: undefined;
+	// Toggling clears text typed to find the category, so the flyout is pinned
+	// open explicitly rather than through the scope match.
+	const toggleFlyoutScope = (categoryKey: string) => {
+		setFlyoutCategoryKey(categoryKey);
+		actions.toggleScope(categoryKey);
+	};
 	const selectFlyoutOption = (token: string) => {
 		actions.selectCategoryOption(token);
 		updateFlyoutCategory(null, true);
@@ -214,6 +239,17 @@ export function FilterCombobox({
 		actions.selectCategory(categoryKey);
 	};
 
+	const scopeFor = (categoryKey: string): ScopeState | undefined => {
+		const toggle = categories.find(
+			(category) => category.key === categoryKey,
+		)?.scopeToggle;
+		return toggle
+			? {
+					widened: scopeWidened(categoryKey),
+					label: toggle.label(scopeValue(categoryKey)),
+				}
+			: undefined;
+	};
 	const mainPanelProps = {
 		listedCategories,
 		valueSuggestions,
@@ -236,7 +272,9 @@ export function FilterCombobox({
 				optionsError={activeOptionsError}
 				previewCount={browseCategoryOptions.get(activeCategoryKey)?.length}
 				selectedTokens={chipValues}
-				chipKey={activeCategoryKey}
+				chipKey={optionChipKey(activeCategoryKey)}
+				scope={scopeFor(activeCategoryKey)}
+				onToggleScope={actions.toggleScope}
 				searchValue={inputValue}
 				onSearchChange={actions.onInputValueChange}
 				onRetry={actions.retryActiveOptions}
@@ -310,11 +348,23 @@ export function FilterCombobox({
 						<SearchIcon aria-hidden className="size-icon-sm" />
 					</InputGroupAddon>
 					<FilterComboboxChips>
-						{chipValues.map((token) => {
+						{chipValues.map((token, index) => {
 							const display = chipDisplay(token, categories);
 							const category = categories.find(
 								(entry) => entry.key === display.key,
 							);
+							// The scope pill follows the last chip its category owns.
+							const scopePillLabel =
+								category?.scopeToggle &&
+								scopeWidened(category.key) &&
+								!chipValues
+									.slice(index + 1)
+									.some(
+										(later) =>
+											chipDisplay(later, categories).key === category.key,
+									)
+									? category.scopeToggle.pillLabel.toLowerCase()
+									: undefined;
 							const labelOnly = category?.inlineOptionsLabelOnly === true;
 							const inlineOption = labelOnly
 								? mainInlineOptions.find(
@@ -333,14 +383,47 @@ export function FilterCombobox({
 							).toLowerCase();
 							const displayText = prefix ? chipToken(prefix, value) : value;
 							return (
-								<FilterComboboxChip
-									key={token}
-									value={token}
-									removeLabel={`Remove ${displayText}`}
-									className={cn(labelOnly && labelOnlyChipClassName)}
-								>
-									<ChipLabel prefix={prefix} value={value} />
-								</FilterComboboxChip>
+								<span key={token} className="inline-flex min-w-0 max-w-full">
+									<FilterComboboxChip
+										value={token}
+										removeLabel={`Remove ${displayText}`}
+										className={cn(
+											labelOnly && labelOnlyChipClassName,
+											scopePillLabel && "rounded-r-none",
+										)}
+									>
+										<ChipLabel prefix={prefix} value={value} />
+									</FilterComboboxChip>
+									{/* Joined to its chip, since it widens that chip's filter. */}
+									{category && scopePillLabel && (
+										<FilterComboboxChip
+											removeLabel={`Remove ${scopePillLabel}`}
+											onRemove={() => actions.toggleScope(category.key)}
+											// Only the pill shrinks, so the pair never overflows the field.
+											className={cn(
+												labelOnlyChipClassName,
+												"min-w-0 rounded-l-none border-l-surface-primary",
+											)}
+										>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<span className="min-w-0 truncate">
+														{scopePillLabel}
+													</span>
+												</TooltipTrigger>
+												<TooltipContent>
+													{splitIntoTwoLines(
+														scopeFor(category.key)?.label ?? "",
+													).map((line) => (
+														<span key={line} className="block">
+															{line}
+														</span>
+													))}
+												</TooltipContent>
+											</Tooltip>
+										</FilterComboboxChip>
+									)}
+								</span>
 							);
 						})}
 						{chipValues.length >= CLEAR_ALL_MIN_CHIPS && (
@@ -443,7 +526,9 @@ export function FilterCombobox({
 										offset={panelOffset}
 										options={flyoutOptions}
 										selectedTokens={chipValues}
-										chipKey={flyoutCategory.key}
+										chipKey={optionChipKey(flyoutCategory.key)}
+										scope={scopeFor(flyoutCategory.key)}
+										onToggleScope={toggleFlyoutScope}
 										onMouseEnter={cancelHoverSwitch}
 										onSelectOption={selectFlyoutOption}
 									/>
@@ -722,6 +807,68 @@ function FlyoutSearch({ label, value, onChange }: FlyoutSearchProps) {
 	);
 }
 
+type ScopeState = Readonly<{ widened: boolean; label: string }>;
+
+/**
+ * Splits text at the space nearest its middle, so a tooltip shows it as two
+ * even lines and sizes to the longer one.
+ */
+function splitIntoTwoLines(text: string): string[] {
+	const middle = text.length / 2;
+	let splitAt = -1;
+	for (
+		let index = text.indexOf(" ");
+		index !== -1;
+		index = text.indexOf(" ", index + 1)
+	) {
+		if (
+			splitAt === -1 ||
+			Math.abs(index - middle) < Math.abs(splitAt - middle)
+		) {
+			splitAt = index;
+		}
+	}
+	return splitAt === -1
+		? [text]
+		: [text.slice(0, splitAt), text.slice(splitAt + 1)];
+}
+
+type FlyoutScopeToggleProps = Readonly<{
+	categoryKey: string;
+	label: string;
+	checked: boolean;
+	onToggle: (categoryKey: string) => void;
+}>;
+
+function FlyoutScopeToggle({
+	categoryKey,
+	label,
+	checked,
+	onToggle,
+}: FlyoutScopeToggleProps) {
+	const id = useId();
+	return (
+		<div className="-mx-2 -mb-2 mt-2 flex items-start gap-2 border-t border-border px-3 py-2.5">
+			<Switch
+				id={id}
+				size="sm"
+				className="shrink-0"
+				checked={checked}
+				onCheckedChange={() => onToggle(categoryKey)}
+				// Keep focus in the combobox input so keyboard navigation continues.
+				onMouseDown={(event) => event.preventDefault()}
+			/>
+			{/* Zero basis so the label wraps to the panel width set by the list. */}
+			<label
+				htmlFor={id}
+				className="w-0 min-w-0 flex-1 text-xs text-content-secondary"
+			>
+				{label}
+			</label>
+		</div>
+	);
+}
+
 type OptionsPanelProps = Readonly<{
 	category: FilterCategory | undefined;
 	/** Rendered inside the mobile panel instead of beside the main menu. */
@@ -730,18 +877,22 @@ type OptionsPanelProps = Readonly<{
 	/** Shown above the options when the category is searchable. */
 	search?: { value: string; onChange: (value: string) => void };
 	empty: boolean;
+	scope: ScopeState | undefined;
+	onToggleScope: (categoryKey: string) => void;
 	onMouseEnter?: () => void;
 	children: ReactNode;
 }>;
 
-// Shared shell for a category's options: search header, scrolling list, and
-// empty state.
+// Shared shell for a category's options: search header, scrolling list, empty
+// state, and scope toggle footer.
 function OptionsPanel({
 	category,
 	embedded = false,
 	offset,
 	search,
 	empty,
+	scope,
+	onToggleScope,
 	onMouseEnter,
 	children,
 }: OptionsPanelProps) {
@@ -753,6 +904,7 @@ function OptionsPanel({
 			className={cn(
 				flyoutPanelClassName,
 				"p-2",
+				scope && "sm:min-w-60",
 				embedded &&
 					"min-h-0 flex-1 w-full rounded-none border-0 bg-transparent p-0 shadow-none",
 			)}
@@ -774,6 +926,14 @@ function OptionsPanel({
 			)}
 			{children}
 			{empty && <NoMatchingOptions />}
+			{category && scope && (
+				<FlyoutScopeToggle
+					categoryKey={category.key}
+					label={scope.label}
+					checked={scope.widened}
+					onToggle={onToggleScope}
+				/>
+			)}
 		</div>
 	);
 }
@@ -784,6 +944,8 @@ type HoverCategoryPanelProps = Readonly<{
 	options: readonly FilterOption[];
 	selectedTokens: readonly string[];
 	chipKey: string;
+	scope: ScopeState | undefined;
+	onToggleScope: (categoryKey: string) => void;
 	onMouseEnter: () => void;
 	onSelectOption: (token: string) => void;
 }>;
@@ -794,6 +956,8 @@ function HoverCategoryPanel({
 	options,
 	selectedTokens,
 	chipKey,
+	scope,
+	onToggleScope,
 	onMouseEnter,
 	onSelectOption,
 }: HoverCategoryPanelProps) {
@@ -832,6 +996,8 @@ function HoverCategoryPanel({
 			offset={offset}
 			search={searchable ? { value: query, onChange: setQuery } : undefined}
 			empty={filteredOptions.length === 0}
+			scope={scope}
+			onToggleScope={onToggleScope}
 			onMouseEnter={onMouseEnter}
 		>
 			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
@@ -874,6 +1040,8 @@ type CategoryOptionsListProps = Readonly<{
 	previewCount: number | undefined;
 	selectedTokens: readonly string[];
 	chipKey: string;
+	scope: ScopeState | undefined;
+	onToggleScope: (categoryKey: string) => void;
 	searchValue: string;
 	onSearchChange: (value: string) => void;
 	onRetry: () => void;
@@ -889,6 +1057,8 @@ function CategoryOptionsList({
 	previewCount,
 	selectedTokens,
 	chipKey,
+	scope,
+	onToggleScope,
 	searchValue,
 	onSearchChange,
 	onRetry,
@@ -934,6 +1104,8 @@ function CategoryOptionsList({
 					: undefined
 			}
 			empty={options?.length === 0}
+			scope={scope}
+			onToggleScope={onToggleScope}
 		>
 			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
 				{options?.map((option) => {
