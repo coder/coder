@@ -231,14 +231,6 @@
 					{
 						"group": ["**/e2e", "**/e2e/**"],
 						"message": "Application code must never import from the Playwright e2e suite."
-					},
-					// React types start with an uppercase letter, so restrict
-					// uppercase imports from "react" except its uppercase runtime
-					// exports. Keep in sync with the src/components override below.
-					{
-						"regex": "^react$",
-						"allowImportNamePattern": "^(?:[^A-Z].*|Activity|Children|Component|Fragment|Profiler|PureComponent|StrictMode|Suspense)$",
-						"message": "Use the global React namespace for types, e.g. React.FC, instead of importing them."
 					}
 				]
 			}
@@ -248,6 +240,9 @@
 			"error",
 			{
 				"types": {
+					"FC": {
+						"message": "Use React.FC instead."
+					},
 					"ComponentPropsWithRef": {
 						"message": "Use ComponentProps instead. Under React 19 it already includes ref."
 					},
@@ -309,13 +304,6 @@
 							{
 								"group": ["**/modules", "**/modules/**"],
 								"message": "components/ must not import from modules/. Maintain imports from other components/."
-							},
-							// Overrides replace the rule's options rather than merging
-							// them, so the React types pattern is repeated here.
-							{
-								"regex": "^react$",
-								"allowImportNamePattern": "^(?:[^A-Z].*|Activity|Children|Component|Fragment|Profiler|PureComponent|StrictMode|Suspense)$",
-								"message": "Use the global React namespace for types, e.g. React.FC, instead of importing them."
 							}
 						]
 					}
