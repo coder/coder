@@ -4038,3 +4038,84 @@ func testMigration000583ChatModelOverrideOrgScope(t *testing.T, db *sql.DB) {
 	_, err = db.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
 }
+
+// Migration 000599 makes redirect_uris the source of truth for an OAuth2
+// app's redirect URIs, with the callback as the first entry. Every row shape
+// the column could hold before the migration must come out with the callback
+// first and nothing lost, and running the statement again must change
+// nothing.
+func TestMigration000599OAuth2RedirectURIsPrimary(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 599
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	const (
+		callback = "https://app.example.com/callback"
+		other    = "https://other.example.com/callback"
+		third    = "https://third.example.com/callback"
+	)
+	rows := []struct {
+		name   string
+		id     uuid.UUID
+		before pq.StringArray
+		after  pq.StringArray
+	}{
+		{name: "null-list", id: uuid.New(), before: nil, after: pq.StringArray{callback}},
+		{name: "empty-list", id: uuid.New(), before: pq.StringArray{}, after: pq.StringArray{callback}},
+		{name: "callback-first", id: uuid.New(), before: pq.StringArray{callback, other}, after: pq.StringArray{callback, other}},
+		{name: "callback-absent", id: uuid.New(), before: pq.StringArray{other, third}, after: pq.StringArray{callback, other, third}},
+		{name: "callback-second", id: uuid.New(), before: pq.StringArray{other, callback}, after: pq.StringArray{callback, other}},
+	}
+	for _, row := range rows {
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url, redirect_uris)
+			VALUES ($1, $2, $2, $3, '', $4, $5)
+		`, row.id, now, row.name, callback, row.before)
+		require.NoError(t, err, row.name)
+	}
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	assertRows := func() {
+		t.Helper()
+		for _, row := range rows {
+			var got pq.StringArray
+			var callbackURL string
+			err := sqlDB.QueryRowContext(ctx, `
+				SELECT redirect_uris, callback_url FROM oauth2_provider_apps WHERE id = $1
+			`, row.id).Scan(&got, &callbackURL)
+			require.NoError(t, err, row.name)
+			require.Equal(t, row.after, got, row.name)
+			require.Equal(t, callback, callbackURL, row.name)
+		}
+	}
+	assertRows()
+
+	// Running the statement again must be a no-op.
+	upSQL, err := os.ReadFile("000599_oauth2_redirect_uris_primary.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	assertRows()
+}

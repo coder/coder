@@ -19345,6 +19345,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	secondGroup := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
 	otherOrg := dbgen.Organization(t, db, database.Organization{})
 	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
 
@@ -19373,7 +19374,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 	for _, u := range []usage{
 		// alice: 1500 priced plus one unpriced usage without a recorded client.
 		{user: alice, group: inGroup, at: start, providerName: "anthropic-prod", model: "claude", client: vscode, cost: priced(1000)},
-		{user: alice, group: inGroup, at: start.Add(time.Hour), providerName: "openai-prod", model: "gpt-4", cost: priced(500)},
+		{user: alice, group: uuid.NullUUID{UUID: secondGroup.ID, Valid: true}, at: start.Add(time.Hour), providerName: "openai-prod", model: "gpt-4", cost: priced(500)},
 		{user: alice, group: inGroup, at: start.Add(2 * time.Hour), providerName: "openai-prod", model: "gpt-4o"},
 		// bob: the most expensive user.
 		{user: bob, group: inGroup, at: start.Add(time.Hour), providerName: "anthropic-prod", model: "claude", client: cursor, cost: priced(3000)},

@@ -48,6 +48,9 @@ This page covers Visual Studio Code, Cursor, Windsurf, JetBrains, Vim, the web t
 Operators provisioning the workspace template should refer to the template configuration page.
 ```
 
+*Documentation-only.
+No Vale rule.*
+
 ## Pick one outcome per page
 
 The outcome is the specific task, or the small set of related tasks, the page helps the reader accomplish.
@@ -82,6 +85,9 @@ For Google Workspace, refer to [Configure SSO with Google Workspace](./sso-googl
 This page covers OIDC providers (Okta, Azure AD, Google Workspace, generic OIDC),
 SAML providers, GitHub OAuth, password authentication, and the API token model.
 ```
+
+*Documentation-only.
+No Vale rule.*
 
 ## Hub pages and category landing pages
 
@@ -134,6 +140,9 @@ The Do example routes them to the right page in 4 lines.
 A hub page doesn't need every link to be a direct child page in the file tree.
 Cross-references to sibling sections of the docs are valid when that's where the reader's next step lives.
 
+*Documentation-only.
+No Vale rule.*
+
 ## Declare audience and scope up front
 
 The first paragraph of the page names the audience and the outcome.
@@ -176,6 +185,9 @@ The body doesn't name an audience.
 If the page is a hub that routes the reader, use the pattern in [Hub pages and category landing pages](#hub-pages-and-category-landing-pages).
 If the page teaches a single outcome, rename the title and rewrite the opening paragraph.
 
+*Documentation-only.
+No Vale rule.*
+
 ### Gate privileged pages with a prerequisite callout
 
 Some pages walk through steps that only one role should run.
@@ -196,6 +208,9 @@ This guide is for a Coder deployment administrator who has access to both the Co
 ```
 
 The prerequisite callout uses the role the reader recognizes (`Coder deployment administrator`), not the writer-facing persona name (`Perry the Platform Engineer`).
+
+*Documentation-only.
+No Vale rule.*
 
 ## Give the audience only what it needs
 
@@ -229,6 +244,9 @@ On a Quickstart that walked the same reader through starting the server, the rea
 
 A page may assume a persona, as long as it knows which persona it assumes and matches its depth and its caveats to what that persona can already do.
 This is the complement of [gating privileged pages](#gate-privileged-pages-with-a-prerequisite-callout): add a prerequisite callout when the reader might be the wrong role, and cut wrong-role caveats when the audience is, by definition, the right role.
+
+*Documentation-only.
+No Vale rule.*
 
 ## Personas the Coder docs serve
 
@@ -343,9 +361,6 @@ They aren't the platform owner.
 They run their team inside the guardrails Perry or Ada set up.
 
 *Coder surface:* groups, group memberships, group-owned secrets, group-scoped templates, group audit logs.
-
-*Documentation-only.
-No Vale rule.*
 
 ## Learn more
 

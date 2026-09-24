@@ -296,7 +296,7 @@ fi
 # docs-preview.yaml: keep non-removed docs/*.md outside docs/.style/,
 # emitting <filename>\t<sha>.
 filter_changed_files() {
-	jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.md$")) | select((.filename | test("^docs/\\.style/")) | not) | [.filename, .sha] | @tsv'
+	jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.md$")) | select((.filename | test("^docs/\\.style/")) | not) | select((.filename | test("^docs/reference/")) | not) | [.filename, .sha] | @tsv'
 }
 
 files_fixture='[
@@ -306,14 +306,29 @@ files_fixture='[
   {"filename":"docs/.style/word-list.txt","sha":"ddd","status":"modified"},
   {"filename":"docs/images/diagram.png","sha":"eee","status":"added"},
   {"filename":"site/README.md","sha":"fff","status":"modified"},
-  {"filename":"docs/.style/rules.md","sha":"ggg","status":"modified"}
+  {"filename":"docs/.style/rules.md","sha":"ggg","status":"modified"},
+  {"filename":"docs/reference/cli/whoami.md","sha":"hhh","status":"modified"}
 ]'
 actual_changed=$(printf '%s' "$files_fixture" | filter_changed_files | LC_ALL=C sort | tr '\n' '|')
 expected_changed="$(printf 'docs/admin/index.md\taaa\ndocs/ai-coder/tasks.md\tbbb\n' | tr '\n' '|')"
 if [ "$actual_changed" = "$expected_changed" ]; then
-	echo "PASS: filter_changed_files (removed/.style/non-md/non-docs excluded)"
+	echo "PASS: filter_changed_files (removed/.style/reference/non-md/non-docs excluded)"
 else
 	echo "FAIL: filter_changed_files -> \"$actual_changed\" (expected \"$expected_changed\")"
+	failures=$((failures + 1))
+fi
+
+# filter_reference_files: the pages excluded above, logged instead of dropped.
+filter_reference_files() {
+	jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/reference/.*\\.md$")) | [.filename, .sha] | @tsv'
+}
+
+actual_reference=$(printf '%s' "$files_fixture" | filter_reference_files | LC_ALL=C sort | tr '\n' '|')
+expected_reference="$(printf 'docs/reference/cli/whoami.md\thhh\n' | tr '\n' '|')"
+if [ "$actual_reference" = "$expected_reference" ]; then
+	echo "PASS: filter_reference_files (only generated reference pages, removed excluded)"
+else
+	echo "FAIL: filter_reference_files -> \"$actual_reference\" (expected \"$expected_reference\")"
 	failures=$((failures + 1))
 fi
 

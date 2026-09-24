@@ -51,7 +51,6 @@ export const emptyInputStorageKey = "agents.empty-input";
 export const selectedOrganizationIdStorageKey =
 	"agents.selected-organization-id";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 export type CreateChatOptions = {
 	message: string;
@@ -162,9 +161,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		submitDraft,
 		resetDraft,
 	} = useEmptyStateDraft();
-	const [initialLastModelConfigID] = useState(() => {
-		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
-	});
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
 	// filtered workspace list without deleting it. Preserve the stored value
 	// because the permitted-organizations query may resolve after mount and
@@ -314,13 +310,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const modelConfigs = availableModelConfigs;
 	/*
 	 * Model precedence: user click > root override (specific model) > root
-	 * override (chat_default, resolved) > last-used > default > first available.
+	 * override (chat_default, resolved) > default > first available.
 	 */
-	const lastUsedModelID =
-		initialLastModelConfigID &&
-		modelOptions.some((option) => option.id === initialLastModelConfigID)
-			? initialLastModelConfigID
-			: "";
 	const defaultModelID = getUsableDefaultModelIDForOrganization(
 		modelConfigs,
 		modelOptions,
@@ -343,8 +334,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const rootOverrideDisplayModelID = isRootOverrideChatDefault
 		? defaultModelID || (modelOptions[0]?.id ?? "")
 		: rootOverrideModelID;
-	const fallbackModelID =
-		lastUsedModelID || defaultModelID || (modelOptions[0]?.id ?? "");
+	const fallbackModelID = defaultModelID || (modelOptions[0]?.id ?? "");
 	const preferredModelID = rootOverrideDisplayModelID || fallbackModelID;
 	const [userSelectedModel, setUserSelectedModel] = useState("");
 	const [hasUserSelectedModel, setHasUserSelectedModel] = useState(false);
