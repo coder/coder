@@ -12,11 +12,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestThinkingBinding_RetriesOnceWithDropBlock(t *testing.T) {
+func TestThinkingBinding_RetriesWithDropBlock(t *testing.T) {
 	t.Parallel()
 
 	type dropBlockSent struct {
@@ -41,7 +40,7 @@ func TestThinkingBinding_RetriesOnceWithDropBlock(t *testing.T) {
 		})
 		n := len(sent)
 		mu.Unlock()
-		if n == 2 {
+		if n == 4 {
 			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("ok")...)
 		}
 		return chattest.AnthropicResponse{Error: &chattest.ErrorResponse{
@@ -55,20 +54,16 @@ func TestThinkingBinding_RetriesOnceWithDropBlock(t *testing.T) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 	})
 
-	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
-	latest := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-	require.False(t, latest.LastError.Valid)
-
-	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:    chat.ID,
-		CreatedBy: user.ID,
-		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("again")},
-	})
-	require.NoError(t, err)
-	latest = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
-	require.True(t, latest.LastError.Valid)
+	// The first chat's retry fails, so the second chat still starts
+	// without drop_block. Its retry succeeds, so the third chat sends
+	// drop_block upfront and does not retry.
+	for _, want := range []database.ChatStatus{database.ChatStatusError, database.ChatStatusWaiting, database.ChatStatusError} {
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+		waitForChatStatus(ctx, t, db, chat.ID, want)
+	}
 
 	mu.Lock()
 	defer mu.Unlock()
-	require.Equal(t, []dropBlockSent{{}, {beta: true, field: true}, {beta: true, field: true}}, sent)
+	withDropBlock := dropBlockSent{beta: true, field: true}
+	require.Equal(t, []dropBlockSent{{}, withDropBlock, {}, withDropBlock, withDropBlock}, sent)
 }
