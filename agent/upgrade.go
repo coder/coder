@@ -66,7 +66,7 @@ func (ln *httpUpgradeListener) handler(rw http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	port, err := strconv.ParseUint(chi.URLParam(r, "port"), 10, 16)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Invalid port",
 			Detail:  err.Error(),
 		})
@@ -75,7 +75,7 @@ func (ln *httpUpgradeListener) handler(rw http.ResponseWriter, r *http.Request) 
 
 	supported := []uint64{workspacesdk.AgentStandardSSHPort}
 	if !slices.Contains(supported, port) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Unsupported port for upgrading",
 			Detail:  fmt.Sprintf("Supported ports: %v", supported),
 		})
