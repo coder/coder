@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +19,16 @@ const (
 	syntheticAPIKeyLifetime    = 30 * 24 * time.Hour
 	syntheticAPIKeyRenewMargin = 24 * time.Hour
 )
+
+var syntheticAPIKeyScopes = database.APIKeyScopes{
+	database.ApiKeyScopeApiKeyRead,
+	database.ApiKeyScopeChatModelConfigUse,
+	database.ApiKeyScopeAIGatewayUnrestrictedUse,
+}
+
+func syntheticAPIKeyScopesMatch(scopes database.APIKeyScopes) bool {
+	return slices.Equal(scopes, syntheticAPIKeyScopes)
+}
 
 // GatewayTokenName returns the deterministic token name of the synthetic
 // gateway key for a user. The name is the lookup key: no mapping table exists,
@@ -38,10 +49,10 @@ func (p *Server) ensureSyntheticAPIKeyID(ctx context.Context, ownerID uuid.UUID)
 		UserID:    ownerID,
 		TokenName: GatewayTokenName(ownerID),
 	})
-	switch {
-	case err == nil && key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)):
+	if err == nil && syntheticAPIKeyScopesMatch(key.Scopes) && key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)) {
 		return key.ID, nil
-	case err != nil && !xerrors.Is(err, sql.ErrNoRows):
+	}
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return "", xerrors.Errorf("get synthetic API key: %w", err)
 	}
 	return p.mintSyntheticAPIKey(ctx, ownerID)
@@ -64,20 +75,26 @@ func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (st
 			TokenName: tokenName,
 		})
 		if err == nil {
-			keyID = key.ID
-			if key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)) {
+			if syntheticAPIKeyScopesMatch(key.Scopes) {
+				keyID = key.ID
+				if key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)) {
+					return nil
+				}
+				err = tx.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
+					ID:        key.ID,
+					LastUsed:  key.LastUsed,
+					ExpiresAt: p.clock.Now().Add(syntheticAPIKeyLifetime),
+					IPAddress: key.IPAddress,
+				})
+				if err != nil {
+					return xerrors.Errorf("extend synthetic API key: %w", err)
+				}
 				return nil
 			}
-			err = tx.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
-				ID:        key.ID,
-				LastUsed:  key.LastUsed,
-				ExpiresAt: p.clock.Now().Add(syntheticAPIKeyLifetime),
-				IPAddress: key.IPAddress,
-			})
-			if err != nil {
-				return xerrors.Errorf("extend synthetic API key: %w", err)
+			if err := tx.DeleteAPIKeyByID(ctx, key.ID); err != nil {
+				return xerrors.Errorf("delete legacy synthetic API key: %w", err)
 			}
-			return nil
+			err = sql.ErrNoRows
 		}
 		if !xerrors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("get synthetic API key: %w", err)
@@ -93,10 +110,9 @@ func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (st
 			ExpiresAt:       p.clock.Now().Add(syntheticAPIKeyLifetime),
 			LifetimeSeconds: int64(syntheticAPIKeyLifetime.Seconds()),
 			TokenName:       tokenName,
-			// The key only attributes gateway requests; the secret is
-			// discarded, so it is never usable as a bearer credential. The
-			// minimal scope is defense in depth on top of that.
-			Scopes: database.APIKeyScopes{database.ApiKeyScopeApiKeyRead},
+			// The secret is discarded; delegated Gateway requests use the ID.
+			// Scopes permit model use, still constrained by the owner's roles.
+			Scopes: syntheticAPIKeyScopes,
 		})
 		if err != nil {
 			return xerrors.Errorf("generate synthetic API key: %w", err)

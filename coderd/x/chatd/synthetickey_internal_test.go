@@ -25,6 +25,31 @@ func getGatewayKey(ctx context.Context, db database.Store, userID uuid.UUID) (da
 	})
 }
 
+func TestSyntheticAPIKeyUpgradesLegacyScopes(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	legacy, _ := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		LoginType: user.LoginType,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+		Scopes:    database.APIKeyScopes{database.ApiKeyScopeApiKeyRead},
+		TokenName: GatewayTokenName(user.ID),
+	})
+	server := &Server{db: db, clock: quartz.NewReal()}
+
+	keyID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
+	require.NoError(t, err)
+	require.NotEqual(t, legacy.ID, keyID)
+
+	upgraded, err := db.GetAPIKeyByID(t.Context(), keyID)
+	require.NoError(t, err)
+	require.Equal(t, syntheticAPIKeyScopes, upgraded.Scopes)
+	_, err = db.GetAPIKeyByID(t.Context(), legacy.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
 func TestSyntheticAPIKeyLifecycle(t *testing.T) {
 	t.Parallel()
 
@@ -42,7 +67,7 @@ func TestSyntheticAPIKeyLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, user.LoginType, first.LoginType)
 	require.Equal(t, GatewayTokenName(user.ID), first.TokenName)
-	require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeApiKeyRead}, first.Scopes)
+	require.Equal(t, syntheticAPIKeyScopes, first.Scopes)
 	require.WithinDuration(t, server.clock.Now().Add(syntheticAPIKeyLifetime), first.ExpiresAt, time.Second)
 
 	// Within the renew margin the key is extended in place: the ID stays
