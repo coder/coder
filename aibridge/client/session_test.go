@@ -265,23 +265,53 @@ func TestGuessSessionID(t *testing.T) {
 			restored, err := io.ReadAll(req.Body)
 			require.NoError(t, err)
 			require.Equal(t, body, string(restored))
+
+			unreadable := &errReader{}
+			req.Body = unreadable
+			require.Equal(t, tc.sessionID, client.GuessSessionID(tc.client, req, []byte(body)))
+			require.False(t, unreadable.read)
+			require.False(t, unreadable.closed)
 		})
 	}
 }
 
-func TestUnreadableBody(t *testing.T) {
+func TestGuessSessionIDEmptyBody(t *testing.T) {
 	t.Parallel()
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://localhost", &errReader{})
-	require.NoError(t, err)
+	for _, tc := range []struct {
+		name     string
+		payload  [][]byte
+		wantRead bool
+	}{
+		{name: "OmittedPayload", wantRead: true},
+		{name: "NilPayload", payload: [][]byte{nil}},
+		{name: "EmptyPayload", payload: [][]byte{{}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	got := client.GuessSessionID(client.ClientClaudeCode, req)
-	require.Nil(t, got)
+			body := &errReader{}
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://localhost", body)
+			require.NoError(t, err)
+			require.Nil(t, client.GuessSessionID(client.ClientClaudeCode, req, tc.payload...))
+			require.Equal(t, tc.wantRead, body.read)
+			require.False(t, body.closed)
+		})
+	}
 }
 
 // errReader is an io.Reader that always returns an error.
-type errReader struct{}
+type errReader struct {
+	read   bool
+	closed bool
+}
 
-func (*errReader) Read([]byte) (int, error) {
+func (b *errReader) Read([]byte) (int, error) {
+	b.read = true
 	return 0, io.ErrUnexpectedEOF
+}
+
+func (b *errReader) Close() error {
+	b.closed = true
+	return nil
 }
