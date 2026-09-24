@@ -634,15 +634,15 @@ curl -s -X PATCH \
 
 Use this checklist to confirm each part of your integration:
 
-- [ ] At least one LLM model is configured in the organization and returned by `/organizations/{organization}/chats/models`
-- [ ] `POST /chats` creates a chat and returns a valid `Chat` object
-- [ ] WebSocket stream at `/chats/{chat}/stream` delivers events
-- [ ] Follow-up messages via `/chats/{chat}/messages` are accepted
-- [ ] Chat attached to a workspace from the converted template runs
-      tools against that workspace
-- [ ] `POST /chats/{chat}/interrupt` stops the agent and returns to `waiting`
-- [ ] Archive and restore via `PATCH /chats/{chat}` works
-- [ ] (If applicable) GitHub Actions workflow creates chats successfully
+- At least one LLM model is configured in the organization and returned by `/organizations/{organization}/chats/models`
+- `POST /chats` creates a chat and returns a valid `Chat` object
+- WebSocket stream at `/chats/{chat}/stream` delivers events
+- Follow-up messages via `/chats/{chat}/messages` are accepted
+- Chat attached to a workspace from the converted template runs
+  tools against that workspace
+- `POST /chats/{chat}/interrupt` stops the agent and returns to `waiting`
+- Archive and restore via `PATCH /chats/{chat}` works
+- (If applicable) GitHub Actions workflow creates chats successfully
 
 ## Features available only in the Chats API
 
