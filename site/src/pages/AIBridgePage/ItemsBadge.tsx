@@ -41,6 +41,9 @@ export const ItemsBadge: FC<ItemsBadgeProps> = ({ items, noun }) => {
 				<TooltipContent
 					side="top"
 					align="start"
+					collisionPadding={16}
+					// Long lists scroll inside the viewport instead of overflowing it.
+					className="max-h-(--radix-popper-available-height) overflow-y-auto"
 					// The portal still bubbles React clicks up to the session row.
 					onClick={(event) => event.stopPropagation()}
 				>
