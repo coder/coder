@@ -52,6 +52,8 @@ vi.mock("#/modules/dashboard/useDashboard", async () => {
 const workspaceUploadUnavailableMessage =
 	"This file type is uploaded into the chat's workspace. Select a running workspace, then try again.";
 const removedQueuedFileMessage = "Removed 1 file that uploads to the workspace";
+const attachDuringSubmitMessage =
+	"Wait for the current message to finish sending, then add the file again.";
 
 const mockModelCatalog: TypesGen.OrganizationChatModelsResponse = {
 	models: [
@@ -192,6 +194,11 @@ const attachZipFile = async () => {
 	await user().upload(screen.getByTestId("chat-attachment-file-input"), zip);
 };
 
+const attachImageFile = async () => {
+	const image = new File(["png"], "image.png", { type: "image/png" });
+	await user().upload(screen.getByTestId("chat-attachment-file-input"), image);
+};
+
 const typeMessage = async (message: string) => {
 	await user().click(screen.getByRole("textbox", { name: "Chat message" }));
 	await user().paste(message);
@@ -307,6 +314,45 @@ describe("AgentCreateForm workspace file uploads", () => {
 			"disabled",
 			true,
 		);
+	});
+
+	it("ignores further submits after the chat was created", async () => {
+		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
+		const { onCreateChat } = renderForm();
+
+		await attachZipFile();
+		await submitMessage("inspect this archive");
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		// The page navigates after onCreateChat resolves; until then the
+		// retained draft must not create a second chat.
+		await user().click(screen.getByRole("button", { name: "Send" }));
+
+		expect(onCreateChat).toHaveBeenCalledTimes(1);
+	});
+
+	it("rejects attachments while the submit is pending", async () => {
+		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
+		const { onCreateChat } = renderForm();
+		onCreateChat.mockReturnValue(new Promise<void>(() => {}));
+
+		await attachZipFile();
+		await submitMessage("inspect this archive");
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		await attachImageFile();
+
+		expect(toast.error).toHaveBeenCalledWith(attachDuringSubmitMessage);
+	});
+
+	it("rejects workspace files after the chat was created", async () => {
+		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
+		const { onCreateChat } = renderForm();
+
+		await attachZipFile();
+		await submitMessage("inspect this archive");
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		await attachZipFile();
+
+		expect(toast.error).toHaveBeenCalledWith(attachDuringSubmitMessage);
 	});
 
 	it("drops queued files when the workspace is detached", async () => {

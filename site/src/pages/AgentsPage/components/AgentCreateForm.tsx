@@ -62,6 +62,8 @@ const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 // same-workspace status flap.
 const workspaceUploadUnavailableMessage =
 	"This file type is uploaded into the chat's workspace. Select a running workspace, then try again.";
+const attachDuringSubmitMessage =
+	"Wait for the current message to finish sending, then add the file again.";
 
 export type CreateChatOptions = {
 	message: string;
@@ -583,10 +585,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		reset: resetWorkspaceUploads,
 		uploadQueued: uploadQueuedWorkspaceFiles,
 	} = workspaceUploads;
-	// Locks the composer across the whole create/upload/send sequence,
-	// which spans more than the create mutation's pending window.
-	const [isUploadSubmitPending, setIsUploadSubmitPending] = useState(false);
-	const isSubmitPending = isCreating || isUploadSubmitPending;
+	// Locks the composer from submit until the page navigates away, which
+	// spans more than the create mutation's pending window. The ref blocks
+	// a second submit or attach landing before the state update renders;
+	// only a failed submit releases either, since success navigates.
+	const [isSubmitSequencePending, setIsSubmitSequencePending] = useState(false);
+	const submitInFlightRef = useRef(false);
+	const isSubmitPending = isCreating || isSubmitSequencePending;
 
 	// Workspace files can only upload into a workspace whose agent is
 	// connected. An explicit scope change that loses that (deselecting,
@@ -622,11 +627,24 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		resetWorkspaceUploads,
 	]);
 
+	const handleAttachWhenIdle = (files: File[]) => {
+		if (submitInFlightRef.current) {
+			toast.error(attachDuringSubmitMessage);
+			return;
+		}
+		handleAttach(files);
+	};
+
 	const handleSendWithAttachments = async (message: string) => {
+		if (submitInFlightRef.current) {
+			return;
+		}
 		if (workspaceUploadCount > 0 && !canUploadWorkspaceFiles) {
 			toast.error(workspaceUploadUnavailableMessage);
 			return;
 		}
+		submitInFlightRef.current = true;
+		setIsSubmitSequencePending(true);
 		const fileIds: string[] = [];
 		let skippedErrors = 0;
 		for (const file of attachments) {
@@ -645,30 +663,23 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			);
 		}
 		const fileArg = fileIds.length > 0 ? fileIds : undefined;
-		if (workspaceUploadEntries.length === 0) {
-			try {
-				await handleSend(message, fileArg);
-				resetAttachments();
-			} catch {
-				// Attachments preserved for retry on failure.
-			}
-			return;
-		}
 		// Deferred workspace files ride along: hand the page an upload
 		// callback bound to this hook. It re-uploads every entry, so a
-		// retry after failure targets the fresh chat. The catch
-		// swallows every error (state is preserved for retry), so the
-		// pending flag always clears below; React Compiler does not
-		// support try/finally.
-		setIsUploadSubmitPending(true);
+		// retry after failure targets the fresh chat.
+		const uploadWorkspaceFiles =
+			workspaceUploadEntries.length > 0
+				? uploadQueuedWorkspaceFiles
+				: undefined;
 		try {
-			await handleSend(message, fileArg, uploadQueuedWorkspaceFiles);
-			resetAttachments();
-			resetWorkspaceUploads();
+			await handleSend(message, fileArg, uploadWorkspaceFiles);
 		} catch {
 			// Attachments and queued files preserved for retry.
+			submitInFlightRef.current = false;
+			setIsSubmitSequencePending(false);
+			return;
 		}
-		setIsUploadSubmitPending(false);
+		resetAttachments();
+		resetWorkspaceUploads();
 	};
 
 	return (
@@ -782,7 +793,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						attachments={attachments}
 						// Files attached before org adoption cannot upload and would be discarded
 						// when restoration completes.
-						onAttach={organizationAdopted ? handleAttach : undefined}
+						onAttach={organizationAdopted ? handleAttachWhenIdle : undefined}
 						onRemoveAttachment={handleRemoveAttachment}
 						uploadStates={uploadStates}
 						previewUrls={previewUrls}
