@@ -21,10 +21,10 @@ type OrganizationAgentSettingsViewProps = {
 	overrides: readonly TypesGen.ChatModelOverrideResponse[] | undefined;
 	enabledModels: readonly TypesGen.ChatModel[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
-	isLoading: boolean;
+	isModelsLoading: boolean;
 	isOverridesLoading: boolean;
-	loadError: unknown;
-	refetchError: unknown;
+	overridesLoadError: unknown;
+	overridesRefetchError: unknown;
 	modelsError: unknown;
 	canEdit: boolean;
 	showAdvisor: boolean;
@@ -83,10 +83,10 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 	overrides,
 	enabledModels,
 	providerInfoByID,
-	isLoading,
+	isModelsLoading,
 	isOverridesLoading,
-	loadError,
-	refetchError,
+	overridesLoadError,
+	overridesRefetchError,
 	modelsError,
 	canEdit,
 	showAdvisor,
@@ -94,11 +94,12 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 	savingContexts,
 	errorContexts,
 }) => {
-	const bannerError = loadError ?? refetchError ?? modelsError;
+	const bannerError =
+		overridesLoadError ?? overridesRefetchError ?? modelsError;
 	// The default row only needs the model catalog, so a failed initial
 	// overrides load removes just the override rows.
 	const visibleSettings =
-		loadError == null
+		overridesLoadError == null
 			? settings.filter(
 					(setting) => setting.context !== "advisor" || showAdvisor,
 				)
@@ -107,18 +108,20 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 	return (
 		<div className="flex flex-col gap-6">
 			{bannerError != null && <ErrorAlert error={bannerError} />}
-			{enabledModels.length === 0 && !isLoading && modelsError == null && (
-				<p role="status" className="m-0 text-content-secondary">
-					This organization has no enabled chat models.
-				</p>
-			)}
+			{enabledModels.length === 0 &&
+				!isModelsLoading &&
+				modelsError == null && (
+					<p role="status" className="m-0 text-content-secondary">
+						This organization has no enabled chat models.
+					</p>
+				)}
 			<div className="flex flex-col gap-6 rounded-lg border border-solid border-border px-6 py-7">
 				<DefaultModelSettings
 					defaultModelID={defaultModelID}
 					enabledModels={enabledModels}
 					providerInfoByID={providerInfoByID}
 					modelsError={modelsError}
-					isLoading={isLoading}
+					isLoading={isModelsLoading}
 					onSaveDefaultModel={onSaveDefaultModel}
 					isSaving={isSavingDefaultModel}
 					isSaveError={isSaveDefaultModelError}
@@ -141,7 +144,7 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 							enabledModels={enabledModels}
 							providerInfoByID={providerInfoByID}
 							modelsError={modelsError}
-							isLoading={isLoading || isOverridesLoading}
+							isLoading={isModelsLoading || isOverridesLoading}
 							onSaveModelOverride={onSave}
 							isSaving={savingContexts.has(setting.context)}
 							isSaveError={errorContexts.has(setting.context)}

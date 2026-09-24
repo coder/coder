@@ -1,5 +1,6 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import escapeRegExp from "lodash/escapeRegExp";
 import type { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -64,7 +65,9 @@ const selectModel = async (
 		}),
 	);
 	await user.click(
-		await screen.findByRole("option", { name: new RegExp(to.display_name) }),
+		await screen.findByRole("option", {
+			name: new RegExp(`^${escapeRegExp(to.display_name)}(\\s*\\(.+\\))?$`),
+		}),
 	);
 	return defaultSection;
 };

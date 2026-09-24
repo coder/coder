@@ -210,11 +210,7 @@ export const filterModelsWithEnabledProvider = (
 		return info !== undefined && info.enabled !== false;
 	});
 
-/**
- * Maps already-filtered enabled models to selector options. Unlike
- * getModelOptionsFromModels it neither filters nor sorts, so the caller's list
- * and order are preserved.
- */
+/** Unlike getModelOptionsFromModels, neither filters nor sorts. */
 export const toEnabledModelSelectorOptions = (
 	enabledModels: readonly TypesGen.ChatModel[],
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>,

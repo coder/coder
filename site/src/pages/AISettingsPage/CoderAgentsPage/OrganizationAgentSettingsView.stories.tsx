@@ -49,10 +49,10 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 				{ provider: "openai", displayName: "OpenAI", icon: "" },
 			],
 		]),
-		isLoading: false,
+		isModelsLoading: false,
 		isOverridesLoading: false,
-		loadError: null,
-		refetchError: null,
+		overridesLoadError: null,
+		overridesRefetchError: null,
 		modelsError: null,
 		canEdit: true,
 		showAdvisor: true,
@@ -73,8 +73,21 @@ export const DefaultModelOpen: Story = {
 		);
 	},
 };
+
 export const UnavailableDefaultModel: Story = {
 	args: { defaultModelID: "model-gone" },
+};
+
+export const NoDefaultModel: Story = {
+	args: { defaultModelID: "" },
+};
+
+export const ModelsLoadError: Story = {
+	args: {
+		defaultModelID: undefined,
+		enabledModels: [],
+		modelsError: mockApiError({ message: "Failed to load chat models." }),
+	},
 };
 
 export const SavingDefaultModel: Story = {
@@ -178,7 +191,7 @@ export const UnavailableSavedModels: Story = {
 
 export const Loading: Story = {
 	args: {
-		isLoading: true,
+		isModelsLoading: true,
 		isOverridesLoading: true,
 		defaultModelID: undefined,
 		overrides: undefined,
@@ -195,7 +208,7 @@ export const OverridesLoading: Story = {
 
 export const OverridesRefetchError: Story = {
 	args: {
-		refetchError: mockApiError({
+		overridesRefetchError: mockApiError({
 			message: "Failed to refresh model overrides.",
 		}),
 	},
@@ -210,14 +223,16 @@ export const ModelsRefetchError: Story = {
 export const OverridesLoadError: Story = {
 	args: {
 		overrides: undefined,
-		loadError: mockApiError({ message: "Failed to load model overrides." }),
+		overridesLoadError: mockApiError({
+			message: "Failed to load model overrides.",
+		}),
 	},
 };
 
 export const NoModelsWithOverridesRefetchError: Story = {
 	args: {
 		enabledModels: [],
-		refetchError: mockApiError({
+		overridesRefetchError: mockApiError({
 			message: "Failed to refresh model overrides.",
 		}),
 	},
