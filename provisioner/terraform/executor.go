@@ -177,6 +177,9 @@ func (e *executor) checkMinVersion(ctx context.Context) error {
 
 // version doesn't need the lock because it doesn't read or write to any state.
 func (e *executor) version(ctx context.Context) (*version.Version, error) {
+	if e.server != nil {
+		return e.server.terraformVersion(ctx)
+	}
 	return versionFromBinaryPath(ctx, e.binaryPath)
 }
 
