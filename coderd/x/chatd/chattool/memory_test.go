@@ -68,7 +68,7 @@ func TestFormatMemoryGuidanceAndIndexForTool(t *testing.T) {
 	for i := range entries {
 		entries[i] = chattool.MemoryIndexEntry{Name: "memory-" + strings.Repeat("x", 50) + string(rune('a'+i%26)), Description: strings.Repeat("description ", 20)}
 	}
-	guidance := chattool.FormatMemoryGuidance(chattool.MemoryScope{Label: "platform"})
+	guidance := chattool.FormatMemoryGuidance("platform")
 	require.Contains(t, guidance, "<memory>")
 	require.Contains(t, guidance, `project "platform"`)
 	require.NotContains(t, guidance, "memory-")
@@ -92,7 +92,7 @@ func TestFormatMemoryGuidanceAndIndexForTool(t *testing.T) {
 
 func TestReadMemoryDescriptionIncludesIndex(t *testing.T) {
 	t.Parallel()
-	tool := chattool.ReadMemory(&memoryStore{memories: map[string]chattool.Memory{}}, chattool.MemoryScope{Label: "platform"}, []chattool.MemoryIndexEntry{{Name: "release", Description: "Release process"}})
+	tool := chattool.ReadMemory(&memoryStore{memories: map[string]chattool.Memory{}}, []chattool.MemoryIndexEntry{{Name: "release", Description: "Release process"}})
 	require.Contains(t, tool.Info().Description, "Read a memory by name.")
 	require.Contains(t, tool.Info().Description, "- release: Release process")
 }
@@ -105,7 +105,7 @@ func TestSaveMemoryCapAndUpsert(t *testing.T) {
 		for i := range chattool.MaxMemories {
 			store.memories[string(rune(i))] = chattool.Memory{}
 		}
-		tool := chattool.SaveMemory(store, chattool.MemoryScope{Label: "platform"})
+		tool := chattool.SaveMemory(store, "platform")
 		response, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"name":"durable-fact","description":"Durable fact","body":"Body"}`})
 		require.NoError(t, err)
 		require.True(t, response.IsError)
@@ -118,7 +118,7 @@ func TestSaveMemoryCapAndUpsert(t *testing.T) {
 		for i := range chattool.MemoryNearCapWarning - 1 {
 			store.memories[string(rune(i))] = chattool.Memory{}
 		}
-		tool := chattool.SaveMemory(store, chattool.MemoryScope{Label: "platform"})
+		tool := chattool.SaveMemory(store, "platform")
 		response, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"name":"durable-fact","description":"Durable fact","body":"Body"}`})
 		require.NoError(t, err)
 		require.False(t, response.IsError)
@@ -129,7 +129,7 @@ func TestSaveMemoryCapAndUpsert(t *testing.T) {
 	t.Run("Upsert", func(t *testing.T) {
 		t.Parallel()
 		store := &memoryStore{memories: map[string]chattool.Memory{"durable-fact": {Name: "durable-fact"}}}
-		tool := chattool.SaveMemory(store, chattool.MemoryScope{Label: "platform"})
+		tool := chattool.SaveMemory(store, "platform")
 		response, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"name":"DURABLE-fact","description":"<memory>Durable</memory>","body":"<memory>Body</memory>"}`})
 		require.NoError(t, err)
 		require.False(t, response.IsError)
