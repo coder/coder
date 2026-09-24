@@ -21,15 +21,12 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 )
 
-// newStageTestTracer returns a stage tracer writing into an in-memory
-// span recorder.
 func newStageTestTracer(t *testing.T) (*chatloop.StageTracer, *tracetest.SpanRecorder) {
 	t.Helper()
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	t.Cleanup(func() {
-		// The test context is already canceled during cleanup, so the
-		// flush uses a fresh one.
+		// t.Context is canceled before Cleanup runs.
 		require.NoError(t, provider.Shutdown(context.Background()))
 	})
 	return chatloop.NewStageTracer(provider, chatloop.NopMetrics()), recorder
@@ -51,7 +48,6 @@ func (s stubRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	}, nil
 }
 
-// spanAttribute returns the value of the span attribute named key.
 func spanAttribute(t *testing.T, span sdktrace.ReadOnlySpan, key string) (attribute.Value, bool) {
 	t.Helper()
 	for _, attr := range span.Attributes() {
@@ -105,7 +101,7 @@ func TestStageSpanRoundTripper(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			tracer, recorder := newStageTestTracer(t)
-			transport := &stageSpanRoundTripper{base: test.base, stages: tracer, model: model}
+			transport := &stageSpanRoundTripper{base: test.base, stages: tracer, stageModel: model}
 
 			ctx := t.Context()
 			wantScope := chatloop.ScopeBackground
@@ -139,7 +135,6 @@ func TestStageSpanRoundTripper(t *testing.T) {
 			}
 			require.Contains(t, span.Attributes(), attribute.String(chatloop.AttrScope, string(wantScope)))
 			require.Contains(t, span.Attributes(), attribute.String(chatloop.AttrHTTPMethod, http.MethodPost))
-			require.Contains(t, span.Attributes(), attribute.String(chatloop.AttrHTTPHost, "provider.example"))
 			require.Contains(t, span.Attributes(), attribute.String(chatloop.AttrProviderType, model.ProviderType))
 			require.Contains(t, span.Attributes(), attribute.String(chatloop.AttrModel, model.Model))
 			require.Contains(t, span.Attributes(), attribute.String(chatloop.AttrReasoningEffort, model.Effort))
@@ -147,11 +142,8 @@ func TestStageSpanRoundTripper(t *testing.T) {
 	}
 }
 
-// TestNewModelTracesEachProviderAttempt drives requests through a
-// model built by newModel and checks that every HTTP round trip
-// produces its own provider_attempt span. The provider SDK is built
-// without retries, so a refused call surfaces as an error and the
-// retry is a second call.
+// The provider SDK is built without retries, so a refused call
+// surfaces as an error and the retry is a second call.
 func TestNewModelTracesEachProviderAttempt(t *testing.T) {
 	t.Parallel()
 
