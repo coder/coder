@@ -244,7 +244,6 @@ const buildSpendFilterCategories = ({
 		key: "org",
 		label: "Organization",
 		icon: <Building2Icon />,
-		hideWhenSingleOption: true,
 		getOptions: async (query) =>
 			organizations
 				.filter((organization) =>
