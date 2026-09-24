@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 
 export type FilterOption = {
 	label: string;
+	/** Label used once the option is applied; defaults to `label`. */
+	appliedLabel?: string;
 	value: string;
 	startIcon?: ReactNode;
 	subtitle?: string;
@@ -21,6 +23,8 @@ export type FilterCategory = {
 	icon?: ReactNode;
 	/** Extra typed prefixes that enter this category, e.g. `user` for `owner`. */
 	aliases?: readonly string[];
+	/** Fixed text at the end of the category row instead of an options sample. */
+	hint?: string;
 	/**
 	 * Query keys this category owns for chip parsing. Defaults to `[key]`. A
 	 * category that commits several distinct boolean keys (e.g. Attributes
@@ -35,7 +39,6 @@ export type SearchResult = {
 	label: string;
 	value: string;
 	startIcon?: ReactNode;
-	subtitle?: string;
 	/** Renders an avatar when `startIcon` is not provided. */
 	imageUrl?: string;
 	/** Opaque payload for `onSearchResultSelect`, e.g. a workspace URL path. */
