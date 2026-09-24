@@ -74,6 +74,7 @@ import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
+import { useCanManageChat } from "./hooks/useCanManageChat";
 import { useConversationEditingState } from "./hooks/useConversationEditingState";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import {
@@ -229,8 +230,10 @@ const AgentChatPage: FC = () => {
 
 	const chat = chatQuery.data;
 	const isArchived = Boolean(chat?.archived);
-	const isViewerNotOwner =
-		chat !== undefined && currentUser.id !== chat.owner_id;
+	const canManageChat = useCanManageChat();
+	// Mirrors the server's `chat:update` check, which gates message sends
+	// and chat settings alike.
+	const isChatReadOnly = chat !== undefined && !canManageChat(chat);
 	const planModeEnabled = chat?.plan_mode === "plan";
 
 	// Initialize MCP selection from chat record or defaults.
@@ -497,9 +500,9 @@ const AgentChatPage: FC = () => {
 		!hasModelOptions ||
 		isArchived ||
 		isChatSettingsPending ||
-		isViewerNotOwner ||
+		isChatReadOnly ||
 		aiGatewayDisabled;
-	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
+	const canUpdateChatWorkspace = !isArchived && !isChatReadOnly;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 	const handlePlanModeToggle = (enabled: boolean) => {
 		if (enabled === planModeEnabled) {
@@ -738,6 +741,7 @@ const AgentChatPage: FC = () => {
 				<AgentChatPageView
 					key={agentId}
 					chat={chat}
+					canManageChat={!isChatReadOnly}
 					persistedError={persistedError}
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}

@@ -27,7 +27,6 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { shortRelativeTime } from "#/utils/time";
 import {
 	ChatActionsMenuItems,
-	canManageChat,
 	chatFamilyAllowsArchive,
 	chatHasMenuActions,
 } from "../../ChatActionsMenuItems";
@@ -58,7 +57,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		isLoadingModelConfigs,
 		chatErrorReasons,
 		activeChatId,
-		currentUserId,
+		canManageChat,
 		isArchiving,
 		archivingChatId,
 		toggleExpanded,
@@ -149,7 +148,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
-	const canManage = canManageChat(chat, currentUserId);
+	const canManage = canManageChat(chat);
 	const hasMenuActions = chatHasMenuActions(chat, {
 		canManage,
 		hasSubagentsToggle: hasChildren,

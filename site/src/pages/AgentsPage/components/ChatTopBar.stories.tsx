@@ -19,6 +19,7 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import { chatUpdateChecks } from "../hooks/useCanManageChat";
 import { ChatTopBar } from "./ChatTopBar";
 
 // Probe element rendered at /agents to verify search params are preserved
@@ -72,7 +73,7 @@ const defaultProps = {
 const meta: Meta<typeof ChatTopBar> = {
 	title: "pages/AgentsPage/ChatTopBar",
 	component: ChatTopBar,
-	decorators: [withAuthProvider],
+	decorators: [withAuthProvider, withDashboardProvider],
 	beforeEach: () => {
 		requestArchiveAgent.mockClear();
 		requestArchiveAndDeleteWorkspace.mockClear();
@@ -124,6 +125,43 @@ export const SharedChatViewer: Story = {
 			owner_name: "Sharing User",
 			shared: true,
 		},
+	},
+};
+
+/**
+ * A role with `chat:update` across the organization, such as owner or
+ * organization admin, keeps the actions menu on another user's chat.
+ */
+export const SharedChatManagedByAdmin: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			owner_id: "sharing-user",
+			owner_username: "sharing-user",
+			owner_name: "Sharing User",
+			organization_id: MockDefaultOrganization.id,
+			shared: true,
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: getAuthorizationKey({
+					checks: chatUpdateChecks([MockDefaultOrganization.id]),
+				}),
+				data: { [MockDefaultOrganization.id]: true },
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open agent actions",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", {
+			name: "Rename chat",
+		});
 	},
 };
 
@@ -585,7 +623,6 @@ export const PreservesArchivedFilterOnMobileBack: Story = {
 };
 
 export const ShareChatButton: Story = {
-	decorators: [withDashboardProvider],
 	args: {
 		chat: {
 			...MockChat,

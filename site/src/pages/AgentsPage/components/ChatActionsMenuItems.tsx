@@ -45,19 +45,8 @@ type SeparatorComponent =
 	| typeof DropdownMenuSeparator
 	| typeof ContextMenuSeparator;
 
-/**
- * Pin, rename, and archive write to the chat record itself, so from a shared
- * chat they would change the owner's sidebar and title. Sharing only grants
- * read access, and admins who would pass the server's update check should
- * not manage another user's chat from a shared view either, so ownership
- * rather than authorization decides who sees those actions.
- */
-export const canManageChat = (
-	chat: TypesGen.Chat,
-	currentUserId: string,
-): boolean => chat.owner_id === currentUserId;
-
 type ChatMenuActionsOptions = {
+	/** See `useCanManageChat`. */
 	readonly canManage: boolean;
 	/** Whether the menu offers the subagents toggle, the only viewer action. */
 	readonly hasSubagentsToggle?: boolean;
@@ -66,9 +55,9 @@ type ChatMenuActionsOptions = {
 /**
  * Archive state is root-only on the backend and cascades to children, so
  * child chats expose no archive or unarchive actions. An archived child chat
- * therefore has no menu actions at all, and a non-owner only has the
- * subagents toggle; call sites use this to hide the menu trigger instead of
- * rendering an empty menu.
+ * therefore has no menu actions at all, and a user without `chat:update`
+ * only has the subagents toggle; call sites use this to hide the menu
+ * trigger instead of rendering an empty menu.
  */
 export const chatHasMenuActions = (
 	chat: TypesGen.Chat,
@@ -83,7 +72,7 @@ export const chatHasMenuActions = (
 
 type ChatActionsMenuItemsProps = {
 	readonly chat: TypesGen.Chat;
-	/** See {@link canManageChat}. When false, only the subagents toggle renders. */
+	/** See `useCanManageChat`. When false, only the subagents toggle renders. */
 	readonly canManage: boolean;
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;

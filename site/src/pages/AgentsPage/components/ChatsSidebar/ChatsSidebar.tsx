@@ -57,6 +57,8 @@ type ChatsSidebarProps = {
 	 */
 	canManageAgentSettings?: boolean;
 	currentUserId: string;
+	/** See `useCanManageChat`; decides which rows expose owner actions. */
+	canManageChat: (chat: Chat) => boolean;
 };
 
 export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
@@ -94,6 +96,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		isAdmin = false,
 		canManageAgentSettings = false,
 		currentUserId,
+		canManageChat,
 	} = props;
 	const { agentId, chatId } = useParams<{
 		agentId?: string;
@@ -158,6 +161,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				isChatsActive={!activeChatId && sidebarView.panel === "chats"}
 				location={location}
 				currentUserId={currentUserId}
+				canManageChat={canManageChat}
 			/>
 			<SettingsPanel
 				isSettingsPanel={isSettingsPanel}

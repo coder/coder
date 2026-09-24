@@ -78,6 +78,7 @@ import {
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
+import { useCanManageChat } from "./hooks/useCanManageChat";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
@@ -172,6 +173,7 @@ const AgentsPageLayout: FC = () => {
 		defaultOrganizationId || (organizations[0]?.id ?? "");
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 	const canManageAgentSettings = canAccessCoderAgentsSettings(permissions);
+	const canManageChat = useCanManageChat();
 
 	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
 		searchParams,
@@ -761,6 +763,7 @@ const AgentsPageLayout: FC = () => {
 					<ChatsSidebar
 						chats={chatList}
 						currentUserId={user.id}
+						canManageChat={canManageChat}
 						chatErrorReasons={sidebarChatErrorReasons}
 						modelConfigs={organizationModels.models}
 						isLoadingModelConfigs={organizationModels.isLoading}

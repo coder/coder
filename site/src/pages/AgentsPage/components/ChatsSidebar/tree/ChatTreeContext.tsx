@@ -12,7 +12,7 @@ export type ChatTreeContextValue = {
 	readonly isLoadingModelConfigs: boolean;
 	readonly chatErrorReasons: Record<string, string>;
 	readonly activeChatId: string | undefined;
-	readonly currentUserId: string;
+	readonly canManageChat: (chat: Chat) => boolean;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
 	readonly toggleExpanded: (chatID: string) => void;
