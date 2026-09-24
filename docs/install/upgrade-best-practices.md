@@ -6,6 +6,56 @@ This guide provides best practices for upgrading Coder, along with
 troubleshooting steps for common issues encountered during upgrades,
 particularly with database migrations in high availability (HA) deployments.
 
+## Rolling and live upgrades are not supported
+
+> [!WARNING]
+> Coder does not support rolling or "live" upgrades while users have active
+> sessions, workspace connections, or in-progress workspace builds. Upgrading
+> Coder restarts `coderd`, which disconnects active browser sessions, CLI
+> connections, and port-forwards, and can interrupt in-progress workspace
+> builds. In high availability (HA) deployments, active connections from
+> existing replicas can also hold database locks that block migrations run by
+> the new version.
+>
+> Always perform upgrades during a scheduled maintenance window when no users
+> are actively connected, as described below.
+
+## Safe upgrade procedure for production deployments
+
+Follow this procedure for every production upgrade:
+
+1. **Announce a maintenance window.** Notify users in advance and pick a time
+   with the fewest active developers, per the
+   [scheduling guidance](#before-you-upgrade) below.
+1. **Confirm there is no active user activity.** Before starting the upgrade,
+   verify that there are no in-progress workspace builds and no active user
+   sessions, SSH connections, or port-forwards. Check the **Workspaces** page
+   in the dashboard for any builds in progress, and review
+   [connection logs](../admin/monitoring/connection-logs.md) if you have a
+   Premium license. If your organization requires it, ask users to stop their
+   workspaces or disconnect before you proceed.
+1. **Take a database backup.** Always take a database snapshot immediately
+   before upgrading, since Coder does not support rollbacks. See your
+   database provider's documentation for backup instructions (for example,
+   `pg_dump` for self-managed PostgreSQL).
+1. **Apply the upgrade.** Follow the
+   [reinstall steps](./upgrade.md#reinstall-coder-to-upgrade) for your install
+   method, or the
+   [pre-upgrade strategy for Kubernetes HA deployments](#pre-upgrade-strategy-for-kubernetes-ha-deployments)
+   if you run multiple replicas.
+1. **Verify the deployment is healthy.** After the upgrade completes, confirm
+   the new version is running and healthy:
+
+   ```sh
+   coder version
+   ```
+
+   Check the [health check page](../admin/monitoring/health-check.md) in the
+   dashboard, and confirm `coderd` logs show no errors and that migrations
+   completed successfully.
+1. **Communicate completion.** Let users know the maintenance window has
+   ended and that they can resume using their workspaces.
+
 ## Before you upgrade
 
 > [!TIP]
