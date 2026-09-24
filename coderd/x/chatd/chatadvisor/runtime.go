@@ -17,8 +17,8 @@ type RuntimeConfig struct {
 	MaxUsesPerRun        int
 	MaxOutputTokens      int64
 	StreamSilenceTimeout time.Duration
-	// MaxRetries bounds transient provider retries within one advisor
-	// call. Zero disables retries.
+	// MaxRetries is the maximum number of retries after a transient
+	// provider error within one advisor call. It must be positive.
 	MaxRetries int
 }
 
@@ -47,8 +47,8 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	if cfg.MaxOutputTokens <= 0 {
 		return nil, xerrors.New("advisor max output tokens must be positive")
 	}
-	if cfg.MaxRetries < 0 {
-		return nil, xerrors.New("advisor max retries must not be negative")
+	if cfg.MaxRetries < 1 {
+		return nil, xerrors.New("advisor max retries must be positive")
 	}
 	if cfg.CallTemplate.MaxOutputTokens != nil &&
 		*cfg.CallTemplate.MaxOutputTokens != cfg.MaxOutputTokens {
@@ -130,15 +130,6 @@ func (rt *Runtime) MaxOutputTokens() int64 {
 		return 0
 	}
 	return rt.cfg.MaxOutputTokens
-}
-
-// MaxRetries reports how many times one advisor call retries a
-// transient provider error before giving up.
-func (rt *Runtime) MaxRetries() int {
-	if rt == nil {
-		return 0
-	}
-	return rt.cfg.MaxRetries
 }
 
 // ProviderOptions reports the resolved provider options applied to each

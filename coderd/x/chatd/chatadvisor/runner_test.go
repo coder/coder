@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"charm.land/fantasy"
@@ -41,6 +42,7 @@ func TestAdvisorRunAdvice(t *testing.T) {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: maxOutputTokens,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -83,6 +85,7 @@ func TestAdvisorRunTruncatesLongQuestion(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -114,6 +117,7 @@ func TestAdvisorRunStreamsAdviceDeltas(t *testing.T) {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -156,6 +160,7 @@ func TestAdvisorRunStreamsReasoningDeltasSeparatelyFromAdvice(t *testing.T) {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -242,6 +247,7 @@ func TestAdvisorRunErrorAfterPartialDelta(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -277,6 +283,7 @@ func TestAdvisorRunLimitReached(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -305,6 +312,7 @@ func TestAdvisorRunError(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -340,6 +348,7 @@ func TestAdvisorRunError(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -358,36 +367,34 @@ func TestAdvisorRunError(t *testing.T) {
 func TestAdvisorRunStopsAtRetryLimit(t *testing.T) {
 	t.Parallel()
 
-	var calls int
-	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
-		Model: &chattest.FakeModel{
-			ProviderName: "test-provider",
-			ModelName:    "test-model",
-			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
-				calls++
-				if calls <= 3 {
-					return nil, xerrors.New("received status 429 from upstream")
-				}
-				return streamFromParts([]fantasy.StreamPart{
-					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
-					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "late advice"},
-					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
-					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
-				}), nil
-			},
-		},
-		MaxUsesPerRun:   1,
-		MaxOutputTokens: 64,
-		MaxRetries:      1,
-	})
-	require.NoError(t, err)
+	for _, maxRetries := range []int{1, 2} {
+		t.Run(fmt.Sprintf("MaxRetries%d", maxRetries), func(t *testing.T) {
+			t.Parallel()
 
-	result, err := runtime.RunAdvisor(t.Context(), "flaky?", nil, nil)
-	require.NoError(t, err)
-	require.Equal(t, 2, calls, "one configured retry allows exactly two provider calls")
-	require.Equal(t, chatadvisor.ResultTypeError, result.Type)
-	require.Contains(t, result.Error, "429")
-	require.Equal(t, 1, result.RemainingUses)
+			var calls atomic.Int32
+			runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+				Model: &chattest.FakeModel{
+					ProviderName: "test-provider",
+					ModelName:    "test-model",
+					StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+						calls.Add(1)
+						return nil, xerrors.New("received status 429 from upstream")
+					},
+				},
+				MaxUsesPerRun:   1,
+				MaxOutputTokens: 64,
+				MaxRetries:      maxRetries,
+			})
+			require.NoError(t, err)
+
+			result, err := runtime.RunAdvisor(t.Context(), "flaky?", nil, nil)
+			require.NoError(t, err)
+			require.EqualValues(t, maxRetries+1, calls.Load())
+			require.Equal(t, chatadvisor.ResultTypeError, result.Type)
+			require.Contains(t, result.Error, "429")
+			require.Equal(t, 1, result.RemainingUses)
+		})
+	}
 }
 
 func TestAdvisorRunTextlessOutcomeDiagnostics(t *testing.T) {
@@ -458,6 +465,7 @@ func TestAdvisorRunTextlessOutcomeDiagnostics(t *testing.T) {
 				},
 				MaxUsesPerRun:   1,
 				MaxOutputTokens: 64,
+				MaxRetries:      1,
 			})
 			require.NoError(t, err)
 
@@ -485,7 +493,7 @@ func TestNewRuntimeValidation(t *testing.T) {
 	}{
 		{
 			name:    "NilModel",
-			cfg:     chatadvisor.RuntimeConfig{MaxUsesPerRun: 1, MaxOutputTokens: 64},
+			cfg:     chatadvisor.RuntimeConfig{MaxUsesPerRun: 1, MaxOutputTokens: 64, MaxRetries: 1},
 			errText: "advisor model is required",
 		},
 		{
@@ -494,6 +502,7 @@ func TestNewRuntimeValidation(t *testing.T) {
 				Model:           model,
 				MaxUsesPerRun:   0,
 				MaxOutputTokens: 64,
+				MaxRetries:      1,
 			},
 			errText: "advisor max uses per run must be positive",
 		},
@@ -503,8 +512,19 @@ func TestNewRuntimeValidation(t *testing.T) {
 				Model:           model,
 				MaxUsesPerRun:   1,
 				MaxOutputTokens: 0,
+				MaxRetries:      1,
 			},
 			errText: "advisor max output tokens must be positive",
+		},
+		{
+			name: "ZeroMaxRetries",
+			cfg: chatadvisor.RuntimeConfig{
+				Model:           model,
+				MaxUsesPerRun:   1,
+				MaxOutputTokens: 64,
+				MaxRetries:      0,
+			},
+			errText: "advisor max retries must be positive",
 		},
 		{
 			name: "NegativeMaxRetries",
@@ -514,7 +534,7 @@ func TestNewRuntimeValidation(t *testing.T) {
 				MaxOutputTokens: 64,
 				MaxRetries:      -1,
 			},
-			errText: "advisor max retries must not be negative",
+			errText: "advisor max retries must be positive",
 		},
 		{
 			name: "MismatchedCallTemplateMaxOutputTokens",
@@ -522,6 +542,7 @@ func TestNewRuntimeValidation(t *testing.T) {
 				Model:           model,
 				MaxUsesPerRun:   1,
 				MaxOutputTokens: matchingTokens,
+				MaxRetries:      1,
 				CallTemplate: fantasy.Call{
 					MaxOutputTokens: &mismatchedTokens,
 				},
@@ -568,6 +589,7 @@ func TestNewRuntimeDeepClonesOpenAIResponsesProviderOptions(t *testing.T) {
 		CallTemplate:    fantasy.Call{ProviderOptions: parentProviderOpts},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -627,6 +649,7 @@ func TestAdvisorRunDisablesStoreAndIsConsistentAcrossCalls(t *testing.T) {
 		CallTemplate:    fantasy.Call{ProviderOptions: parentProviderOpts},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
