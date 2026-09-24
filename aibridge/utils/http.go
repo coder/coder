@@ -16,9 +16,76 @@ const (
 	actorHeaderPrefixLower = "x-ai-bridge-actor"
 )
 
+// hopByHopHeaders are connection-level headers specific to the connection
+// between client and AI Gateway, not meant for the upstream.
+// See https://www.rfc-editor.org/rfc/rfc2616#section-13.5.1
+var hopByHopHeaders = []string{
+	"Connection",
+	"Keep-Alive",
+	"Proxy-Authenticate",
+	"Proxy-Authorization",
+	"Te",
+	"Trailer",
+	"Transfer-Encoding",
+	"Upgrade",
+}
+
+// nonForwardedHeaders are transport-level headers managed by AI Gateway or
+// Go's HTTP transport that must not be forwarded to the upstream provider.
+var nonForwardedHeaders = []string{
+	"Host",
+	"Accept-Encoding",
+	"Content-Length",
+}
+
+// authHeaders carry client credentials. The caller sets the upstream
+// provider credential after stripping.
+var authHeaders = []string{
+	"Authorization",
+	"X-Api-Key",
+}
+
+// proxyHeaders describe the path the inbound request took to reach AI Gateway.
+// They are not meaningful on the outbound request to the provider.
+var proxyHeaders = []string{
+	"X-Forwarded-For",
+	"X-Forwarded-Host",
+	"X-Forwarded-Proto",
+	"X-Forwarded-Port",
+	"Forwarded",
+}
+
+// agentFirewallHeaders carry Agent Firewall correlation data used by
+// AI Gateway for session correlation. AI Gateway records the values
+// from the incoming request and strips the headers so they are never
+// forwarded to upstream LLM providers.
+var agentFirewallHeaders = []string{
+	"X-Coder-Agent-Firewall-Session-Id",
+	"X-Coder-Agent-Firewall-Sequence-Number",
+}
+
 // IsActorHeader reports whether name is an AI Bridge actor header.
 func IsActorHeader(name string) bool {
 	return strings.HasPrefix(strings.ToLower(name), actorHeaderPrefixLower)
+}
+
+// PrepareClientHeaders returns a copy of the client headers with hop-by-hop,
+// transport, auth, proxy, and Agent Firewall headers removed. The caller must
+// set the upstream provider credential on the result.
+func PrepareClientHeaders(clientHeaders http.Header) http.Header {
+	prepared := clientHeaders.Clone()
+	for _, list := range [][]string{
+		hopByHopHeaders,
+		nonForwardedHeaders,
+		authHeaders,
+		proxyHeaders,
+		agentFirewallHeaders,
+	} {
+		for _, h := range list {
+			prepared.Del(h)
+		}
+	}
+	return prepared
 }
 
 // NewStreamingTransport returns an HTTP transport for long-lived provider

@@ -164,7 +164,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// Read and validate Agent Firewall correlation headers. The
 		// values are captured here and recorded below; the headers
 		// themselves are stripped from the upstream request by
-		// PrepareClientHeaders. Fail closed: reject the request if the
+		// utils.PrepareClientHeaders. Fail closed: reject the request if the
 		// headers are partial or malformed.
 		agentFirewallSessionID, agentFirewallSeqNumber, err := aibclient.ExtractAgentFirewallHeaders(r)
 		if err != nil {
