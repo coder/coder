@@ -90,9 +90,9 @@ If client authentication fails, the token endpoint returns **HTTP 401** with an 
    ```
 
 > [!NOTE]
-> The PKCE flow below is the **required** integration path. The example
-> above is shown for reference but omits the mandatory `code_challenge`
-> parameter. See [PKCE Flow](#pkce-flow-required) for the complete flow.
+> The PKCE flow below is the **required** integration path.
+> The example above is shown for reference but omits the mandatory `code_challenge` parameter.
+> Refer to [PKCE flow](#pkce-flow-required) for the complete flow.
 
 ## PKCE flow (required)
 
