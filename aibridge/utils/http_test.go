@@ -111,38 +111,72 @@ func TestNewStreamingTransport(t *testing.T) {
 	require.False(t, transport.DisableCompression)
 }
 
-func TestStripClientRequestHeaders(t *testing.T) {
+func TestPrepareClientHeaders(t *testing.T) {
 	t.Parallel()
 
-	headers := http.Header{
-		"Connection":                             {"keep-alive"},
-		"Keep-Alive":                             {"timeout=5"},
-		"Proxy-Authenticate":                     {"Basic"},
-		"Proxy-Authorization":                    {"Basic abc"},
-		"Te":                                     {"trailers"},
-		"Trailer":                                {"X-Checksum"},
-		"Transfer-Encoding":                      {"chunked"},
-		"Upgrade":                                {"websocket"},
-		"Host":                                   {"client.example.com"},
-		"Accept-Encoding":                        {"gzip"},
-		"Content-Length":                         {"42"},
-		"Authorization":                          {"Bearer client"},
-		"X-Api-Key":                              {"sk-client"},
-		"X-Forwarded-For":                        {"192.0.2.1"},
-		"X-Forwarded-Host":                       {"client.example.com"},
-		"X-Forwarded-Proto":                      {"https"},
-		"X-Forwarded-Port":                       {"443"},
-		"Forwarded":                              {"for=192.0.2.1"},
-		"X-Coder-Agent-Firewall-Session-Id":      {"e5f6a7b8-1234-5678-9abc-def012345678"},
-		"X-Coder-Agent-Firewall-Sequence-Number": {"42"},
-		"Anthropic-Beta":                         {"prompt-caching-2024-07-31"},
-		"Cookie":                                 {"session=abc"},
-	}
+	t.Run("nil input returns empty header", func(t *testing.T) {
+		t.Parallel()
 
-	utils.StripClientRequestHeaders(headers)
+		require.Empty(t, utils.PrepareClientHeaders(nil))
+	})
 
-	require.Equal(t, http.Header{
-		"Anthropic-Beta": {"prompt-caching-2024-07-31"},
-		"Cookie":         {"session=abc"},
-	}, headers)
+	t.Run("listed headers are removed", func(t *testing.T) {
+		t.Parallel()
+
+		input := http.Header{
+			"Connection":                             {"keep-alive"},
+			"Keep-Alive":                             {"timeout=5"},
+			"Proxy-Authenticate":                     {"Basic"},
+			"Proxy-Authorization":                    {"Basic abc"},
+			"Te":                                     {"trailers"},
+			"Trailer":                                {"X-Checksum"},
+			"Transfer-Encoding":                      {"chunked"},
+			"Upgrade":                                {"websocket"},
+			"Host":                                   {"client.example.com"},
+			"Accept-Encoding":                        {"gzip"},
+			"Content-Length":                         {"42"},
+			"Authorization":                          {"Bearer client"},
+			"X-Api-Key":                              {"sk-client"},
+			"X-Forwarded-For":                        {"192.0.2.1"},
+			"X-Forwarded-Host":                       {"client.example.com"},
+			"X-Forwarded-Proto":                      {"https"},
+			"X-Forwarded-Port":                       {"443"},
+			"Forwarded":                              {"for=192.0.2.1"},
+			"X-Coder-Agent-Firewall-Session-Id":      {"e5f6a7b8-1234-5678-9abc-def012345678"},
+			"X-Coder-Agent-Firewall-Sequence-Number": {"42"},
+			"Anthropic-Beta":                         {"prompt-caching-2024-07-31"},
+			"Cookie":                                 {"session=abc"},
+		}
+
+		require.Equal(t, http.Header{
+			"Anthropic-Beta": {"prompt-caching-2024-07-31"},
+			"Cookie":         {"session=abc"},
+		}, utils.PrepareClientHeaders(input))
+	})
+
+	t.Run("multi-value headers are preserved", func(t *testing.T) {
+		t.Parallel()
+
+		input := http.Header{
+			"X-Custom": {"value-1", "value-2"},
+		}
+
+		result := utils.PrepareClientHeaders(input)
+
+		require.Equal(t, []string{"value-1", "value-2"}, result["X-Custom"])
+	})
+
+	t.Run("input is not mutated", func(t *testing.T) {
+		t.Parallel()
+
+		input := http.Header{
+			"Connection": {"keep-alive"},
+			"X-Custom":   {"preserved"},
+		}
+		originalCopy := input.Clone()
+
+		_ = utils.PrepareClientHeaders(input)
+
+		require.Equal(t, originalCopy, input)
+	})
 }

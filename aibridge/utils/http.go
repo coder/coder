@@ -16,25 +16,6 @@ const (
 	actorHeaderPrefixLower = "x-ai-bridge-actor"
 )
 
-// IsActorHeader reports whether name is an AI Bridge actor header.
-func IsActorHeader(name string) bool {
-	return strings.HasPrefix(strings.ToLower(name), actorHeaderPrefixLower)
-}
-
-// NewStreamingTransport returns an HTTP transport for long-lived provider
-// responses. It intentionally omits both dial and response-header timeouts so
-// slow connection establishment and first-token latency are not cut off here.
-func NewStreamingTransport() *http.Transport {
-	return &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: time.Second,
-	}
-}
-
 // hopByHopHeaders are connection-level headers specific to the connection
 // between client and AI Gateway, not meant for the upstream.
 // See https://www.rfc-editor.org/rfc/rfc2616#section-13.5.1
@@ -83,17 +64,41 @@ var agentFirewallHeaders = []string{
 	"X-Coder-Agent-Firewall-Sequence-Number",
 }
 
-// StripClientRequestHeaders removes the hop-by-hop, transport, auth, proxy,
-// and Agent Firewall headers from client request headers so they never reach
-// upstream providers. The caller must set the upstream provider credential
-// afterwards.
-func StripClientRequestHeaders(headers http.Header) {
+// IsActorHeader reports whether name is an AI Bridge actor header.
+func IsActorHeader(name string) bool {
+	return strings.HasPrefix(strings.ToLower(name), actorHeaderPrefixLower)
+}
+
+// PrepareClientHeaders returns a copy of the client headers with hop-by-hop,
+// transport, auth, proxy, and Agent Firewall headers removed. The caller must
+// set the upstream provider credential on the result.
+func PrepareClientHeaders(clientHeaders http.Header) http.Header {
+	prepared := clientHeaders.Clone()
 	for _, list := range [][]string{
-		hopByHopHeaders, nonForwardedHeaders, authHeaders, proxyHeaders, agentFirewallHeaders,
+		hopByHopHeaders,
+		nonForwardedHeaders,
+		authHeaders,
+		proxyHeaders,
+		agentFirewallHeaders,
 	} {
 		for _, h := range list {
-			headers.Del(h)
+			prepared.Del(h)
 		}
+	}
+	return prepared
+}
+
+// NewStreamingTransport returns an HTTP transport for long-lived provider
+// responses. It intentionally omits both dial and response-header timeouts so
+// slow connection establishment and first-token latency are not cut off here.
+func NewStreamingTransport() *http.Transport {
+	return &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: time.Second,
 	}
 }
 
