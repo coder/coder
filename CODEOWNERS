@@ -28,7 +28,7 @@ coderd/schedule/autostop.go @deansheather @DanielleMaywood
 coderd/usage/ @deansheather @spikecurtis
 enterprise/coderd/usage/ @deansheather @spikecurtis
 
-site/src/pages/AgentsPage/ @DanielleMaywood
+site/src/pages/AgentsPage/ @coder/agents-frontend
 
 .github/ 	@jdomeracki-coder
 
