@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { Chat, ChatStatus } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { MockUserOwner } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import type { CreateChatOptions } from "../../components/AgentCreateForm";
 import ChatBoardPage from "./ChatBoardPage";
@@ -244,6 +245,21 @@ describe("ChatBoardPage", () => {
 		expect(
 			await screen.findByRole("region", { name: "Done column" }),
 		).toBeInTheDocument();
+	});
+
+	it("clears a saved effort filter that no card carries", async () => {
+		const key = `agents.board.${MockUserOwner.id}`;
+		localStorage.setItem(key, JSON.stringify({ effortFilter: "Gone" }));
+		mockChats(
+			() => Promise.resolve([launch()]),
+			() => Promise.resolve([]),
+		);
+		renderWithAuth(<ChatBoardPage />);
+		await screen.findByRole("article");
+
+		expect(JSON.parse(localStorage.getItem(key) ?? "{}").effortFilter).toBe(
+			null,
+		);
 	});
 
 	it("closes a card's draft when the card is gone", async () => {
