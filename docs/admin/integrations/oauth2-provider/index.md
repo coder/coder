@@ -128,7 +128,7 @@ curl -X POST \
 
 The response includes `client_secret_full`, the plaintext secret. Save it now: later reads of this application return only a truncated version.
 
-Every client, whichever method you used to create its application, must complete PKCE (Proof Key for Code Exchange) to exchange a code for a token; refer to [PKCE Flow](./integration-patterns.md#pkce-flow-required) before you start integrating.
+Every client, whichever method you used to create its application, must complete PKCE (Proof Key for Code Exchange) to exchange a code for a token; refer to [Authorization code flow](./integration-patterns.md#authorization-code-flow) before you start integrating.
 
 ## Dynamic Client Registration
 
@@ -187,7 +187,7 @@ The admin `PUT` also validates the stored name, so a self-registered client whos
 
 - [Integration patterns](./integration-patterns.md): client authentication methods, the PKCE flow, and discovery endpoints
   - <a id="client-authentication-methods"></a>[Client authentication methods](./integration-patterns.md#client-authentication-methods)
-  - <a id="standard-oauth2-flow"></a><a id="pkce-flow-required"></a>[PKCE flow](./integration-patterns.md#pkce-flow-required)
+  - <a id="standard-oauth2-flow"></a><a id="pkce-flow-required"></a>[Authorization code flow](./integration-patterns.md#authorization-code-flow)
   - <a id="discovery-endpoints"></a><a id="standards-compliance"></a>[Discovery endpoints](./integration-patterns.md#discovery-endpoints)
 
 <a id="scopes"></a>

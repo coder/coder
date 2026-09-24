@@ -19,7 +19,7 @@ Coder supports the following OAuth2 client authentication methods at the token e
   The client is a public client and authenticates with PKCE alone (RFC 7591 §2, OAuth 2.1 §2.1).
   Available only through [Dynamic Client Registration](./index.md#dynamic-client-registration), which is disabled by default, since a client's type is set when it registers and apps created through the admin UI or API are always confidential.
 
-Coder supports both basic authentication and form-based authentication for compatibility; existing integrations using `client_secret_post` do not need to change.
+Coder supports both methods, so existing integrations using `client_secret_post` don't need to switch to `client_secret_basic`.
 
 Send `client_secret` in the request body or in the `Authorization` header.
 `POST /oauth2/tokens` and `POST /oauth2/revoke` reject a `client_secret` value in the URL query string with `invalid_request`, because OAuth 2.1 section 2.4.1 does not allow it there.
@@ -45,62 +45,10 @@ Coder reports `client_secret_basic` for those clients so that what it reports ma
 
 If client authentication fails, the token endpoint returns **HTTP 401** with an OAuth2 `invalid_client` error and a `WWW-Authenticate: Basic realm="coder"` response header.
 
-## Standard OAuth2 flow
+## Authorization code flow
 
-1. **Authorization Request**: Redirect users to Coder's authorization endpoint:
-
-   ```txt
-   https://coder.example.com/oauth2/authorize?
-     client_id=your-client-id&
-     response_type=code&
-     redirect_uri=https://yourapp.example.com/callback&
-     state=random-string
-   ```
-
-2. **Token Exchange**: Exchange the authorization code for an access token.
-
-   **Option A: HTTP Basic authentication (`client_secret_basic`, recommended)**
-
-   ```sh
-   curl -X POST \
-     -u "$CLIENT_ID:$CLIENT_SECRET" \
-     -H "Content-Type: application/x-www-form-urlencoded" \
-     -d "grant_type=authorization_code" \
-     -d "code=$AUTH_CODE" \
-     -d "redirect_uri=https://yourapp.example.com/callback" \
-     "$CODER_URL/oauth2/tokens"
-   ```
-
-   **Option B: Form parameters (`client_secret_post`)**
-
-   ```sh
-   curl -X POST \
-     -H "Content-Type: application/x-www-form-urlencoded" \
-     -d "grant_type=authorization_code" \
-     -d "code=$AUTH_CODE" \
-     -d "client_id=$CLIENT_ID" \
-     -d "client_secret=$CLIENT_SECRET" \
-     -d "redirect_uri=https://yourapp.example.com/callback" \
-     "$CODER_URL/oauth2/tokens"
-   ```
-
-3. **API Access**: Use the access token to call Coder's API:
-
-   ```sh
-   curl -H "Authorization: Bearer $ACCESS_TOKEN" \
-     "$CODER_URL/api/v2/users/me"
-   ```
-
-> [!NOTE]
-> The PKCE flow below is the **required** integration path.
-> The example above is shown for reference but omits the mandatory `code_challenge` parameter.
-> Refer to [PKCE flow](#pkce-flow-required) for the complete flow.
-
-## PKCE flow (required)
-
-PKCE is **required** for all OAuth2 authorization code flows.
-Coder enforces PKCE in compliance with the OAuth 2.1 specification.
-Both public and confidential clients must include PKCE parameters:
+Every authorization code flow requires PKCE (Proof Key for Code Exchange).
+Coder enforces PKCE in compliance with the OAuth 2.1 specification, for both public and confidential clients.
 
 > [!NOTE]
 > `code_verifier` and `code_challenge` must each be 43-128 characters from the unreserved character set `[A-Za-z0-9-._~]` (RFC 7636 §4.1).
@@ -113,7 +61,7 @@ Both public and confidential clients must include PKCE parameters:
    CODE_CHALLENGE=$(echo -n $CODE_VERIFIER | openssl dgst -sha256 -binary | base64 | tr -d "=" | tr '+/' '-_')
    ```
 
-2. Include PKCE parameters in the authorization request:
+2. Redirect users to Coder's authorization endpoint:
 
    ```txt
    https://coder.example.com/oauth2/authorize?
@@ -121,10 +69,11 @@ Both public and confidential clients must include PKCE parameters:
      response_type=code&
      code_challenge=$CODE_CHALLENGE&
      code_challenge_method=S256&
-     redirect_uri=https://yourapp.example.com/callback
+     redirect_uri=https://yourapp.example.com/callback&
+     state=random-string
    ```
 
-3. Include the code verifier in the token exchange (refer to [Client authentication methods](#client-authentication-methods)):
+3. Exchange the authorization code for an access token, using the code verifier (refer to [Client authentication methods](#client-authentication-methods) for how to authenticate):
 
    **Confidential client**
 
@@ -153,6 +102,13 @@ Both public and confidential clients must include PKCE parameters:
      -d "code_verifier=$CODE_VERIFIER" \
      -d "redirect_uri=https://yourapp.example.com/callback" \
      "$CODER_URL/oauth2/tokens"
+   ```
+
+4. Use the access token to call Coder's API:
+
+   ```sh
+   curl -H "Authorization: Bearer $ACCESS_TOKEN" \
+     "$CODER_URL/api/v2/users/me"
    ```
 
 ## Discovery endpoints
