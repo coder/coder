@@ -273,7 +273,7 @@ const ChatBoardPage: FC = () => {
 		"cardId" in draftTarget &&
 		!allCards.some((c) => c.id === draftTarget.cardId)
 	) {
-		setWindows((prev) => closeWindow(prev, "draft"));
+		setWindows((prev) => prev.filter((w) => w.kind !== "draft"));
 	}
 
 	const run = (plan: Plan | null) =>

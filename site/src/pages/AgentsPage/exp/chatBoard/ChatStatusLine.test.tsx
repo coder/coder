@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -32,10 +32,12 @@ describe("ChatStatusLine", () => {
 		const text = lineText(idle);
 
 		expect(text.endsWith(shortRelativeTime(idle.updated_at))).toBe(true);
-		expect(text).toContain("#12");
 		expect(text).toContain("Fixed the build");
 		expect(text).not.toContain("+12");
-		expect(text).not.toContain("3");
+		expect(text).not.toContain("−3");
+		expect(
+			screen.getByRole("link", { name: "#12, Pull request open" }),
+		).toHaveAttribute("href", "https://github.com/coder/coder/pull/12");
 	});
 
 	it("omits the age while the chat is working", () => {

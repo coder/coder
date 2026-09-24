@@ -113,7 +113,7 @@ ${common(tools)}
 
 Scope: this card and its chats only. Card id (primary chat): ${card.id}. Members: ${card.members.map((chat) => chat.id).join(", ")}. These ids are orientation from creation time; a merge or a primary leaving can change them. The only labels you may change are this card's notes, on the primary, when the user asks. Before writing a note, verify live that ${card.id} is still this card's primary (no board/group on it) and that the members still point at it; if not, say the card changed and stop. ${NOTE_RULE} Follow this procedure: ${WRITE_PROCEDURE}`;
 
-// Same rows as the README data model table.
+// The one copy of the label schema; the README points here.
 const LABEL_SCHEMA = `| Label | On | Meaning |
 | --- | --- | --- |
 | board/column | members | column name; absent means Inbox |
@@ -156,8 +156,9 @@ Writing labels: ${WRITE_PROCEDURE}
 - A primary leaving its group: the oldest remaining member by created_at becomes primary. It receives the card labels (color, pos, comments, efforts) plus the card's effective title as board/title, and drops its own board/group. The other members repoint board/group to it. The departing chat loses card-level labels and board/group and gets board/column plus a board/pos just below the card.
 - ${NOTE_RULE}`;
 
-// Leads with the card name so the server's automatic title lands close to
-// the one set below, should it win the race.
+// Leads with the card name: the server titles the chat from its first
+// message and may overwrite the title createAssistant sets, so the automatic
+// title should land close to it. Backend follow-up: accept a title on create.
 const cardSnapshot = (card: BoardCard): string => {
 	const notes = [...card.comments]
 		.sort((a, b) => a.timestamp - b.timestamp)

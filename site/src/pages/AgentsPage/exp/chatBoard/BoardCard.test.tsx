@@ -133,10 +133,14 @@ describe("BoardCard", () => {
 		await user.click(screen.getByRole("menuitemcheckbox", { name: "Q3" }));
 		expect(onSetEfforts).toHaveBeenLastCalledWith([]);
 
-		await user.type(
-			screen.getByRole("textbox", { name: "New effort" }),
-			"Launch{Enter}",
-		);
+		// Passing over an item mid-word takes focus from the field; only Enter
+		// coins the effort.
+		const field = screen.getByRole("textbox", { name: "New effort" });
+		await user.type(field, "Lau");
+		await user.hover(screen.getByRole("menuitemcheckbox", { name: "Q3" }));
+		expect(field).not.toHaveFocus();
+		await user.type(field, "nch{Enter}");
+		expect(onSetEfforts).toHaveBeenCalledTimes(3);
 		expect(onSetEfforts).toHaveBeenLastCalledWith(["Q3", "Launch"]);
 	});
 
