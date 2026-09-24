@@ -587,7 +587,7 @@ export const TypedInlinePrefix: Story = {
 };
 
 // A category scope toggle sits below the option list; the applied chip is
-// followed by an include shared pill while the toggle is on.
+// joined by a shared with owner pill while the toggle is on.
 export const ScopeToggle: Story = {
 	render: () => (
 		<FilterComboboxHarness
@@ -604,7 +604,7 @@ export const ScopeToggle: Story = {
 								? `Include workspaces shared with ${owner}`
 								: "Include shared workspaces",
 						chipKey: "user",
-						pillLabel: "include shared",
+						pillLabel: "shared with owner",
 					},
 					getOptions: async (query) => filterOptions(ownerOptions, query),
 				},

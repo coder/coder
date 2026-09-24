@@ -363,7 +363,7 @@ export const useFilterCombobox = ({
 	const categoryQuery =
 		activeCategoryKey !== null || browseAll ? "" : inputValue.trim();
 	// Typing the start of a word in a scope toggle's pill label (e.g. `sha` for
-	// `include shared`) finds its category, so the toggle is one step away.
+	// `shared with owner`) finds its category, so the toggle is one step away.
 	const scopeQuery = categoryQuery.toLowerCase();
 	const scopeMatchedCategory =
 		scopeQuery.length < 3 || typedInlinePrefix !== null

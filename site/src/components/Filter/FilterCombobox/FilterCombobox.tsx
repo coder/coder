@@ -3,10 +3,10 @@ import {
 	CheckIcon,
 	ChevronRightIcon,
 	ListFilterIcon,
+	PlusIcon,
 	SearchIcon,
 } from "lucide-react";
 import {
-	Fragment,
 	type ReactNode,
 	useEffect,
 	useId,
@@ -377,24 +377,32 @@ export function FilterCombobox({
 							).toLowerCase();
 							const displayText = prefix ? chipToken(prefix, value) : value;
 							return (
-								<Fragment key={token}>
+								<span key={token} className="inline-flex">
 									<FilterComboboxChip
 										value={token}
 										removeLabel={`Remove ${displayText}`}
-										className={labelOnly ? labelOnlyChipClassName : undefined}
+										className={cn(
+											labelOnly && labelOnlyChipClassName,
+											scopePillLabel && "rounded-r-none",
+										)}
 									>
 										<ChipLabel prefix={prefix} value={value} />
 									</FilterComboboxChip>
+									{/* Joined to its chip, since it widens that chip's filter. */}
 									{category && scopePillLabel && (
 										<FilterComboboxChip
 											removeLabel={`Remove ${scopePillLabel}`}
 											onRemove={() => actions.toggleScope(category.key)}
-											className={labelOnlyChipClassName}
+											className={cn(
+												labelOnlyChipClassName,
+												"rounded-l-none border-l-border",
+											)}
 										>
+											<PlusIcon aria-hidden />
 											{scopePillLabel}
 										</FilterComboboxChip>
 									)}
-								</Fragment>
+								</span>
 							);
 						})}
 						{activeCategory && committedFreeText.length > 0 && (

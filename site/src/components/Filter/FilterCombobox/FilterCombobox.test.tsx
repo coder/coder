@@ -20,7 +20,7 @@ const scopedOwnerCategory: FilterCategory = {
 				? `Include workspaces shared with ${owner}`
 				: "Include shared workspaces",
 		chipKey: "user",
-		pillLabel: "include shared",
+		pillLabel: "shared with owner",
 	},
 };
 
@@ -339,7 +339,7 @@ describe("FilterCombobox", () => {
 		});
 
 		await user.click(
-			screen.getByRole("button", { name: "Remove include shared" }),
+			screen.getByRole("button", { name: "Remove shared with owner" }),
 		);
 
 		await waitFor(() =>

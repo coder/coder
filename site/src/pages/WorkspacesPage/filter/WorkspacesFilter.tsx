@@ -65,7 +65,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 							? `Include workspaces shared with ${owner}`
 							: "Include shared workspaces",
 					chipKey: "user",
-					pillLabel: "include shared",
+					pillLabel: "shared with owner",
 				},
 				getOptions: canListUsers
 					? (query) => getUserFilterOptions(query, me, queryClient)
