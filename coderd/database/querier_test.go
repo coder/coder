@@ -15499,6 +15499,107 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.NotEqual(t, chat.HistoryVersion, fetched.HistoryVersion)
 }
 
+// TestUpdateChatLastTurnSummaryDoesNotBlockOnTransitionLock proves the summary
+// write now lives in a side table: it must complete while a state-machine
+// transition holds FOR NO KEY UPDATE on the hot chats row.
+func TestUpdateChatLastTurnSummaryDoesNotBlockOnTransitionLock(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, "openai", database.InsertChatModelConfigParams{
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "summary-lock-chat",
+	})
+	require.NoError(t, err)
+
+	lockHeld := make(chan struct{})
+	releaseLock := make(chan struct{})
+	txErr := make(chan error, 1)
+	go func() {
+		txErr <- db.InTx(func(tx database.Store) error {
+			// Holds FOR NO KEY UPDATE on the chats row until releaseLock.
+			if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, chat.ID); err != nil {
+				return err
+			}
+			close(lockHeld)
+			<-releaseLock
+			return nil
+		}, nil)
+	}()
+
+	<-lockHeld
+
+	summaryDone := make(chan int64, 1)
+	summaryErr := make(chan error, 1)
+	go func() {
+		affected, err := db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			LastTurnSummary:        sql.NullString{String: "concurrent summary", Valid: true},
+		})
+		if err != nil {
+			summaryErr <- err
+			return
+		}
+		summaryDone <- affected
+	}()
+
+	select {
+	case affected := <-summaryDone:
+		require.EqualValues(t, 1, affected)
+	case err := <-summaryErr:
+		close(releaseLock)
+		t.Fatalf("summary write failed while transition lock was held: %v", err)
+	case <-time.After(testutil.WaitShort):
+		close(releaseLock)
+		t.Fatal("summary write blocked on the held transition lock")
+	}
+
+	close(releaseLock)
+	require.NoError(t, <-txErr)
+
+	fetched, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, sql.NullString{String: "concurrent summary", Valid: true}, fetched.LastTurnSummary)
+}
+
 func TestUpdateChatSummary(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

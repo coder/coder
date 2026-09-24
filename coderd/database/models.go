@@ -5183,6 +5183,13 @@ type ChatHeartbeat struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
+// Cached display-only summary of the latest completed turn, written asynchronously after an LLM label call. Split from chats so summary writes do not lock the hot chat row. history_version is the freshness watermark the summary was generated for.
+type ChatLastTurnSummary struct {
+	ChatID          uuid.UUID      `db:"chat_id" json:"chat_id"`
+	LastTurnSummary sql.NullString `db:"last_turn_summary" json:"last_turn_summary"`
+	HistoryVersion  int64          `db:"history_version" json:"history_version"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
@@ -5282,7 +5289,6 @@ type ChatTable struct {
 	OrganizationID    uuid.UUID             `db:"organization_id" json:"organization_id"`
 	PlanMode          NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType        ChatClientType        `db:"client_type" json:"client_type"`
-	LastTurnSummary   sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
 	UserACL           ChatACL               `db:"user_acl" json:"user_acl"`
 	GroupACL          ChatACL               `db:"group_acl" json:"group_acl"`
 	// Monotonic version for the full chat snapshot. Starts at 1 so stream loops and workers can use 0 to mean they have not loaded the chat yet.

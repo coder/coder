@@ -2021,6 +2021,14 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
 
+CREATE TABLE chat_last_turn_summaries (
+    chat_id uuid NOT NULL,
+    last_turn_summary text,
+    history_version bigint NOT NULL
+);
+
+COMMENT ON TABLE chat_last_turn_summaries IS 'Cached display-only summary of the latest completed turn, written asynchronously after an LLM label call. Split from chats so summary writes do not lock the hot chat row. history_version is the freshness watermark the summary was generated for.';
+
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
@@ -2190,7 +2198,6 @@ CREATE TABLE chats (
     organization_id uuid NOT NULL,
     plan_mode chat_plan_mode,
     client_type chat_client_type DEFAULT 'api'::chat_client_type NOT NULL,
-    last_turn_summary text,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     snapshot_version bigint DEFAULT 1 NOT NULL,
@@ -2313,7 +2320,7 @@ CREATE VIEW chats_expanded AS
     c.organization_id,
     c.plan_mode,
     c.client_type,
-    c.last_turn_summary,
+    lts.last_turn_summary,
     c.summary,
     c.summary_generated_at,
     c.snapshot_version,
@@ -2333,9 +2340,10 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_resources,
     c.context_error,
     c.compaction_requested_at
-   FROM ((chats c
+   FROM (((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
-     JOIN visible_users owner ON ((owner.id = c.owner_id)));
+     JOIN visible_users owner ON ((owner.id = c.owner_id)))
+     LEFT JOIN chat_last_turn_summaries lts ON ((lts.chat_id = c.id)));
 
 CREATE TABLE connection_logs (
     id uuid NOT NULL,
@@ -4301,6 +4309,9 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
+ALTER TABLE ONLY chat_last_turn_summaries
+    ADD CONSTRAINT chat_last_turn_summaries_pkey PRIMARY KEY (chat_id);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
@@ -5156,6 +5167,9 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_last_turn_summaries
+    ADD CONSTRAINT chat_last_turn_summaries_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

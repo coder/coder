@@ -1528,13 +1528,13 @@ type sqlcQuerier interface {
 	// Updates the last read message ID for a chat. This is used to track
 	// which messages the owner has seen, enabling unread indicators.
 	UpdateChatLastReadMessageID(ctx context.Context, arg UpdateChatLastReadMessageIDParams) error
-	// Updates the cached last completed turn summary for sidebar display.
-	// Empty or whitespace-only summaries are stored as NULL here so direct
-	// query callers cannot accidentally persist blank sidebar text.
-	// This intentionally preserves updated_at. The staleness guard uses
-	// history_version so worker lifecycle transitions that do not change the
-	// active message history cannot reject final turn summary writes.
-	// Two summary workers using the same freshness marker are last-write-wins.
+	// Upserts the cached last completed turn summary into the side table so the
+	// write stays off the hot chats row. Empty or whitespace-only summaries are
+	// stored as NULL. The staleness guard matches the chat's current
+	// history_version so worker lifecycle transitions that do not change the active
+	// message history cannot reject final turn summary writes. The ON CONFLICT
+	// watermark prevents an older summary from overwriting a newer one; writers at
+	// the same version are last-write-wins.
 	UpdateChatLastTurnSummary(ctx context.Context, arg UpdateChatLastTurnSummaryParams) (int64, error)
 	UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error)
 	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)

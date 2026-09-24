@@ -34,7 +34,7 @@ chats_expanded AS (
         updated_chats.organization_id,
         updated_chats.plan_mode,
         updated_chats.client_type,
-        updated_chats.last_turn_summary,
+        lts.last_turn_summary,
         updated_chats.summary,
         updated_chats.summary_generated_at,
         updated_chats.snapshot_version,
@@ -58,6 +58,7 @@ chats_expanded AS (
         updated_chats
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chats.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = updated_chats.id
 )
 SELECT *
 FROM chats_expanded
@@ -100,7 +101,7 @@ chats_expanded AS (
         updated_chats.organization_id,
         updated_chats.plan_mode,
         updated_chats.client_type,
-        updated_chats.last_turn_summary,
+        lts.last_turn_summary,
         updated_chats.summary,
         updated_chats.summary_generated_at,
         updated_chats.snapshot_version,
@@ -124,6 +125,7 @@ chats_expanded AS (
         updated_chats
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chats.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = updated_chats.id
 )
 SELECT *
 FROM chats_expanded
@@ -858,7 +860,7 @@ chats_expanded AS (
         inserted_chat.organization_id,
         inserted_chat.plan_mode,
         inserted_chat.client_type,
-        inserted_chat.last_turn_summary,
+        lts.last_turn_summary,
         inserted_chat.summary,
         inserted_chat.summary_generated_at,
         inserted_chat.snapshot_version,
@@ -882,6 +884,7 @@ chats_expanded AS (
         inserted_chat
     LEFT JOIN chats root ON root.id = COALESCE(inserted_chat.root_chat_id, inserted_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = inserted_chat.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = inserted_chat.id
 )
 SELECT *
 FROM chats_expanded;
@@ -1022,7 +1025,7 @@ chats_expanded AS (
         updated_chat.organization_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
-        updated_chat.last_turn_summary,
+        lts.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
@@ -1046,6 +1049,7 @@ chats_expanded AS (
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = updated_chat.id
 )
 SELECT *
 FROM chats_expanded;
@@ -1092,7 +1096,7 @@ chats_expanded AS (
         updated_chat.organization_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
-        updated_chat.last_turn_summary,
+        lts.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
@@ -1116,6 +1120,7 @@ chats_expanded AS (
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = updated_chat.id
 )
 SELECT *
 FROM chats_expanded;
@@ -1160,7 +1165,7 @@ chats_expanded AS (
         updated_chat.organization_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
-        updated_chat.last_turn_summary,
+        lts.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
@@ -1184,6 +1189,7 @@ chats_expanded AS (
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = updated_chat.id
 )
 SELECT *
 FROM chats_expanded;
@@ -1228,7 +1234,7 @@ chats_expanded AS (
         updated_chat.organization_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
-        updated_chat.last_turn_summary,
+        lts.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
@@ -1252,6 +1258,7 @@ chats_expanded AS (
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = updated_chat.id
 )
 SELECT *
 FROM chats_expanded;
@@ -1296,7 +1303,7 @@ chats_expanded AS (
         updated_chat.organization_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
-        updated_chat.last_turn_summary,
+        lts.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
@@ -1320,6 +1327,7 @@ chats_expanded AS (
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = updated_chat.id
 )
 SELECT *
 FROM chats_expanded;
@@ -1384,7 +1392,7 @@ chats_expanded AS (
         result_chat.organization_id,
         result_chat.plan_mode,
         result_chat.client_type,
-        result_chat.last_turn_summary,
+        lts.last_turn_summary,
         result_chat.summary,
         result_chat.summary_generated_at,
         result_chat.snapshot_version,
@@ -1408,6 +1416,7 @@ chats_expanded AS (
         result_chat
     LEFT JOIN chats root ON root.id = COALESCE(result_chat.root_chat_id, result_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = result_chat.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = result_chat.id
 )
 SELECT *
 FROM chats_expanded;
@@ -1451,7 +1460,7 @@ chats_expanded AS (
         updated_chat.organization_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
-        updated_chat.last_turn_summary,
+        lts.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
@@ -1475,26 +1484,35 @@ chats_expanded AS (
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = updated_chat.id
 )
 SELECT *
 FROM chats_expanded;
 
 -- name: UpdateChatLastTurnSummary :execrows
--- Updates the cached last completed turn summary for sidebar display.
--- Empty or whitespace-only summaries are stored as NULL here so direct
--- query callers cannot accidentally persist blank sidebar text.
--- This intentionally preserves updated_at. The staleness guard uses
--- history_version so worker lifecycle transitions that do not change the
--- active message history cannot reject final turn summary writes.
--- Two summary workers using the same freshness marker are last-write-wins.
-UPDATE chats
-SET
-    last_turn_summary = NULLIF(REGEXP_REPLACE(
+-- Upserts the cached last completed turn summary into the side table so the
+-- write stays off the hot chats row. Empty or whitespace-only summaries are
+-- stored as NULL. The staleness guard matches the chat's current
+-- history_version so worker lifecycle transitions that do not change the active
+-- message history cannot reject final turn summary writes. The ON CONFLICT
+-- watermark prevents an older summary from overwriting a newer one; writers at
+-- the same version are last-write-wins.
+INSERT INTO chat_last_turn_summaries AS s (chat_id, history_version, last_turn_summary)
+SELECT
+    c.id,
+    c.history_version,
+    NULLIF(REGEXP_REPLACE(
         sqlc.narg('last_turn_summary')::text, '^[[:space:]]+|[[:space:]]+$', '', 'g'
     ), '')
+FROM chats c
 WHERE
-    id = @id::uuid
-    AND history_version = @expected_history_version::bigint;
+    c.id = @id::uuid
+    AND c.history_version = @expected_history_version::bigint
+ON CONFLICT (chat_id) DO UPDATE
+SET
+    history_version = EXCLUDED.history_version,
+    last_turn_summary = EXCLUDED.last_turn_summary
+WHERE s.history_version <= EXCLUDED.history_version;
 
 -- name: UpdateChatSummary :execrows
 -- The history_version fence lets background summary writes ignore worker-only
@@ -1547,7 +1565,7 @@ chats_expanded AS (
         updated_chat.organization_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
-        updated_chat.last_turn_summary,
+        lts.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
@@ -1571,6 +1589,7 @@ chats_expanded AS (
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = updated_chat.id
 )
 SELECT *
 FROM chats_expanded;
@@ -1848,7 +1867,7 @@ chats_expanded AS (
         updated_chat.organization_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
-        updated_chat.last_turn_summary,
+        lts.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
@@ -1872,6 +1891,7 @@ chats_expanded AS (
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = updated_chat.id
 )
 SELECT *
 FROM chats_expanded;
@@ -2144,7 +2164,7 @@ chats_expanded AS (
         locked_chat.organization_id,
         locked_chat.plan_mode,
         locked_chat.client_type,
-        locked_chat.last_turn_summary,
+        lts.last_turn_summary,
         locked_chat.summary,
         locked_chat.summary_generated_at,
         locked_chat.snapshot_version,
@@ -2168,6 +2188,7 @@ chats_expanded AS (
         locked_chat
     LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = locked_chat.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = locked_chat.id
 )
 SELECT *
 FROM chats_expanded;
@@ -2549,7 +2570,7 @@ chats_expanded AS (
         bumped_chat.organization_id,
         bumped_chat.plan_mode,
         bumped_chat.client_type,
-        bumped_chat.last_turn_summary,
+        lts.last_turn_summary,
         bumped_chat.summary,
         bumped_chat.summary_generated_at,
         bumped_chat.snapshot_version,
@@ -2572,6 +2593,7 @@ chats_expanded AS (
     FROM bumped_chat
     LEFT JOIN chats root ON root.id = COALESCE(bumped_chat.root_chat_id, bumped_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = bumped_chat.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = bumped_chat.id
 )
 SELECT *
 FROM chats_expanded;
@@ -2633,7 +2655,7 @@ chats_expanded AS (
         updated_chat.organization_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
-        updated_chat.last_turn_summary,
+        lts.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
@@ -2656,6 +2678,7 @@ chats_expanded AS (
     FROM updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = updated_chat.id
 )
 SELECT *
 FROM chats_expanded;
@@ -2700,7 +2723,7 @@ chats_expanded AS (
         updated_chat.organization_id,
         updated_chat.plan_mode,
         updated_chat.client_type,
-        updated_chat.last_turn_summary,
+        lts.last_turn_summary,
         updated_chat.summary,
         updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
@@ -2723,6 +2746,7 @@ chats_expanded AS (
     FROM updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
+    LEFT JOIN chat_last_turn_summaries lts ON lts.chat_id = updated_chat.id
 )
 SELECT *
 FROM chats_expanded;
