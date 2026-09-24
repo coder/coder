@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/tailnet"
@@ -1171,7 +1172,14 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 			return time.Time{}, nil
 		}
 
-		ws, err := client.Workspace(ctx, workspaceID)
+		// Only TTLMillis (derived from the template) and the latest build's
+		// deadline are read below.
+		ws, err := client.Workspace(ctx, workspaceID, codersdk.WorkspaceOptions{
+			IncludeRelated: &wsrelated.Config{
+				Template:    true,
+				LatestBuild: &wsrelated.LatestBuild{},
+			},
+		})
 		if err != nil {
 			return time.Time{}, nil
 		}
