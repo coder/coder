@@ -117,41 +117,84 @@ func TestPrepareClientHeaders(t *testing.T) {
 	t.Run("nil input returns empty header", func(t *testing.T) {
 		t.Parallel()
 
-		require.Empty(t, utils.PrepareClientHeaders(nil))
+		result := utils.PrepareClientHeaders(nil)
+		require.Empty(t, result)
 	})
 
-	t.Run("listed headers are removed", func(t *testing.T) {
+	t.Run("hop-by-hop headers are removed", func(t *testing.T) {
 		t.Parallel()
 
 		input := http.Header{
-			"Connection":                             {"keep-alive"},
-			"Keep-Alive":                             {"timeout=5"},
-			"Proxy-Authenticate":                     {"Basic"},
-			"Proxy-Authorization":                    {"Basic abc"},
-			"Te":                                     {"trailers"},
-			"Trailer":                                {"X-Checksum"},
-			"Transfer-Encoding":                      {"chunked"},
-			"Upgrade":                                {"websocket"},
-			"Host":                                   {"client.example.com"},
-			"Accept-Encoding":                        {"gzip"},
-			"Content-Length":                         {"42"},
-			"Authorization":                          {"Bearer client"},
-			"X-Api-Key":                              {"sk-client"},
-			"X-Forwarded-For":                        {"192.0.2.1"},
-			"X-Forwarded-Host":                       {"client.example.com"},
-			"X-Forwarded-Proto":                      {"https"},
-			"X-Forwarded-Port":                       {"443"},
-			"Forwarded":                              {"for=192.0.2.1"},
-			"X-Coder-Agent-Firewall-Session-Id":      {"e5f6a7b8-1234-5678-9abc-def012345678"},
-			"X-Coder-Agent-Firewall-Sequence-Number": {"42"},
-			"Anthropic-Beta":                         {"prompt-caching-2024-07-31"},
-			"Cookie":                                 {"session=abc"},
+			"Connection":        {"keep-alive"},
+			"Keep-Alive":        {"timeout=5"},
+			"Transfer-Encoding": {"chunked"},
+			"Upgrade":           {"websocket"},
+			"X-Custom":          {"preserved"},
 		}
 
-		require.Equal(t, http.Header{
-			"Anthropic-Beta": {"prompt-caching-2024-07-31"},
-			"Cookie":         {"session=abc"},
-		}, utils.PrepareClientHeaders(input))
+		result := utils.PrepareClientHeaders(input)
+
+		assert.Empty(t, result.Get("Connection"))
+		assert.Empty(t, result.Get("Keep-Alive"))
+		assert.Empty(t, result.Get("Transfer-Encoding"))
+		assert.Empty(t, result.Get("Upgrade"))
+		assert.Equal(t, "preserved", result.Get("X-Custom"))
+	})
+
+	t.Run("non-forwarded headers are removed", func(t *testing.T) {
+		t.Parallel()
+
+		input := http.Header{
+			"Host":            {"example.com"},
+			"Accept-Encoding": {"gzip"},
+			"Content-Length":  {"42"},
+			"X-Custom":        {"preserved"},
+		}
+
+		result := utils.PrepareClientHeaders(input)
+
+		assert.Empty(t, result.Get("Host"))
+		assert.Empty(t, result.Get("Accept-Encoding"))
+		assert.Empty(t, result.Get("Content-Length"))
+		assert.Equal(t, "preserved", result.Get("X-Custom"))
+	})
+
+	t.Run("auth headers are removed", func(t *testing.T) {
+		t.Parallel()
+
+		input := http.Header{
+			"Authorization": {"Bearer coder-session-token"},
+			"X-Api-Key":     {"sk-client-key"},
+			"X-Custom":      {"preserved"},
+		}
+
+		result := utils.PrepareClientHeaders(input)
+
+		assert.Empty(t, result.Get("Authorization"))
+		assert.Empty(t, result.Get("X-Api-Key"))
+		assert.Equal(t, "preserved", result.Get("X-Custom"))
+	})
+
+	t.Run("proxy headers are removed", func(t *testing.T) {
+		t.Parallel()
+
+		input := http.Header{
+			"X-Forwarded-For":   {"203.0.113.50"},
+			"X-Forwarded-Host":  {"app.example.com"},
+			"X-Forwarded-Proto": {"https"},
+			"X-Forwarded-Port":  {"443"},
+			"Forwarded":         {"for=203.0.113.50;proto=https"},
+			"X-Custom":          {"preserved"},
+		}
+
+		result := utils.PrepareClientHeaders(input)
+
+		assert.Empty(t, result.Get("X-Forwarded-For"))
+		assert.Empty(t, result.Get("X-Forwarded-Host"))
+		assert.Empty(t, result.Get("X-Forwarded-Proto"))
+		assert.Empty(t, result.Get("X-Forwarded-Port"))
+		assert.Empty(t, result.Get("Forwarded"))
+		assert.Equal(t, "preserved", result.Get("X-Custom"))
 	})
 
 	t.Run("multi-value headers are preserved", func(t *testing.T) {
@@ -178,5 +221,21 @@ func TestPrepareClientHeaders(t *testing.T) {
 		_ = utils.PrepareClientHeaders(input)
 
 		require.Equal(t, originalCopy, input)
+	})
+
+	t.Run("agent firewall headers are removed", func(t *testing.T) {
+		t.Parallel()
+
+		input := http.Header{
+			"X-Coder-Agent-Firewall-Session-Id":      {"e5f6a7b8-1234-5678-9abc-def012345678"},
+			"X-Coder-Agent-Firewall-Sequence-Number": {"42"},
+			"X-Custom":                               {"preserved"},
+		}
+
+		result := utils.PrepareClientHeaders(input)
+
+		assert.Empty(t, result.Get("X-Coder-Agent-Firewall-Session-Id"))
+		assert.Empty(t, result.Get("X-Coder-Agent-Firewall-Sequence-Number"))
+		assert.Equal(t, "preserved", result.Get("X-Custom"))
 	})
 }
