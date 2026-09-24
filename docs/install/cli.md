@@ -5,7 +5,7 @@ title: Install the Coder CLI
 A single CLI (`coder`) is used for both the control plane and the client.
 
 We support two release channels: mainline and stable - read the
-[Releases](./releases/index.md) page to learn more about which best suits your team.
+[Releases](../reference/releases.md) page to learn more about which best suits your team.
 
 ## Download the latest release from GitHub
 
