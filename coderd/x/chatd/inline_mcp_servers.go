@@ -10,13 +10,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// inlineMCPServer is one inline server as prepareGeneration sees
-// it: the connect spec plus the plan-mode policy chatd enforces.
-type inlineMCPServer struct {
-	Server          mcpclient.Server
-	AllowInPlanMode bool
-}
-
 // inlineMCPServersEnabled reports whether this deployment loads and
 // connects inline MCP servers at turn time. Both the experiment
 // and the caller-supplied tools kill switch must allow it.
@@ -32,10 +25,7 @@ func (server *Server) inlineMCPServersEnabled() bool {
 // ConnectSummary rows instead of an error: the chat debug panel shows them
 // beside connection failures. The summary text is fixed so database error
 // detail never reaches viewer-visible data.
-func (server *Server) loadInlineMCPServers(ctx context.Context, chat database.Chat) ([]inlineMCPServer, []mcpclient.ConnectSummary) {
-	if isExploreSubagentMode(chat.Mode) {
-		return nil, nil
-	}
+func (server *Server) loadInlineMCPServers(ctx context.Context, chat database.Chat) ([]mcpclient.Server, []mcpclient.ConnectSummary) {
 	rootChatID := chat.ID
 	if chat.RootChatID.Valid {
 		rootChatID = chat.RootChatID.UUID
@@ -51,7 +41,7 @@ func (server *Server) loadInlineMCPServers(ctx context.Context, chat database.Ch
 		}}
 	}
 
-	servers := make([]inlineMCPServer, 0, len(rows))
+	servers := make([]mcpclient.Server, 0, len(rows))
 	var failures []mcpclient.ConnectSummary
 	for _, row := range rows {
 		if chat.ParentChatID.Valid && !row.AllowInSubagents {
@@ -69,18 +59,15 @@ func (server *Server) loadInlineMCPServers(ctx context.Context, chat database.Ch
 			})
 			continue
 		}
-		servers = append(servers, inlineMCPServer{
-			Server: mcpclient.Server{
-				ID:                  row.ID,
-				Slug:                row.Slug,
-				URL:                 row.Url,
-				Transport:           mcpclient.TransportStreamableHTTP,
-				Headers:             headers,
-				ForwardCoderHeaders: row.ForwardCoderHeaders,
-				ToolAllowList:       row.ToolAllowList,
-				ToolDenyList:        row.ToolDenyList,
-			},
-			AllowInPlanMode: row.AllowInPlanMode,
+		servers = append(servers, mcpclient.Server{
+			ID:                  row.ID,
+			Slug:                row.Slug,
+			URL:                 row.Url,
+			Transport:           mcpclient.TransportStreamableHTTP,
+			Headers:             headers,
+			ForwardCoderHeaders: row.ForwardCoderHeaders,
+			ToolAllowList:       row.ToolAllowList,
+			ToolDenyList:        row.ToolDenyList,
 		})
 	}
 	return servers, failures

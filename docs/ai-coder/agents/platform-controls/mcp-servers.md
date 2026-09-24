@@ -295,7 +295,6 @@ Declare servers on `POST /api/v2/chats`:
       "url": "https://mcp.example.com/orders",
       "headers": { "Authorization": "Bearer ..." },
       "tool_allow_list": ["lookup_order"],
-      "allow_in_plan_mode": true,
       "allow_in_subagents": false,
       "forward_coder_headers": false
     }
@@ -308,21 +307,22 @@ Omit `inline_mcp_servers` to keep the current set.
 Send `[]` to remove every server.
 A server whose `slug` already exists keeps its `id`.
 Only root chats accept `inline_mcp_servers`.
-At the start of each turn, a non-explore subagent chat loads the root chat's current servers that have `allow_in_subagents` set to `true`.
+At the start of each turn, a subagent chat loads the root chat's current servers that have `allow_in_subagents` set to `true`.
 A change to the root chat's set also applies to existing subagents on their next turn.
+Plan mode does not limit the root chat's servers.
+A subagent chat in plan mode gets none of them.
 
 ### Fields
 
-| Field                   | Description                                                                                                                       |
-|-------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| `slug`                  | 1 to 32 ASCII letters, numbers, `_`, or `-`, starting with a letter or number. Unique within the chat. Prefixes every tool name.  |
-| `url`                   | Streamable HTTP MCP endpoint. Refer to [URL and header requirements](#url-and-header-requirements).                               |
-| `headers`               | Up to 16 HTTP headers sent on every request. This is the only credential mechanism.                                               |
-| `tool_allow_list`       | Same semantics as [Tool governance](#tool-governance). Up to 64 names. Cannot be combined with `tool_deny_list`.                  |
-| `tool_deny_list`        | Same semantics as [Tool governance](#tool-governance). Up to 64 names. Cannot be combined with `tool_allow_list`.                 |
-| `allow_in_plan_mode`    | Offer the server's tools during plan mode turns. Defaults to `false`.                                                             |
-| `allow_in_subagents`    | Offer the server's tools to non-explore subagent chats spawned from this chat. Defaults to `false`. Explore chats never get them. |
-| `forward_coder_headers` | Send the [Coder identity headers](#coder-identity-headers). Defaults to `false`.                                                  |
+| Field                   | Description                                                                                                                      |
+|-------------------------|----------------------------------------------------------------------------------------------------------------------------------|
+| `slug`                  | 1 to 32 ASCII letters, numbers, `_`, or `-`, starting with a letter or number. Unique within the chat. Prefixes every tool name. |
+| `url`                   | Streamable HTTP MCP endpoint. Refer to [URL and header requirements](#url-and-header-requirements).                              |
+| `headers`               | Up to 16 HTTP headers sent on every request. This is the only credential mechanism.                                              |
+| `tool_allow_list`       | Same semantics as [Tool governance](#tool-governance). Up to 64 names. Cannot be combined with `tool_deny_list`.                 |
+| `tool_deny_list`        | Same semantics as [Tool governance](#tool-governance). Up to 64 names. Cannot be combined with `tool_allow_list`.                |
+| `allow_in_subagents`    | Offer the server's tools to subagent chats spawned from this chat. Defaults to `false`.                                          |
+| `forward_coder_headers` | Send the [Coder identity headers](#coder-identity-headers). Defaults to `false`.                                                 |
 
 ### Limits
 
@@ -361,7 +361,6 @@ The URL, each of its path segments, and header values are redacted from every st
 Each part of a header value separated by whitespace, `;`, or `,`, such as the token in `Bearer <token>`, is also redacted.
 In a `name=value` part, such as `session=<token>` in a `Cookie` header, the value is also redacted on its own, but the name is not.
 Parts and values shorter than 8&nbsp;bytes are not redacted.
-Header names are not secret; the read-back endpoint returns them.
 
 Inline servers have no signing secret, so Coder does not sign the [Coder identity headers](#coder-identity-headers) it sends to them.
 Use these headers to link requests to chats, not to authenticate the user.
@@ -375,9 +374,11 @@ A server can use it to deduplicate side effects.
 `--disable-chat-caller-supplied-tools` (`CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS`) rejects chat requests that include `unsafe_dynamic_tools` or `inline_mcp_servers` with `403`, and runs existing chats without either.
 The flag takes effect on `coder server` restart.
 Turning off the `chat-inline-mcp-servers` experiment has the same effect on existing chats: declared servers stay stored and are not connected.
-`GET /api/experimental/chats/{chat}/inline-mcp-servers` still lists declared servers while the flag is set, and a message with `"inline_mcp_servers": []` still removes them.
+`GET /api/v2/chats/{chat}` still returns declared servers while the flag is set, and a message with `"inline_mcp_servers": []` still removes them.
 
 ### Read back
 
-`GET /api/experimental/chats/{chat}/inline-mcp-servers` returns the declared servers to the chat owner.
-The response includes header names but never header values.
+`GET /api/v2/chats/{chat}` returns the declared servers in `inline_mcp_servers` to every user who can read the chat.
+The `url` field is empty unless the chat owner makes the request.
+Chat list responses do not include them.
+Each server includes `has_custom_headers` but never header names or values.

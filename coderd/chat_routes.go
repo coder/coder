@@ -124,7 +124,6 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 				r.Get("/runs", api.getChatDebugRuns)
 				r.Get("/runs/{debugRun}", api.getChatDebugRun)
 			})
-			r.Get("/inline-mcp-servers", api.getChatInlineMCPServers)
 		})
 	})
 }

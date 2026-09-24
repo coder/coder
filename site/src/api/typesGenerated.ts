@@ -2004,6 +2004,12 @@ export interface Chat {
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
+	 * InlineMCPServers lists the inline MCP servers declared on the chat,
+	 * without headers. Only the single-chat GET sets it.
+	 * Experimental.
+	 */
+	readonly inline_mcp_servers?: readonly InlineMCPServer[];
+	/**
 	 * Children holds child (subagent) chats nested under this root
 	 * chat. Always initialized to an empty slice so the JSON field
 	 * is present as []. Child chats cannot create their own
@@ -5820,11 +5826,13 @@ export const InboxNotificationFallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE";
 export interface InlineMCPServer {
 	readonly id: string;
 	readonly slug: string;
+	/**
+	 * URL is empty unless the chat owner makes the request.
+	 */
 	readonly url: string;
-	readonly header_names: readonly string[];
+	readonly has_custom_headers: boolean;
 	readonly tool_allow_list: readonly string[];
 	readonly tool_deny_list: readonly string[];
-	readonly allow_in_plan_mode: boolean;
 	readonly allow_in_subagents: boolean;
 	readonly forward_coder_headers: boolean;
 	readonly created_at: string;
@@ -5834,8 +5842,8 @@ export interface InlineMCPServer {
 // From codersdk/chats.go
 /**
  * InlineMCPServerRequest declares a streamable HTTP MCP server by value on
- * one chat. Header values are never returned. They are encrypted at rest
- * when database encryption is configured.
+ * one chat. Headers are never returned. Header values are encrypted at
+ * rest when database encryption is configured.
  */
 export interface InlineMCPServerRequest {
 	readonly slug: string;
@@ -5843,7 +5851,6 @@ export interface InlineMCPServerRequest {
 	readonly headers?: Record<string, string>;
 	readonly tool_allow_list?: readonly string[];
 	readonly tool_deny_list?: readonly string[];
-	readonly allow_in_plan_mode?: boolean;
 	readonly allow_in_subagents?: boolean;
 	readonly forward_coder_headers?: boolean;
 }

@@ -48,7 +48,6 @@ func TestLoadInlineMCPServers(t *testing.T) {
 		Url:              "https://shared.example.com/mcp",
 		Headers:          `{"X-Bot-Key":"bot-secret","Authorization":"Bearer token"}`,
 		ToolAllowList:    []string{"echo"},
-		AllowInPlanMode:  true,
 		AllowInSubagents: true,
 	})
 	rootOnly := dbgen.ChatMCPServer(t, db, database.ChatMCPServer{
@@ -78,43 +77,34 @@ func TestLoadInlineMCPServers(t *testing.T) {
 			Error:    "invalid stored headers",
 		}}, failures)
 
-		bySlug := make(map[string]inlineMCPServer, len(servers))
+		bySlug := make(map[string]mcpclient.Server, len(servers))
 		for _, srv := range servers {
-			bySlug[srv.Server.Slug] = srv
-			require.Equal(t, mcpclient.TransportStreamableHTTP, srv.Server.Transport)
-			require.Equal(t, mcpclient.UserAuthNone, srv.Server.UserAuth)
+			bySlug[srv.Slug] = srv
+			require.Equal(t, mcpclient.TransportStreamableHTTP, srv.Transport)
+			require.Equal(t, mcpclient.UserAuthNone, srv.UserAuth)
 		}
-		require.Equal(t, shared.ID, bySlug["shared"].Server.ID)
-		require.Equal(t, "https://shared.example.com/mcp", bySlug["shared"].Server.URL)
+		require.Equal(t, shared.ID, bySlug["shared"].ID)
+		require.Equal(t, "https://shared.example.com/mcp", bySlug["shared"].URL)
 		require.Equal(t, map[string]string{
 			"X-Bot-Key":     "bot-secret",
 			"Authorization": "Bearer token",
-		}, bySlug["shared"].Server.Headers)
-		require.Equal(t, []string{"echo"}, bySlug["shared"].Server.ToolAllowList)
-		require.True(t, bySlug["shared"].AllowInPlanMode)
+		}, bySlug["shared"].Headers)
+		require.Equal(t, []string{"echo"}, bySlug["shared"].ToolAllowList)
 
-		require.Equal(t, rootOnly.ID, bySlug["root-only"].Server.ID)
-		require.Empty(t, bySlug["root-only"].Server.Headers)
-		require.True(t, bySlug["root-only"].Server.ForwardCoderHeaders)
-		require.False(t, bySlug["root-only"].AllowInPlanMode)
+		require.Equal(t, rootOnly.ID, bySlug["root-only"].ID)
+		require.Empty(t, bySlug["root-only"].Headers)
+		require.True(t, bySlug["root-only"].ForwardCoderHeaders)
 	})
 
 	t.Run("ChildKeepsAllowInSubagents", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := chatdTestContext(t)
-		servers, failures := server.loadInlineMCPServers(ctx, child)
-		require.Empty(t, failures, "the bad row is root-only, so a child never reads it")
-		require.Len(t, servers, 1)
-		require.Equal(t, shared.ID, servers[0].Server.ID)
-	})
-
-	t.Run("ExploreChildLoadsNone", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := chatdTestContext(t)
-		servers, failures := server.loadInlineMCPServers(ctx, exploreChild)
-		require.Empty(t, failures)
-		require.Empty(t, servers)
+		for _, chat := range []database.Chat{child, exploreChild} {
+			servers, failures := server.loadInlineMCPServers(ctx, chat)
+			require.Empty(t, failures, "the bad row is root-only, so a child never reads it")
+			require.Len(t, servers, 1, "chat mode %q", chat.Mode.ChatMode)
+			require.Equal(t, shared.ID, servers[0].ID)
+		}
 	})
 }

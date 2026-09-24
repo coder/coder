@@ -2279,6 +2279,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "inline_mcp_servers": [
+        {
+          "allow_in_subagents": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "forward_coder_headers": true,
+          "has_custom_headers": true,
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "slug": "string",
+          "tool_allow_list": [
+            "string"
+          ],
+          "tool_deny_list": [
+            "string"
+          ],
+          "updated_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "labels": {
         "property1": "string",
         "property2": "string"
@@ -2375,6 +2393,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "forward_coder_headers": true,
+      "has_custom_headers": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "updated_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -2429,6 +2465,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
 | `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
 | `id`                    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `inline_mcp_servers`    | array of [codersdk.InlineMCPServer](#codersdkinlinemcpserver)   | false    |              | Inline mcp servers lists the inline MCP servers declared on the chat, without headers. Only the single-chat GET sets it. Experimental.                                                                                                                                     |
 | `labels`                | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | » `[any property]`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `last_error`            | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
@@ -5310,6 +5347,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "has_unread": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "inline_mcp_servers": [
+      {
+        "allow_in_subagents": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "forward_coder_headers": true,
+        "has_custom_headers": true,
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "slug": "string",
+        "tool_allow_list": [
+          "string"
+        ],
+        "tool_deny_list": [
+          "string"
+        ],
+        "updated_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      }
+    ],
     "labels": {
       "property1": "string",
       "property2": "string"
@@ -5749,7 +5804,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "inline_mcp_servers": [
     {
-      "allow_in_plan_mode": true,
       "allow_in_subagents": true,
       "forward_coder_headers": true,
       "headers": {
@@ -6221,7 +6275,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "inline_mcp_servers": [
     {
-      "allow_in_plan_mode": true,
       "allow_in_subagents": true,
       "forward_coder_headers": true,
       "headers": {
@@ -9825,13 +9878,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
-  "allow_in_plan_mode": true,
   "allow_in_subagents": true,
   "created_at": "2019-08-24T14:15:22Z",
   "forward_coder_headers": true,
-  "header_names": [
-    "string"
-  ],
+  "has_custom_headers": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "slug": "string",
   "tool_allow_list": [
@@ -9847,25 +9897,23 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description |
-|-------------------------|-----------------|----------|--------------|-------------|
-| `allow_in_plan_mode`    | boolean         | false    |              |             |
-| `allow_in_subagents`    | boolean         | false    |              |             |
-| `created_at`            | string          | false    |              |             |
-| `forward_coder_headers` | boolean         | false    |              |             |
-| `header_names`          | array of string | false    |              |             |
-| `id`                    | string          | false    |              |             |
-| `slug`                  | string          | false    |              |             |
-| `tool_allow_list`       | array of string | false    |              |             |
-| `tool_deny_list`        | array of string | false    |              |             |
-| `updated_at`            | string          | false    |              |             |
-| `url`                   | string          | false    |              |             |
+| Name                    | Type            | Required | Restrictions | Description                                           |
+|-------------------------|-----------------|----------|--------------|-------------------------------------------------------|
+| `allow_in_subagents`    | boolean         | false    |              |                                                       |
+| `created_at`            | string          | false    |              |                                                       |
+| `forward_coder_headers` | boolean         | false    |              |                                                       |
+| `has_custom_headers`    | boolean         | false    |              |                                                       |
+| `id`                    | string          | false    |              |                                                       |
+| `slug`                  | string          | false    |              |                                                       |
+| `tool_allow_list`       | array of string | false    |              |                                                       |
+| `tool_deny_list`        | array of string | false    |              |                                                       |
+| `updated_at`            | string          | false    |              |                                                       |
+| `url`                   | string          | false    |              | URL is empty unless the chat owner makes the request. |
 
 ## codersdk.InlineMCPServerRequest
 
 ```json
 {
-  "allow_in_plan_mode": true,
   "allow_in_subagents": true,
   "forward_coder_headers": true,
   "headers": {
@@ -9887,7 +9935,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 | Name                    | Type            | Required | Restrictions | Description |
 |-------------------------|-----------------|----------|--------------|-------------|
-| `allow_in_plan_mode`    | boolean         | false    |              |             |
 | `allow_in_subagents`    | boolean         | false    |              |             |
 | `forward_coder_headers` | boolean         | false    |              |             |
 | `headers`               | object          | false    |              |             |

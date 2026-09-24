@@ -1643,6 +1643,23 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		sdkChat.Children = db2sdk.ChildChatRows(childRows, childDiffStatuses)
 	}
 
+	if api.Experiments.Enabled(codersdk.ExperimentChatInlineMCPServers) {
+		servers, err := api.chatInlineMCPServers(ctx, chat.ID)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to get inline MCP servers",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		} else {
+			if chat.OwnerID != httpmw.APIKey(r).UserID {
+				for i := range servers {
+					servers[i].URL = ""
+				}
+			}
+			sdkChat.InlineMCPServers = servers
+		}
+	}
+
 	enriched := []codersdk.Chat{sdkChat}
 	api.repairChatAgentIDs(ctx, enriched)
 	sdkChat = enriched[0]
@@ -1810,60 +1827,6 @@ func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {
 		RequestCount:         row.RequestCount,
 		UnpricedRequestCount: row.UnpricedRequestCount,
 	})
-}
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-// @Summary Get inline MCP servers
-// @ID get-chat-inline-mcp-servers
-// @Security CoderSessionToken
-// @Tags Chats
-// @Produce json
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {array} codersdk.InlineMCPServer
-// @Router /api/experimental/chats/{chat}/inline-mcp-servers [get]
-// @Description Lists the inline MCP servers declared on the chat. Header values are never returned.
-// @Description Experimental: this endpoint is subject to change.
-//
-//nolint:revive // HTTP handler writes to ResponseWriter.
-func (api *API) getChatInlineMCPServers(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	chat := httpmw.ChatParam(r)
-	apiKey := httpmw.APIKey(r)
-
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner may view chat MCP servers.",
-		})
-		return
-	}
-	if !api.Experiments.Enabled(codersdk.ExperimentChatInlineMCPServers) {
-		writeInlineMCPServersExperimentRequired(ctx, rw)
-		return
-	}
-
-	rows, err := api.Database.GetChatMCPServersByChatID(ctx, chat.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat MCP servers.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	servers := make([]codersdk.InlineMCPServer, 0, len(rows))
-	for _, row := range rows {
-		server, err := db2sdk.InlineMCPServer(row)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to convert chat MCP server.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		servers = append(servers, server)
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, servers)
 }
 
 // @Summary List chat user prompts

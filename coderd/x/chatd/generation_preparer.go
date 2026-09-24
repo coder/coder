@@ -90,7 +90,7 @@ func (server *Server) prepareGeneration(
 		promptRows       []database.ChatMessage
 		mcpConfigs       []database.MCPServerConfig
 		mcpTokens        []database.MCPServerUserToken
-		inlineMCPServers []inlineMCPServer
+		inlineMCPServers []mcpclient.Server
 		// mcpLoadFailures are servers that never reached the connect
 		// step. They join the connect summaries so the debug panel shows
 		// them next to connection failures.
@@ -188,11 +188,13 @@ func (server *Server) prepareGeneration(
 		currentPlanMode,
 		chat.ParentChatID,
 	)
+	// The caller picks the inline servers for each turn, so all of them
+	// are allowed in plan mode.
 	inlineMCPConnectServers, approvedInlineMCPServerIDs := filterMCPServersForTurn(
 		inlineMCPServers,
 		currentPlanMode,
 		chat.ParentChatID,
-		func(srv inlineMCPServer) (uuid.UUID, bool) { return srv.Server.ID, srv.AllowInPlanMode },
+		func(srv mcpclient.Server) (uuid.UUID, bool) { return srv.ID, true },
 	)
 	// Both sets are nil outside plan mode, so this never writes to a nil
 	// map. Every tool source below is filtered against the union.
@@ -463,14 +465,10 @@ func (server *Server) prepareGeneration(
 	}
 	if len(inlineMCPConnectServers) > 0 {
 		g2.Go(func() error {
-			servers := make([]mcpclient.Server, 0, len(inlineMCPConnectServers))
-			for _, srv := range inlineMCPConnectServers {
-				servers = append(servers, srv.Server)
-			}
 			inlineMCPTools, inlineMCPSummaries, inlineMCPCleanup = mcpclient.ConnectInline(
 				ctx,
 				logger,
-				servers,
+				inlineMCPConnectServers,
 				chatprovider.CoderHeaders(chat),
 				server.mcpHTTPClient,
 			)

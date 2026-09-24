@@ -11,8 +11,11 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/net/http/httpguts"
+	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
@@ -40,6 +43,24 @@ func writeInlineMCPServersInvalid(ctx context.Context, rw http.ResponseWriter, v
 		Message:     "Invalid inline_mcp_servers.",
 		Validations: validations,
 	})
+}
+
+// chatInlineMCPServers returns the inline MCP servers declared on a chat,
+// without header values.
+func (api *API) chatInlineMCPServers(ctx context.Context, chatID uuid.UUID) ([]codersdk.InlineMCPServer, error) {
+	rows, err := api.Database.GetChatMCPServersByChatID(ctx, chatID)
+	if err != nil {
+		return nil, xerrors.Errorf("get chat MCP servers: %w", err)
+	}
+	servers := make([]codersdk.InlineMCPServer, 0, len(rows))
+	for _, row := range rows {
+		server, err := db2sdk.InlineMCPServer(row)
+		if err != nil {
+			return nil, err
+		}
+		servers = append(servers, server)
+	}
+	return servers, nil
 }
 
 func validateInlineMCPServers(

@@ -32,7 +32,6 @@ func ReplaceInlineMCPServers(ctx context.Context, store database.Store, chatID u
 			HeadersKeyID:        sql.NullString{},
 			ToolAllowList:       nonNilStrings(server.ToolAllowList),
 			ToolDenyList:        nonNilStrings(server.ToolDenyList),
-			AllowInPlanMode:     server.AllowInPlanMode,
 			AllowInSubagents:    server.AllowInSubagents,
 			ForwardCoderHeaders: server.ForwardCoderHeaders,
 		}); err != nil {

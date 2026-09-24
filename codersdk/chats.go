@@ -165,6 +165,10 @@ type Chat struct {
 	QueuedForCapacity bool           `json:"queued_for_capacity,omitempty"`
 	Warnings          []string       `json:"warnings,omitempty"`
 	ClientType        ChatClientType `json:"client_type"`
+	// InlineMCPServers lists the inline MCP servers declared on the chat,
+	// without headers. Only the single-chat GET sets it.
+	// Experimental.
+	InlineMCPServers []InlineMCPServer `json:"inline_mcp_servers,omitempty"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
@@ -607,28 +611,27 @@ type CreateChatRequest struct {
 }
 
 // InlineMCPServerRequest declares a streamable HTTP MCP server by value on
-// one chat. Header values are never returned. They are encrypted at rest
-// when database encryption is configured.
+// one chat. Headers are never returned. Header values are encrypted at
+// rest when database encryption is configured.
 type InlineMCPServerRequest struct {
 	Slug                string            `json:"slug"`
 	URL                 string            `json:"url"`
 	Headers             map[string]string `json:"headers,omitempty"`
 	ToolAllowList       []string          `json:"tool_allow_list,omitempty"`
 	ToolDenyList        []string          `json:"tool_deny_list,omitempty"`
-	AllowInPlanMode     bool              `json:"allow_in_plan_mode,omitempty"`
 	AllowInSubagents    bool              `json:"allow_in_subagents,omitempty"`
 	ForwardCoderHeaders bool              `json:"forward_coder_headers,omitempty"`
 }
 
 // InlineMCPServer is the redacted view of an inline MCP server.
 type InlineMCPServer struct {
-	ID                  uuid.UUID `json:"id" format:"uuid"`
-	Slug                string    `json:"slug"`
+	ID   uuid.UUID `json:"id" format:"uuid"`
+	Slug string    `json:"slug"`
+	// URL is empty unless the chat owner makes the request.
 	URL                 string    `json:"url"`
-	HeaderNames         []string  `json:"header_names"`
+	HasCustomHeaders    bool      `json:"has_custom_headers"`
 	ToolAllowList       []string  `json:"tool_allow_list"`
 	ToolDenyList        []string  `json:"tool_deny_list"`
-	AllowInPlanMode     bool      `json:"allow_in_plan_mode"`
 	AllowInSubagents    bool      `json:"allow_in_subagents"`
 	ForwardCoderHeaders bool      `json:"forward_coder_headers"`
 	CreatedAt           time.Time `json:"created_at" format:"date-time"`
@@ -2890,20 +2893,6 @@ func (c *ExperimentalClient) GetChatDebugRuns(ctx context.Context, chatID uuid.U
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []ChatDebugRunSummary
-	return resp, ReadBodyAsJSON(res, &resp)
-}
-
-// GetChatInlineMCPServers returns the inline MCP servers with header values omitted.
-func (c *ExperimentalClient) GetChatInlineMCPServers(ctx context.Context, chatID uuid.UUID) ([]InlineMCPServer, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/inline-mcp-servers", chatID), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var resp []InlineMCPServer
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 

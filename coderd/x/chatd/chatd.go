@@ -3475,11 +3475,12 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 			toolNames = append(toolNames, name)
 			continue
 		}
-		// External MCP tools pass through here. They were snapshot-filtered
-		// at spawn time on chat.MCPServerIDs. WorkspaceMCPTool does not
-		// implement MCPToolIdentifier, so workspace tools are excluded
-		// here too, in addition to the structural exclusion in runChat
-		// tool assembly.
+		// External MCP tools pass through here. Org tools were
+		// snapshot-filtered at spawn time on chat.MCPServerIDs, and inline
+		// tools come only from root chat servers with allow_in_subagents.
+		// WorkspaceMCPTool does not implement MCPToolIdentifier, so
+		// workspace tools are excluded here too, in addition to the
+		// structural exclusion in runChat tool assembly.
 		if _, ok := tool.(mcpclient.MCPToolIdentifier); ok {
 			toolNames = append(toolNames, name)
 		}

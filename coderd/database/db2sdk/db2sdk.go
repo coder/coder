@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"net/url"
 	"slices"
 	"strconv"
@@ -2018,8 +2017,8 @@ func nullRawJSONObject(raw pqtype.NullRawMessage) map[string]any {
 }
 
 // InlineMCPServer converts a database.ChatMCPServer to its redacted
-// codersdk.InlineMCPServer view. Header values are dropped; only sorted
-// header names remain.
+// codersdk.InlineMCPServer view, which reports only whether headers are
+// set.
 func InlineMCPServer(row database.ChatMCPServer) (codersdk.InlineMCPServer, error) {
 	var headers map[string]string
 	if err := json.Unmarshal([]byte(row.Headers), &headers); err != nil {
@@ -2029,10 +2028,9 @@ func InlineMCPServer(row database.ChatMCPServer) (codersdk.InlineMCPServer, erro
 		ID:                  row.ID,
 		Slug:                row.Slug,
 		URL:                 row.Url,
-		HeaderNames:         nonNilStrings(slices.Sorted(maps.Keys(headers))),
+		HasCustomHeaders:    len(headers) > 0,
 		ToolAllowList:       nonNilStrings(row.ToolAllowList),
 		ToolDenyList:        nonNilStrings(row.ToolDenyList),
-		AllowInPlanMode:     row.AllowInPlanMode,
 		AllowInSubagents:    row.AllowInSubagents,
 		ForwardCoderHeaders: row.ForwardCoderHeaders,
 		CreatedAt:           row.CreatedAt,

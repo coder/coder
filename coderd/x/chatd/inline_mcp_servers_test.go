@@ -11,10 +11,12 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -248,9 +250,8 @@ func TestChatInlineMCPServers(t *testing.T) {
 
 		db, ps := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		approved := newChatInlineMCPServer(t, "approved", "Echoes the input")
-		blocked := newChatInlineMCPServer(t, "blocked", "Echoes the input")
-		model := newChatInlineMCPModel(t, "approved__echo")
+		bot := newChatInlineMCPServer(t, "bot", "Echoes the input")
+		model := newChatInlineMCPModel(t, "bot__echo")
 		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			withoutMCPToolSearch(cfg)
@@ -264,10 +265,9 @@ func TestChatInlineMCPServers(t *testing.T) {
 			ModelConfigID:  modelConfig.ID,
 			PlanMode:       database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
 			InlineMCPServers: []codersdk.InlineMCPServerRequest{
-				{Slug: "approved", URL: approved.url, AllowInPlanMode: true},
-				{Slug: "blocked", URL: blocked.url},
+				{Slug: "bot", URL: bot.url},
 			},
-			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("Plan with the approved tool.")},
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("Plan with the bot tool.")},
 		})
 		require.NoError(t, err)
 		waitForChatProcessed(ctx, t, db, chat.ID, server)
@@ -277,10 +277,53 @@ func TestChatInlineMCPServers(t *testing.T) {
 		require.Equal(t, database.ChatStatusWaiting, chatResult.Status, chatLastErrorMessage(chatResult.LastError))
 
 		tools, _ := model.first()
-		require.Contains(t, tools, "approved__echo")
-		require.NotContains(t, tools, "blocked__echo")
-		require.True(t, model.sawResult.Load(), "approved tool must be active in plan mode")
-		blockedRequests := blocked.snapshot()
-		require.Empty(t, blockedRequests, "plan mode must not connect to servers without allow_in_plan_mode")
+		require.Contains(t, tools, "bot__echo")
+		require.True(t, model.sawResult.Load(), "inline tools must be active in plan mode")
+	})
+
+	t.Run("ExploreChild", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		bot := newChatInlineMCPServer(t, "bot", "Echoes the input")
+		model := newChatInlineMCPModel(t, "bot__echo")
+		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			withoutMCPToolSearch(cfg)
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
+		})
+
+		root := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: modelConfig.ID,
+		})
+		dbgen.ChatMCPServer(t, db, database.ChatMCPServer{
+			ChatID:           root.ID,
+			Slug:             "bot",
+			Url:              bot.url,
+			AllowInSubagents: true,
+		})
+		child, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID:     org.ID,
+			OwnerID:            user.ID,
+			ParentChatID:       uuid.NullUUID{UUID: root.ID, Valid: true},
+			RootChatID:         uuid.NullUUID{UUID: root.ID, Valid: true},
+			Title:              "inline-mcp-explore",
+			ModelConfigID:      modelConfig.ID,
+			ChatMode:           database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true},
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("Search with the bot tool.")},
+		})
+		require.NoError(t, err)
+		waitForChatProcessed(ctx, t, db, child.ID, server)
+
+		chatResult, err := db.GetChatByID(ctx, child.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, chatResult.Status, chatLastErrorMessage(chatResult.LastError))
+
+		tools, _ := model.first()
+		require.Contains(t, tools, "bot__echo")
+		require.True(t, model.sawResult.Load(), "explore children must get the root chat's allow_in_subagents servers")
 	})
 }

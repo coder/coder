@@ -154,45 +154,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/chats/{chat}/inline-mcp-servers": {
-            "get": {
-                "description": "Lists the inline MCP servers declared on the chat. Header values are never returned.\nExperimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get inline MCP servers",
-                "operationId": "get-chat-inline-mcp-servers",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.InlineMCPServer"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/experimental/chats/{chat}/stream/desktop": {
             "get": {
                 "description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -19742,6 +19703,13 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "inline_mcp_servers": {
+                    "description": "InlineMCPServers lists the inline MCP servers declared on the chat,\nwithout headers. Only the single-chat GET sets it.\nExperimental.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.InlineMCPServer"
+                    }
+                },
                 "labels": {
                     "type": "object",
                     "additionalProperties": {
@@ -24473,9 +24441,6 @@ const docTemplate = `{
         "codersdk.InlineMCPServer": {
             "type": "object",
             "properties": {
-                "allow_in_plan_mode": {
-                    "type": "boolean"
-                },
                 "allow_in_subagents": {
                     "type": "boolean"
                 },
@@ -24486,11 +24451,8 @@ const docTemplate = `{
                 "forward_coder_headers": {
                     "type": "boolean"
                 },
-                "header_names": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
+                "has_custom_headers": {
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string",
@@ -24516,6 +24478,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "url": {
+                    "description": "URL is empty unless the chat owner makes the request.",
                     "type": "string"
                 }
             }
@@ -24523,9 +24486,6 @@ const docTemplate = `{
         "codersdk.InlineMCPServerRequest": {
             "type": "object",
             "properties": {
-                "allow_in_plan_mode": {
-                    "type": "boolean"
-                },
                 "allow_in_subagents": {
                     "type": "boolean"
                 },
