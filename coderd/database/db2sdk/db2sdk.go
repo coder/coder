@@ -1660,14 +1660,14 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		createdBy = nil
 	}
 	msg := codersdk.ChatMessage{
-		ID:            m.ID,
-		ChatID:        m.ChatID,
-		CreatedBy:     createdBy,
-		ModelConfigID: modelConfigID,
-		CreatedAt:     m.CreatedAt,
-		Role:          codersdk.ChatMessageRole(m.Role),
+		ID:              m.ID,
+		ChatID:          m.ChatID,
+		CreatedBy:       createdBy,
+		ModelConfigID:   modelConfigID,
+		CreatedAt:       m.CreatedAt,
+		Role:            codersdk.ChatMessageRole(m.Role),
+		QueuedMessageID: nullInt64Ptr(m.QueuedMessageID),
 	}
-	msg.QueuedMessageID = nullInt64Ptr(m.QueuedMessageID)
 	if m.Content.Valid {
 		parts, err := chatMessageParts(m)
 		if err == nil {
