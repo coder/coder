@@ -22,7 +22,11 @@ import (
 	"github.com/coder/serpent"
 )
 
-const header = `<!-- DO NOT EDIT | GENERATED CONTENT -->
+const header = `---
+toc_depth: 2
+---
+
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # Configuration reference
 
 Coder server is configured primarily through environment variables. This page
@@ -255,6 +259,11 @@ func sectionRank(name string) int {
 	}
 }
 
+// dangerousCaution is the fallback GitHub alert body for the Dangerous
+// section, used when the group has no description of its own in codersdk.
+const dangerousCaution = "These options can break your deployment or weaken its security. " +
+	"Change them only when you understand the consequences."
+
 func render(root *node) string {
 	var b strings.Builder
 	for _, sec := range root.children {
@@ -264,9 +273,22 @@ func render(root *node) string {
 }
 
 func renderNode(b *strings.Builder, n *node, level int) {
-	_, _ = fmt.Fprintf(b, "%s %s\n\n", strings.Repeat("#", level), sentenceCase(n.name))
-	if n.intro != "" {
-		_, _ = b.WriteString(n.intro)
+	_, _ = fmt.Fprintf(b, "%s %s\n\n", strings.Repeat("#", level), sentenceCase(stripLeadingSymbol(n.name)))
+
+	intro := n.intro
+	// The Dangerous group's own product-facing name carries a warning emoji
+	// (see sectionRank); docs render that as a GitHub alert instead, using
+	// the group's description if codersdk sets one.
+	if level == 2 && isDangerousSection(n.name) {
+		text := intro
+		if text == "" {
+			text = dangerousCaution
+		}
+		_, _ = fmt.Fprintf(b, "> [!CAUTION]\n> %s\n\n", text)
+		intro = ""
+	}
+	if intro != "" {
+		_, _ = b.WriteString(intro)
 		_, _ = b.WriteString("\n\n")
 	}
 	for _, opt := range n.options {
@@ -275,6 +297,29 @@ func renderNode(b *strings.Builder, n *node, level int) {
 	for _, c := range n.children {
 		renderNode(b, c, level+1)
 	}
+}
+
+// isDangerousSection reports whether a top-level section is the Dangerous
+// group, regardless of its emoji prefix. Mirrors sectionRank's check.
+func isDangerousSection(name string) bool {
+	return strings.HasSuffix(name, "Dangerous")
+}
+
+// stripLeadingSymbol removes leading words that carry no letters (emoji,
+// warning glyphs, and similar symbols) from a heading, so the generated docs
+// use one heading style instead of the product's own icon vocabulary. Words
+// are checked with hasLetter so multi-rune emoji sequences (e.g. "⚠️") are
+// treated as a single symbol token.
+func stripLeadingSymbol(s string) string {
+	words := strings.Fields(s)
+	i := 0
+	for i < len(words) && !hasLetter(words[i]) {
+		i++
+	}
+	if i == len(words) {
+		return s
+	}
+	return strings.Join(words[i:], " ")
 }
 
 func renderOption(b *strings.Builder, opt option, level int) {

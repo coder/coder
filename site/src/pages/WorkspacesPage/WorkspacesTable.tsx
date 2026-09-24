@@ -184,10 +184,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					const activeOrg = dashboard.organizations.find(
 						(o) => o.id === workspace.organization_id,
 					);
+					const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
 
 					return (
 						<WorkspacesRow
 							workspace={workspace}
+							workspacePageLink={workspacePageLink}
 							key={workspace.id}
 							checked={checked}
 						>
@@ -216,9 +218,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 									<AvatarData
 										title={
 											<div className="flex items-center gap-1">
-												<span className="whitespace-nowrap">
+												<Link
+													to={workspacePageLink}
+													className="whitespace-nowrap select-none"
+												>
 													{workspace.name}
-												</span>
+												</Link>
 												{workspace.favorite && (
 													<StarIcon className="size-icon-xs" />
 												)}
@@ -309,18 +314,19 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 
 type WorkspacesRowProps = {
 	workspace: Workspace;
+	workspacePageLink: string;
 	children?: ReactNode;
 	checked: boolean;
 };
 
 const WorkspacesRow: FC<WorkspacesRowProps> = ({
 	workspace,
+	workspacePageLink,
 	children,
 	checked,
 }) => {
 	const navigate = useNavigate();
 
-	const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
 	const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
 	const { role, hover, ...clickableProps } = useClickableTableRow({
 		onMiddleClick: openLinkInNewTab,

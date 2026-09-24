@@ -7,7 +7,12 @@ import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { MCPServerConfig } from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
-import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
+import {
+	MockStoppingWorkspace,
+	MockWorkspace,
+	MockWorkspaceBuild,
+	MockWorkspaceBuildLogs,
+} from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
@@ -166,6 +171,14 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 			started: true,
 			workspace_name: "agent-icons",
 			agent_status: "ready",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	{
+		name: "stop_workspace",
+		result: {
+			stopped: true,
+			workspace_name: "agent-icons",
 			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 		},
 	},
@@ -2523,6 +2536,94 @@ export const StartWorkspaceQuotaReached: Story = {
 					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 					"logs",
 				],
+				data: [],
+			},
+		],
+	},
+};
+
+// ---------------------------------------------------------------------------
+// stop_workspace stories
+// ---------------------------------------------------------------------------
+
+export const StopWorkspaceRunning: Story = {
+	args: {
+		name: "stop_workspace",
+		status: "running",
+	},
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext value={{ workspaceId: MockStoppingWorkspace.id }}>
+				<Story />
+			</ChatWorkspaceContext>
+		),
+	],
+};
+
+export const StopWorkspaceCompleted: Story = {
+	args: {
+		name: "stop_workspace",
+		status: "completed",
+		result: {
+			stopped: true,
+			workspace_name: "my-project",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: workspaceBuildLogs("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+					.queryKey,
+				data: MockWorkspaceBuildLogs,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Stopped my-project" }),
+		);
+	},
+};
+
+export const StopWorkspaceAlreadyStopped: Story = {
+	args: {
+		name: "stop_workspace",
+		status: "completed",
+		result: {
+			stopped: true,
+			workspace_name: "my-project",
+			no_build: true,
+		},
+	},
+};
+
+export const StopWorkspaceError: Story = {
+	args: {
+		name: "stop_workspace",
+		status: "error",
+		isError: true,
+		result: {
+			error: "workspace was deleted; use create_workspace to make a new one",
+		},
+	},
+};
+
+export const StopWorkspaceBuildFailed: Story = {
+	args: {
+		name: "stop_workspace",
+		status: "completed",
+		result: {
+			error: "workspace stop build failed: terraform destroy failed",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: workspaceBuildLogs("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+					.queryKey,
 				data: [],
 			},
 		],

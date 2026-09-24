@@ -19164,6 +19164,25 @@ const docTemplate = `{
                 "AgentSubsystemExectrace"
             ]
         },
+        "codersdk.AppFamilyName": {
+            "type": "string",
+            "enum": [
+                "vscode",
+                "jetbrains",
+                "ssh",
+                "reconnecting_pty",
+                "sftp",
+                "unknown"
+            ],
+            "x-enum-varnames": [
+                "AppFamilyVSCode",
+                "AppFamilyJetBrains",
+                "AppFamilySSH",
+                "AppFamilyReconnectingPTY",
+                "AppFamilySFTP",
+                "AppFamilyUnknown"
+            ]
+        },
         "codersdk.AppHostResponse": {
             "type": "object",
             "properties": {
@@ -25620,6 +25639,10 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "dynamically_registered": {
+                    "description": "DynamicallyRegistered is true when the app registered itself through\nDynamic Client Registration rather than being created by an admin.",
+                    "type": "boolean"
+                },
                 "endpoints": {
                     "description": "Endpoints are included in the app response for easier discovery. The OAuth2\nspec does not have a defined place to find these (for comparison, OIDC has\na '/.well-known/openid-configuration' endpoint).",
                     "allOf": [
@@ -27479,6 +27502,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "icon": {
+                    "description": "Icon replaces the app's stored icon. Omitting it clears the stored\nicon rather than leaving it unchanged.",
                     "type": "string"
                 },
                 "name": {
@@ -28092,19 +28116,54 @@ const docTemplate = `{
                 "ServerSentEventTypeError"
             ]
         },
+        "codersdk.SessionCountApp": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "display_name": {
+                    "description": "DisplayName is the registry's name for a known app, otherwise the\nnormalized identifier itself.",
+                    "type": "string"
+                },
+                "family": {
+                    "description": "Family is the group this app totals under.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AppFamilyName"
+                        }
+                    ]
+                },
+                "icon": {
+                    "description": "Icon is a bundled path under /icon/, empty if the app has none.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.SessionCountDeploymentStats": {
             "type": "object",
             "properties": {
+                "apps": {
+                    "description": "Apps holds one entry per reported app name, each carrying the family it\ntotals under. The fields below duplicate those totals for one release.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.SessionCountApp"
+                    }
+                },
                 "jetbrains": {
+                    "description": "Deprecated: total Apps by Family instead.",
                     "type": "integer"
                 },
                 "reconnecting_pty": {
+                    "description": "Deprecated: total Apps by Family instead.",
                     "type": "integer"
                 },
                 "ssh": {
+                    "description": "Deprecated: total Apps by Family instead.",
                     "type": "integer"
                 },
                 "vscode": {
+                    "description": "Deprecated: total Apps by Family instead.",
                     "type": "integer"
                 }
             }
