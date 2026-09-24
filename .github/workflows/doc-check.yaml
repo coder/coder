@@ -7,6 +7,7 @@
 #   - PR updated (synchronize): Re-review after changes
 #   - Label "doc-check" added: Manual trigger for review
 #   - PR marked ready for review: Review when draft is promoted
+#   - PR merged (closed with merged == true): Delete the review workspace
 #   - Workflow dispatch: Manual run with PR URL
 #
 # Note: This workflow requires access to secrets and will be skipped for:
@@ -22,6 +23,7 @@ on:
       - synchronize
       - labeled
       - ready_for_review
+      - closed
   workflow_dispatch:
     inputs:
       pr_url:
@@ -47,7 +49,12 @@ jobs:
       ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch') &&
       (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
-    timeout-minutes: 45
+    # Runs for one PR share its review workspace. Queue them, so one run
+    # cannot stop or delete the workspace while another run reviews in it.
+    concurrency:
+      group: doc-check-${{ github.event.pull_request.number || inputs.pr_url }}
+      cancel-in-progress: false
+    timeout-minutes: 50
     permissions:
       contents: read
       pull-requests: write
@@ -238,7 +245,7 @@ jobs:
             exit 1
           fi
 
-      - name: Check the review workspace is usable
+      - name: Prepare the review workspace
         if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
         id: check-workspace
         env:
@@ -246,6 +253,8 @@ jobs:
           CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
           PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
         run: |
+          set -euo pipefail
+
           # A review reuses one chat per PR, and that chat owns one workspace.
           # The workspace stops after about a day and then goes dormant. A chat
           # cannot repair a dormant workspace: start_workspace and
@@ -262,7 +271,16 @@ jobs:
               echo "::warning::Could not read the workspace state from Coder. Continuing."
               exit 0
             }
-          DORMANT_AT=$(echo "${RESPONSE}" | jq -r '.workspaces[0].dormant_at // empty')
+          # The name filter matches substrings, so doc-check-pr-12 also
+          # matches doc-check-pr-123. Keep only the exact name.
+          WORKSPACE=$(echo "${RESPONSE}" | jq -c --arg name "${WS_NAME}" \
+            'first(.workspaces[]? | select(.name == $name)) // empty')
+          if [[ -z "${WORKSPACE}" ]]; then
+            echo "${WS_NAME} does not exist yet. The review creates it."
+            exit 0
+          fi
+
+          DORMANT_AT=$(echo "${WORKSPACE}" | jq -r '.dormant_at // empty')
           if [[ -n "${DORMANT_AT}" ]]; then
             echo "::error::${WS_NAME} is dormant since ${DORMANT_AT}. The review cannot run, because a chat cannot start its own dormant workspace: https://linear.app/codercom/issue/CODAGT-1025"
             {
@@ -275,6 +293,42 @@ jobs:
               echo "To run the review now, start \`${WS_NAME}\` in Coder, then push again or re-run this job."
             } >> "${GITHUB_STEP_SUMMARY}"
             exit 1
+          fi
+
+          # The previous run stopped the workspace when its review finished.
+          # Start it here rather than leave the restart to the model.
+          WS_ID=$(echo "${WORKSPACE}" | jq -r '.id')
+          TRANSITION=$(echo "${WORKSPACE}" | jq -r '.latest_build.transition')
+          STATUS=$(echo "${WORKSPACE}" | jq -r '.latest_build.status')
+          if [[ "${TRANSITION}" == "stop" && "${STATUS}" == "stopped" ]]; then
+            echo "Starting ${WS_NAME}."
+            curl -sS --fail-with-body -X POST \
+              -H "Coder-Session-Token: ${CODER_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"transition":"start"}' \
+              "${CODER_URL%/}/api/v2/workspaces/${WS_ID}/builds" > /dev/null || {
+                echo "::warning::Could not start ${WS_NAME}. The review will try to start it."
+                exit 0
+              }
+            for _ in $(seq 36); do
+              STATUS=$(curl -sS --fail-with-body \
+                -H "Coder-Session-Token: ${CODER_TOKEN}" \
+                "${CODER_URL%/}/api/v2/workspaces/${WS_ID}" |
+                jq -r '.latest_build.status') || STATUS="unknown"
+              case "${STATUS}" in
+                running)
+                  echo "${WS_NAME} is running."
+                  exit 0
+                  ;;
+                failed | canceled)
+                  echo "::warning::Starting ${WS_NAME} ended with status ${STATUS}. The review will try to start it."
+                  exit 0
+                  ;;
+              esac
+              sleep 5
+            done
+            echo "::warning::${WS_NAME} did not start within 3 minutes. Continuing."
+            exit 0
           fi
           echo "Workspace state is usable."
 
@@ -349,6 +403,7 @@ jobs:
 
       - name: Run doc-check via Coder Agent Chat
         if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
+        id: doc-check
         uses: coder/agents-chat-action@9b3ac42d568e9206f9cd51a97789820d6935cc8d # v0.5.1
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
@@ -377,3 +432,78 @@ jobs:
           # The doc-check agent posts its own sticky comment when there
           # are findings; failures surface in the workflow run log.
           comment-on-issue: "false"
+
+      # A review workspace left running until autostop holds its share of the
+      # host, and enough of them at once overload it. Stop it once the chat is
+      # done; the next run starts it again. Skip when the wait timed out,
+      # because the chat is still working in the workspace.
+      - name: Stop the review workspace
+        if: |
+          always() &&
+          steps.doc-check.outputs.workspace-id != '' &&
+          contains(fromJSON('["waiting", "completed", "error"]'), steps.doc-check.outputs.chat-status)
+        env:
+          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          WORKSPACE_ID: ${{ steps.doc-check.outputs.workspace-id }}
+        run: |
+          curl -sS --fail-with-body -X POST \
+            -H "Coder-Session-Token: ${CODER_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"transition":"stop"}' \
+            "${CODER_URL%/}/api/v2/workspaces/${WORKSPACE_ID}/builds" > /dev/null || {
+              echo "::warning::Could not stop workspace ${WORKSPACE_ID}. It stops at its autostop deadline instead."
+              exit 0
+            }
+          echo "Stopped workspace ${WORKSPACE_ID}."
+
+  # Delete the review workspace once its PR merges. A PR closed without
+  # merging keeps its workspace, because stale PRs get closed and reopened
+  # and the review needs its context back.
+  delete-workspace:
+    name: Delete the review workspace after merge
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    concurrency:
+      group: doc-check-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    timeout-minutes: 5
+    permissions: {}
+
+    steps:
+      - name: Delete the review workspace
+        env:
+          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${CODER_URL}" || -z "${CODER_TOKEN}" ]]; then
+            echo "Secrets not available - skipping workspace cleanup."
+            exit 0
+          fi
+
+          WS_NAME="doc-check-pr-${PR_NUMBER}"
+          RESPONSE=$(curl -sS --fail-with-body -G \
+            -H "Coder-Session-Token: ${CODER_TOKEN}" \
+            --data-urlencode "q=owner:me name:${WS_NAME}" \
+            "${CODER_URL%/}/api/v2/workspaces")
+          # The name filter matches substrings; keep only the exact name.
+          WS_ID=$(echo "${RESPONSE}" | jq -r --arg name "${WS_NAME}" \
+            'first(.workspaces[]? | select(.name == $name) | .id) // empty')
+          if [[ -z "${WS_ID}" ]]; then
+            echo "${WS_NAME} does not exist. Nothing to delete."
+            exit 0
+          fi
+
+          curl -sS --fail-with-body -X POST \
+            -H "Coder-Session-Token: ${CODER_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"transition":"delete"}' \
+            "${CODER_URL%/}/api/v2/workspaces/${WS_ID}/builds" > /dev/null
+          echo "Deleted ${WS_NAME}."
