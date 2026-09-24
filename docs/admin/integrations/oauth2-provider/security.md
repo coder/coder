@@ -2,7 +2,7 @@
 title: OAuth2 provider security and limitations
 ---
 
-This page covers security guidance, current limitations, and upgrade notes for pending changes.
+This page covers security guidance and current limitations.
 
 - [OAuth2 provider](./index.md): how to turn on the provider and create an application
 
@@ -41,57 +41,6 @@ The current implementation has these limitations:
 - A redirect URI with a private-use scheme must name a path or an authority, as described under [Callback URL schemes](./callback-url-schemes.md).
   Dynamic Client Registration accepted the bare form, such as `com.example.app:callback`, in earlier versions.
   A client that registered one can re-register with an accepted form, or an administrator can correct it with the same `PUT`.
-
-## Upgrade notes
-
-These changes are on `main` and have not shipped in a release yet.
-This section will name the version once one ships.
-
-### Upgrade from `callback_url` to `redirect_uris`
-
-The `redirect_uris` list is now the source of truth for an application's callbacks, and its first entry is the primary:
-
-- Earlier versions stored the primary in a separate `callback_url` field. The upgrade migration rewrites every application so the list starts with that value.
-- During a rolling upgrade, a replica running an earlier version still writes only the old field when an administrator edits the callback URL. Replicas running the new version read the list instead, so the edit is silently lost: the application keeps its old callback URL and keeps accepting every previous redirect URI, including any the administrator meant to remove.
-- Replicas running the new version also show the old callback URL in the form, so saving the application unchanged does not restore the edit.
-- Drain replicas running the earlier version before you upgrade. If a callback URL was edited during the upgrade, enter the intended value again and save the application once every replica runs the new version.
-
-### Refresh `scope` narrowing is now enforced
-
-A `scope` on a refresh request was parsed and discarded in earlier versions, so a client sending one wider than its grant refreshed successfully.
-It is now enforced, and such a request answers HTTP 400 with `error=invalid_scope`.
-The refresh token is not consumed, so a client that drops the parameter or asks for less recovers without re-authorizing.
-
-### Refresh and revocation now require `client_secret`
-
-Earlier versions did not check `client_secret` on a refresh or at the RFC 7009 revocation endpoint, so a confidential client could refresh or revoke with a wrong secret or none.
-Both now authenticate confidential clients exactly as the authorization code grant does, and a request without a valid secret answers HTTP 401 with `error=invalid_client`.
-The refresh token is not consumed and nothing is revoked, so a client that adds its secret recovers without re-authorizing.
-Public clients are unaffected.
-
-### Dynamic Client Registration `scope` enforcement
-
-Coder now enforces the `scope` an application declared for itself when it self-registered through [Dynamic Client Registration](./index.md#dynamic-client-registration).
-This affects only deployments that enabled Dynamic Client Registration and have an application that self-registered with a `scope`.
-Dynamic Client Registration is disabled by default, so if you never enabled it, nothing changes for you.
-Turning it back off does not clear the check: Coder validates the stored `scope` of an existing application whether or not registration is still allowed, so an application that self-registered before you turned the setting off is affected too.
-
-Earlier versions of Coder accepted any `scope` at registration without checking it, and every token for that application had full access.
-Coder now treats the registered `scope` as the list of scopes the application is allowed to request, as described under [Scopes](./scopes.md).
-Applications that self-registered without a `scope`, and applications created through the web UI or the management API without one, have no scope list and are not affected; they continue to receive full access.
-
-An affected application fails in the following ways:
-
-- A request for a scope name this deployment does not offer fails with `invalid_scope`.
-- If none of the registered names are offered, every authorization fails, even one that leaves `scope` out.
-- Authorization codes issued before the upgrade fail at the token endpoint with `invalid_grant` until they expire.
-
-For the full error details, refer to ["invalid_scope" returned to your callback](./troubleshooting.md#invalid_scope-returned-to-your-callback) and ["invalid_grant" for a scope the deployment cannot mint](./troubleshooting.md#invalid_grant-for-a-scope-the-deployment-cannot-mint).
-
-To fix an affected application, the party that holds its `registration_access_token` updates the registration with `PUT /oauth2/clients/{client_id}`, so that `scope` lists only names from `scopes_supported` in `GET /.well-known/oauth-authorization-server`.
-If that token is lost, register the application again.
-A Coder administrator can also fix it from the management API by [updating the application](../../../reference/api/enterprise.md#update-oauth2-application) with a `scope` that lists supported names, or with an empty `scope` to remove the allowlist.
-The **Allowed scopes** field on the application page in the web UI makes the same change.
 
 ## Learn more
 

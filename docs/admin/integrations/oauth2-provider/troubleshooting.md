@@ -276,4 +276,4 @@ scheme (`myapp://callback`) or a loopback HTTP address.
 
 - Review [OAuth2 provider](./index.md) for enabling the provider and creating an application
 - Review [Integration patterns](./integration-patterns.md) for client authentication methods and flows
-- Review [Security and limitations](./security.md) for security considerations, current limitations, and upgrade notes
+- Review [Security and limitations](./security.md) for security considerations and current limitations

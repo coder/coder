@@ -210,7 +210,7 @@ The admin `PUT` also validates the stored name, so a self-registered client whos
 
 - [Troubleshooting](./troubleshooting.md): look up an error by its exact code or message
 
-- [Security and limitations](./security.md): security considerations, current limitations, and upgrade notes
+- [Security and limitations](./security.md): security considerations and current limitations
   - <a id="security-considerations"></a>[Security considerations](./security.md#security-considerations)
   - <a id="limitations"></a>[Limitations](./security.md#limitations)
 

@@ -874,7 +874,7 @@
 								},
 								{
 									"title": "Security and limitations",
-									"description": "Security considerations, current limitations, and upgrade notes for the OAuth2 provider.",
+									"description": "Security considerations and current limitations of the OAuth2 provider.",
 									"path": "./admin/integrations/oauth2-provider/security.md"
 								}
 							]
