@@ -105,7 +105,6 @@ describe("openCardAssistant", () => {
 			workspaces: [{ ...MockWorkspace, id: "ws-1", name: "agents-kanban" }],
 			count: 1,
 		});
-		localStorage.setItem("agents.last-model-config-id", "model-9");
 
 		const { result, create, rename } = open(
 			[chat("p", { "board/title": "Epic" })],
@@ -123,7 +122,6 @@ describe("openCardAssistant", () => {
 			workspace_id: "ws-1",
 			labels: { "board/assistant": "p" },
 			client_type: "ui",
-			model_config_id: "model-9",
 		});
 		expect(request?.system_prompt).toContain("assistant for one card");
 		expect(request?.content[0]).toMatchObject({ type: "text" });

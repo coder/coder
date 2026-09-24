@@ -168,7 +168,7 @@ describe("runPlan", () => {
 		);
 		spy.mockClear();
 		// The source restore hangs; the receiver's must wait for it.
-		const sourceRestore = createDeferred<void>();
+		const sourceRestore: Deferred<void> = createDeferred();
 		spy.mockImplementation((chatId) =>
 			chatId === "t" ? sourceRestore.promise : Promise.resolve(),
 		);
@@ -188,7 +188,7 @@ describe("runPlan", () => {
 	});
 
 	it("sends the receiver first and skips the sources when it fails", async () => {
-		const receiver = createDeferred<void>();
+		const receiver: Deferred<void> = createDeferred();
 		const spy = vi
 			.spyOn(API.experimental, "updateChat")
 			.mockImplementation((chatId) =>
