@@ -16855,6 +16855,63 @@ func TestChatLimitsFromDeploymentConfig(t *testing.T) {
 		})
 		require.NoError(t, err)
 	})
+
+	t.Run("MaxQueuedMessagesPerChat", func(t *testing.T) {
+		t.Parallel()
+
+		limitCases := chatLimitCases(func(c *codersdk.ChatConfig) *serpent.Int64 { return &c.MaxQueuedMessagesPerChat },
+			codersdk.DefaultChatMaxQueuedMessagesPerChat, 2, 25)
+		for _, lc := range limitCases {
+			t.Run(lc.name, func(t *testing.T) {
+				t.Parallel()
+
+				client, db := newChatClientWithDatabase(t, lc.configure, withChatWorkerDisabled)
+				user := coderdtest.CreateFirstUser(t, client.Client)
+				modelConfig := createChatModel(t, client)
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				chat := dbgen.Chat(t, db, database.Chat{
+					OrganizationID:    user.OrganizationID,
+					OwnerID:           user.UserID,
+					LastModelConfigID: modelConfig.ID,
+					Title:             "queue cap " + lc.name,
+				})
+				// Another worker owns the running chat, so every send queues.
+				_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+					ID:          chat.ID,
+					Status:      database.ChatStatusRunning,
+					WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+					StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+					HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+				})
+				require.NoError(t, err)
+
+				send := func(ctx context.Context, i int) (codersdk.CreateChatMessageResponse, error) {
+					return client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+						Content: []codersdk.ChatInputPart{{
+							Type: codersdk.ChatInputPartTypeText,
+							Text: fmt.Sprintf("queued message %d", i),
+						}},
+						BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+					})
+				}
+				for i := range lc.limit {
+					resp, err := send(ctx, i)
+					require.NoError(t, err)
+					require.True(t, resp.Queued, "message %d should queue", i)
+				}
+
+				_, err = send(ctx, lc.limit)
+				sdkErr := requireSDKError(t, err, http.StatusTooManyRequests)
+				require.Equal(t, "Message queue is full.", sdkErr.Message)
+				require.Equal(t, fmt.Sprintf("Maximum %d messages can be queued.", lc.limit), sdkErr.Detail)
+
+				queued, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
+				require.NoError(t, err)
+				require.Len(t, queued, lc.limit)
+			})
+		}
+	})
 }
 
 func TestPostChats_DynamicToolValidation(t *testing.T) {
