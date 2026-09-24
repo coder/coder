@@ -16783,8 +16783,8 @@ func TestChatLimitsFromDeploymentConfig(t *testing.T) {
 		}
 
 		// Lower sits below the JSON envelope size, so rejection must come from
-		// the prompt check rather than the body cap. Higher exceeds the former
-		// fixed limit and lifts the body cap above its 256 KiB floor.
+		// the prompt check rather than the body cap. Higher lifts the body cap
+		// above its 256 KiB floor.
 		limitCases := chatLimitCases(func(c *codersdk.ChatConfig) *serpent.Int64 { return &c.MaxPromptBytes },
 			codersdk.DefaultChatMaxPromptBytes, 16, 512*1024)
 		for _, lc := range limitCases {
