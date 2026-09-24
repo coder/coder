@@ -67,7 +67,10 @@ import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
-import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
+import {
+	isWorkspaceUploadInProgress,
+	type WorkspaceFileUpload,
+} from "../hooks/useWorkspaceFileUploads";
 import {
 	getAgentChatSendShortcut,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
@@ -977,7 +980,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const workspaceUploadEntries = workspaceUploads?.uploads ?? [];
 	const hasActiveUploads =
 		attachments.some((file) => isUploadInProgress(uploadStates?.get(file))) ||
-		workspaceUploadEntries.some((upload) => upload.status === "uploading");
+		workspaceUploadEntries.some(isWorkspaceUploadInProgress);
 	const hasUploadedAttachments =
 		attachments.some((f) => uploadStates?.get(f)?.status === "uploaded") ||
 		workspaceUploadEntries.some((upload) => upload.status === "uploaded");

@@ -24,6 +24,7 @@ import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
+	isWorkspaceUploadInProgress,
 	useWorkspaceFileUploads,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
@@ -713,10 +714,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					const hasActiveUploads =
 						attachments.some((file) =>
 							isUploadInProgress(uploadStates.get(file)),
-						) ||
-						visibleWorkspaceUploads.some(
-							(upload) => upload.status === "uploading",
-						);
+						) || visibleWorkspaceUploads.some(isWorkspaceUploadInProgress);
 					if (hasActiveUploads) {
 						toast.warning("Wait for file uploads to finish before sending.");
 						return;

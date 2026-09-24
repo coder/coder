@@ -5,7 +5,7 @@ import type { UploadChatWorkspaceFileResponse } from "#/api/typesGenerated";
 import { renameChatFileForUpload } from "../utils/chatAttachments";
 import { formatAgentAttachmentUploadError } from "../utils/fileAttachmentLimits";
 
-type WorkspaceFileUploadStatus = "uploading" | "uploaded" | "error";
+type WorkspaceFileUploadStatus = "queued" | "uploading" | "uploaded" | "error";
 
 export type WorkspaceFileUpload = {
 	id: string;
@@ -16,6 +16,10 @@ export type WorkspaceFileUpload = {
 	// size, and media type reported by the workspace agent.
 	response?: UploadChatWorkspaceFileResponse;
 };
+
+export const isWorkspaceUploadInProgress = (
+	upload: WorkspaceFileUpload,
+): boolean => upload.status === "queued" || upload.status === "uploading";
 
 type UseWorkspaceFileUploadsReturn = {
 	uploads: readonly WorkspaceFileUpload[];
@@ -131,6 +135,7 @@ export function useWorkspaceFileUploads(
 			// A removed entry has no abort controller anymore; skip it.
 			const controller = abortControllersRef.current.get(next.id);
 			if (controller) {
+				setUploadResult(next.id, { status: "uploading" });
 				try {
 					const response = await uploadFile({
 						uploadChatId,
@@ -177,7 +182,7 @@ export function useWorkspaceFileUploads(
 		const entries = incoming.map((file) => ({
 			id: createUploadId(),
 			file: renameChatFileForUpload(file),
-			status: "uploading" as const,
+			status: "queued" as const,
 		}));
 		if (!chatId) {
 			setUploads((prev) => [
