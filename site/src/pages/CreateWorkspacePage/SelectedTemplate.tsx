@@ -2,9 +2,9 @@ import type { FC } from "react";
 import type { Template, TemplateExample } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 
-interface SelectedTemplateProps {
+type SelectedTemplateProps = {
 	template: Template | TemplateExample;
-}
+};
 
 export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
 	return (

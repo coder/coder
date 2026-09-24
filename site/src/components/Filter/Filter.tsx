@@ -225,14 +225,14 @@ export const Filter: FC<FilterProps> = ({
 	);
 };
 
-interface PresetMenuProps {
+type PresetMenuProps = {
 	value: string;
 	presets: PresetFilter[];
 	learnMoreLink?: string;
 	learnMoreLabel2?: string;
 	learnMoreLink2?: string;
 	onSelect: (query: string) => void;
-}
+};
 
 const PresetMenu: FC<PresetMenuProps> = ({
 	value,

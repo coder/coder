@@ -1,4 +1,3 @@
-import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, type FC, useState } from "react";
 import { Outlet } from "react-router";
@@ -44,6 +43,7 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
+import { MessageScroller } from "#/vendor/message-scroller";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -851,6 +851,22 @@ const buildStoreWithMessages = (
 	store.replaceMessages(msgs);
 	store.setChatStatus(status);
 	return store;
+};
+
+const embeddedViewportStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 40),
+);
+
+/** Embedded chats stay within a block parent and scroll the transcript. */
+export const EmbeddedViewport: Story = {
+	decorators: [
+		(Story) => (
+			<div style={{ height: 412, overflow: "hidden", width: 900 }}>
+				<Story />
+			</div>
+		),
+	],
+	render: () => <StoryAgentChatPageView store={embeddedViewportStore} />,
 };
 
 const otherUserActionMessages: TypesGen.ChatMessage[] = [

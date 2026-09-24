@@ -61,12 +61,12 @@ const getProviderStatus = (
 	};
 };
 
-interface ProviderKeyPanelProps {
+type ProviderKeyPanelProps = {
 	provider: UserChatProviderConfig;
 	models: readonly ChatModel[];
 	isModelsLoading: boolean;
 	areModelsUnavailable: boolean;
-}
+};
 
 const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 	provider,
@@ -258,14 +258,14 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 	);
 };
 
-export interface AgentSettingsAPIKeysPageViewProps {
+export type AgentSettingsAPIKeysPageViewProps = {
 	error: unknown;
 	isLoading: boolean;
 	providers: readonly UserChatProviderConfig[];
 	models: readonly ChatModel[];
 	isModelsLoading: boolean;
 	areModelsUnavailable: boolean;
-}
+};
 
 export const AgentSettingsAPIKeysPageView: FC<
 	AgentSettingsAPIKeysPageViewProps

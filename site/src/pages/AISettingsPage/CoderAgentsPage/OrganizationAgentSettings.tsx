@@ -26,11 +26,11 @@ const contexts: readonly ChatModelOverrideContext[] = [
 	"advisor",
 ];
 
-interface OrganizationAgentSettingsProps {
+type OrganizationAgentSettingsProps = {
 	organization: Organization;
 	canEdit: boolean;
 	showAdvisor: boolean;
-}
+};
 
 export const OrganizationAgentSettings: FC<OrganizationAgentSettingsProps> = ({
 	organization,

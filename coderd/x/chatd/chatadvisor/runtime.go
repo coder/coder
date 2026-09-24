@@ -2,6 +2,7 @@ package chatadvisor
 
 import (
 	"sync/atomic"
+	"time"
 
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
@@ -12,9 +13,10 @@ import (
 type RuntimeConfig struct {
 	Model fantasy.LanguageModel
 	// CallTemplate's provider options are cloned for each nested call.
-	CallTemplate    fantasy.Call
-	MaxUsesPerRun   int
-	MaxOutputTokens int64
+	CallTemplate         fantasy.Call
+	MaxUsesPerRun        int
+	MaxOutputTokens      int64
+	StreamSilenceTimeout time.Duration
 }
 
 // Runtime executes nested, tool-less advisor runs against the configured

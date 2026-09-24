@@ -7,7 +7,7 @@ automating the creation of new versions in CI/CD pipelines.
 
 These pipelines will require tokens for your deployment. To cap token lifetime
 on creation,
-[configure Coder server to set a shorter max token lifetime](../../../reference/cli/server.md#--max-token-lifetime).
+[configure the control plane to set a shorter max token lifetime](../../../reference/cli/server.md#--max-token-lifetime).
 
 ## coderd Terraform Provider
 
@@ -59,7 +59,7 @@ resource "coderd_template" "kubernetes" {
 }
 ```
 
-For an example, see how we push our development image and template
+For an example, see how we push our development image
 [with GitHub actions](../../../../.github/workflows/dogfood.yaml).
 
 ## Coder CLI

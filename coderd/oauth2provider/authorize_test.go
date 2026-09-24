@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/testutil"
@@ -392,8 +394,8 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Empty(t, getResp.Header.Get("Location"),
 			"GET: a dangerous scheme must never reach a Location header")
 		getBody := readBody(t, getResp)
-		require.Contains(t, getBody, "Invalid Callback URL",
-			"GET: the failure must name the callback URL, not the scope")
+		require.Contains(t, getBody, "Invalid Redirect URI",
+			"GET: the failure must name the redirect URI, not the scope")
 		require.NotContains(t, getBody, "javascript:",
 			"GET: the scheme must not reach the page as a link either")
 
@@ -404,8 +406,8 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 			"POST: a dangerous scheme must never reach a Location header")
 		postBody := readBody(t, postResp)
 		require.Contains(t, postBody, string(codersdk.OAuth2ErrorCodeServerError))
-		require.Contains(t, postBody, "callback URL is not usable",
-			"POST: the failure must name the callback, not just the error class")
+		require.Contains(t, postBody, "registered redirect URIs is not usable",
+			"POST: the failure must name the redirect URI, not just the error class")
 	})
 
 	// The other half of the same class: a stored callback that does not even
@@ -426,8 +428,8 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		defer getResp.Body.Close()
 		require.Equal(t, http.StatusInternalServerError, getResp.StatusCode)
 		getBody := readBody(t, getResp)
-		require.Contains(t, getBody, "Invalid Callback URL",
-			"GET: the failure must name the callback URL")
+		require.Contains(t, getBody, "Invalid Redirect URI",
+			"GET: the failure must name the redirect URI")
 		require.NotContains(t, getBody, unparsable,
 			"GET: the Go parse error carries the stored URL, which must not reach the page")
 
@@ -436,7 +438,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, http.StatusInternalServerError, postResp.StatusCode)
 		postBody := readBody(t, postResp)
 		require.Contains(t, postBody, string(codersdk.OAuth2ErrorCodeServerError))
-		require.Contains(t, postBody, "callback URL is not usable",
+		require.Contains(t, postBody, "registered redirect URIs is not usable",
 			"POST: nothing was validated, so the description must not blame the query")
 	})
 
@@ -544,6 +546,49 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Empty(t, failure.Get("code"),
 			"a rejected request must not appear to carry a code")
 		require.Equal(t, "acme", failure.Get("tenant"))
+	})
+}
+
+// An app created through the admin API (not seeded directly at the database
+// layer, and not DCR-registered) narrows a request the same way any other app
+// does, once its allowlist is set through PostOAuth2ProviderApp.
+func TestOAuth2AuthorizeAdminCreatedAppAllowlist(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:gocritic // OAuth2 app management requires owner permission.
+	app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+		Name:        "admin-created-app-allowlist",
+		CallbackURL: appCallbackURL,
+		Scope:       scopeInCatalog,
+	})
+	require.NoError(t, err)
+
+	t.Run("OutOfAllowlistRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), scopeOutOfAllowlist)
+		defer resp.Body.Close()
+
+		requireInvalidScope(t, resp, reasonScopeNotAllowed)
+	})
+
+	t.Run("OmittedScopeDefaultsToAllowlist", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "")
+		defer resp.Body.Close()
+
+		require.Equal(t, scopeInCatalog, persistedCodeScope(ctx, t, db, resp))
 	})
 }
 
@@ -1188,4 +1233,189 @@ func TestOAuth2AuthorizeAnyRegisteredRedirectURI(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	require.Empty(t, resp.Header.Get("Location"))
 	require.Contains(t, readBody(t, resp), "must match one of")
+}
+
+func TestOAuth2AuthorizeFollowsCallbackEdit(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const (
+		first  = "https://a.example.com/callback"
+		second = "https://b.example.com/callback"
+		third  = "https://c.example.com/callback"
+	)
+	app := oauth2providertest.RegisterPublicClientWithRedirectURIs(t, client, "callback-edit", first, second)
+	appID, err := uuid.Parse(app.ClientID)
+	require.NoError(t, err)
+
+	// Issue a code to the first URI before the edit.
+	verifier, challenge := oauth2providertest.GeneratePKCE(t)
+	query := authorizeQuery(t, app.ClientID, "")
+	query.Set("code_challenge", challenge)
+	query.Set("redirect_uri", first)
+	post := sendAuthorizeRequest(ctx, t, client, http.MethodPost, query)
+	defer post.Body.Close()
+	require.Equal(t, http.StatusFound, post.StatusCode, readBody(t, post))
+	location, err := url.Parse(post.Header.Get("Location"))
+	require.NoError(t, err)
+	staleCode := location.Query().Get("code")
+	require.NotEmpty(t, staleCode)
+
+	//nolint:gocritic // OAuth2 app management requires owner permission.
+	_, err = client.PutOAuth2ProviderApp(ctx, appID, codersdk.PutOAuth2ProviderAppRequest{
+		Name:        "callback-edit",
+		CallbackURL: third,
+	})
+	require.NoError(t, err)
+
+	// authorize sends a GET for redirectURI and returns the status, the
+	// Location header, and the body.
+	authorize := func(redirectURI string) (int, string, string) {
+		q := authorizeQuery(t, app.ClientID, "")
+		q.Set("redirect_uri", redirectURI)
+		resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, q)
+		defer resp.Body.Close()
+		return resp.StatusCode, resp.Header.Get("Location"), readBody(t, resp)
+	}
+
+	// The previous primary is no longer registered and is refused on Coder.
+	status, redirected, body := authorize(first)
+	require.Equal(t, http.StatusBadRequest, status)
+	require.Empty(t, redirected)
+	require.Contains(t, body, "must match one of")
+
+	// The other registered URI and the new primary both work.
+	status, _, body = authorize(second)
+	require.Equal(t, http.StatusOK, status, body)
+	status, _, body = authorize(third)
+	require.Equal(t, http.StatusOK, status, body)
+
+	// An omitted redirect_uri goes to the new primary.
+	omitted := authorizeQuery(t, app.ClientID, "")
+	post = sendAuthorizeRequest(ctx, t, client, http.MethodPost, omitted)
+	defer post.Body.Close()
+	require.Equal(t, http.StatusFound, post.StatusCode, readBody(t, post))
+	location, err = url.Parse(post.Header.Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, third, location.Scheme+"://"+location.Host+location.Path)
+
+	// A code issued to the removed URI cannot be exchanged. The redirect_uri
+	// fails registration matching before the code is looked up, so the
+	// answer is invalid_request rather than invalid_grant.
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("client_id", app.ClientID)
+	form.Set("code", staleCode)
+	form.Set("redirect_uri", first)
+	form.Set("code_verifier", verifier)
+	status, body = postTokenRequest(ctx, t, client, form)
+	requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
+}
+
+// A callback_url that is not in the list is not registered. Such a row can
+// only be written by a binary older than migration 000599.
+func TestOAuth2AuthorizeIgnoresCallbackColumn(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const (
+		stale = "https://stale.example.com/callback"
+		first = "https://a.example.com/callback"
+	)
+	app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+		CallbackURL:  stale,
+		RedirectUris: []string{first},
+	})
+
+	query := authorizeQuery(t, app.ID.String(), "")
+	query.Set("redirect_uri", stale)
+	resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	require.Empty(t, resp.Header.Get("Location"))
+
+	query.Set("redirect_uri", first)
+	resp = sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode, readBody(t, resp))
+}
+
+// A whitespace-only allowlist is configured and grants nothing. It must read
+// back as non-empty from every write origin, since empty means unrestricted,
+// and authorization must fail closed on it.
+func TestOAuth2AuthorizeWhitespaceOnlyAllowlist(t *testing.T) {
+	t.Parallel()
+
+	const whitespaceOnly = "   "
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:gocritic // OAuth2 app management requires owner permission.
+	created, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+		Name:        "whitespace-allowlist-create",
+		CallbackURL: appCallbackURL,
+		Scope:       whitespaceOnly,
+	})
+	require.NoError(t, err)
+
+	//nolint:gocritic // OAuth2 app management requires owner permission.
+	updated, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+		Name:        "whitespace-allowlist-update",
+		CallbackURL: appCallbackURL,
+		Scope:       scopeInCatalog,
+	})
+	require.NoError(t, err)
+	//nolint:gocritic // OAuth2 app management requires owner permission.
+	updated, err = client.PutOAuth2ProviderApp(ctx, updated.ID, codersdk.PutOAuth2ProviderAppRequest{
+		Name:        updated.Name,
+		CallbackURL: updated.CallbackURL,
+		Scope:       ptr.Ref(whitespaceOnly),
+	})
+	require.NoError(t, err)
+
+	registration, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+		RedirectURIs: []string{appCallbackURL},
+		ClientName:   testutil.GetRandomName(t),
+		Scope:        whitespaceOnly,
+	})
+	require.NoError(t, err)
+	//nolint:gocritic // OAuth2 app management requires owner permission.
+	registered, err := client.OAuth2ProviderApp(ctx, uuid.MustParse(registration.ClientID))
+	require.NoError(t, err)
+
+	apps := map[string]codersdk.OAuth2ProviderApp{
+		"AdminCreate": created,
+		"AdminUpdate": updated,
+		"DCR":         registered,
+	}
+	for name, app := range apps {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			require.NotEmpty(t, app.Scope, "a configured allowlist must not read back as unrestricted")
+			require.Empty(t, strings.TrimSpace(app.Scope), "a whitespace-only allowlist names nothing")
+
+			//nolint:gocritic // OAuth2 app management requires owner permission.
+			got, err := client.OAuth2ProviderApp(ctx, app.ID)
+			require.NoError(t, err)
+			require.Equal(t, app.Scope, got.Scope)
+
+			resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "")
+			defer resp.Body.Close()
+			requireInvalidScope(t, resp, reasonNoGrantableScope)
+		})
+	}
 }

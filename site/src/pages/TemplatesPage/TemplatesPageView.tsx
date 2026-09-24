@@ -16,15 +16,7 @@ import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { DeprecatedBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverLink,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Link } from "#/components/Link/Link";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -45,6 +37,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
@@ -112,29 +105,25 @@ const CompatibilityModeAlert: FC<{ templates: readonly Template[] }> = ({
 
 const TemplateHelpPopover: FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger />
-			<HelpPopoverContent>
-				<HelpPopoverTitle>What is a template?</HelpPopoverTitle>
-				<HelpPopoverText>
-					With templates you can create a common configuration for your
-					workspaces using Terraform.
-				</HelpPopoverText>
-				<HelpPopoverLinksGroup>
-					<HelpPopoverLink href={docs("/admin/templates")}>
-						Manage templates
-					</HelpPopoverLink>
-				</HelpPopoverLinksGroup>
-			</HelpPopoverContent>
-		</HelpPopover>
+		<InfoTooltip>
+			<TooltipTitle>What is a template?</TooltipTitle>
+			<TooltipMessage>
+				With templates you can create a common configuration for your workspaces
+				using Terraform.
+				<br />
+				<Link size="sm" href={docs("/admin/templates")}>
+					Manage templates
+				</Link>
+			</TooltipMessage>
+		</InfoTooltip>
 	);
 };
 
-interface TemplateActionsProps {
+type TemplateActionsProps = {
 	template: Template;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 	templatePageLink: string;
-}
+};
 
 const TemplateActions: FC<TemplateActionsProps> = ({
 	template,
@@ -174,12 +163,12 @@ const TemplateActions: FC<TemplateActionsProps> = ({
 	);
 };
 
-interface TemplateRowProps {
+type TemplateRowProps = {
 	canUpdateTemplate: boolean;
 	showOrganizations: boolean;
 	template: Template;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
-}
+};
 
 const TemplateRow: FC<TemplateRowProps> = ({
 	canUpdateTemplate,
@@ -220,7 +209,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 									className="border-0 shadow-none"
 								>
 									<TriangleAlertIcon aria-hidden="true" />
-									Deprecated
+									Compatibility mode
 								</Badge>
 							)}
 						</span>
@@ -268,7 +257,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	);
 };
 
-interface TemplatesPageViewProps {
+type TemplatesPageViewProps = {
 	error?: unknown;
 	filterState: TemplateFilterState;
 	showOrganizations: boolean;
@@ -278,7 +267,7 @@ interface TemplatesPageViewProps {
 	templates: Template[] | undefined;
 	templateUpdatePermissions: AuthorizationResponse;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
-}
+};
 
 export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	error,

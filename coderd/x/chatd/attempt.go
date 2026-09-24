@@ -20,10 +20,11 @@ const (
 
 // stepData is the durable content produced by one provider attempt.
 type stepData struct {
-	Content      []fantasy.Content
-	Usage        fantasy.Usage
-	ContextLimit sql.NullInt64
-	Runtime      time.Duration
+	Content            []fantasy.Content
+	Usage              fantasy.Usage
+	ContextLimit       sql.NullInt64
+	Runtime            time.Duration
+	ProviderResponseID string
 
 	// BatchRuntime is the local-tool batch window. Model steps use Runtime.
 	BatchRuntime time.Duration
@@ -57,6 +58,7 @@ type compactionOutcome struct {
 	ContextLimit           int64
 	EstimatedContextTokens int64
 	Runtime                time.Duration
+	ProviderResponseID     string
 }
 
 type compactionStatus int

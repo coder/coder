@@ -66,7 +66,7 @@ export const validationSchema = Yup.object({
 	cors_behavior: Yup.string().oneOf(Object.values(CORSBehaviors)),
 });
 
-interface TemplateSettingsFormProps {
+type TemplateSettingsFormProps = {
 	template: Template;
 	onSubmit: (data: UpdateTemplateMeta) => void;
 	onCancel: () => void;
@@ -77,7 +77,7 @@ interface TemplateSettingsFormProps {
 	accessControlEnabled: boolean;
 	advancedSchedulingEnabled: boolean;
 	portSharingControlsEnabled: boolean;
-}
+};
 
 export const TemplateSettingsForm: FC<TemplateSettingsFormProps> = ({
 	template,
