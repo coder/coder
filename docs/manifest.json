@@ -1380,7 +1380,7 @@
 					"title": "MCP Server",
 					"description": "Connect external AI coding agents to Coder using its built-in Model Context Protocol server.",
 					"path": "./ai-coder/mcp-server.md",
-					"state": ["beta"]
+					"state": ["early access"]
 				}
 			]
 		},
