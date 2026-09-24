@@ -221,9 +221,9 @@ func TestRequestCompaction_FreshHistoryEpoch(t *testing.T) {
 		name     string
 		attempts int
 	}{
-		{name: "unspent budget", attempts: 0},
-		{name: "one below the cap", attempts: codersdk.DefaultChatMaxGenerationRetries - 1},
-		{name: "exhausted budget", attempts: codersdk.DefaultChatMaxGenerationRetries},
+		{name: "no attempts", attempts: 0},
+		{name: "one attempt", attempts: 1},
+		{name: "several attempts", attempts: 5},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
