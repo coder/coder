@@ -354,9 +354,15 @@ func (s *server) Graph(
 			planConfig = plan.Config
 		}
 	case proto.GraphSource_SOURCE_STATE:
-		e.mut.Lock()
-		tfState, err := e.state(ctx, killCtx)
-		e.mut.Unlock()
+		tfState, err := readStateFile(e.files.StateFilePath())
+		if err != nil {
+			// The file was just written by apply, so this should not happen.
+			// Let Terraform interpret it rather than failing the build.
+			s.logger.Warn(ctx, "reading terraform state file failed, falling back to terraform show", slog.Error(err))
+			e.mut.Lock()
+			tfState, err = e.state(ctx, killCtx)
+			e.mut.Unlock()
+		}
 		if err != nil {
 			return provisionersdk.GraphError("load tfstate for graph: %s", err)
 		}
