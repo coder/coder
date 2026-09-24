@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"io"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -104,6 +105,14 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	modelConfigID := r.cfg.ModelConfigID
 	logger = logger.With(slog.F("workspace_id", workspaceID))
 	logger.Info(ctx, "starting chat runner")
+
+	// Stagger runner starts so the initial turns do not all begin at once.
+	if delay := jitterDelay(r.cfg.StartJitter); delay > 0 {
+		logger.Info(ctx, "applying start jitter", slog.F("delay", delay))
+		if err := sleepWithContext(ctx, delay); err != nil {
+			return err
+		}
+	}
 
 	r.resetConversation(time.Now(), markTurnStartReady)
 
@@ -319,6 +328,13 @@ func (r *Runner) handleStatusEvent(ctx context.Context, chatID uuid.UUID, logger
 }
 
 func (r *Runner) sendNextTurn(ctx context.Context, chatID uuid.UUID, logger slog.Logger, nextTurn int, phase string) error {
+	// Spread follow-up turn sends so they do not release as a synchronized burst.
+	if delay := jitterDelay(r.cfg.MessageJitter); delay > 0 {
+		if err := sleepWithContext(ctx, delay); err != nil {
+			return xerrors.Errorf("wait message jitter for turn %d: %w", nextTurn, err)
+		}
+	}
+
 	messageStartedAt := time.Now()
 	modelConfigID := r.cfg.ModelConfigID
 	_, err := r.client.CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{
@@ -377,6 +393,31 @@ func (r *Runner) handleErrorEvent(ctx context.Context, logger slog.Logger, event
 		return
 	}
 	logger.Warn(ctx, "chat stream error event")
+}
+
+// jitterDelay returns a random delay in [0, maxDelay). It returns 0 when
+// maxDelay is not positive.
+func jitterDelay(maxDelay time.Duration) time.Duration {
+	if maxDelay <= 0 {
+		return 0
+	}
+	//nolint:gosec // Load-shaping jitter, not used for crypto.
+	return time.Duration(rand.Int63n(int64(maxDelay)))
+}
+
+// sleepWithContext waits for d or until ctx is cancelled.
+func sleepWithContext(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return nil
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {

@@ -254,6 +254,65 @@ func testLogger() slog.Logger {
 	return slog.Make(sloghuman.Sink(io.Discard)).Leveled(slog.LevelDebug)
 }
 
+func TestJitterDelay(t *testing.T) {
+	t.Parallel()
+
+	require.Zero(t, jitterDelay(0))
+	require.Zero(t, jitterDelay(-time.Second))
+	for range 100 {
+		d := jitterDelay(5 * time.Second)
+		require.GreaterOrEqual(t, d, time.Duration(0))
+		require.Less(t, d, 5*time.Second)
+	}
+}
+
+func TestSleepWithContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CompletesAfterDelay", func(t *testing.T) {
+		t.Parallel()
+		require.NoError(t, sleepWithContext(context.Background(), time.Millisecond))
+	})
+
+	t.Run("ZeroReturnsImmediately", func(t *testing.T) {
+		t.Parallel()
+		require.NoError(t, sleepWithContext(context.Background(), 0))
+	})
+
+	t.Run("CancelledContextReturnsErr", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		require.ErrorIs(t, sleepWithContext(ctx, time.Hour), context.Canceled)
+	})
+}
+
+func TestConfigValidateJitter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ValidJitters", func(t *testing.T) {
+		t.Parallel()
+		cfg := newRunConfig(t)
+		cfg.StartJitter = 5 * time.Second
+		cfg.MessageJitter = 3 * time.Second
+		require.NoError(t, cfg.Validate())
+	})
+
+	t.Run("NegativeStartJitter", func(t *testing.T) {
+		t.Parallel()
+		cfg := newRunConfig(t)
+		cfg.StartJitter = -time.Second
+		require.ErrorContains(t, cfg.Validate(), "start_jitter")
+	})
+
+	t.Run("NegativeMessageJitter", func(t *testing.T) {
+		t.Parallel()
+		cfg := newRunConfig(t)
+		cfg.MessageJitter = -time.Second
+		require.ErrorContains(t, cfg.Validate(), "message_jitter")
+	})
+}
+
 func newRunConfig(t *testing.T) Config {
 	t.Helper()
 	reg := prometheus.NewRegistry()

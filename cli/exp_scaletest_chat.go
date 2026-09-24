@@ -25,6 +25,8 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 		prompt                  string
 		turns                   int64
 		turnStartDelay          time.Duration
+		startJitter             time.Duration
+		messageJitter           time.Duration
 		llmMockURL              string
 		providerPropagationWait time.Duration
 		targetFlags             = &workspaceTargetFlags{allowEmpty: true}
@@ -150,6 +152,8 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 						ModelConfigID:           modelID,
 						Turns:                   int(turns),
 						TurnStartDelay:          turnStartDelay,
+						StartJitter:             startJitter,
+						MessageJitter:           messageJitter,
 						TurnStartReadyWaitGroup: turnStartReadyWaitGroup,
 						StartTurnsChan:          startTurnsChan,
 						Metrics:                 metrics,
@@ -259,6 +263,18 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			Description: "Delay between every chat completing its initial turn and starting the follow-up turns. Use this to separate initial-turn load from follow-up-turn load.",
 			Default:     "0s",
 			Value:       serpent.DurationOf(&turnStartDelay),
+		},
+		{
+			Flag:        "start-jitter",
+			Description: "Maximum random delay before each runner creates its chat. Each runner waits a random duration in [0, start-jitter) so initial turns do not all begin at once. Set to 0 to disable.",
+			Default:     "0s",
+			Value:       serpent.DurationOf(&startJitter),
+		},
+		{
+			Flag:        "message-jitter",
+			Description: "Maximum random delay before each follow-up turn is sent. Each send waits a random duration in [0, message-jitter) so follow-up turns spread across the run instead of releasing as a synchronized burst. Keep this small (a few seconds). Set to 0 to disable.",
+			Default:     "0s",
+			Value:       serpent.DurationOf(&messageJitter),
 		},
 		{
 			Flag:        "llm-mock-url",
