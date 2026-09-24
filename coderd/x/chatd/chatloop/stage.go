@@ -12,8 +12,8 @@ import (
 	"github.com/coder/quartz"
 )
 
-// Stage names a chat lifecycle stage. Every value is both a span name
-// and the `stage` label value recorded on stage_duration_seconds.
+// Stage names a chat lifecycle stage. Every value is a span name;
+// values in observedStages are also `stage` label values.
 type Stage string
 
 // Stage values.
@@ -79,9 +79,10 @@ const (
 // tracerName is the instrumentation scope reported on chatd spans.
 const tracerName = "chatd"
 
-// StageTracer emits one span and one stage_duration_seconds
-// observation per chat lifecycle stage. Both are produced from the
-// same call so span and histogram durations cannot diverge.
+// StageTracer emits a span per chat lifecycle stage and, for stages in
+// observedStages, a duration observation computed from the same start
+// and end. Span timestamps and durations both come from the tracer's
+// clock.
 //
 // A nil *StageTracer is usable and discards everything.
 type StageTracer struct {
@@ -100,10 +101,8 @@ func WithClock(clock quartz.Clock) StageTracerOption {
 	}
 }
 
-// NewStageTracer builds a stage tracer from a tracer provider and the
-// chatd metrics. A nil provider falls back to a no-op tracer and nil
-// metrics to a discarding registry, so callers without tracing or
-// metrics configured still get a usable tracer.
+// NewStageTracer builds a stage tracer. A nil provider discards spans
+// and nil metrics discards observations.
 func NewStageTracer(provider trace.TracerProvider, metrics *Metrics, opts ...StageTracerOption) *StageTracer {
 	if provider == nil {
 		provider = noop.NewTracerProvider()
@@ -173,8 +172,9 @@ func (m StageModel) attributes() []attribute.KeyValue {
 	return attrs
 }
 
-// StageSpan is an in-flight stage. End must be called exactly once;
-// the duration observation happens there.
+// StageSpan is an in-flight stage. Close it with End, which records
+// the duration, or EndWithoutObservation, which does not; calls after
+// the first are ignored. A StageSpan is not safe for concurrent use.
 type StageSpan struct {
 	tracer   *StageTracer
 	stage    Stage
@@ -273,7 +273,9 @@ func (t *StageTracer) StartRoot(
 // StartRootAt begins a root stage span that started at an earlier,
 // already known instant. The span timestamp and the recorded duration
 // both run from start, so stages reconstructed inside the span still
-// fall within it. A zero start means the span begins now.
+// fall within it. A zero start means the span begins now. A start
+// after the tracer's current time is replaced by now and, for observed
+// stages, counted as a future_start anomaly.
 func (t *StageTracer) StartRootAt(
 	ctx context.Context,
 	stage Stage,
@@ -305,11 +307,10 @@ func (t *StageTracer) startSpan(
 	case start.After(now):
 		// A start ahead of this replica's clock was stamped by another
 		// host; the span begins now so its window is not negative.
-		t.RecordAnomaly(StageAnomalyFutureStart)
+		t.recordStageAnomaly(stage, StageAnomalyFutureStart)
 		start = now
-	default:
-		opts = append(opts, trace.WithTimestamp(start))
 	}
+	opts = append(opts, trace.WithTimestamp(start))
 	chatKind := chatKindFromContext(ctx)
 	opts = append(opts, trace.WithAttributes(stageIdentityAttributes(scope, chatKind, organizationFromContext(ctx))...))
 	ctx, span := t.otelTracer().Start(ContextWithScope(ctx, scope), string(stage), opts...)
@@ -324,8 +325,7 @@ func (t *StageTracer) startSpan(
 }
 
 // stageIdentityAttributes returns the attributes every stage span
-// carries. An unknown chat kind or organization is omitted from the
-// span, where an absent attribute reads better than an empty one.
+// carries; an unknown chat kind or organization is omitted.
 func stageIdentityAttributes(scope Scope, chatKind ChatKind, organization string) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{attribute.String(AttrScope, string(scope))}
 	if chatKind != "" {
@@ -375,30 +375,27 @@ func (s *StageSpan) End(err error) {
 	}
 }
 
-// EndWithoutObservation closes the stage span exactly as End does but
-// makes no duration observation. It is for stages whose window is only
-// comparable across runs when it completed, so a truncated window
-// would skew the histogram while the span still needs to report the
-// failure.
+// EndWithoutObservation closes the span like End but records no
+// duration, for stages whose truncated window would skew the
+// histogram.
 func (s *StageSpan) EndWithoutObservation(err error) {
 	s.closeSpan(err)
 }
 
-// closeSpan ends the span and returns the window it covered. ok is
-// false for a nil span and for calls after the first, so a deferred
-// end cannot double-count a stage.
+// closeSpan ends the span and returns its window; ok is false for a
+// nil span and for calls after the first.
 func (s *StageSpan) closeSpan(err error) (elapsed time.Duration, ok bool) {
 	if s == nil || s.ended {
 		return 0, false
 	}
 	s.ended = true
-	elapsed = s.tracer.Now().Sub(s.start)
+	end := s.tracer.Now()
 	if err != nil {
 		s.span.RecordError(err)
 		s.span.SetStatus(codes.Error, err.Error())
 	}
-	s.span.End()
-	return elapsed, true
+	s.span.End(trace.WithTimestamp(end))
+	return end.Sub(s.start), true
 }
 
 // Record emits an already-finished stage span with explicit start and
@@ -406,7 +403,8 @@ func (s *StageSpan) closeSpan(err error) (elapsed time.Duration, ok bool) {
 // after the fact, such as durations reconstructed from persisted
 // timestamps. The stage takes the scope and chat kind on ctx.
 // Windows with an unset timestamp or an end before the start are
-// dropped and counted as anomalies; a zero-width window is observed.
+// dropped and, for observed stages, counted as anomalies; a zero-width
+// window is observed.
 func (t *StageTracer) Record(
 	ctx context.Context,
 	stage Stage,
@@ -430,11 +428,11 @@ func (t *StageTracer) RecordAs(
 	attrs ...attribute.KeyValue,
 ) {
 	if start.IsZero() || end.IsZero() {
-		t.RecordAnomaly(StageAnomalyMissingTimestamp)
+		t.recordStageAnomaly(stage, StageAnomalyMissingTimestamp)
 		return
 	}
 	if end.Before(start) {
-		t.RecordAnomaly(StageAnomalyInvertedWindow)
+		t.recordStageAnomaly(stage, StageAnomalyInvertedWindow)
 		return
 	}
 	chatKind := chatKindFromContext(ctx)
@@ -455,11 +453,20 @@ func (t *StageTracer) RecordAs(
 
 // RecordAnomaly counts a stage observation that was dropped or adjusted
 // for reason. It is safe to call on a nil tracer.
-func (t *StageTracer) RecordAnomaly(reason string) {
+func (t *StageTracer) RecordAnomaly(reason StageAnomaly) {
 	if t == nil || t.metrics == nil {
 		return
 	}
 	t.metrics.RecordStageAnomaly(reason)
+}
+
+// recordStageAnomaly counts reason only when stage is observed, since
+// span-only stages have no observation to drop or adjust.
+func (t *StageTracer) recordStageAnomaly(stage Stage, reason StageAnomaly) {
+	if _, ok := observedStages[stage]; !ok {
+		return
+	}
+	t.RecordAnomaly(reason)
 }
 
 func (t *StageTracer) observe(stage Stage, scope Scope, chatKind ChatKind, model StageModel, elapsed time.Duration) {
