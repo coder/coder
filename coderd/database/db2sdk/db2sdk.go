@@ -1667,6 +1667,7 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		CreatedAt:     m.CreatedAt,
 		Role:          codersdk.ChatMessageRole(m.Role),
 	}
+	msg.QueuedMessageID = nullInt64Ptr(m.QueuedMessageID)
 	if m.Content.Valid {
 		parts, err := chatMessageParts(m)
 		if err == nil {

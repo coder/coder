@@ -11361,6 +11361,14 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			Status:            database.ChatStatusError,
 		})
 
+		// An earlier message gives the stream replay below an after_id
+		// cursor that sits before the promoted message.
+		earlier := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			CreatedBy:     uuid.NullUUID{UUID: user.UserID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+		})
+
 		const queuedText = "queued message for promote route"
 		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
 			codersdk.ChatMessageText(queuedText),
@@ -11388,24 +11396,95 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			require.NotEqual(t, queuedMessage.ID, queued.ID)
 		}
 
-		foundPromoted := false
-		for _, msg := range messagesResult.Messages {
+		var promoted *codersdk.ChatMessage
+		for i, msg := range messagesResult.Messages {
 			if msg.Role != codersdk.ChatMessageRoleUser {
 				continue
 			}
 			for _, part := range msg.Content {
 				if part.Type == codersdk.ChatMessagePartTypeText && part.Text == queuedText {
-					foundPromoted = true
+					promoted = &messagesResult.Messages[i]
 				}
 			}
 		}
-		require.True(t, foundPromoted, "promoted message must appear in chat history")
+		require.NotNil(t, promoted, "promoted message must appear in chat history")
+		require.Equal(t, ptr.Ref(queuedMessage.ID), promoted.QueuedMessageID,
+			"promoted message links to its queued message")
+		require.Greater(t, promoted.ID, earlier.ID)
+
+		events, closer, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{
+			AfterID: ptr.Ref(earlier.ID),
+		})
+		require.NoError(t, err)
+		defer closer.Close()
+		for replayed := false; !replayed; {
+			select {
+			case <-ctx.Done():
+				require.FailNow(t, "timed out waiting for the promoted message replay")
+			case event, ok := <-events:
+				require.True(t, ok, "stream closed before the promoted message replay")
+				if event.Type != codersdk.ChatStreamEventTypeMessage || event.Message == nil {
+					continue
+				}
+				require.NotEqual(t, earlier.ID, event.Message.ID, "after_id excludes earlier messages")
+				if event.Message.ID == promoted.ID {
+					require.Equal(t, ptr.Ref(queuedMessage.ID), event.Message.QueuedMessageID,
+						"after_id replay keeps the queued message link")
+					replayed = true
+				}
+			}
+		}
 
 		queuedMessages, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 		for _, queued := range queuedMessages {
 			require.NotEqual(t, queuedMessage.ID, queued.ID)
 		}
+	})
+
+	t.Run("SendToErroredChatLinksPromotedHead", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "send to errored chat promotes queue head",
+			Status:            database.ChatStatusError,
+		})
+		headContent, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued head"),
+		})
+		require.NoError(t, err)
+		head := insertTestChatQueuedMessage(ctx, t, db, chat.ID, headContent, chat.LastModelConfigID)
+
+		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "new tail",
+			}},
+			BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		require.True(t, resp.Queued)
+		require.NotNil(t, resp.QueuedMessage)
+		require.NotEqual(t, head.ID, resp.QueuedMessage.ID)
+
+		var promoted *codersdk.ChatMessage
+		for i, msg := range resp.Messages {
+			if msg.Role == codersdk.ChatMessageRoleUser {
+				require.Nil(t, promoted, "only the old head is promoted")
+				promoted = &resp.Messages[i]
+			}
+		}
+		require.NotNil(t, promoted, "the response includes the promoted old head")
+		require.Equal(t, ptr.Ref(head.ID), promoted.QueuedMessageID,
+			"the promoted old head links to its own queued message, not the new tail")
 	})
 
 	t.Run("ForeignModelWithoutLocalDefaultReturnsGuidance", func(t *testing.T) {

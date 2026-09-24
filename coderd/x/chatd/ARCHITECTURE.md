@@ -137,6 +137,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `CancelRequiresAction(reason)` closes pending dynamic tool calls with synthetic cancellation tool results, satisfies the pending-action projection, clears `requires_action_deadline_at`, and lands in `running`.
 - `ReconcileInvalidState` reconciles a chat in an invalid state by setting it to a valid state. Defined in the [Invalid states](#invalid-states) section.
 
+TODO (coder/ai-sdk#119): every transition that promotes a queued message into history (`SendMessage` from `E1`, `PromoteQueuedMessage` from `E1`/`A1`, `FinishInterruption` from `I1`, `FinishTurn` from `R1`) now stores the queue row's ID in the new `chat_messages.queued_message_id` column, and fails the transaction unless deleting the promoted queue row removes exactly one row. Synthetic cancellation rows and `EditMessage` replacements leave the column NULL. Describe this here.
+
 ### Execution state transition diagram
 
 Now comes maybe the densest part of this document. It's a diagram that shows all the possible transitions between all the execution states. Again, I don't recommend reading the diagram thoroughly at first. Take a quick look to get a sense of what it's about and treat is as a reference you can return to later. I recommend reading the diagram as text and not looking at the rendered visual. The text is clearer.
@@ -495,6 +497,8 @@ For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
 
 When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized.
 
+TODO (coder/ai-sdk#119): from `E1`, the response's `messages` include the promoted old queue head with `queued_message_id` set to the old head's queue ID, while `queued_message` is the new tail. Describe this here.
+
 Other input states are not supported.
 
 ### `PATCH /api/v2/chats/{chat}/messages/{message}`
@@ -542,6 +546,8 @@ This endpoint uses `PromoteQueuedMessage(qid)`:
 - `A1 -> PromoteQueuedMessage(qid) -> R1` if the queue remains non-empty
 
 `PromoteQueuedMessage` reorders `qid` to the queue head internally when needed. From `E1` and `A1`, it removes the queued message and inserts it into history immediately. From `R1` and `I1`, it leaves the message queued at the head so `FinishInterruption(partial?)` can promote it after finalizing the interrupted suffix.
+
+TODO (coder/ai-sdk#119): the history message created by the promotion, whether immediately or later by `FinishInterruption`, carries `queued_message_id = qid`. Describe this here.
 
 No other input states are supported.
 
@@ -1057,6 +1063,8 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `retry`: emitted when the chat worker is waiting before retrying a failed generation attempt.
 - `preview_reset`: a reset of the stream's preview state (message parts), emitted when the worker's LLM call fails mid-way for whatever reason.
 - `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history.
+
+TODO (coder/ai-sdk#119): `message` events (live, `after_id` replay, and `history_reset` replay) carry `queued_message_id` for messages promoted from the queue, so clients can match a queued submission to its message without comparing content. Describe this here.
 
 ## Endpoint lifecycle
 

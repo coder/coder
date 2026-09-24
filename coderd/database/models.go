@@ -5212,6 +5212,8 @@ type ChatMessage struct {
 	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
 	// Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.
 	SearchTsvConfig NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
+	// ID of the chat_queued_messages row this message was promoted from. NULL when the message was not promoted from the queue, or when a version that did not record the link wrote it. Not a foreign key: promotion deletes the queued row in the same transaction.
+	QueuedMessageID sql.NullInt64 `db:"queued_message_id" json:"queued_message_id"`
 }
 
 type ChatModelConfig struct {
