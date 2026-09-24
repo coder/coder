@@ -40,6 +40,14 @@ export type FilterCategory = {
 	inlineOptionIcons?: boolean;
 	/** Selecting an option replaces another selected option from this category. */
 	inlineOptionsExclusive?: boolean;
+	/** Applied chips show only the option label, without the category prefix. */
+	inlineOptionsLabelOnly?: boolean;
+	/**
+	 * Keep the category in the menu while it has at most one option. Such
+	 * categories are left out by default, since filtering by them would not
+	 * narrow the results. Does not apply to inline categories.
+	 */
+	showWhenSingleOption?: boolean;
 	/**
 	 * Switch shown below the category's options, on by default. While on,
 	 * options commit under `chipKey` instead of the category key, e.g. Owner
@@ -50,7 +58,8 @@ export type FilterCategory = {
 	 * category's chip.
 	 */
 	scopeToggle?: {
-		label: string;
+		/** Switch label for the category's applied value, if there is one. */
+		label: (value: string | undefined) => string;
 		chipKey: string;
 		pillLabel: string;
 	};

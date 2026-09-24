@@ -311,14 +311,81 @@ export const useFilterCombobox = ({
 			? parseTypedCategoryPrefix(inputValue, inlineCategories)
 			: null;
 
+	// Category rows preview their options while the menu is open with an empty
+	// input. The empty-query key is shared with the category view, so entering a
+	// category reuses the cached result. Inline options always load because
+	// applied chips take their labels from them, and other categories load so
+	// single-option ones can be left out before the menu opens.
+	const previewsEnabled = isBrowsing && activeCategoryKey === null;
+	const previewOptions = useQueries({
+		queries: categories.map((category) =>
+			filterComboboxOptions(
+				category.key,
+				category.getOptions,
+				"",
+				previewsEnabled ||
+					Boolean(category.inlineOptions || !category.showWhenSingleOption),
+			),
+		),
+		combine: (results) => {
+			const optionsByKey = new Map<string, readonly FilterOption[]>();
+			results.forEach((result, index) => {
+				if (result.data) {
+					optionsByKey.set(categories[index].key, result.data);
+				}
+			});
+			return {
+				optionsByKey,
+				isPending: results.some(
+					(result, index) =>
+						categories[index].inlineOptions &&
+						!result.isError &&
+						result.data === undefined,
+				),
+			};
+		},
+	});
+	// Filtering by a category with at most one option would not narrow the
+	// results, so categories stay out of the menu until they offer a real
+	// choice. An applied chip keeps the category listed so it can change.
+	const menuCategories = submenuCategories.filter((category) => {
+		if (
+			category.showWhenSingleOption ||
+			chipValues.some((token) =>
+				(category.chipKeys ?? [category.key]).includes(chipKeyOf(token) ?? ""),
+			)
+		) {
+			return true;
+		}
+		return (previewOptions.optionsByKey.get(category.key)?.length ?? 0) > 1;
+	});
+
 	const categoryQuery =
 		activeCategoryKey !== null || browseAll ? "" : inputValue.trim();
+	// Typing the start of a word in a scope toggle's pill label (e.g. `sha` for
+	// `shared with owner`) finds its category, so the toggle is one step away.
+	const scopeQuery = categoryQuery.toLowerCase();
+	const scopeMatchedCategory =
+		scopeQuery.length < 3 || typedInlinePrefix !== null
+			? undefined
+			: menuCategories.find((category) => {
+					const pillLabel = category.scopeToggle?.pillLabel.toLowerCase();
+					return (
+						pillLabel !== undefined &&
+						(pillLabel.startsWith(scopeQuery) ||
+							pillLabel.split(" ").some((word) => word.startsWith(scopeQuery)))
+					);
+				});
+	const matchedCategories = matchCategories(categoryQuery, menuCategories);
 	const listedCategories =
 		!open || typedInlinePrefix !== null
 			? []
 			: categoryQuery.length === 0
-				? submenuCategories
-				: matchCategories(categoryQuery, submenuCategories);
+				? menuCategories
+				: scopeMatchedCategory &&
+						!matchedCategories.includes(scopeMatchedCategory)
+					? [...matchedCategories, scopeMatchedCategory]
+					: matchedCategories;
 
 	const activeOptionsQuerySource = activeCategoryKey !== null ? inputValue : "";
 	const debouncedActiveOptionsQuery = useDebouncedValue(
@@ -402,38 +469,6 @@ export const useFilterCombobox = ({
 		},
 	});
 
-	// Category rows preview their options while the menu is open with an empty
-	// input. The empty-query key is shared with the category view, so entering a
-	// category reuses the cached result. Inline categories always load so their
-	// chips can show option labels while the menu is closed.
-	const previewsEnabled = isBrowsing && activeCategoryKey === null;
-	const previewOptions = useQueries({
-		queries: categories.map((category) =>
-			filterComboboxOptions(
-				category.key,
-				category.getOptions,
-				"",
-				previewsEnabled || category.inlineOptions === true,
-			),
-		),
-		combine: (results) => {
-			const optionsByKey = new Map<string, readonly FilterOption[]>();
-			results.forEach((result, index) => {
-				if (result.data) {
-					optionsByKey.set(categories[index].key, result.data);
-				}
-			});
-			return {
-				optionsByKey,
-				isPending: results.some(
-					(result, index) =>
-						categories[index].inlineOptions &&
-						!result.isError &&
-						result.data === undefined,
-				),
-			};
-		},
-	});
 	const inlineOptionsSource =
 		typeaheadQuerySource.length === 0
 			? previewOptions.optionsByKey
@@ -594,6 +629,11 @@ export const useFilterCombobox = ({
 		];
 	};
 
+	// Text typed to find a category in the main menu is filter search, so it is
+	// dropped once a filter is picked from that category's flyout.
+	const typedFilterText =
+		mode === "browsing" && !browseAll && inputValue.trim().length > 0;
+
 	const toggleScope = (categoryKey: string) => {
 		const category = categories.find((entry) => entry.key === categoryKey);
 		const toggle = category?.scopeToggle;
@@ -616,7 +656,10 @@ export const useFilterCombobox = ({
 			const parsed = parseChipToken(token, chipKeys);
 			return parsed?.key === fromKey ? chipToken(toKey, parsed.value) : token;
 		});
-		if (rewritten.some((token, index) => token !== chipValues[index])) {
+		if (typedFilterText) {
+			updateFromChips(rewritten, "");
+			dispatch({ type: "typeFreeText", value: "" });
+		} else if (rewritten.some((token, index) => token !== chipValues[index])) {
 			updateFromChips(rewritten);
 		}
 	};
@@ -640,7 +683,7 @@ export const useFilterCombobox = ({
 	};
 
 	const selectCategoryOption = (token: string) => {
-		updateFromChips(withOptionToken(token));
+		updateFromChips(withOptionToken(token), typedFilterText ? "" : undefined);
 		returnToCategories();
 	};
 
@@ -833,6 +876,17 @@ export const useFilterCombobox = ({
 			chipValues.length > 0
 		) {
 			event.preventDefault();
+			// A widened chip is followed by its scope pill, so the pill goes first.
+			const lastKey = chipKeyOf(chipValues[chipValues.length - 1]);
+			const widenedCategory = categories.find(
+				(category) =>
+					category.scopeToggle !== undefined &&
+					category.scopeToggle.chipKey === lastKey,
+			);
+			if (widenedCategory) {
+				toggleScope(widenedCategory.key);
+				return;
+			}
 			updateFromChips(chipValues.slice(0, -1));
 			return;
 		}
@@ -939,16 +993,18 @@ export const useFilterCombobox = ({
 
 	return {
 		open,
-		browseAll,
 		inputValue,
 		committedFreeText,
 		activeCategoryKey,
 		activeCategory,
 		activeOptions,
-		activeOptionsLoading,
 		activeOptionsError,
 		statusMessage,
 		listedCategories,
+		// Typed text is narrowing the category rows.
+		filteringCategories: categoryQuery.length > 0,
+		// Category found through its scope toggle label, whose flyout opens.
+		scopeMatchKey: scopeMatchedCategory?.key ?? null,
 		browseCategoryOptions: previewOptions.optionsByKey,
 		valueSuggestions,
 		inlineOptions,
@@ -960,6 +1016,18 @@ export const useFilterCombobox = ({
 		scopeWidened: (categoryKey: string) => {
 			const category = categories.find((entry) => entry.key === categoryKey);
 			return category ? isScopeWidened(category) : false;
+		},
+		// Value of the category's applied chip under either of its scope keys.
+		scopeValue: (categoryKey: string) => {
+			const toggle = categories.find(
+				(entry) => entry.key === categoryKey,
+			)?.scopeToggle;
+			const keys = [categoryKey, ...(toggle ? [toggle.chipKey] : [])];
+			const values = chipValues.flatMap((token) => {
+				const parsed = parseChipToken(token, keys);
+				return parsed ? [parsed.value] : [];
+			});
+			return values.at(-1);
 		},
 		optionChipKey: (categoryKey: string) => {
 			const category = categories.find((entry) => entry.key === categoryKey);
@@ -978,7 +1046,6 @@ export const useFilterCombobox = ({
 			retryActiveOptions,
 			retryTypeahead,
 			selectCategory,
-			leaveCategory,
 			selectCategoryOption,
 			toggleInlineOption,
 			toggleScope,

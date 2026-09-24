@@ -4,7 +4,6 @@ import {
 	LayoutGridIcon,
 	MoonIcon,
 	RefreshCwOffIcon,
-	Share2Icon,
 	SlidersHorizontalIcon,
 	UserIcon,
 } from "lucide-react";
@@ -63,12 +62,6 @@ const attributeOptions: FilterOption[] = [
 		token: "dormant:true",
 		startIcon: <MoonIcon />,
 	},
-	{
-		label: "Shared",
-		value: "shared",
-		token: "shared:true",
-		startIcon: <Share2Icon />,
-	},
 ];
 
 const filterOptions = (
@@ -102,7 +95,6 @@ const categories: FilterCategory[] = [
 	{
 		key: "owner",
 		label: "Owner",
-		aliases: ["user"],
 		icon: <UserIcon />,
 		getOptions: async (query) => filterOptions(ownerOptions, query),
 	},
@@ -119,10 +111,11 @@ const categoriesWithAttributes: FilterCategory[] = [
 		aliases: ["attributes"],
 		label: "Attributes",
 		icon: <SlidersHorizontalIcon />,
-		chipKeys: ["outdated", "dormant", "shared"],
+		chipKeys: ["outdated", "dormant"],
 		inlineOptions: true,
 		inlineOptionsLabel: "Workspace is…",
 		inlineOptionsExclusive: true,
+		inlineOptionsLabelOnly: true,
 		getOptions: async (query) => filterOptions(attributeOptions, query),
 	},
 ];
@@ -190,6 +183,18 @@ export const MobileCategoryNavigation: Story = {
 	},
 };
 
+const searchOwnerFlyout = async (canvasElement: HTMLElement, text: string) => {
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(
+		within(canvasElement).getByRole("combobox", { name: "Search and filter…" }),
+	);
+	await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
+	await userEvent.type(
+		await body.findByRole("textbox", { name: "Search Owner" }),
+		text,
+	);
+};
+
 export const SearchableHoverFlyout: Story = {
 	render: () => (
 		<FilterComboboxHarness
@@ -208,36 +213,13 @@ export const SearchableHoverFlyout: Story = {
 			]}
 		/>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(
-			canvas.getByRole("combobox", { name: "Search and filter…" }),
-		);
-		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
-		await userEvent.type(
-			await body.findByRole("textbox", { name: "Search Owner" }),
-			"user-12",
-		);
-	},
+	play: ({ canvasElement }) => searchOwnerFlyout(canvasElement, "user-12"),
 };
 
 // The search field stays in the flyout when nothing matches.
 export const SearchableHoverFlyoutNoMatches: Story = {
 	...SearchableHoverFlyout,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(
-			canvas.getByRole("combobox", { name: "Search and filter…" }),
-		);
-		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
-		await userEvent.type(
-			await body.findByRole("textbox", { name: "Search Owner" }),
-			"nobody",
-		);
-		await body.findByText("No matching options");
-	},
+	play: ({ canvasElement }) => searchOwnerFlyout(canvasElement, "nobody"),
 };
 
 // Inside a category, the filter toggle returns to the category list instead of
@@ -290,14 +272,14 @@ export const ActiveFilterIcon: Story = {
 export const WrappedChipsKeepIconsOnFirstRow: Story = {
 	render: () => (
 		<FilterComboboxHarness
-			initialQuery="owner:me status:running template:docker outdated:true dormant:true shared:true"
+			initialQuery="owner:me status:running template:docker outdated:true dormant:true"
 			categories={categoriesWithAttributes}
 		/>
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText(chip("owner:me"))).toBeVisible();
-		await expect(canvas.getByText(chip("shared"))).toBeVisible();
+		await expect(canvas.getByText(chip("outdated"))).toBeVisible();
 	},
 };
 
@@ -550,7 +532,6 @@ export const CrossCategoryValueSuggestions: Story = {
 				{
 					key: "owner",
 					label: "Owner",
-					aliases: ["user"],
 					icon: <UserIcon />,
 					getOptions: async (query) =>
 						filterOptions(
@@ -584,31 +565,6 @@ export const CrossCategoryValueSuggestions: Story = {
 	},
 };
 
-export const AttributesAreSingleSelect: Story = {
-	render: () => (
-		<FilterComboboxHarness
-			initialQuery=""
-			categories={categoriesWithAttributes}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		const input = canvas.getByRole("combobox", {
-			name: "Search and filter…",
-		});
-
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
-		await userEvent.type(input, "out");
-		await userEvent.click(
-			await body.findByRole("option", { name: /Outdated/i }),
-		);
-		await userEvent.click(body.getByRole("option", { name: /Shared/i }));
-	},
-};
-
 // Typing an inline category prefix narrows the main panel to that category
 // instead of opening a second panel beside it.
 export const TypedInlinePrefix: Story = {
@@ -630,52 +586,31 @@ export const TypedInlinePrefix: Story = {
 	},
 };
 
-// The pointer flyout follows the cmdk highlight, so keyboard navigation into
-// the inline groups closes it.
-export const KeyboardHighlightClosesFlyout: Story = {
-	render: () => (
-		<FilterComboboxHarness
-			initialQuery=""
-			categories={categoriesWithAttributes}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
-		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
-		await body.findByRole("button", { name: "alice" });
-		await userEvent.keyboard("{ArrowDown}");
-		await waitFor(() =>
-			expect(
-				body.queryByRole("button", { name: "alice" }),
-			).not.toBeInTheDocument(),
-		);
+const scopedOwnerCategories: FilterCategory[] = [
+	{
+		key: "owner",
+		label: "Owner",
+		icon: <UserIcon />,
+		chipKeys: ["owner", "user"],
+		scopeToggle: {
+			label: (owner) =>
+				owner
+					? `Include workspaces shared with ${owner}`
+					: "Include shared workspaces",
+			chipKey: "user",
+			pillLabel: "shared with owner",
+		},
+		getOptions: async (query) => filterOptions(ownerOptions, query),
 	},
-};
+];
 
 // A category scope toggle sits below the option list; the applied chip is
-// followed by an include shared pill while the toggle is on.
+// joined by a shared with owner pill while the toggle is on.
 export const ScopeToggle: Story = {
 	render: () => (
 		<FilterComboboxHarness
 			initialQuery="user:alice"
-			categories={[
-				{
-					key: "owner",
-					label: "Owner",
-					icon: <UserIcon />,
-					chipKeys: ["owner", "user"],
-					scopeToggle: {
-						label: "Include shared workspaces",
-						chipKey: "user",
-						pillLabel: "include shared",
-					},
-					getOptions: async (query) => filterOptions(ownerOptions, query),
-				},
-			]}
+			categories={scopedOwnerCategories}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -685,8 +620,104 @@ export const ScopeToggle: Story = {
 			canvas.getByRole("button", { name: "Toggle filters" }),
 		);
 		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
-		await body.findByRole("switch", { name: "Include shared workspaces" });
+		await body.findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
 	},
+};
+
+// Typing part of the toggle's pill label opens the Owner flyout, so the toggle
+// is visible.
+export const ScopeToggleTypedMatch: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "shared");
+		await within(canvasElement.ownerDocument.body).findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
+	},
+};
+
+// A long owner name next to the shared with owner pill. At desktop width the
+// pill label shows in full.
+export const ScopePillFullLabel: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alexandra-montgomery"
+			categories={scopedOwnerCategories}
+		/>
+	),
+};
+
+// On a phone the pill label truncates so the chip pair stays inside the field.
+export const ScopePillTruncatesWhenNarrow: Story = {
+	...ScopePillFullLabel,
+	parameters: {
+		layout: "fullscreen",
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
+// Hovering the pill shows the full toggle message.
+export const ScopePillTooltip: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByText("shared with owner"));
+		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
+	},
+};
+
+// With a single template there is nothing to narrow, so Template is left out.
+const singleTemplateCategories: FilterCategory[] = [
+	{
+		key: "owner",
+		label: "Owner",
+		icon: <UserIcon />,
+		getOptions: async (query) => filterOptions(ownerOptions, query),
+	},
+	{
+		key: "template",
+		label: "Template",
+		icon: <LayoutGridIcon />,
+		getOptions: async (query) =>
+			filterOptions(templateOptions.slice(0, 1), query),
+	},
+];
+
+const openFilterMenu = async (canvasElement: HTMLElement) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "Toggle filters" }),
+	);
+	await within(canvasElement.ownerDocument.body).findByRole("option", {
+		name: "Owner",
+	});
+};
+
+export const SingleOptionCategoryHidden: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={singleTemplateCategories}
+		/>
+	),
+	play: ({ canvasElement }) => openFilterMenu(canvasElement),
+};
+
+// An applied chip keeps the category listed so it can still be changed.
+export const SingleOptionCategoryWithChip: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="template:docker"
+			categories={singleTemplateCategories}
+		/>
+	),
+	play: ({ canvasElement }) => openFilterMenu(canvasElement),
 };
 
 // Escape closes the popup without clearing the committed chips.

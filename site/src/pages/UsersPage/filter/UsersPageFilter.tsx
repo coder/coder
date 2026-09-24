@@ -61,14 +61,14 @@ export const UsersPageFilter: FC<UsersPageFilterProps> = ({
 				getOptions: (query) => getRoleFilterOptions(query, queryClient),
 			},
 			{
-				// FilterCombobox shows `attribute` chips as the option label only.
-				key: "attribute",
+				key: "type",
 				label: "User type",
-				aliases: ["type", "user_type"],
+				aliases: ["user_type"],
 				icon: <UsersIcon />,
 				chipKeys: USER_TYPE_CHIP_KEYS,
 				inlineOptions: true,
 				inlineOptionsLabel: "User type is…",
+				inlineOptionsLabelOnly: true,
 				getOptions: getUserTypeFilterOptions,
 			},
 		],

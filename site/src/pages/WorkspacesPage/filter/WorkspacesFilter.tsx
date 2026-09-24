@@ -57,12 +57,16 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				label: "Owner",
 				hint: "me",
 				icon: <UserIcon />,
+				showWhenSingleOption: true,
 				// `user:<name>` also matches workspaces shared with that user.
 				chipKeys: ["owner", "user"],
 				scopeToggle: {
-					label: "Include shared workspaces",
+					label: (owner) =>
+						owner
+							? `Include workspaces shared with ${owner}`
+							: "Include shared workspaces",
 					chipKey: "user",
-					pillLabel: "include shared",
+					pillLabel: "shared with owner",
 				},
 				getOptions: canListUsers
 					? (query) => getUserFilterOptions(query, me, queryClient)
@@ -87,6 +91,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				inlineOptions: true,
 				inlineOptionsLabel: "Workspace is…",
 				inlineOptionsExclusive: true,
+				inlineOptionsLabelOnly: true,
 				getOptions: (query) =>
 					getAttributeFilterOptions(query, { canFilterDormant }),
 			},
