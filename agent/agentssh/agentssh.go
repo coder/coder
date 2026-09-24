@@ -136,7 +136,7 @@ type Server struct {
 	mu        sync.RWMutex // Protects following.
 	fs        afero.Fs
 	listeners map[net.Listener]struct{}
-	conns     map[net.Conn]string // Active connections mapped to client session IDs.
+	conns     map[net.Conn]struct{}
 	sessions  map[ssh.Session]struct{}
 	processes map[*os.Process]struct{}
 	closing   chan struct{}
@@ -199,7 +199,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		Execer:        execer,
 		listeners:     make(map[net.Listener]struct{}),
 		fs:            fs,
-		conns:         make(map[net.Conn]string),
+		conns:         make(map[net.Conn]struct{}),
 		sessions:      make(map[ssh.Session]struct{}),
 		processes:     make(map[*os.Process]struct{}),
 		sessionCounts: make(map[string]int64),
@@ -233,7 +233,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 					s.config.ReportConnection,
 					newChan,
 					s.startSession,
-					s.clientSessionIDByAddr(conn.RemoteAddr()),
+					clientSessionIDFromContext(ctx),
 				)
 				ssh.DirectTCPIPHandler(srv, conn, wrapped, ctx)
 			},
@@ -242,7 +242,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 					s.logger.Warn(ctx, "unix local port forward blocked",
 						slog.F("remote_addr", conn.RemoteAddr()),
 						slog.F("local_addr", conn.LocalAddr()),
-						slog.F("client_session_id", s.clientSessionIDByAddr(conn.RemoteAddr())))
+						slog.F("client_session_id", clientSessionIDFromContext(ctx)))
 					_ = newChan.Reject(gossh.Prohibited, "local port forwarding is disabled")
 					return
 				}
@@ -250,20 +250,16 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			},
 			"session": ssh.DefaultSessionHandler,
 		},
+		ConnCallback: func(ctx ssh.Context, conn net.Conn) net.Conn {
+			ctx.SetValue(clientSessionIDContextKey{}, clientSessionIDFromConn(conn))
+			return conn
+		},
 		ConnectionFailedCallback: func(conn net.Conn, err error) {
 			s.logger.Warn(ctx, "ssh connection failed",
 				slog.F("remote_addr", conn.RemoteAddr()),
 				slog.F("local_addr", conn.LocalAddr()),
-				slog.F("client_session_id", s.clientSessionIDByAddr(conn.RemoteAddr())),
 				slog.Error(err))
 			metrics.failedConnectionsTotal.Add(1)
-		},
-		ConnectionCompleteCallback: func(conn *gossh.ServerConn, err error) {
-			s.logger.Info(ctx, "ssh connection complete",
-				slog.F("remote_addr", conn.RemoteAddr()),
-				slog.F("local_addr", conn.LocalAddr()),
-				slog.F("client_session_id", s.clientSessionIDByAddr(conn.RemoteAddr())),
-				slog.Error(err))
 		},
 		Handler: s.sessionHandler,
 		// HostSigners are intentionally empty, as the host key will
@@ -426,14 +422,14 @@ func extractContainerInfo(env []string) (container, containerUser string, filter
 func (s *Server) sessionHandler(session ssh.Session) {
 	ctx := session.Context()
 	id := uuid.New()
-	clientSessionID := s.clientSessionIDByAddr(session.RemoteAddr())
+	clientSessionID := clientSessionIDFromContext(ctx)
 	logger := s.logger.With(
 		slog.F("remote_addr", session.RemoteAddr()),
 		slog.F("local_addr", session.LocalAddr()),
 		// Assigning a random uuid for each session is useful for tracking
 		// logs for the same ssh session.
 		slog.F("id", id.String()),
-		// The client session ID tracks multiple SSH sions over the lifetime of a
+		// The client session ID tracks multiple SSH sessions over the lifetime of a
 		// single client (IDE) session, for debugging reconnects/disconnects.
 		slog.F("client_session_id", clientSessionID),
 	)
@@ -1065,13 +1061,6 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	return cmd, nil
 }
 
-// UpgradedConn is a net.Conn that has a client session ID attached.  Listeners
-// can return these to augment logs for a connection with a client session ID.
-type UpgradedConn interface {
-	net.Conn
-	ClientSessionID() string
-}
-
 // Serve starts the server to handle incoming connections on the provided
 // listener.  It returns an error if no host keys are set or if there is an
 // issue accepting connections.  If the listener returns UpgradedConn, then the
@@ -1108,25 +1097,24 @@ func (s *Server) Serve(l net.Listener) (retErr error) {
 // connection was accepted.  If the conn is an UpgradedConn, then the client
 // session ID will be extracted from it.
 func (s *Server) handleConn(l net.Listener, c net.Conn) {
-	clientSessionID := ""
-	uc, ok := c.(UpgradedConn)
-	if ok {
-		clientSessionID = uc.ClientSessionID()
-	}
+	clientSessionID := clientSessionIDFromConn(c)
 	logger := s.logger.With(
 		slog.F("remote_addr", c.RemoteAddr()),
 		slog.F("local_addr", c.LocalAddr()),
 		slog.F("listen_addr", l.Addr()),
 		slog.F("client_session_id", clientSessionID))
+
+	defer logger.Info(context.Background(), "ssh connection complete")
+
 	defer c.Close()
 
-	if !s.trackConn(l, c, clientSessionID, true) {
+	if !s.trackConn(l, c, true) {
 		// Server is closed or we no longer want
 		// connections from this listener.
 		logger.Info(context.Background(), "received connection after server closed")
 		return
 	}
-	defer s.trackConn(l, c, clientSessionID, false)
+	defer s.trackConn(l, c, false)
 	logger.Info(context.Background(), "started serving ssh connection")
 	// note: srv.ConnectionCompleteCallback logs completion of the connection
 	s.srv.HandleConn(c)
@@ -1161,7 +1149,7 @@ func (s *Server) trackListener(l net.Listener, add bool) {
 // and should be closed.
 //
 //nolint:revive
-func (s *Server) trackConn(l net.Listener, c net.Conn, clientSessionID string, add bool) (ok bool) {
+func (s *Server) trackConn(l net.Listener, c net.Conn, add bool) (ok bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if add {
@@ -1183,7 +1171,7 @@ func (s *Server) trackConn(l net.Listener, c net.Conn, clientSessionID string, a
 			return false
 		}
 		s.wg.Add(1)
-		s.conns[c] = clientSessionID
+		s.conns[c] = struct{}{}
 		return true
 	}
 	s.wg.Done()
@@ -1231,20 +1219,6 @@ func (s *Server) trackProcess(p *os.Process, add bool) (ok bool) {
 	s.wg.Done()
 	delete(s.processes, p)
 	return true
-}
-
-// clientSessionIDByAddr returns the client session ID (if any) of the first
-// active connection with the provided remote address.
-func (s *Server) clientSessionIDByAddr(addr net.Addr) string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for c, id := range s.conns {
-		raddr := c.RemoteAddr()
-		if raddr != nil && raddr.String() == addr.String() {
-			return id
-		}
-	}
-	return ""
 }
 
 // Close the server and all active connections. Server can be re-used
@@ -1438,4 +1412,25 @@ func CoderSigner(seed int64) (gossh.Signer, error) {
 
 	coderSigner, err := gossh.NewSignerFromKey(coderHostKey)
 	return coderSigner, err
+}
+
+type clientSessionIDContextKey struct{}
+
+func clientSessionIDFromContext(ctx ssh.Context) string {
+	id, _ := ctx.Value(clientSessionIDContextKey{}).(string)
+	return id
+}
+
+// UpgradedConn is a net.Conn that has a client session ID attached.  Listeners
+// can return these to augment logs for a connection with a client session ID.
+type UpgradedConn interface {
+	net.Conn
+	ClientSessionID() string
+}
+
+func clientSessionIDFromConn(conn net.Conn) string {
+	if uc, ok := conn.(UpgradedConn); ok {
+		return uc.ClientSessionID()
+	}
+	return ""
 }
