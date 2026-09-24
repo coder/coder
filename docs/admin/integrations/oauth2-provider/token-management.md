@@ -74,7 +74,7 @@ curl -X DELETE \
 ```
 
 This ends your own sessions with the application but leaves the application registered, so it can authorize again, and does not affect any other user's tokens for it.
-For a cutoff that affects every user, delete the application or one of its client secrets, as described under [Delete an Application](#delete-an-application).
+For a cutoff that affects every user, delete the application or one of its client secrets, as described under [Delete an application](#delete-an-application).
 
 ## Delete an application
 
