@@ -231,7 +231,7 @@ func (s *server) Plan(
 
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
 	planLogs := &errorCapturingSink{logSink: sess}
-	resp, planConfig, err := e.plan(ctx, killCtx, env, vars, planLogs, request)
+	result, err := e.plan(ctx, killCtx, env, vars, planLogs, request)
 	endStage(err)
 	if err != nil && s.session(sess.Files).initSkipped && planLogs.needsInit() {
 		// Init only linked cached providers. If Terraform says that was not
@@ -247,7 +247,7 @@ func (s *server) Plan(
 			return provisionersdk.PlanErrorf("initialize terraform: %s", initErr.Error())
 		}
 		endStage = e.timings.startStage(database.ProvisionerJobTimingStagePlan)
-		resp, planConfig, err = e.plan(ctx, killCtx, env, vars, sess, request)
+		result, err = e.plan(ctx, killCtx, env, vars, sess, request)
 		endStage(err)
 	}
 	if err != nil {
@@ -255,8 +255,16 @@ func (s *server) Plan(
 	}
 	// State JSON omits configuration, so retain the plan configuration needed to
 	// finalize script ordering during post-apply graph conversion.
-	s.cachePlanConfig(sess.Context(), sess, planConfig)
+	s.cachePlanConfig(sess.Context(), sess, result.config)
 
+	sessState := s.session(sess.Files)
+	sessState.plan = result.plan
+	sessState.graph = result.graph
+	if result.graphErr != nil {
+		s.logger.Warn(ctx, "terraform graph failed during plan, the graph stage will retry it", slog.Error(result.graphErr))
+	}
+
+	resp := result.complete
 	resp.Timings = e.timings.aggregate()
 	return resp
 }
@@ -315,6 +323,11 @@ func (s *server) Graph(
 	}
 	logTerraformEnvVars(sess)
 
+	// Plan already parsed the plan file and computed the graph for this
+	// session, so reuse both instead of spawning Terraform again.
+	sessState := s.session(sess.Files)
+	defer s.forgetSession(sess.Files)
+
 	modules := []*tfjson.StateModule{}
 	var planConfig *tfjson.Config
 	isStartTransition := request.GetMetadata().GetWorkspaceTransition() ==
@@ -324,11 +337,15 @@ func (s *server) Graph(
 	switch request.Source {
 	case proto.GraphSource_SOURCE_PLAN:
 		scriptOrderSource = proto.GraphSource_SOURCE_PLAN
-		e.mut.Lock()
-		plan, err := e.parsePlan(ctx, killCtx, e.files.PlanFilePath())
-		e.mut.Unlock()
-		if err != nil {
-			return provisionersdk.GraphError("parse plan for graph: %s", err)
+		plan := sessState.plan
+		if plan == nil {
+			var err error
+			e.mut.Lock()
+			plan, err = e.parsePlan(ctx, killCtx, e.files.PlanFilePath())
+			e.mut.Unlock()
+			if err != nil {
+				return provisionersdk.GraphError("parse plan for graph: %s", err)
+			}
 		}
 
 		modules = planModules(plan)
@@ -362,9 +379,13 @@ func (s *server) Graph(
 	}
 
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
-	e.mut.Lock()
-	rawGraph, err := e.graph(ctx, killCtx)
-	e.mut.Unlock()
+	rawGraph := sessState.graph
+	var err error
+	if rawGraph == "" {
+		e.mut.Lock()
+		rawGraph, err = e.graph(ctx, killCtx)
+		e.mut.Unlock()
+	}
 	endStage(err)
 	if err != nil {
 		return provisionersdk.GraphError("generate graph: %s", err)

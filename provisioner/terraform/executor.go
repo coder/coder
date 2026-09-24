@@ -290,8 +290,25 @@ func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uin
 	return crc32.ChecksumIEEE(content)
 }
 
+// planResult is what a successful `terraform plan` leaves behind for the
+// rest of the session in addition to the response sent to provisionerd.
+type planResult struct {
+	complete *proto.PlanComplete
+	// plan is the parsed plan file, so the Graph RPC does not have to run
+	// `terraform show` on it again.
+	plan *tfjson.Plan
+	// config is the plan configuration needed to finalize script ordering
+	// after apply. It is nil when the plan has no script order data source.
+	config *tfjson.Config
+	// graph is the output of `terraform graph`, computed while the plan
+	// file was being parsed. graphErr records why it is unavailable, in
+	// which case the Graph RPC runs the command itself.
+	graph    string
+	graphErr error
+}
+
 // revive:disable-next-line:flag-parameter
-func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, *tfjson.Config, error) {
+func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*planResult, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -328,17 +345,31 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("terraform plan: %w", err)
+		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
 
+	// The dependency graph only depends on the configuration, so compute it
+	// now, concurrently with parsing the plan file, instead of paying for a
+	// separate Terraform process after apply. Both commands are read only.
+	type graphResult struct {
+		raw string
+		err error
+	}
+	graphDone := make(chan graphResult, 1)
+	go func() {
+		raw, err := e.graph(ctx, killCtx)
+		graphDone <- graphResult{raw: raw, err: err}
+	}()
+
 	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
+	graph := <-graphDone
 	if err != nil {
-		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
+		return nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
 
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("marshal plan: %w", err)
+		return nil, xerrors.Errorf("marshal plan: %w", err)
 	}
 
 	isPrebuildClaimAttempt := !destroy &&
@@ -360,7 +391,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	state, err := ConvertPlanState(plan)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("convert plan state: %w", err)
+		return nil, xerrors.Errorf("convert plan state: %w", err)
 	}
 
 	var resReps []*proto.ResourceReplacement
@@ -384,7 +415,13 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	if hasScriptOrderDataSource(planModules(plan)) {
 		planConfig = plan.Config
 	}
-	return msg, planConfig, nil
+	return &planResult{
+		complete: msg,
+		plan:     plan,
+		config:   planConfig,
+		graph:    graph.raw,
+		graphErr: graph.err,
+	}, nil
 }
 
 func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
