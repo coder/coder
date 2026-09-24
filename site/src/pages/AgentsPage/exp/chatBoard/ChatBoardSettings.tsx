@@ -13,8 +13,11 @@ export const ChatBoardSettings: FC = () => {
 			</h3>
 			<div className="flex items-center justify-between gap-4">
 				<p className="m-0 flex-1 text-xs text-content-secondary">
-					Chat board: a kanban view of your chats with cards, notes and floating
-					chat windows. Adds a Board entry to the sidebar.
+					Chat board: group chats into cards and columns, keep notes, open chats
+					in floating windows, and ask an assistant to check on them, from Board
+					in the sidebar. Experimental, not production ready. Groups and notes
+					are saved on the chats; column order and windows live in this browser
+					and reset if its storage is cleared.
 				</p>
 				<Switch
 					checked={enabled}
