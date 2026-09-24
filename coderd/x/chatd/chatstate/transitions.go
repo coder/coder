@@ -436,6 +436,9 @@ type SendMessageInput struct {
 type SendMessageResult struct {
 	InsertedMessages []database.ChatMessage
 	QueuedMessage    *database.ChatQueuedMessage
+	// PromotedQueuedAt is the queued row's creation time when this
+	// transition promoted a queue head, and the zero time otherwise.
+	PromotedQueuedAt time.Time
 }
 
 // SendMessage admits a new user message. Depending on input state and
@@ -567,6 +570,7 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 	return SendMessageResult{
 		InsertedMessages: inserted,
 		QueuedMessage:    &queued,
+		PromotedQueuedAt: head.CreatedAt,
 	}, nil
 }
 
@@ -1397,6 +1401,9 @@ type FinishInterruptionInput struct {
 type FinishInterruptionResult struct {
 	InsertedMessages []database.ChatMessage
 	PromotedMessage  *database.ChatMessage
+	// PromotedQueuedAt is the queued row's creation time when this
+	// transition promoted a queue head, and the zero time otherwise.
+	PromotedQueuedAt time.Time
 }
 
 // FinishInterruption commits an optional partial assistant/tool suffix
@@ -1472,6 +1479,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	return FinishInterruptionResult{
 		InsertedMessages: insertedPartial,
 		PromotedMessage:  promoted,
+		PromotedQueuedAt: head.CreatedAt,
 	}, nil
 }
 
