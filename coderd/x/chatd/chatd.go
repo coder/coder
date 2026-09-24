@@ -207,6 +207,10 @@ type Server struct {
 	// model that accepted Anthropic's thinking drop_block control.
 	thinkingDropBlock sync.Map
 
+	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
+	// model that accepted Anthropic's thinking drop_block control.
+	thinkingDropBlock sync.Map
+
 	// Configuration
 	inFlightChatStaleAfter time.Duration
 	streamSilenceTimeout   time.Duration
