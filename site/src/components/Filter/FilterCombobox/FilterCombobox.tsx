@@ -785,7 +785,7 @@ function FlyoutScopeToggle({
 }: FlyoutScopeToggleProps) {
 	const id = useId();
 	return (
-		<div className="-mx-2 -mb-2 mt-2 flex items-center gap-2 border-t border-border px-3 py-2.5">
+		<div className="-mx-2 -mb-2 mt-2 flex items-start gap-2 border-t border-border px-3 py-2.5">
 			<Switch
 				id={id}
 				size="sm"
