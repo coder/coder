@@ -63,6 +63,7 @@ Treat the setting as a way to stop new authorizations rather than as a way to re
    - **Name**: Your application name
    - **Callback URL**: `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop)
    - **Icon**: Optional icon URL
+   - **Allowed scopes**: Optional. Refer to [Scopes](#scopes).
 
 ### Method 2: Management API
 
@@ -341,10 +342,19 @@ The client may then request anything that allowlist covers, and is granted the w
 An application with no allowlist honors any requested scope, and a request that names no scope is granted `coder:all`.
 
 An application registered through [Dynamic Client Registration](#dynamic-client-registration) declares its allowlist in the `scope` field of its registration.
-An administrator sets one with the optional, space-separated `scope` field when [creating an application](../../reference/api/enterprise.md#create-oauth2-application) through the management API.
+An administrator sets one with the **Allowed scopes** field in the web UI, or with the optional, space-separated `scope` field when [creating an application](../../reference/api/enterprise.md#create-oauth2-application) through the management API.
 When [updating an application](../../reference/api/enterprise.md#update-oauth2-application), omit `scope` to keep the current allowlist, send a new value to replace it, or send an empty string to clear it and make the application unrestricted.
 The stored value is not checked against the scopes this deployment offers; a name it does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](#invalid_scope-returned-to-your-callback).
-The web UI does not yet set the allowlist.
+
+Use caution when narrowing the scope allowlist of a self-registered application.
+Many clients request every scope Coder advertises in `scopes_supported` rather than selecting specific scopes; MCP clients that rely on discovery commonly work this way.
+The allowlist is stored on the application and does not affect that advertised list, so the client continues requesting the full set.
+Coder rejects requests that exceed the allowlist rather than trimming their scopes, so every new authorization attempt fails with `invalid_scope`.
+Previously issued tokens retain their scopes.
+Such a client cannot be restricted through its allowlist: narrowing it breaks the client, and clearing it leaves the application unrestricted.
+Only a client that can be configured to request fewer scopes can be narrowed, and whoever operates that client makes the change.
+An allowlist set by an administrator also does not hold against the client: the holder of the application's `registration_access_token` can replace or clear it at any time with `PUT /oauth2/clients/{client_id}`.
+The web UI warns before saving a narrower allowlist, and the application page indicates whether the application was self-registered or created by an administrator.
 
 The consent page states the scope being granted before the user approves it. A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
 
@@ -517,6 +527,7 @@ opens with the requested name that caused the rejection:
   `GET /.well-known/oauth-authorization-server`.
 - `scope requests permissions beyond this app's allowed scopes`: the name is supported, but the application's `scope` allowlist does not cover it.
   Request less, or widen the allowlist.
+  If the application registered itself and an administrator has since narrowed its allowlist, refer to [Scopes](#scopes).
 - `none of the scopes registered for this app are supported by this deployment`: the application's `scope` allowlist names nothing this deployment offers, so no request against it can succeed, including one that omits `scope`.
   Update the allowlist with supported scopes.
   This description stands alone.
@@ -799,7 +810,6 @@ These rules apply to every entry in `redirect_uris`, not only the first one.
 
 The current implementation has these limitations:
 
-- The web UI cannot set or change a scope allowlist; declare one at [Dynamic Client Registration](#dynamic-client-registration) or set it through the management API, as described under [Scopes](#scopes)
 - No client credentials grant support
 - No device authorization grant support (RFC 8628)
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
@@ -849,7 +859,7 @@ For the full error details, refer to ["invalid_scope" returned to your callback]
 To fix an affected application, the party that holds its `registration_access_token` updates the registration with `PUT /oauth2/clients/{client_id}`, so that `scope` lists only names from `scopes_supported` in `GET /.well-known/oauth-authorization-server`.
 If that token is lost, register the application again.
 A Coder administrator can also fix it from the management API by [updating the application](../../reference/api/enterprise.md#update-oauth2-application) with a `scope` that lists supported names, or with an empty `scope` to remove the allowlist.
-The web UI cannot change it.
+The **Allowed scopes** field on the application page in the web UI makes the same change.
 
 ## Standards Compliance
 

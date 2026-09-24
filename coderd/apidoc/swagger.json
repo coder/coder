@@ -23451,6 +23451,10 @@
 						}
 					]
 				},
+				"dynamically_registered": {
+					"description": "DynamicallyRegistered is true when the app registered itself through\nDynamic Client Registration rather than being created by an admin.",
+					"type": "boolean"
+				},
 				"endpoints": {
 					"description": "Endpoints are included in the app response for easier discovery. The OAuth2\nspec does not have a defined place to find these (for comparison, OIDC has\na '/.well-known/openid-configuration' endpoint).",
 					"allOf": [
