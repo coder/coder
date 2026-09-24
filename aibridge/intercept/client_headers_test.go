@@ -7,7 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
 func TestPrepareClientHeaders(t *testing.T) {
@@ -153,7 +155,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			"User-Agent":    {"claude-code/1.0"},
 		}
 
-		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization")
+		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", intercept.Config{}, nil)
 
 		assert.Equal(t, "Bearer sk-provider-key", result.Get("Authorization"))
 		assert.Equal(t, "claude-code/1.0", result.Get("User-Agent"))
@@ -171,7 +173,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			"Anthropic-Beta": {"prompt-caching-2024-07-31"},
 		}
 
-		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "X-Api-Key")
+		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "X-Api-Key", intercept.Config{}, nil)
 
 		assert.Equal(t, "sk-ant-provider-key", result.Get("X-Api-Key"))
 		assert.Empty(t, result.Get("Authorization"))
@@ -191,7 +193,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			"User-Agent":    {"claude-code/1.0"},
 		}
 
-		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization")
+		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", intercept.Config{}, nil)
 
 		assert.Equal(t, "Bearer sk-key", result.Get("Authorization"))
 		assert.Equal(t, "user-123", result.Get("X-Ai-Bridge-Actor-Id"))
@@ -214,7 +216,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			"User-Agent":        {"claude-code/1.0"},
 		}
 
-		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization")
+		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", intercept.Config{}, nil)
 
 		assert.Empty(t, result.Get("Connection"))
 		assert.Empty(t, result.Get("Host"))
@@ -232,7 +234,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			"User-Agent": {"claude-code/1.0"},
 		}
 
-		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization")
+		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", intercept.Config{}, nil)
 
 		assert.Empty(t, result.Get("Authorization"))
 		assert.Equal(t, "claude-code/1.0", result.Get("User-Agent"))
@@ -251,9 +253,56 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		sdkCopy := sdkHeader.Clone()
 		clientCopy := clientHeaders.Clone()
 
-		_ = intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization")
+		_ = intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", intercept.Config{}, nil)
 
 		require.Equal(t, sdkCopy, sdkHeader)
 		require.Equal(t, clientCopy, clientHeaders)
+	})
+
+	t.Run("authenticated actor overrides client and SDK values", func(t *testing.T) {
+		t.Parallel()
+
+		sdkHeaders := http.Header{
+			"Authorization":                       {"Bearer provider-key"},
+			"X-Ai-Bridge-Actor-Id":                {"sdk-id"},
+			"X-Ai-Bridge-Actor-Metadata-Username": {"sdk-name"},
+		}
+		clientHeaders := http.Header{
+			"X-Ai-Bridge-Actor-Id":                {"client-id"},
+			"X-Ai-Bridge-Actor-Metadata-Username": {"client-name"},
+		}
+		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
+		actor := &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}}
+
+		result := intercept.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", intercept.Config{SendActorHeaders: true}, actor)
+
+		require.Equal(t, []string{"user-123"}, result.Values(intercept.ActorIDHeader()))
+		require.Equal(t, []string{"alice"}, result.Values(intercept.ActorMetadataHeader("Username")))
+		require.Equal(t, "Bearer provider-key", result.Get("Authorization"))
+		require.Equal(t, sdkCopy, sdkHeaders)
+		require.Equal(t, clientCopy, clientHeaders)
+	})
+
+	t.Run("actor forwarding with nil client headers", func(t *testing.T) {
+		t.Parallel()
+
+		actor := &context.Actor{ID: "user-123"}
+		for _, tc := range []struct {
+			name  string
+			send  bool
+			actor *context.Actor
+			want  string
+		}{
+			{name: "enabled", send: true, actor: actor, want: actor.ID},
+			{name: "disabled", actor: actor},
+			{name: "nil actor", send: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				result := intercept.BuildUpstreamHeaders(nil, nil, "Authorization", intercept.Config{SendActorHeaders: tc.send}, tc.actor)
+				require.Equal(t, tc.want, result.Get(intercept.ActorIDHeader()))
+			})
+		}
 	})
 }
