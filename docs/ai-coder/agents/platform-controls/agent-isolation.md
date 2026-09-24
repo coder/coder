@@ -72,17 +72,16 @@ coder:
 > Kubernetes can accept a NetworkPolicy without enforcing it, leaving the agent's network access unrestricted.
 
 For GKE, check [network policy enforcement](https://cloud.google.com/kubernetes-engine/docs/how-to/network-policy).
-For Amazon VPC CNI, use the **Deployments** tab.
+For Amazon VPC CNI, use the Deployments version of `main.tf`.
 [AWS documents unreliable enforcement for standalone Pods](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy.html), so that version runs each Pod through a Deployment.
 Enable network policy in the VPC CNI add-on with `enableNetworkPolicy: "true"`.
 
-Save one of these files as `main.tf` in an empty template directory.
+Expand one of the examples below and save it as `main.tf` in an empty template directory.
 Edit the `locals` block at the top of the file with your namespace and Coder server address.
 Both versions create the same agents, volumes, and network policy.
 
-<div class="tabs">
-
-### Standalone Pods
+<details>
+<summary>main.tf with standalone Pods: two Pods, one project volume, and an agent network policy</summary>
 
 ```tf
 terraform {
@@ -336,7 +335,10 @@ resource "kubernetes_pod_v1" "sandbox" {
 }
 ```
 
-### Deployments
+</details>
+
+<details>
+<summary>main.tf with Deployments: the same resources, for Amazon VPC CNI</summary>
 
 ```tf
 terraform {
@@ -616,7 +618,7 @@ resource "kubernetes_deployment_v1" "sandbox" {
 }
 ```
 
-</div>
+</details>
 
 Use the Coder hostname without `https://` or a port.
 Use an external IP address, not a cluster Service or node IP.
