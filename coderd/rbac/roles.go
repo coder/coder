@@ -244,12 +244,6 @@ func orgWorkspaceAccessMemberPerms() []Permission {
 		// (File.RBACObject sets WithOwner(CreatedBy)).
 		ResourceFile.Type: {policy.ActionCreate, policy.ActionRead},
 
-		// Chat projects group a member's own agent chats. They sit with
-		// workspace access rather than on the member floor, and stay
-		// private to their owner (ChatProject.RBACObject sets
-		// WithOwner(OwnerID)) until shared.
-		ResourceChatProject.Type: ResourceChatProject.AvailableActions(),
-
 		// User-scoped provisioner daemons: Upsert sets
 		// WithOwner(tag_owner) when scope=user so members can run their
 		// own daemons. Read is granted for symmetry; update and delete
@@ -1215,6 +1209,10 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			policy.ActionShare,
 			policy.ActionUpdate,
 		},
+		// Projects group a member's own chats, so they follow chat access
+		// rather than workspace access. ChatProject.RBACObject sets
+		// WithOwner(OwnerID), which keeps them private to their owner.
+		ResourceChatProject.Type: ResourceChatProject.AvailableActions(),
 	})
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
