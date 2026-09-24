@@ -821,7 +821,39 @@
 						{
 							"title": "OAuth2 Provider",
 							"description": "Use Coder as an OAuth2 authorization server so third-party apps can authenticate users.",
-							"path": "./admin/integrations/oauth2-provider.md"
+							"path": "./admin/integrations/oauth2-provider/index.md",
+							"children": [
+								{
+									"title": "Integration patterns",
+									"description": "Client authentication methods, the standard flow, the required PKCE flow, and discovery endpoints.",
+									"path": "./admin/integrations/oauth2-provider/integration-patterns.md"
+								},
+								{
+									"title": "Scopes",
+									"description": "How access tokens are bounded by scope, and how to set an application's scope allowlist.",
+									"path": "./admin/integrations/oauth2-provider/scopes.md"
+								},
+								{
+									"title": "Token management",
+									"description": "Refresh an access token, revoke a token, and delete an OAuth2 application.",
+									"path": "./admin/integrations/oauth2-provider/token-management.md"
+								},
+								{
+									"title": "Callback URL schemes",
+									"description": "Which redirect URI schemes and hosts Coder accepts.",
+									"path": "./admin/integrations/oauth2-provider/callback-url-schemes.md"
+								},
+								{
+									"title": "Troubleshooting",
+									"description": "Diagnose and fix OAuth2 provider errors by their exact error code or message.",
+									"path": "./admin/integrations/oauth2-provider/troubleshooting.md"
+								},
+								{
+									"title": "Security and limitations",
+									"description": "Security considerations and current limitations of the OAuth2 provider.",
+									"path": "./admin/integrations/oauth2-provider/security.md"
+								}
+							]
 						},
 						{
 							"title": "Dev Containers",
