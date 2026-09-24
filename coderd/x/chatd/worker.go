@@ -29,9 +29,10 @@ type chatWorker struct {
 	wakeCh      chan struct{}
 	wg          sync.WaitGroup
 
-	// capacityWaitSince tracks when each chat was first refused a
-	// capacity slot. Not safe for concurrent use.
-	capacityWaitSince map[uuid.UUID]capacityWait
+	// capacityWaits tracks when each chat was first refused a capacity
+	// slot. Read and written only by the acquisition goroutine
+	// (acquireOnce and the functions it calls); it has no lock.
+	capacityWaits map[uuid.UUID]capacityWait
 }
 
 // newChatWorker constructs a chat worker. The worker is idle until Start is
@@ -45,9 +46,9 @@ func newChatWorker(server *Server, opts chatWorkerOptions) (*chatWorker, error) 
 		return nil, err
 	}
 	return &chatWorker{
-		server:            server,
-		opts:              withDefaults,
-		capacityWaitSince: make(map[uuid.UUID]capacityWait),
+		server:        server,
+		opts:          withDefaults,
+		capacityWaits: make(map[uuid.UUID]capacityWait),
 	}, nil
 }
 
@@ -227,7 +228,7 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 			((isSubagent && subagentPoolRefused) || (!isSubagent && rootPoolRefused)) {
 			// The pool refused an earlier candidate this pass, so this
 			// one is waiting for capacity as well.
-			w.noteCapacityRefused(row.ID, row.HistoryVersion)
+			w.noteCapacityRefused(row.ID, row.HistoryVersion, row.UpdatedAt)
 			continue
 		}
 		candidateAcquired, err := w.acquireCandidateSafely(ctx, workerID, manager, row.ID)
@@ -322,7 +323,7 @@ func (w *chatWorker) acquireCandidate(
 		return err
 	})
 	if errors.Is(err, errCapacityRefused) {
-		w.noteCapacityRefused(loadedChat.ID, loadedChat.HistoryVersion)
+		w.noteCapacityRefused(loadedChat.ID, loadedChat.HistoryVersion, loadedChat.UpdatedAt)
 		return false, errCapacityRefused
 	}
 	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) {
@@ -332,13 +333,13 @@ func (w *chatWorker) acquireCandidate(
 	if err != nil {
 		return false, err
 	}
-	w.recordCapacityWait(ctx, loadedChat)
 	if err := manager.Spawn(ctx, spawnRunnerRequest{ChatID: chatID, WorkerID: workerID, RunnerID: runnerID}); err != nil {
 		if errAbandon := w.abandonAcquiredChat(ctx, workerID, runnerID, chatID); errAbandon != nil {
 			return false, errors.Join(err, errAbandon)
 		}
 		return false, err
 	}
+	w.recordCapacityWait(ctx, loadedChat)
 	return true, nil
 }
 

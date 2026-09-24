@@ -9739,7 +9739,8 @@ SELECT
     chats.id,
     chats.status,
     chats.parent_chat_id,
-    chats.history_version
+    chats.history_version,
+    chats.updated_at
 FROM candidates
 JOIN chats ON chats.id = candidates.id
 ORDER BY
@@ -9760,6 +9761,7 @@ type GetChatWorkerAcquisitionCandidatesRow struct {
 	Status         ChatStatus    `db:"status" json:"status"`
 	ParentChatID   uuid.NullUUID `db:"parent_chat_id" json:"parent_chat_id"`
 	HistoryVersion int64         `db:"history_version" json:"history_version"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 // Returns a bounded, pool-interleaved set of chats that workers may acquire.
@@ -9779,6 +9781,7 @@ func (q *sqlQuerier) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg
 			&i.Status,
 			&i.ParentChatID,
 			&i.HistoryVersion,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

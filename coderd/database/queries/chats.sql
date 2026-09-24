@@ -2496,7 +2496,8 @@ SELECT
     chats.id,
     chats.status,
     chats.parent_chat_id,
-    chats.history_version
+    chats.history_version,
+    chats.updated_at
 FROM candidates
 JOIN chats ON chats.id = candidates.id
 ORDER BY

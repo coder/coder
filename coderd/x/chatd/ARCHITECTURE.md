@@ -667,6 +667,12 @@ The bookkeeping is local to the worker. The wait start is dropped when the worke
 
 Because the capacity limit is deployment-wide but the refusal history is per worker, the recorded wait is a lower bound. A chat refused on one replica and acquired by another is measured from the acquiring replica's first refusal, or not at all if that replica admitted it on its first attempt. A replica restart also discards its history.
 
+TODO: A chat gets a wait start only once it is inside the first `2 * AcquisitionBatchSize` candidate rows, so under a backlog deeper than that window `capacity_wait` undercounts the wait (third undercount cause, beside cross-replica acquisition and restarts).
+
+TODO: Add "or deleted" to the list of non-capacity skips that drop the wait start.
+
+TODO: The wait start also stores the chat's `updated_at` at the first refusal. A refused acquisition rolls back and writes neither `history_version` nor `updated_at`; any change to either (a new prompt, another replica acquiring or abandoning the chat, or an unrelated row write) resets the wait, and nothing is recorded unless both are unchanged at acquisition and the chat is still `running`.
+
 ### Load balancing
 
 The design doesn't attempt to distribute load between workers fairly. Whenever a chat needs an owner, all replicas race to acquire it. If there's a coder replica that has a lower latency to the database, it'll tend to acquire chats more frequently than other replicas.

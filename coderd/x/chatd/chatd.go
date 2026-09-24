@@ -37,6 +37,7 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
@@ -174,7 +175,7 @@ type Server struct {
 	logger             slog.Logger
 	modelConfigContext func(context.Context, uuid.UUID) (context.Context, error)
 	// organizationNames caches organization ID to name for stage span attributes.
-	organizationNames sync.Map
+	organizationNames syncmap.Map[uuid.UUID, string]
 
 	streamPartsDialer StreamPartsDialer
 
@@ -4878,15 +4879,13 @@ func (p *Server) organizationName(ctx context.Context, id uuid.UUID) string {
 	if id == uuid.Nil {
 		return ""
 	}
-	if cached, ok := p.organizationNames.Load(id); ok {
-		if name, ok := cached.(string); ok {
-			return name
-		}
+	if name, ok := p.organizationNames.Load(id); ok {
+		return name
 	}
 	//nolint:gocritic // Chatd reads the organization of a chat it does not own as the daemon subject.
 	org, err := p.db.GetOrganizationByID(dbauthz.AsChatd(ctx), id)
 	if err != nil {
-		p.logger.Debug(ctx, "resolve organization name for stage span attribute",
+		p.logger.Debug(ctx, "failed to resolve organization name for stage span attribute",
 			slog.F("organization_id", id), slog.Error(err))
 		return ""
 	}
@@ -4894,8 +4893,8 @@ func (p *Server) organizationName(ctx context.Context, id uuid.UUID) string {
 	return org.Name
 }
 
-// chatKindAttr labels a chat as a subagent or a top-level chat.
-func chatKindAttr(chat database.Chat) chatloop.ChatKind {
+// chatKind labels a chat as a subagent or a top-level chat.
+func chatKind(chat database.Chat) chatloop.ChatKind {
 	if chat.ParentChatID.Valid {
 		return chatloop.ChatKindSubagent
 	}
