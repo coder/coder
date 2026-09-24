@@ -105,6 +105,7 @@ export function FilterCombobox({
 		chipValues,
 		highlightedItem,
 		scopeWidened,
+		scopeValue,
 		optionChipKey,
 		typeaheadError,
 		actions,
@@ -232,6 +233,17 @@ export function FilterCombobox({
 		actions.selectCategory(categoryKey);
 	};
 
+	const scopeFor = (categoryKey: string): ScopeState | undefined => {
+		const toggle = categories.find(
+			(category) => category.key === categoryKey,
+		)?.scopeToggle;
+		return toggle
+			? {
+					widened: scopeWidened(categoryKey),
+					label: toggle.label(scopeValue(categoryKey)),
+				}
+			: undefined;
+	};
 	const mainPanelProps = {
 		listedCategories,
 		valueSuggestions,
@@ -255,7 +267,7 @@ export function FilterCombobox({
 				previewCount={browseCategoryOptions.get(activeCategoryKey)?.length}
 				selectedTokens={chipValues}
 				chipKey={optionChipKey(activeCategoryKey)}
-				scopeWidened={scopeWidened(activeCategoryKey)}
+				scope={scopeFor(activeCategoryKey)}
 				onToggleScope={actions.toggleScope}
 				searchValue={inputValue}
 				onSearchChange={actions.onInputValueChange}
@@ -469,7 +481,7 @@ export function FilterCombobox({
 										options={flyoutOptions}
 										selectedTokens={chipValues}
 										chipKey={optionChipKey(flyoutCategory.key)}
-										scopeWidened={scopeWidened(flyoutCategory.key)}
+										scope={scopeFor(flyoutCategory.key)}
 										onToggleScope={toggleFlyoutScope}
 										onMouseEnter={cancelHoverSwitch}
 										onSelectOption={selectFlyoutOption}
@@ -749,6 +761,8 @@ function FlyoutSearch({ label, value, onChange }: FlyoutSearchProps) {
 	);
 }
 
+type ScopeState = Readonly<{ widened: boolean; label: string }>;
+
 type FlyoutScopeToggleProps = Readonly<{
 	categoryKey: string;
 	label: string;
@@ -768,12 +782,17 @@ function FlyoutScopeToggle({
 			<Switch
 				id={id}
 				size="sm"
+				className="shrink-0"
 				checked={checked}
 				onCheckedChange={() => onToggle(categoryKey)}
 				// Keep focus in the combobox input so keyboard navigation continues.
 				onMouseDown={(event) => event.preventDefault()}
 			/>
-			<label htmlFor={id} className="text-sm text-content-primary">
+			{/* Zero basis so the label wraps to the panel width set by the list. */}
+			<label
+				htmlFor={id}
+				className="w-0 min-w-0 flex-1 text-sm text-content-secondary"
+			>
 				{label}
 			</label>
 		</div>
@@ -788,7 +807,7 @@ type OptionsPanelProps = Readonly<{
 	/** Shown above the options when the category is searchable. */
 	search?: { value: string; onChange: (value: string) => void };
 	empty: boolean;
-	scopeWidened: boolean;
+	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
 	onMouseEnter?: () => void;
 	children: ReactNode;
@@ -802,7 +821,7 @@ function OptionsPanel({
 	offset,
 	search,
 	empty,
-	scopeWidened,
+	scope,
 	onToggleScope,
 	onMouseEnter,
 	children,
@@ -815,6 +834,7 @@ function OptionsPanel({
 			className={cn(
 				flyoutPanelClassName,
 				"p-2",
+				scope && "sm:min-w-60",
 				embedded &&
 					"min-h-0 flex-1 w-full rounded-none border-0 bg-transparent p-0 shadow-none",
 			)}
@@ -836,11 +856,11 @@ function OptionsPanel({
 			)}
 			{children}
 			{empty && <NoMatchingOptions />}
-			{category?.scopeToggle && (
+			{category && scope && (
 				<FlyoutScopeToggle
 					categoryKey={category.key}
-					label={category.scopeToggle.label}
-					checked={scopeWidened}
+					label={scope.label}
+					checked={scope.widened}
 					onToggle={onToggleScope}
 				/>
 			)}
@@ -854,7 +874,7 @@ type HoverCategoryPanelProps = Readonly<{
 	options: readonly FilterOption[];
 	selectedTokens: readonly string[];
 	chipKey: string;
-	scopeWidened: boolean;
+	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
 	onMouseEnter: () => void;
 	onSelectOption: (token: string) => void;
@@ -866,7 +886,7 @@ function HoverCategoryPanel({
 	options,
 	selectedTokens,
 	chipKey,
-	scopeWidened,
+	scope,
 	onToggleScope,
 	onMouseEnter,
 	onSelectOption,
@@ -906,7 +926,7 @@ function HoverCategoryPanel({
 			offset={offset}
 			search={searchable ? { value: query, onChange: setQuery } : undefined}
 			empty={filteredOptions.length === 0}
-			scopeWidened={scopeWidened}
+			scope={scope}
 			onToggleScope={onToggleScope}
 			onMouseEnter={onMouseEnter}
 		>
@@ -950,7 +970,7 @@ type CategoryOptionsListProps = Readonly<{
 	previewCount: number | undefined;
 	selectedTokens: readonly string[];
 	chipKey: string;
-	scopeWidened: boolean;
+	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
 	searchValue: string;
 	onSearchChange: (value: string) => void;
@@ -967,7 +987,7 @@ function CategoryOptionsList({
 	previewCount,
 	selectedTokens,
 	chipKey,
-	scopeWidened,
+	scope,
 	onToggleScope,
 	searchValue,
 	onSearchChange,
@@ -1014,7 +1034,7 @@ function CategoryOptionsList({
 					: undefined
 			}
 			empty={options?.length === 0}
-			scopeWidened={scopeWidened}
+			scope={scope}
 			onToggleScope={onToggleScope}
 		>
 			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">

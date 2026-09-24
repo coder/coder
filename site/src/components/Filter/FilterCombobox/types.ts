@@ -57,7 +57,8 @@ export type FilterCategory = {
 	 * category's chip.
 	 */
 	scopeToggle?: {
-		label: string;
+		/** Switch label for the category's applied value, if there is one. */
+		label: (value: string | undefined) => string;
 		chipKey: string;
 		pillLabel: string;
 	};

@@ -15,7 +15,10 @@ const scopedOwnerCategory: FilterCategory = {
 	...ownerCategory,
 	chipKeys: ["owner", "user"],
 	scopeToggle: {
-		label: "Include shared workspaces",
+		label: (owner) =>
+			owner
+				? `Include workspaces shared with ${owner}`
+				: "Include shared workspaces",
 		chipKey: "user",
 		pillLabel: "include shared",
 	},
@@ -320,7 +323,9 @@ describe("FilterCombobox", () => {
 		await user.click(filtersButton);
 		await user.keyboard("{ArrowRight}");
 		await user.click(
-			await screen.findByRole("switch", { name: "Include shared workspaces" }),
+			await screen.findByRole("switch", {
+				name: "Include workspaces shared with alice",
+			}),
 		);
 
 		await waitFor(() =>
@@ -366,7 +371,9 @@ describe("FilterCombobox", () => {
 		await user.click(input);
 		await user.type(input, "shared");
 		await user.click(
-			await screen.findByRole("switch", { name: "Include shared workspaces" }),
+			await screen.findByRole("switch", {
+				name: "Include workspaces shared with alice",
+			}),
 		);
 
 		await waitFor(() =>

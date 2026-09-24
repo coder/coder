@@ -1017,6 +1017,18 @@ export const useFilterCombobox = ({
 			const category = categories.find((entry) => entry.key === categoryKey);
 			return category ? isScopeWidened(category) : false;
 		},
+		// Value of the category's applied chip under either of its scope keys.
+		scopeValue: (categoryKey: string) => {
+			const toggle = categories.find(
+				(entry) => entry.key === categoryKey,
+			)?.scopeToggle;
+			const keys = [categoryKey, ...(toggle ? [toggle.chipKey] : [])];
+			const values = chipValues.flatMap((token) => {
+				const parsed = parseChipToken(token, keys);
+				return parsed ? [parsed.value] : [];
+			});
+			return values.at(-1);
+		},
 		optionChipKey: (categoryKey: string) => {
 			const category = categories.find((entry) => entry.key === categoryKey);
 			return category ? optionChipKey(category) : categoryKey;

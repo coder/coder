@@ -60,7 +60,10 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				// `user:<name>` also matches workspaces shared with that user.
 				chipKeys: ["owner", "user"],
 				scopeToggle: {
-					label: "Include shared workspaces",
+					label: (owner) =>
+						owner
+							? `Include workspaces shared with ${owner}`
+							: "Include shared workspaces",
 					chipKey: "user",
 					pillLabel: "include shared",
 				},

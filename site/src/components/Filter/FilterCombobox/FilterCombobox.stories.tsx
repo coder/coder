@@ -599,7 +599,10 @@ export const ScopeToggle: Story = {
 					icon: <UserIcon />,
 					chipKeys: ["owner", "user"],
 					scopeToggle: {
-						label: "Include shared workspaces",
+						label: (owner) =>
+							owner
+								? `Include workspaces shared with ${owner}`
+								: "Include shared workspaces",
 						chipKey: "user",
 						pillLabel: "include shared",
 					},
@@ -615,7 +618,9 @@ export const ScopeToggle: Story = {
 			canvas.getByRole("button", { name: "Toggle filters" }),
 		);
 		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
-		await body.findByRole("switch", { name: "Include shared workspaces" });
+		await body.findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
 	},
 };
 
@@ -630,7 +635,7 @@ export const ScopeToggleTypedMatch: Story = {
 		await userEvent.click(input);
 		await userEvent.type(input, "shared");
 		await within(canvasElement.ownerDocument.body).findByRole("switch", {
-			name: "Include shared workspaces",
+			name: "Include workspaces shared with alice",
 		});
 	},
 };
