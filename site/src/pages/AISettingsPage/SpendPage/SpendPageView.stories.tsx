@@ -133,6 +133,17 @@ export const FilterMenuPricingSelected: Story = {
 	play: openFilterMenu,
 };
 
+export const OrganizationFlyout: Story = {
+	play: async (context) => {
+		await openFilterMenu(context);
+		await userEvent.hover(
+			await within(context.canvasElement).findByRole("option", {
+				name: "Organization",
+			}),
+		);
+	},
+};
+
 export const SingleOrganization: Story = {
 	args: { organizations: [MockOrganization] },
 };

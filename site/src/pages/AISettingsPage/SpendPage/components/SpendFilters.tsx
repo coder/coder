@@ -234,6 +234,13 @@ const buildSpendFilterCategories = ({
 				.map((organization) => ({
 					label: getOrganizationLabel(organization, organizations),
 					value: organization.name,
+					startIcon: (
+						<Avatar
+							fallback={organization.display_name || organization.name}
+							src={organization.icon}
+							size="sm"
+						/>
+					),
 				})),
 	};
 
