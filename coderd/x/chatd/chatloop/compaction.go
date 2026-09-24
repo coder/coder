@@ -527,8 +527,7 @@ func generateCompactionSummary(
 	}
 	// Time to first token is an assistant-generation measurement, so
 	// the summary stream records neither the TTFT histogram nor a
-	// time_to_first_token stage. The nil tracer yields nil spans, which
-	// also keeps the window out of the turn accounting on summaryCtx.
+	// time_to_first_token stage.
 	streamSummaryText := func() (string, error) {
 		attempt, err := guardedStream(
 			summaryCtx,

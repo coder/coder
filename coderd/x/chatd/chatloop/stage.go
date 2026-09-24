@@ -49,7 +49,6 @@ const (
 	AttrToolName          = "tool_name"
 	AttrHTTPStatusCode    = "http_status_code"
 	AttrHTTPMethod        = "http_method"
-	AttrHTTPHost          = "http_host"
 	AttrCompactionSource  = "compaction_source"
 	AttrScope             = "scope"
 )

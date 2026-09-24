@@ -2993,7 +2993,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	} else {
 		p.metrics = chatloop.NopMetrics()
 	}
-	p.stages = chatloop.NewStageTracer(cfg.TracerProvider, p.metrics)
+	p.stages = chatloop.NewStageTracer(cfg.TracerProvider, p.metrics, chatloop.WithClock(clk))
 	p.messagePartBuffer = messagepartbuffer.New(messagepartbuffer.Options{Clock: clk})
 	localStreamPartsDialer := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{
 		Buffer: p.messagePartBuffer,
