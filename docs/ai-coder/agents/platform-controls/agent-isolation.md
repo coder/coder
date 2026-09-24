@@ -647,8 +647,12 @@ From the template directory, run:
 terraform init
 terraform validate
 coder templates push sandbox-k8s --directory .
+coder templates edit sandbox-k8s --default-ttl 8h --yes
 coder create sandbox-test --template sandbox-k8s
 ```
+
+The default TTL stops every workspace from this template 8 hours after it starts, so a forgotten test workspace does not keep running.
+With a Premium license, add `--allow-user-autostop=false` so users cannot extend it.
 
 After the template passes validation, wait for both agents to connect.
 The build log shows deprecation warnings for the `dir` argument on `coder_agent`.
