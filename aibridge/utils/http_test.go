@@ -111,10 +111,23 @@ func TestNewStreamingTransport(t *testing.T) {
 	require.False(t, transport.DisableCompression)
 }
 
-func TestStripProxyAndFirewallHeaders(t *testing.T) {
+func TestStripClientRequestHeaders(t *testing.T) {
 	t.Parallel()
 
 	headers := http.Header{
+		"Connection":                             {"keep-alive"},
+		"Keep-Alive":                             {"timeout=5"},
+		"Proxy-Authenticate":                     {"Basic"},
+		"Proxy-Authorization":                    {"Basic abc"},
+		"Te":                                     {"trailers"},
+		"Trailer":                                {"X-Checksum"},
+		"Transfer-Encoding":                      {"chunked"},
+		"Upgrade":                                {"websocket"},
+		"Host":                                   {"client.example.com"},
+		"Accept-Encoding":                        {"gzip"},
+		"Content-Length":                         {"42"},
+		"Authorization":                          {"Bearer client"},
+		"X-Api-Key":                              {"sk-client"},
 		"X-Forwarded-For":                        {"192.0.2.1"},
 		"X-Forwarded-Host":                       {"client.example.com"},
 		"X-Forwarded-Proto":                      {"https"},
@@ -122,16 +135,14 @@ func TestStripProxyAndFirewallHeaders(t *testing.T) {
 		"Forwarded":                              {"for=192.0.2.1"},
 		"X-Coder-Agent-Firewall-Session-Id":      {"e5f6a7b8-1234-5678-9abc-def012345678"},
 		"X-Coder-Agent-Firewall-Sequence-Number": {"42"},
-		"Authorization":                          {"Bearer provider"},
-		"Accept-Encoding":                        {"gzip"},
+		"Anthropic-Beta":                         {"prompt-caching-2024-07-31"},
 		"Cookie":                                 {"session=abc"},
 	}
 
-	utils.StripProxyAndFirewallHeaders(headers)
+	utils.StripClientRequestHeaders(headers)
 
 	require.Equal(t, http.Header{
-		"Authorization":   {"Bearer provider"},
-		"Accept-Encoding": {"gzip"},
-		"Cookie":          {"session=abc"},
+		"Anthropic-Beta": {"prompt-caching-2024-07-31"},
+		"Cookie":         {"session=abc"},
 	}, headers)
 }

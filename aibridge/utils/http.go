@@ -35,6 +35,35 @@ func NewStreamingTransport() *http.Transport {
 	}
 }
 
+// hopByHopHeaders are connection-level headers specific to the connection
+// between client and AI Gateway, not meant for the upstream.
+// See https://www.rfc-editor.org/rfc/rfc2616#section-13.5.1
+var hopByHopHeaders = []string{
+	"Connection",
+	"Keep-Alive",
+	"Proxy-Authenticate",
+	"Proxy-Authorization",
+	"Te",
+	"Trailer",
+	"Transfer-Encoding",
+	"Upgrade",
+}
+
+// nonForwardedHeaders are transport-level headers managed by AI Gateway or
+// Go's HTTP transport that must not be forwarded to the upstream provider.
+var nonForwardedHeaders = []string{
+	"Host",
+	"Accept-Encoding",
+	"Content-Length",
+}
+
+// authHeaders carry client credentials. The caller sets the upstream
+// provider credential after stripping.
+var authHeaders = []string{
+	"Authorization",
+	"X-Api-Key",
+}
+
 // proxyHeaders describe the path the inbound request took to reach AI Gateway.
 // They are not meaningful on the outbound request to the provider.
 var proxyHeaders = []string{
@@ -54,14 +83,17 @@ var agentFirewallHeaders = []string{
 	"X-Coder-Agent-Firewall-Sequence-Number",
 }
 
-// StripProxyAndFirewallHeaders removes inbound proxy and Agent Firewall
-// correlation headers, which must not reach upstream providers.
-func StripProxyAndFirewallHeaders(headers http.Header) {
-	for _, h := range proxyHeaders {
-		headers.Del(h)
-	}
-	for _, h := range agentFirewallHeaders {
-		headers.Del(h)
+// StripClientRequestHeaders removes the hop-by-hop, transport, auth, proxy,
+// and Agent Firewall headers from client request headers so they never reach
+// upstream providers. The caller must set the upstream provider credential
+// afterwards.
+func StripClientRequestHeaders(headers http.Header) {
+	for _, list := range [][]string{
+		hopByHopHeaders, nonForwardedHeaders, authHeaders, proxyHeaders, agentFirewallHeaders,
+	} {
+		for _, h := range list {
+			headers.Del(h)
+		}
 	}
 }
 
