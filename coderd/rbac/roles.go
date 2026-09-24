@@ -28,14 +28,16 @@ const (
 	customSiteRole         string = "custom-site-role"
 	customOrganizationRole string = "custom-organization-role"
 
-	orgAdmin                string = "organization-admin"
-	orgMember               string = "organization-member"
-	orgServiceAccount       string = "organization-service-account"
-	orgAuditor              string = "organization-auditor"
-	orgUserAdmin            string = "organization-user-admin"
-	orgTemplateAdmin        string = "organization-template-admin"
-	orgWorkspaceCreationBan string = "organization-workspace-creation-ban"
-	orgWorkspaceAccess      string = "organization-workspace-access"
+	orgAdmin                 string = "organization-admin"
+	orgMember                string = "organization-member"
+	orgServiceAccount        string = "organization-service-account"
+	orgAuditor               string = "organization-auditor"
+	orgUserAdmin             string = "organization-user-admin"
+	orgTemplateAdmin         string = "organization-template-admin"
+	orgWorkspaceCreationBan  string = "organization-workspace-creation-ban"
+	orgWorkspaceAccess       string = "organization-workspace-access"
+	aiGatewayUnrestricted    string = "ai-gateway-unrestricted"
+	orgAIGatewayUnrestricted string = "organization-ai-gateway-unrestricted"
 )
 
 func init() {
@@ -143,6 +145,9 @@ func RoleUserAdmin() RoleIdentifier     { return RoleIdentifier{Name: userAdmin}
 func RoleMember() RoleIdentifier        { return RoleIdentifier{Name: member} }
 func RoleAuditor() RoleIdentifier       { return RoleIdentifier{Name: auditor} }
 
+// RoleAIGatewayUnrestricted grants unrestricted model use through AI Gateway.
+func RoleAIGatewayUnrestricted() RoleIdentifier { return RoleIdentifier{Name: aiGatewayUnrestricted} }
+
 func RoleOrgAdmin() string {
 	return orgAdmin
 }
@@ -175,6 +180,9 @@ func RoleOrgWorkspaceAccess() string {
 	return orgWorkspaceAccess
 }
 
+// RoleOrgAIGatewayUnrestricted is the organization role for unrestricted Gateway use.
+func RoleOrgAIGatewayUnrestricted() string { return orgAIGatewayUnrestricted }
+
 // ScopedRoleOrgAdmin is the org role with the organization ID
 func ScopedRoleOrgAdmin(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgAdmin(), OrganizationID: organizationID}
@@ -203,6 +211,12 @@ func ScopedRoleOrgWorkspaceCreationBan(organizationID uuid.UUID) RoleIdentifier 
 
 func ScopedRoleOrgWorkspaceAccess(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgWorkspaceAccess(), OrganizationID: organizationID}
+}
+
+// ScopedRoleOrgAIGatewayUnrestricted scopes role assignment to an organization.
+// Its model-use permission applies deployment-wide.
+func ScopedRoleOrgAIGatewayUnrestricted(organizationID uuid.UUID) RoleIdentifier {
+	return RoleIdentifier{Name: RoleOrgAIGatewayUnrestricted(), OrganizationID: organizationID}
 }
 
 // DefaultOrgMemberRoles is the deployment-wide default for the
@@ -528,7 +542,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Identifier:  RoleUserAdmin(),
 		DisplayName: "User Admin",
 		Site: Permissions(map[string][]policy.Action{
-			ResourceAssignRole.Type: {policy.ActionAssign, policy.ActionUnassign, policy.ActionRead},
+			// User admins can assign this capability when managing memberships.
+			ResourceAIGatewayUnrestricted.Type: {policy.ActionUse},
+			ResourceAssignRole.Type:            {policy.ActionAssign, policy.ActionUnassign, policy.ActionRead},
 			// Need organization assign as well to create users. At present, creating a user
 			// will always assign them to some organization.
 			ResourceAssignOrgRole.Type: {policy.ActionAssign, policy.ActionUnassign, policy.ActionRead},
@@ -587,7 +603,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Site: Permissions(map[string][]policy.Action{
 					// To assign organization members, we need to be able to read
 					// users at the site wide to know they exist.
-					ResourceUser.Type: {policy.ActionRead},
+					ResourceUser.Type:                  {policy.ActionRead},
+					ResourceAIGatewayUnrestricted.Type: {policy.ActionUse},
 				}),
 				User: []Permission{},
 				ByOrgID: map[string]OrgPermissions{
@@ -729,6 +746,20 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
+		aiGatewayUnrestricted: func(_ uuid.UUID) Role {
+			return Role{
+				Identifier: RoleAIGatewayUnrestricted(), DisplayName: "AI Gateway Unrestricted",
+				Site: Permissions(map[string][]policy.Action{ResourceAIGatewayUnrestricted.Type: {policy.ActionUse}}),
+				User: []Permission{}, ByOrgID: map[string]OrgPermissions{},
+			}
+		},
+		orgAIGatewayUnrestricted: func(organizationID uuid.UUID) Role {
+			return Role{
+				Identifier: RoleIdentifier{Name: orgAIGatewayUnrestricted, OrganizationID: organizationID}, DisplayName: "Organization AI Gateway Unrestricted",
+				Site: Permissions(map[string][]policy.Action{ResourceAIGatewayUnrestricted.Type: {policy.ActionUse}}),
+				User: []Permission{}, ByOrgID: map[string]OrgPermissions{organizationID.String(): {}},
+			}
+		},
 		orgWorkspaceAccess: func(organizationID uuid.UUID) Role {
 			return Role{
 				Identifier:  RoleIdentifier{Name: orgWorkspaceAccess, OrganizationID: organizationID},
@@ -755,51 +786,57 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 //	map[actor_role][assign_role]<can_assign>
 var assignRoles = map[string]map[string]bool{
 	"system": {
-		owner:                   true,
-		auditor:                 true,
-		member:                  true,
-		orgAdmin:                true,
-		orgMember:               true,
-		orgAuditor:              true,
-		orgUserAdmin:            true,
-		orgTemplateAdmin:        true,
-		orgWorkspaceCreationBan: true,
-		orgWorkspaceAccess:      true,
-		templateAdmin:           true,
-		userAdmin:               true,
-		customSiteRole:          true,
-		customOrganizationRole:  true,
+		owner:                    true,
+		auditor:                  true,
+		member:                   true,
+		orgAdmin:                 true,
+		orgMember:                true,
+		orgAuditor:               true,
+		orgUserAdmin:             true,
+		orgTemplateAdmin:         true,
+		orgWorkspaceCreationBan:  true,
+		orgWorkspaceAccess:       true,
+		aiGatewayUnrestricted:    true,
+		orgAIGatewayUnrestricted: true,
+		templateAdmin:            true,
+		userAdmin:                true,
+		customSiteRole:           true,
+		customOrganizationRole:   true,
 	},
 	owner: {
-		owner:                   true,
-		auditor:                 true,
-		member:                  true,
-		orgAdmin:                true,
-		orgMember:               true,
-		orgAuditor:              true,
-		orgUserAdmin:            true,
-		orgTemplateAdmin:        true,
-		orgWorkspaceCreationBan: true,
-		orgWorkspaceAccess:      true,
-		templateAdmin:           true,
-		userAdmin:               true,
-		customSiteRole:          true,
-		customOrganizationRole:  true,
+		owner:                    true,
+		auditor:                  true,
+		member:                   true,
+		orgAdmin:                 true,
+		orgMember:                true,
+		orgAuditor:               true,
+		orgUserAdmin:             true,
+		orgTemplateAdmin:         true,
+		orgWorkspaceCreationBan:  true,
+		orgWorkspaceAccess:       true,
+		aiGatewayUnrestricted:    true,
+		orgAIGatewayUnrestricted: true,
+		templateAdmin:            true,
+		userAdmin:                true,
+		customSiteRole:           true,
+		customOrganizationRole:   true,
 	},
 	userAdmin: {
-		member:             true,
-		orgMember:          true,
-		orgWorkspaceAccess: true,
+		member:                   true,
+		orgMember:                true,
+		orgWorkspaceAccess:       true,
+		orgAIGatewayUnrestricted: true,
 	},
 	orgAdmin: {
-		orgAdmin:                true,
-		orgMember:               true,
-		orgAuditor:              true,
-		orgUserAdmin:            true,
-		orgTemplateAdmin:        true,
-		orgWorkspaceCreationBan: true,
-		orgWorkspaceAccess:      true,
-		customOrganizationRole:  true,
+		orgAdmin:                 true,
+		orgMember:                true,
+		orgAuditor:               true,
+		orgUserAdmin:             true,
+		orgTemplateAdmin:         true,
+		orgWorkspaceCreationBan:  true,
+		orgWorkspaceAccess:       true,
+		orgAIGatewayUnrestricted: true,
+		customOrganizationRole:   true,
 	},
 	orgUserAdmin: {
 		orgMember:          true,
@@ -1151,6 +1188,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
+		"chat_model_config":        {policy.ActionUse},
 	}
 
 	// In all modes of workspace sharing but `none`, members need to
@@ -1234,6 +1272,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
+		"chat_model_config":        {policy.ActionUse},
 	}
 
 	// When workspace sharing is enabled, service accounts need to see

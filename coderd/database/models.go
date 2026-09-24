@@ -530,6 +530,9 @@ const (
 	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
 	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
 	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
+	ApiKeyScopeAIGatewayUnrestricted               APIKeyScope = "ai_gateway_unrestricted:*"
+	ApiKeyScopeAIGatewayUnrestrictedUse            APIKeyScope = "ai_gateway_unrestricted:use"
+	ApiKeyScopeChatModelConfigUse                  APIKeyScope = "chat_model_config:use"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -811,7 +814,10 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatModelConfigRead,
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
-		ApiKeyScopeChatModelConfigShare:
+		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeAIGatewayUnrestricted,
+		ApiKeyScopeAIGatewayUnrestrictedUse,
+		ApiKeyScopeChatModelConfigUse:
 		return true
 	}
 	return false
@@ -1062,6 +1068,9 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
 		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeAIGatewayUnrestricted,
+		ApiKeyScopeAIGatewayUnrestrictedUse,
+		ApiKeyScopeChatModelConfigUse,
 	}
 }
 
@@ -5738,8 +5747,6 @@ type Organization struct {
 	ShareableWorkspaceOwners ShareableWorkspaceOwners `db:"shareable_workspace_owners" json:"shareable_workspace_owners"`
 	// Roles granted to every member of this organization at request time. The set is unioned into each member's effective roles when GetAuthorizationUserRoles runs, so changes propagate to all members on the next request. Deployments can use this column to revoke capabilities that would otherwise be considered normal organization member permissions.
 	DefaultOrgMemberRoles []string `db:"default_org_member_roles" json:"default_org_member_roles"`
-	// Restricts direct AI Gateway model access granted by this organization to enabled configured models.
-	RestrictModelsToConfigured bool `db:"restrict_models_to_configured" json:"restrict_models_to_configured"`
 }
 
 type OrganizationMember struct {

@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridge/budget"
@@ -27,13 +28,13 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -43,11 +44,8 @@ var (
 	ErrExpiredOrInvalidOAuthToken = xerrors.New("expired or invalid OAuth2 token")
 	ErrNoMCPConfigFound           = xerrors.New("no MCP config found")
 
-	// These errors are returned by IsAuthorized. Since they're just returned as
-	// a generic dRPC error, it's difficult to tell them apart without string
-	// matching.
-	// TODO: return these errors to the client in a more structured/comparable
-	//       way.
+	// Authentication errors retain their identity locally and carry a typed dRPC
+	// code for remote callers.
 	ErrInvalidKey           = xerrors.New("invalid key")
 	ErrUnknownKey           = xerrors.New("unknown key")
 	ErrExpired              = xerrors.New("expired")
@@ -68,50 +66,12 @@ const (
 
 var _ aibridged.DRPCServer = &Server{}
 
-type store interface {
-	// Recorder-related queries.
-	InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error)
-	InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) (database.AIBridgeTokenUsage, error)
-	InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) (database.AIBridgeUserPrompt, error)
-	InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) (database.AIBridgeToolUsage, error)
-	InsertAIBridgeModelThought(ctx context.Context, arg database.InsertAIBridgeModelThoughtParams) (database.AIBridgeModelThought, error)
-	UpdateAIBridgeInterceptionEnded(ctx context.Context, intcID database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error)
-	GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (database.GetAIBridgeInterceptionLineageByToolCallIDRow, error)
-
-	// Cost-attribution queries, used to snapshot price and effective group on
-	// each token usage record.
-	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error)
-	GetAIProviderByName(ctx context.Context, name string) (database.AIProvider, error)
-	GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error)
-	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
-	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
-	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
-	GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error)
-	GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error)
-	GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error)
-	GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error)
-
-	// MCPConfigurator-related queries.
-	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
-
-	// Authorizer-related queries.
-	HasAIModelAccess(context.Context, database.HasAIModelAccessParams) (bool, error)
-	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
-	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
-	// ProviderConfigurator-related queries. InTx wraps the provider and key
-	// reads in a single read-only transaction.
-	GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error)
-	GetAIProviderKeysByProviderIDs(ctx context.Context, providerIDs []uuid.UUID) ([]database.AIProviderKey, error)
-
-	InTx(func(database.Store) error, *database.TxOptions) error
-}
-
 type Server struct {
 	// lifecycleCtx must be tied to the API server's lifecycle
 	// as when the API server shuts down, we want to cancel any
 	// long-running operations.
 	lifecycleCtx        context.Context
-	store               store
+	store               database.Store
 	pubsub              pubsub.Pubsub
 	logger              slog.Logger
 	externalAuthConfigs map[string]*externalauth.Config
@@ -129,16 +89,15 @@ type Server struct {
 	clock         quartz.Clock
 	notifEnqueuer notifications.Enqueuer
 	// metrics records cost-control metrics. May be nil.
-	metrics      *Metrics
-	entitlements *entitlements.Set
+	metrics    *Metrics
+	authorizer rbac.Authorizer
 }
 
 // Options carries the dependencies required to construct an aibridged Server.
 type Options struct {
-	Store store
-	// Entitlements is shared with coderd so policy changes apply to the next request.
-	// Nil represents an unlicensed server.
-	Entitlements  *entitlements.Set
+	Store database.Store
+	// Authorizer evaluates model-use permissions for the authenticated key owner.
+	Authorizer    rbac.Authorizer
 	Pubsub        pubsub.Pubsub
 	AISeatTracker aiseats.SeatTracker
 	// Enqueuer enqueues notifications. When nil, NewServer substitutes a no-op
@@ -177,7 +136,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 	srv := &Server{
 		lifecycleCtx:        lifecycleCtx,
 		store:               opts.Store,
-		entitlements:        opts.Entitlements,
+		authorizer:          opts.Authorizer,
 		pubsub:              opts.Pubsub,
 		logger:              opts.Logger,
 		externalAuthConfigs: eac,
@@ -776,7 +735,16 @@ externalAuthLoop:
 //  4. Once we have an Early Access release of AI Bridge, we need to return to this.
 //
 // TODO: replace with logic from [httpmw.ExtractAPIKey].
-func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
+func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest) (_ *proto.IsAuthorizedResponse, returnErr error) {
+	defer func() {
+		if returnErr != nil && drpcerr.Code(returnErr) == 0 {
+			returnErr = drpcerr.WithCode(returnErr, proto.AuthorizationErrorAuthentication)
+		}
+	}()
+	modelContext := in.ProviderName != nil || in.Model != nil
+	if modelContext && (in.GetProviderName() == "" || in.GetModel() == "") {
+		return nil, drpcerr.WithCode(xerrors.New("provider and model must both be nonempty"), proto.AuthorizationErrorMalformed)
+	}
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
@@ -806,6 +774,9 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	key, err := s.store.GetAPIKeyByID(ctx, keyID)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to retrieve API key by id", slog.F("key_id", keyID), slog.Error(err))
+		if !xerrors.Is(err, sql.ErrNoRows) {
+			return nil, drpcerr.WithCode(xerrors.New("authorization evaluation failed"), proto.AuthorizationErrorEvaluation)
+		}
 		return nil, ErrUnknownKey
 	}
 
@@ -824,6 +795,9 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	user, err := s.store.GetUserByID(ctx, key.UserID)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to retrieve API key user", slog.F("key_id", keyID), slog.F("user_id", key.UserID), slog.Error(err))
+		if !xerrors.Is(err, sql.ErrNoRows) {
+			return nil, drpcerr.WithCode(xerrors.New("authorization evaluation failed"), proto.AuthorizationErrorEvaluation)
+		}
 		return nil, ErrUnknownUser
 	}
 
@@ -836,6 +810,17 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 	if user.IsSystem {
 		return nil, ErrSystemUser
+	}
+
+	if modelContext {
+		access, err := s.ResolveModelAccess(ctx, key, in.GetProviderName(), in.GetModel())
+		if err != nil {
+			s.logger.Error(ctx, "model authorization evaluation failed", slog.Error(err))
+			return nil, drpcerr.WithCode(xerrors.New("authorization evaluation failed"), proto.AuthorizationErrorEvaluation)
+		}
+		if !access.Allowed {
+			return nil, drpcerr.WithCode(xerrors.New("unauthorized"), proto.AuthorizationErrorPolicy)
+		}
 	}
 
 	resp := &proto.IsAuthorizedResponse{

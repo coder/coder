@@ -132,15 +132,7 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 	_, span := tracer.Start(r.Context(), "Intercept.CreateInterceptor")
 	defer tracing.EndSpanErr(span, &outErr)
 
-	// Extract the per-user Copilot key from the Authorization header.
-	key := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization))
-	if key == "" {
-		span.SetStatus(codes.Error, "missing authorization")
-		return nil, xerrors.New("missing Copilot authorization: Authorization header not found or invalid")
-	}
-
 	id := uuid.New()
-
 	// Copilot's API is OpenAI-compatible, so it reuses the OpenAI interceptors.
 	// It is always BYOK: the per-user key arrives in the Authorization header.
 	cfg := intercept.Config{
@@ -148,8 +140,6 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		BaseURL:      p.cfg.BaseURL,
 		APIDumpDir:   p.cfg.APIDumpDir,
 	}
-	cred := intercept.BYOK{Secret: key, Header: intercept.AuthHeaderAuthorization}
-
 	var interceptor intercept.Interceptor
 
 	path := strings.TrimPrefix(r.URL.Path, p.RoutePrefix())
@@ -161,9 +151,9 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		}
 
 		if req.Stream {
-			interceptor = chatcompletions.NewStreamingInterceptor(id, &req, cfg, cred, r.Header, tracer)
+			interceptor = chatcompletions.NewStreamingInterceptor(id, &req, cfg, nil, r.Header, tracer)
 		} else {
-			interceptor = chatcompletions.NewBlockingInterceptor(id, &req, cfg, cred, r.Header, tracer)
+			interceptor = chatcompletions.NewBlockingInterceptor(id, &req, cfg, nil, r.Header, tracer)
 		}
 
 	case routeCopilotResponses:
@@ -177,9 +167,9 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		}
 
 		if reqPayload.Stream() {
-			interceptor = responses.NewStreamingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
+			interceptor = responses.NewStreamingInterceptor(id, reqPayload, cfg, nil, r.Header, tracer)
 		} else {
-			interceptor = responses.NewBlockingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
+			interceptor = responses.NewBlockingInterceptor(id, reqPayload, cfg, nil, r.Header, tracer)
 		}
 
 	case routeCopilotMessages:
@@ -193,9 +183,9 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		}
 
 		if reqPayload.Stream() {
-			interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
+			interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, nil, nil, r.Header, tracer)
 		} else {
-			interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
+			interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, nil, nil, r.Header, tracer)
 		}
 
 	default:
@@ -205,4 +195,13 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
+}
+
+// ResolveCredential resolves Copilot's per-request BYOK token.
+func (*Copilot) ResolveCredential(r *http.Request) (intercept.Credential, error) {
+	key := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization))
+	if key == "" {
+		return nil, xerrors.New("missing Copilot authorization: Authorization header not found or invalid")
+	}
+	return intercept.BYOK{Secret: key, Header: intercept.AuthHeaderAuthorization}, nil
 }

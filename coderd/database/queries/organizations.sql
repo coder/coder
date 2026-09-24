@@ -144,14 +144,6 @@ WHERE
     id = @id AND
     is_default = false;
 
--- name: UpdateOrganizationRestrictModelsToConfigured :one
-UPDATE organizations
-SET
-    restrict_models_to_configured = @restrict_models_to_configured,
-    updated_at = @updated_at
-WHERE id = @id
-RETURNING *;
-
 -- name: UpdateOrganizationWorkspaceSharingSettings :one
 UPDATE
     organizations

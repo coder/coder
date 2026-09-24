@@ -3283,7 +3283,6 @@ func TestDefaultOrg(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, all, 1)
 	require.True(t, all[0].IsDefault, "first org should always be default")
-	require.False(t, all[0].RestrictModelsToConfigured, "bootstrapped default org preserves unrestricted access")
 }
 
 func TestAuditLogDefaultLimit(t *testing.T) {
@@ -3810,107 +3809,7 @@ func TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles(t *testing.T) {
 	require.NotContains(t, shrunkSA.Roles, wantWorkspaceAccess)
 }
 
-func TestUpdateOrganizationRestrictModelsToConfigured(t *testing.T) {
-	t.Parallel()
-
-	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	org := dbgen.Organization(t, db, database.Organization{})
-	require.True(t, org.RestrictModelsToConfigured)
-	user := dbgen.User(t, db, database.User{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
-
-	for _, restrict := range []bool{false, true} {
-		updatedAt := org.UpdatedAt.Add(time.Second)
-		updated, err := db.UpdateOrganizationRestrictModelsToConfigured(ctx, database.UpdateOrganizationRestrictModelsToConfiguredParams{
-			ID:                         org.ID,
-			RestrictModelsToConfigured: restrict,
-			UpdatedAt:                  updatedAt,
-		})
-		require.NoError(t, err)
-		org.RestrictModelsToConfigured = restrict
-		org.UpdatedAt = updatedAt
-		require.Equal(t, org, updated)
-
-		got, err := db.GetOrganizationByID(ctx, org.ID)
-		require.NoError(t, err)
-		require.Equal(t, org, got)
-		memberships, err := db.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{UserID: user.ID})
-		require.NoError(t, err)
-		require.Equal(t, []database.Organization{org}, memberships)
-
-		updated, err = db.UpdateOrganization(ctx, database.UpdateOrganizationParams{
-			ID: org.ID, UpdatedAt: org.UpdatedAt, Name: org.Name, DisplayName: org.DisplayName,
-			Description: org.Description, Icon: org.Icon, DefaultOrgMemberRoles: org.DefaultOrgMemberRoles,
-		})
-		require.NoError(t, err)
-		require.Equal(t, org, updated)
-		updated, err = db.UpdateOrganizationWorkspaceSharingSettings(ctx, database.UpdateOrganizationWorkspaceSharingSettingsParams{
-			ID: org.ID, UpdatedAt: org.UpdatedAt, ShareableWorkspaceOwners: org.ShareableWorkspaceOwners,
-		})
-		require.NoError(t, err)
-		require.Equal(t, org, updated)
-	}
-	_, err := db.UpdateOrganizationRestrictModelsToConfigured(ctx, database.UpdateOrganizationRestrictModelsToConfiguredParams{ID: uuid.New(), UpdatedAt: dbtime.Now()})
-	require.ErrorIs(t, err, sql.ErrNoRows)
-}
-
-func TestHasAIModelAccessUnrestricted(t *testing.T) {
-	t.Parallel()
-
-	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-	ctx := testutil.Context(t, testutil.WaitMedium)
-
-	member := dbgen.User(t, db, database.User{})
-	owner := dbgen.User(t, db, database.User{RBACRoles: []string{rbac.RoleOwner().String()}})
-	serviceAccount := dbgen.User(t, db, database.User{IsServiceAccount: true})
-	unrestrictedOrg := dbgen.Organization(t, db, database.Organization{})
-	restrictedOrg := dbgen.Organization(t, db, database.Organization{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: unrestrictedOrg.ID, UserID: member.ID})
-
-	_, err := sqlDB.ExecContext(ctx, `UPDATE organizations SET restrict_models_to_configured = FALSE WHERE id = $1`, unrestrictedOrg.ID)
-	require.NoError(t, err)
-
-	got, err := db.HasAIModelAccess(ctx, database.HasAIModelAccessParams{UserID: member.ID, ProviderName: "missing-provider", Model: "missing-model"})
-	require.NoError(t, err)
-	require.True(t, got)
-	for _, userID := range []uuid.UUID{owner.ID, serviceAccount.ID} {
-		got, err = db.HasAIModelAccess(ctx, database.HasAIModelAccessParams{UserID: userID, ProviderName: "missing-provider", Model: "missing-model"})
-		require.NoError(t, err)
-		require.False(t, got)
-	}
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: unrestrictedOrg.ID, UserID: serviceAccount.ID})
-	got, err = db.HasAIModelAccess(ctx, database.HasAIModelAccessParams{UserID: serviceAccount.ID, ProviderName: "missing-provider", Model: "missing-model"})
-	require.NoError(t, err)
-	require.True(t, got)
-
-	// Membership in another organization is a union with the first query.
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: restrictedOrg.ID, UserID: member.ID})
-	got, err = db.HasAIModelAccess(ctx, database.HasAIModelAccessParams{UserID: member.ID, ProviderName: "missing-provider", Model: "missing-model"})
-	require.NoError(t, err)
-	require.True(t, got)
-
-	// The result reflects membership and organization changes on the next query.
-	_, err = sqlDB.ExecContext(ctx, `DELETE FROM organization_members WHERE organization_id = $1 AND user_id = $2`, unrestrictedOrg.ID, member.ID)
-	require.NoError(t, err)
-	got, err = db.HasAIModelAccess(ctx, database.HasAIModelAccessParams{UserID: member.ID, ProviderName: "missing-provider", Model: "missing-model"})
-	require.NoError(t, err)
-	require.False(t, got)
-
-	_, err = sqlDB.ExecContext(ctx, `UPDATE organizations SET restrict_models_to_configured = FALSE WHERE id = $1`, restrictedOrg.ID)
-	require.NoError(t, err)
-	got, err = db.HasAIModelAccess(ctx, database.HasAIModelAccessParams{UserID: member.ID, ProviderName: "missing-provider", Model: "missing-model"})
-	require.NoError(t, err)
-	require.True(t, got)
-
-	_, err = sqlDB.ExecContext(ctx, `UPDATE organizations SET deleted = TRUE WHERE id = $1`, restrictedOrg.ID)
-	require.NoError(t, err)
-	got, err = db.HasAIModelAccess(ctx, database.HasAIModelAccessParams{UserID: member.ID, ProviderName: "missing-provider", Model: "missing-model"})
-	require.NoError(t, err)
-	require.False(t, got)
-}
-
-func TestHasAIModelAccessConfigured(t *testing.T) {
+func TestGetAIModelAccessConfigs(t *testing.T) {
 	t.Parallel()
 
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
@@ -3918,25 +3817,22 @@ func TestHasAIModelAccessConfigured(t *testing.T) {
 
 	member := dbgen.User(t, db, database.User{})
 	outsider := dbgen.User(t, db, database.User{})
-	serviceAccount := dbgen.User(t, db, database.User{IsServiceAccount: true})
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: member.ID})
 	providerName := "configured-provider-" + uuid.NewString()
 	provider := dbgen.AIProvider(t, db, database.AIProvider{Name: providerName})
 	model := "configured-model-" + uuid.NewString()
-	check := func(userID uuid.UUID, name, modelName string) bool {
-		got, queryErr := db.HasAIModelAccess(ctx, database.HasAIModelAccessParams{
-			UserID:       userID,
-			ProviderName: name,
-			Model:        modelName,
+
+	query := func(userID uuid.UUID, name, modelName string) []database.GetAIModelAccessConfigsRow {
+		rows, err := db.GetAIModelAccessConfigs(ctx, database.GetAIModelAccessConfigsParams{
+			UserID: userID, ProviderName: name, Model: modelName,
 		})
-		require.NoError(t, queryErr)
-		return got
+		require.NoError(t, err)
+		return rows
 	}
 
-	// A restricted organization without a configured model grants nothing.
-	require.False(t, check(member.ID, providerName, model))
-	require.False(t, check(serviceAccount.ID, providerName, model))
+	require.Empty(t, query(member.ID, providerName, model))
+	require.Empty(t, query(outsider.ID, providerName, model))
 
 	config := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		OrganizationID: org.ID,
@@ -3945,99 +3841,31 @@ func TestHasAIModelAccessConfigured(t *testing.T) {
 		GroupACL:       database.ChatACL{},
 		UserACL:        database.ChatACL{},
 	})
-	// Keep ACLs empty and provide no provider credentials: neither affects this query.
-	_, err := sqlDB.ExecContext(ctx, `UPDATE chat_model_configs SET group_acl = '{}'::jsonb, user_acl = '{}'::jsonb WHERE id = $1`, config.ID)
+	rows := query(member.ID, providerName, model)
+	require.Len(t, rows, 1)
+	require.Equal(t, config.ID, rows[0].ID)
+	require.Equal(t, org.ID, rows[0].OrganizationID)
+
+	// ACLs, credentials, and provider enabled state are outside this query's contract.
+	_, err := sqlDB.ExecContext(ctx, `UPDATE ai_providers SET enabled = FALSE WHERE id = $1`, provider.ID)
 	require.NoError(t, err)
-
-	// A restricted organization without a matching configured model grants nothing.
-	require.False(t, check(member.ID, providerName, "missing-"+model))
-	require.False(t, check(outsider.ID, providerName, model))
-	require.False(t, check(serviceAccount.ID, providerName, model))
-	require.False(t, check(member.ID, strings.ToUpper(providerName), model))
-	require.False(t, check(member.ID, providerName, strings.ToUpper(model)))
-	require.False(t, check(member.ID, providerName, "prefix-"+model))
-	require.False(t, check(member.ID, providerName, model+":profile"))
-
-	require.True(t, check(member.ID, providerName, model))
-
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: serviceAccount.ID})
-	require.True(t, check(serviceAccount.ID, providerName, model))
-
-	// Membership and configuration in a second restricted organization also
-	// grant access, independently of the first organization's rows.
-	secondOrg := dbgen.Organization(t, db, database.Organization{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: secondOrg.ID, UserID: member.ID})
-	secondProviderName := "second-configured-provider-" + uuid.NewString()
-	secondProvider := dbgen.AIProvider(t, db, database.AIProvider{Name: secondProviderName})
-	secondModel := "second-configured-model-" + uuid.NewString()
-	dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		OrganizationID: secondOrg.ID,
-		Model:          secondModel,
-		AIProviderID:   uuid.NullUUID{UUID: secondProvider.ID, Valid: true},
-	})
-	require.True(t, check(member.ID, secondProviderName, secondModel))
-	require.False(t, check(outsider.ID, secondProviderName, secondModel))
-
-	wrongMember := dbgen.User(t, db, database.User{})
-	wrongOrg := dbgen.Organization(t, db, database.Organization{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: wrongOrg.ID, UserID: wrongMember.ID})
-	wrongProvider := dbgen.AIProvider(t, db, database.AIProvider{Name: "wrong-configured-provider-" + uuid.NewString(), Type: provider.Type})
-	dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		OrganizationID: wrongOrg.ID,
-		Model:          model,
-		AIProviderID:   uuid.NullUUID{UUID: wrongProvider.ID, Valid: true},
-	})
-	require.False(t, check(wrongMember.ID, providerName, model))
-	liveDuplicate := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		OrganizationID: org.ID,
-		Model:          model,
-		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
-	})
-	require.True(t, check(member.ID, providerName, model))
-	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_model_configs SET enabled = FALSE WHERE id = $1`, liveDuplicate.ID)
-	require.NoError(t, err)
-	require.True(t, check(member.ID, providerName, model))
-
-	deleted := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		OrganizationID: org.ID,
-		Model:          model,
-		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
-	})
-	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_model_configs SET deleted = TRUE, deleted_at = NOW() WHERE id = $1`, deleted.ID)
-	require.NoError(t, err)
-	require.True(t, check(member.ID, providerName, model))
+	require.Len(t, query(member.ID, providerName, model), 1)
 
 	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_model_configs SET enabled = FALSE WHERE id = $1`, config.ID)
 	require.NoError(t, err)
-	require.False(t, check(member.ID, providerName, model))
-	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_model_configs SET enabled = TRUE WHERE id = $1`, config.ID)
-	require.NoError(t, err)
-	require.True(t, check(member.ID, providerName, model))
+	require.Empty(t, query(member.ID, providerName, model))
 
-	// Provider enabled is intentionally outside this query's contract.
-	_, err = sqlDB.ExecContext(ctx, `UPDATE ai_providers SET enabled = FALSE WHERE id = $1`, provider.ID)
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_model_configs SET enabled = TRUE, deleted = TRUE WHERE id = $1`, config.ID)
 	require.NoError(t, err)
-	require.True(t, check(member.ID, providerName, model))
+	require.Empty(t, query(member.ID, providerName, model))
 
-	// Recreating a deleted provider with the same name does not grant access until
-	// the model config is relinked to the new provider UUID.
-	_, err = sqlDB.ExecContext(ctx, `UPDATE ai_providers SET deleted = TRUE WHERE id = $1`, provider.ID)
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_model_configs SET deleted = FALSE WHERE id = $1`, config.ID)
 	require.NoError(t, err)
-	recreated := dbgen.AIProvider(t, db, database.AIProvider{Name: providerName})
-	require.NotEqual(t, provider.ID, recreated.ID)
-	require.False(t, check(member.ID, providerName, model))
-	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_model_configs SET ai_provider_id = $1 WHERE id = $2`, recreated.ID, config.ID)
-	require.NoError(t, err)
-	require.True(t, check(member.ID, providerName, model))
+	require.Len(t, query(member.ID, providerName, model), 1)
 
-	_, err = sqlDB.ExecContext(ctx, `DELETE FROM organization_members WHERE organization_id = $1 AND user_id = $2`, org.ID, member.ID)
-	require.NoError(t, err)
-	require.False(t, check(member.ID, providerName, model))
-	_, err = sqlDB.ExecContext(ctx, `DELETE FROM organization_members WHERE organization_id = $1`, org.ID)
-	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, `UPDATE organizations SET deleted = TRUE WHERE id = $1`, org.ID)
 	require.NoError(t, err)
-	require.False(t, check(member.ID, providerName, model))
+	require.Empty(t, query(member.ID, providerName, model))
 }
 
 func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {
@@ -18808,20 +18636,27 @@ func TestGetActiveUsersAuthorizationRolesParity(t *testing.T) {
 		})
 	}
 
-	// Site-wide role, zero org memberships.
 	owner := activeUser(database.User{RBACRoles: []string{rbac.RoleOwner().Name}})
-
-	// Plain single-org member; effective roles come from the implied
-	// member role plus the org's default member roles.
 	plain := activeUser(database.User{})
 	member(orgA.ID, plain)
 
-	// Explicit org roles across two organizations.
 	multiOrg := activeUser(database.User{})
 	member(orgA.ID, multiOrg, rbac.RoleOrgAdmin())
+
+	// Delete the organization before adding memberships so the fixture retains
+	// a membership row without violating the production deletion guard.
+	require.NoError(t, db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+		ID:        orgB.ID,
+		UpdatedAt: dbtime.Now(),
+	}))
 	member(orgB.ID, multiOrg)
 
-	// Custom org role.
+	deletedMember := activeUser(database.User{})
+	member(orgB.ID, deletedMember)
+	deletedSingle, err := db.GetAuthorizationUserRoles(ctx, deletedMember.ID)
+	require.NoError(t, err)
+	require.NotContains(t, deletedSingle.Roles, rbac.RoleOrgWorkspaceAccess()+":"+orgB.ID.String())
+
 	customRole, err := db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
 		Name:           "parity-role",
 		DisplayName:    "Parity Role",
@@ -18835,19 +18670,13 @@ func TestGetActiveUsersAuthorizationRolesParity(t *testing.T) {
 	custom := activeUser(database.User{})
 	member(orgA.ID, custom, customRole.Name)
 
-	// Group memberships.
 	grouped := activeUser(database.User{})
 	member(orgA.ID, grouped)
 	for range 2 {
 		group := dbgen.Group(t, db, database.Group{OrganizationID: orgA.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{
-			UserID:  grouped.ID,
-			GroupID: group.ID,
-		})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: grouped.ID, GroupID: group.ID})
 	}
 
-	// Excluded from the bulk query: service accounts and non-active
-	// users.
 	sa := activeUser(database.User{IsServiceAccount: true})
 	member(orgA.ID, sa)
 	suspended := dbgen.User(t, db, database.User{Status: database.UserStatusSuspended})
@@ -18855,12 +18684,11 @@ func TestGetActiveUsersAuthorizationRolesParity(t *testing.T) {
 
 	rows, err := db.GetActiveUsersAuthorizationRoles(ctx)
 	require.NoError(t, err)
-
 	gotIDs := make([]uuid.UUID, 0, len(rows))
 	for _, row := range rows {
 		gotIDs = append(gotIDs, row.ID)
 	}
-	require.ElementsMatch(t, []uuid.UUID{owner.ID, plain.ID, multiOrg.ID, custom.ID, grouped.ID}, gotIDs)
+	require.ElementsMatch(t, []uuid.UUID{owner.ID, plain.ID, multiOrg.ID, deletedMember.ID, custom.ID, grouped.ID}, gotIDs)
 
 	for _, row := range rows {
 		single, err := db.GetAuthorizationUserRoles(ctx, row.ID)

@@ -78,7 +78,7 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 		Logger:                api.Logger.Named("aibridgedserver"),
 		Clock:                 api.Clock,
 		Metrics:               api.AIGatewayServerMetrics,
-		Entitlements:          api.Entitlements,
+		Authorizer:            api.Authorizer,
 	})
 	if err != nil {
 		return nil, err

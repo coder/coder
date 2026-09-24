@@ -147,7 +147,7 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 		Logger:                logger,
 		Clock:                 api.AGPL.Clock,
 		Metrics:               api.AGPL.AIGatewayServerMetrics,
-		Entitlements:          api.AGPL.Entitlements,
+		Authorizer:            api.AGPL.Authorizer,
 	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {

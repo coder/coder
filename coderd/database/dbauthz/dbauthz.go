@@ -2922,6 +2922,15 @@ func (q *querier) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecre
 	return q.db.GetAIGatewayKeyByHashedSecret(ctx, hashedSecret)
 }
 
+// GetAIModelAccessConfigs returns eligible model configurations for Gateway
+// authorization. It requires deployment-wide Gateway visibility.
+func (q *querier) GetAIModelAccessConfigs(ctx context.Context, arg database.GetAIModelAccessConfigsParams) ([]database.GetAIModelAccessConfigsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIModelAccessConfigs(ctx, arg)
+}
+
 func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice); err != nil {
 		return database.AIModelPrice{}, err
@@ -6007,15 +6016,6 @@ func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]datab
 	return q.db.GetWorkspacesForWorkspaceMetrics(ctx)
 }
 
-// HasAIModelAccess exposes only a Gateway authorization decision, without Model
-// configurations or ACLs. It requires deployment-wide Gateway visibility.
-func (q *querier) HasAIModelAccess(ctx context.Context, arg database.HasAIModelAccessParams) (bool, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
-		return false, err
-	}
-	return q.db.HasAIModelAccess(ctx, arg)
-}
-
 func (q *querier) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
 	// This query authorizes provisioner module-file downloads. The caller
 	// must be able to read files in the target organization; the actual
@@ -7988,13 +7988,6 @@ func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg databas
 		})
 	}
 	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, deleteF)(ctx, arg.ID)
-}
-
-func (q *querier) UpdateOrganizationRestrictModelsToConfigured(ctx context.Context, arg database.UpdateOrganizationRestrictModelsToConfiguredParams) (database.Organization, error) {
-	fetch := func(ctx context.Context, arg database.UpdateOrganizationRestrictModelsToConfiguredParams) (database.Organization, error) {
-		return q.db.GetOrganizationByID(ctx, arg.ID)
-	}
-	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateOrganizationRestrictModelsToConfigured)(ctx, arg)
 }
 
 func (q *querier) UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg database.UpdateOrganizationWorkspaceSharingSettingsParams) (database.Organization, error) {

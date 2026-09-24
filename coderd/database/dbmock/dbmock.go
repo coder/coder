@@ -2024,6 +2024,21 @@ func (mr *MockStoreMockRecorder) GetAIGatewayKeyByHashedSecret(ctx, hashedSecret
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIGatewayKeyByHashedSecret", reflect.TypeOf((*MockStore)(nil).GetAIGatewayKeyByHashedSecret), ctx, hashedSecret)
 }
 
+// GetAIModelAccessConfigs mocks base method.
+func (m *MockStore) GetAIModelAccessConfigs(ctx context.Context, arg database.GetAIModelAccessConfigsParams) ([]database.GetAIModelAccessConfigsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIModelAccessConfigs", ctx, arg)
+	ret0, _ := ret[0].([]database.GetAIModelAccessConfigsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIModelAccessConfigs indicates an expected call of GetAIModelAccessConfigs.
+func (mr *MockStoreMockRecorder) GetAIModelAccessConfigs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIModelAccessConfigs", reflect.TypeOf((*MockStore)(nil).GetAIModelAccessConfigs), ctx, arg)
+}
+
 // GetAIModelPriceByProviderModel mocks base method.
 func (m *MockStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	m.ctrl.T.Helper()
@@ -7544,21 +7559,6 @@ func (mr *MockStoreMockRecorder) GetWorkspacesForWorkspaceMetrics(ctx any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesForWorkspaceMetrics", reflect.TypeOf((*MockStore)(nil).GetWorkspacesForWorkspaceMetrics), ctx)
 }
 
-// HasAIModelAccess mocks base method.
-func (m *MockStore) HasAIModelAccess(ctx context.Context, arg database.HasAIModelAccessParams) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasAIModelAccess", ctx, arg)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// HasAIModelAccess indicates an expected call of HasAIModelAccess.
-func (mr *MockStoreMockRecorder) HasAIModelAccess(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasAIModelAccess", reflect.TypeOf((*MockStore)(nil).HasAIModelAccess), ctx, arg)
-}
-
 // HasTemplateVersionsUsingCachedModuleFileInOrg mocks base method.
 func (m *MockStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
 	m.ctrl.T.Helper()
@@ -10560,21 +10560,6 @@ func (m *MockStore) UpdateOrganizationDeletedByID(ctx context.Context, arg datab
 func (mr *MockStoreMockRecorder) UpdateOrganizationDeletedByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationDeletedByID", reflect.TypeOf((*MockStore)(nil).UpdateOrganizationDeletedByID), ctx, arg)
-}
-
-// UpdateOrganizationRestrictModelsToConfigured mocks base method.
-func (m *MockStore) UpdateOrganizationRestrictModelsToConfigured(ctx context.Context, arg database.UpdateOrganizationRestrictModelsToConfiguredParams) (database.Organization, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateOrganizationRestrictModelsToConfigured", ctx, arg)
-	ret0, _ := ret[0].(database.Organization)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateOrganizationRestrictModelsToConfigured indicates an expected call of UpdateOrganizationRestrictModelsToConfigured.
-func (mr *MockStoreMockRecorder) UpdateOrganizationRestrictModelsToConfigured(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationRestrictModelsToConfigured", reflect.TypeOf((*MockStore)(nil).UpdateOrganizationRestrictModelsToConfigured), ctx, arg)
 }
 
 // UpdateOrganizationWorkspaceSharingSettings mocks base method.

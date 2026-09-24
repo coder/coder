@@ -1434,6 +1434,24 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "AIGatewayUnrestrictedUse",
+			Actions:  []policy.Action{policy.ActionUse},
+			Resource: rbac.ResourceAIGatewayUnrestricted,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, otherOrgAdmin, userAdmin},
+				false: {memberMe, orgMemberMe, orgWorkspaceAccessUser, auditor, orgAuditor, orgUserAdmin, otherOrgUserAdmin, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, otherOrgAuditor},
+			},
+		},
+		{
+			Name:     "ChatModelConfigUse",
+			Actions:  []policy.Action{policy.ActionUse},
+			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {memberMe, orgWorkspaceAccessUser, auditor, orgAuditor, userAdmin, orgUserAdmin, otherOrgUserAdmin, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, otherOrgAdmin, otherOrgAuditor},
+			},
+		},
+		{
 			Name:     "ChatModelConfigRead",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID),
@@ -1601,6 +1619,7 @@ func TestListRoles(t *testing.T) {
 		"auditor",
 		"template-admin",
 		"user-admin",
+		"ai-gateway-unrestricted",
 	},
 		siteRoleNames)
 	orgID := uuid.New()
@@ -1617,6 +1636,7 @@ func TestListRoles(t *testing.T) {
 		fmt.Sprintf("organization-template-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-workspace-creation-ban:%s", orgID.String()),
 		fmt.Sprintf("organization-workspace-access:%s", orgID.String()),
+		fmt.Sprintf("organization-ai-gateway-unrestricted:%s", orgID.String()),
 	},
 		orgRoleNames)
 }
@@ -1822,4 +1842,63 @@ func TestRetiredRoleNames(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, roles, 1)
 	require.Equal(t, rbac.ScopedRoleOrgAuditor(orgID), roles[0].Identifier)
+}
+
+func TestAIGatewayModelUseRoles(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	resource := rbac.ResourceAIGatewayUnrestricted
+	auth := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+
+	tests := []struct {
+		name  string
+		roles rbac.RoleIdentifiers
+		allow bool
+	}{
+		{"owner", rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleOwner()}, true},
+		{"site role", rbac.RoleIdentifiers{rbac.RoleAIGatewayUnrestricted()}, true},
+		{"org admin", rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID)}, true},
+		{"org role", rbac.RoleIdentifiers{rbac.ScopedRoleOrgAIGatewayUnrestricted(orgID)}, true},
+		{"member", rbac.RoleIdentifiers{rbac.RoleMember()}, false},
+		{"user admin", rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleUserAdmin()}, true},
+		{"org user admin", rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgUserAdmin(orgID)}, false},
+		{"other org role", rbac.RoleIdentifiers{rbac.ScopedRoleOrgAIGatewayUnrestricted(uuid.New())}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			roles, err := tt.roles.Expand()
+			require.NoError(t, err)
+			err = auth.Authorize(context.Background(), rbac.Subject{
+				ID:    uuid.NewString(),
+				Roles: rbac.Roles(roles),
+				Scope: rbac.ScopeAll,
+			}, policy.ActionUse, resource)
+			if tt.allow {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestAIGatewayRoleAssignment(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	siteRole := rbac.RoleAIGatewayUnrestricted()
+	orgRole := rbac.ScopedRoleOrgAIGatewayUnrestricted(orgID)
+
+	require.True(t, rbac.CanAssignRole(rbac.RoleIdentifiers{rbac.RoleOwner()}, siteRole))
+	require.True(t, rbac.CanAssignRole(rbac.RoleIdentifiers{rbac.RoleOwner()}, orgRole))
+	require.True(t, rbac.CanAssignRole(rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(orgID)}, orgRole))
+	require.False(t, rbac.CanAssignRole(rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(uuid.New())}, orgRole))
+	require.False(t, rbac.CanAssignRole(rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(orgID)}, siteRole))
+	require.False(t, rbac.CanAssignRole(rbac.RoleIdentifiers{rbac.RoleUserAdmin()}, siteRole))
+	require.True(t, rbac.CanAssignRole(rbac.RoleIdentifiers{rbac.RoleUserAdmin()}, orgRole))
+	require.True(t, rbac.CanAssignRole(rbac.RoleIdentifiers{rbac.RoleUserAdmin()}, rbac.ScopedRoleOrgAIGatewayUnrestricted(uuid.New())))
+	require.False(t, rbac.CanAssignRole(rbac.RoleIdentifiers{rbac.ScopedRoleOrgUserAdmin(orgID)}, orgRole))
 }

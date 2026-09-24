@@ -50,6 +50,7 @@ import (
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -702,6 +703,13 @@ func TestAcquireJob(t *testing.T) {
 				key, err := db.GetAPIKeyByID(ctx, toks[0])
 				require.NoError(t, err)
 				require.Equal(t, int64(dv.Sessions.MaximumTokenDuration.Value().Seconds()), key.LifetimeSeconds)
+				require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeCoderAll}, key.Scopes)
+				require.Equal(t, database.AllowList{{Type: "*", ID: "*"}}, key.AllowList)
+				// Workspace session tokens constrain actions by the owner's roles,
+				// not by the workspace ID encoded in their attribution name.
+				require.NoError(t, rbac.NewStrictAuthorizer(prometheus.NewRegistry()).Authorize(ctx, rbac.Subject{
+					ID: user.ID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleAIGatewayUnrestricted()}, Scope: key.ScopeSet(),
+				}, policy.ActionUse, rbac.ResourceAIGatewayUnrestricted))
 				require.WithinDuration(t, dbtime.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
 
 				wantedMetadata := &sdkproto.Metadata{
@@ -738,6 +746,9 @@ func TestAcquireJob(t *testing.T) {
 
 				slices.SortFunc(wantedMetadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
 					return strings.Compare(a.Name+a.OrgId, b.Name+b.OrgId)
+				})
+				wantedMetadata.WorkspaceOwnerRbacRoles = append(wantedMetadata.WorkspaceOwnerRbacRoles, &sdkproto.Role{
+					Name: rbac.RoleOrgAIGatewayUnrestricted(), OrgId: pd.OrganizationID.String(),
 				})
 				want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
 					WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{

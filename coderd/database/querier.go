@@ -338,6 +338,7 @@ type sqlcQuerier interface {
 	// returning the matched key. The lookup is an exact match on a unique index,
 	// so a returned row is itself proof the secret is valid.
 	GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (AIGatewayKey, error)
+	GetAIModelAccessConfigs(ctx context.Context, arg GetAIModelAccessConfigsParams) ([]GetAIModelAccessConfigsRow, error)
 	// Returns the price in effect for the model, preferring a custom price over
 	// the price book.
 	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error)
@@ -1099,7 +1100,6 @@ type sqlcQuerier interface {
 	// reminder notification (which only stamps a marker, no transition).
 	GetWorkspacesEligibleForLifecycleAction(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForLifecycleActionRow, error)
 	GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]GetWorkspacesForWorkspaceMetricsRow, error)
-	HasAIModelAccess(ctx context.Context, arg HasAIModelAccessParams) (bool, error)
 	// Reports whether the given file is referenced as cached module files by any
 	// template version in the given organization. Used to authorize provisioner
 	// module-file downloads so a daemon cannot read another organization's cached
@@ -1569,7 +1569,6 @@ type sqlcQuerier interface {
 	UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error)
 	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error)
 	UpdateOrganizationDeletedByID(ctx context.Context, arg UpdateOrganizationDeletedByIDParams) error
-	UpdateOrganizationRestrictModelsToConfigured(ctx context.Context, arg UpdateOrganizationRestrictModelsToConfiguredParams) (Organization, error)
 	UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg UpdateOrganizationWorkspaceSharingSettingsParams) (Organization, error)
 	// Cancels all pending provisioner jobs for prebuilt workspaces on a specific preset from an
 	// inactive template version.

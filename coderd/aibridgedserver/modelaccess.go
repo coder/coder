@@ -3,12 +3,12 @@ package aibridgedserver
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 )
 
 // ModelAccessReason is a bounded outcome of direct Gateway model authorization.
@@ -16,10 +16,9 @@ type ModelAccessReason string
 
 // Model access reasons contain no organization, model, or user identifiers.
 const (
-	ModelAccessNotEntitled ModelAccessReason = "not_entitled"
-	ModelAccessAllowed     ModelAccessReason = "allowed"
-	ModelAccessDenied      ModelAccessReason = "no_grant"
-	ModelAccessError       ModelAccessReason = "evaluation_error"
+	ModelAccessAllowed ModelAccessReason = "allowed"
+	ModelAccessDenied  ModelAccessReason = "no_grant"
+	ModelAccessError   ModelAccessReason = "evaluation_error"
 )
 
 // ModelAccess is a direct Gateway policy decision, independent of provider
@@ -29,23 +28,37 @@ type ModelAccess struct {
 	Reason  ModelAccessReason
 }
 
-// ResolveModelAccess evaluates current organization grants for an authenticated
-// user. The caller must first validate the key and active, non-system user.
-// Database evaluation failures return an error rather than an implicit grant.
-func (s *Server) ResolveModelAccess(ctx context.Context, userID uuid.UUID, providerName, model string) (ModelAccess, error) {
-	if s.entitlements == nil || !s.entitlements.Enabled(codersdk.FeatureMultipleOrganizations) {
-		return ModelAccess{Allowed: true, Reason: ModelAccessNotEntitled}, nil
+// ResolveModelAccess evaluates current model-use permissions constrained by the
+// authenticated key's scopes. The caller must first validate the key and user.
+func (s *Server) ResolveModelAccess(ctx context.Context, key database.APIKey, providerName, model string) (ModelAccess, error) {
+	if s.authorizer == nil {
+		return ModelAccess{Reason: ModelAccessError}, xerrors.New("model authorizer is not configured")
 	}
-
-	//nolint:gocritic // Gateway authorization evaluates unfiltered organization grants.
-	ctx = dbauthz.AsAIBridged(ctx)
-	allowed, err := s.store.HasAIModelAccess(ctx, database.HasAIModelAccessParams{
-		UserID:       userID,
-		ProviderName: providerName,
-		Model:        model,
+	subject, status, err := httpmw.UserRBACSubject(ctx, s.store, key.UserID, key.ScopeSet())
+	if err != nil {
+		return ModelAccess{Reason: ModelAccessError}, xerrors.Errorf("load model authorization subject: %w", err)
+	}
+	if status != database.UserStatusActive {
+		return ModelAccess{Reason: ModelAccessDenied}, nil
+	}
+	allowed, err := rbac.AuthorizeAIModelUse(ctx, s.authorizer, subject, func(ctx context.Context) ([]rbac.Object, error) {
+		//nolint:gocritic // Resolve matching configurations without configuration read ACL filtering.
+		configs, err := s.store.GetAIModelAccessConfigs(dbauthz.AsAIBridged(ctx), database.GetAIModelAccessConfigsParams{
+			UserID:       key.UserID,
+			ProviderName: providerName,
+			Model:        model,
+		})
+		if err != nil {
+			return nil, err
+		}
+		objects := make([]rbac.Object, 0, len(configs))
+		for _, config := range configs {
+			objects = append(objects, rbac.ResourceChatModelConfig.WithID(config.ID).InOrg(config.OrganizationID))
+		}
+		return objects, nil
 	})
 	if err != nil {
-		return ModelAccess{Reason: ModelAccessError}, xerrors.Errorf("resolve organization model access: %w", err)
+		return ModelAccess{Reason: ModelAccessError}, xerrors.Errorf("authorize model use: %w", err)
 	}
 	if allowed {
 		return ModelAccess{Allowed: true, Reason: ModelAccessAllowed}, nil

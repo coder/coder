@@ -1160,6 +1160,14 @@ func (m queryMetricsStore) GetAIGatewayKeyByHashedSecret(ctx context.Context, ha
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIModelAccessConfigs(ctx context.Context, arg database.GetAIModelAccessConfigsParams) ([]database.GetAIModelAccessConfigsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIModelAccessConfigs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAIModelAccessConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIModelAccessConfigs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIModelPriceByProviderModel(ctx, arg)
@@ -4008,14 +4016,6 @@ func (m queryMetricsStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context)
 	return r0, r1
 }
 
-func (m queryMetricsStore) HasAIModelAccess(ctx context.Context, arg database.HasAIModelAccessParams) (bool, error) {
-	start := time.Now()
-	r0, r1 := m.s.HasAIModelAccess(ctx, arg)
-	m.queryLatencies.WithLabelValues("HasAIModelAccess").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "HasAIModelAccess").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, arg)
@@ -5574,14 +5574,6 @@ func (m queryMetricsStore) UpdateOrganizationDeletedByID(ctx context.Context, ar
 	m.queryLatencies.WithLabelValues("UpdateOrganizationDeletedByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOrganizationDeletedByID").Inc()
 	return r0
-}
-
-func (m queryMetricsStore) UpdateOrganizationRestrictModelsToConfigured(ctx context.Context, arg database.UpdateOrganizationRestrictModelsToConfiguredParams) (database.Organization, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateOrganizationRestrictModelsToConfigured(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateOrganizationRestrictModelsToConfigured").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOrganizationRestrictModelsToConfigured").Inc()
-	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg database.UpdateOrganizationWorkspaceSharingSettingsParams) (database.Organization, error) {

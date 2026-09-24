@@ -197,7 +197,9 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 		require.NoError(t, err)
 		require.NotNil(t, interceptor)
-
+		cred, err := provider.ResolveCredential(req)
+		require.NoError(t, err)
+		interceptor.SetCredential(cred)
 		logger := slog.Make()
 		interceptor.Setup(logger, &testutil.MockRecorder{}, nil)
 
@@ -353,21 +355,22 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			}
 			w := httptest.NewRecorder()
 
-			interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 			if tc.wantErr != nil {
+				_, err := provider.ResolveCredential(req)
 				require.ErrorIs(t, err, tc.wantErr)
-				require.Nil(t, interceptor)
 				return
 			}
+			interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 			require.NoError(t, err)
 			require.NotNil(t, interceptor)
 
-			cred := interceptor.Credential()
+			cred, err := provider.ResolveCredential(req)
+			require.NoError(t, err)
 			assert.Equal(t, tc.wantCredentialKind, cred.Kind(), "credential kind mismatch")
 			assert.Equal(t, tc.wantCredentialHint, cred.Hint(), "credential hint mismatch")
+			interceptor.SetCredential(cred)
 
-			// Bedrock signs via AWS during ProcessRequest (needs real AWS
-			// credentials), covered by the integration tests.
+			// Bedrock signs via AWS during ProcessRequest and is covered by integration tests.
 			if tc.bedrock {
 				return
 			}

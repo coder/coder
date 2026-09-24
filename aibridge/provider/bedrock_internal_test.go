@@ -608,18 +608,8 @@ func TestBedrock_CreateInterceptor_Credential(t *testing.T) {
 			for k, v := range tc.setHeaders {
 				req.Header.Set(k, v)
 			}
-			w := httptest.NewRecorder()
-
-			interceptor, err := p.CreateInterceptor(w, req, testTracer)
-			if tc.wantErr != nil {
-				require.ErrorIs(t, err, tc.wantErr)
-				require.Nil(t, interceptor)
-				return
-			}
+			cred, err := p.ResolveCredential(req)
 			require.NoError(t, err)
-			require.NotNil(t, interceptor)
-
-			cred := interceptor.Credential()
 			assert.Equal(t, tc.wantCredentialKind, cred.Kind(), "credential kind mismatch")
 			assert.Equal(t, tc.wantCredentialHint, cred.Hint(), "credential hint mismatch")
 		})

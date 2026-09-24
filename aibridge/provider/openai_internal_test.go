@@ -310,17 +310,18 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			interceptor, err := provider.CreateInterceptor(w, req, testTracer)
-			if tc.wantErr != nil {
-				require.ErrorIs(t, err, tc.wantErr)
-				require.Nil(t, interceptor)
-				return
-			}
 			require.NoError(t, err)
 			require.NotNil(t, interceptor)
 
-			cred := interceptor.Credential()
+			cred, err := provider.ResolveCredential(req)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
 			assert.Equal(t, tc.wantCredentialKind, cred.Kind(), "credential kind mismatch")
 			assert.Equal(t, tc.wantCredentialHint, cred.Hint(), "credential hint mismatch")
+			interceptor.SetCredential(cred)
 
 			interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
 

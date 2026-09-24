@@ -193,6 +193,17 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		interceptor, err := p.CreateInterceptor(w, r.WithContext(ctx), tracer)
 		if err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to create interceptor: %v", err))
+			var authErr *intercept.AuthorizationError
+			if errors.As(err, &authErr) && (authErr.Kind == intercept.AuthorizationErrorAuthentication || authErr.Kind == intercept.AuthorizationErrorPolicy) {
+				logger.Warn(ctx, "request authorization denied", slog.F("provider", p.Name()))
+				http.Error(w, "unauthorized", http.StatusForbidden)
+				return
+			}
+			if errors.As(err, &authErr) {
+				logger.Error(ctx, "request authorization failed", slog.Error(err), slog.F("provider", p.Name()))
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+				return
+			}
 			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 				routing.WriteRequestBodyTooLarge(ctx, w)
 			} else {
@@ -201,6 +212,36 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			}
 			return
 		}
+
+		if authorizer := intercept.RequestAuthorizerFromContext(ctx); authorizer != nil {
+			if err := authorizer(ctx, p.Name(), interceptor.InvocationModel()); err != nil {
+				var authErr *intercept.AuthorizationError
+				if errors.As(err, &authErr) && (authErr.Kind == intercept.AuthorizationErrorAuthentication || authErr.Kind == intercept.AuthorizationErrorPolicy) {
+					if m != nil {
+						m.AuthorizationCount.WithLabelValues(metrics.AuthorizationOutcomeDenied).Inc()
+					}
+					logger.Warn(ctx, "request authorization denied", slog.F("provider", p.Name()))
+					http.Error(w, "unauthorized", http.StatusForbidden)
+				} else {
+					if m != nil {
+						m.AuthorizationCount.WithLabelValues(metrics.AuthorizationOutcomeError).Inc()
+					}
+					logger.Error(ctx, "request authorization failed", slog.Error(err), slog.F("provider", p.Name()))
+					http.Error(w, "internal server error", http.StatusInternalServerError)
+				}
+				return
+			}
+			if m != nil {
+				m.AuthorizationCount.WithLabelValues(metrics.AuthorizationOutcomeAllowed).Inc()
+			}
+		}
+
+		cred, err := p.ResolveCredential(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to resolve credential: %v", err), http.StatusInternalServerError)
+			return
+		}
+		interceptor.SetCredential(cred)
 
 		if m != nil {
 			start := time.Now()
@@ -216,7 +257,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			return
 		}
 
-		cred := interceptor.Credential()
+		cred = interceptor.Credential()
 		traceAttrs := interceptor.TraceAttributes(r)
 		span.SetAttributes(traceAttrs...)
 		ctx = tracing.WithInterceptionAttributesInContext(ctx, traceAttrs)

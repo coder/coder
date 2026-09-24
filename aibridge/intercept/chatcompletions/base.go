@@ -117,6 +117,10 @@ func (i *interceptionBase) Credential() intercept.Credential {
 	return i.cred
 }
 
+func (i *interceptionBase) SetCredential(cred intercept.Credential) {
+	i.cred = cred
+}
+
 func (i *interceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpProxy mcp.ServerProxier) {
 	i.logger = logger
 	i.recorder = rec
@@ -145,6 +149,10 @@ func (i *interceptionBase) baseTraceAttributes(r *http.Request, streaming bool) 
 		attribute.String(tracing.Model, i.Model()),
 		attribute.Bool(tracing.Streaming, streaming),
 	}
+}
+
+func (i *interceptionBase) InvocationModel() string {
+	return i.Model()
 }
 
 func (i *interceptionBase) Model() string {

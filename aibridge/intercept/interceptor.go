@@ -18,8 +18,13 @@ type Interceptor interface {
 	// Setup injects some required dependencies. This MUST be called before using the interceptor
 	// to process requests.
 	Setup(logger slog.Logger, rec recorder.Recorder, mcpProxy mcp.ServerProxier)
-	// Model returns the model in use for this [Interceptor].
+	// Model returns the model used for recording and pricing.
 	Model() string
+	// InvocationModel returns the exact provider target sent upstream. It
+	// may differ from Model for providers that rewrite or resolve targets.
+	InvocationModel() string
+	// SetCredential supplies the resolved upstream credential after authorization.
+	SetCredential(Credential)
 	// ProcessRequest handles the HTTP request.
 	ProcessRequest(w http.ResponseWriter, r *http.Request) error
 	// Specifies whether an interceptor handles streaming or not.

@@ -476,6 +476,56 @@ func TestGrantSiteRoles(t *testing.T) {
 	}
 }
 
+func TestUserAdminCreatesMembersWithOrganizationDefaultGatewayRole(t *testing.T) {
+	t.Parallel()
+
+	client, _, api, first := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	defaultOrg, err := client.Organization(ctx, first.OrganizationID)
+	require.NoError(t, err)
+	require.Contains(t, defaultOrg.DefaultOrgMemberRoles, rbac.RoleOrgAIGatewayUnrestricted())
+
+	nonDefaultOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+	configuredDefaults := append([]string(nil), defaultOrg.DefaultOrgMemberRoles...)
+	require.Contains(t, configuredDefaults, rbac.RoleOrgAIGatewayUnrestricted())
+	nonDefaultOrg, err = client.UpdateOrganization(ctx, nonDefaultOrg.ID.String(), codersdk.UpdateOrganizationRequest{
+		DefaultOrgMemberRoles: &configuredDefaults,
+	})
+	require.NoError(t, err)
+	require.Equal(t, configuredDefaults, nonDefaultOrg.DefaultOrgMemberRoles)
+
+	userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleUserAdmin())
+
+	for _, org := range []codersdk.Organization{defaultOrg, nonDefaultOrg} {
+		t.Run(org.Name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			created, err := userAdminClient.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+				Email:           uuid.NewString() + "@coder.com",
+				Username:        coderdtest.RandomUsername(t),
+				Password:        "SomeSecurePassword!",
+				OrganizationIDs: []uuid.UUID{org.ID},
+			})
+			require.NoError(t, err)
+
+			storedMember, err := userAdminClient.OrganizationMember(ctx, org.ID.String(), created.ID.String())
+			require.NoError(t, err)
+			require.Empty(t, storedMember.Roles, "the organization default must remain implied, not stored on the member")
+
+			subject := coderdtest.AuthzUserSubjectWithDB(ctx, t, api.Database, created)
+			require.Contains(t, subject.Roles.Names(), rbac.ScopedRoleOrgAIGatewayUnrestricted(org.ID))
+		})
+	}
+}
+
 func TestEnterprisePostUser(t *testing.T) {
 	t.Parallel()
 

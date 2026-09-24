@@ -32,6 +32,7 @@ The control connection carries the following:
 
 - Coder API key validation, which resolves each request to an active Coder user.
 - AI budget checks, which reject requests from users over their spend limit.
+- Model authorization for compatible standalone Gateways, using the authenticated Coder token's scopes and resource allow list.
 - Provider configuration, plus a change signal when the provider set changes.
 - AI session records.
 - **Deprecated**: the configuration and access tokens used by [injected MCP](./mcp.md).
@@ -60,6 +61,19 @@ A rejected replica receives an HTTP 400 response that reports the `client_api_ve
 Coder build versions are not the compatibility criterion.
 
 For upgrade and rollback ordering, refer to [Version compatibility](./standalone.md#version-compatibility) in the standalone deployment guide.
+
+## Model authorization
+
+AI Gateway authenticates the Coder token and then checks whether the token's user may use the requested provider and model.
+
+The **Owner**, **User Admin**, **Organization Admin**, **AI Gateway Unrestricted**, and **Organization AI Gateway Unrestricted** roles can use any model that passes the deployment's normal license, provider, credential, and budget checks.
+
+Other active organization members can use an exact, case-sensitive model ID when an enabled, non-deleted provider configuration matches the provider instance and model.
+
+API token scopes and resource allow lists remain in effect for model requests.
+The Multiple Organizations entitlement does not grant model access by itself.
+
+Model authorization is separate from provider availability, credentials, budgets, and the outer AI Governance license check.
 
 ## Supported APIs
 

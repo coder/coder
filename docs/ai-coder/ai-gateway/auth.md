@@ -25,6 +25,27 @@ For token creation, expiration, and revocation, refer to [Sessions and API token
 Authenticating with a Coder token avoids distributing centralized provider API keys, such as OpenAI or Anthropic keys, to individual users.
 AI Gateway handles upstream credentials centrally and forwards each request to the configured provider on the user's behalf.
 
+### Model access
+
+AI Gateway checks model authorization for each request after it authenticates the Coder token.
+
+Users with the **Owner**, **User Admin**, **Organization Admin**, **AI Gateway Unrestricted**, or **Organization AI Gateway Unrestricted** role can use any model that passes the deployment's normal license, provider, credential, and budget checks.
+
+Other active members can use a model when they belong to an organization with an enabled, non-deleted provider configuration for the exact provider instance and case-sensitive model ID.
+
+The Multiple Organizations entitlement does not bypass model authorization.
+
+On upgrade, existing organizations receive the **Organization AI Gateway Unrestricted** role in their default member roles, including the bootstrapped default organization.
+Organizations created after the upgrade do not receive this role automatically.
+
+> [!WARNING]
+> The upgrade stops if a custom role already uses `ai-gateway-unrestricted` or `organization-ai-gateway-unrestricted`.
+> Rename the custom role and update its assignments before upgrading so Coder does not reinterpret it as a built-in AI Gateway role.
+
+API token scopes and resource allow lists also apply to AI Gateway model requests.
+A token with insufficient scope or an allow list that excludes the authorized model configuration can fail even when its owner has model access.
+Use the narrowest token permissions that support your client instead of granting broad access by default.
+
 The exact environment variable or setting name differs between tools.
 Refer to the list of [supported clients](./clients/index.md) and your tool's documentation for details.
 
@@ -92,6 +113,7 @@ Coder stores only a short prefix of the key for display and a SHA-256 hash for a
 Names must be unique, 64 characters or fewer, and use only lowercase letters, numbers, and hyphens.
 A name cannot start or end with a hyphen or contain consecutive hyphens.
 Gateway keys do not expire and cannot be scoped or restricted.
+The Coder API token used for client requests remains subject to its own scopes and resource allow list.
 
 Configure the standalone process with either of the following options, but not both:
 

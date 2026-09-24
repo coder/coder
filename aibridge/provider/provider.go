@@ -68,6 +68,8 @@ type Provider interface {
 	// CreateInterceptor starts a new [Interceptor] which is responsible for intercepting requests,
 	// communicating with the upstream provider and formulating a response to be sent to the requesting client.
 	CreateInterceptor(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error)
+	// ResolveCredential resolves the upstream credential after request authorization.
+	ResolveCredential(*http.Request) (intercept.Credential, error)
 
 	// RoutePrefix returns a prefix on which the provider's bridged and passthroguh routes will be registered.
 	// Must be unique across providers to avoid conflicts.

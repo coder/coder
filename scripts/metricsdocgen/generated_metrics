@@ -7,6 +7,9 @@ agent_boundary_log_proxy_batches_forwarded_total 0
 # HELP agent_boundary_log_proxy_logs_dropped_total Total number of individual boundary log entries dropped before reaching coderd. Reason: buffer_full = the agent's internal buffer is full; forward_failed = the agent failed to send the batch to coderd; boundary_channel_full = boundary's internal send channel overflowed, meaning boundary is generating logs faster than it can batch and send them; boundary_batch_full = boundary's outgoing batch buffer overflowed after a failed flush, meaning boundary could not write to the agent's socket.
 # TYPE agent_boundary_log_proxy_logs_dropped_total counter
 agent_boundary_log_proxy_logs_dropped_total{reason=""} 0
+# HELP coder_ai_gateway_authorization_outcomes_total The count of request model authorization outcomes.
+# TYPE coder_ai_gateway_authorization_outcomes_total counter
+coder_ai_gateway_authorization_outcomes_total{outcome=""} 0
 # HELP coder_ai_gateway_circuit_breaker_rejects_total Total number of requests rejected due to open circuit breaker.
 # TYPE coder_ai_gateway_circuit_breaker_rejects_total counter
 coder_ai_gateway_circuit_breaker_rejects_total{provider="",endpoint="",model=""} 0

@@ -2592,20 +2592,10 @@ func (s *MethodTestSuite) TestOrganization() {
 		dbm.EXPECT().InsertOrganization(gomock.Any(), arg).Return(database.Organization{ID: arg.ID, Name: arg.Name}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceOrganization, policy.ActionCreate)
 	}))
-	s.Run("HasAIModelAccess", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.HasAIModelAccessParams{UserID: uuid.New(), ProviderName: "provider", Model: "model"}
-		dbm.EXPECT().HasAIModelAccess(gomock.Any(), arg).Return(true, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns(true)
-	}))
-	s.Run("UpdateOrganizationRestrictModelsToConfigured", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		org := testutil.Fake(s.T(), faker, database.Organization{})
-		arg := database.UpdateOrganizationRestrictModelsToConfiguredParams{
-			ID:                         org.ID,
-			RestrictModelsToConfigured: true,
-		}
-		dbm.EXPECT().GetOrganizationByID(gomock.Any(), org.ID).Return(org, nil).AnyTimes()
-		dbm.EXPECT().UpdateOrganizationRestrictModelsToConfigured(gomock.Any(), arg).Return(org, nil).AnyTimes()
-		check.Args(arg).Asserts(org, policy.ActionUpdate).Returns(org)
+	s.Run("GetAIModelAccessConfigs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAIModelAccessConfigsParams{UserID: uuid.New(), ProviderName: "provider", Model: "model"}
+		dbm.EXPECT().GetAIModelAccessConfigs(gomock.Any(), arg).Return(nil, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns([]database.GetAIModelAccessConfigsRow{})
 	}))
 	s.Run("UpdateOrganizationWorkspaceSharingSettings", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		org := testutil.Fake(s.T(), faker, database.Organization{})

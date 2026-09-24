@@ -6,6 +6,7 @@ type RBACResource string
 const (
 	ResourceWildcard                      RBACResource = "*"
 	ResourceAIGatewayKey                  RBACResource = "ai_gateway_key"
+	ResourceAIGatewayUnrestricted         RBACResource = "ai_gateway_unrestricted"
 	ResourceAiModelPrice                  RBACResource = "ai_model_price"
 	ResourceAIProvider                    RBACResource = "ai_provider"
 	ResourceAiSeat                        RBACResource = "ai_seat"
@@ -86,6 +87,7 @@ const (
 var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceWildcard:                      {},
 	ResourceAIGatewayKey:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceAIGatewayUnrestricted:         {ActionUse},
 	ResourceAiModelPrice:                  {ActionRead, ActionUpdate},
 	ResourceAIProvider:                    {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceAiSeat:                        {ActionCreate, ActionRead},
@@ -97,7 +99,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceBoundaryLog:                   {ActionCreate, ActionDelete, ActionRead},
 	ResourceBoundaryUsage:                 {ActionDelete, ActionRead, ActionUpdate},
 	ResourceChat:                          {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
-	ResourceChatModelConfig:               {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
+	ResourceChatModelConfig:               {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate, ActionUse},
 	ResourceConnectionLog:                 {ActionRead, ActionUpdate},
 	ResourceCryptoKey:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceDebugInfo:                     {ActionRead},

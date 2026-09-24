@@ -41,12 +41,8 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 
 		body := `{"model": "gpt-4.1", "messages": [{"role": "user", "content": "hello"}]}`
 		req := httptest.NewRequest(http.MethodPost, routeCopilotChatCompletions, bytes.NewBufferString(body))
-		w := httptest.NewRecorder()
-
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
-
+		_, err := provider.ResolveCredential(req)
 		require.Error(t, err)
-		require.Nil(t, interceptor)
 		assert.Contains(t, err.Error(), "missing Copilot authorization: Authorization header not found or invalid")
 	})
 
@@ -56,12 +52,8 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		body := `{"model": "claude-haiku-4.5", "messages": [{"role": "user", "content": "hello"}]}`
 		req := httptest.NewRequest(http.MethodPost, routeCopilotChatCompletions, bytes.NewBufferString(body))
 		req.Header.Set("Authorization", "InvalidFormat")
-		w := httptest.NewRecorder()
-
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
-
+		_, err := provider.ResolveCredential(req)
 		require.Error(t, err)
-		require.Nil(t, interceptor)
 		assert.Contains(t, err.Error(), "missing Copilot authorization: Authorization header not found or invalid")
 	})
 
@@ -140,10 +132,13 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, interceptor)
 
+		cred, err := provider.ResolveCredential(req)
+		require.NoError(t, err)
+		interceptor.SetCredential(cred)
+
 		// Setup and process request
 		logger := slog.Make()
 		interceptor.Setup(logger, &testutil.MockRecorder{}, nil)
-
 		processReq := httptest.NewRequest(http.MethodPost, routeCopilotChatCompletions, nil)
 		err = interceptor.ProcessRequest(w, processReq)
 		require.NoError(t, err)
@@ -230,6 +225,10 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 		require.NoError(t, err)
 		require.NotNil(t, interceptor)
+
+		cred, err := provider.ResolveCredential(req)
+		require.NoError(t, err)
+		interceptor.SetCredential(cred)
 
 		// Setup and process request
 		logger := slog.Make()
@@ -321,6 +320,10 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 		require.NoError(t, err)
 		require.NotNil(t, interceptor)
+
+		cred, err := provider.ResolveCredential(req)
+		require.NoError(t, err)
+		interceptor.SetCredential(cred)
 
 		// Setup and process request.
 		logger := slog.Make()

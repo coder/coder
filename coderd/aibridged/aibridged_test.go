@@ -16,6 +16,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
@@ -245,7 +246,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 		{
 			name: "unauthorized",
 			applyMocksFn: func(client *mock.MockDRPCClient, _ *mock.MockPooler) {
-				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("not authorized"))
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, drpcerr.WithCode(xerrors.New("not authorized"), proto.AuthorizationErrorAuthentication))
 			},
 			expectedErr:    aibridged.ErrUnauthorized,
 			expectedStatus: http.StatusForbidden,
@@ -466,7 +467,7 @@ func TestServeHTTP_DelegatedAPIKey(t *testing.T) {
 		{
 			name: "invalid",
 			applyMocks: func(_ *testing.T, client *mock.MockDRPCClient, _ *mock.MockPooler, _ *mockHandler) {
-				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("unknown key"))
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(nil, drpcerr.WithCode(xerrors.New("unknown key"), proto.AuthorizationErrorAuthentication))
 			},
 			expectStatus: http.StatusForbidden,
 		},
