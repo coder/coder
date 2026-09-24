@@ -152,15 +152,18 @@ it("requests the default organization and switches organizations from the first 
 	expect(searchParam(router, "page")).toBeNull();
 });
 
-it("requests the server's budget period when the URL has no dates", async () => {
+it("requests the last 7 days when the URL has no dates", async () => {
 	const { spendSpy } = renderSpend("");
 	await screen.findByRole("table", { name: "Spend by user" });
 	expect(spendSpy).toHaveBeenCalledWith(
 		MockOrganization.id,
-		expect.objectContaining({ offset: 0, limit: 10 }),
+		expect.objectContaining({
+			period_start: fixedNow.subtract(7, "day").toISOString(),
+			period_end: fixedNow.toISOString(),
+			offset: 0,
+			limit: 10,
+		}),
 	);
-	expect(spendSpy.mock.calls[0][1]).not.toHaveProperty("period_start");
-	expect(spendSpy.mock.calls[0][1]).not.toHaveProperty("period_end");
 });
 
 it("requests no spend for a denied organization until another one is picked", async () => {
@@ -192,13 +195,11 @@ it("applies a date preset and resets pagination", async () => {
 	const user = userEvent.setup();
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
-	await user.click(
-		screen.getByRole("button", { name: /Feb 10, 2026.*Mar 11, 2026/ }),
-	);
-	await user.click(await screen.findByRole("button", { name: "Last 7 days" }));
+	await user.click(screen.getByRole("button", { name: /Feb 10.*Mar 12/ }));
+	await user.click(await screen.findByRole("radio", { name: "Last 7 days" }));
 	const window = {
-		period_start: fixedNow.subtract(6, "day").startOf("day").toISOString(),
-		period_end: fixedNow.add(1, "hour").startOf("hour").toISOString(),
+		period_start: fixedNow.subtract(7, "day").toISOString(),
+		period_end: fixedNow.toISOString(),
 	};
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
@@ -233,21 +234,19 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 	// The picker stays usable with the bound the first report delivered, so
 	// every preset it offers requests a period that starts within retention.
 	const requestsBeforePicking = spendSpy.mock.calls.length;
-	const picker = screen.getByRole("button", {
-		name: /Feb 10, 2026.*Mar 11, 2026/,
-	});
-	await user.click(picker);
+	await user.click(screen.getByRole("button", { name: /Feb 10.*Mar 12/ }));
 	const offered = screen
-		.getAllByRole("button", { name: /^Last \d+ days$/ })
+		.getAllByRole("radio", { name: /^Last \d+ (days|hours)$/ })
 		.map((preset) => preset.textContent ?? "");
 	for (const label of offered) {
-		await user.click(screen.getByRole("button", { name: label }));
+		const requestsBeforePreset = spendSpy.mock.calls.length;
+		await user.click(screen.getByRole("radio", { name: label }));
 		await waitFor(() =>
-			expect(spendSpy.mock.calls.length).toBeGreaterThan(requestsBeforePicking),
+			expect(spendSpy.mock.calls.length).toBeGreaterThan(requestsBeforePreset),
 		);
-		await user.click(
-			screen.getByRole("button", { name: /Mar \d+, 2026.*Mar 12, 2026/ }),
-		);
+		// The trigger shows the applied preset once the URL updates; reopen it
+		// for the next one.
+		await user.click(await screen.findByRole("button", { name: label }));
 	}
 	const presetRequests = spendSpy.mock.calls.slice(requestsBeforePicking);
 	expect(presetRequests).toHaveLength(offered.length);
@@ -259,7 +258,7 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 	expect(spendSpy).not.toHaveBeenCalledWith(
 		MockOrganization.id,
 		expect.objectContaining({
-			period_start: fixedNow.subtract(29, "day").startOf("day").toISOString(),
+			period_start: fixedNow.subtract(30, "day").toISOString(),
 		}),
 	);
 });
@@ -269,28 +268,26 @@ it("applies a second range from the keyboard after the first one resolves", asyn
 	const { spendSpy } = renderSpend();
 	await screen.findByRole("table", { name: "Spend by user" });
 
-	await user.click(
-		screen.getByRole("button", { name: /Feb 10, 2026.*Mar 11, 2026/ }),
-	);
-	await user.click(await screen.findByRole("button", { name: "Last 7 days" }));
+	await user.click(screen.getByRole("button", { name: /Feb 10.*Mar 12/ }));
+	await user.click(await screen.findByRole("radio", { name: "Last 7 days" }));
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
 			MockOrganization.id,
 			expect.objectContaining({
-				period_start: fixedNow.subtract(6, "day").startOf("day").toISOString(),
+				period_start: fixedNow.subtract(7, "day").toISOString(),
 			}),
 		),
 	);
-	await screen.findByRole("button", { name: /Mar 6, 2026.*Mar 12, 2026/ });
+	await screen.findByRole("button", { name: "Last 7 days" });
 
 	// Focus returned to the picker when its popover closed, so Enter reopens it.
 	await user.keyboard("{Enter}");
-	await user.click(await screen.findByRole("button", { name: "Yesterday" }));
+	await user.click(await screen.findByRole("radio", { name: "Last 24 hours" }));
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
 			MockOrganization.id,
 			expect.objectContaining({
-				period_start: fixedNow.subtract(1, "day").startOf("day").toISOString(),
+				period_start: fixedNow.subtract(24, "hour").toISOString(),
 			}),
 		),
 	);

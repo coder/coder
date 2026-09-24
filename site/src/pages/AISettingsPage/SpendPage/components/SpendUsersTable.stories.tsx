@@ -114,23 +114,23 @@ export const UnpricedUsage: Story = {
 	args: { reportQuery: loadedReportQuery(mockUnpricedUsageReport) },
 };
 
-export const UnpricedModelsTooltip: Story = {
+export const CostSetupTooltip: Story = {
 	args: { reportQuery: loadedReportQuery(mockUnpricedUsageReport) },
 	play: async ({ canvasElement }) => {
 		await userEvent.hover(
 			within(canvasElement).getByRole("button", {
-				name: `Unpriced models for ${MockOrganizationAISpendUser.name}`,
+				name: `Cost setup for ${MockOrganizationAISpendUser.name}`,
 			}),
 		);
 		await screen.findByRole("tooltip");
 	},
 };
 
-export const TotalUnpricedModelsKeyboard: Story = {
+export const TotalCostSetupKeyboard: Story = {
 	args: { reportQuery: loadedReportQuery(mockUnpricedUsageReport) },
 	play: async ({ canvasElement }) => {
 		within(canvasElement)
-			.getByRole("button", { name: "Unpriced models in total spend" })
+			.getByRole("button", { name: "Cost setup for total spend" })
 			.focus();
 		await screen.findByRole("tooltip");
 	},
@@ -157,6 +157,30 @@ export const ModelsList: Story = {
 			within(
 				within(canvasElement).getByRole("row", { name: /alice/ }),
 			).getByRole("button", { name: "2 models" }),
+		);
+		await screen.findByRole("tooltip");
+	},
+};
+
+// A list taller than the viewport scrolls inside the tooltip.
+export const LongModelsList: Story = {
+	args: {
+		reportQuery: loadedReportQuery({
+			...mockMultipleDimensionsReport,
+			users: mockMultipleDimensionsReport.users.map((user) => ({
+				...user,
+				models: Array.from({ length: 40 }, (_, i) =>
+					i % 2 === 0 ? `claude-model-${i}` : `gpt-model-${i}`,
+				),
+			})),
+		}),
+	},
+	globals: { viewport: { value: "mobile2", isRotated: false } },
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(
+				within(canvasElement).getByRole("row", { name: /alice/ }),
+			).getByRole("button", { name: "40 models" }),
 		);
 		await screen.findByRole("tooltip");
 	},

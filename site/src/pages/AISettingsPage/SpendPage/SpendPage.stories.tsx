@@ -100,7 +100,7 @@ export const FirstPage: Story = {
 	},
 };
 
-export const BudgetPeriod: Story = {
+export const DefaultPeriod: Story = {
 	play: async ({ canvasElement }) => {
 		await within(canvasElement).findByRole("table", { name: "Spend by user" });
 	},
@@ -148,43 +148,29 @@ export const FilteredByProvider: Story = {
 	},
 };
 
-// Without a URL range the server narrows the budget period to retention, and
-// the endpoint rejects any explicit start before that cutoff.
+// The endpoint rejects any explicit start before the retention cutoff, so the
+// picker hides the presets that reach past it and disables those days.
 export const RetentionLimitedPicker: Story = {
 	beforeEach: () => {
 		const retentionStart = fixedNow.subtract(10, "day").toISOString();
-		spyOn(API, "getOrganizationAISpendUsers").mockResolvedValue({
-			...MockOrganizationAISpendReport,
-			period_start: retentionStart,
-			period_end: "2026-04-01T00:00:00.000Z",
-			retention_start: retentionStart,
-			count: mockSpendUsers.length,
-			users: mockSpendUsers.slice(0, 10),
-		});
+		spyOn(API, "getOrganizationAISpendUsers").mockImplementation(
+			async (_organizationId, params) => ({
+				...MockOrganizationAISpendReport,
+				period_start: params.period_start ?? retentionStart,
+				period_end: params.period_end ?? fixedNow.toISOString(),
+				retention_start: retentionStart,
+				count: mockSpendUsers.length,
+				users: mockSpendUsers.slice(0, 10),
+			}),
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("table", { name: "Spend by user" });
-		await userEvent.click(canvas.getByRole("button", { name: /Mar 3, 2026/ }));
-		await screen.findByRole("button", { name: "Apply" });
-	},
-};
-
-// Less than a day of retention leaves no whole day for the picker to select,
-// so the report keeps the server's default window and the picker stays off.
-export const SubDayRetention: Story = {
-	beforeEach: () => {
-		spyOn(API, "getOrganizationAISpendUsers").mockResolvedValue({
-			...MockOrganizationAISpendReport,
-			period_start: fixedNow.subtract(1, "hour").toISOString(),
-			period_end: fixedNow.add(1, "hour").startOf("hour").toISOString(),
-			retention_start: fixedNow.subtract(1, "hour").toISOString(),
-			count: mockSpendUsers.length,
-			users: mockSpendUsers.slice(0, 10),
-		});
-	},
-	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("table", { name: "Spend by user" });
+		await userEvent.click(canvas.getByRole("button", { name: "Last 7 days" }));
+		await userEvent.click(
+			await screen.findByRole("radio", { name: "Custom range" }),
+		);
 	},
 };
 
