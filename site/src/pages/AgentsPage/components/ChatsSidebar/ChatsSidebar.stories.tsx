@@ -757,6 +757,18 @@ export const SidebarFilterMenu: Story = {
 	},
 };
 
+export const SectionSwitcherMenu: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Agents" }),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Agents" });
+	},
+};
+
 export const SearchDialogKeyboardShortcut: Story = {
 	render: ChatsSidebarWithKeybindings,
 	args: {
