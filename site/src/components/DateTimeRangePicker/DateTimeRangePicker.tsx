@@ -41,6 +41,8 @@ type DateTimeRangePickerProps = {
 	now?: Date;
 	presets?: QuickPreset[];
 	size?: ButtonProps["size"];
+	/** Prefixes the trigger's accessible name, e.g. "Last seen: Last 7 days". */
+	label?: string;
 };
 
 const INVALID_TIME_MESSAGE = "Enter a valid time, e.g. 09:30:00";
@@ -76,6 +78,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	now,
 	presets,
 	size = "sm",
+	label,
 }) => {
 	const currentTime = now ?? new Date();
 	const quickPresets = presets ?? DEFAULT_QUICK_PRESETS;
@@ -198,8 +201,11 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 		value.preset === undefined
 			? undefined
 			: quickPresets.find((preset) => preset.id === value.preset);
+	const isPlaceholder = activePreset?.placeholder !== undefined;
 	const triggerLabel =
-		activePreset?.label ?? formatCustomLabel(value.start, value.end);
+		activePreset?.placeholder ??
+		activePreset?.label ??
+		formatCustomLabel(value.start, value.end);
 
 	const selectedQuickPickIndex = customExpanded
 		? quickPresets.length
@@ -211,12 +217,33 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size={size} className="group gap-2 pr-1.5">
-					<span className="size-icon-sm shrink-0">
+				<Button
+					variant="outline"
+					size={size}
+					className="group gap-2 pr-1.5"
+					aria-label={
+						label === undefined || label === triggerLabel
+							? undefined
+							: `${label}: ${triggerLabel}`
+					}
+				>
+					<span
+						className={cn(
+							"size-icon-sm shrink-0",
+							isPlaceholder && "text-content-secondary",
+						)}
+					>
 						<CalendarIcon strokeWidth={1.75} className="size-full p-0" />
 					</span>
-					<span>{triggerLabel}</span>
-					<ChevronDownIcon className="size-icon-sm" />
+					<span className={cn(isPlaceholder && "text-content-secondary")}>
+						{triggerLabel}
+					</span>
+					<ChevronDownIcon
+						className={cn(
+							"size-icon-sm",
+							isPlaceholder && "text-content-secondary",
+						)}
+					/>
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent

@@ -3,7 +3,6 @@ import { type ComponentProps, type FC, useState } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { UsersFilter } from "#/components/Filter/UsersFilter";
 import {
 	PaginationContainer,
 	type PaginationResult,
@@ -17,10 +16,11 @@ import {
 	UserActionDialogs,
 	type UserAdminAction,
 } from "#/modules/users/UserActionDialogs";
+import { UsersPageFilter } from "./filter/UsersPageFilter";
 import { UsersTable, type UsersTableProps } from "./UsersTable";
 
 type UsersPageViewProps = Omit<UsersTableProps, "users" | "onAction"> & {
-	filterProps: ComponentProps<typeof UsersFilter>;
+	filterProps: ComponentProps<typeof UsersPageFilter>;
 	usersQuery: PaginationResult<TypesGen.GetUsersResponse>;
 	canCreateUser?: boolean;
 };
@@ -53,7 +53,7 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
-			<UsersFilter {...filterProps} />
+			<UsersPageFilter {...filterProps} />
 
 			<PaginationContainer query={usersQuery} paginationUnitLabel="users">
 				<UsersTable

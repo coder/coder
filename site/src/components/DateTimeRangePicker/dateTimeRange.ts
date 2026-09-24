@@ -3,6 +3,8 @@ import dayjs from "dayjs";
 export type QuickPreset = {
 	id: string;
 	label: string;
+	/** Trigger text shown in secondary color while this preset is active. */
+	placeholder?: string;
 	range: (now: Date) => { start: Date; end: Date };
 };
 
