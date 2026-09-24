@@ -541,12 +541,25 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		return nil, err
 	}
 
-	sessionCountLabels := append(slices.Clone(aggregateByLabels), "app_name", "family")
+	appInfoGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agentstats",
+		Name:      "app_info",
+		Help:      "The current family of each registered session app. Value is always 1.",
+	}, []string{"app_name", "family"})
+	for appName, family := range codersdk.SessionCountAppFamilies() {
+		appInfoGauge.WithLabelValues(appName, string(family)).Set(1)
+	}
+	if err := registerer.Register(appInfoGauge); err != nil {
+		return nil, err
+	}
+
+	sessionCountLabels := append(slices.Clone(aggregateByLabels), "app_name")
 	agentStatsSessionCountGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agentstats",
 		Name:      "session_count",
-		Help:      "The number of sessions established by app name and family",
+		Help:      "The number of sessions established by app name",
 	}, sessionCountLabels))
 	err = registerer.Register(agentStatsSessionCountGauge)
 	if err != nil {
@@ -626,7 +639,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 						sessionCounts[family] += count
 						// The gauge retains the slice, so give each series its own. Add,
 						// not Set: aggregateByLabels can collapse agents onto one series.
-						appLabels := append(slices.Clone(labelValues), appName, string(family))
+						appLabels := append(slices.Clone(labelValues), appName)
 						agentStatsSessionCountGauge.WithLabelValues(VectorOperationAdd, float64(count), appLabels...)
 					}
 

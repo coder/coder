@@ -248,7 +248,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 
 			<ActiveConnections sessionCount={stats?.session_count} />
 
-			<div className="ml-auto flex mr-3 items-center gap-8 text-content-primary">
+			<div className="ml-auto flex mr-3 items-center gap-8 pl-8 text-content-primary">
 				<TooltipProvider delayDuration={100}>
 					<Tooltip>
 						<TooltipTrigger asChild>

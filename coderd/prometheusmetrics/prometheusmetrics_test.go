@@ -752,15 +752,18 @@ func TestAgentStats(t *testing.T) {
 			switch metric.GetName() {
 			case "coderd_prometheusmetrics_agentstats_execution_seconds":
 				executionSeconds = true
+			case "coderd_agentstats_app_info":
+				// Registry metadata is independent of the agent statistics.
 			case "coderd_agentstats_session_count":
 				for _, m := range metric.Metric {
 					labels := map[string]string{}
 					for _, label := range m.Label {
 						labels[label.GetName()] = label.GetValue()
 					}
-					// username:workspace:agent:metric_app_family = value
+					require.NotContains(t, labels, "family")
+					// username:workspace:agent:metric_app=value = count
 					key := labels["username"] + ":" + labels["workspace_name"] + ":" + labels["agent_name"] +
-						":" + metric.GetName() + "_" + labels["app_name"] + "_" + labels["family"]
+						":" + metric.GetName() + "_app=" + labels["app_name"]
 					collected[key] = int(m.Gauge.GetValue())
 				}
 			case "coderd_agentstats_connection_count",
@@ -830,6 +833,34 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(closeFn)
 
+			// Registry metadata is available before any statistics arrive,
+			// including apps without sessions and regardless of identity labels.
+			appInfo := func() map[string]codersdk.AppFamilyName {
+				t.Helper()
+				metrics, err := registry.Gather()
+				require.NoError(t, err)
+				result := map[string]codersdk.AppFamilyName{}
+				for _, metric := range metrics {
+					if metric.GetName() != "coderd_agentstats_app_info" {
+						continue
+					}
+					for _, m := range metric.Metric {
+						labels := map[string]string{}
+						for _, label := range m.Label {
+							labels[label.GetName()] = label.GetValue()
+						}
+						require.Len(t, labels, 2)
+						require.Contains(t, labels, "app_name")
+						require.Contains(t, labels, "family")
+						require.NotContains(t, result, labels["app_name"])
+						require.Equal(t, float64(1), m.GetGauge().GetValue())
+						result[labels["app_name"]] = codersdk.AppFamilyName(labels["family"])
+					}
+				}
+				return result
+			}
+			require.Equal(t, codersdk.SessionCountAppFamilies(), appInfo())
+
 			polls := uint64(0)
 			poll := func(response sessionStatsResponse) {
 				t.Helper()
@@ -859,9 +890,10 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 						for _, label := range m.Label {
 							labels[label.GetName()] = label.GetValue()
 						}
-						require.Len(t, labels, 3, "username plus app_name and family")
+						require.Len(t, labels, 2, "username plus app_name")
+						require.NotContains(t, labels, "family")
 						require.Equal(t, "alice", labels["username"])
-						result[labels["app_name"]+":"+labels["family"]] = m.GetGauge().GetValue()
+						result[labels["app_name"]] = m.GetGauge().GetValue()
 					}
 				}
 				return result
@@ -875,7 +907,7 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 				row(`{"cursor":3}`),
 				row(`not-json`),
 			}})
-			expected := map[string]float64{"cursor:vscode": 5, "vscode:vscode": 1, "future_ide:unknown": 4}
+			expected := map[string]float64{"cursor": 5, "vscode": 1, "future_ide": 4}
 			require.Equal(t, expected, counts())
 
 			poll(sessionStatsResponse{err: xerrors.New("query failed")})
@@ -883,9 +915,10 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 
 			poll(sessionStatsResponse{})
 			require.Equal(t, expected, counts(), "empty window must retain the last snapshot")
+			require.Equal(t, codersdk.SessionCountAppFamilies(), appInfo(), "statistics must not change registry metadata")
 
 			poll(sessionStatsResponse{rows: []database.GetWorkspaceAgentStatsAndLabelsRow{row(`{"vscode":7}`)}})
-			require.Equal(t, map[string]float64{"vscode:vscode": 7}, counts(), "apps no longer reported must be dropped")
+			require.Equal(t, map[string]float64{"vscode": 7}, counts(), "apps no longer reported must be dropped")
 		})
 	}
 }

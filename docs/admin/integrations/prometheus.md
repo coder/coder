@@ -110,40 +110,101 @@ The `coder_ai_gateway_cost_control_*` metrics are exported only by `coderd`.
 
 ## Monitor sessions by application
 
-`coderd_agentstats_session_count` reports active sessions per application, alongside the same agent identity labels as the other `coderd_agentstats_*` gauges.
+Coder exports session counts and application metadata separately:
 
-| Label      | Description                                                                                                               |
-|------------|---------------------------------------------------------------------------------------------------------------------------|
-| `app_name` | The normalized identifier the agent reported, such as `vscode` or `cursor`, including custom names your templates define. |
-| `family`   | The group the application belongs to, such as `vscode` or `ssh`. An application Coder does not recognize gets `unknown`.  |
+- `coderd_agentstats_session_count` reports active sessions by normalized `app_name`, with the other agent identity labels.
+- `coderd_agentstats_app_info` reports `app_name`, `family`, and a value of `1` for every registered application, including inactive ones.
 
-To total sessions by family:
+Before each execution or dashboard refresh, replace `1790243193` in every info selector with the current Unix time in seconds.
+This enriches historical samples without rewriting them; a fixed timestamp freezes metadata, while `@ end()` uses the graph's end time.
+
+To total sessions by family for one deployment, use the same deployment-unique selector on both metrics.
+The `job="coder"` selector matches this page's scrape example.
 
 ```promql
-sum by (family) (coderd_agentstats_session_count)
+sum by (family) (
+  (
+    sum by (app_name) (
+      coderd_agentstats_session_count{job="coder"}
+    )
+      * on (app_name) group_left (family)
+        max by (app_name, family) (
+          coderd_agentstats_app_info{job="coder"} @ 1790243193
+        )
+  )
+  or
+  label_replace(
+    sum by (app_name) (
+      coderd_agentstats_session_count{job="coder"}
+    )
+      unless on (app_name)
+        max by (app_name) (
+          coderd_agentstats_app_info{job="coder"} @ 1790243193
+        ),
+    "family", "unknown", "", ""
+  )
+)
 ```
+
+The fallback assigns `family="unknown"` to unregistered applications and unavailable metadata.
+
+### Query multiple deployments
+
+Coder doesn't export a deployment label.
+Attach one to every target and include it in selectors, aggregations, and vector matches.
+This example uses `coder_deployment`.
+
+<details><summary>Expand the multi-deployment query</summary>
+
+```promql
+sum by (coder_deployment, family) (
+  (
+    sum by (coder_deployment, app_name) (
+      coderd_agentstats_session_count{job="coder", coder_deployment=~".+"}
+    )
+      * on (coder_deployment, app_name) group_left (family)
+        max by (coder_deployment, app_name, family) (
+          coderd_agentstats_app_info{job="coder", coder_deployment=~".+"} @ 1790243193
+        )
+  )
+  or
+  label_replace(
+    sum by (coder_deployment, app_name) (
+      coderd_agentstats_session_count{job="coder", coder_deployment=~".+"}
+    )
+      unless on (coder_deployment, app_name)
+        max by (coder_deployment, app_name) (
+          coderd_agentstats_app_info{job="coder", coder_deployment=~".+"} @ 1790243193
+        ),
+    "family", "unknown", "", ""
+  )
+)
+```
+
+</details>
+
+`max` deduplicates identical replica metadata.
+Conflicting families for the same deployment and application cause a many-to-many matching error; resolve the replica version mismatch and wait for agreement.
 
 ### Plan your series count
 
-This gauge emits one series per agent per application in use, where the deprecated gauges emit four per agent whether or not they are used.
-To estimate the total, multiply your agent count by the number of distinct applications your developers run.
+- Session gauge: one series per agent and active application, with at most 64 names per report.
+  Extra names become `app_name="overflow"`; blank names become `app_name="unknown"`.
+- Info gauge: one series per registered application and `coderd` replica.
+- Deprecated gauges: four series per agent, whether used or not.
 
-Coder keeps at most 64 distinct application names per agent statistics report and sums the rest into `app_name="overflow"` and `family="unknown"`.
-`app_name="unknown"` counts sessions whose reported name is blank.
-That cap applies per report, so it bounds a single misbehaving agent rather than your deployment total.
+The 64-name cap limits each report, not the deployment total.
 
 ### Understand collection behavior
 
-Each collection covers only the agents that reported since the previous one:
-
-- A collection with at least one report replaces the gauge and drops the series for applications no longer reported, so write queries and alerts that tolerate absent series.
-- A collection with no reports keeps the previous series, matching the other `coderd_agentstats_*` gauges.
-- When your configured identity labels place several agents on one series, Coder keeps `app_name` and `family` and sums the matching values.
+A collection with reports replaces the session gauge, so queries and alerts must tolerate removed series.
+A collection without reports retains the previous series.
+When identity labels combine agents, Coder keeps `app_name` and sums their values.
 
 ### Migrate off the deprecated gauges
 
-`coderd_agentstats_session_count_jetbrains`, `coderd_agentstats_session_count_reconnecting_pty`, `coderd_agentstats_session_count_ssh`, and `coderd_agentstats_session_count_vscode` still work, but they report the same sessions as `coderd_agentstats_session_count`.
-A query that reads both counts those sessions twice.
+The unchanged family-specific gauges count the same sessions as `coderd_agentstats_session_count`.
+Querying both counts sessions twice.
 
 <!-- Code generated by 'make docs/admin/integrations/prometheus.md'. DO NOT EDIT -->
 
@@ -236,11 +297,12 @@ A query that reads both counts those sessions twice.
 | `coderd_agents_connections`                                              | gauge     | Agent connections with statuses.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `agent_name` `lifecycle_state` `status` `tailnet_node` `username` `workspace_name`                    |
 | `coderd_agents_first_connection_seconds`                                 | histogram | Duration from agent creation to first connection in seconds.                                                                                                                                                                                                                                                                                                                                                                                                                                               | `agent_name` `template_name`                                                                          |
 | `coderd_agents_up`                                                       | gauge     | The number of active agents per workspace.                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `template_name` `template_version` `username` `workspace_name`                                        |
+| `coderd_agentstats_app_info`                                             | gauge     | The current family of each registered session app. Value is always 1.                                                                                                                                                                                                                                                                                                                                                                                                                                      | `app_name` `family`                                                                                   |
 | `coderd_agentstats_connection_count`                                     | gauge     | The number of established connections by agent                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `agent_name` `username` `workspace_name`                                                              |
 | `coderd_agentstats_connection_median_latency_seconds`                    | gauge     | The median agent connection latency                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `agent_name` `username` `workspace_name`                                                              |
 | `coderd_agentstats_currently_reachable_peers`                            | gauge     | The number of peers (e.g. clients) that are currently reachable over the encrypted network.                                                                                                                                                                                                                                                                                                                                                                                                                | `agent_name` `connection_type` `template_name` `username` `workspace_name`                            |
 | `coderd_agentstats_rx_bytes`                                             | gauge     | Agent Rx bytes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `agent_name` `username` `workspace_name`                                                              |
-| `coderd_agentstats_session_count`                                        | gauge     | The number of sessions established by app name and family                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `agent_name` `app_name` `family` `username` `workspace_name`                                          |
+| `coderd_agentstats_session_count`                                        | gauge     | The number of sessions established by app name                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `agent_name` `app_name` `username` `workspace_name`                                                   |
 | `coderd_agentstats_session_count_jetbrains`                              | gauge     | The number of session established by JetBrains                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `agent_name` `username` `workspace_name`                                                              |
 | `coderd_agentstats_session_count_reconnecting_pty`                       | gauge     | The number of session established by reconnecting PTY                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `agent_name` `username` `workspace_name`                                                              |
 | `coderd_agentstats_session_count_ssh`                                    | gauge     | The number of session established by SSH                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `agent_name` `username` `workspace_name`                                                              |
