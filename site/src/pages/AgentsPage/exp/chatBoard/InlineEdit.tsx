@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { type FC, useState } from "react";
 
-interface InlineEditProps {
+type InlineEditProps = {
 	readonly value: string;
 	readonly onSave: (next: string) => void;
 	readonly onDone: () => void;
@@ -9,7 +9,7 @@ interface InlineEditProps {
 	readonly className?: string;
 	readonly ariaLabel: string;
 	readonly placeholder?: string;
-}
+};
 
 /**
  * Edits text where it stands: no box, the same font, sized by its content.

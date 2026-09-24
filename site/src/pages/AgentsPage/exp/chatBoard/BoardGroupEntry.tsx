@@ -6,10 +6,10 @@ import { type BoardGroups, isBoardGroupMember } from "./boardGroups";
 import { getColumnLabel, getTitleLabel, INBOX_COLUMN } from "./boardLabels";
 import { ColumnTag } from "./ColumnTag";
 
-interface BoardGroupEntryProps {
+type BoardGroupEntryProps = {
 	readonly chat: Chat;
 	readonly groups: BoardGroups;
-}
+};
 
 /**
  * One sidebar list entry: a plain node, or a box holding a board primary
@@ -45,10 +45,10 @@ export const BoardGroupEntry: FC<BoardGroupEntryProps> = ({ chat, groups }) => {
 	);
 };
 
-interface BoardColumnTagProps {
+type BoardColumnTagProps = {
 	readonly chat: Chat;
 	readonly groups: BoardGroups;
-}
+};
 
 /**
  * The trailing slot of a sidebar row: the chat's column. A group box names

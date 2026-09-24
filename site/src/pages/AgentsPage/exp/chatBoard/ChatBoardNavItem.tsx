@@ -4,10 +4,10 @@ import { useLocation } from "react-router";
 import { SettingsNavItem } from "../../components/ChatsSidebar/settings/SettingsNavItem";
 import { CHAT_BOARD_PATH, useChatBoardEnabled } from "./chatBoardFlag";
 
-interface ChatBoardNavItemProps {
+type ChatBoardNavItemProps = {
 	/** Normalized query string the sidebar appends to its own links. */
 	readonly locationSearch: string;
-}
+};
 
 /** The sidebar's "Board" entry. Renders nothing while the board is off. */
 export const ChatBoardNavItem: FC<ChatBoardNavItemProps> = ({

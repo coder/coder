@@ -38,25 +38,25 @@ export type DropData =
 	| { type: "note"; card: BoardCardModel; note: BoardNote };
 
 /** How a card hands a chat to the board: with the element to place a window beside. */
-export interface ChatOpenHandlers {
+export type ChatOpenHandlers = {
 	readonly onOpen: (chat: Chat, anchor: DOMRect) => void;
 	readonly onPreview: (chat: Chat, anchor: DOMRect) => void;
 	readonly onPreviewEnd: () => void;
-}
+};
 
 /** Inside a card or row the anchor is fixed, so its openers pass only the chat. */
-interface ChatOpeners {
+type ChatOpeners = {
 	readonly onOpen: (chat: Chat) => void;
 	readonly onPreview: (chat: Chat) => void;
 	readonly onPreviewEnd: () => void;
-}
+};
 
 // dnd-kit fills the node ref on mount; before that there is nothing to
 // place a window beside.
 const rectOf = (node: RefObject<HTMLElement | null>) =>
 	node.current?.getBoundingClientRect() ?? new DOMRect();
 
-interface BoardCardProps extends ChatOpenHandlers {
+type BoardCardProps = {
 	readonly card: BoardCardModel;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly isMergeTarget: boolean;
@@ -70,7 +70,7 @@ interface BoardCardProps extends ChatOpenHandlers {
 	readonly onAddNote: (text: string) => void;
 	readonly onEditNote: (index: number, text: string) => void;
 	readonly onRemoveNote: (index: number) => void;
-}
+} & ChatOpenHandlers;
 
 export const BoardCard: FC<BoardCardProps> = ({
 	card,
@@ -255,9 +255,9 @@ const UnreadDot: FC = () => (
 	/>
 );
 
-interface AgeProps {
+type AgeProps = {
 	readonly at: string;
-}
+};
 
 const Age: FC<AgeProps> = ({ at }) => (
 	<span className="text-[11px] tabular-nums text-content-secondary/70">
@@ -265,11 +265,11 @@ const Age: FC<AgeProps> = ({ at }) => (
 	</span>
 );
 
-interface OpenChatSurfaceProps {
+type OpenChatSurfaceProps = {
 	readonly chat: Chat;
 	readonly isDragging: boolean;
 	readonly onOpen: (chat: Chat) => void;
-}
+};
 
 /**
  * Invisible surface under a card header or row: a click that lands on no
@@ -299,9 +299,9 @@ const OpenChatSurface: FC<OpenChatSurfaceProps> = ({
 	);
 };
 
-interface ChatOpenerProps extends ChatOpeners {
+type ChatOpenerProps = {
 	readonly chat: Chat;
-}
+} & ChatOpeners;
 
 /** The chat icon: resting on it previews the chat, clicking it pins the window. */
 const ChatOpener: FC<ChatOpenerProps> = ({
@@ -324,13 +324,13 @@ const ChatOpener: FC<ChatOpenerProps> = ({
 	</button>
 );
 
-interface ChatRowProps extends ChatOpenHandlers {
+type ChatRowProps = {
 	readonly chat: Chat;
 	readonly card: BoardCardModel;
 	readonly open: boolean;
 	readonly onRename: (title: string) => void;
 	readonly onRemove: () => void;
-}
+} & ChatOpenHandlers;
 
 // Any member can leave, the primary included: the mutation hands the card
 // to the next member, so nothing here needs to know who is primary.

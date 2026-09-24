@@ -19,9 +19,9 @@ const tag = cva(
 	},
 );
 
-interface ColumnTagProps {
+type ColumnTagProps = {
 	readonly name: string;
-}
+};
 
 /** Small tinted tag naming a chat's board column, used on sidebar rows. */
 export const ColumnTag: FC<ColumnTagProps> = ({ name }) => (

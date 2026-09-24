@@ -99,10 +99,10 @@ import { pickReasoningEffort } from "./utils/reasoningEffort";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
-interface AgentChatPageProps {
+type AgentChatPageProps = {
 	/** Overrides the route param so several chat panes can render at once. */
 	readonly chatId?: string;
-}
+};
 
 const AgentChatPage: FC<AgentChatPageProps> = ({ chatId }) => {
 	const params = useParams() as { agentId: string };

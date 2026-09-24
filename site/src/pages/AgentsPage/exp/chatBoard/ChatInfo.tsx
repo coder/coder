@@ -15,9 +15,9 @@ import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { getChatCostTreeID } from "../../components/ChatConversation/chatHelpers";
 import { CompactMarkdown } from "./CompactMarkdown";
 
-interface ChatInfoPopoverProps {
+type ChatInfoPopoverProps = {
 	readonly chat: Chat;
-}
+};
 
 // Long enough that crossing the icon does not flash the popover; the close
 // delay lets the pointer travel from the icon into the content.
@@ -103,9 +103,9 @@ export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
 	);
 };
 
-interface ChatInfoBodyProps {
+type ChatInfoBodyProps = {
 	readonly chat: Chat;
-}
+};
 
 /** Fetches only while mounted, so closed popovers cost nothing. */
 const ChatInfoBody: FC<ChatInfoBodyProps> = ({ chat }) => {

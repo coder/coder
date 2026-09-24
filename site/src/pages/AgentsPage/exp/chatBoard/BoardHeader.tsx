@@ -2,7 +2,7 @@ import { ChevronLeftIcon, SearchIcon } from "lucide-react";
 import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 
-interface BoardHeaderProps {
+type BoardHeaderProps = {
 	readonly chatCount: number;
 	readonly cardCount: number;
 	/** Cards left after the filter; undefined when no filter is active. */
@@ -10,7 +10,7 @@ interface BoardHeaderProps {
 	readonly search: string;
 	readonly onSearchChange: (value: string) => void;
 	readonly onExit: () => void;
-}
+};
 
 export const BoardHeader: FC<BoardHeaderProps> = ({
 	chatCount,

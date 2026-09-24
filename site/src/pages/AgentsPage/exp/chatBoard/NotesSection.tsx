@@ -20,14 +20,14 @@ import type { BoardCard, BoardNote } from "./boardLabels";
 import { CompactMarkdown } from "./CompactMarkdown";
 import { dragHandleListeners } from "./dragHandle";
 
-interface NotesSectionProps {
+type NotesSectionProps = {
 	readonly card: BoardCard;
 	/** Where a dragged note would land in this card, if it is over one of these notes. */
 	readonly noteDrop: NoteSlot | undefined;
 	readonly onAdd: (text: string) => void;
 	readonly onEdit: (index: number, text: string) => void;
 	readonly onRemove: (index: number) => void;
-}
+};
 
 /**
  * Notes are the operator's status log for a card, in index order, with a
@@ -70,13 +70,13 @@ export const NotesSection: FC<NotesSectionProps> = ({
 	);
 };
 
-interface NoteProps {
+type NoteProps = {
 	readonly card: BoardCard;
 	readonly note: BoardNote;
 	readonly dropSide: "before" | "after" | undefined;
 	readonly onEdit: (text: string) => void;
 	readonly onRemove: () => void;
-}
+};
 
 // Notes have no id. Reordering renumbers indices, so an index key would hand
 // an open editor to a different note; the timestamp survives edits and moves,
@@ -174,9 +174,9 @@ const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
 	);
 };
 
-interface DeleteNoteButtonProps {
+type DeleteNoteButtonProps = {
 	readonly onConfirm: () => void;
-}
+};
 
 const DeleteNoteButton: FC<DeleteNoteButtonProps> = ({ onConfirm }) => {
 	const [open, setOpen] = useState(false);
@@ -212,14 +212,14 @@ const DeleteNoteButton: FC<DeleteNoteButtonProps> = ({ onConfirm }) => {
 	);
 };
 
-interface NoteEditorProps {
+type NoteEditorProps = {
 	readonly initial: string;
 	readonly ariaLabel: string;
 	readonly placeholder?: string;
 	readonly onSubmit: (text: string) => void;
 	/** Absent for the composer, which just clears on Escape. */
 	readonly onCancel?: () => void;
-}
+};
 
 // Same keys as every other inline edit on the board: Enter saves, Escape
 // cancels, leaving the field saves. Shift+Enter inserts a newline. Editing

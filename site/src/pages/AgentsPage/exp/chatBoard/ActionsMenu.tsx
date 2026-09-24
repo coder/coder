@@ -12,14 +12,14 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 
-interface MenuAction {
+type MenuAction = {
 	readonly label: string;
 	readonly icon: LucideIcon;
 	readonly onSelect: () => void;
 	readonly destructive?: boolean;
-}
+};
 
-interface ActionsMenuProps {
+type ActionsMenuProps = {
 	readonly label: string;
 	readonly items: readonly MenuAction[];
 	/**
@@ -27,7 +27,7 @@ interface ActionsMenuProps {
 	 * columns reveal a horizontal "..." from the `group/column` hover group.
 	 */
 	readonly permanent?: boolean;
-}
+};
 
 /** The menu for actions that have no in-place gesture. */
 export const ActionsMenu: FC<ActionsMenuProps> = ({

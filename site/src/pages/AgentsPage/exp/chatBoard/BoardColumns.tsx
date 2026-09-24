@@ -22,7 +22,7 @@ import type {
 	BoardColumn as BoardColumnModel,
 } from "./boardLabels";
 
-interface BoardColumnsProps extends ChatOpenHandlers {
+type BoardColumnsProps = {
 	/** Columns after the filter, drawn left to right. */
 	readonly columns: readonly BoardColumnModel[];
 	/** The unfiltered model that every command acts on. */
@@ -31,7 +31,7 @@ interface BoardColumnsProps extends ChatOpenHandlers {
 	readonly openChatIds: ReadonlySet<string>;
 	readonly dropTarget: DropTarget | null;
 	readonly onAssistant: (card: BoardCardModel) => void;
-}
+} & ChatOpenHandlers;
 
 export const BoardColumns: FC<BoardColumnsProps> = ({
 	columns,

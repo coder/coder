@@ -36,7 +36,7 @@ const columnHeader = cva(
 	},
 );
 
-interface BoardColumnProps extends ChatOpenHandlers {
+type BoardColumnProps = {
 	readonly column: BoardColumnModel;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly dropTarget: DropTarget | null;
@@ -57,7 +57,7 @@ interface BoardColumnProps extends ChatOpenHandlers {
 		text: string,
 	) => void;
 	readonly onRemoveNote: (card: BoardCardModel, index: number) => void;
-}
+} & ChatOpenHandlers;
 
 export const BoardColumn: FC<BoardColumnProps> = ({
 	column,
@@ -226,17 +226,17 @@ const dot = cva("size-2 shrink-0 rounded-[2px]", {
 	},
 });
 
-interface ColumnDotProps {
+type ColumnDotProps = {
 	readonly name: string;
-}
+};
 
 const ColumnDot: FC<ColumnDotProps> = ({ name }) => (
 	<span className={dot({ hue: columnHue(name) })} />
 );
 
-interface InsertionLineProps {
+type InsertionLineProps = {
 	readonly visible: boolean;
-}
+};
 
 // Occupies the gap between cards, so showing it does not shift layout.
 const InsertionLine: FC<InsertionLineProps> = ({ visible }) => (
@@ -250,10 +250,10 @@ const InsertionLine: FC<InsertionLineProps> = ({ visible }) => (
 	</div>
 );
 
-interface NewColumnProps {
+type NewColumnProps = {
 	readonly onCreate: (name: string) => void;
 	readonly onCancel: () => void;
-}
+};
 
 /** A column shell with its title in edit mode, so creating looks like renaming. */
 export const NewColumn: FC<NewColumnProps> = ({ onCreate, onCancel }) => (

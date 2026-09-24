@@ -8,12 +8,12 @@ import {
 import { CARD_COLORS, type CardColor } from "./boardLabels";
 import { cardSwatch } from "./cardColor";
 
-interface CardColorPickerProps {
+type CardColorPickerProps = {
 	/** The card title, for the stripe's accessible name. */
 	readonly title: string;
 	readonly value: CardColor | undefined;
 	readonly onChange: (color: CardColor | undefined) => void;
-}
+};
 
 /**
  * The card's left stripe as a button: the stripe shows the color, so the
@@ -69,12 +69,12 @@ export const CardColorPicker: FC<CardColorPickerProps> = ({
 	);
 };
 
-interface SwatchProps {
+type SwatchProps = {
 	readonly label: string;
 	readonly selected: boolean;
 	readonly className: string;
 	readonly onClick: () => void;
-}
+};
 
 const Swatch: FC<SwatchProps> = ({ label, selected, className, onClick }) => (
 	<button
