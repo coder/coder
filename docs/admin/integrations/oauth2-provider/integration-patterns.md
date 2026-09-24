@@ -122,7 +122,7 @@ Both public and confidential clients must include PKCE parameters:
      redirect_uri=https://yourapp.example.com/callback
    ```
 
-3. Include the code verifier in the token exchange (see [Client Authentication Methods](#client-authentication-methods)):
+3. Include the code verifier in the token exchange (refer to [Client authentication methods](#client-authentication-methods)):
 
    **Confidential client**
 
