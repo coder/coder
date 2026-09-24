@@ -56,12 +56,13 @@ type Pubsub interface {
 	Close() error
 }
 
-// ConnectionStatuser is implemented by pubsub backends that can report their
-// current connection state in-process, without scraping the coder_pubsub_connected
-// Prometheus gauge. Only backends with a live connection concept (e.g. the
-// embedded NATS pubsub) implement it; PGPubsub does not, since PostgreSQL
-// pubsub is always considered the baseline backend.
-type ConnectionStatuser interface {
+// ConnectionStatusReporter is implemented by pubsub backends that can report
+// their current connection state in-process, without scraping the
+// coder_pubsub_connected Prometheus gauge. Only backends with a live
+// connection concept (e.g. the embedded NATS pubsub) implement it; PGPubsub
+// does not, since PostgreSQL pubsub is always considered the baseline
+// backend.
+type ConnectionStatusReporter interface {
 	// Connected reports whether the backend is currently connected.
 	Connected() bool
 }

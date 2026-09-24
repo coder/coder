@@ -22,7 +22,7 @@ type DatabaseReportOptions struct {
 	Threshold time.Duration
 
 	// Pubsub is the pubsub backend currently in use. If it implements
-	// pubsub.ConnectionStatuser (currently only the embedded NATS pubsub
+	// pubsub.ConnectionStatusReporter (currently only the embedded NATS pubsub
 	// does), the report's Pubsub.Connected field reflects its live
 	// connection state.
 	Pubsub pubsub.Pubsub
@@ -43,7 +43,7 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	r.Dismissed = opts.Dismissed
 
 	r.Pubsub.Enabled = opts.PubsubNATSEnabled
-	if checker, ok := opts.Pubsub.(pubsub.ConnectionStatuser); ok {
+	if checker, ok := opts.Pubsub.(pubsub.ConnectionStatusReporter); ok {
 		r.Pubsub.Connected = checker.Connected()
 	}
 
