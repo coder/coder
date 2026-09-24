@@ -7,6 +7,7 @@ import { getErrorDetail } from "#/api/errors";
 import {
 	aiSpendOrganizations,
 	exportOrganizationAISpend,
+	type OrganizationAISpendQuery,
 	paginatedOrganizationAISpend,
 } from "#/api/queries/aiBridge";
 import type { OrganizationAISpendFilter } from "#/api/typesGenerated";
@@ -142,10 +143,13 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				? lastPicked.preset
 				: undefined;
 
-	const spendFilter: OrganizationAISpendFilter = {
+	const spendFilter: OrganizationAISpendQuery = {
 		period_start: period.start.toISOString(),
 		period_end: period.end.toISOString(),
 		...dimensions,
+		username: filterValues.user,
+		group: filterValues.group,
+		unconfiguredPricing: filterValues.pricing === "unconfigured" || undefined,
 	};
 
 	const onPeriodChange = (value: DateTimeRangeValue) => {
@@ -184,6 +188,8 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		exportMutation.mutate(
 			{
 				organizationId: organization.id,
+				username: filterValues.user,
+				group: filterValues.group,
 				filter: {
 					period_start: spendFilter.period_start,
 					period_end: spendFilter.period_end,

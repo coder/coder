@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import dayjs from "dayjs";
 import { saveAs } from "file-saver";
@@ -15,6 +15,7 @@ import type { Permissions } from "#/modules/permissions";
 import {
 	MockAIProviders,
 	MockEntitlements,
+	MockGroup,
 	MockNoPermissions,
 	MockOrganization,
 	MockOrganization2,
@@ -135,6 +136,13 @@ function renderSpend(
 	renderWithRouter(router);
 	return { router, spendSpy, buildReport };
 }
+
+/** Text of each body row in the spend table. */
+const spendRows = () =>
+	within(screen.getByRole("table", { name: "Spend by user" }))
+		.getAllByRole("row")
+		.slice(1)
+		.map((row) => row.textContent ?? "");
 
 const searchParam = (
 	router: ReturnType<typeof createMemoryRouter>,
@@ -339,7 +347,20 @@ it("applies user and unconfigured pricing filters", async () => {
 	await waitFor(() =>
 		expect(searchParam(router, "filter")).toBe("user:user01"),
 	);
+	await waitFor(() =>
+		expect(spendRows()).toEqual([expect.stringContaining("@user01")]),
+	);
+	expect(searchParam(router, "page")).toBeNull();
 
+	// The endpoint does not accept these filters yet, so every user is loaded
+	// and filtered in the browser.
+	expect(spendSpy).toHaveBeenLastCalledWith(
+		MockOrganization.id,
+		expect.objectContaining({ limit: 100 }),
+	);
+	expect(spendSpy.mock.calls.at(-1)?.[1]).not.toHaveProperty("username");
+
+	// No mocked user has unpriced usage.
 	await user.click(filterInput);
 	await user.click(
 		await screen.findByRole("option", {
@@ -351,16 +372,36 @@ it("applies user and unconfigured pricing filters", async () => {
 			"user:user01 pricing:unconfigured",
 		),
 	);
+	await screen.findByText("No AI Gateway spend found");
+	expect(spendSpy.mock.calls.at(-1)?.[1]).not.toHaveProperty("pricing");
+});
+
+it("filters by group members and unconfigured pricing in the browser", async () => {
+	const users = Array.from({ length: 4 }, (_, i) => ({
+		...MockOrganizationAISpendUser,
+		user_id: `user-${i + 1}`,
+		username: `user${String(i + 1).padStart(2, "0")}`,
+		name: `User ${i + 1}`,
+		unpriced_usage_count: i % 2 === 0 ? 3 : 0,
+	}));
+	vi.spyOn(API, "getGroup").mockResolvedValue({
+		...MockGroup,
+		name: "devs",
+		members: ["user-1", "user-2", "user-4"].map((id) => ({
+			...MockUserMember,
+			id,
+		})),
+	});
+	const search = new URLSearchParams(initialSearch);
+	search.set("filter", "group:devs pricing:unconfigured");
+	renderSpend(search.toString(), { count: users.length, users });
 
 	await waitFor(() =>
-		expect(spendSpy).toHaveBeenCalledWith(
-			MockOrganization.id,
-			expect.objectContaining({ offset: 0 }),
-		),
+		expect(spendRows()).toEqual([expect.stringContaining("@user01")]),
 	);
-	expect(spendSpy.mock.calls.at(-1)?.[1]).not.toHaveProperty("user");
-	expect(spendSpy.mock.calls.at(-1)?.[1]).not.toHaveProperty("pricing");
-	expect(searchParam(router, "page")).toBeNull();
+	expect(API.getGroup).toHaveBeenCalledWith(MockOrganization.id, "devs", {
+		exclude_members: false,
+	});
 });
 
 it("applies the organization filter", async () => {
@@ -411,7 +452,19 @@ it("exports the filtered period as CSV", async () => {
 	const exportSpy = vi
 		.spyOn(API, "exportOrganizationAISpend")
 		.mockResolvedValue(csv);
-	renderSpend(`${initialSearch}&filter=provider%3Aopenai`);
+	vi.spyOn(API, "getUser").mockResolvedValue({
+		...MockUserMember,
+		id: "user-1",
+		username: "user01",
+	});
+	vi.spyOn(API, "getGroup").mockResolvedValue({
+		...MockGroup,
+		name: "devs",
+		members: [{ ...MockUserMember, id: "user-1" }],
+	});
+	const search = new URLSearchParams(initialSearch);
+	search.set("filter", "provider:openai user:user01 group:devs");
+	renderSpend(search.toString());
 	await screen.findByRole("table", { name: "Spend by user" });
 
 	await user.click(screen.getByRole("button", { name: "Export CSV" }));
@@ -426,7 +479,10 @@ it("exports the filtered period as CSV", async () => {
 		...period,
 		provider_name: "openai",
 		model: undefined,
+		user_id: "user-1",
+		group_id: MockGroup.id,
 	});
+	expect(API.getUser).toHaveBeenCalledWith("user01");
 });
 
 it("requests the next page offset", async () => {

@@ -1,11 +1,19 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
-import { screen, spyOn, userEvent, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type { OrganizationAISpendUser } from "#/api/typesGenerated";
 import {
 	MockAIProviders,
+	MockGroup,
 	MockOrganization,
 	MockOrganization2,
 	MockOrganizationAISpendReport,
@@ -31,10 +39,50 @@ const mockSpendUsers: OrganizationAISpendUser[] = Array.from(
 		providers: i % 3 === 0 ? ["anthropic", "openai"] : ["anthropic"],
 		clients: i % 2 === 1 ? ["Claude Code", "Cursor"] : ["Claude Code"],
 		models: i % 3 === 0 ? ["claude-opus-4-6", "gpt-5.4"] : ["claude-opus-4-6"],
+		unpriced_usage_count: i % 4 === 0 ? 2 : 0,
 	}),
 );
 
+// Mirrors the provider, model, and client filtering the endpoint applies.
+const filterMockSpendUsers = (
+	params: Parameters<typeof API.getOrganizationAISpendUsers>[1],
+) =>
+	mockSpendUsers.filter(
+		(spendUser) =>
+			(!params.provider_name ||
+				spendUser.providers.includes(params.provider_name)) &&
+			(!params.model || spendUser.models.includes(params.model)) &&
+			(!params.client || spendUser.clients.includes(params.client)),
+	);
+
 const routing = { path: "/ai/settings/spend", useStoryElement: true };
+
+const mockSpendGroup = {
+	...MockGroup,
+	name: "platform",
+	display_name: "Platform",
+	members: mockSpendUsers.slice(0, 4).map((spendUser) => ({
+		...MockUserMember,
+		id: spendUser.user_id,
+		username: spendUser.username,
+	})),
+};
+
+/** Waits until the spend table lists exactly these usernames. */
+const expectSpendUsers = async (
+	canvasElement: HTMLElement,
+	usernames: readonly string[],
+) => {
+	const canvas = within(canvasElement);
+	await waitFor(() => {
+		const rows = within(canvas.getByRole("table", { name: "Spend by user" }))
+			.getAllByRole("row")
+			.slice(1);
+		expect(rows.map((row) => row.textContent)).toEqual(
+			usernames.map((username) => expect.stringContaining(`@${username}`)),
+		);
+	});
+};
 
 // Story parameters deep-merge into the meta's, so a story cannot drop a range
 // the meta sets.
@@ -73,18 +121,29 @@ const meta = {
 			[MockOrganization2.id]: true,
 		});
 		spyOn(API, "getOrganizationAISpendUsers").mockImplementation(
-			async (_organizationId, params) => ({
-				...MockOrganizationAISpendReport,
-				period_start: params.period_start ?? "2026-03-01T00:00:00.000Z",
-				period_end: params.period_end ?? "2026-04-01T00:00:00.000Z",
-				count: mockSpendUsers.length,
-				totals: { cost_micros: 78_000_000, unpriced_usage_count: 0 },
-				users: mockSpendUsers.slice(
-					params.offset ?? 0,
-					(params.offset ?? 0) + (params.limit ?? 10),
-				),
-			}),
+			async (_organizationId, params) => {
+				const users = filterMockSpendUsers(params);
+				return {
+					...MockOrganizationAISpendReport,
+					period_start: params.period_start ?? "2026-03-01T00:00:00.000Z",
+					period_end: params.period_end ?? "2026-04-01T00:00:00.000Z",
+					count: users.length,
+					totals: {
+						cost_micros: users.reduce((sum, u) => sum + u.cost_micros, 0),
+						unpriced_usage_count: users.reduce(
+							(sum, u) => sum + u.unpriced_usage_count,
+							0,
+						),
+					},
+					users: users.slice(
+						params.offset ?? 0,
+						(params.offset ?? 0) + (params.limit ?? 10),
+					),
+				};
+			},
 		);
+		spyOn(API, "getGroupsByOrganization").mockResolvedValue([mockSpendGroup]);
+		spyOn(API, "getGroup").mockResolvedValue(mockSpendGroup);
 		spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
 		spyOn(API, "getAIBridgeClients").mockResolvedValue(["Claude Code"]);
 		spyOn(API, "getAIBridgeModels").mockResolvedValue(["gpt-4o"]);
@@ -171,7 +230,31 @@ export const UnconfiguredPricingFilter: Story = {
 		}),
 	},
 	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("table", { name: "Spend by user" });
+		await expectSpendUsers(canvasElement, ["user01", "user05", "user09"]);
+	},
+};
+
+export const GroupFilter: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/ai/settings/spend",
+				searchParams: {
+					startDate: "2026-02-10T00:00:00.000Z",
+					endDate: "2026-03-12T00:00:00.000Z",
+					filter: "group:platform",
+				},
+			},
+			routing,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await expectSpendUsers(canvasElement, [
+			"user01",
+			"user02",
+			"user03",
+			"user04",
+		]);
 	},
 };
 
@@ -189,20 +272,13 @@ export const FilteredByProvider: Story = {
 			routing,
 		}),
 	},
-	beforeEach: () => {
-		spyOn(API, "getOrganizationAISpendUsers").mockResolvedValue({
-			...MockOrganizationAISpendReport,
-			count: 3,
-			totals: { cost_micros: 27_000_000, unpriced_usage_count: 0 },
-			users: [
-				{ ...mockSpendUsers[0], providers: ["openai"] },
-				{ ...mockSpendUsers[3], providers: ["openai"] },
-				{ ...mockSpendUsers[6], providers: ["openai"] },
-			],
-		});
-	},
 	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("table", { name: "Spend by user" });
+		await expectSpendUsers(canvasElement, [
+			"user01",
+			"user04",
+			"user07",
+			"user10",
+		]);
 	},
 };
 
