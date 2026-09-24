@@ -50,9 +50,8 @@ Omitting `scope` requests the application's allowlist, or full access if it has 
 The negotiated scope is recorded on the authorization, shown on the consent
 page, and applied to the access token issued when the code is exchanged.
 
-The token endpoint validates a refresh request's `scope` too, and answers
-`invalid_scope` in the response body rather than by redirect. See
-["invalid_scope" for a refresh that names a scope](#invalid_scope-for-a-refresh-that-names-a-scope).
+The token endpoint validates a refresh request's `scope` too, and answers `invalid_scope` in the response body rather than by redirect.
+Refer to ["invalid_scope" for a refresh that names a scope](#invalid_scope-for-a-refresh-that-names-a-scope).
 
 ## "invalid_grant" for a scope the deployment cannot mint
 
