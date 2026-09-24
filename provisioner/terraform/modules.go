@@ -20,6 +20,10 @@ import (
 )
 
 const (
+	// terraformLockFileName is the dependency lock file Terraform writes to the
+	// root of a working directory during `terraform init`.
+	terraformLockFileName = ".terraform.lock.hcl"
+
 	// MaximumModuleArchiveSize limits the total size of a module archive.
 	// At some point, the user should take steps to reduce the size of their
 	// template modules, as this can lead to performance issues
@@ -90,16 +94,31 @@ func GetModulesArchive(root fs.FS) ([]byte, []string, error) {
 }
 
 // GetModulesArchiveWithLimit returns the tar archive, the skipped modules, and an error if any.
+//
+// Besides the remote modules fetched by `terraform init`, the archive carries
+// the `.terraform.lock.hcl` that init produced. Workspace builds extract this
+// archive over the template source, so every build starts with a lock file
+// matching the provisioner platform and Terraform can trust the local
+// provider cache instead of querying the registry on each init.
 func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []string, error) {
+	lockFileContent, err := fs.ReadFile(root, terraformLockFileName)
+	if err != nil {
+		if !xerrors.Is(err, fs.ErrNotExist) {
+			return nil, []string{}, xerrors.Errorf("failed to read %s: %w", terraformLockFileName, err)
+		}
+		lockFileContent = nil
+	}
+
+	var m modulesFile
 	modulesFileContent, err := fs.ReadFile(root, ".terraform/modules/modules.json")
 	if err != nil {
-		if xerrors.Is(err, fs.ErrNotExist) {
+		if !xerrors.Is(err, fs.ErrNotExist) {
+			return nil, []string{}, xerrors.Errorf("failed to read modules.json: %w", err)
+		}
+		if lockFileContent == nil {
 			return []byte{}, []string{}, nil
 		}
-		return nil, []string{}, xerrors.Errorf("failed to read modules.json: %w", err)
-	}
-	var m modulesFile
-	if err := json.Unmarshal(modulesFileContent, &m); err != nil {
+	} else if err := json.Unmarshal(modulesFileContent, &m); err != nil {
 		return nil, []string{}, xerrors.Errorf("failed to parse modules.json: %w", err)
 	}
 
@@ -108,6 +127,19 @@ func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []str
 
 	lw := xio.NewLimitWriter(&b, maxArchiveSize)
 	w := tar.NewWriter(lw)
+
+	// The lock file is written first so it always fits; modules are packed
+	// into whatever budget remains.
+	if lockFileContent != nil {
+		err = w.WriteHeader(defaultFileHeader(terraformLockFileName, len(lockFileContent)))
+		if err != nil {
+			return nil, []string{}, xerrors.Errorf("failed to write %s to archive: %w", terraformLockFileName, err)
+		}
+		if _, err := w.Write(lockFileContent); err != nil {
+			return nil, []string{}, xerrors.Errorf("failed to write %s to archive: %w", terraformLockFileName, err)
+		}
+		empty = false
+	}
 
 	sized := make([]*moduleWithEstimatedSize, 0, len(m.Modules))
 	for _, it := range m.Modules {
@@ -189,12 +221,14 @@ func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []str
 		}
 	}
 
-	err = w.WriteHeader(defaultFileHeader(".terraform/modules/modules.json", len(modulesFileContent)))
-	if err != nil {
-		return nil, skippedModules, xerrors.Errorf("failed to write modules.json to archive: %w", err)
-	}
-	if _, err := w.Write(modulesFileContent); err != nil {
-		return nil, skippedModules, xerrors.Errorf("failed to write modules.json to archive: %w", err)
+	if modulesFileContent != nil {
+		err = w.WriteHeader(defaultFileHeader(".terraform/modules/modules.json", len(modulesFileContent)))
+		if err != nil {
+			return nil, skippedModules, xerrors.Errorf("failed to write modules.json to archive: %w", err)
+		}
+		if _, err := w.Write(modulesFileContent); err != nil {
+			return nil, skippedModules, xerrors.Errorf("failed to write modules.json to archive: %w", err)
+		}
 	}
 
 	if err := w.Close(); err != nil {
