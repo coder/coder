@@ -123,8 +123,13 @@ type GenerateAssistantOptions struct {
 	OnModelStreamStart func()
 	Logger             slog.Logger
 	Metrics            *Metrics
-	Stages             *StageTracer
-	StageModel         StageModel
+	// Stages records the stream and time_to_first_token stages. A nil
+	// tracer discards them.
+	Stages *StageTracer
+	// StageModel labels the stream and time_to_first_token stages. It
+	// should match the identity the model's transport labels
+	// provider_attempt stages with.
+	StageModel StageModel
 }
 
 // AssistantOutcome is the durable assistant-side result from one model call.
@@ -788,8 +793,9 @@ func WithStreamWatchdog(ctx context.Context, kick func(silence time.Duration)) c
 	return context.WithValue(ctx, streamWatchdogKey{}, kick)
 }
 
-// errNoFirstToken marks a time_to_first_token window that ended when
-// the attempt was released before any part streamed or failed.
+// errNoFirstToken marks a time_to_first_token window that was still
+// open when the attempt was released because no output or error part
+// arrived.
 var errNoFirstToken = xerrors.New("stream ended before the first token")
 
 func guardedStream(
@@ -815,15 +821,15 @@ func guardedStream(
 	)
 	ttftSpan.SetModel(stageModel)
 	var ttftOnce sync.Once
-	// finishTTFT closes the time_to_first_token window exactly once. A
-	// nil err is the first streamed content part and feeds both the TTFT
-	// and the stage histogram, so both histograms hold only windows a
-	// first content part closed. Any non-nil err (an open failure, an error
-	// part, or errNoFirstToken for a window released without a part)
-	// ends the span with the error and is not observed.
+	// ttftSpan.End(nil) observes the stage histograms as well as the
+	// span. A silence timeout replaces err, which is then only the
+	// cancellation it caused.
 	finishTTFT := func(err error) {
 		ttftOnce.Do(func() {
 			if err != nil {
+				if errors.Is(context.Cause(attemptCtx), errStreamSilenceTimeout) {
+					err = classifyStreamSilenceTimeout(attemptCtx, provider, nil)
+				}
 				ttftSpan.EndWithoutObservation(err)
 				return
 			}
@@ -858,13 +864,12 @@ func guardedStream(
 				kick(timeout)
 				switch part.Type {
 				case fantasy.StreamPartTypeError:
-					// An error part is a failed attempt, not a first token.
 					finishTTFT(part.Error)
 				case fantasy.StreamPartTypeWarnings, fantasy.StreamPartTypeFinish:
-					// Warnings precede content and finish follows it; neither
-					// is model output, so the window stays open. A stream that
-					// finishes without content is closed by release.
+					// Neither is model output, so the window stays open.
 				default:
+					// Any output part closes the window, including start
+					// markers such as text_start.
 					finishTTFT(nil)
 				}
 				if !yield(part) {
