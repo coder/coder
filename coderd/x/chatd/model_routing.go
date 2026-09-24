@@ -124,6 +124,23 @@ func (p *Server) newModel(
 	route resolvedModelRoute,
 	opts modelBuildOptions,
 ) (fantasy.LanguageModel, error) {
+	model, err := p.newRoutedModel(ctx, req, route, opts)
+	if err != nil {
+		return nil, err
+	}
+	providerID := uuid.Nil
+	if route.kind == modelRouteKindAIGateway {
+		providerID = route.aiGateway.Provider.ID
+	}
+	return p.withThinkingDropBlock(model, providerID, req.Chat.ID), nil
+}
+
+func (p *Server) newRoutedModel(
+	ctx context.Context,
+	req modelClientRequest,
+	route resolvedModelRoute,
+	opts modelBuildOptions,
+) (fantasy.LanguageModel, error) {
 	switch route.kind {
 	case modelRouteKindDirect:
 		return p.newDirectModel(ctx, req, route.direct, opts)
