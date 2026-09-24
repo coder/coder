@@ -182,147 +182,48 @@ The admin `PUT` also validates the stored name, so a self-registered client whos
 
 ## Learn more
 
-- Review [Integration patterns](./integration-patterns.md) for client authentication methods, the PKCE flow, and discovery endpoints
-- Review [Scopes](./scopes.md) for how access is bounded
-- Review [Token management](./token-management.md) for refresh, revocation, and deletion
-- Review [Callback URL schemes](./callback-url-schemes.md) for accepted redirect URIs
-- Check [Troubleshooting](./troubleshooting.md) if a request fails
-- Review [Security and limitations](./security.md) for security considerations, current limitations, and upgrade notes
-- Check [External Authentication](../../external-auth/index.md) for configuring Coder as an OAuth2 client
-- Review the [API Reference](../../../reference/api/index.md) for complete endpoint documentation
-
-## Moved sections
-
-The sections below moved to their own pages.
-Each link goes to the exact heading that section became.
-
 <a id="integration-patterns"></a>
 
-- ["Integration Patterns"](./integration-patterns.md)
-
-<a id="client-authentication-methods"></a>
-
-- ["Client Authentication Methods"](./integration-patterns.md#client-authentication-methods)
-
-<a id="standard-oauth2-flow"></a>
-
-- ["Standard OAuth2 Flow"](./integration-patterns.md#standard-oauth2-flow)
-
-<a id="pkce-flow-required"></a>
-
-- ["PKCE Flow (Required)"](./integration-patterns.md#pkce-flow-required)
-
-<a id="discovery-endpoints"></a>
-
-- ["Discovery Endpoints"](./integration-patterns.md#discovery-endpoints)
-
-<a id="standards-compliance"></a>
-
-- ["Standards Compliance"](./integration-patterns.md#standards-compliance)
+- [Integration patterns](./integration-patterns.md): client authentication methods, the PKCE flow, and discovery endpoints
+  <a id="client-authentication-methods"></a>
+  - [Client authentication methods](./integration-patterns.md#client-authentication-methods)
+  <a id="standard-oauth2-flow"></a><a id="pkce-flow-required"></a>
+  - [PKCE flow](./integration-patterns.md#pkce-flow-required)
+  <a id="discovery-endpoints"></a><a id="standards-compliance"></a>
+  - [Discovery endpoints](./integration-patterns.md#discovery-endpoints)
 
 <a id="scopes"></a>
 
-- ["Scopes"](./scopes.md)
+- [Scopes](./scopes.md): how access is bounded
 
 <a id="token-management"></a>
 
-- ["Token Management"](./token-management.md)
-
-<a id="refresh-tokens"></a>
-
-- ["Refresh Tokens"](./token-management.md#refresh-tokens)
-
-<a id="revoke-a-token"></a>
-
-- ["Revoke a Token"](./token-management.md#revoke-a-token)
-
-<a id="revoke-access"></a>
-
-- ["Revoke Access"](./token-management.md#revoke-your-authorization-for-an-application)
-
-<a id="delete-an-application"></a>
-
-- ["Delete an Application"](./token-management.md#delete-an-application)
+- [Token management](./token-management.md): refresh, revocation, and deletion
+  <a id="refresh-tokens"></a>
+  - [Refresh tokens](./token-management.md#refresh-tokens)
+  <a id="revoke-a-token"></a>
+  - [Revoke a token](./token-management.md#revoke-a-token)
+  <a id="revoke-access"></a>
+  - [Revoke your authorization](./token-management.md#revoke-your-authorization-for-an-application)
+  <a id="delete-an-application"></a>
+  - [Delete an application](./token-management.md#delete-an-application)
 
 <a id="callback-url-schemes"></a>
 
-- ["Callback URL schemes"](./callback-url-schemes.md)
+- [Callback URL schemes](./callback-url-schemes.md): accepted redirect URIs
 
-<a id="common-issues"></a>
+<a id="common-issues"></a><a id="oauth2-endpoints-return-404"></a><a id="invalid-redirect_uri"></a><a id="invalid-callback-url-on-the-consent-page"></a><a id="invalid_scope-returned-to-your-callback"></a><a id="invalid_grant-for-a-scope-the-deployment-cannot-mint"></a><a id="invalid_scope-for-a-refresh-that-names-a-scope"></a><a id="invalid_client-for-a-refresh-or-a-revocation"></a><a id="invalid_request-for-client_secret-in-the-query-string"></a><a id="unsupported_response_type-returned-to-your-callback"></a><a id="invalid_request-for-code_challenge_method"></a><a id="invalid_request-for-a-rejected-parameter"></a><a id="invalid_request-from-post-oauth2tokens-for-a-repeated-parameter"></a><a id="invalid_target-for-a-rejected-resource"></a><a id="pkce-verification-failed"></a><a id="public-clients-may-not-use-the-mailtotelsms-scheme"></a>
 
-- ["Common Issues"](./troubleshooting.md)
+- [Troubleshooting](./troubleshooting.md): look up an error by its exact code or message
 
-<a id="oauth2-endpoints-return-404"></a>
+- [Security and limitations](./security.md): security considerations, current limitations, and upgrade notes
+  <a id="security-considerations"></a>
+  - [Security considerations](./security.md#security-considerations)
+  <a id="limitations"></a>
+  - [Limitations](./security.md#limitations)
 
-- ["OAuth2 endpoints return 404"](./troubleshooting.md#oauth2-endpoints-return-404)
-
-<a id="invalid-redirect_uri"></a>
-
-- ["Invalid redirect_uri"](./troubleshooting.md#invalid-redirect_uri)
-
-<a id="invalid-callback-url-on-the-consent-page"></a>
-
-- ["Invalid Callback URL" on the consent page](./troubleshooting.md#invalid-callback-url-on-the-consent-page)
-
-<a id="invalid_scope-returned-to-your-callback"></a>
-
-- ["invalid_scope" returned to your callback](./troubleshooting.md#invalid_scope-returned-to-your-callback)
-
-<a id="invalid_grant-for-a-scope-the-deployment-cannot-mint"></a>
-
-- ["invalid_grant" for a scope the deployment cannot mint](./troubleshooting.md#invalid_grant-for-a-scope-the-deployment-cannot-mint)
-
-<a id="invalid_scope-for-a-refresh-that-names-a-scope"></a>
-
-- ["invalid_scope" for a refresh that names a scope](./troubleshooting.md#invalid_scope-for-a-refresh-that-names-a-scope)
-
-<a id="invalid_client-for-a-refresh-or-a-revocation"></a>
-
-- ["invalid_client" for a refresh or a revocation](./troubleshooting.md#invalid_client-for-a-refresh-or-a-revocation)
-
-<a id="invalid_request-for-client_secret-in-the-query-string"></a>
-
-- ["invalid_request" for `client_secret` in the query string](./troubleshooting.md#invalid_request-for-client_secret-in-the-query-string)
-
-<a id="unsupported_response_type-returned-to-your-callback"></a>
-
-- ["unsupported_response_type" returned to your callback](./troubleshooting.md#unsupported_response_type-returned-to-your-callback)
-
-<a id="invalid_request-for-code_challenge_method"></a>
-
-- ["invalid_request" for `code_challenge_method`](./troubleshooting.md#invalid_request-for-code_challenge_method)
-
-<a id="invalid_request-for-a-rejected-parameter"></a>
-
-- ["invalid_request" for a rejected parameter](./troubleshooting.md#invalid_request-for-a-rejected-parameter)
-
-<a id="invalid_request-from-post-oauth2tokens-for-a-repeated-parameter"></a>
-
-- ["invalid_request" from `POST /oauth2/tokens` for a repeated parameter](./troubleshooting.md#invalid_request-from-post-oauth2tokens-for-a-repeated-parameter)
-
-<a id="invalid_target-for-a-rejected-resource"></a>
-
-- ["invalid_target" for a rejected `resource`](./troubleshooting.md#invalid_target-for-a-rejected-resource)
-
-<a id="pkce-verification-failed"></a>
-
-- ["PKCE verification failed"](./troubleshooting.md#pkce-verification-failed)
-
-<a id="public-clients-may-not-use-the-mailtotelsms-scheme"></a>
-
-- ["public clients may not use the mailto/tel/sms scheme"](./troubleshooting.md#public-clients-may-not-use-the-mailtotelsms-scheme)
-
-<a id="security-considerations"></a>
-
-- ["Security Considerations"](./security.md#security-considerations)
-
-<a id="limitations"></a>
-
-- ["Limitations"](./security.md#limitations)
-
-<a id="testing-and-development"></a>
-
-- Testing and Development is no longer part of the docs. Refer to the [OAuth2 test scripts README](../../../../scripts/oauth2/README.md).
+- Check [External Authentication](../../external-auth/index.md) for configuring Coder as an OAuth2 client
+- Review the [API Reference](../../../reference/api/index.md) for complete endpoint documentation
 
 ## Feedback
 
