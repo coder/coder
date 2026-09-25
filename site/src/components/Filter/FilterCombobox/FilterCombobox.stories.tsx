@@ -785,6 +785,8 @@ export const CategoryOptionsLoading: Story = {
 					key: "owner",
 					label: "Owner",
 					icon: <UserIcon />,
+					// Listed while its options are still loading.
+					showWhenSingleOption: true,
 					getOptions: () => new Promise<FilterOption[]>(() => {}),
 				},
 			]}
