@@ -881,15 +881,47 @@ describe("FilterCombobox", () => {
 	});
 
 	it("clears every chip and keeps the search text with Clear all", async () => {
-		const { user, onChange } = setup(
+		const { user, onChange, input } = setup(
 			[ownerCategory, statusCategory, attributesCategory],
 			{ initialValue: "owner:alice status:running outdated:true dev" },
 		);
 
+		await user.click(input);
 		await user.click(screen.getByRole("button", { name: "Clear all" }));
 
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("dev"));
+		expect(input).toHaveValue("dev");
+		expect(input).toHaveFocus();
 	});
+
+	it("does not offer Clear all for two chips", () => {
+		setup([ownerCategory, statusCategory], {
+			initialValue: "owner:alice status:running",
+		});
+
+		expect(
+			screen.queryByRole("button", { name: "Clear all" }),
+		).not.toBeInTheDocument();
+	});
+
+	it.each([
+		["Enter", "{Enter}"],
+		["Space", " "],
+	])(
+		"clears every chip with %s and moves focus to the input",
+		async (_, key) => {
+			const { user, onChange, input } = setup(
+				[ownerCategory, statusCategory, attributesCategory],
+				{ initialValue: "owner:alice status:running outdated:true dev" },
+			);
+
+			screen.getByRole("button", { name: "Clear all" }).focus();
+			await user.keyboard(key);
+
+			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("dev"));
+			expect(input).toHaveFocus();
+		},
+	);
 
 	describe("on a mobile viewport", () => {
 		const originalMatchMedia = window.matchMedia;

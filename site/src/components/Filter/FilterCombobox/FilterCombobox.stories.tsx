@@ -616,7 +616,6 @@ export const TypedInlinePrefix: Story = {
 	},
 };
 
-// Three or more chips add a Clear all button after the last chip.
 export const ClearAll: Story = {
 	render: () => (
 		<FilterComboboxHarness

@@ -61,6 +61,10 @@ import {
  */
 const CATEGORY_HOVER_DELAY_MS = 300;
 
+/**
+ * Chip count at which Clear all appears. Fewer chips are quick to remove one
+ * at a time.
+ */
 const CLEAR_ALL_MIN_CHIPS = 3;
 
 const labelOnlyChipClassName =
@@ -385,7 +389,24 @@ export function FilterCombobox({
 									type="button"
 									// Keep focus in the combobox input.
 									onMouseDown={(event) => event.preventDefault()}
-									onClick={actions.clearChips}
+									// The cmdk root cancels Enter, so it is handled here.
+									onKeyDown={(event) => {
+										if (event.key !== "Enter") {
+											return;
+										}
+										event.preventDefault();
+										event.stopPropagation();
+										actions.clearChips();
+										actions.focusInput();
+									}}
+									onClick={(event) => {
+										actions.clearChips();
+										// The button unmounts, so keyboard activation (detail 0)
+										// moves focus to the input instead of the page body.
+										if (event.detail === 0) {
+											actions.focusInput();
+										}
+									}}
 								>
 									Clear all
 								</button>

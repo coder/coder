@@ -894,12 +894,12 @@ export const useFilterCombobox = ({
 		dispatch({ type: "close" });
 	};
 
-	// Chip removal leaves the popup, the input, and a pending typed-text lookup
-	// untouched.
 	const handleRemoveChip = (token: string) => {
 		emitChipsKeepingLookup(chipValues.filter((entry) => entry !== token));
 	};
 
+	// Emits the given chips with the applied free text, leaving the popup, the
+	// input, and a pending typed-text lookup untouched.
 	const emitChipsKeepingLookup = (tokens: string[]) => {
 		emitQueryKeepingLookup(
 			composeFilterQuery(tokens, chipKeys, appliedFreeText()),
@@ -1042,7 +1042,6 @@ export const useFilterCombobox = ({
 			showAllFilters,
 			dismiss: handleDismiss,
 			removeChip: handleRemoveChip,
-			// Removes every chip and keeps the typed search text.
 			clearChips: () => emitChipsKeepingLookup([]),
 			retryActiveOptions,
 			retryTypeahead,
