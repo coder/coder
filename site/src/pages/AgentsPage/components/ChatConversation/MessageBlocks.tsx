@@ -28,7 +28,7 @@ const ReasoningDisclosure = memo<{
 	id: string;
 	text: string;
 	isStreaming?: boolean;
-	urlTransform?: UrlTransform;
+	urlTransform: UrlTransform;
 	thinkingDisplayMode?: ThinkingDisplayMode;
 }>(
 	({
@@ -142,7 +142,7 @@ const ResponseBlock = memo<{
 	text: string;
 	isStreaming: boolean;
 	streamKey: string;
-	urlTransform?: UrlTransform;
+	urlTransform: UrlTransform;
 }>(({ text, isStreaming, streamKey, urlTransform }) => {
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
@@ -188,7 +188,7 @@ const ReadFileTimelineBlock = memo<{
 });
 
 export type BlockListProps = {
-	organizationId?: string;
+	organizationId: string;
 	blocks: readonly RenderBlock[];
 	tools: readonly MergedTool[];
 	keyPrefix: string;
@@ -197,7 +197,7 @@ export type BlockListProps = {
 	subagentVariants?: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	mcpServers: readonly TypesGen.MCPServerConfig[];
 	onImageClick?: (src: string) => void;
 	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
 	onImplementPlan?: () => Promise<void> | void;
@@ -206,7 +206,7 @@ export type BlockListProps = {
 	latestAskUserQuestionToolId?: string;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	hasUserResponseAfterAskQuestion?: boolean;
-	urlTransform?: UrlTransform;
+	urlTransform: UrlTransform;
 };
 
 // Shared block renderer for durable messages and the live assistant turn.
