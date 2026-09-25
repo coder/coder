@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge/context"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/recorder"
 )
@@ -255,8 +256,8 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 
 		result := intercept.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", intercept.Config{SendActorHeaders: true}, actor)
 
-		require.Equal(t, []string{"user-123"}, result.Values(intercept.ActorIDHeader()))
-		require.Equal(t, []string{"alice"}, result.Values(intercept.ActorMetadataHeader("Username")))
+		require.Equal(t, []string{"user-123"}, result.Values(aibheaders.ActorIDHeader()))
+		require.Equal(t, []string{"alice"}, result.Values(aibheaders.ActorMetadataHeader("Username")))
 		require.Equal(t, "Bearer provider-key", result.Get("Authorization"))
 		require.Equal(t, sdkCopy, sdkHeaders)
 		require.Equal(t, clientCopy, clientHeaders)
@@ -280,7 +281,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 				t.Parallel()
 
 				result := intercept.BuildUpstreamHeaders(nil, nil, "Authorization", intercept.Config{SendActorHeaders: tc.send}, tc.actor)
-				require.Equal(t, tc.want, result.Get(intercept.ActorIDHeader()))
+				require.Equal(t, tc.want, result.Get(aibheaders.ActorIDHeader()))
 			})
 		}
 	})

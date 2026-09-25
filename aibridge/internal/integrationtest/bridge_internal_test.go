@@ -36,7 +36,7 @@ import (
 	aibclient "github.com/coder/coder/v2/aibridge/client"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -2692,14 +2692,14 @@ func TestActorHeaders(t *testing.T) {
 				found := make(map[string][]string)
 				for k, v := range receivedHeaders {
 					k = strings.ToLower(k)
-					if intercept.IsActorHeader(k) {
+					if aibheaders.IsActorHeader(k) {
 						found[k] = v
 					}
 				}
 
 				if send {
-					require.Equal(t, found[strings.ToLower(intercept.ActorIDHeader())], []string{defaultActorID})
-					require.Equal(t, found[strings.ToLower(intercept.ActorMetadataHeader(metadataKey))], []string{actorUsername})
+					require.Equal(t, found[strings.ToLower(aibheaders.ActorIDHeader())], []string{defaultActorID})
+					require.Equal(t, found[strings.ToLower(aibheaders.ActorMetadataHeader(metadataKey))], []string{actorUsername})
 				} else {
 					require.Empty(t, found)
 				}

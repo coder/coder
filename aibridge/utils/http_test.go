@@ -90,14 +90,6 @@ func TestNewJSONErrorResponse(t *testing.T) {
 	}
 }
 
-func TestActorHeaders(t *testing.T) {
-	t.Parallel()
-
-	require.True(t, utils.IsActorHeader(utils.ActorHeaderPrefix+"-ID"))
-	require.True(t, utils.IsActorHeader("x-ai-bridge-actor-metadata-name"))
-	require.False(t, utils.IsActorHeader("X-AI-Bridge-Request-ID"))
-}
-
 func TestNewStreamingTransport(t *testing.T) {
 	t.Parallel()
 
