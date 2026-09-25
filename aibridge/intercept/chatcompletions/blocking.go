@@ -134,6 +134,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 		if prompt != nil {
 			_ = i.recorder.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{
+				CreatedAt:      time.Now().UTC(),
 				InterceptionID: i.ID().String(),
 				MsgID:          completion.ID,
 				Prompt:         *prompt,
@@ -154,6 +155,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 					pendingToolCalls = append(pendingToolCalls, toolCall)
 				} else {
 					_ = i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
+						CreatedAt:      time.Now().UTC(),
 						InterceptionID: i.ID().String(),
 						MsgID:          completion.ID,
 						ToolCallID:     toolCall.ID,
@@ -192,6 +194,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			args := i.unmarshalArgs(tc.Function.Arguments)
 			res, err := tool.Call(ctx, args, i.tracer)
 			_ = i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
+				CreatedAt:       time.Now().UTC(),
 				InterceptionID:  i.ID().String(),
 				MsgID:           completion.ID,
 				ToolCallID:      tc.ID,

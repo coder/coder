@@ -175,6 +175,7 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, u
 	}
 
 	usageRecord := recorder.TokenUsageRecord{
+		CreatedAt:             time.Now().UTC(),
 		InterceptionID:        i.ID().String(),
 		MsgID:                 msgID,
 		Input:                 usage.InputTokens,
@@ -311,8 +312,9 @@ func (*interceptionBase) extractModelThoughts(msg *anthropic.Message) []*recorde
 			continue
 		}
 		thoughtRecords = append(thoughtRecords, &recorder.ModelThoughtRecord{
-			Content:  variant.Thinking,
-			Metadata: recorder.Metadata{"source": recorder.ThoughtSourceThinking},
+			CreatedAt: time.Now().UTC(),
+			Content:   variant.Thinking,
+			Metadata:  recorder.Metadata{"source": recorder.ThoughtSourceThinking},
 		})
 	}
 	return thoughtRecords
