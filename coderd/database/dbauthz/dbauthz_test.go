@@ -5475,6 +5475,20 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().UpsertNotificationsSettings(gomock.Any(), "foo").Return(nil).AnyTimes()
 		check.Args("foo").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
+	s.Run("GetExperimentRules", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		rows := []database.GetExperimentRulesRow{{Experiment: "example", Value: "{}"}}
+		dbm.EXPECT().GetExperimentRules(gomock.Any()).Return(rows, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("GetExperimentRule", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetExperimentRule(gomock.Any(), "example").Return("{}", nil).AnyTimes()
+		check.Args("example").Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns("{}")
+	}))
+	s.Run("UpsertExperimentRule", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpsertExperimentRuleParams{Experiment: "example", Value: "{}"}
+		dbm.EXPECT().UpsertExperimentRule(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
 	s.Run("GetDeploymentWorkspaceAgentStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		t := time.Time{}
 		dbm.EXPECT().GetDeploymentWorkspaceAgentStats(gomock.Any(), t).Return(database.GetDeploymentWorkspaceAgentStatsRow{}, nil).AnyTimes()

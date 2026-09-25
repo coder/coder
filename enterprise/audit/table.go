@@ -40,6 +40,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatInstructionSettings":       {codersdk.AuditActionWrite},
 	"ChatOperationalSettings":       {codersdk.AuditActionWrite},
+	"ExperimentRule":                {codersdk.AuditActionWrite},
 }
 
 type Action string
@@ -565,6 +566,13 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"computer_use_provider":            ActionTrack,
 		"debug_logging_allow_users":        ActionTrack,
 		"personal_model_overrides_enabled": ActionTrack,
+	},
+	&database.ExperimentRule{}: {
+		"id":         ActionIgnore, // Derived from the experiment name.
+		"experiment": ActionTrack,
+		"mode":       ActionTrack,
+		"condition":  ActionSecret, // Conditions can name users; read the text through the rules API.
+		"revision":   ActionTrack,
 	},
 	&database.UserSecret{}: {
 		"id":          ActionTrack,

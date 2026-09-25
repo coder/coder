@@ -616,7 +616,8 @@ CREATE TYPE resource_type AS ENUM (
     'chat_instruction_settings',
     'mcp_server_config',
     'chat_model_config',
-    'chat_operational_settings'
+    'chat_operational_settings',
+    'experiment_rule'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (

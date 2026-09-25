@@ -26833,6 +26833,59 @@ func (q *sqlQuerier) GetDeploymentID(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getExperimentRule = `-- name: GetExperimentRule :one
+SELECT site_configs.value
+FROM site_configs
+WHERE site_configs.key = 'experiment_rule:' || $1::text
+`
+
+func (q *sqlQuerier) GetExperimentRule(ctx context.Context, experiment string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getExperimentRule, experiment)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
+const getExperimentRules = `-- name: GetExperimentRules :many
+SELECT
+    substr(site_configs.key, length('experiment_rule:') + 1)::text AS experiment,
+    site_configs.value
+FROM site_configs
+WHERE starts_with(site_configs.key, 'experiment_rule:')
+ORDER BY site_configs.key
+`
+
+type GetExperimentRulesRow struct {
+	Experiment string `db:"experiment" json:"experiment"`
+	Value      string `db:"value" json:"value"`
+}
+
+// GetExperimentRules returns every stored runtime experiment rule, keyed by
+// the experiment name. starts_with is used instead of LIKE because '_' is a
+// LIKE wildcard.
+func (q *sqlQuerier) GetExperimentRules(ctx context.Context) ([]GetExperimentRulesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getExperimentRules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetExperimentRulesRow
+	for rows.Next() {
+		var i GetExperimentRulesRow
+		if err := rows.Scan(&i.Experiment, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getHealthSettings = `-- name: GetHealthSettings :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'health_settings'), '{}') :: text AS health_settings
@@ -27215,6 +27268,22 @@ type UpsertDefaultProxyParams struct {
 // The functional values are immutable and controlled implicitly.
 func (q *sqlQuerier) UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error {
 	_, err := q.db.ExecContext(ctx, upsertDefaultProxy, arg.DisplayName, arg.IconURL)
+	return err
+}
+
+const upsertExperimentRule = `-- name: UpsertExperimentRule :exec
+INSERT INTO site_configs (key, value)
+VALUES ('experiment_rule:' || $1::text, $2::text)
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+`
+
+type UpsertExperimentRuleParams struct {
+	Experiment string `db:"experiment" json:"experiment"`
+	Value      string `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) UpsertExperimentRule(ctx context.Context, arg UpsertExperimentRuleParams) error {
+	_, err := q.db.ExecContext(ctx, upsertExperimentRule, arg.Experiment, arg.Value)
 	return err
 }
 
