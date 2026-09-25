@@ -2371,6 +2371,28 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Update plan mode before the other fields, so a pending structured
+	// output conflict rejects the request before any of them is saved.
+	if planModeUpdate != nil {
+		updatedChat, err := api.chatDaemon.UpdatePlanMode(ctx, chat.ID, *planModeUpdate)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, chatstate.ErrChatNotFound) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			if errors.Is(err, chatd.ErrStructuredOutputPending) {
+				writeStructuredOutputPendingConflict(ctx, rw)
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update chat plan mode.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		chat = updatedChat
+	}
+
 	if req.Title != nil {
 		updatedChat, handled := api.applyChatTitleUpdate(ctx, rw, chat, *req.Title)
 		if handled {
@@ -2577,26 +2599,6 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to update chat workspace binding.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		chat = updatedChat
-	}
-
-	if planModeUpdate != nil {
-		updatedChat, err := api.chatDaemon.UpdatePlanMode(ctx, chat.ID, *planModeUpdate)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, chatstate.ErrChatNotFound) {
-				httpapi.ResourceNotFound(rw)
-				return
-			}
-			if errors.Is(err, chatd.ErrStructuredOutputPending) {
-				writeStructuredOutputPendingConflict(ctx, rw)
-				return
-			}
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to update chat plan mode.",
 				Detail:  err.Error(),
 			})
 			return
