@@ -159,7 +159,8 @@ func TestStageSpanRoundTripper(t *testing.T) {
 
 func TestServerRecordQueueWaitIsStandalone(t *testing.T) {
 	t.Parallel()
-	tracer, recorder := newStageTestTracer(t)
+	clock := quartz.NewMock(t)
+	tracer, recorder, _ := newStageMetricsTracer(t, chatloop.WithClock(clock))
 	server := &Server{stages: tracer}
 	chat := database.Chat{
 		ID:             uuid.New(),
@@ -171,11 +172,10 @@ func TestServerRecordQueueWaitIsStandalone(t *testing.T) {
 	// The promoting request has its own span, which the queue wait must
 	// not join.
 	requestCtx, requestSpan := tracer.Start(t.Context(), chatloop.StageCommit)
-	queuedAt := time.Now().Add(-30 * time.Second)
-	promotedAt := queuedAt.Add(20 * time.Second)
-	server.recordQueueWait(requestCtx, chat, queuedAt, promotedAt)
+	queuedAt := clock.Now().Add(-30 * time.Second)
+	server.recordQueueWait(requestCtx, chat, queuedAt)
 	// A zero queue time means nothing was promoted.
-	server.recordQueueWait(requestCtx, chat, time.Time{}, promotedAt)
+	server.recordQueueWait(requestCtx, chat, time.Time{})
 	requestSpan.End(nil)
 
 	var queueWait, request sdktrace.ReadOnlySpan
@@ -193,7 +193,8 @@ func TestServerRecordQueueWaitIsStandalone(t *testing.T) {
 	require.False(t, queueWait.Parent().IsValid())
 	require.NotEqual(t, request.SpanContext().TraceID(), queueWait.SpanContext().TraceID())
 	require.Equal(t, queuedAt.UTC(), queueWait.StartTime().UTC())
-	require.Equal(t, promotedAt.UTC(), queueWait.EndTime().UTC())
+	// The wait ends at the tracer's now.
+	require.Equal(t, clock.Now().UTC(), queueWait.EndTime().UTC())
 	require.Contains(t, queueWait.Attributes(),
 		attribute.String(chatloop.AttrScope, string(chatloop.ScopeTurn)))
 	require.Contains(t, queueWait.Attributes(),

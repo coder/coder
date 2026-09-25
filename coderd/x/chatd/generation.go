@@ -88,16 +88,6 @@ type generationPrepared struct {
 	Debug *generationDebug
 }
 
-// modelProvider returns the wire protocol of the prepared model, the
-// provider attribute of the stages that run against it. It is empty
-// when no model was built.
-func (p generationPrepared) modelProvider() string {
-	if !p.Model.Valid() {
-		return ""
-	}
-	return p.Model.Provider()
-}
-
 // generationCompaction contains compaction inputs prepared for generation.
 type generationCompaction struct {
 	// Override, when non-nil, is the compaction model override resolved at
@@ -528,10 +518,7 @@ func (s *taskStarter) runGenerationStep(
 		return s.server.prepareGeneration(prepareCtx, prepareInput)
 	})
 	if err == nil {
-		providerAttr := attribute.String(chatloop.AttrProvider, prepared.modelProvider())
-		prepareSpan.SetAttributes(providerAttr)
 		prepareSpan.SetModel(prepared.StageModel)
-		stepSpan.SetAttributes(providerAttr)
 		stepSpan.SetModel(prepared.StageModel)
 	}
 	prepareSpan.End(err)
@@ -881,7 +868,6 @@ func (s *taskStarter) recordThinkingStages(
 			startedAt,
 			step.ReasoningCompletedAt[index],
 			nil,
-			attribute.String(chatloop.AttrProvider, prepared.modelProvider()),
 		)
 	}
 }
@@ -994,9 +980,10 @@ func (s *taskStarter) executeLocalTools(
 		return xerrors.Errorf("beginGenerationAttempt: %w", err)
 	}
 	defer attempt.closeEpisode()
-	provider := prepared.modelProvider()
+	provider := ""
 	modelName := ""
 	if prepared.Model.Valid() {
+		provider = prepared.Model.Provider()
 		modelName = prepared.Model.ModelID()
 	}
 	var outcome chatloop.PersistedStep
@@ -1170,7 +1157,6 @@ func (s *taskStarter) generateCompaction(
 	// skips debug instrumentation entirely.
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
 	compactionCtx, compactionSpan := s.server.stages.Start(runCtx, chatloop.StageCompaction,
-		attribute.String(chatloop.AttrProvider, metricProvider),
 		attribute.String(chatloop.AttrCompactionSource, string(source)),
 	)
 	compactionSpan.SetModel(compactionModel)
@@ -1553,7 +1539,7 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 		return err
 	}
 	input.TurnSpan.Complete(input.TurnToken)
-	s.server.recordQueueWait(ctx, committed, promotedQueuedAt, s.server.stages.Now())
+	s.server.recordQueueWait(ctx, committed, promotedQueuedAt)
 	return s.completeGenerationTurn(ctx, input, committed)
 }
 
@@ -1643,7 +1629,7 @@ func (s *taskStarter) finishGenerationTurn(
 		})
 	}
 	input.TurnSpan.Complete(input.TurnToken)
-	s.server.recordQueueWait(ctx, committed, promotedQueuedAt, s.server.stages.Now())
+	s.server.recordQueueWait(ctx, committed, promotedQueuedAt)
 	return s.completeGenerationTurn(ctx, input, committed)
 }
 
