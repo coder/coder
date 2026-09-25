@@ -39,6 +39,11 @@ export const WorkspaceBuildFailedAlert: FC<WorkspaceBuildFailedAlertProps> = ({
 							target="_blank"
 							rel="noreferrer"
 							onClick={handleDebugClick}
+							onAuxClick={(event) => {
+								if (event.button === 1) {
+									handleDebugClick();
+								}
+							}}
 						>
 							Debug with Coder Agents
 							<SquareArrowOutUpRightIcon />

@@ -784,12 +784,35 @@ func (api *API) notifyWorkspaceUpdated(
 // @Param request body codersdk.WorkspaceBuildDebugEventRequest true "Debug event"
 // @Success 204
 // @Router /api/v2/workspacebuilds/{workspacebuild}/debug-events [post]
+// @x-apidocgen {"skip": true}
 func (api *API) postWorkspaceBuildDebugEvent(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	// The build param middleware already returned 404 to anyone who cannot
-	// read the workspace, which is the same audience that sees the action.
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+
+	if !api.Experiments.Enabled(codersdk.ExperimentEnableAIWorkspaceDebug) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String()).AnyOrganization()) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if job.JobStatus != database.ProvisionerJobStatusFailed {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Only failed workspace builds can be debugged.",
+		})
+		return
+	}
 
 	var req codersdk.WorkspaceBuildDebugEventRequest
 	if !httpapi.Read(ctx, rw, r, &req) {

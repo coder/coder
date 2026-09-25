@@ -7,10 +7,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -19,22 +22,26 @@ import (
 func TestWorkspaceBuildDebugEvent(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Click", func(t *testing.T) {
+	t.Run("AdminClicksMembersFailedBuild", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		fTelemetry := newFakeTelemetryReporter(ctx, t, 10)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			TelemetryReporter: fTelemetry,
+			DeploymentValues: coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
+				values.Experiments = []string{string(codersdk.ExperimentEnableAIWorkspaceDebug)}
+			}),
 		})
 		user := coderdtest.CreateFirstUser(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
+			OwnerID:        member.ID,
 		}).Seed(database.WorkspaceBuild{
-			Transition: database.WorkspaceTransitionStart,
-			Reason:     database.BuildReasonInitiator,
-		}).Do()
+			Transition: database.WorkspaceTransitionStop,
+			Reason:     database.BuildReasonAutostop,
+		}).Failed().Do()
 
 		eventID := uuid.New()
 		err := client.ReportWorkspaceBuildDebugClick(ctx, r.Build.ID, codersdk.WorkspaceBuildDebugEventRequest{
@@ -48,51 +55,100 @@ func TestWorkspaceBuildDebugEvent(t *testing.T) {
 		require.Equal(t, user.UserID, event.UserID)
 		require.Equal(t, r.Workspace.ID, event.WorkspaceID)
 		require.Equal(t, r.Build.ID, event.WorkspaceBuildID)
-		require.Equal(t, string(database.WorkspaceTransitionStart), event.Transition)
-		require.Equal(t, string(database.BuildReasonInitiator), event.Reason)
+		require.Equal(t, string(database.WorkspaceTransitionStop), event.Transition)
+		require.Equal(t, string(database.BuildReasonAutostop), event.Reason)
 		require.False(t, event.CreatedAt.IsZero())
 	})
 
-	t.Run("MissingID", func(t *testing.T) {
-		t.Parallel()
+	for _, tt := range []struct {
+		name               string
+		experimentDisabled bool
+		chatDenied         bool
+		otherUsersBuild    bool
+		missingID          bool
+		jobStatus          database.ProvisionerJobStatus
+		wantStatus         int
+	}{
+		{name: "MissingID", missingID: true, jobStatus: database.ProvisionerJobStatusFailed, wantStatus: http.StatusBadRequest},
+		{name: "ExperimentDisabled", experimentDisabled: true, jobStatus: database.ProvisionerJobStatusFailed, wantStatus: http.StatusNotFound},
+		{name: "ChatCreateDenied", chatDenied: true, jobStatus: database.ProvisionerJobStatusFailed, wantStatus: http.StatusForbidden},
+		{name: "OtherUsersBuild", otherUsersBuild: true, jobStatus: database.ProvisionerJobStatusFailed, wantStatus: http.StatusNotFound},
+		{name: "SucceededBuild", jobStatus: database.ProvisionerJobStatusSucceeded, wantStatus: http.StatusBadRequest},
+		{name: "RunningBuild", jobStatus: database.ProvisionerJobStatusRunning, wantStatus: http.StatusBadRequest},
+		{name: "PendingBuild", jobStatus: database.ProvisionerJobStatusPending, wantStatus: http.StatusBadRequest},
+		{name: "CanceledBuild", jobStatus: database.ProvisionerJobStatusCanceled, wantStatus: http.StatusBadRequest},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		client, db := coderdtest.NewWithDatabase(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
-		}).Do()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			fTelemetry := newFakeTelemetryReporter(ctx, t, 10)
+			options := &coderdtest.Options{
+				TelemetryReporter: fTelemetry,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
+					if !tt.experimentDisabled {
+						values.Experiments = []string{string(codersdk.ExperimentEnableAIWorkspaceDebug)}
+					}
+				}),
+			}
+			if tt.chatDenied {
+				options.Authorizer = &coderdtest.FakeAuthorizer{
+					ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
+						if action == policy.ActionCreate && object.Type == rbac.ResourceChat.Type {
+							return xerrors.New("chat creation denied")
+						}
+						return nil
+					},
+				}
+			}
+			client, db := coderdtest.NewWithDatabase(t, options)
+			user := coderdtest.CreateFirstUser(t, client)
+			build := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+			})
+			switch tt.jobStatus {
+			case database.ProvisionerJobStatusFailed:
+				build = build.Failed()
+			case database.ProvisionerJobStatusSucceeded:
+				build = build.Succeeded()
+			case database.ProvisionerJobStatusRunning:
+				build = build.Starting()
+			case database.ProvisionerJobStatusPending, database.ProvisionerJobStatusCanceled:
+				build = build.Pending()
+			default:
+				t.Fatalf("unexpected job status %q", tt.jobStatus)
+			}
+			r := build.Do()
+			if tt.jobStatus == database.ProvisionerJobStatusCanceled {
+				require.NoError(t, client.CancelWorkspaceBuild(ctx, r.Build.ID, codersdk.CancelWorkspaceBuildParams{}))
+			}
+			if tt.otherUsersBuild {
+				client, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+			}
+			req := codersdk.WorkspaceBuildDebugEventRequest{ID: uuid.New()}
+			if tt.missingID {
+				req.ID = uuid.Nil
+			}
 
-		err := client.ReportWorkspaceBuildDebugClick(ctx, r.Build.ID, codersdk.WorkspaceBuildDebugEventRequest{})
-		require.Error(t, err)
+			err := client.ReportWorkspaceBuildDebugClick(ctx, r.Build.ID, req)
+			require.Error(t, err)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, tt.wantStatus, sdkErr.StatusCode())
 
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-	})
-
-	t.Run("OtherUsersBuild", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		client, db := coderdtest.NewWithDatabase(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: admin.OrganizationID,
-			OwnerID:        admin.UserID,
-		}).Do()
-
-		err := memberClient.ReportWorkspaceBuildDebugClick(ctx, r.Build.ID, codersdk.WorkspaceBuildDebugEventRequest{
-			ID: uuid.New(),
+			// Reports are synchronous, so any event emitted by this request
+			// is already buffered when the response arrives.
+			for {
+				select {
+				case snapshot := <-fTelemetry.snapshots:
+					require.Empty(t, snapshot.WorkspaceBuildDebugEvents)
+				default:
+					return
+				}
+			}
 		})
-		require.Error(t, err)
-
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
-	})
+	}
 }
 
 // receiveWorkspaceBuildDebugEvent drains snapshots until one carries a debug

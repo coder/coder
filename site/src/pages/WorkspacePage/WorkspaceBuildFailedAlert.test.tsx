@@ -16,7 +16,47 @@ afterEach(() => {
 const failedBuild = MockFailedWorkspaceBuild();
 
 describe("WorkspaceBuildFailedAlert", () => {
-	it("links to the agents page in a new tab and reports the click", async () => {
+	it.each(["primary click", "middle click", "keyboard"])(
+		"links to the agents page in a new tab and reports %s",
+		async (activation) => {
+			server.use(
+				http.get("/api/v2/experiments", () =>
+					HttpResponse.json(["enable-ai-workspace-debug"]),
+				),
+			);
+			const reportClick = vi
+				.spyOn(API, "reportWorkspaceBuildDebugClick")
+				.mockResolvedValue();
+			const user = userEvent.setup();
+
+			renderWithAuth(<WorkspaceBuildFailedAlert build={failedBuild} />);
+
+			const link = await screen.findByRole("link", {
+				name: "Debug with Coder Agents",
+			});
+			expect(link).toHaveAttribute(
+				"href",
+				`/agents?debug_workspace_build=${failedBuild.id}`,
+			);
+			expect(link).toHaveAttribute("target", "_blank");
+
+			if (activation === "middle click") {
+				await user.pointer({ target: link, keys: "[MouseMiddle]" });
+			} else if (activation === "keyboard") {
+				link.focus();
+				await user.keyboard("{Enter}");
+			} else {
+				await user.click(link);
+			}
+
+			await waitFor(() => expect(reportClick).toHaveBeenCalledTimes(1));
+			const [buildId, request] = reportClick.mock.calls[0];
+			expect(buildId).toBe(failedBuild.id);
+			expect(isUUID(request.id)).toBe(true);
+		},
+	);
+
+	it("does not report a right click", async () => {
 		server.use(
 			http.get("/api/v2/experiments", () =>
 				HttpResponse.json(["enable-ai-workspace-debug"]),
@@ -32,17 +72,8 @@ describe("WorkspaceBuildFailedAlert", () => {
 		const link = await screen.findByRole("link", {
 			name: "Debug with Coder Agents",
 		});
-		expect(link).toHaveAttribute(
-			"href",
-			`/agents?debug_workspace_build=${failedBuild.id}`,
-		);
-		expect(link).toHaveAttribute("target", "_blank");
+		await user.pointer({ target: link, keys: "[MouseRight]" });
 
-		await user.click(link);
-
-		await waitFor(() => expect(reportClick).toHaveBeenCalledTimes(1));
-		const [buildId, request] = reportClick.mock.calls[0];
-		expect(buildId).toBe(failedBuild.id);
-		expect(isUUID(request.id)).toBe(true);
+		expect(reportClick).not.toHaveBeenCalled();
 	});
 });

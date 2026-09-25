@@ -570,42 +570,6 @@ curl -X PATCH http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/c
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Report a workspace build debug click
-
-### Code samples
-
-```sh
-# Example request using curl
-curl -X POST http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/debug-events \
-  -H 'Content-Type: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`POST /api/v2/workspacebuilds/{workspacebuild}/debug-events`
-
-> Body parameter
-
-```json
-{
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-}
-```
-
-### Parameters
-
-| Name             | In   | Type                                                                                           | Required | Description        |
-|------------------|------|------------------------------------------------------------------------------------------------|----------|--------------------|
-| `workspacebuild` | path | string                                                                                         | true     | Workspace build ID |
-| `body`           | body | [codersdk.WorkspaceBuildDebugEventRequest](schemas.md#codersdkworkspacebuilddebugeventrequest) | true     | Debug event        |
-
-### Responses
-
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get workspace build logs
 
 ### Code samples
