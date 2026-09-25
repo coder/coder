@@ -1941,6 +1941,60 @@ export const OneLineLayoutActiveChat: Story = {
 	},
 };
 
+export const TwoLineLayoutActiveWithSubagents: Story = {
+	args: {
+		chats: [
+			...layoutShowcaseChats.filter((chat) => chat.id !== "layout-plain"),
+			buildChat({
+				id: "layout-parent",
+				title: "Parent agent with subagents",
+				updated_at: recentTimestamp,
+				last_turn_summary: "Split the PR into two separate issues",
+				children: [
+					"Subagent chat 1 details here",
+					"My agent has been busy",
+				].map((title, index) =>
+					buildChat({
+						id: `layout-child-${index}`,
+						title,
+						parent_chat_id: "layout-parent",
+						root_chat_id: "layout-parent",
+						updated_at: recentTimestamp,
+					}),
+				),
+			}),
+			buildChat({
+				id: "layout-older-unread",
+				title: "Older chat with new activity",
+				has_unread: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/layout-parent",
+				pathParams: { agentId: "layout-parent" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByTestId("agents-tree-toggle-layout-parent"),
+		);
+		// Collapse the older section so its unread dot shows.
+		const sectionToggles = canvas.getAllByRole("button", {
+			name: /^Collapse .* section$/,
+		});
+		const olderToggle = sectionToggles.at(-1);
+		if (olderToggle) {
+			await userEvent.click(olderToggle);
+		}
+	},
+};
+
 export const RowMenuWithPullRequest: Story = {
 	args: { chats: layoutShowcaseChats },
 	beforeEach: allowChatSharing,

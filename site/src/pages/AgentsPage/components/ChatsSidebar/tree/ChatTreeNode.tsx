@@ -53,7 +53,7 @@ type ChatTreeNodeProps = {
 	readonly depth?: number;
 };
 
-const CHILD_INDENT_PX = 26;
+const CHILD_INDENT_PX = 24;
 
 const dropdownSubmenu: PullRequestSubmenuComponents = {
 	Sub: DropdownMenuSub,
@@ -103,6 +103,17 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	const hasChildren = childIDs.length > 0;
 	const isDelegated = Boolean(getParentChatID(chat));
 	const isDelegatedExecuting = isDelegated && chat.status === "running";
+	// Subagent rows always use the single-line row, even in the two-line
+	// layout.
+	const isCompact = isOneLine || isDelegated;
+	// The status icon, title, badge and kebab share one center line: 12px
+	// from the top for two-line rows, 14px for subagent rows (28px tall)
+	// and 16px for one-line rows (32px tall).
+	const rowSpacing = isDelegated
+		? { link: "py-0.5", statusIcon: "mt-1", side: "my-0.5" }
+		: isOneLine
+			? { link: "py-1", statusIcon: "mt-1.5", side: "my-1" }
+			: { link: "pt-1 pb-1.5", statusIcon: "mt-0.5", side: "my-0" };
 	const modelName = getModelDisplayName(
 		chat.last_model_config_id,
 		modelConfigs,
@@ -201,9 +212,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	// it) and fully to the right edge. Padding offsets the bleed so the
 	// content does not shift.
 	const hoverLayout =
-		"[@media(hover:hover)]:hover:-ml-[5px] [@media(hover:hover)]:hover:-mr-2 [@media(hover:hover)]:hover:pl-[9px] [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
+		"[@media(hover:hover)]:hover:-ml-[5px] [@media(hover:hover)]:hover:-mr-2 [@media(hover:hover)]:hover:pl-[5px] [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
 	const activeLayout =
-		"has-[[aria-current=page]]:-ml-[5px] has-[[aria-current=page]]:-mr-2 has-[[aria-current=page]]:pl-2 has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-2";
+		"has-[[aria-current=page]]:-ml-[5px] has-[[aria-current=page]]:-mr-2 has-[[aria-current=page]]:pl-[3px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l-2 has-[[aria-current=page]]:border-content-secondary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[3px]";
 	const sharedMenuItemProps = {
 		chat,
 		canManage,
@@ -238,21 +249,24 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 				pathname: `/agents/${chat.id}`,
 				search: locationSearch,
 			}}
-			className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+			className={cn(
+				"flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] pr-0.5 text-inherit no-underline",
+				rowSpacing.link,
+			)}
 		>
 			{({ isActive }) => (
 				<div className="min-w-0 flex-1 overflow-hidden text-left">
 					<div
 						className={cn(
 							"flex min-w-0 items-center gap-1.5 overflow-hidden",
-							// Match the 24px status and badge slots so the title
-							// centers on the same line as their icons.
-							isOneLine && "h-6",
+							// Compact rows match the 24px status and badge slots;
+							// two-line rows use a 16px line per rowSpacing.
+							isCompact ? "h-6" : "h-4",
 						)}
 					>
 						<span
 							className={cn(
-								"block flex-1 truncate text-[13px]",
+								"block flex-1 truncate text-[13px] leading-4",
 								isActive || isEmphasizedTitle
 									? "text-content-primary"
 									: "text-content-secondary [@media(hover:hover)]:group-hover:text-content-primary",
@@ -264,8 +278,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 							<span className="sr-only">(unread)</span>
 						)}
 					</div>
-					{!isOneLine && (
-						<div className="flex min-w-0 items-center gap-1.5">
+					{!isCompact && (
+						<div className="mt-0.5 flex min-w-0 items-center gap-1.5">
 							<ChatNodePRIcon prStatuses={prStatuses} />
 							{prStatuses.length === 1 &&
 								hasLinkedDiffStatus &&
@@ -299,13 +313,13 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	);
 
 	return (
-		<div className="flex min-w-0 flex-col gap-0.5">
+		<div className="flex min-w-0 flex-col">
 			<ContextMenu>
 				<ContextMenuTrigger asChild disabled={!hasMenuActions}>
 					<div
 						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
-							"group relative flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+							"group relative flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pr-1.5 text-content-secondary",
 							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-data-[state=open]:bg-surface-tertiary",
 							"has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 							hoverLayout,
@@ -314,7 +328,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 					>
 						<div
 							className={cn(
-								"group/icon relative mt-1.5 size-5 shrink-0",
+								"group/icon relative size-5 shrink-0",
+								rowSpacing.statusIcon,
 								hasChildren && "cursor-pointer",
 							)}
 							style={
@@ -364,7 +379,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 								</Button>
 							)}
 						</div>
-						{prStatuses.length > 1 && !isOneLine ? (
+						{prStatuses.length > 1 && !isCompact ? (
 							<Tooltip>
 								<TooltipTrigger asChild>{chatLink}</TooltipTrigger>
 								<PRListTooltipContent prStatuses={prStatuses} />
@@ -372,7 +387,12 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 						) : (
 							chatLink
 						)}
-						<div className="relative my-1 flex min-w-7 shrink-0 justify-end">
+						<div
+							className={cn(
+								"relative flex min-w-7 shrink-0 justify-end",
+								rowSpacing.side,
+							)}
+						>
 							<div className="flex h-6 items-center justify-end">
 								{isArchivingThisChat ? (
 									<Spinner
@@ -382,7 +402,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 								) : (
 									<ChatRowBadge
 										chat={chat}
-										isOneLine={isOneLine}
+										isOneLine={isCompact}
 										prStatuses={prStatuses}
 										className={cn(
 											// The badge swaps out for the actions trigger on
@@ -461,7 +481,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 			</ContextMenu>
 
 			{hasChildren && isExpanded && (
-				<div className="relative flex flex-col">
+				<div className="relative flex flex-col pb-2">
 					{childIDs.map((childID) => {
 						const childChat = chatById.get(childID);
 						if (!childChat) return null;

@@ -67,7 +67,7 @@ const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 // Indents a section's chats under its header behind a guide line,
 // matching how project folders nest their chats.
 const sectionChatListClassName =
-	"ml-3 flex flex-col gap-0.5 border-0 border-l border-solid border-border-default pl-1";
+	"mb-1 ml-3 flex flex-col border-0 border-l border-solid border-border-default pl-1";
 
 type ChatsPanelProps = {
 	readonly chats: readonly Chat[];
@@ -526,10 +526,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 									) : (
 										<>
 											{pinnedChats.length > 0 && (
-												<div className="not-first:mt-3">
+												<div>
 													<ChatSectionHeader
 														label={PINNED_SECTION_KEY}
 														count={pinnedChats.length}
+														hasUnread={pinnedChats.some(
+															(chat) => chat.has_unread,
+														)}
 														expanded={!collapsedSections[PINNED_SECTION_KEY]}
 														onToggle={() => toggleSection(PINNED_SECTION_KEY)}
 														testId={getSectionToggleTestId(PINNED_SECTION_KEY)}
@@ -575,10 +578,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 												</div>
 											)}
 											{sharedWithYouChats.length > 0 && (
-												<div className="not-first:mt-3">
+												<div>
 													<ChatSectionHeader
 														label={SHARED_WITH_YOU_SECTION_KEY}
 														count={sharedWithYouChats.length}
+														hasUnread={sharedWithYouChats.some(
+															(chat) => chat.has_unread,
+														)}
 														expanded={
 															!collapsedSections[SHARED_WITH_YOU_SECTION_KEY]
 														}
@@ -602,10 +608,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 												const isSectionExpanded =
 													!collapsedSections[section.key];
 												return (
-													<div key={section.key} className="not-first:mt-3">
+													<div key={section.key}>
 														<ChatSectionHeader
 															label={section.label}
 															count={section.chats.length}
+															hasUnread={section.chats.some(
+																(chat) => chat.has_unread,
+															)}
 															expanded={isSectionExpanded}
 															onToggle={() => toggleSection(section.key)}
 															testId={getSectionToggleTestId(section.key)}
