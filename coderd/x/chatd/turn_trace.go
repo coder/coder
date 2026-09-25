@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
@@ -20,6 +21,10 @@ import (
 // that has since been replaced cannot finish or invalidate the
 // replacement.
 type turnToken uint64
+
+// errChatInterrupted is the error an interrupted chat_turn span ends
+// with.
+var errChatInterrupted = xerrors.New("chat interrupted")
 
 // runnerTurnSpan owns the chat_turn span of one runner. The span opens
 // on the first Ensure call, not at construction, and one instance runs
@@ -58,8 +63,10 @@ type runnerTurnSpan struct {
 	// triggerAt is the trigger time passed to the Ensure call that
 	// opened the open turn, before any adjustment of the anchor.
 	triggerAt time.Time
-	// lastAnchorAt is the start timestamp of the most recent turn span.
-	// No later turn on this runner starts before it.
+	// lastAnchorAt is the anchor requested for the most recent turn:
+	// its trigger time, or this replica's clock for a turn that opened
+	// at now. A trigger ahead of this replica's clock is kept here even
+	// though the span itself starts at now.
 	lastAnchorAt time.Time
 	// takenOver is set until the first turn opens on a runner that
 	// acquired its chat from a previous owner. That turn starts at now
@@ -83,10 +90,16 @@ func newRunnerTurnSpan(stages *chatloop.StageTracer, organizationName func(conte
 // when triggerAt is after the trigger it opened for, since the call
 // runs a newer prompt.
 //
-// A new turn starts at now and records no acquisition in two cases:
+// A new turn starts at now and records no acquisition in three cases:
 // it is the first turn on a runner that took the chat over from a
-// previous owner, or triggerAt is at or before the previous turn's
-// anchor, which is also counted as a stale_anchor anomaly.
+// previous owner; triggerAt is at or before the previous turn's
+// anchor, which is also counted as a stale_anchor anomaly; or
+// triggerAt is zero because the chat has neither a user prompt nor a
+// compaction request.
+//
+// When ctx is done, Ensure returns ctx and the zero token, which no
+// turn matches, and leaves the open turn untouched: a canceled task
+// cannot join, finish, or invalidate whichever turn is open.
 //
 // The span is a standalone trace root. The request that triggered the
 // turn is handled by a different goroutine, and often a different
@@ -104,7 +117,7 @@ func (t *runnerTurnSpan) Ensure(ctx context.Context, chat database.Chat, trigger
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.ended {
+	if t.ended || ctx.Err() != nil {
 		return ctx, 0
 	}
 	if t.open && (t.finished || t.outcome != "") {
@@ -229,6 +242,20 @@ func (t *runnerTurnSpan) ownsLocked(token turnToken) bool {
 	return t.open && !t.ended && token == t.token
 }
 
+// OpenToken returns the token of the open turn, or the zero token when
+// no turn is open.
+func (t *runnerTurnSpan) OpenToken() turnToken {
+	if t == nil {
+		return 0
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if !t.open || t.ended {
+		return 0
+	}
+	return t.token
+}
+
 // End closes the chat_turn span. Later calls are ignored.
 func (t *runnerTurnSpan) End(err error) {
 	if t == nil {
@@ -248,7 +275,8 @@ func (t *runnerTurnSpan) End(err error) {
 // An outcome recorded by Invalidate wins, and its error replaces err
 // so the root span reports the failure that stopped the turn. Without
 // one, a turn Complete marked finished is completed and any other open
-// turn is abandoned.
+// turn is abandoned. Only a completed turn is observed on the stage
+// histogram; any other outcome ends the span without an observation.
 func (t *runnerTurnSpan) closeLocked(err error) {
 	outcome := t.outcome
 	switch {
@@ -260,7 +288,11 @@ func (t *runnerTurnSpan) closeLocked(err error) {
 		outcome = chatloop.TurnOutcomeAbandoned
 	}
 	t.span.SetAttributes(attribute.String(chatloop.AttrTurnOutcome, string(outcome)))
-	t.span.End(err)
+	if outcome == chatloop.TurnOutcomeCompleted {
+		t.span.End(err)
+	} else {
+		t.span.EndWithoutObservation(err)
+	}
 	t.span = nil
 	t.spanCtx = trace.SpanContext{}
 	t.open = false

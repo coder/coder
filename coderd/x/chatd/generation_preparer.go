@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"cmp"
 	"context"
 	"slices"
 	"strings"
@@ -824,10 +825,7 @@ func mcpConnectOutcome(summaries []mcpclient.ConnectSummary) (connected, failed 
 			connected++
 		default:
 			failed++
-			reason := summary.Error
-			if reason == "" {
-				reason = string(summary.Outcome)
-			}
+			reason := cmp.Or(summary.Error, string(summary.Outcome))
 			failures = append(failures, summary.Slug+": "+reason)
 		}
 	}

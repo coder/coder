@@ -1335,9 +1335,10 @@ func exclusiveToolSkippedErrorMessage(toolName string) string {
 }
 
 // executeSingleTool executes one tool call and converts the
-// response into a ToolResultContent. The error is the tool's execution
-// failure, which the result also reports to the model; it is nil when
-// the tool ran and returned an error result of its own.
+// response into a ToolResultContent. The error is non-nil only when
+// tool.Run fails; the result also reports it to the model. It is nil
+// when the tool is not active, is not found, or ran and returned an
+// error result of its own.
 func executeSingleTool(
 	ctx context.Context,
 	toolMap map[string]fantasy.AgentTool,

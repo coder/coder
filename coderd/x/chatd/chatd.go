@@ -2144,8 +2144,8 @@ func (p *Server) PromoteQueued(
 		}
 		if promoteResult.InsertedMessage != nil {
 			result.PromotedMessage = *promoteResult.InsertedMessage
-			promotedQueuedAt = promoteResult.QueuedMessage.CreatedAt
 		}
+		promotedQueuedAt = promoteResult.PromotedQueuedAt
 		// Capture the chat inside the transaction so the watch event
 		// published below uses the snapshot bump and status change
 		// produced by the transition itself.
