@@ -836,43 +836,31 @@ Reconstructed stages are recorded after the fact from timestamps captured elsewh
 
 #### Turn accounting
 
-When a turn finishes normally, its stages are rolled up and emitted once, labelled with the turn's `chat_kind`. The turn families carry no `model` label: a turn is not a model-scoped unit (subagents, compaction summaries, and model switches can run inside one), and per-model time is available from `coderd_chatd_model_stage_duration_seconds`. The first model resolved in the turn is stamped on the `chat_turn` span as an attribute. Turns that end interrupted, in error, or abandoned are invalidated and emit nothing.
+When a turn closes, whatever its outcome, its stages are rolled up and emitted once, labelled with the turn's `chat_kind` and `outcome`. `runnerTurnSpan` decides the outcome once when it closes the span and passes it to `StageSpan.EndTurn`, which sets the span's `turn_outcome` attribute, counts the outcome, and emits the partition. The turn families carry no `model` label: a turn is not a model-scoped unit (subagents, compaction summaries, and model switches can run inside one), and per-model time is available from `coderd_chatd_model_stage_duration_seconds`. The first model resolved in the turn is stamped on the `chat_turn` span as an attribute.
 
-Every closed turn is counted exactly once in `coderd_chatd_turn_outcomes_total{outcome, chat_kind}`, so the outcomes sum to the closed turns. `completed` is counted when a finished turn's accounting is emitted, so it equals `coderd_chatd_turns_total` except for the turns counted under `nonpositive_turn`; `interrupted`, `error`, and `abandoned` are counted when the turn closes, with the same value as the span's `turn_outcome` attribute.
+Every closed turn is counted exactly once in `coderd_chatd_turn_outcomes_total{outcome, chat_kind}`, with the same value as the span's `turn_outcome` attribute.
 
-The turn's wall time is partitioned into disjoint categories that sum to the turn duration. `coderd_chatd_turn_time_seconds_total` accumulates seconds per category and `coderd_chatd_turns_total` counts the accounted turns, so their ratio is mean seconds per turn by category. Every category is emitted for every accounted turn, including the ones with no time, so every category has a series. Per-turn occurrence counts and per-stage totals are a trace question: the `chat_turn` span's children carry them. The categories and the stages that feed them:
+The turn's wall time is partitioned into disjoint categories that sum to the turn duration. `coderd_chatd_turn_time_seconds_total{category, chat_kind, outcome}` accumulates seconds per category. Dividing it by `coderd_chatd_turn_outcomes_total` with the same `chat_kind` and `outcome` gives mean seconds per turn by category; filtering on `outcome="completed"` restricts the partition to turns that finished normally. Every category is emitted for every accounted turn, including the ones with no time, so every category has a series. Per-turn occurrence counts and per-stage totals are a trace question: the `chat_turn` span's children carry them. The categories and the stages that feed them:
 
 | Category | Source |
 |----------|--------|
-| `scheduling` | `acquisition` and `queue_wait` |
-| `time_to_first_token` | `time_to_first_token`, when the attempt produced a first token |
+| `scheduling` | `acquisition` |
+| `time_to_first_token` | `time_to_first_token`, when an output part closed the window, even if the stream later failed |
 | `streaming` | `stream` minus its `time_to_first_token`, when the stream succeeded |
-| `provider_error` | `stream` and `time_to_first_token` when the attempt failed |
-| `retry_backoff` | `retry_backoff` |
+| `provider_error` | the rest of a failed `stream`, and a `time_to_first_token` window that ended without an output part |
+| `retry_backoff` | `retry_backoff`, including the generation phase backoff between prepare and decide attempts |
 | `tool_execution` | `generation_step` own time when the step ran local tools |
 | `compaction` | `compaction` |
 | `preparation` | `prepare` own time and `mcp_connect` |
 | `persistence` | `commit` |
 | `chatd_overhead` | `generation_step` own time for every other action: decision logic, transitions other than `CommitStep`, hook dispatch, and buffer bookkeeping |
-| `unattributed` | the remainder of the turn not covered by any stage above |
+| `unattributed` | the remainder of the turn not covered by any stage above, including the task-level retry sleep in `runTaskWithRetry` |
 
-The partition is computed from the stage tree. A `TurnAccumulator` rides on the turn context. Each attributing stage reports its full duration to its parent when it ends, and the parent's category receives only the parent's own time, which keeps the categories disjoint. `provider_attempt`, `thinking`, and `tool_call` contribute to no category, because they overlap stages that are already categorized. `capacity_wait` is excluded for the same reason: its window lies inside `acquisition`. Only turn-scoped stages report to the accumulator, so background work never lands in a turn.
+The partition is computed from the stage tree. A `TurnAccumulator` rides on the turn context and only sums category time. Each attributing stage reports its full duration to its parent when it ends, and the parent's category receives only the parent's own time, which keeps the categories disjoint. `provider_attempt`, `thinking`, and `tool_call` contribute to no category, because they overlap stages that are already categorized. `capacity_wait` is excluded for the same reason: its window lies inside `acquisition`. `queue_wait` is recorded outside any turn and never reaches a category. Only turn-scoped stages report to the accumulator, so background work never lands in a turn. Stages of one turn end on different goroutines (parallel `mcp_connect` stages, and `provider_attempt` stages setting the turn's model from the HTTP transport), so the accumulator is safe for concurrent use.
 
-A turn whose categories sum to more than its duration is emitted as measured and counted in `coderd_chatd_stage_anomalies_total{reason="overattributed"}`. A finished turn with a non-positive duration is not emitted and is counted as `nonpositive_turn`.
+A stage that ends after its turn has closed is not in the partition. When a stale task's `generation_step` outlives its turn (see [Turn span lifecycle](#turn-span-lifecycle)), that step's own time is not categorized and its share of the turn lands in `unattributed`. The time between a shutting-down runner closing a turn and the next owner's pickup is in no turn at all.
 
-TODO: Every closed turn now emits its partition, whatever its outcome: `coderd_chatd_turn_time_seconds_total` gained an `outcome` label (`completed`, `interrupted`, `error`, `abandoned`) and `coderd_chatd_turns_total` was removed. Divide by `coderd_chatd_turn_outcomes_total` with the same outcome for mean seconds per turn. Replace "invalidated and emit nothing", the `turns_total` references, and the `completed` counting rule above.
-
-TODO: The outcome is computed once in `runnerTurnSpan.closeLocked` and passed to `StageSpan.EndTurn`, which sets `turn_outcome`, counts the outcome, and emits the partition. `TurnAccumulator` only sums categories; it no longer tracks completion or invalidation. A turn with a non-positive duration still counts its outcome; only its partition is dropped.
-
-TODO: `scheduling` is `acquisition` only. `queue_wait` is always a standalone stage outside any turn, so it never reaches a category; drop it from the `scheduling` row.
-
-TODO: The `time_to_first_token` row counts every first-token window closed by an output part, including one whose stream later failed; the `provider_error` row is the rest of a failed stream plus first-token windows that ended without an output part. Reword both rows to match.
-
-TODO: `retry_backoff` also covers the generation phase backoff between prepare and decide attempts (`waitGenerationPhaseBackoff`), which runs inside `prepare` or the step. The task-level retry sleep in `runTaskWithRetry` is still in no stage and lands in `unattributed`.
-
-TODO: Graceful handoff closes the turn early (see the handoff TODO above), so the tail of a handed-off turn between the old owner's close and the new owner's pickup is in no turn's partition. This is accepted.
-
-TODO: `TurnAccumulator` is concurrency safe because stages of one turn end on different goroutines, for example parallel `mcp_connect` stages and `provider_attempt` stages setting the turn's model from the HTTP transport.
+A turn whose categories sum to more than its duration is emitted as measured and counted in `coderd_chatd_stage_anomalies_total{reason="overattributed"}`. A turn with a non-positive duration still counts its outcome, but its partition is not emitted and it is counted as `nonpositive_turn`.
 
 ### Event shape
 
