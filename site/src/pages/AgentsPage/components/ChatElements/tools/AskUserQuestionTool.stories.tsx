@@ -101,7 +101,11 @@ const meta: Meta<typeof Tool> = {
 			</div>
 		),
 	],
-	args: { name: "ask_user_question" },
+	args: {
+		name: "ask_user_question",
+		organizationId: "organization-id",
+		mcpServers: [],
+	},
 };
 
 export default meta;

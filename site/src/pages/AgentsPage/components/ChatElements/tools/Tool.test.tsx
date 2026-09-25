@@ -71,6 +71,8 @@ describe("Tool workspace lifecycle rows", () => {
 							name={name}
 							status={status}
 							result={isRunning ? undefined : { build_id: buildId }}
+							organizationId="organization-id"
+							mcpServers={[]}
 						/>
 					</ChatWorkspaceContext>
 				</QueryClientProvider>,
@@ -113,6 +115,8 @@ describe("Tool manage_automations label", () => {
 				isError
 				args={{ action }}
 				result={{ error: "unknown action" }}
+				organizationId="organization-id"
+				mcpServers={[]}
 			/>,
 		);
 

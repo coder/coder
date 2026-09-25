@@ -9,6 +9,7 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
+import { defaultUrlTransform } from "streamdown";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -436,6 +437,8 @@ const defaultArgs: Omit<
 	"parsedMessages"
 > = {
 	organizationId: "organization-id",
+	urlTransform: defaultUrlTransform,
+	mcpServers: [],
 	subagentTitles: new Map(),
 	automationNames: { names: new Map(), status: "settled" },
 };
