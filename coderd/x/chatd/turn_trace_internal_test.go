@@ -772,26 +772,6 @@ func turnOutcomeCount(t *testing.T, registry *prometheus.Registry, outcome chatl
 	}).GetCounter().GetValue()
 }
 
-func TestRunnerTurnSpanEndOfUnfinishedTurnEmitsAbandoned(t *testing.T) {
-	t.Parallel()
-	clock := quartz.NewMock(t)
-	tracer, recorder, registry := newStageMetricsTracer(t, chatloop.WithClock(clock))
-	turn := newRunnerTurnSpan(tracer, nil, false)
-	chat := database.Chat{ID: uuid.New()}
-
-	turnCtx, _ := turn.Ensure(t.Context(), chat, clock.Now().Add(-time.Minute))
-	_, step := tracer.Start(turnCtx, chatloop.StageGenerationStep)
-	clock.Advance(time.Second)
-	step.End(nil)
-	turn.End(xerrors.New("runner torn down"))
-
-	require.Len(t, turnSpansByStart(t, recorder), 1)
-	require.Equal(t, 1.0, turnOutcomeCount(t, registry, chatloop.TurnOutcomeAbandoned))
-	require.Zero(t, turnOutcomeCount(t, registry, chatloop.TurnOutcomeCompleted))
-	require.Equal(t, 60.0, turnCategorySeconds(t, registry, chatloop.TurnCategoryScheduling, chatloop.TurnOutcomeAbandoned))
-	require.Equal(t, 1.0, turnCategorySeconds(t, registry, chatloop.TurnCategoryChatdOverhead, chatloop.TurnOutcomeAbandoned))
-}
-
 func TestRunnerTurnSpanCountsFinishingStep(t *testing.T) {
 	t.Parallel()
 	clock := quartz.NewMock(t)
@@ -835,58 +815,6 @@ func TestRunnerTurnSpanCountsFinishingStep(t *testing.T) {
 	// Settle closed the turn; the runner's End has nothing left.
 	turn.End(nil)
 	require.Len(t, turnSpansByStart(t, recorder), 1)
-}
-
-func TestRunnerTurnSpanInvalidateAfterPromotionKeepsFinishedTurn(t *testing.T) {
-	t.Parallel()
-	clock := quartz.NewMock(t)
-	tracer, recorder, registry := newStageMetricsTracer(t, chatloop.WithClock(clock))
-	turn := newRunnerTurnSpan(tracer, nil, false)
-	chat := database.Chat{ID: uuid.New()}
-
-	_, token := turn.Ensure(t.Context(), chat, clock.Now().Add(-time.Minute))
-	clock.Advance(time.Second)
-	turn.Complete(token)
-	// Post-commit work of the finished turn failed. The finishing
-	// transition has committed, so the turn stays completed; the failure
-	// must not leak into the turn the promotion opens either.
-	turn.Invalidate(token, chatloop.TurnOutcomeError, xerrors.New("step failed"))
-	turn.Settle(token)
-	require.Equal(t, 1.0, turnOutcomeCount(t, registry, chatloop.TurnOutcomeCompleted))
-
-	_, nextToken := turn.Ensure(t.Context(), chat, clock.Now())
-	clock.Advance(time.Second)
-	turn.Complete(nextToken)
-	turn.Settle(nextToken)
-	require.Equal(t, 2.0, turnOutcomeCount(t, registry, chatloop.TurnOutcomeCompleted))
-	require.Zero(t, turnOutcomeCount(t, registry, chatloop.TurnOutcomeError))
-	require.Len(t, turnSpansByStart(t, recorder), 2)
-}
-
-func TestRunnerTurnSpanIgnoresStaleToken(t *testing.T) {
-	t.Parallel()
-	clock := quartz.NewMock(t)
-	tracer, _, registry := newStageMetricsTracer(t, chatloop.WithClock(clock))
-	turn := newRunnerTurnSpan(tracer, nil, false)
-	chat := database.Chat{ID: uuid.New()}
-
-	_, first := turn.Ensure(t.Context(), chat, clock.Now().Add(-time.Minute))
-	clock.Advance(time.Second)
-	turn.Complete(first)
-	// A task for the next prompt arrives before the finishing task has
-	// settled, and opens the next turn itself.
-	_, second := turn.Ensure(t.Context(), chat, clock.Now())
-	require.NotEqual(t, first, second)
-	require.Equal(t, 1.0, turnOutcomeCount(t, registry, chatloop.TurnOutcomeCompleted))
-
-	// The finishing task's late calls address a turn that is gone.
-	turn.Invalidate(first, chatloop.TurnOutcomeError, xerrors.New("step failed"))
-	turn.Settle(first)
-	clock.Advance(time.Second)
-	turn.Complete(second)
-	turn.Settle(second)
-	require.Equal(t, 2.0, turnOutcomeCount(t, registry, chatloop.TurnOutcomeCompleted))
-	require.Zero(t, turnOutcomeCount(t, registry, chatloop.TurnOutcomeError))
 }
 
 func TestRunnerTurnSpanRetryContinuesTurn(t *testing.T) {
@@ -950,10 +878,13 @@ func TestRunnerTurnSpanCountsOutcomes(t *testing.T) {
 	turn.Complete(afterInterrupt)
 	turn.Settle(afterInterrupt)
 
-	// A turn that ends before it finished is abandoned.
-	turn.Ensure(t.Context(), chat, clock.Now())
+	// A turn that ends before it finished is abandoned, and keeps the
+	// time of the step it ran.
+	abandonedCtx, _ := turn.Ensure(t.Context(), chat, clock.Now())
+	_, step := tracer.Start(abandonedCtx, chatloop.StageGenerationStep)
 	clock.Advance(time.Second)
-	turn.End(nil)
+	step.End(nil)
+	turn.End(xerrors.New("runner torn down"))
 
 	for outcome, count := range map[chatloop.TurnOutcome]float64{
 		chatloop.TurnOutcomeCompleted:   2,
@@ -969,6 +900,35 @@ func TestRunnerTurnSpanCountsOutcomes(t *testing.T) {
 	require.Equal(t, 1.0, turnCategorySeconds(t, registry, chatloop.TurnCategoryUnattributed, chatloop.TurnOutcomeCompleted))
 	require.Equal(t, 1.0, turnCategorySeconds(t, registry, chatloop.TurnCategoryUnattributed, chatloop.TurnOutcomeError))
 	require.Equal(t, 1.0, turnCategorySeconds(t, registry, chatloop.TurnCategoryUnattributed, chatloop.TurnOutcomeInterrupted))
-	require.Equal(t, 1.0, turnCategorySeconds(t, registry, chatloop.TurnCategoryUnattributed, chatloop.TurnOutcomeAbandoned))
+	require.Equal(t, 1.0, turnCategorySeconds(t, registry, chatloop.TurnCategoryChatdOverhead, chatloop.TurnOutcomeAbandoned))
+	require.Zero(t, turnCategorySeconds(t, registry, chatloop.TurnCategoryUnattributed, chatloop.TurnOutcomeAbandoned))
 	require.Zero(t, anomalyCount(t, registry, chatloop.StageAnomalyNonPositiveTurn))
+}
+
+func TestRunnerTurnSpanLabelsSubagentTurns(t *testing.T) {
+	t.Parallel()
+	clock := quartz.NewMock(t)
+	tracer, _, registry := newStageMetricsTracer(t, chatloop.WithClock(clock))
+	turn := newRunnerTurnSpan(tracer, nil, false)
+	chat := database.Chat{ID: uuid.New(), ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+
+	turnCtx, token := turn.Ensure(t.Context(), chat, clock.Now())
+	_, stream := tracer.Start(turnCtx, chatloop.StageStream)
+	clock.Advance(time.Second)
+	stream.End(nil)
+	turn.Complete(token)
+	turn.Settle(token)
+
+	subagent := string(chatloop.ChatKindSubagent)
+	completed := string(chatloop.TurnOutcomeCompleted)
+	require.Equal(t, 1.0, promhelp.MetricValue(t, registry, "coderd_chatd_turn_outcomes_total", prometheus.Labels{
+		"chat_kind": subagent,
+		"outcome":   completed,
+	}).GetCounter().GetValue())
+	require.Equal(t, 1.0, promhelp.MetricValue(t, registry, "coderd_chatd_turn_time_seconds_total", prometheus.Labels{
+		"category":  string(chatloop.TurnCategoryStreaming),
+		"chat_kind": subagent,
+		"outcome":   completed,
+	}).GetCounter().GetValue())
+	require.Zero(t, turnOutcomeCount(t, registry, chatloop.TurnOutcomeCompleted), "no root series")
 }

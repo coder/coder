@@ -146,7 +146,9 @@ func (f stageMetricsFixture) syntheticTurn(t *testing.T, model StageModel) time.
 	toolStep.End(nil)
 
 	// A failed step: the stream never produced a first part, and the
-	// retry delay that follows it is its own category.
+	// retry delay that follows it is its own category. The stream ends
+	// without an error, so only its failed first-token window makes the
+	// rest of it provider error.
 	failedStepCtx, failedStep := f.tracer.Start(turnCtx, StageGenerationStep)
 	failedStep.SetGenerationAction("generate_assistant")
 	failedStreamCtx, failedStream := f.tracer.Start(failedStepCtx, StageStream)
@@ -154,7 +156,7 @@ func (f stageMetricsFixture) syntheticTurn(t *testing.T, model StageModel) time.
 	f.clock.Advance(2 * time.Second)
 	failedTTFT.EndWithoutObservation(xerrors.New("stream ended before the first token"))
 	f.clock.Advance(time.Second)
-	failedStream.End(xerrors.New("provider unavailable"))
+	failedStream.End(nil)
 	_, backoff := f.tracer.Start(failedStepCtx, StageRetryBackoff)
 	f.clock.Advance(6 * time.Second)
 	backoff.End(nil)
@@ -200,6 +202,7 @@ func TestTurnAccountingPartition(t *testing.T) {
 	stageTurn := sums[Stage](t, fixture.registry, "coderd_chatd_stage_duration_seconds", "stage")[StageChatTurn]
 	require.InDelta(t, turnDuration.Seconds(), stageTurn, 0.001)
 	require.Equal(t, map[TurnOutcome]float64{TurnOutcomeCompleted: 1}, turnOutcomes(t, fixture.registry))
+	require.Empty(t, stageAnomalies(t, fixture.registry))
 
 	labels := labelsOf(t, fixture.registry, "coderd_chatd_turn_time_seconds_total", "category", string(TurnCategoryStreaming))
 	require.Equal(t, map[string]string{
@@ -249,69 +252,61 @@ func TestTurnAccountingEmitsEveryOutcome(t *testing.T) {
 	}
 }
 
+// TestTurnAccountingStreamWithoutFirstToken covers streams whose
+// first-token window closes with an error: at the attempt's release
+// when no part arrived, or at an error part. Either way the whole
+// stream is provider error time, counted once.
 func TestTurnAccountingStreamWithoutFirstToken(t *testing.T) {
 	t.Parallel()
-	fixture := newStageMetricsFixture(t)
-	turnCtx, turnSpan, turnStart := fixture.startTurn(t)
 
-	model := &chattest.FakeModel{
-		ProviderName: "google",
-		ModelName:    "test-model",
-		StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
-			fixture.clock.Advance(2 * time.Second)
-			return streamFromParts(nil), nil
+	for _, tc := range []struct {
+		name    string
+		parts   []fantasy.StreamPart
+		wantErr bool
+	}{
+		{name: "NoParts"},
+		{
+			name:    "ErrorPart",
+			parts:   []fantasy.StreamPart{{Type: fantasy.StreamPartTypeError, Error: xerrors.New("provider returned 500")}},
+			wantErr: true,
 		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := newStageMetricsFixture(t)
+			turnCtx, turnSpan, turnStart := fixture.startTurn(t)
+
+			model := &chattest.FakeModel{
+				ProviderName: "google",
+				ModelName:    "test-model",
+				StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+					fixture.clock.Advance(2 * time.Second)
+					return streamFromParts(tc.parts), nil
+				},
+			}
+			_, err := GenerateAssistant(turnCtx, GenerateAssistantOptions{
+				Model:    model,
+				Messages: []fantasy.Message{},
+				Clock:    fixture.clock,
+				Metrics:  NewMetrics(prometheus.NewRegistry()),
+				Stages:   fixture.tracer,
+			})
+			outcome := TurnOutcomeCompleted
+			if tc.wantErr {
+				require.Error(t, err)
+				outcome = TurnOutcomeError
+			} else {
+				require.NoError(t, err)
+			}
+			turnSpan.EndTurn(outcome, err)
+
+			categories := turnCategories(t, fixture.registry)
+			require.InDelta(t, 2, categories[TurnCategoryProviderError], 0.001)
+			require.Zero(t, categories[TurnCategoryStreaming])
+			require.Zero(t, categories[TurnCategoryTimeToFirstToken])
+			require.InDelta(t, fixture.clock.Now().Sub(turnStart).Seconds(), categoryTotal(categories), 0.001)
+		})
 	}
-	_, err := GenerateAssistant(turnCtx, GenerateAssistantOptions{
-		Model:    model,
-		Messages: []fantasy.Message{},
-		Clock:    fixture.clock,
-		Metrics:  NewMetrics(prometheus.NewRegistry()),
-		Stages:   fixture.tracer,
-	})
-	require.NoError(t, err)
-	turnSpan.EndTurn(TurnOutcomeCompleted, nil)
-
-	// The stream never produced a part, so its whole window is provider
-	// error time, counted once even though the window closes with the
-	// attempt rather than with the stream.
-	categories := turnCategories(t, fixture.registry)
-	require.InDelta(t, 2, categories[TurnCategoryProviderError], 0.001)
-	require.Zero(t, categories[TurnCategoryStreaming])
-	require.Zero(t, categories[TurnCategoryTimeToFirstToken])
-	require.InDelta(t, fixture.clock.Now().Sub(turnStart).Seconds(), categoryTotal(categories), 0.001)
-}
-
-func TestTurnAccountingStreamErrorPart(t *testing.T) {
-	t.Parallel()
-	fixture := newStageMetricsFixture(t)
-	turnCtx, turnSpan, turnStart := fixture.startTurn(t)
-
-	streamErr := xerrors.New("provider returned 500")
-	model := &chattest.FakeModel{
-		ProviderName: "google",
-		ModelName:    "test-model",
-		StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
-			fixture.clock.Advance(2 * time.Second)
-			return streamFromParts([]fantasy.StreamPart{{Type: fantasy.StreamPartTypeError, Error: streamErr}}), nil
-		},
-	}
-	_, err := GenerateAssistant(turnCtx, GenerateAssistantOptions{
-		Model:    model,
-		Messages: []fantasy.Message{},
-		Clock:    fixture.clock,
-		Metrics:  NewMetrics(prometheus.NewRegistry()),
-		Stages:   fixture.tracer,
-	})
-	require.Error(t, err)
-	turnSpan.EndTurn(TurnOutcomeError, err)
-
-	// An error part closes the first-token window with the error.
-	categories := turnCategories(t, fixture.registry)
-	require.InDelta(t, 2, categories[TurnCategoryProviderError], 0.001)
-	require.Zero(t, categories[TurnCategoryStreaming])
-	require.Zero(t, categories[TurnCategoryTimeToFirstToken])
-	require.InDelta(t, fixture.clock.Now().Sub(turnStart).Seconds(), categoryTotal(categories), 0.001)
 }
 
 func TestTurnAccountingStreamFailsAfterFirstToken(t *testing.T) {
@@ -504,6 +499,7 @@ func TestTurnAccountingAnomalies(t *testing.T) {
 
 		categories := turnCategories(t, fixture.registry)
 		require.Equal(t, 8.0, categories[TurnCategoryChatdOverhead], "categories are emitted as measured")
+		require.Contains(t, categories, TurnCategoryUnattributed, "the unattributed series is recorded at zero")
 		require.Equal(t, 0.0, categories[TurnCategoryUnattributed])
 		require.Equal(t, 1.0, stageAnomalies(t, fixture.registry)[StageAnomalyOverattributed])
 	})
@@ -517,13 +513,6 @@ func TestTurnAccountingAnomalies(t *testing.T) {
 		require.Empty(t, turnCategories(t, fixture.registry))
 		require.Equal(t, map[TurnOutcome]float64{TurnOutcomeInterrupted: 1}, turnOutcomes(t, fixture.registry))
 		require.Equal(t, 1.0, stageAnomalies(t, fixture.registry)[StageAnomalyNonPositiveTurn])
-	})
-
-	t.Run("CleanTurnCountsNothing", func(t *testing.T) {
-		t.Parallel()
-		fixture := newStageMetricsFixture(t)
-		fixture.syntheticTurn(t, StageModel{})
-		require.Empty(t, stageAnomalies(t, fixture.registry))
 	})
 }
 

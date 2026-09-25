@@ -14975,7 +14975,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 	t.Run("ToolCall", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32
-		_, _, index := run(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		h, _, index := run(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 			if !req.Stream {
 				return chattest.OpenAINonStreamingResponse("title")
 			}
@@ -14994,6 +14994,14 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.NotEmpty(t, chatd.SpanAttr(t, toolCall, chatloop.AttrProvider))
 		require.Equal(t, chatd.SpanAttr(t, execute, chatloop.AttrProvider), chatd.SpanAttr(t, toolCall, chatloop.AttrProvider))
 		require.Equal(t, chatd.SpanAttr(t, execute, chatloop.AttrModel), chatd.SpanAttr(t, toolCall, chatloop.AttrModel))
+
+		// The turn's partition is emitted after its span ends. The
+		// execute_local_tools step's own time is tool execution.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			return chatd.TurnOutcomeCount(t, h.registry, chatloop.TurnOutcomeCompleted) == 1
+		}, testutil.IntervalFast)
+		require.Positive(t, chatd.TurnCategorySeconds(t, h.registry, chatloop.TurnCategoryToolExecution, chatloop.TurnOutcomeCompleted))
 	})
 
 	t.Run("ProviderRetryKeepsTurnOpen", func(t *testing.T) {

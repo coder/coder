@@ -255,14 +255,14 @@ func TestServerInflightContextIsBackgroundScoped(t *testing.T) {
 func TestWaitGenerationRetryStage(t *testing.T) {
 	t.Parallel()
 
-	newStarter := func(t *testing.T) (*taskStarter, *quartz.Mock, *tracetest.SpanRecorder) {
+	newStarter := func(t *testing.T) (*taskStarter, *quartz.Mock, *tracetest.SpanRecorder, *prometheus.Registry) {
 		t.Helper()
-		tracer, recorder := newStageTestTracer(t)
 		clock := quartz.NewMock(t)
+		tracer, recorder, registry := newStageMetricsTracer(t, chatloop.WithClock(clock))
 		return &taskStarter{
 			server: &Server{stages: tracer},
 			opts:   chatWorkerOptions{Clock: clock},
-		}, clock, recorder
+		}, clock, recorder, registry
 	}
 	waits := []struct {
 		name  string
@@ -279,27 +279,31 @@ func TestWaitGenerationRetryStage(t *testing.T) {
 
 			t.Run("ElapsedEndsWithoutError", func(t *testing.T) {
 				t.Parallel()
-				starter, clock, recorder := newStarter(t)
+				starter, clock, recorder, registry := newStarter(t)
 				trap := clock.Trap().NewTimer("chatworker", w.timer)
 				defer trap.Close()
+				turn := newRunnerTurnSpan(starter.server.stages, nil, false)
+				turnCtx, _ := turn.Ensure(t.Context(), database.Chat{ID: uuid.New()}, clock.Now())
 
 				done := make(chan error, 1)
 				go func() {
-					done <- w.wait(starter, t.Context(), time.Minute)
+					done <- w.wait(starter, turnCtx, time.Minute)
 				}()
 				trap.MustWait(t.Context()).MustRelease(t.Context())
 				clock.Advance(time.Minute).MustWait(t.Context())
 				require.NoError(t, <-done)
 
-				ended := recorder.Ended()
+				ended := stageSpansByStart(t, recorder, chatloop.StageRetryBackoff)
 				require.Len(t, ended, 1)
-				require.Equal(t, string(chatloop.StageRetryBackoff), ended[0].Name())
 				require.Equal(t, codes.Unset, ended[0].Status().Code)
+				// The wait is the turn's retry_backoff time.
+				turn.End(nil)
+				require.Equal(t, 60.0, turnCategorySeconds(t, registry, chatloop.TurnCategoryRetryBackoff, chatloop.TurnOutcomeAbandoned))
 			})
 
 			t.Run("CanceledEndsWithError", func(t *testing.T) {
 				t.Parallel()
-				starter, clock, recorder := newStarter(t)
+				starter, clock, recorder, _ := newStarter(t)
 				trap := clock.Trap().NewTimer("chatworker", w.timer)
 				defer trap.Close()
 
