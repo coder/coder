@@ -119,7 +119,7 @@ const createComponents = (
 				{children}
 			</a>
 		),
-		// Headings scaled for a 13px base using a tight,
+		// Headings scaled for the agent base size (13-14px) using a tight,
 		// Apple-like progression.
 		h1: ({ children }: MarkdownComponentProps) => (
 			<h1 className="mb-3 mt-5 text-xl font-semibold leading-snug first:mt-0">
@@ -142,7 +142,7 @@ const createComponents = (
 			</h4>
 		),
 		h5: ({ children }: MarkdownComponentProps) => (
-			<h5 className="mb-1 mt-2 text-[13px] font-semibold leading-snug first:mt-0">
+			<h5 className="mb-1 mt-2 text-(length:--agent-font-size) font-semibold leading-snug first:mt-0">
 				{children}
 			</h5>
 		),
@@ -200,7 +200,7 @@ const createComponents = (
 			<hr className="my-6 border-0 border-t border-solid border-border-default" />
 		),
 		// Table cells: streamdown defaults to text-sm (14px).
-		// Drop the explicit size so cells inherit the 13px base.
+		// Drop the explicit size so cells inherit the agent base size.
 		th: ({ children }: MarkdownComponentProps) => (
 			<th className="whitespace-nowrap px-4 py-2 text-left font-semibold">
 				{children}
@@ -295,7 +295,7 @@ export const Response = ({
 		<div
 			ref={ref}
 			className={cn(
-				"text-[13px] leading-relaxed text-content-primary",
+				"text-(length:--agent-font-size) leading-relaxed text-content-primary",
 				className,
 			)}
 			{...props}

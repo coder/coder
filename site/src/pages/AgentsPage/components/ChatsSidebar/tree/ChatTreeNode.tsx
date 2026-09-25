@@ -7,13 +7,16 @@ import {
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, ChatDiffStatus } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuSeparator,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
 import {
@@ -21,16 +24,21 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Tooltip, TooltipTrigger } from "#/components/Tooltip/Tooltip";
 import { shortRelativeTime } from "#/utils/time";
+import { useSidebarChatLayout } from "../../../hooks/useSidebarChatLayout";
 import {
 	ChatActionsMenuItems,
 	canManageChat,
 	chatFamilyAllowsArchive,
 	chatHasMenuActions,
+	type PullRequestSubmenuComponents,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
@@ -45,7 +53,19 @@ type ChatTreeNodeProps = {
 	readonly depth?: number;
 };
 
-const CHILD_INDENT_PX = 26;
+const CHILD_INDENT_PX = 24;
+
+const dropdownSubmenu: PullRequestSubmenuComponents = {
+	Sub: DropdownMenuSub,
+	SubTrigger: DropdownMenuSubTrigger,
+	SubContent: DropdownMenuSubContent,
+};
+
+const contextSubmenu: PullRequestSubmenuComponents = {
+	Sub: ContextMenuSub,
+	SubTrigger: ContextMenuSubTrigger,
+	SubContent: ContextMenuSubContent,
+};
 
 export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	const location = useLocation();
@@ -70,7 +90,11 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		onPinAgent,
 		onUnpinAgent,
 		onOpenRenameDialog,
+		shareableOrganizationIds,
+		onOpenSharingDialog,
 	} = useChatTree();
+	const [sidebarChatLayout] = useSidebarChatLayout();
+	const isOneLine = sidebarChatLayout === "one_line";
 	const chatID = chat.id;
 	const isActiveChat = activeChatId === chatID;
 	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
@@ -79,6 +103,17 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	const hasChildren = childIDs.length > 0;
 	const isDelegated = Boolean(getParentChatID(chat));
 	const isDelegatedExecuting = isDelegated && chat.status === "running";
+	// Subagent rows always use the single-line row, even in the two-line
+	// layout.
+	const isCompact = isOneLine || isDelegated;
+	// The status icon, title, badge and kebab share one center line: 12px
+	// from the top for two-line rows, 14px for subagent rows (28px tall)
+	// and 16px for one-line rows (32px tall).
+	const rowSpacing = isDelegated
+		? { link: "py-0.5", statusIcon: "mt-1", side: "my-0.5" }
+		: isOneLine
+			? { link: "py-1", statusIcon: "mt-1.5", side: "my-1" }
+			: { link: "pt-1 pb-1.5", statusIcon: "mt-0.5", side: "my-0" };
 	const modelName = getModelDisplayName(
 		chat.last_model_config_id,
 		modelConfigs,
@@ -128,7 +163,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		return () => clearTimeout(timeoutId);
 	}, [isStaleTurnSummary]);
 	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
-	const isSharedChat = chat.shared;
 	const subtitle =
 		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
 	const {
@@ -154,15 +188,35 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	const canManage = canManageChat(chat, currentUserId);
+	const linkedPullRequests = prStatuses.filter((status) => status.url);
 	const hasMenuActions = chatHasMenuActions(chat, {
 		canManage,
 		hasSubagentsToggle: hasChildren,
+		hasPullRequests: linkedPullRequests.length > 0,
+		// Sidebar rows offer pin on shared chats too (see onPinAgent).
+		allowsViewerPin: true,
 	});
+	const canShare =
+		canManage &&
+		!isDelegated &&
+		!chat.archived &&
+		shareableOrganizationIds.has(chat.organization_id);
+	// Idle chats swap their checkmark for the unread dot; other statuses
+	// (working, error, needs action) keep their icon.
+	const showUnreadDot =
+		chat.has_unread && !isActiveChat && chat.status === "waiting";
+	// Titles that need attention (working or unread) stand out; the rest
+	// recede until hovered or opened.
+	const isEmphasizedTitle = isStreaming || (chat.has_unread && !isActiveChat);
 
+	// Rows sit inside a section's guide-lined list, so the highlight
+	// bleeds left only to that line (the active border then overlays
+	// it) and fully to the right edge. Padding offsets the bleed so the
+	// content does not shift.
 	const hoverLayout =
-		"[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
+		"[@media(hover:hover)]:hover:-ml-[5px] [@media(hover:hover)]:hover:-mr-2 [@media(hover:hover)]:hover:pl-[5px] [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
 	const activeLayout =
-		"has-[[aria-current=page]]:-mx-2 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[11px]";
+		"has-[[aria-current=page]]:-ml-[5px] has-[[aria-current=page]]:-mr-2 has-[[aria-current=page]]:pl-[3px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l-2 has-[[aria-current=page]]:border-content-disabled [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[3px]";
 	const sharedMenuItemProps = {
 		chat,
 		canManage,
@@ -172,8 +226,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
 		onToggleSubagents: () => toggleExpanded(chatID),
-		onPinAgent: () => onPinAgent(chat.id),
-		onUnpinAgent: () => onUnpinAgent(chat.id),
+		// Pin writes the owner's chat record, so on a shared chat the item
+		// is a placeholder until viewers get their own pins.
+		onPinAgent: canManage ? () => onPinAgent(chat.id) : () => {},
+		onUnpinAgent: canManage ? () => onUnpinAgent(chat.id) : () => {},
 		onArchiveAgent: () => onArchiveAgent(chat.id),
 		onUnarchiveAgent: () => onUnarchiveAgent(chat.id),
 		onArchiveAndDeleteWorkspace: () => {
@@ -184,6 +240,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		onOpenRenameDialog: onOpenRenameDialog
 			? () => onOpenRenameDialog(chat)
 			: undefined,
+		onOpenSharingDialog: canShare ? () => onOpenSharingDialog(chat) : undefined,
+		pullRequests: linkedPullRequests,
 	};
 
 	// The tooltip lists every tracked PR, so it belongs to the whole
@@ -195,16 +253,35 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 				pathname: `/agents/${chat.id}`,
 				search: locationSearch,
 			}}
-			className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+			className={cn(
+				"flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] pr-0.5 text-inherit no-underline",
+				rowSpacing.link,
+			)}
 		>
 			{({ isActive }) => (
 				<div className="min-w-0 flex-1 overflow-hidden text-left">
-					<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+					<div
+						className={cn(
+							"flex min-w-0 items-center gap-1.5 overflow-hidden",
+							// Compact rows match the 24px status and badge slots;
+							// two-line rows use a 16px line per rowSpacing.
+							isCompact ? "h-6" : "h-4",
+						)}
+					>
 						<span
 							className={cn(
-								"block flex-1 truncate text-[13px] text-content-primary",
-								!isActive &&
-									"opacity-85 [@media(hover:hover)]:group-hover:opacity-100",
+								"block flex-1 truncate text-(length:--agent-font-size) leading-4",
+								isActive || isEmphasizedTitle
+									? "text-content-primary"
+									: cn(
+											"[@media(hover:hover)]:group-hover:text-content-primary",
+											// Two-line rows dim the title slightly; compact rows
+											// have no second line to carry the contrast, so they
+											// recede further.
+											isCompact
+												? "text-content-secondary"
+												: "text-content-primary/80",
+										),
 							)}
 						>
 							{chat.title}
@@ -213,46 +290,48 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 							<span className="sr-only">(unread)</span>
 						)}
 					</div>
-					<div className="flex min-w-0 items-center gap-1.5">
-						{prStatuses.length > 0 && (
+					{!isCompact && (
+						<div className="mt-0.5 flex min-w-0 items-center gap-1.5">
 							<ChatNodePRIcon prStatuses={prStatuses} />
-						)}
-						{prStatuses.length === 1 && hasLinkedDiffStatus && hasLineStats && (
-							<span
-								className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-								title={`${filesChangedLabel}, +${additions} -${deletions}`}
+							{prStatuses.length === 1 &&
+								hasLinkedDiffStatus &&
+								hasLineStats && (
+									<span
+										className="inline-flex shrink-0 items-center gap-0.5 text-(length:--agent-font-size) leading-4 tabular-nums"
+										title={`${filesChangedLabel}, +${additions} -${deletions}`}
+									>
+										<span className="text-git-added-bright">+{additions}</span>
+										<span className="text-git-deleted-bright">
+											&minus;{deletions}
+										</span>
+									</span>
+								)}
+							<div
+								className={cn(
+									"min-w-0 overflow-hidden text-(length:--agent-font-size) leading-4",
+									errorReason
+										? "line-clamp-1 whitespace-normal text-content-destructive wrap-anywhere"
+										: "truncate text-content-secondary",
+								)}
+								title={subtitle}
 							>
-								<span className="text-git-added-bright">+{additions}</span>
-								<span className="text-git-deleted-bright">
-									&minus;{deletions}
-								</span>
-							</span>
-						)}
-						<div
-							className={cn(
-								"min-w-0 overflow-hidden text-[13px] leading-4",
-								errorReason
-									? "line-clamp-1 whitespace-normal text-content-destructive wrap-anywhere"
-									: "truncate text-content-secondary",
-							)}
-							title={subtitle}
-						>
-							{subtitle}
+								{subtitle}
+							</div>
 						</div>
-					</div>
+					)}
 				</div>
 			)}
 		</NavLink>
 	);
 
 	return (
-		<div className="flex min-w-0 flex-col gap-0.5">
+		<div className="flex min-w-0 flex-col">
 			<ContextMenu>
 				<ContextMenuTrigger asChild disabled={!hasMenuActions}>
 					<div
 						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
-							"group relative flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+							"group relative flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pr-1.5 text-content-secondary",
 							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-data-[state=open]:bg-surface-tertiary",
 							"has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 							hoverLayout,
@@ -261,7 +340,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 					>
 						<div
 							className={cn(
-								"group/icon relative mt-1.5 size-5 shrink-0",
+								"group/icon relative size-5 shrink-0",
+								rowSpacing.statusIcon,
 								hasChildren && "cursor-pointer",
 							)}
 							style={
@@ -275,16 +355,24 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										"[@media(hover:hover)]:group-hover/icon:invisible",
 								)}
 							>
-								<StatusIcon
-									data-testid={
-										isDelegatedExecuting
-											? `agents-tree-executing-${chat.id}`
-											: undefined
-									}
-									role="img"
-									aria-label={statusLabel}
-									className={cn("size-3.5 shrink-0", statusClassName)}
-								/>
+								{showUnreadDot ? (
+									<span
+										className="size-2 rounded-full bg-content-link"
+										data-testid={`unread-indicator-${chat.id}`}
+										aria-hidden="true"
+									/>
+								) : (
+									<StatusIcon
+										data-testid={
+											isDelegatedExecuting
+												? `agents-tree-executing-${chat.id}`
+												: undefined
+										}
+										role="img"
+										aria-label={statusLabel}
+										className={cn("size-3.5 shrink-0", statusClassName)}
+									/>
+								)}
 							</div>
 							{hasChildren && (
 								<Button
@@ -303,7 +391,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 								</Button>
 							)}
 						</div>
-						{prStatuses.length > 1 ? (
+						{prStatuses.length > 1 && !isCompact ? (
 							<Tooltip>
 								<TooltipTrigger asChild>{chatLink}</TooltipTrigger>
 								<PRListTooltipContent prStatuses={prStatuses} />
@@ -311,53 +399,34 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 						) : (
 							chatLink
 						)}
-						<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
-							<div className="flex h-6 w-7 shrink-0 items-center justify-end">
+						<div
+							className={cn(
+								"relative flex min-w-7 shrink-0 justify-end",
+								rowSpacing.side,
+							)}
+						>
+							<div className="flex h-6 items-center justify-end">
 								{isArchivingThisChat ? (
 									<Spinner
 										className="h-3.5 w-3.5 text-content-secondary"
 										loading
 									/>
 								) : (
-									<span
+									<ChatRowBadge
+										chat={chat}
+										isOneLine={isCompact}
+										prStatuses={prStatuses}
 										className={cn(
-											"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
-											// The timestamp swaps out for the actions trigger on
-											// hover; without menu actions there is no trigger, so
-											// keep the timestamp visible.
+											// The badge swaps out for the actions trigger on
+											// hover; without menu actions there is no trigger,
+											// so keep the badge visible.
 											hasMenuActions &&
 												"[@media(hover:hover)]:group-hover:hidden group-has-data-[state=open]:hidden",
 											hasMenuActions && isActiveChat && "hidden",
 										)}
-									>
-										{chat.has_unread && !isActiveChat ? (
-											<span className="flex w-3.5 shrink-0 justify-center">
-												<span
-													className="size-2 rounded-full bg-content-link"
-													data-testid={`unread-indicator-${chat.id}`}
-													aria-hidden="true"
-												/>
-											</span>
-										) : (
-											<>
-												{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
-												<span
-													data-pixel="ignore"
-													className="inline-block w-7 text-right"
-												>
-													{shortRelativeTime(chat.updated_at)}
-												</span>
-											</>
-										)}
-									</span>
+									/>
 								)}
 							</div>
-							{isSharedChat && (
-								<UsersIcon
-									className="mt-auto size-3.5 text-content-secondary"
-									aria-label="Shared chat"
-								/>
-							)}
 							{hasMenuActions && !isArchivingThisChat && (
 								<DropdownMenu>
 									<DropdownMenuTrigger asChild>
@@ -365,7 +434,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 											size="icon"
 											variant="subtle"
 											className={cn(
-												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
+												"absolute right-0 top-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
 												isActiveChat && "opacity-100",
 											)}
 											aria-label={`Open actions for ${chat.title}`}
@@ -391,7 +460,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 									</DropdownMenuTrigger>
 									<DropdownMenuContent
 										align="end"
-										className="[&_[role=menuitem]]:text-[13px]"
+										className="[&_[role=menuitem]]:text-(length:--agent-font-size)"
 										// The dropdown is portaled to the body, but React
 										// portals bubble events through the React tree, so a
 										// right-click inside the menu would still reach the
@@ -403,6 +472,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 									>
 										<ChatActionsMenuItems
 											{...sharedMenuItemProps}
+											submenu={dropdownSubmenu}
 											Item={DropdownMenuItem}
 											Separator={DropdownMenuSeparator}
 										/>
@@ -412,9 +482,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 						</div>
 					</div>
 				</ContextMenuTrigger>
-				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
+				<ContextMenuContent className="[&_[role=menuitem]]:text-(length:--agent-font-size)">
 					<ChatActionsMenuItems
 						{...sharedMenuItemProps}
+						submenu={contextSubmenu}
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 					/>
@@ -422,7 +493,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 			</ContextMenu>
 
 			{hasChildren && isExpanded && (
-				<div className="relative flex flex-col">
+				<div className="relative flex flex-col pb-2">
 					{childIDs.map((childID) => {
 						const childChat = chatById.get(childID);
 						if (!childChat) return null;
@@ -437,5 +508,55 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 				</div>
 			)}
 		</div>
+	);
+};
+
+type ChatRowBadgeProps = {
+	readonly chat: Chat;
+	readonly isOneLine: boolean;
+	readonly prStatuses: ChatDiffStatus[];
+	readonly className?: string;
+};
+
+const badgeClassName =
+	"inline-flex h-5 shrink-0 items-center gap-1 rounded-md bg-surface-secondary px-1.5 text-xs text-content-secondary tabular-nums";
+
+// Two-line rows show when the last turn ended plus the shared icon; the
+// PR state sits on the details line. One-line rows have no details
+// line, so the badge carries the shared and PR icons instead.
+const ChatRowBadge: FC<ChatRowBadgeProps> = ({
+	chat,
+	isOneLine,
+	prStatuses,
+	className,
+}) => {
+	const sharedIcon = chat.shared && (
+		<UsersIcon
+			role="img"
+			aria-label="Shared chat"
+			className="size-3.5 shrink-0"
+		/>
+	);
+
+	if (isOneLine) {
+		if (!chat.shared && prStatuses.length === 0) {
+			return null;
+		}
+		return (
+			<span className={cn(badgeClassName, className)}>
+				{sharedIcon}
+				<ChatNodePRIcon prStatuses={prStatuses} />
+			</span>
+		);
+	}
+
+	return (
+		<span className={cn(badgeClassName, className)}>
+			{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
+			<span data-pixel="ignore" className="inline-block w-6 text-center">
+				{shortRelativeTime(chat.updated_at)}
+			</span>
+			{sharedIcon}
+		</span>
 	);
 };

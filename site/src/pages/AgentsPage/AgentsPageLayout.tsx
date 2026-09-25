@@ -76,6 +76,7 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import { useApplyAgentFontSize } from "./hooks/useAgentFontSize";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
@@ -156,6 +157,7 @@ export const chatCostIdToInvalidate = (
 
 const AgentsPageLayout: FC = () => {
 	useAgentsPWA();
+	useApplyAgentFontSize();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const location = useLocation();

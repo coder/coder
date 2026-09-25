@@ -6,11 +6,13 @@ import {
 	expect,
 	fireEvent,
 	fn,
+	spyOn,
 	userEvent,
 	waitFor,
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
@@ -21,6 +23,7 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
+import { sidebarChatLayoutStorageKey } from "../../hooks/useSidebarChatLayout";
 import { DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -247,7 +250,8 @@ export const SharedUnreadChat: Story = {
  * The active row normally swaps its timestamp for the actions trigger, but
  * another user's shared chat has no owner actions, so the timestamp stays.
  */
-export const ActiveSharedChatViewerHasNoActions: Story = {
+/** Viewers get a kebab on shared chats, persistent on the active row. */
+export const ActiveSharedChatViewerShowsKebab: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -271,8 +275,8 @@ export const ActiveSharedChatViewerHasNoActions: Story = {
 	},
 };
 
-/** Viewers keep the subagents toggle, the touch path for expanding a row. */
-export const SharedChatViewerMenuOnlyTogglesSubagents: Story = {
+/** Viewers get pin, the subagents toggle and PR links, nothing that edits the chat. */
+export const SharedChatViewerMenu: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -282,6 +286,15 @@ export const SharedChatViewerMenuOnlyTogglesSubagents: Story = {
 				owner_name: "Sharing User",
 				owner_username: "sharing-user",
 				shared: true,
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "shared-parent",
+						pr_number: 4847,
+						url: "https://github.com/coder/coder/pull/4847",
+						pull_request_title: "Split the worker health check",
+					},
+				],
 				children: [
 					buildChat({
 						id: "shared-child",
@@ -1839,6 +1852,209 @@ export const WithMultiplePRs: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
+	},
+};
+
+const layoutPullRequest = (
+	chatId: string,
+	number: number,
+	overrides: Partial<TypesGen.ChatDiffStatus> = {},
+): TypesGen.ChatDiffStatus => ({
+	...MockChatDiffStatus,
+	chat_id: chatId,
+	git_branch: `feat/${number}`,
+	pr_number: number,
+	url: `https://github.com/coder/coder/pull/${number}`,
+	pull_request_title: "Split the worker health check into two services",
+	additions: 25,
+	deletions: 65,
+	changed_files: 3,
+	...overrides,
+});
+
+const layoutShowcaseChats: Chat[] = [
+	buildChat({
+		id: "layout-unread",
+		title: "Title one goes here and it is always really long",
+		has_unread: true,
+		updated_at: recentTimestamp,
+		diff_statuses: [layoutPullRequest("layout-unread", 4847)],
+	}),
+	buildChat({
+		id: "layout-running",
+		title: "Add health check to worker service",
+		status: "running",
+		shared: true,
+		updated_at: recentTimestamp,
+	}),
+	buildChat({
+		id: "layout-shared-closed",
+		title: "Add health check to worker service",
+		shared: true,
+		updated_at: recentTimestamp,
+		diff_statuses: [
+			layoutPullRequest("layout-shared-closed", 4848, {
+				pull_request_state: "closed",
+			}),
+		],
+	}),
+	buildChat({
+		id: "layout-multi-pr",
+		title: "Agent with three pull requests",
+		updated_at: recentTimestamp,
+		diff_statuses: [
+			layoutPullRequest("layout-multi-pr", 1234, { pull_request_draft: true }),
+			layoutPullRequest("layout-multi-pr", 4847),
+			layoutPullRequest("layout-multi-pr", 6789, {
+				pull_request_state: "merged",
+			}),
+		],
+	}),
+	buildChat({
+		id: "layout-plain",
+		title: "This chat has no pull request",
+		updated_at: recentTimestamp,
+	}),
+];
+
+const withOneLineLayout = () => {
+	localStorage.setItem(sidebarChatLayoutStorageKey, "one_line");
+	return () => localStorage.removeItem(sidebarChatLayoutStorageKey);
+};
+
+const allowChatSharing = () => {
+	spyOn(API, "checkAuthorization").mockResolvedValue({
+		[MockChat.organization_id]: true,
+	});
+};
+
+export const TwoLineLayout: Story = {
+	args: { chats: layoutShowcaseChats },
+};
+
+export const OneLineLayout: Story = {
+	args: { chats: layoutShowcaseChats },
+	beforeEach: withOneLineLayout,
+};
+
+export const OneLineLayoutActiveChat: Story = {
+	args: { chats: layoutShowcaseChats },
+	beforeEach: withOneLineLayout,
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/layout-multi-pr",
+				pathParams: { agentId: "layout-multi-pr" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const TwoLineLayoutActiveWithSubagents: Story = {
+	args: {
+		chats: [
+			...layoutShowcaseChats.filter((chat) => chat.id !== "layout-plain"),
+			buildChat({
+				id: "layout-parent",
+				title: "Parent agent with subagents",
+				updated_at: recentTimestamp,
+				last_turn_summary: "Split the PR into two separate issues",
+				children: [
+					"Subagent chat 1 details here",
+					"My agent has been busy",
+				].map((title, index) =>
+					buildChat({
+						id: `layout-child-${index}`,
+						title,
+						parent_chat_id: "layout-parent",
+						root_chat_id: "layout-parent",
+						updated_at: recentTimestamp,
+					}),
+				),
+			}),
+			buildChat({
+				id: "layout-older-unread",
+				title: "Older chat with new activity",
+				has_unread: true,
+			}),
+			...["Add health check to worker service", "Review the rollout plan"].map(
+				(title, index) =>
+					buildChat({
+						id: `layout-shared-with-me-${index}`,
+						title,
+						owner_id: "sharing-user",
+						shared: true,
+						updated_at: recentTimestamp,
+					}),
+			),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/layout-parent",
+				pathParams: { agentId: "layout-parent" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByTestId("agents-tree-toggle-layout-parent"),
+		);
+		// Collapse the older section so its unread dot shows.
+		const sectionToggles = canvas.getAllByRole("button", {
+			name: /^Collapse .* section$/,
+		});
+		const olderToggle = sectionToggles.at(-1);
+		if (olderToggle) {
+			await userEvent.click(olderToggle);
+		}
+	},
+};
+
+export const TwoLineLayoutSmallFont: Story = {
+	args: { chats: layoutShowcaseChats },
+	beforeEach: () => {
+		document.documentElement.style.setProperty("--agent-font-size", "13px");
+		return () =>
+			document.documentElement.style.removeProperty("--agent-font-size");
+	},
+};
+
+export const RowMenuWithPullRequest: Story = {
+	args: { chats: layoutShowcaseChats },
+	beforeEach: allowChatSharing,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Title one goes here and it is always really long",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Sharing" });
+	},
+};
+
+export const RowMenuWithPullRequestFlyout: Story = {
+	args: { chats: layoutShowcaseChats },
+	beforeEach: () => {
+		allowChatSharing();
+		return withOneLineLayout();
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Agent with three pull requests",
+			}),
+		);
+		const body = within(document.body);
+		await body.findByRole("menuitem", { name: "Sharing" });
+		await userEvent.hover(body.getByRole("menuitem", { name: "3 PRs" }));
+		await body.findByRole("menuitem", { name: /PR #6789/ });
 	},
 };
 

@@ -64,6 +64,18 @@ const UNREAD_SECTION_KEY = "Unread";
 const READ_SECTION_KEY = "Read";
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
+// Indents a section's chats under its header behind a guide line,
+// matching how project folders nest their chats.
+const sectionChatListClassName =
+	"mb-1 ml-3 flex flex-col border-0 border-l border-solid border-border-default pl-1";
+
+// Shared chats hang from a dotted guide line instead. A 1px CSS dotted
+// border reads as solid at this size, so draw spaced dots in the brighter
+// border color. pl-[5px] stands in for the 1px border plus pl-1 so rows
+// line up with the solid sections.
+const sharedSectionChatListClassName =
+	"mb-1 ml-3 flex flex-col bg-no-repeat bg-size-[1px_100%] bg-[image:repeating-linear-gradient(to_bottom,hsl(var(--border-secondary))_0_2px,transparent_2px_5px)] pl-[5px]";
+
 type ChatsPanelProps = {
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
@@ -81,6 +93,8 @@ type ChatsPanelProps = {
 	readonly onBeforeNewAgent?: () => void;
 	readonly onOpenSearchDialog?: () => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
+	readonly shareableOrganizationIds: ReadonlySet<string>;
+	readonly onOpenSharingDialog: (chat: Chat) => void;
 	readonly isCreating: boolean;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
@@ -114,6 +128,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	onBeforeNewAgent,
 	onOpenSearchDialog,
 	onOpenRenameDialog,
+	shareableOrganizationIds,
+	onOpenSharingDialog,
 	isCreating,
 	isArchiving,
 	archivingChatId,
@@ -310,6 +326,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		onPinAgent,
 		onUnpinAgent,
 		onOpenRenameDialog,
+		shareableOrganizationIds,
+		onOpenSharingDialog,
 	};
 
 	const chatSections = (
@@ -478,7 +496,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						) : isLoading ? (
 							<>
 								<Skeleton className="ml-2.5 h-3.5 w-16" />
-								<div className="flex flex-col gap-0.5">
+								<div className={sectionChatListClassName}>
 									{Array.from({ length: 6 }, (_, i) => (
 										<div
 											key={i}
@@ -515,17 +533,20 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 									) : (
 										<>
 											{pinnedChats.length > 0 && (
-												<div className="not-first:mt-3">
+												<div>
 													<ChatSectionHeader
 														label={PINNED_SECTION_KEY}
 														count={pinnedChats.length}
+														hasUnread={pinnedChats.some(
+															(chat) => chat.has_unread,
+														)}
 														expanded={!collapsedSections[PINNED_SECTION_KEY]}
 														onToggle={() => toggleSection(PINNED_SECTION_KEY)}
 														testId={getSectionToggleTestId(PINNED_SECTION_KEY)}
 													/>
 													{!collapsedSections[PINNED_SECTION_KEY] &&
 														(disablePinnedReordering ? (
-															<div className="flex flex-col gap-0.5">
+															<div className={sectionChatListClassName}>
 																{sortedPinnedChats.map((chat) => (
 																	<ChatTreeNode key={chat.id} chat={chat} />
 																))}
@@ -549,7 +570,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 																>
 																	<div
 																		ref={pinnedContainerRef}
-																		className="flex flex-col gap-0.5"
+																		className={sectionChatListClassName}
 																	>
 																		{sortedPinnedChats.map((chat) => (
 																			<SortableChatTreeNode
@@ -564,10 +585,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 												</div>
 											)}
 											{sharedWithYouChats.length > 0 && (
-												<div className="not-first:mt-3">
+												<div>
 													<ChatSectionHeader
 														label={SHARED_WITH_YOU_SECTION_KEY}
 														count={sharedWithYouChats.length}
+														hasUnread={sharedWithYouChats.some(
+															(chat) => chat.has_unread,
+														)}
 														expanded={
 															!collapsedSections[SHARED_WITH_YOU_SECTION_KEY]
 														}
@@ -579,7 +603,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														)}
 													/>
 													{!collapsedSections[SHARED_WITH_YOU_SECTION_KEY] && (
-														<div className="flex flex-col gap-0.5">
+														<div className={sharedSectionChatListClassName}>
 															{sharedWithYouChats.map((chat) => (
 																<ChatTreeNode key={chat.id} chat={chat} />
 															))}
@@ -591,16 +615,19 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 												const isSectionExpanded =
 													!collapsedSections[section.key];
 												return (
-													<div key={section.key} className="not-first:mt-3">
+													<div key={section.key}>
 														<ChatSectionHeader
 															label={section.label}
 															count={section.chats.length}
+															hasUnread={section.chats.some(
+																(chat) => chat.has_unread,
+															)}
 															expanded={isSectionExpanded}
 															onToggle={() => toggleSection(section.key)}
 															testId={getSectionToggleTestId(section.key)}
 														/>
 														{isSectionExpanded && (
-															<div className="flex flex-col gap-0.5">
+															<div className={sectionChatListClassName}>
 																{section.chats.map((chat) => (
 																	<ChatTreeNode key={chat.id} chat={chat} />
 																))}

@@ -78,7 +78,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 					scrollBarClassName="w-1.5"
 				>
 					<div className="space-y-2 px-3 py-2">
-						<p className="m-0 whitespace-pre-wrap wrap-break-word text-[13px] italic leading-5 text-content-secondary wrap-anywhere">
+						<p className="m-0 whitespace-pre-wrap wrap-break-word text-(length:--agent-font-size) italic leading-5 text-content-secondary wrap-anywhere">
 							{questionText}
 						</p>
 						<div className="border-0 border-t border-solid border-border-default pt-2">
@@ -103,7 +103,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 							) : !showThinking && !showAdvice ? (
 								<div
 									role="status"
-									className="text-[13px] text-content-secondary"
+									className="text-(length:--agent-font-size) text-content-secondary"
 								>
 									Reviewing context and preparing guidance.
 								</div>
@@ -114,12 +114,12 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 											aria-label="Advisor thinking"
 											className="space-y-1"
 										>
-											<p className="m-0 text-[13px] font-medium text-content-secondary">
+											<p className="m-0 text-(length:--agent-font-size) font-medium text-content-secondary">
 												Thinking
 											</p>
 											<Response
 												streaming
-												className="text-[13px] leading-5 text-content-secondary"
+												className="text-(length:--agent-font-size) leading-5 text-content-secondary"
 											>
 												{reasoningText}
 											</Response>
@@ -128,13 +128,13 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 									{showAdvice && (
 										<section aria-label="Advisor advice" className="space-y-1">
 											{showThinking && (
-												<p className="m-0 text-[13px] font-medium text-content-secondary">
+												<p className="m-0 text-(length:--agent-font-size) font-medium text-content-secondary">
 													Advice
 												</p>
 											)}
 											<Response
 												streaming={isRunning}
-												className="text-[13px] leading-5"
+												className="text-(length:--agent-font-size) leading-5"
 											>
 												{adviceText || "Advisor returned no guidance."}
 											</Response>

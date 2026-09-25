@@ -29,6 +29,27 @@ describe("chatHasMenuActions", () => {
 		).toBe(true);
 	});
 
+	it("gives viewers the menu for pin on live root chats when allowed", () => {
+		expect(
+			chatHasMenuActions(sharedByAnotherUser, {
+				canManage: false,
+				allowsViewerPin: true,
+			}),
+		).toBe(true);
+		expect(
+			chatHasMenuActions(
+				{ ...sharedByAnotherUser, parent_chat_id: "parent-chat" },
+				{ canManage: false, allowsViewerPin: true },
+			),
+		).toBe(false);
+		expect(
+			chatHasMenuActions(
+				{ ...sharedByAnotherUser, archived: true },
+				{ canManage: false, allowsViewerPin: true },
+			),
+		).toBe(false);
+	});
+
 	it("hides the menu from owners only for archived child chats", () => {
 		expect(chatHasMenuActions(MockChat, { canManage: true })).toBe(true);
 		expect(

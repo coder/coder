@@ -8,6 +8,10 @@ import {
 	ShellToolDisplaySettings,
 	ThinkingDisplaySettings,
 } from "./components/DisplayModeSettings";
+import {
+	AgentFontSizeSettings,
+	SidebarChatLayoutSettings,
+} from "./components/LocalDisplaySettings";
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { UserChatDebugLoggingSettings } from "./components/UserChatDebugLoggingSettings";
@@ -59,6 +63,8 @@ export const AgentSettingsGeneralPageView: FC<
 				isAnyPromptSaving={isSavingUserPrompt}
 			/>
 			<ChatFullWidthSettings />
+			<AgentFontSizeSettings />
+			<SidebarChatLayoutSettings />
 			<ChatSendShortcutSettings />
 			<ThinkingDisplaySettings />
 			<ShellToolDisplaySettings />

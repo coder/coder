@@ -23,6 +23,7 @@ import {
 	bootstrapChatEmbedSession,
 	EmbedContext,
 } from "./components/EmbedContext";
+import { useApplyAgentFontSize } from "./hooks/useAgentFontSize";
 
 type BootstrapMessage = {
 	type: "coder:vscode-auth-bootstrap";
@@ -90,6 +91,7 @@ const applyEmbedTheme = (theme: ConcreteThemeName) => {
 
 const AgentEmbedPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
+	useApplyAgentFontSize();
 	if (!agentId) {
 		throw new Error("AgentEmbedPage requires an agentId route parameter.");
 	}

@@ -10,6 +10,17 @@ type ChatNodePRIconProps = {
 	readonly prStatuses: ChatDiffStatus[];
 };
 
+/** The PR number, parsed from the URL for legacy rows that predate pr_number. */
+export const getPullRequestNumber = (
+	status: ChatDiffStatus,
+): number | undefined => {
+	if (status.pr_number) {
+		return status.pr_number;
+	}
+	const parsed = Number(parsePullRequestUrl(status.url)?.number);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+};
+
 export const ChatNodePRIcon: FC<ChatNodePRIconProps> = ({ prStatuses }) => {
 	// Several PRs share the count glyph: picking one state would
 	// misrepresent the rest.
@@ -39,7 +50,10 @@ export const ChatNodePRIcon: FC<ChatNodePRIconProps> = ({ prStatuses }) => {
 			aria-label={`${prStatuses.length} pull requests`}
 			className="inline-flex shrink-0 items-center gap-0.5"
 		>
-			<span aria-hidden="true" className="text-[13px] leading-4 tabular-nums">
+			<span
+				aria-hidden="true"
+				className="text-(length:--agent-font-size) leading-4 tabular-nums"
+			>
 				{prStatuses.length}
 			</span>
 			<GitPullRequestArrowIcon
@@ -71,10 +85,7 @@ export const PRListTooltipContent: FC<PRListContentProps> = ({
 				const label =
 					status.pull_request_title.trim() || status.url || "Pull request";
 
-				// Legacy rows predate the pr_number column, so parse it
-				// from the URL.
-				const parsed = parsePullRequestUrl(status.url);
-				const prNumber = status.pr_number ?? (parsed && Number(parsed.number));
+				const prNumber = getPullRequestNumber(status);
 
 				return (
 					<div

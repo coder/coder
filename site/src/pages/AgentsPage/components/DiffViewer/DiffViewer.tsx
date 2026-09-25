@@ -81,7 +81,7 @@ const diffViewerMetrics: Partial<VirtualFileMetrics> = {
 const fileTreeStyle = {
 	height: "100%",
 	"--trees-font-family-override": '"Geist Variable", system-ui, sans-serif',
-	"--trees-font-size-override": "13px",
+	"--trees-font-size-override": "var(--agent-font-size)",
 	"--trees-border-color-override": "hsl(var(--border-default))",
 	"--trees-bg-override": "hsl(var(--surface-primary))",
 	"--trees-fg-override": "hsl(var(--content-primary))",
