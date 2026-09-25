@@ -334,7 +334,7 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 // originCredentials matches the user and password in an HTTP(S) remote
 // such as "https://<token>@github.com/o/r.git". SSH remotes keep their
 // user: it is not a secret, and GitHub needs "git@" to parse them.
-// Migration 000600 strips existing rows with the same pattern.
+// Migration 000602 strips existing rows with the same pattern.
 var originCredentials = regexp.MustCompile(`^(https?://)[^/]*@`)
 
 // markStaleSingle upserts the git ref for a single chat and publishes
