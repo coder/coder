@@ -1851,6 +1851,7 @@ func ChatProject(project database.ChatProject) codersdk.ChatProject {
 		OwnerID:        project.OwnerID,
 		Name:           project.Name,
 		Description:    project.Description,
+		Icon:           project.Icon,
 		CreatedAt:      project.CreatedAt,
 		UpdatedAt:      project.UpdatedAt,
 	}
