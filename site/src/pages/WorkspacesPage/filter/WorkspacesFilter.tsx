@@ -61,6 +61,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				label: "Owner",
 				hint: "me",
 				icon: <UserKeyIcon />,
+				showWhenSingleOption: true,
 				getOptions: getUserOptions,
 			},
 			{
@@ -69,6 +70,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				label: "User",
 				hint: "me",
 				icon: <UserIcon />,
+				showWhenSingleOption: true,
 				getOptions: getUserOptions,
 			},
 			{

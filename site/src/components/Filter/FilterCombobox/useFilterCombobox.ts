@@ -259,6 +259,7 @@ export const useFilterCombobox = ({
 		() => queryToChips(value, chipKeys),
 		[chipKeys, value],
 	);
+	const chipKeyOf = (token: string) => parseChipToken(token, chipKeys)?.key;
 	const optionToken = (category: FilterCategory, option: FilterOption) =>
 		option.token ?? chipToken(category.key, option.value);
 
@@ -281,7 +282,8 @@ export const useFilterCombobox = ({
 	// Category rows preview their options while the menu is open with an empty
 	// input. The empty-query key is shared with the category view, so entering a
 	// category reuses the cached result. Inline options always load because
-	// applied chips take their labels from them.
+	// applied chips take their labels from them, and other categories load so
+	// single-option ones can be left out before the menu opens.
 	const previewsEnabled = isBrowsing && activeCategoryKey === null;
 	const previewOptions = useQueries({
 		queries: categories.map((category) =>
@@ -289,7 +291,8 @@ export const useFilterCombobox = ({
 				category.key,
 				category.getOptions,
 				"",
-				previewsEnabled || Boolean(category.inlineOptions),
+				previewsEnabled ||
+					Boolean(category.inlineOptions || !category.showWhenSingleOption),
 			),
 		),
 		combine: (results) => {
@@ -310,6 +313,20 @@ export const useFilterCombobox = ({
 			};
 		},
 	});
+	// Filtering by a category with at most one option would not narrow the
+	// results, so categories stay out of the menu until they offer a real
+	// choice. An applied chip keeps the category listed so it can change.
+	const menuCategories = submenuCategories.filter((category) => {
+		if (
+			category.showWhenSingleOption ||
+			chipValues.some((token) =>
+				(category.chipKeys ?? [category.key]).includes(chipKeyOf(token) ?? ""),
+			)
+		) {
+			return true;
+		}
+		return (previewOptions.optionsByKey.get(category.key)?.length ?? 0) > 1;
+	});
 
 	const categoryQuery =
 		activeCategoryKey !== null || browseAll ? "" : inputValue.trim();
@@ -317,8 +334,8 @@ export const useFilterCombobox = ({
 		!open || typedInlinePrefix !== null
 			? []
 			: categoryQuery.length === 0
-				? submenuCategories
-				: matchCategories(categoryQuery, submenuCategories);
+				? menuCategories
+				: matchCategories(categoryQuery, menuCategories);
 
 	const activeOptionsQuerySource = activeCategoryKey !== null ? inputValue : "";
 	const debouncedActiveOptionsQuery = useDebouncedValue(
