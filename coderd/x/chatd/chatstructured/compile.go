@@ -49,8 +49,8 @@ type ValidationIssue struct {
 	Rule string // the library's error type, such as "invalid_type"
 }
 
-// ValidationError reports up to four issues of a mismatching value, the
-// smallest by path and then rule, so the same input reports the same issues.
+// ValidationError reports up to four distinct issues of a mismatching value,
+// the smallest by path and then rule, so the same input reports the same issues.
 type ValidationError struct {
 	Issues []ValidationIssue
 }
@@ -172,14 +172,14 @@ func (s *Schema) Validate(raw []byte) (any, error) {
 	if result.Valid() {
 		return value, nil
 	}
-	// Keep the smallest issues in one pass over the library's full list.
+	// Keep the smallest distinct issues in one pass over the library's full list.
 	var issues []ValidationIssue
 	for _, e := range result.Errors() {
 		issue := ValidationIssue{Path: truncateUTF8(e.Field(), maxIssuePathBytes), Rule: e.Type()}
-		i, _ := slices.BinarySearchFunc(issues, issue, func(a, b ValidationIssue) int {
+		i, found := slices.BinarySearchFunc(issues, issue, func(a, b ValidationIssue) int {
 			return cmp.Or(strings.Compare(a.Path, b.Path), strings.Compare(a.Rule, b.Rule))
 		})
-		if i < maxIssues {
+		if !found && i < maxIssues {
 			issues = slices.Insert(issues, i, issue)
 			issues = issues[:min(len(issues), maxIssues)]
 		}

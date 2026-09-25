@@ -204,16 +204,18 @@ func TestSchemaValidateCapsAndFeedback(t *testing.T) {
 	_, err = pp.Validate(objectValue(256))
 	require.ErrorIs(t, err, ErrTooManyNodes)
 
-	// Six violations under long multibyte names with a distinctive value.
+	// Duplicate violations of 6 long multibyte names with a distinctive value.
 	raw := []byte(`{` + repeatJoin(6, `"@`+strings.Repeat("é", 300)+`":123456789`) + `}`)
-	strict := mustCompile(t, `{"additionalProperties":{"type":"string"}}`)
+	strict := mustCompile(t, `{"additionalProperties":{"allOf":[{"type":"string"},{"type":"string"}]}}`)
 	_, err = strict.Validate(raw)
 	var verr *ValidationError
 	require.ErrorAs(t, err, &verr)
 	require.ErrorIs(t, err, ErrValueMismatch)
 	require.Len(t, verr.Issues, 4)
-	// Paths are cut at a rune boundary within 160 bytes.
-	require.Equal(t, ValidationIssue{Path: "0" + strings.Repeat("é", 79), Rule: "invalid_type"}, verr.Issues[0])
+	// Issues are distinct and ordered; paths are cut at a rune boundary within 160 bytes.
+	for i, issue := range verr.Issues {
+		require.Equal(t, ValidationIssue{Path: fmt.Sprint(i/2) + strings.Repeat("é", 79), Rule: []string{"invalid_type", "number_all_of"}[i%2]}, issue)
+	}
 	msg := err.Error()
 	require.LessOrEqual(t, len(msg), 1024)
 	require.True(t, utf8.ValidString(msg))
