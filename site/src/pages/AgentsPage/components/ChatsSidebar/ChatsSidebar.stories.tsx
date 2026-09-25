@@ -1968,6 +1968,16 @@ export const TwoLineLayoutActiveWithSubagents: Story = {
 				title: "Older chat with new activity",
 				has_unread: true,
 			}),
+			...["Add health check to worker service", "Review the rollout plan"].map(
+				(title, index) =>
+					buildChat({
+						id: `layout-shared-with-me-${index}`,
+						title,
+						owner_id: "sharing-user",
+						shared: true,
+						updated_at: recentTimestamp,
+					}),
+			),
 		],
 	},
 	parameters: {

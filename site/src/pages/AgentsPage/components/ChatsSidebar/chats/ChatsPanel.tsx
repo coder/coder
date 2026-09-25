@@ -69,6 +69,13 @@ const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 const sectionChatListClassName =
 	"mb-1 ml-3 flex flex-col border-0 border-l border-solid border-border-default pl-1";
 
+// Shared chats hang from a dotted guide line instead. A 1px CSS dotted
+// border reads as solid at this size, so draw spaced dots in the brighter
+// border color. pl-[5px] stands in for the 1px border plus pl-1 so rows
+// line up with the solid sections.
+const sharedSectionChatListClassName =
+	"mb-1 ml-3 flex flex-col bg-no-repeat bg-size-[1px_100%] bg-[image:repeating-linear-gradient(to_bottom,hsl(var(--border-secondary))_0_2px,transparent_2px_5px)] pl-[5px]";
+
 type ChatsPanelProps = {
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
@@ -596,7 +603,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														)}
 													/>
 													{!collapsedSections[SHARED_WITH_YOU_SECTION_KEY] && (
-														<div className={sectionChatListClassName}>
+														<div className={sharedSectionChatListClassName}>
 															{sharedWithYouChats.map((chat) => (
 																<ChatTreeNode key={chat.id} chat={chat} />
 															))}
