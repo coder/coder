@@ -891,6 +891,15 @@ The generation goroutine supports:
 
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
+
+<!-- TODO: Document the workspace MCP discovery gate: a turn that exposes
+workspace MCP tools first waits (bounded, best effort, fail open) for the bound
+agent's snapshot to report a complete MCP discovery phase for the agent's
+current run id, reusing one attempt per chat across preparation steps, user
+turns, and create/start hooks; tools from a snapshot published by a previous
+agent run are withheld; find_tools reloads the workspace catalog once per turn
+after concurrent lifecycle tools. See chattool.WaitForMCPDiscovery and
+workspaceMCPView. -->
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
     - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
 - file links

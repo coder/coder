@@ -221,16 +221,18 @@ to the HTTP endpoint from the workspace.
 ### How discovery works
 
 The agent connects to the servers declared in `.mcp.json` once startup scripts finish.
-Servers that fail to connect are skipped, and the rest still contribute their tools.
+A chat turn that offers workspace MCP tools waits up to 15&nbsp;seconds for that initial discovery to finish so the model sees them; if discovery takes longer, the turn continues with whatever has been discovered so far.
+Plan Mode turns and explore sub-agents never receive workspace MCP tools, so they do not wait.
+Each server is published as soon as it connects, so one slow or unresponsive server does not hold back the tools of the others.
+Servers that fail to connect are listed with their error, servers that connect with no tools are still listed, and the rest contribute their tools.
 
 A single set of connections is shared by tool discovery and tool execution, so each declared server is launched once.
 When the connected tool list changes, the agent re-scans and pushes a new snapshot.
 
 Editing `.mcp.json` does not require a workspace restart.
 The agent notices edits to the file and reloads its servers automatically.
-The reload changes the pushed snapshot, but an MCP-only change does not mark existing chats out of date, and the dashboard offers **Refresh context** only on chats that are marked out of date.
-New chats and chats that have not pinned a snapshot yet receive the new tool set immediately.
-An existing chat keeps its current tool set until another context change, such as editing an instruction file or a skill, marks it out of date; refreshing then re-pins the whole snapshot, including the new MCP tools.
+The reload changes the pushed snapshot, and existing chats pick up the new MCP tool set on their next turn without a refresh.
+An MCP-only change does not mark a chat out of date; the dashboard offers **Refresh context** only when an instruction file or a skill changed, and refreshing then re-pins the whole snapshot.
 
 The snapshot carries tool definitions only, not a way to run them.
 Every workspace MCP tool call is proxied back through the workspace agent, so a chat can list workspace MCP tools while the workspace is unreachable, but calling one requires a running workspace with the server connected.

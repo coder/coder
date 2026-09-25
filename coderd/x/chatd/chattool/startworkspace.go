@@ -31,7 +31,10 @@ type StartWorkspaceOptions struct {
 	AgentConnFn   AgentConnFunc
 	WorkspaceMu   *sync.Mutex
 	OnChatUpdated func(database.Chat)
-	Logger        slog.Logger
+	// WaitForMCPDiscovery shares the turn's discovery attempt.
+	// Nil skips discovery for turns that do not expose workspace MCP tools.
+	WaitForMCPDiscovery MCPDiscoveryWaiter
+	Logger              slog.Logger
 }
 
 type startWorkspaceArgs struct {
@@ -114,7 +117,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 						xerrors.Errorf("waiting for in-progress build: %w", err),
 					), nil
 				}
-				result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, build.ID)
+				result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, build.ID, options.WaitForMCPDiscovery)
 				// Re-fire after the agent is fully ready so
 				// callers can load instruction files (AGENTS.md).
 				// This must happen after waitForAgentAndRespond —
@@ -129,7 +132,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				// If the latest successful build is a start
 				// transition, the workspace should be running.
 				if build.Transition == database.WorkspaceTransitionStart {
-					return toolResponse(waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, uuid.Nil)), nil
+					return toolResponse(waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, uuid.Nil, options.WaitForMCPDiscovery)), nil
 				}
 				// Otherwise it is stopped (or deleted) — proceed
 				// to start it below.
@@ -185,7 +188,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				), nil
 			}
 
-			result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, startBuild.ID)
+			result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, startBuild.ID, options.WaitForMCPDiscovery)
 
 			// If the template version changed, annotate the
 			// response so the model knows an auto-update
@@ -228,6 +231,7 @@ func waitForAgentAndRespond(
 	agentConnFn AgentConnFunc,
 	ws database.Workspace,
 	buildID uuid.UUID,
+	waitMCP MCPDiscoveryWaiter,
 ) map[string]any {
 	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 	if err != nil || len(agents) == 0 {
@@ -262,7 +266,7 @@ func waitForAgentAndRespond(
 	}
 	setBuildID(result, buildID)
 	setNoBuild(result, buildID)
-	for k, v := range waitForAgentReady(ctx, db, selected, agentConnFn) {
+	for k, v := range waitForAgentReady(ctx, db, selected, agentConnFn, waitMCP) {
 		result[k] = v
 	}
 	return result
