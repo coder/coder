@@ -399,7 +399,7 @@ func TestConvertTemplateInsightsApps(t *testing.T) {
 			// from the old sftp_mins column still report it.
 			TemplateIDs: []uuid.UUID{sftpTemplateID},
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSFTP,
+			DisplayName: codersdk.AppFamilySFTP.DisplayName(),
 			Slug:        "sftp",
 			Icon:        "/icon/terminal.svg",
 			Seconds:     300,

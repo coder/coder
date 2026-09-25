@@ -241,25 +241,25 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
 			float64(templateRow.usageSecondsByFamily[codersdk.AppFamilyVSCode]),
 			data.templateNames[templateRow.templateID],
-			codersdk.TemplateBuiltinAppDisplayNameVSCode,
+			codersdk.AppFamilyVSCode.DisplayName(),
 			"", orgName)
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
 			float64(templateRow.usageSecondsByFamily[codersdk.AppFamilyJetBrains]),
 			data.templateNames[templateRow.templateID],
-			codersdk.TemplateBuiltinAppDisplayNameJetBrains,
+			codersdk.AppFamilyJetBrains.DisplayName(),
 			"", orgName)
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
 			float64(templateRow.usageSecondsByFamily[codersdk.AppFamilyReconnectingPTY]),
 			data.templateNames[templateRow.templateID],
-			codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
+			codersdk.AppFamilyReconnectingPTY.DisplayName(),
 			"", orgName)
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
 			float64(templateRow.usageSecondsByFamily[codersdk.AppFamilySSH]),
 			data.templateNames[templateRow.templateID],
-			codersdk.TemplateBuiltinAppDisplayNameSSH,
+			codersdk.AppFamilySSH.DisplayName(),
 			"", orgName)
 	}
 

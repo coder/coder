@@ -34,11 +34,11 @@ const (
 // appFamilyDisplayNames names each family. The VS Code family covers every
 // fork, so its name sets it apart from the VS Code app.
 var appFamilyDisplayNames = map[AppFamilyName]string{
-	AppFamilyVSCode:          TemplateBuiltinAppDisplayNameVSCode,
-	AppFamilyJetBrains:       TemplateBuiltinAppDisplayNameJetBrains,
-	AppFamilySSH:             TemplateBuiltinAppDisplayNameSSH,
-	AppFamilyReconnectingPTY: TemplateBuiltinAppDisplayNameWebTerminal,
-	AppFamilySFTP:            TemplateBuiltinAppDisplayNameSFTP,
+	AppFamilyVSCode:          "VS Code Family",
+	AppFamilyJetBrains:       "JetBrains",
+	AppFamilySSH:             "SSH",
+	AppFamilyReconnectingPTY: "Web Terminal",
+	AppFamilySFTP:            "SFTP",
 	AppFamilyUnknown:         "Unknown",
 }
 
