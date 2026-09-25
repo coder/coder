@@ -212,7 +212,7 @@ The receiver must hash the raw request body before JSON parsing or other transfo
 Use the raw request target, including its leading slash and query string, in the canonical string.
 Receivers MUST use constant-time comparison for the signature.
 Receivers MUST treat the identity headers as trustworthy only after signature verification succeeds.
-Reject requests when the timestamp differs from the receiver's current time by more than 300 seconds.
+Reject requests when the timestamp differs from the receiver's current time by more than 300&nbsp;seconds.
 This timestamp window is the `v1` replay bound because `v1` has no nonce or replay cache.
 
 Because the identity headers disclose chat identity, **Forward Coder identity headers** is off by default.

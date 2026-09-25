@@ -113,20 +113,18 @@ User secrets are subject to the following limits. Coder enforces these when you
 create or update a secret and rejects the request with an explanatory 400 when
 you exceed one. Delete or shrink an existing secret to make room.
 
-| Cap                                      | Value     |
-|------------------------------------------|-----------|
-| Total secrets per user                   | 50        |
-| Combined stored value bytes per user     | 200 KiB   |
-| Combined stored env-injected value bytes | 24 KiB    |
-| Per-secret value bytes                   | 24 KiB    |
-| Env var name length                      | 256 bytes |
+| Cap                                      | Value        |
+|------------------------------------------|--------------|
+| Total secrets per user                   | 50           |
+| Combined stored value bytes per user     | 200&nbsp;KiB |
+| Combined stored env-injected value bytes | 24&nbsp;KiB  |
+| Per-secret value bytes                   | 24&nbsp;KiB  |
+| Env var name length                      | 256 bytes    |
 
-Only secrets created with `--env` count against the env-injected budget. Coder
-injects these into the workspace agent's process environment, which on Windows
-has a ~32 KiB total budget. The 24 KiB ceiling leaves room for Coder's own
-variables (`CODER_*`, `PATH`, `HOME`, ...) plus any template-defined env. To
-inject a value larger than this budget, use `--file` instead; file secrets do
-not count against the env budget.
+Only secrets created with `--env` count against the env-injected budget.
+Coder injects these into the workspace agent's process environment, which on Windows has a ~32&nbsp;KiB total budget.
+The 24&nbsp;KiB ceiling leaves room for Coder's own variables (`CODER_*`, `PATH`, `HOME`, ...) plus any template-defined env.
+To inject a value larger than this budget, use `--file` instead; file secrets do not count against the env budget.
 
 The per-secret cap matches the env aggregate cap because a value larger than
 the env aggregate could never be injected successfully as an environment
@@ -335,10 +333,9 @@ DATABASE_URL=postgres://user:pass@db.internal/app
 In JSON and YAML files, every value must be a string. Quote numeric and
 boolean values, for example `"PORT": "8080"`.
 
-The import is all or nothing. If any entry fails validation, conflicts with
-an existing secret, or exceeds a [limit](#limits), Coder cancels the import
-and creates no secrets. The file must also be 1 MiB or smaller and contain no
-more than 50 keys.
+The import is all or nothing.
+If any entry fails validation, conflicts with an existing secret, or exceeds a [limit](#limits), Coder cancels the import and creates no secrets.
+The file must also be 1&nbsp;MiB or smaller and contain no more than 50 keys.
 
 Keys that are not valid environment variable names, such as `MY-TOKEN` or the
 reserved name `PATH`, are imported without an environment variable target.

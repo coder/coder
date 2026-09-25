@@ -29,7 +29,7 @@ $1,000,000 per member per period.
 > Existing native limit values are not migrated to AI Gateway budgets and are no longer enforced.
 > Configured per-model prices and historical native cost totals are also not migrated to AI Gateway.
 > Before upgrading, record any per-model prices you need from **Admin settings** > **AI** > **Models**.
-> The old cost endpoints default `start_date` to 30 days before the request and `end_date` to the request time, so choose explicit RFC 3339 UTC values that cover all history you need.
+> The old cost endpoints default `start_date` to 30&nbsp;days before the request and `end_date` to the request time, so choose explicit RFC 3339 UTC values that cover all history you need.
 > Fetch `/api/v2/chats/cost/users?start_date=<start>&end_date=<end>&limit=100&offset=0` and save the response.
 > After each page, stop when `offset + users.length >= count`; otherwise, increase `offset` by 100 and fetch the next page.
 > For every `users[].user_id` across those pages, save `/api/v2/chats/cost/{user_id}/summary?start_date=<start>&end_date=<end>` with the same dates.
@@ -68,5 +68,5 @@ For organization spend exports, refer to [AI Gateway spend export](../../ai-gate
 
 The AI Gateway [sessions views](../../ai-gateway/audit.md#navigating-the-ui) show per-request token usage, which is the input to those costs rather than the costs themselves.
 
-AI Gateway data is subject to its own [retention period](../../ai-gateway/monitoring.md#data-retention), 60 days by default, which is configured independently of chat retention.
+AI Gateway data is subject to its own [retention period](../../ai-gateway/monitoring.md#data-retention), 60&nbsp;days by default, which is configured independently of chat retention.
 Spend for requests older than that period is no longer reported, so a chat for which gateway records have been pruned reports no cost.

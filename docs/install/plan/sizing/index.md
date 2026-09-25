@@ -306,10 +306,8 @@ database to the prior version.
 
 ### Performance efficiency
 
-We highly recommend deploying the PostgreSQL instance in the same region (and if
-possible, same availability zone) as the control plane to optimize for low
-latency connections. We recommend keeping latency under 10ms between the control
-plane and database.
+We highly recommend deploying the PostgreSQL instance in the same region (and if possible, same availability zone) as the control plane to optimize for low latency connections.
+We recommend keeping latency under 10&nbsp;ms between the control plane and database.
 
 When determining scaling requirements, take into account the following
 considerations:
@@ -330,25 +328,25 @@ For production deployments, we recommend using dedicated compute instances rathe
 
 ##### AWS (RDS/Aurora PostgreSQL)
 
-- **Small deployments (<1000 users)**: `db.m6i.large` (2 vCPU, 8 GB RAM) or `db.r6i.large` (2 vCPU, 16 GB RAM)
-- **Medium deployments (1000-2000 users)**: `db.m6i.xlarge` (4 vCPU, 16 GB RAM) or `db.r6i.xlarge` (4 vCPU, 32 GB RAM)
-- **Large deployments (2000+ users)**: `db.m6i.2xlarge` (8 vCPU, 32 GB RAM) or `db.r6i.2xlarge` (8 vCPU, 64 GB RAM)
+- **Small deployments (<1000 users)**: `db.m6i.large` (2&nbsp;vCPU, 8&nbsp;GB RAM) or `db.r6i.large` (2&nbsp;vCPU, 16&nbsp;GB RAM)
+- **Medium deployments (1000-2000 users)**: `db.m6i.xlarge` (4&nbsp;vCPU, 16&nbsp;GB RAM) or `db.r6i.xlarge` (4&nbsp;vCPU, 32&nbsp;GB RAM)
+- **Large deployments (2000+ users)**: `db.m6i.2xlarge` (8&nbsp;vCPU, 32&nbsp;GB RAM) or `db.r6i.2xlarge` (8&nbsp;vCPU, 64&nbsp;GB RAM)
 
 [Comparison](https://instances.vantage.sh/rds?memory_expr=%3E%3D0&vcpus_expr=%3E%3D0&memory_per_vcpu_expr=%3E%3D0&gpu_memory_expr=%3E%3D0&gpus_expr=%3E%3D0&maxips_expr=%3E%3D0&storage_expr=%3E%3D0&filter=db.r6i.large%7Cdb.m6i.large%7Cdb.m6i.xlarge%7Cdb.r6i.xlarge%7Cdb.r6i.2xlarge%7Cdb.m6i.2xlarge&region=us-east-1&pricing_unit=instance&cost_duration=hourly&reserved_term=yrTerm1Standard.noUpfront&compare_on=true)
 
 ##### Azure (Azure Database for PostgreSQL)
 
-- **Small deployments (<1000 users)**: `Standard_D2s_v5` (2 vCPU, 8 GB RAM) or `Standard_E2s_v5` (2 vCPU, 16 GB RAM)
-- **Medium deployments (1000-2000 users)**: `Standard_D4s_v5` (4 vCPU, 16 GB RAM) or `Standard_E4s_v5` (4 vCPU, 32 GB RAM)
-- **Large deployments (2000+ users)**: `Standard_D8s_v5` (8 vCPU, 32 GB RAM) or `Standard_E8s_v5` (8 vCPU, 64 GB RAM)
+- **Small deployments (<1000 users)**: `Standard_D2s_v5` (2&nbsp;vCPU, 8&nbsp;GB RAM) or `Standard_E2s_v5` (2&nbsp;vCPU, 16&nbsp;GB RAM)
+- **Medium deployments (1000-2000 users)**: `Standard_D4s_v5` (4&nbsp;vCPU, 16&nbsp;GB RAM) or `Standard_E4s_v5` (4&nbsp;vCPU, 32&nbsp;GB RAM)
+- **Large deployments (2000+ users)**: `Standard_D8s_v5` (8&nbsp;vCPU, 32&nbsp;GB RAM) or `Standard_E8s_v5` (8&nbsp;vCPU, 64&nbsp;GB RAM)
 
 [Comparison](https://instances.vantage.sh/azure?memory_expr=%3E%3D0&vcpus_expr=%3E%3D0&memory_per_vcpu_expr=%3E%3D0&gpu_memory_expr=%3E%3D0&gpus_expr=%3E%3D0&maxips_expr=%3E%3D0&storage_expr=%3E%3D0&filter=d2s-v5%7Ce2s-v5%7Cd4s-v5%7Ce4s-v5%7Ce8s-v5%7Cd8s-v5&region=us-east&pricing_unit=instance&cost_duration=hourly&reserved_term=yrTerm1Standard.allUpfront&compare_on=true)
 
 ##### Google Cloud (Cloud SQL for PostgreSQL)
 
-- **Small deployments (<1000 users)**: `db-perf-optimized-N-2` (2 vCPU, 16 GB RAM)
-- **Medium deployments (1000-2000 users)**: `db-perf-optimized-N-4` (4 vCPU, 32 GB RAM)
-- **Large deployments (2000+ users)**: `db-perf-optimized-N-8` (8 vCPU, 64 GB RAM)
+- **Small deployments (<1000 users)**: `db-perf-optimized-N-2` (2&nbsp;vCPU, 16&nbsp;GB RAM)
+- **Medium deployments (1000-2000 users)**: `db-perf-optimized-N-4` (4&nbsp;vCPU, 32&nbsp;GB RAM)
+- **Large deployments (2000+ users)**: `db-perf-optimized-N-8` (8&nbsp;vCPU, 64&nbsp;GB RAM)
 
 [Comparison](https://cloud.google.com/sql/docs/postgres/machine-series-overview#n2)
 

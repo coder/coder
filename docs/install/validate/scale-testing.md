@@ -57,10 +57,10 @@ channel for IDEs with VS Code and JetBrains plugins.
 
 The basic setup of scale tests environment involves:
 
-1. Scale tests runner (32 vCPU, 128 GB RAM)
-1. Coder: 2 replicas (4 vCPU, 16 GB RAM)
-1. Database: 1 instance (2 vCPU, 32 GB RAM)
-1. Provisioner: 50 instances (0.5 vCPU, 512 MB RAM)
+1. Scale tests runner (32&nbsp;vCPU, 128&nbsp;GB RAM)
+1. Coder: 2 replicas (4&nbsp;vCPU, 16&nbsp;GB RAM)
+1. Database: 1 instance (2&nbsp;vCPU, 32&nbsp;GB RAM)
+1. Provisioner: 50 instances (0.5&nbsp;vCPU, 512&nbsp;MB RAM)
 
 The test is deemed successful if:
 
@@ -71,22 +71,20 @@ workflows,
 
 ## Traffic Projections
 
-In our scale tests, we simulate activity from 2000 users, 2000 workspaces, and
-2000 agents, with two items of workspace agent metadata being sent every 10
-seconds. Here are the resulting metrics:
+In our scale tests, we simulate activity from 2000 users, 2000 workspaces, and 2000 agents, with two items of workspace agent metadata being sent every 10&nbsp;seconds.
+Here are the resulting metrics:
 
 Coder:
 
-- Median CPU usage for `coderd`: 3 vCPU, peaking at 3.7 vCPU while all tests are
-  running concurrently.
+- Median CPU usage for `coderd`: 3&nbsp;vCPU, peaking at 3.7&nbsp;vCPU while all tests are running concurrently.
 - Median API request rate: 350 RPS during dashboard tests, 250 RPS during Web
   Terminal and workspace apps tests.
-- 2000 agent API connections with latency: p90 at 60 ms, p95 at 220 ms.
+- 2000 agent API connections with latency: p90 at 60&nbsp;ms, p95 at 220&nbsp;ms.
 - on average 2400 Web Socket connections during dashboard tests.
 
 Provisionerd:
 
-- Median CPU usage is 0.35 vCPU during workspace provisioning.
+- Median CPU usage is 0.35&nbsp;vCPU during workspace provisioning.
 
 Database:
 
@@ -115,9 +113,7 @@ recommend referencing public cloud providers such as AWS, GCP, and Azure for
 guidance on optimal configurations. A reasonable approach involves using scaling
 formulas based on factors like CPU, memory, and the number of users.
 
-While the minimum requirements specify 1 CPU core and 2 GB of memory per
-`coderd` replica, we recommend that you allocate additional resources depending
-on the workload size to ensure deployment stability.
+While the minimum requirements specify 1&nbsp;CPU core and 2&nbsp;GB of memory per `coderd` replica, we recommend that you allocate additional resources depending on the workload size to ensure deployment stability.
 
 #### CPU and memory usage
 
@@ -148,12 +144,9 @@ When determining scaling requirements, consider the following factors:
 
 #### HTTP API latency
 
-For a reliable Coder deployment dealing with medium to high loads, it's
-important that API calls for workspace/template queries and workspace build
-operations respond within 300 ms. However, API template insights calls, which
-involve browsing workspace agent stats and user activity data, may require more
-time. Moreover, Coder API exposes WebSocket long-lived connections for Web
-Terminal (bidirectional), and Workspace events/logs (unidirectional).
+For a reliable Coder deployment dealing with medium to high loads, it's important that API calls for workspace/template queries and workspace build operations respond within 300&nbsp;ms.
+However, API template insights calls, which involve browsing workspace agent stats and user activity data, may require more time.
+Moreover, Coder API exposes WebSocket long-lived connections for Web Terminal (bidirectional), and Workspace events/logs (unidirectional).
 
 If the Coder deployment expects traffic from developers spread across the globe,
 be aware that customer-facing latency might be higher because of the distance
@@ -214,10 +207,9 @@ for workspace users, administrators must be aware of a few assumptions.
   - Evaluate the workspace utilization pattern. For instance, web application
     development does not require high CPU capacity at all times, but will spike
     during builds or testing.
-  - Evaluate minimal limits for single workspace. Include in the calculation
-    requirements for Coder agent running in an idle workspace - 0.1 vCPU and 256
-    MB. For instance, developers can choose between 0.5-8 vCPUs, and 1-16 GB
-    memory.
+  - Evaluate minimal limits for single workspace.
+    Include in the calculation requirements for Coder agent running in an idle workspace - 0.1&nbsp;vCPU and 256&nbsp;MB.
+    For instance, developers can choose between 0.5-8&nbsp;vCPUs, and 1-16&nbsp;GB memory.
 
 #### Scaling formula
 

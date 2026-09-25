@@ -125,7 +125,7 @@ openssl genrsa -out ca.key 4096
 chmod 400 ca.key
 ```
 
-1) Create a self-signed CA certificate (valid for 10 years):
+1) Create a self-signed CA certificate (valid for 10&nbsp;years):
 
 ```sh
 openssl req -new -x509 -days 3650 \

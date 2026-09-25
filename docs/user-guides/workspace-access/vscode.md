@@ -77,9 +77,8 @@ record:
 
 ### Storage and retention
 
-The extension stores telemetry as JSON Lines files in its VS Code global storage
-under a `telemetry` directory. Files rotate at 5 MiB, are kept for up to 30 days,
-and are capped at 100 MiB total by default.
+The extension stores telemetry as JSON Lines files in its VS Code global storage under a `telemetry` directory.
+Files rotate at 5&nbsp;MiB, are kept for up to 30&nbsp;days, and are capped at 100&nbsp;MiB total by default.
 
 You can tune local retention with the advanced `coder.telemetry.local` setting.
 Most users should keep the default values.

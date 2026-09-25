@@ -100,8 +100,8 @@ Each [standalone gateway](./standalone.md) replica accepts the same API dump set
 
 ## Data Retention
 
-AI Gateway records prompts, token usage, tool invocations, and model reasoning for auditing and
-monitoring purposes. By default, this data is retained for **60 days**.
+AI Gateway records prompts, token usage, tool invocations, and model reasoning for auditing and monitoring purposes.
+By default, this data is retained for **60&nbsp;days**.
 
 Configure retention using `--ai-gateway-retention` or `CODER_AI_GATEWAY_RETENTION`:
 

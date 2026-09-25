@@ -210,8 +210,8 @@ Look for these patterns in existing templates:
 
 ### Will this slow down my workspace?
 
-No. The socket server adds minimal overhead, and the default polling interval is 1
-second, so waiting for dependencies adds at most a few seconds to startup.
+No.
+The socket server adds minimal overhead, and the default polling interval is 1&nbsp;second, so waiting for dependencies adds at most a few seconds to startup.
 You are more likely to notice an improvement in startup times as it becomes easier to manage complex dependencies in parallel.
 
 ### How do units interact with each other?

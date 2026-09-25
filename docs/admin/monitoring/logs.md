@@ -52,7 +52,7 @@ Agent logs are also stored in the workspace filesystem by default:
   to see where logs are stored.
 
 > [!NOTE]
-> Logs are truncated once they reach 5MB in size.
+> Logs are truncated once they reach 5&nbsp;MB in size.
 
 Startup script logs are also stored in the temporary directory of macOS and
 Linux workspaces.

@@ -29,7 +29,7 @@ Each release publishes RPMs for `amd64`, `arm64`, and `armv7`.
 ## Requirements
 
 - A host running one of the distributions above.
-- 2 CPU cores and 4&nbsp;GB of memory to evaluate Coder.
+- 2&nbsp;CPU cores and 4&nbsp;GB of memory to evaluate Coder.
   For production sizing, refer to the [Coder Validated Architecture](../plan/sizing/index.md).
 - `root` or `sudo` access.
 - An external PostgreSQL database for anything beyond a proof of concept.
