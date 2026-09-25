@@ -6,9 +6,12 @@ import {
 	createContext,
 	type FC,
 	type ReactNode,
+	type Ref,
 	type RefObject,
 	useContext,
+	useImperativeHandle,
 	useRef,
+	useState,
 } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { InputGroup } from "#/components/InputGroup/InputGroup";
@@ -47,6 +50,12 @@ function useFilterComboboxState(): FilterComboboxStateValue {
 	return context;
 }
 
+/** Reads and moves the highlighted row without re-rendering the caller. */
+export type FilterComboboxHighlight = {
+	get: () => string;
+	set: (value: string) => void;
+};
+
 type FilterComboboxRootProps = {
 	open?: boolean;
 	/** Fired when Radix requests a close (escape / outside press). */
@@ -54,8 +63,11 @@ type FilterComboboxRootProps = {
 	onRemoveValue?: (value: string) => void;
 	inputValue?: string;
 	onInputValueChange?: (value: string) => void;
-	/** Highlighted row value. Controlled so callers can clear it directly. */
-	highlightedValue?: string;
+	/**
+	 * The highlighted row lives here, so moving it re-renders only this root
+	 * and the rows whose highlight changes, not the caller's option lists.
+	 */
+	highlightRef?: Ref<FilterComboboxHighlight>;
 	onHighlightedValueChange?: (value: string) => void;
 	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
 	label?: string;
@@ -80,13 +92,27 @@ export function FilterComboboxRoot({
 	onRemoveValue,
 	inputValue = "",
 	onInputValueChange,
-	highlightedValue = "",
+	highlightRef,
 	onHighlightedValueChange,
 	label,
 	className,
 	children,
 }: FilterComboboxRootProps) {
 	const anchorRef = useRef<HTMLDivElement | null>(null);
+	// cmdk only reports highlight changes when its value is controlled.
+	const [highlightedValue, setHighlightedValue] = useState("");
+	const highlightedValueRef = useRef("");
+	useImperativeHandle(
+		highlightRef,
+		() => ({
+			get: () => highlightedValueRef.current,
+			set: (value) => {
+				highlightedValueRef.current = value;
+				setHighlightedValue(value);
+			},
+		}),
+		[],
+	);
 
 	const state: FilterComboboxStateValue = {
 		inputValue,
@@ -103,7 +129,11 @@ export function FilterComboboxRoot({
 					label={label}
 					className={cn("flex w-full flex-col", className)}
 					value={highlightedValue}
-					onValueChange={onHighlightedValueChange}
+					onValueChange={(value) => {
+						highlightedValueRef.current = value;
+						setHighlightedValue(value);
+						onHighlightedValueChange?.(value);
+					}}
 				>
 					{/* No PopoverTrigger: opens are caller-driven via `open`; Radix only
 					    originates close requests, forwarded as `onDismiss`. */}
