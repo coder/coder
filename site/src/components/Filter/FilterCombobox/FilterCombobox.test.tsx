@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { render } from "#/testHelpers/renderHelpers";
@@ -807,15 +807,135 @@ describe("FilterCombobox", () => {
 		expect(onChange).toHaveBeenLastCalledWith("owner:alice");
 	});
 
-	it("picks a match for free-typed text after an arrow key", async () => {
+	it.each([
+		["ArrowDown", "{ArrowDown}"],
+		["End", "{End}"],
+		["Ctrl+N", "{Control>}n{/Control}"],
+	])("picks a match for free-typed text after %s", async (_, keys) => {
 		const { user, onChange, input } = setup([ownerCategory]);
 
 		await user.click(input);
 		await user.type(input, "ali");
 		await screen.findByRole("option", { name: "alice" });
-		await user.keyboard("{ArrowDown}{Enter}");
+		await user.keyboard(`${keys}{Enter}`);
 
 		expect(onChange).toHaveBeenLastCalledWith("owner:alice");
+	});
+
+	it("picks a hovered match for free-typed text with Enter", async () => {
+		const { user, onChange, input } = setup([ownerCategory]);
+
+		await user.click(input);
+		await user.type(input, "ali");
+		await user.hover(await screen.findByRole("option", { name: "alice" }));
+		await user.keyboard("{Enter}");
+
+		expect(onChange).toHaveBeenLastCalledWith("owner:alice");
+	});
+
+	it("searches free-typed text with Enter after a pointer move outside the rows", async () => {
+		const { user, onChange, input } = setup([manyOwnersCategory]);
+
+		await user.click(input);
+		await user.type(input, "zed");
+		fireEvent.pointerMove(input);
+		await screen.findByRole("option", { name: "zed" });
+		await user.keyboard("{Enter}");
+
+		expect(onChange).toHaveBeenLastCalledWith("zed");
+	});
+
+	it.each([
+		["another row remains", [{ label: "alan", value: "alan" }]],
+		["no row remains", []],
+	])(
+		"searches free-typed text with Enter after the highlighted row unmounts and %s",
+		async (_, searchResults) => {
+			const { user, onChange, input } = setup(
+				[
+					{
+						key: "owner",
+						label: "Owner",
+						getOptions: async (query) =>
+							query === ""
+								? [
+										{ label: "alice", value: "alice" },
+										{ label: "alan", value: "alan" },
+									]
+								: searchResults,
+					},
+				],
+				{ fakeTimers: true },
+			);
+
+			await user.click(input);
+			await user.type(input, "al");
+			await screen.findByRole("option", { name: "alice" });
+			await user.keyboard("{ArrowDown}");
+			await settleTypedText();
+			await user.keyboard("{Enter}");
+
+			expect(onChange).toHaveBeenLastCalledWith("al");
+		},
+	);
+
+	it("completes a category with Tab for free-typed text", async () => {
+		const { user, onChange, input } = setup([ownerCategory]);
+
+		await user.click(input);
+		await user.type(input, "own");
+		await screen.findByRole("option", { name: "Owner" });
+		await user.keyboard("{Tab}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{Enter}");
+
+		expect(input).toHaveFocus();
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
+	it("completes an inline option with Tab for free-typed text", async () => {
+		const { user, onChange, input } = setup([ownerCategory, statusCategory]);
+
+		await user.click(input);
+		await user.type(input, "runn");
+		await screen.findByRole("option", { name: /Running/ });
+		await user.keyboard("{Tab}");
+
+		expect(onChange).toHaveBeenLastCalledWith("status:running");
+	});
+
+	it("keeps the first match highlighted for text typed inside a category", async () => {
+		const { user, onChange, input, filtersButton } = setup([ownerCategory]);
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowDown}{ArrowRight}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.type(input, "ali");
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
+	it("keeps the first row highlighted in the all-filters list", async () => {
+		const { user, onChange, input, filtersButton } = setup([ownerCategory], {
+			skipHover: true,
+		});
+
+		await user.click(input);
+		await user.type(input, "ali");
+		await user.keyboard("{Escape}");
+		await user.click(filtersButton);
+		await screen.findByRole("option", { name: "Owner" });
+		await user.keyboard("{Enter}");
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice ali"),
+		);
 	});
 
 	it("keeps an applied option when Enter completes typed text that located it", async () => {
