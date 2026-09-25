@@ -253,7 +253,46 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it("ignores hidden options for suggestions but keeps hidden keys prefix-searchable", async () => {
+	it("keeps the category list through a hideable category's Retry", async () => {
+		let failed = false;
+		const retry = Promise.withResolvers<FilterOption[]>();
+		const { user, onChange, filtersButton } = setup(
+			[
+				ownerCategory,
+				{
+					key: "template",
+					label: "Template",
+					hideWhenSingleOption: true,
+					getOptions: async () => {
+						if (!failed) {
+							failed = true;
+							throw new Error("failed");
+						}
+						return retry.promise;
+					},
+				},
+			],
+			{ skipHover: true },
+		);
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Template" }));
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		expect(screen.getByRole("status")).not.toHaveTextContent("Loading filters");
+		await act(async () =>
+			retry.resolve([
+				{ label: "docker", value: "docker" },
+				{ label: "k8s", value: "k8s" },
+			]),
+		);
+		await user.click(await screen.findByRole("button", { name: "k8s" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("template:k8s"),
+		);
+	});
+
+	it("ignores hidden options for suggestions but keeps hidden categories reachable by name and prefix", async () => {
 		const getOptions = vi.fn(async (query: string) =>
 			[{ label: "Docker", value: "docker" }].filter((option) =>
 				option.label.toLowerCase().includes(query.toLowerCase()),
@@ -279,8 +318,12 @@ describe("FilterCombobox", () => {
 		await user.clear(input);
 		await user.type(input, "templ");
 		await settleTypedText();
-		await user.type(input, ":");
 		expect(onChange).not.toHaveBeenCalledWith("templ");
+
+		await user.clear(input);
+		await user.type(input, "template:");
+		await user.click(await screen.findByRole("option", { name: "Docker" }));
+		expect(onChange).toHaveBeenLastCalledWith("template:docker");
 	});
 
 	it("opens from the Filters button with keyboard focus and navigates categories", async () => {

@@ -353,16 +353,28 @@ export const useFilterCombobox = ({
 		combine: (results) => {
 			const optionsByKey = new Map<string, readonly FilterOption[]>();
 			const erroredKeys = new Set<string>();
+			const failedKeys = new Set<string>();
+			const firstLoadKeys = new Set<string>();
 			results.forEach((result, index) => {
+				const { key } = categories[index];
 				if (result.data) {
-					optionsByKey.set(categories[index].key, result.data);
+					optionsByKey.set(key, result.data);
 				} else if (result.isError) {
-					erroredKeys.add(categories[index].key);
+					erroredKeys.add(key);
+				}
+				// A retry puts a failed query back to pending, so the failure
+				// count tells a retry from the first load.
+				if (!result.data && result.errorUpdateCount > 0) {
+					failedKeys.add(key);
+				} else if (result.isPending) {
+					firstLoadKeys.add(key);
 				}
 			});
 			return {
 				optionsByKey,
 				erroredKeys,
+				failedKeys,
+				firstLoadKeys,
 				refetch: (categoryKey: string) => {
 					const index = categories.findIndex(
 						(category) => category.key === categoryKey,
@@ -372,37 +384,36 @@ export const useFilterCombobox = ({
 			};
 		},
 	});
-	const hideableOptionsPending = (category: FilterCategory) =>
+	const isHideableLoading = (category: FilterCategory) =>
 		category.hideWhenSingleOption === true &&
-		!unfilteredOptions.optionsByKey.has(category.key) &&
-		!unfilteredOptions.erroredKeys.has(category.key);
-	// A hideable category stays in the menu while its options load, so typed
-	// text can match it; while it has an applied chip, so the chip can be
-	// changed; and after a failed lookup, so its flyout can offer a retry.
+		unfilteredOptions.firstLoadKeys.has(category.key);
+	// A hideable category stays in the menu while its options first load, so
+	// typed text can match it; while it has an applied chip, so the chip can be
+	// changed; and after a failed lookup, including while its retry runs, so its
+	// flyout can offer a retry.
 	const isInMenu = (category: FilterCategory, chips = chipValues) =>
 		!category.hideWhenSingleOption ||
-		hideableOptionsPending(category) ||
-		unfilteredOptions.erroredKeys.has(category.key) ||
+		isHideableLoading(category) ||
+		unfilteredOptions.failedKeys.has(category.key) ||
 		(unfilteredOptions.optionsByKey.get(category.key)?.length ?? 0) > 1 ||
 		chips.some((token) => categoryForChip(token) === category);
 	const menuCategories = allSubmenuCategories.filter((category) =>
 		isInMenu(category),
 	);
 	// Until every hideable category's options load, the full list is unknown,
-	// so the unnarrowed menu shows placeholder rows instead of removing a row
-	// later.
-	const hideableOptionsLoading = allSubmenuCategories.some(
-		hideableOptionsPending,
-	);
+	// so the unnarrowed category list shows one placeholder row per submenu
+	// category. The list that replaces them can be shorter.
+	const hideableOptionsLoading = allSubmenuCategories.some(isHideableLoading);
 
 	const categoryQuery =
 		activeCategoryKey !== null || browseAll ? "" : inputValue.trim();
 	const categoryPlaceholderCount =
 		open &&
+		activeCategoryKey === null &&
 		typedInlinePrefix === null &&
 		categoryQuery.length === 0 &&
 		hideableOptionsLoading
-			? menuCategories.length
+			? allSubmenuCategories.length
 			: 0;
 	const listedCategories =
 		!open || typedInlinePrefix !== null || categoryPlaceholderCount > 0
@@ -660,9 +671,11 @@ export const useFilterCombobox = ({
 		dispatch({ type: "close" });
 	};
 
-	// Returning to the category list highlights the row that was open, or the
-	// first row in the menu when the picked option hid that row, so the keyboard
-	// position is never lost when the option rows unmount.
+	// Returning to the category list highlights the row that was open, so the
+	// keyboard position is never lost when the option rows unmount. When that
+	// row is not in the menu, because the picked option hid it or the category
+	// was entered by typing its hidden key, the first row in the menu is
+	// highlighted instead; cmdk keeps a highlight that names no row.
 	const returnToCategories = (nextChips = chipValues) => {
 		const staysInMenu = (category: FilterCategory) =>
 			isInMenu(category, nextChips);
@@ -741,11 +754,11 @@ export const useFilterCombobox = ({
 		returnToCategories();
 	};
 
-	// True when text matches any category name, a loaded option, or an option a
-	// category's getOptions returns within TYPED_TEXT_LOOKUP_TIMEOUT_MS, counting
-	// only categories in the menu and inline categories. Failed and pending
-	// lookups count as no match. Callers hold such text back from the search so
-	// results do not empty out mid-word.
+	// True when text matches the name of any category, including one left out
+	// of the menu, or a loaded option or an option getOptions returns within
+	// TYPED_TEXT_LOOKUP_TIMEOUT_MS of a category in the menu or an inline
+	// category. Failed and pending lookups count as no match. Callers hold such
+	// text back from the search so results do not empty out mid-word.
 	const couldBeFilterSearch = (text: string): Promise<boolean> => {
 		if (text.length === 0) {
 			return Promise.resolve(false);

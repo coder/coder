@@ -674,6 +674,29 @@ export const CategoryListLoading: Story = {
 	},
 };
 
+// A category opened while Template's options load shows the category rows
+// beside its options, not placeholder rows.
+export const CategoryOpenWhileCategoryListLoads: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				singleTemplateCategories[0],
+				{
+					...singleTemplateCategories[1],
+					getOptions: () => new Promise<FilterOption[]>(() => {}),
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByRole("combobox", { name: "Search and filter…" });
+		await userEvent.click(input);
+		await userEvent.type(input, "owner:");
+	},
+};
+
 // The template:docker chip keeps Template listed.
 export const SingleOptionCategoryWithChip: Story = {
 	render: () => (
