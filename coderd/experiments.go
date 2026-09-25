@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -16,7 +17,10 @@ import (
 // @Router /api/v2/experiments [get]
 func (api *API) handleExperimentsGet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	httpapi.Write(ctx, rw, http.StatusOK, api.Experiments)
+	apiKey := httpmw.APIKey(r)
+	// The result is personalized by the caller's rules, so it is served
+	// with no-store caching (see the route registration).
+	httpapi.Write(ctx, rw, http.StatusOK, api.ExperimentEvaluator.EnabledExperiments(ctx, apiKey.UserID))
 }
 
 // @Summary Get safe experiments

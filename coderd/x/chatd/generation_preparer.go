@@ -730,7 +730,9 @@ func (server *Server) prepareGeneration(
 	}
 	var allowInactiveTools map[string]bool
 	if decideMCPToolSearch(mcpToolSearchInput{
-		experimentEnabled: server.experiments.Enabled(codersdk.ExperimentMCPToolSearch),
+		// The owner is the subject: only the owner posts turns and
+		// descendant chats inherit it. Evaluated once per turn.
+		experimentEnabled: server.experimentEvaluator.Enabled(ctx, chat.OwnerID, codersdk.ExperimentMCPToolSearch),
 		candidates:        deferredCandidates,
 		dynamicToolNames:  dynamicToolNames,
 	}) {
