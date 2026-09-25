@@ -661,17 +661,15 @@ When a chat is successfully acquired, the acquisition loop requests the [Runner 
 
 ### Capacity wait
 
-The [Concurrent agent limiter](#concurrent-agent-limiter) can refuse an otherwise acquirable chat when its pool is full. The acquisition loop remembers, per chat, when this worker first saw the chat refused for capacity, together with the chat's history version at that refusal. When the same worker later acquires the chat at the same history version, it records a `capacity_wait` stage through `chatloop.StageTracer` from that first refusal to the acquisition, as a span and as an observation on `coderd_chatd_stage_duration_seconds`. Chats admitted on their first attempt record nothing, and a remembered refusal for an earlier history version is discarded rather than charged to the later prompt.
+The [Concurrent agent limiter](#concurrent-agent-limiter) can refuse an otherwise acquirable chat when its pool is full. The acquisition loop remembers, per chat, when this worker first saw the chat refused for capacity, together with the chat's `history_version` and `updated_at` at that refusal. A refused acquisition rolls back, so the refusal itself changes neither value. When the same worker later acquires the chat, it records a `capacity_wait` stage through `chatloop.StageTracer` from that first refusal to the acquisition, as a span and as an observation on `coderd_chatd_stage_duration_seconds`. The stage is recorded only when both values are unchanged and the chat is still `running`. Any change to either value (a new prompt, another replica acquiring or abandoning the chat, or an unrelated write to the chat row) discards the wait start, and the next refusal starts a new one. Chats admitted on their first attempt record nothing.
 
-The bookkeeping is local to the worker. The wait start is dropped when the worker skips the chat for a reason other than capacity (it is owned by a live runner, archived, or no longer runnable), and entries for chats that have left the candidate set are pruned only when the candidate batch is shorter than its limit, since a chat missing from a truncated batch may still be waiting. The map is touched only by the acquisition goroutine.
+The bookkeeping is local to the worker. The wait start is dropped when the worker skips the chat for a reason other than capacity (it is owned by a live runner, archived, deleted, or no longer runnable), and entries for chats that have left the candidate set are pruned only when the candidate batch is shorter than its limit, since a chat missing from a truncated batch may still be waiting. The map is touched only by the acquisition goroutine.
 
-Because the capacity limit is deployment-wide but the refusal history is per worker, the recorded wait is a lower bound. A chat refused on one replica and acquired by another is measured from the acquiring replica's first refusal, or not at all if that replica admitted it on its first attempt. A replica restart also discards its history.
+The recorded wait is a lower bound, for three reasons:
 
-TODO: A chat gets a wait start only once it is inside the first `2 * AcquisitionBatchSize` candidate rows, so under a backlog deeper than that window `capacity_wait` undercounts the wait (third undercount cause, beside cross-replica acquisition and restarts).
-
-TODO: Add "or deleted" to the list of non-capacity skips that drop the wait start.
-
-TODO: The wait start also stores the chat's `updated_at` at the first refusal. A refused acquisition rolls back and writes neither `history_version` nor `updated_at`; any change to either (a new prompt, another replica acquiring or abandoning the chat, or an unrelated row write) resets the wait, and nothing is recorded unless both are unchanged at acquisition and the chat is still `running`.
+- The capacity limit is deployment-wide but the refusal history is per worker. A chat refused on one replica and acquired by another is measured from the acquiring replica's first refusal, or not at all if that replica admitted it on its first attempt.
+- A replica restart discards its history.
+- A chat gets a wait start only once it is within the first `2 * AcquisitionBatchSize` candidate rows. Under a deeper backlog, the time a chat spends outside that window is not counted.
 
 ### Load balancing
 
