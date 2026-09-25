@@ -44,7 +44,7 @@
 				"useConsistentCurlyBraces": "error",
 				"noUnusedTemplateLiteral": "error",
 				"useNumberNamespace": "error",
-				"noInferrableTypes": "error",
+				"noInferrableTypes": "off", // oxlint owns no-inferrable-types
 				"noUselessElse": "error",
 				"noRestrictedImports": {
 					"level": "error",
