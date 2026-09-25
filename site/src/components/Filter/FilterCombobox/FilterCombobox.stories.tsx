@@ -872,6 +872,32 @@ export const TypeaheadErrorRetry: Story = {
 	},
 };
 
+// A category list shows a spinner while its options load.
+export const CategoryOptionsLoading: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				{
+					key: "owner",
+					label: "Owner",
+					icon: <UserIcon />,
+					getOptions: () => new Promise<FilterOption[]>(() => {}),
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Toggle filters" }),
+		);
+		await within(canvasElement.ownerDocument.body).findByRole("option", {
+			name: "Owner",
+		});
+		await userEvent.keyboard("{ArrowRight}");
+	},
+};
+
 // A category whose options resolve empty announces a category-aware empty state
 // rather than the browsing "No filters found." copy.
 export const CategoryEmptyState: Story = {

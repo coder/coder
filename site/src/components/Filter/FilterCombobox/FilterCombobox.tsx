@@ -21,6 +21,7 @@ import {
 	InputGroupAddon,
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import {
 	Tooltip,
@@ -33,7 +34,7 @@ import {
 	coarsePointerMediaQuery,
 	mobileViewportMediaQuery,
 } from "#/utils/mobile";
-import { chipDisplay, chipToken } from "./filterQuery";
+import { chipDisplay, chipToken, optionToken } from "./filterQuery";
 import {
 	FilterComboboxChip,
 	FilterComboboxChips,
@@ -51,11 +52,6 @@ import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
 import { useFilterCombobox } from "./useFilterCombobox";
 
-/**
- * Unified workspace filter input: renders committed chips plus a cmdk-driven
- * popup that browses categories and surfaces cross-category value suggestions.
- * State lives in `useFilterCombobox`.
- */
 const CATEGORY_HOVER_DELAY_MS = 300;
 
 const CLEAR_ALL_MIN_CHIPS = 3;
@@ -84,6 +80,11 @@ type FilterComboboxProps = Readonly<{
 	errorMessage?: string;
 }>;
 
+/**
+ * Unified workspace filter input: renders committed chips plus a cmdk-driven
+ * popup that browses categories and surfaces cross-category value suggestions.
+ * State lives in `useFilterCombobox`.
+ */
 export function FilterCombobox({
 	value,
 	onChange,
@@ -369,8 +370,7 @@ export function FilterCombobox({
 							const inlineOption = labelOnly
 								? mainInlineOptions.find(
 										({ categoryKey, option }) =>
-											(option.token ?? chipToken(categoryKey, option.value)) ===
-											token,
+											optionToken(categoryKey, option) === token,
 									)
 								: undefined;
 							// Applied tokens read as query syntax, so they are always
@@ -555,6 +555,19 @@ const OPTION_ITEM_CLASS = "min-h-8.5 gap-2 px-2 py-1.25";
 // Categories with more options than this get a search field in their panel.
 const SEARCHABLE_OPTION_COUNT = 10;
 
+type LoadErrorProps = Readonly<{ message: string; onRetry: () => void }>;
+
+function LoadError({ message, onRetry }: LoadErrorProps) {
+	return (
+		<div className="flex flex-col items-center gap-2 px-2 py-2.5 text-center text-sm text-content-secondary">
+			<span>{message}</span>
+			<Button size="sm" variant="outline" onClick={onRetry}>
+				Retry
+			</Button>
+		</div>
+	);
+}
+
 function NoMatchingOptions() {
 	return (
 		<div className="px-2 py-1.5 text-sm text-content-secondary">
@@ -725,7 +738,7 @@ function MainPanel({
 						{label}
 					</FilterComboboxLabel>
 					{options.map(({ categoryKey, option, selected, showIcon }) => {
-						const token = option.token ?? chipToken(categoryKey, option.value);
+						const token = optionToken(categoryKey, option);
 						return (
 							<FilterComboboxItem
 								className={cn(
@@ -771,12 +784,7 @@ function MainPanel({
 				),
 			)}
 			{typeaheadError && (
-				<div className="flex flex-col items-center gap-2 px-2 py-2.5 text-center text-sm text-content-secondary">
-					<span>Couldn&rsquo;t load suggestions.</span>
-					<Button size="sm" variant="outline" onClick={onRetry}>
-						Retry
-					</Button>
-				</div>
+				<LoadError message="Couldn’t load suggestions." onRetry={onRetry} />
 			)}
 		</FilterComboboxList>
 	);
@@ -975,6 +983,10 @@ function HoverCategoryPanel({
 		),
 	);
 	const normalized = trimmedQuery.toLowerCase();
+	const searchFailed =
+		normalized.length > 0 &&
+		debouncedQuery === trimmedQuery &&
+		searchResults.isError;
 	const filteredOptions =
 		normalized.length === 0
 			? options
@@ -986,7 +998,7 @@ function HoverCategoryPanel({
 							option.value.toLowerCase().includes(normalized),
 					);
 	const searchable = options.length > SEARCHABLE_OPTION_COUNT;
-	if (filteredOptions.length === 0 && !searchable) {
+	if (filteredOptions.length === 0 && !searchable && !searchFailed) {
 		return null;
 	}
 
@@ -995,14 +1007,20 @@ function HoverCategoryPanel({
 			category={category}
 			offset={offset}
 			search={searchable ? { value: query, onChange: setQuery } : undefined}
-			empty={filteredOptions.length === 0}
+			empty={!searchFailed && filteredOptions.length === 0}
 			scope={scope}
 			onToggleScope={onToggleScope}
 			onMouseEnter={onMouseEnter}
 		>
+			{searchFailed && (
+				<LoadError
+					message={`Couldn’t load ${category.label} options.`}
+					onRetry={() => searchResults.refetch()}
+				/>
+			)}
 			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
-				{filteredOptions.map((option) => {
-					const token = option.token ?? chipToken(chipKey, option.value);
+				{(searchFailed ? [] : filteredOptions).map((option) => {
+					const token = optionToken(chipKey, option);
 					const selected = selectedTokens.includes(token);
 					return (
 						<button
@@ -1089,7 +1107,7 @@ function CategoryOptionsList({
 	const searchable =
 		!embedded &&
 		(previewCount ?? options?.length ?? 0) > SEARCHABLE_OPTION_COUNT;
-	if ((options === undefined || options.length === 0) && !searchable) {
+	if (options?.length === 0 && !searchable) {
 		return null;
 	}
 
@@ -1107,9 +1125,14 @@ function CategoryOptionsList({
 			scope={scope}
 			onToggleScope={onToggleScope}
 		>
+			{options === undefined && (
+				<div className="flex justify-center px-2 py-2.5">
+					<Spinner loading size="sm" />
+				</div>
+			)}
 			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
 				{options?.map((option) => {
-					const item = option.token ?? chipToken(chipKey, option.value);
+					const item = optionToken(chipKey, option);
 					const selected = selectedTokens.includes(item);
 					return (
 						<FilterComboboxItem
