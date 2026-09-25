@@ -9,15 +9,21 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	aiblib "github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/fixtures"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	aibridgedtest "github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -1693,6 +1699,137 @@ func TestAIBridgeRouting(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedPath, string(body))
 		})
+	}
+}
+
+func TestAIBridgeActorHeaderNames(t *testing.T) {
+	t.Parallel()
+
+	const (
+		actorIDHeader       = "X-Downstream-User-Id"
+		actorUsernameHeader = "X-Downstream-Username"
+	)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	anthropicFixture := fixtures.Parse(t, fixtures.AntSimple)
+	chatFixture := fixtures.Parse(t, fixtures.OaiChatSimple)
+	responsesFixture := fixtures.Parse(t, fixtures.OaiResponsesStreamingSimple)
+	type upstreamRequest struct {
+		path   string
+		header http.Header
+	}
+	var upstreamMu sync.Mutex
+	var upstreamRequests []upstreamRequest
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if !assert.NoError(t, err) {
+			http.Error(w, "failed to read request", http.StatusBadRequest)
+			return
+		}
+
+		var fixture fixtures.Fixture
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/messages"):
+			fixture = anthropicFixture
+			assert.Equal(t, "shared-anthropic-key", r.Header.Get("X-Api-Key"))
+		case strings.HasSuffix(r.URL.Path, "/chat/completions"), strings.HasSuffix(r.URL.Path, "/responses"):
+			fixture = chatFixture
+			if strings.HasSuffix(r.URL.Path, "/responses") {
+				fixture = responsesFixture
+			}
+			assert.Equal(t, "Bearer shared-openai-key", r.Header.Get("Authorization"))
+		default:
+			http.Error(w, "unexpected upstream path", http.StatusNotFound)
+			return
+		}
+
+		upstreamMu.Lock()
+		upstreamRequests = append(upstreamRequests, upstreamRequest{path: r.URL.Path, header: r.Header.Clone()})
+		upstreamMu.Unlock()
+
+		var requestOptions struct {
+			Stream bool `json:"stream"`
+		}
+		if !assert.NoError(t, json.Unmarshal(body, &requestOptions)) {
+			http.Error(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+		if requestOptions.Stream {
+			w.Header().Set("Content-Type", "text/event-stream")
+			_, err = w.Write(fixture.Streaming())
+		} else {
+			w.Header().Set("Content-Type", "application/json")
+			_, err = w.Write(fixture.NonStreaming())
+		}
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(upstream.Close)
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.AI.BridgeConfig.SendActorHeaders = serpent.Bool(true)
+	dv.AI.BridgeConfig.ActorHeaderID = serpent.String(actorIDHeader)
+	dv.AI.BridgeConfig.ActorHeaderMetaUsername = serpent.String(actorUsernameHeader)
+
+	firstClient, _, api, firstUserResponse := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{codersdk.FeatureAIBridge: 1},
+		},
+	})
+	firstUser, err := firstClient.User(ctx, firstUserResponse.UserID.String())
+	require.NoError(t, err)
+	secondClient, secondUser := coderdtest.CreateAnotherUser(t, firstClient, firstUserResponse.OrganizationID)
+
+	dbgen.AIProviderWithOptionalKey(t, api.Database, database.AIProvider{
+		Type:    database.AIProviderTypeAnthropic,
+		Name:    "anthropic",
+		BaseUrl: upstream.URL,
+	}, "shared-anthropic-key")
+	dbgen.AIProviderWithOptionalKey(t, api.Database, database.AIProvider{
+		Type:    database.AIProviderTypeOpenai,
+		Name:    "openai",
+		BaseUrl: upstream.URL,
+	}, "shared-openai-key")
+	aibridgedtest.StartTestAIBridgeDaemon(ctx, t, api.AGPL, nil)
+
+	send := func(client *codersdk.Client, provider, path string, body []byte, traceID string) {
+		t.Helper()
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+"/api/v2/ai-gateway/"+provider+path, bytes.NewReader(body))
+		require.NoError(t, err)
+		req.Header.Set("Authorization", "Bearer "+client.SessionToken())
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Trace-ID", traceID)
+		req.Header.Set("X-Client-Arbitrary", "preserve-me")
+		req.Header.Set(actorIDHeader, "spoofed-id")
+		req.Header.Set(actorUsernameHeader, "spoofed-username")
+
+		resp, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		_, err = io.ReadAll(resp.Body)
+		require.NoError(t, err)
+	}
+
+	send(firstClient, "anthropic", "/v1/messages", fixtures.Request(t, fixtures.AntSimple), "messages-trace")
+	send(firstClient, "openai", "/v1/chat/completions", fixtures.Request(t, fixtures.OaiChatSimple), "chat-first-trace")
+	send(secondClient, "openai", "/v1/chat/completions", fixtures.Request(t, fixtures.OaiChatSimple), "chat-second-trace")
+	send(firstClient, "openai", "/v1/responses", fixtures.Request(t, fixtures.OaiResponsesStreamingSimple), "responses-trace")
+
+	upstreamMu.Lock()
+	requests := append([]upstreamRequest(nil), upstreamRequests...)
+	upstreamMu.Unlock()
+	require.Len(t, requests, 4)
+	expectedUsers := []codersdk.User{firstUser, firstUser, secondUser, firstUser}
+	expectedTraces := []string{"messages-trace", "chat-first-trace", "chat-second-trace", "responses-trace"}
+	for i, request := range requests {
+		require.Equal(t, expectedTraces[i], request.header.Get("X-Trace-Id"))
+		require.Equal(t, "preserve-me", request.header.Get("X-Client-Arbitrary"))
+		require.Equal(t, expectedUsers[i].ID.String(), request.header.Get(actorIDHeader))
+		require.Equal(t, expectedUsers[i].Username, request.header.Get(actorUsernameHeader))
+		require.Empty(t, request.header.Get("X-AI-Bridge-Actor-ID"))
+		require.Empty(t, request.header.Get("X-AI-Bridge-Actor-Metadata-Username"))
 	}
 }
 

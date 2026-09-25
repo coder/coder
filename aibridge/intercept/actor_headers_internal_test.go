@@ -15,16 +15,18 @@ func TestHeadersFromActor(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		actor *context.Actor
+		names map[string]string
 		want  map[string]string
 	}{
-		{name: "nil actor"},
+		{name: "nil actor", names: map[string]string{"id": ActorIDHeader()}},
 		{
 			name:  "id only",
 			actor: &context.Actor{ID: "user-123"},
-			want:  map[string]string{"X-AI-Bridge-Actor-ID": "user-123"},
+			names: map[string]string{"id": "X-Downstream-User-Id"},
+			want:  map[string]string{"X-Downstream-User-Id": "user-123"},
 		},
 		{
-			name: "metadata",
+			name: "configured supported attributes only",
 			actor: &context.Actor{
 				ID: "user-123",
 				Metadata: recorder.Metadata{
@@ -32,16 +34,65 @@ func TestHeadersFromActor(t *testing.T) {
 					"Count":    42,
 				},
 			},
-			want: map[string]string{
-				"X-AI-Bridge-Actor-ID":                "user-123",
-				"X-AI-Bridge-Actor-Metadata-Username": "alice",
-				"X-AI-Bridge-Actor-Metadata-Count":    "42",
+			names: map[string]string{
+				"id":       "X-Downstream-User-Id",
+				"username": "X-Downstream-Username",
 			},
+			want: map[string]string{
+				"X-Downstream-User-Id":  "user-123",
+				"X-Downstream-Username": "alice",
+			},
+		},
+		{
+			name:  "id omitted",
+			actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}},
+			names: map[string]string{"username": "X-Downstream-Username"},
+			want:  map[string]string{"X-Downstream-Username": "alice"},
+		},
+		{
+			name:  "username omitted",
+			actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}},
+			names: map[string]string{"id": "X-Downstream-User-Id"},
+			want:  map[string]string{"X-Downstream-User-Id": "user-123"},
+		},
+		{
+			name:  "missing username",
+			actor: &context.Actor{ID: "user-123"},
+			names: map[string]string{"username": "X-Username"},
+			want:  map[string]string{},
+		},
+		{
+			name:  "empty username",
+			actor: &context.Actor{Metadata: recorder.Metadata{"Username": ""}},
+			names: map[string]string{"username": "X-Username"},
+			want:  map[string]string{},
+		},
+		{
+			name:  "non-string username",
+			actor: &context.Actor{Metadata: recorder.Metadata{"Username": 42}},
+			names: map[string]string{"username": "X-Username"},
+			want:  map[string]string{},
+		},
+		{
+			name: "empty map forwards no actor headers",
+			actor: &context.Actor{
+				ID: "user-123",
+				Metadata: recorder.Metadata{
+					"Username": "alice",
+				},
+			},
+			names: map[string]string{},
+			want:  map[string]string{},
+		},
+		{
+			name:  "nil map forwards no actor headers",
+			actor: &context.Actor{ID: "user-123"},
+			want:  map[string]string{},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, headersFromActor(tc.actor))
+			require.Equal(t, tc.want, headersFromActor(tc.actor, tc.names))
 		})
 	}
 }

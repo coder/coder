@@ -2590,6 +2590,10 @@ func TestActorHeaders(t *testing.T) {
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
+				cfg.ActorHeaderNames = map[string]string{
+					"id":       intercept.ActorIDHeader(),
+					"username": intercept.ActorMetadataHeader("Username"),
+				}
 				return provider.NewOpenAI(cfg)
 			},
 			fixture:   fixtures.OaiChatSimple,
@@ -2601,6 +2605,10 @@ func TestActorHeaders(t *testing.T) {
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
+				cfg.ActorHeaderNames = map[string]string{
+					"id":       intercept.ActorIDHeader(),
+					"username": intercept.ActorMetadataHeader("Username"),
+				}
 				return provider.NewOpenAI(cfg)
 			},
 			fixture:   fixtures.OaiChatSimple,
@@ -2612,6 +2620,10 @@ func TestActorHeaders(t *testing.T) {
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
+				cfg.ActorHeaderNames = map[string]string{
+					"id":       intercept.ActorIDHeader(),
+					"username": intercept.ActorMetadataHeader("Username"),
+				}
 				return provider.NewOpenAI(cfg)
 			},
 			fixture:   fixtures.OaiResponsesStreamingSimple,
@@ -2623,6 +2635,10 @@ func TestActorHeaders(t *testing.T) {
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
+				cfg.ActorHeaderNames = map[string]string{
+					"id":       intercept.ActorIDHeader(),
+					"username": intercept.ActorMetadataHeader("Username"),
+				}
 				return provider.NewOpenAI(cfg)
 			},
 			fixture:   fixtures.OaiResponsesBlockingSimple,
@@ -2634,6 +2650,10 @@ func TestActorHeaders(t *testing.T) {
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
+				cfg.ActorHeaderNames = map[string]string{
+					"id":       intercept.ActorIDHeader(),
+					"username": intercept.ActorMetadataHeader("Username"),
+				}
 				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
 			fixture:   fixtures.AntSimple,
@@ -2645,6 +2665,10 @@ func TestActorHeaders(t *testing.T) {
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
+				cfg.ActorHeaderNames = map[string]string{
+					"id":       intercept.ActorIDHeader(),
+					"username": intercept.ActorMetadataHeader("Username"),
+				}
 				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
 			fixture:   fixtures.AntSimple,

@@ -238,6 +238,104 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		require.Equal(t, clientCopy, clientHeaders)
 	})
 
+	t.Run("actor forwarding off ignores SDK actor headers and preserves client values", func(t *testing.T) {
+		t.Parallel()
+
+		sdkHeaders := http.Header{}
+		sdkHeaders.Set("Authorization", "Bearer provider-key")
+		sdkHeaders.Set(intercept.ActorIDHeader(), "sdk-id")
+		sdkHeaders.Set(intercept.ActorMetadataHeader("Username"), "sdk-name")
+		clientHeaders := http.Header{}
+		clientHeaders.Set("Authorization", "Bearer client-key")
+		clientHeaders.Set(intercept.ActorIDHeader(), "client-id")
+		clientHeaders.Set(intercept.ActorMetadataHeader("Username"), "client-name")
+		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
+
+		result := intercept.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", intercept.Config{}, nil)
+
+		require.Equal(t, "client-id", result.Get(intercept.ActorIDHeader()))
+		require.Equal(t, "client-name", result.Get(intercept.ActorMetadataHeader("Username")))
+		require.Equal(t, "Bearer provider-key", result.Get("Authorization"))
+		require.Equal(t, sdkCopy, sdkHeaders)
+		require.Equal(t, clientCopy, clientHeaders)
+	})
+
+	t.Run("mapped actor destinations replace defaults and stale values", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name  string
+			actor *context.Actor
+			want  map[string]string
+		}{
+			{
+				name:  "configured actor",
+				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}},
+				want:  map[string]string{"X-Downstream-User-Id": "user-123", "X-Downstream-Username": "alice"},
+			},
+			{name: "nil actor", want: map[string]string{}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				sdkHeaders := http.Header{}
+				sdkHeaders.Set("X-Downstream-User-Id", "sdk-id")
+				sdkHeaders.Set("X-Downstream-Username", "sdk-name")
+				clientHeaders := http.Header{}
+				clientHeaders.Set("X-Downstream-User-Id", "client-id")
+				clientHeaders.Set("X-Downstream-Username", "client-name")
+				sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
+
+				result := intercept.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", intercept.Config{
+					SendActorHeaders: true,
+					ActorHeaderNames: map[string]string{
+						"id":       "X-Downstream-User-Id",
+						"username": "X-Downstream-Username",
+					},
+				}, tc.actor)
+
+				if tc.actor == nil {
+					require.NotContains(t, result, "X-Downstream-User-Id")
+					require.NotContains(t, result, "X-Downstream-Username")
+				} else {
+					require.Equal(t, tc.want, map[string]string{
+						"X-Downstream-User-Id":  result.Get("X-Downstream-User-Id"),
+						"X-Downstream-Username": result.Get("X-Downstream-Username"),
+					})
+				}
+				require.Equal(t, sdkCopy, sdkHeaders)
+				require.Equal(t, clientCopy, clientHeaders)
+			})
+		}
+	})
+
+	t.Run("actor forwarding on strips standard destinations with custom mapping", func(t *testing.T) {
+		t.Parallel()
+
+		sdkHeaders := http.Header{}
+		sdkHeaders.Set(intercept.ActorIDHeader(), "sdk-id")
+		sdkHeaders.Set(intercept.ActorMetadataHeader("Username"), "sdk-name")
+		sdkHeaders.Set("Authorization", "Bearer provider-key")
+		clientHeaders := http.Header{}
+		clientHeaders.Set(intercept.ActorIDHeader(), "client-id")
+		clientHeaders.Set(intercept.ActorMetadataHeader("Username"), "client-name")
+		clientHeaders.Set("X-Unrelated", "preserved")
+		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
+
+		result := intercept.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", intercept.Config{
+			SendActorHeaders: true,
+			ActorHeaderNames: map[string]string{"id": "X-Downstream-User-Id"},
+		}, &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}})
+
+		require.Equal(t, "user-123", result.Get("X-Downstream-User-Id"))
+		require.NotContains(t, result, http.CanonicalHeaderKey(intercept.ActorIDHeader()))
+		require.NotContains(t, result, http.CanonicalHeaderKey(intercept.ActorMetadataHeader("Username")))
+		require.Equal(t, "Bearer provider-key", result.Get("Authorization"))
+		require.Equal(t, "preserved", result.Get("X-Unrelated"))
+		require.Equal(t, sdkCopy, sdkHeaders)
+		require.Equal(t, clientCopy, clientHeaders)
+	})
+
 	t.Run("authenticated actor overrides client and SDK values", func(t *testing.T) {
 		t.Parallel()
 
@@ -253,7 +351,13 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
 		actor := &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}}
 
-		result := intercept.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", intercept.Config{SendActorHeaders: true}, actor)
+		result := intercept.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", intercept.Config{
+			SendActorHeaders: true,
+			ActorHeaderNames: map[string]string{
+				"id":       intercept.ActorIDHeader(),
+				"username": intercept.ActorMetadataHeader("Username"),
+			},
+		}, actor)
 
 		require.Equal(t, []string{"user-123"}, result.Values(intercept.ActorIDHeader()))
 		require.Equal(t, []string{"alice"}, result.Values(intercept.ActorMetadataHeader("Username")))
@@ -279,7 +383,10 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				result := intercept.BuildUpstreamHeaders(nil, nil, "Authorization", intercept.Config{SendActorHeaders: tc.send}, tc.actor)
+				result := intercept.BuildUpstreamHeaders(nil, nil, "Authorization", intercept.Config{
+					SendActorHeaders: tc.send,
+					ActorHeaderNames: map[string]string{"id": intercept.ActorIDHeader()},
+				}, tc.actor)
 				require.Equal(t, tc.want, result.Get(intercept.ActorIDHeader()))
 			})
 		}
