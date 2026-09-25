@@ -1,14 +1,15 @@
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
-import type { Workspace } from "#/api/typesGenerated";
+import type { Workspace, WorkspaceAgentLog } from "#/api/typesGenerated";
 import {
 	MockStartingWorkspace,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	MockWorkspaceAgentLogs,
 	MockWorkspaceAgentStarting,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -80,6 +81,17 @@ const renderSection = ({
 
 const currentBuildId = MockWorkspace.latest_build.id;
 
+const publishLogs = (
+	server: MockWebSocketServer | undefined,
+	logs: WorkspaceAgentLog[],
+) => {
+	act(() => {
+		server?.publishMessage(
+			new MessageEvent("message", { data: JSON.stringify(logs) }),
+		);
+	});
+};
+
 describe("WorkspaceAgentLogSection", () => {
 	it.each([
 		{
@@ -145,16 +157,35 @@ describe("WorkspaceAgentLogSection", () => {
 		}
 	});
 
-	it("keeps streaming agent logs when the call completes", () => {
+	it("keeps streaming agent logs after the call completes without scrolling to new lines", () => {
+		const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
 		const { watchAgentLogs, rerender, socketServer } = renderSection({
 			props: { status: "running" },
 			chatBuildId: currentBuildId,
 			workspace: MockWorkspace,
 		});
+		publishLogs(socketServer(), MockWorkspaceAgentLogs.slice(0, 2));
+		expect(scrollIntoView).toHaveBeenCalledTimes(1);
 
 		rerender({ status: "completed", buildId: currentBuildId });
+		publishLogs(socketServer(), MockWorkspaceAgentLogs.slice(2, 4));
 
 		expect(watchAgentLogs).toHaveBeenCalledTimes(1);
 		expect(socketServer()?.isConnectionOpen).toBe(true);
+		expect(scrollIntoView).toHaveBeenCalledTimes(1);
+	});
+
+	it("scrolls once to the end of the replayed log when a completed row mounts", () => {
+		const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
+		const { socketServer } = renderSection({
+			props: { status: "completed", buildId: currentBuildId },
+			workspace: MockWorkspace,
+		});
+
+		publishLogs(socketServer(), MockWorkspaceAgentLogs.slice(0, 2));
+		expect(scrollIntoView).toHaveBeenCalledTimes(1);
+
+		publishLogs(socketServer(), MockWorkspaceAgentLogs.slice(2, 4));
+		expect(scrollIntoView).toHaveBeenCalledTimes(1);
 	});
 });

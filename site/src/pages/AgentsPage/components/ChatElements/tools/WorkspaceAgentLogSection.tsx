@@ -74,11 +74,15 @@ const AgentStartupLogs: FC<AgentStartupLogsProps> = ({ agent, isRunning }) => {
 	const logs = useAgentLogs({ agentId: agent.id });
 
 	const endRef = useRef<HTMLDivElement>(null);
+	const hasScrolledRef = useRef(false);
 	useLayoutEffect(() => {
-		if (logs.length > 0) {
+		// After the call completes, scroll only for the replay: scrollIntoView
+		// also moves the chat transcript.
+		if (logs.length > 0 && (isRunning || !hasScrolledRef.current)) {
 			endRef.current?.scrollIntoView({ block: "end" });
+			hasScrolledRef.current = true;
 		}
-	}, [logs]);
+	}, [logs, isRunning]);
 
 	if (logs.length === 0) {
 		return isRunning ? (
