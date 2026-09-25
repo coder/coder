@@ -67,7 +67,9 @@ describe("WorkspacesFilter", () => {
 			);
 
 			await user.click(
-				await screen.findByRole("button", { name: "Remove shared with owner" }),
+				await screen.findByRole("button", {
+					name: "Hide workspaces shared with me",
+				}),
 			);
 
 			await waitFor(() =>

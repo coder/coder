@@ -27,7 +27,7 @@ import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
 import { categoryChipKeys } from "./types";
 
-// Three characters avoids short accidental matches; match the whole pill phrase.
+// Three characters avoids short accidental matches; match the whole search phrase.
 const SCOPE_MATCH_MIN_QUERY_LENGTH = 3;
 
 /**
@@ -311,11 +311,12 @@ export const useFilterCombobox = ({
 		() => queryToChips(value, chipKeys, categories),
 		[chipKeys, categories, value],
 	);
-	// Scope toggles are on by default. This tracks the ones switched off while
-	// the category has no chip; once a chip exists its key is the source of truth.
-	const [narrowedScopes, setNarrowedScopes] = useState<ReadonlySet<string>>(
-		() => new Set(),
-	);
+	// A category's applied chip key decides its scope toggle; with no chip the
+	// toggle is on. The one exception is a typed `owner:` prefix, which narrows
+	// the category it opens until a pick or another entry replaces it.
+	const [typedNarrowCategoryKey, setTypedNarrowCategoryKey] = useState<
+		string | null
+	>(null);
 	const chipKeyOf = (token: string) => parseChipToken(token, chipKeys)?.key;
 	const isScopeWidened = (category: FilterCategory) => {
 		const toggle = category.scopeToggle;
@@ -329,7 +330,11 @@ export const useFilterCombobox = ({
 		if (appliedKeys.includes(category.key)) {
 			return false;
 		}
-		return !narrowedScopes.has(category.key);
+		return !(
+			mode === "category" &&
+			activeCategoryKey === category.key &&
+			typedNarrowCategoryKey === category.key
+		);
 	};
 	const optionChipKey = (category: FilterCategory) =>
 		category.scopeToggle && isScopeWidened(category)
@@ -409,15 +414,17 @@ export const useFilterCombobox = ({
 
 	const categoryQuery =
 		activeCategoryKey !== null || browseAll ? "" : inputValue.trim();
-	// A prefix of the whole pill phrase, after three characters, finds its category.
+	// A prefix of the whole search phrase, after three characters, finds its
+	// category.
 	const findScopeMatch = (query: string) => {
 		const scopeQuery = query.trim().toLowerCase();
 		if (scopeQuery.length < SCOPE_MATCH_MIN_QUERY_LENGTH) {
 			return undefined;
 		}
 		return menuCategories.find((category) => {
-			const pillLabel = category.scopeToggle?.pillLabel.toLowerCase();
-			return pillLabel?.startsWith(scopeQuery);
+			return category.scopeToggle?.searchPhrase
+				.toLowerCase()
+				.startsWith(scopeQuery);
 		});
 	};
 	const scopeMatchedCategory =
@@ -667,6 +674,7 @@ export const useFilterCombobox = ({
 			return;
 		}
 		const freeText = browseAll ? typedFreeText : "";
+		setTypedNarrowCategoryKey(null);
 		emitQuery(composeFilterQuery(chipValues, chipKeys, freeText, categories));
 		dispatch({
 			type: "enterCategory",
@@ -707,18 +715,17 @@ export const useFilterCombobox = ({
 		if (!category || !toggle) {
 			return;
 		}
+		// Without a chip the switch is disabled, since the next pick is widened.
+		const hasChip = chipValues.some((token) => {
+			const key = chipKeyOf(token);
+			return key === category.key || key === toggle.widenedKey;
+		});
+		if (!hasChip) {
+			return;
+		}
 		const widened = isScopeWidened(category);
 		const fromKey = widened ? toggle.widenedKey : category.key;
 		const toKey = widened ? category.key : toggle.widenedKey;
-		setNarrowedScopes((previous) => {
-			const next = new Set(previous);
-			if (widened) {
-				next.add(category.key);
-			} else {
-				next.delete(category.key);
-			}
-			return next;
-		});
 		const rewritten = chipValues.map((token) => {
 			const parsed = parseChipToken(token, chipKeys);
 			return parsed?.key === fromKey ? chipToken(toKey, parsed.value) : token;
@@ -975,15 +982,7 @@ export const useFilterCombobox = ({
 						? chipToken(toKey, parsed.value)
 						: token;
 				});
-				setNarrowedScopes((previous) => {
-					const next = new Set(previous);
-					if (toKey === category.key) {
-						next.add(category.key);
-					} else {
-						next.delete(category.key);
-					}
-					return next;
-				});
+				setTypedNarrowCategoryKey(toKey === category.key ? category.key : null);
 			}
 			dispatch({
 				type: "enterCategory",

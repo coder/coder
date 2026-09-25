@@ -23,7 +23,9 @@ const scopedOwnerCategory: FilterCategory = {
 				? `Include workspaces shared with ${owner}`
 				: "Include shared workspaces",
 		widenedKey: "user",
-		pillLabel: "shared with owner",
+		pillPrefix: "+ shared with",
+		pillRemoveLabel: (owner) => `Hide workspaces shared with ${owner}`,
+		searchPhrase: "shared with owner",
 	},
 };
 
@@ -946,6 +948,66 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	it("disables the scope switch until an owner is picked, then turns it on", async () => {
+		const { user, onChange, filtersButton } = setup([scopedOwnerCategory]);
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowRight}");
+		expect(
+			await screen.findByRole("switch", { name: "Include shared workspaces" }),
+		).toBeDisabled();
+		await user.keyboard("{ArrowDown}{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+	});
+
+	it("turns the scope switch back on for the next owner after the chip is removed", async () => {
+		const { user, onChange, filtersButton } = setup([scopedOwnerCategory], {
+			initialValue: "owner:alice",
+		});
+
+		await user.click(
+			screen.getByRole("button", { name: "Remove owner:alice" }),
+		);
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowRight}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{ArrowDown}{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+	});
+
+	it("commits under a typed owner prefix only for that entry", async () => {
+		const { user, onChange, input, filtersButton } = setup([
+			scopedOwnerCategory,
+		]);
+
+		await user.click(input);
+		await user.type(input, "owner:alice");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{Enter}");
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Remove owner:alice" }),
+		);
+		await user.keyboard("{Escape}");
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowRight}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{ArrowDown}{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+	});
+
 	it("rewrites the applied chip to match a typed owner prefix", async () => {
 		const { user, onChange, input } = setup([scopedOwnerCategory], {
 			initialValue: "user:alice",
@@ -976,7 +1038,7 @@ describe("FilterCombobox", () => {
 		});
 
 		await user.click(
-			screen.getByRole("button", { name: "Remove shared with owner" }),
+			screen.getByRole("button", { name: "Hide workspaces shared with alice" }),
 		);
 
 		await waitFor(() =>
@@ -1009,7 +1071,7 @@ describe("FilterCombobox", () => {
 		await user.type(input, "xyz");
 		await settleTypedText();
 		await user.click(
-			screen.getByRole("button", { name: "Remove shared with owner" }),
+			screen.getByRole("button", { name: "Hide workspaces shared with alice" }),
 		);
 
 		expect(onChange).toHaveBeenLastCalledWith("owner:alice xyz");

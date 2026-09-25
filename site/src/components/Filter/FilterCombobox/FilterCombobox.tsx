@@ -268,6 +268,7 @@ export function FilterCombobox({
 			? {
 					widened: scopeWidened(categoryKey),
 					label: toggle.label(scopeValue(categoryKey)),
+					disabled: scopeValue(categoryKey) === undefined,
 				}
 			: undefined;
 	};
@@ -391,7 +392,7 @@ export function FilterCombobox({
 								(entry) => entry.key === display.key,
 							);
 							// The scope pill follows the last chip its category owns.
-							const scopePillLabel =
+							const scopeToggle =
 								category?.scopeToggle &&
 								scopeWidened(category.key) &&
 								!chipValues
@@ -400,7 +401,7 @@ export function FilterCombobox({
 										(later) =>
 											chipDisplay(later, categories).key === category.key,
 									)
-									? category.scopeToggle.pillLabel.toLowerCase()
+									? category.scopeToggle
 									: undefined;
 							const labelOnly = category?.chipLabelOnly === true;
 							const labelOption =
@@ -427,26 +428,26 @@ export function FilterCombobox({
 										removeLabel={`Remove ${displayText}`}
 										className={cn(
 											labelOnly && labelOnlyChipClassName,
-											scopePillLabel && "rounded-r-none",
+											scopeToggle && "rounded-r-none",
 										)}
 									>
 										<ChipLabel prefix={prefix} value={value} />
 									</FilterComboboxChip>
 									{/* Joined to its chip, since it widens that chip's filter. */}
-									{category && scopePillLabel && (
+									{category && scopeToggle && (
 										<FilterComboboxChip
-											removeLabel={`Remove ${scopePillLabel}`}
+											removeLabel={scopeToggle.pillRemoveLabel(value)}
 											onRemove={() => actions.toggleScope(category.key)}
 											// Only the pill shrinks, so the pair never overflows the field.
-											className={cn(
-												labelOnlyChipClassName,
-												"min-w-0 rounded-l-none border-l-surface-primary",
-											)}
+											className="min-w-0 rounded-l-none border-l-surface-primary"
 										>
 											<Tooltip>
 												<TooltipTrigger asChild>
 													<span className="min-w-0 truncate">
-														{scopePillLabel}
+														{`${scopeToggle.pillPrefix} `}
+														<span className="text-content-primary">
+															{value}
+														</span>
 													</span>
 												</TooltipTrigger>
 												<TooltipContent className="max-w-64 text-balance">
@@ -886,12 +887,17 @@ function FlyoutSearch({
 	);
 }
 
-type ScopeState = Readonly<{ widened: boolean; label: string }>;
+type ScopeState = Readonly<{
+	widened: boolean;
+	label: string;
+	disabled: boolean;
+}>;
 
 type FlyoutScopeToggleProps = Readonly<{
 	categoryKey: string;
 	label: string;
 	checked: boolean;
+	disabled: boolean;
 	navigatesList: boolean;
 	onToggle: (categoryKey: string) => void;
 }>;
@@ -900,6 +906,7 @@ function FlyoutScopeToggle({
 	categoryKey,
 	label,
 	checked,
+	disabled,
 	navigatesList,
 	onToggle,
 }: FlyoutScopeToggleProps) {
@@ -911,6 +918,7 @@ function FlyoutScopeToggle({
 				size="sm"
 				className="shrink-0"
 				checked={checked}
+				disabled={disabled}
 				onCheckedChange={() => onToggle(categoryKey)}
 				// Keep focus in the combobox input so keyboard navigation continues.
 				onMouseDown={(event) => event.preventDefault()}
@@ -1010,6 +1018,7 @@ function OptionsPanel({
 					categoryKey={category.key}
 					label={scope.label}
 					checked={scope.widened}
+					disabled={scope.disabled}
 					navigatesList={navigatesList}
 					onToggle={onToggleScope}
 				/>

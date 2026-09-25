@@ -115,7 +115,10 @@ describe("filterQuery", () => {
 				scopeToggle: {
 					label: () => "Include shared workspaces",
 					widenedKey: "user",
-					pillLabel: "shared with owner",
+					pillPrefix: "+ shared with",
+					pillRemoveLabel: (owner: string) =>
+						`Hide workspaces shared with ${owner}`,
+					searchPhrase: "shared with owner",
 				},
 			},
 		];
@@ -313,7 +316,10 @@ describe("chipDisplay", () => {
 					scopeToggle: {
 						label: (value: string | undefined) => `Include ${value}`,
 						widenedKey: "user",
-						pillLabel: "shared with owner",
+						pillPrefix: "+ shared with",
+						pillRemoveLabel: (owner: string) =>
+							`Hide workspaces shared with ${owner}`,
+						searchPhrase: "shared with owner",
 					},
 				},
 			]),

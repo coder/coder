@@ -47,21 +47,26 @@ export type FilterCategory = {
 	 */
 	showWhenSingleOption?: boolean;
 	/**
-	 * Switch shown below the category's options, on by default. While on,
-	 * options commit under `widenedKey` instead of the category key, e.g. Owner
-	 * committing `user:alice` (owned by or shared with alice) instead of
-	 * `owner:alice`. While the category has a chip, a pill after it shows
-	 * `pillLabel` while the switch is on, and removing the pill turns it off.
+	 * Switch shown below the category's options. It is disabled until the
+	 * category has a chip, and each pick turns it on: options commit under
+	 * `widenedKey` instead of the category key, e.g. Owner committing
+	 * `user:alice` (owned by or shared with alice) instead of `owner:alice`.
+	 * While it is on, a pill after the chip reads `pillPrefix` and the chip's
+	 * value, and removing the pill turns the switch off.
 	 */
 	scopeToggle?: {
 		/** Switch label for the category's applied value, if there is one. */
 		label: (value: string | undefined) => string;
 		widenedKey: string;
+		/** Pill text before the applied value, e.g. `+ shared with`. */
+		pillPrefix: string;
+		/** Accessible name of the pill's remove button for the applied value. */
+		pillRemoveLabel: (value: string) => string;
 		/**
-		 * Pill text, shown lowercased. A 3+ character prefix of the whole phrase
-		 * lists this category and opens its flyout.
+		 * A 3+ character prefix of this phrase lists the category and opens its
+		 * flyout.
 		 */
-		pillLabel: string;
+		searchPhrase: string;
 	};
 };
 
