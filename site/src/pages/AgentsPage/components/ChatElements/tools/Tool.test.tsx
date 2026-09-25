@@ -68,6 +68,8 @@ describe("Tool workspace lifecycle rows", () => {
 							name={name}
 							status={status}
 							result={isRunning ? undefined : { build_id: buildId }}
+							organizationId="organization-id"
+							mcpServers={[]}
 						/>
 					</ChatWorkspaceContext>
 				</QueryClientProvider>,

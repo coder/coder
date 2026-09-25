@@ -9,6 +9,7 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
+import { defaultUrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
 import { MessageScroller } from "#/vendor/message-scroller";
@@ -431,6 +432,8 @@ const defaultArgs: Omit<
 	"parsedMessages"
 > = {
 	organizationId: "organization-id",
+	urlTransform: defaultUrlTransform,
+	mcpServers: [],
 	subagentTitles: new Map(),
 };
 

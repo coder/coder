@@ -81,7 +81,7 @@ const TimelineNotice: React.FC<{ children?: React.ReactNode }> = ({
 
 const LifecycleHookNotice: React.FC<{
 	children: string;
-	urlTransform?: UrlTransform;
+	urlTransform: UrlTransform;
 }> = ({ children, urlTransform }) => (
 	<TimelineNotice>
 		<div className="flex flex-col gap-1">
@@ -92,7 +92,7 @@ const LifecycleHookNotice: React.FC<{
 );
 
 const ChatMessageItem = memo<{
-	organizationId: string | undefined;
+	organizationId: string;
 	renderKey: string;
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
@@ -120,8 +120,8 @@ const ChatMessageItem = memo<{
 	// would render as a dangling blank at the end of the chat.
 	isLastMessage?: boolean;
 	onImplementPlan?: () => Promise<void> | void;
-	urlTransform?: UrlTransform;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	urlTransform: UrlTransform;
+	mcpServers: readonly TypesGen.MCPServerConfig[];
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
@@ -404,7 +404,7 @@ const ChatMessageItem = memo<{
 );
 
 type ConversationTimelineProps = {
-	organizationId: string | undefined;
+	organizationId: string;
 	parsedMessages: readonly ParsedMessageEntry[];
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	initialActiveTurnMaxMessageId?: number;
@@ -423,8 +423,8 @@ type ConversationTimelineProps = {
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
-	urlTransform?: UrlTransform;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	urlTransform: UrlTransform;
+	mcpServers: readonly TypesGen.MCPServerConfig[];
 	showDesktopPreviews?: boolean;
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
