@@ -1,8 +1,11 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "#/api/api";
-import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import {
+	createTestQueryClient,
+	renderComponent,
+} from "#/testHelpers/renderHelpers";
 import { createMockWebSocket } from "#/testHelpers/websockets";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { Tool } from "./Tool";
@@ -39,5 +42,27 @@ describe("Tool workspace lifecycle rows", () => {
 			CHAT_BUILD_ID,
 			expect.anything(),
 		);
+	});
+});
+
+describe("Tool generic rows", () => {
+	it("falls back to the tool name when the model intent is whitespace", () => {
+		renderComponent(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<Tool
+					name="custom_tool"
+					status="completed"
+					args={{ query: "value" }}
+					isError={false}
+					modelIntent="   "
+					subagentTitles={new Map()}
+					subagentVariants={new Map()}
+					shellToolDisplayMode="auto"
+					codeDiffDisplayMode="auto"
+				/>
+			</QueryClientProvider>,
+		);
+
+		expect(screen.getByRole("button")).toHaveAccessibleName("custom_tool");
 	});
 });
