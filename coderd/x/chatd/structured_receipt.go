@@ -1,9 +1,11 @@
 package chatd
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -16,8 +18,10 @@ import (
 
 // Fixed receipt messages for requests closed without an output.
 const (
-	interruptedStructuredOutputMessage = "The turn was interrupted before it produced the structured output."
-	reconciledStructuredOutputMessage  = "The chat was reconciled from an invalid state before it produced the structured output."
+	interruptedStructuredOutputMessage  = "The turn was interrupted before it produced the structured output."
+	reconciledStructuredOutputMessage   = "The chat was reconciled from an invalid state before it produced the structured output."
+	queueDeletedStructuredOutputMessage = "The queued message was deleted before it produced the structured output."
+	supersededStructuredOutputMessage   = "An edit discarded the message before it produced the structured output."
 )
 
 // activeRequestReceipt returns the receipt that closes the open structured
@@ -51,6 +55,89 @@ func activeRequestReceipt(ctx context.Context, logger slog.Logger, store databas
 	return structuredReceiptMessages(ctx, store, chatID, state.RequestRowID, out)
 }
 
+// queueDeletedRequestReceipts returns the receipt that cancels the
+// structured output request of a queued row being deleted, or none for an
+// ordinary row or one already closed.
+func queueDeletedRequestReceipts(ctx context.Context, logger slog.Logger, store database.Store, chatID uuid.UUID, queued database.ChatQueuedMessage) ([]chatstate.Message, error) {
+	id, ok := structuredRequestID(ctx, logger, chatID, queuedRow(queued))
+	if !ok {
+		return nil, nil
+	}
+	return structuredReceiptMessages(ctx, store, chatID, 0, canceledStructuredOutput(id, codersdk.ChatStructuredOutputErrorCodeQueueDeleted, queueDeletedStructuredOutputMessage))
+}
+
+// supersededRequestReceipts returns receipts that cancel every pending
+// structured output request an edit discards: requests in discarded user
+// rows in history order, then in queued rows in queue order. Requests
+// already closed by a receipt among the discarded rows get none.
+func supersededRequestReceipts(ctx context.Context, logger slog.Logger, chatID uuid.UUID, discarded []database.ChatMessage, queued []database.ChatQueuedMessage) ([]chatstate.Message, error) {
+	closed := make(map[uuid.UUID]bool)
+	rows := make([]database.ChatMessage, 0, len(discarded)+len(queued))
+	for _, msg := range discarded {
+		if out, err := chatstate.ReceiptRowOutcome(msg); err == nil {
+			closed[out.RequestID] = true
+		} else if msg.Role == database.ChatMessageRoleUser {
+			rows = append(rows, msg)
+		}
+	}
+	for _, q := range queued {
+		rows = append(rows, queuedRow(q))
+	}
+	var receipts []chatstate.Message
+	for _, row := range rows {
+		id, ok := structuredRequestID(ctx, logger, chatID, row)
+		if !ok || closed[id] {
+			continue
+		}
+		closed[id] = true
+		receipt, err := receiptMessage(canceledStructuredOutput(id, codersdk.ChatStructuredOutputErrorCodeSuperseded, supersededStructuredOutputMessage))
+		if err != nil {
+			return nil, err
+		}
+		receipts = append(receipts, receipt)
+	}
+	return receipts, nil
+}
+
+// structuredRequestID returns the request ID of msg's structured output
+// request part. Unreadable content, an undecodable part or more than one
+// request part is corrupt: it logs a warning and reports no request.
+func structuredRequestID(ctx context.Context, logger slog.Logger, chatID uuid.UUID, msg database.ChatMessage) (uuid.UUID, bool) {
+	parts, err := chatprompt.ParseContent(msg)
+	var ids []uuid.UUID
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeStructuredOutputRequest {
+			continue
+		}
+		req, decodeErr := chatstructured.DecodeRequestPart(part)
+		err = cmp.Or(err, decodeErr)
+		ids = append(ids, req.RequestID)
+	}
+	if err != nil || len(ids) > 1 {
+		logger.Warn(ctx, "skip structured output receipt: inconsistent request metadata", slog.F("chat_id", chatID))
+		return uuid.Nil, false
+	}
+	if len(ids) == 0 {
+		return uuid.Nil, false
+	}
+	return ids[0], true
+}
+
+// queuedRow views a queued message as the user row it would become.
+func queuedRow(q database.ChatQueuedMessage) database.ChatMessage {
+	return database.ChatMessage{
+		Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth,
+		Content: pqtype.NullRawMessage{RawMessage: q.Content, Valid: q.Content != nil}, ContentVersion: chatprompt.CurrentContentVersion,
+	}
+}
+
+func canceledStructuredOutput(id uuid.UUID, code codersdk.ChatStructuredOutputErrorCode, message string) codersdk.ChatStructuredOutput {
+	return codersdk.ChatStructuredOutput{
+		RequestID: id, Status: codersdk.ChatStructuredOutputStatusCanceled,
+		Error: &codersdk.ChatStructuredOutputError{Code: code, Message: message},
+	}
+}
+
 // structuredReceiptMessages returns the terminal receipt message for out, or
 // none when the history after afterID (the request row) already holds a
 // receipt for the same request. Run it inside the ChatMachine.Update that
@@ -67,18 +154,27 @@ func structuredReceiptMessages(ctx context.Context, store database.Store, chatID
 			return nil, nil
 		}
 	}
+	receipt, err := receiptMessage(out)
+	if err != nil {
+		return nil, err
+	}
+	return []chatstate.Message{receipt}, nil
+}
+
+// receiptMessage builds the receipt row for out.
+func receiptMessage(out codersdk.ChatStructuredOutput) (chatstate.Message, error) {
 	parts, err := chatstructured.ReceiptParts(out)
 	if err != nil {
-		return nil, xerrors.Errorf("build structured output receipt: %w", err)
+		return chatstate.Message{}, xerrors.Errorf("build structured output receipt: %w", err)
 	}
 	content, err := chatprompt.MarshalParts(parts)
 	if err != nil {
-		return nil, xerrors.Errorf("marshal structured output receipt: %w", err)
+		return chatstate.Message{}, xerrors.Errorf("marshal structured output receipt: %w", err)
 	}
-	return []chatstate.Message{{
+	return chatstate.Message{
 		Role:           database.ChatMessageRoleAssistant,
 		Visibility:     database.ChatMessageVisibilityUser,
 		ContentVersion: chatprompt.ContentVersionV1,
 		Content:        content,
-	}}, nil
+	}, nil
 }

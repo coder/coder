@@ -1922,8 +1922,23 @@ func (p *Server) EditMessage(
 			reasoningEffortOverride = database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(*opts.ReasoningEffort), Valid: true}
 		}
 
+		// The edit discards the target, every later row and the whole queue.
+		discarded, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: opts.ChatID, AfterID: target.ID - 1})
+		if err != nil {
+			return xerrors.Errorf("load discarded messages: %w", err)
+		}
+		queued, err := store.GetChatQueuedMessagesByPosition(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load discarded queued messages: %w", err)
+		}
+		receipts, err := supersededRequestReceipts(ctx, p.logger, opts.ChatID, discarded, queued)
+		if err != nil {
+			return err
+		}
+
 		editResult, err := tx.EditMessage(chatstate.EditMessageInput{
 			MessageID:               opts.EditedMessageID,
+			Receipts:                receipts,
 			SuffixMessages:          suffixMessages,
 			CreatedBy:               opts.CreatedBy,
 			Content:                 content,
@@ -1937,8 +1952,9 @@ func (p *Server) EditMessage(
 			return err
 		}
 		result.Message = editResult.ReplacementMessage
-		inserted := make([]database.ChatMessage, 0, len(editResult.CancellationMessages)+len(editResult.SuffixMessages)+1)
+		inserted := make([]database.ChatMessage, 0, len(editResult.CancellationMessages)+len(editResult.Receipts)+len(editResult.SuffixMessages)+1)
 		inserted = append(inserted, editResult.CancellationMessages...)
+		inserted = append(inserted, editResult.Receipts...)
 		inserted = append(inserted, editResult.ReplacementMessage)
 		inserted = append(inserted, editResult.SuffixMessages...)
 		result.InsertedMessages = inserted
@@ -2087,9 +2103,19 @@ func (p *Server) DeleteQueued(
 	}
 
 	machine := p.newChatMachine(chatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		// A missing row gets no receipt; the transition reports it.
+		var receipts []chatstate.Message
+		queued, err := store.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{ID: queuedMessageID, ChatID: chatID})
+		if err == nil {
+			receipts, err = queueDeletedRequestReceipts(ctx, p.logger, store, chatID, queued)
+		}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("close deleted queued structured output request: %w", err)
+		}
+		_, err = tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
+			Receipts:        receipts,
 		})
 		return err
 	})
