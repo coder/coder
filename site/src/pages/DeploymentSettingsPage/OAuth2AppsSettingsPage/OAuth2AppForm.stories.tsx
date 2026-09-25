@@ -5,6 +5,7 @@ import { externalScopesKey } from "#/api/queries/oauth2";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockExternalAPIKeyScopes,
+	MockOAuth2ProviderAppDynamic,
 	MockOAuth2ProviderApps,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -91,5 +92,47 @@ export const Disabled: Story = {
 	args: {
 		app: appWithScopes,
 		disabled: true,
+	},
+};
+
+export const SelfRegisteredScopesNarrowed: Story = {
+	args: {
+		app: {
+			...MockOAuth2ProviderAppDynamic,
+			scope: "coder:workspaces.access workspace:ssh",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getAllByTestId("clear-option-button")[0],
+		);
+	},
+};
+
+export const AdminCreatedScopesNarrowed: Story = {
+	args: { app: appWithScopes },
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getAllByTestId("clear-option-button")[0],
+		);
+	},
+};
+
+export const SelfRegisteredScopesWidened: Story = {
+	args: {
+		app: {
+			...MockOAuth2ProviderAppDynamic,
+			scope: "coder:workspaces.access workspace:ssh",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", { name: /allowed scopes/i }),
+		);
+		await userEvent.click(
+			await within(canvasElement).findByRole("option", {
+				name: "workspace:read",
+			}),
+		);
 	},
 };

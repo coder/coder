@@ -30,6 +30,9 @@ type OAuth2ProviderApp struct {
 
 	// ClientType is "confidential" or "public".
 	ClientType OAuth2ClientType `json:"client_type"`
+	// DynamicallyRegistered is true when the app registered itself through
+	// Dynamic Client Registration rather than being created by an admin.
+	DynamicallyRegistered bool `json:"dynamically_registered"`
 
 	// Endpoints are included in the app response for easier discovery. The OAuth2
 	// spec does not have a defined place to find these (for comparison, OIDC has

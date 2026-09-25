@@ -70,8 +70,8 @@ template versions in CI/CD pipelines. For GitHub Actions, see our
 
 ```console
 # Install the Coder CLI
-curl -L https://coder.com/install.sh | sh
-# curl -L https://coder.com/install.sh | sh -s -- --version=0.x
+curl -fsSL https://coder.com/install.sh | sh
+# curl -fsSL https://coder.com/install.sh | sh -s -- --version=0.x
 
 # To create API tokens, use `coder tokens create`.
 # If no `--lifetime` flag is passed during creation, the default token lifetime

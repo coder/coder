@@ -5010,6 +5010,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 		icon: "/icon/github.svg",
 		scope: "",
 		client_type: "confidential",
+		dynamically_registered: false,
 		endpoints: {
 			authorization: "http://127.0.0.1:3001/oauth2/authorize",
 			token: "http://127.0.0.1:3001/oauth2/token",
@@ -5027,12 +5028,18 @@ export const MockOAuth2ProviderAppPublic: TypesGen.OAuth2ProviderApp = {
 	icon: "/icon/github.svg",
 	scope: "",
 	client_type: "public",
+	dynamically_registered: false,
 	endpoints: {
 		authorization: "http://127.0.0.1:3002/oauth2/authorize",
 		token: "http://127.0.0.1:3002/oauth2/token",
 		device_authorization: "",
 		token_revoke: "http://127.0.0.1:3002/oauth2/revoke",
 	},
+};
+
+export const MockOAuth2ProviderAppDynamic: TypesGen.OAuth2ProviderApp = {
+	...MockOAuth2ProviderApps[0],
+	dynamically_registered: true,
 };
 
 export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {

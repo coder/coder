@@ -2,7 +2,7 @@ import {
 	Building2Icon,
 	CircleDotIcon,
 	LayoutPanelTopIcon,
-	TagsIcon,
+	TagIcon,
 	UserIcon,
 	UserKeyIcon,
 } from "lucide-react";
@@ -57,7 +57,28 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	const navigate = useNavigate();
 
 	const categories = useMemo(() => {
+		// Always expose User and Owner so both stay recognized chip keys and the
+		// page's default `user:me` renders as a chip rather than free text.
+		// Users who cannot list others only see themselves.
+		const getUserOptions = canListUsers
+			? (query: string) => getUserFilterOptions(query, me, queryClient)
+			: (query: string) => getSelfUserFilterOptions(query, me);
 		const next: FilterCategory[] = [
+			{
+				key: "owner",
+				label: "Owner",
+				hint: "me",
+				icon: <UserKeyIcon />,
+				getOptions: getUserOptions,
+			},
+			{
+				// Workspaces the user owns or that are shared with them.
+				key: "user",
+				label: "User",
+				hint: "me",
+				icon: <UserIcon />,
+				getOptions: getUserOptions,
+			},
 			{
 				key: "status",
 				label: "Status",
@@ -65,20 +86,21 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				getOptions: getStatusFilterOptions,
 			},
 			{
-				key: "template",
-				label: "Template",
-				icon: <LayoutPanelTopIcon />,
-				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
-			},
-			{
-				key: "attributes",
+				key: "attribute",
 				label: "Attributes",
-				icon: <TagsIcon />,
+				aliases: ["attributes"],
+				icon: <TagIcon />,
 				// Boolean workspace filters live under their own keys, so the
 				// category owns them for chip parsing.
 				chipKeys: ATTRIBUTE_CHIP_KEYS,
 				getOptions: (query) =>
 					getAttributeFilterOptions(query, { canFilterDormant }),
+			},
+			{
+				key: "template",
+				label: "Template",
+				icon: <LayoutPanelTopIcon />,
+				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
 			},
 		];
 
@@ -90,28 +112,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
 			});
 		}
-
-		// Always expose User and Owner so both stay recognized chip keys and the
-		// page's default `user:me` renders as a chip rather than free text.
-		// Users who cannot list others only see themselves.
-		const getUserOptions = canListUsers
-			? (query: string) => getUserFilterOptions(query, me, queryClient)
-			: (query: string) => getSelfUserFilterOptions(query, me);
-		next.push(
-			{
-				// Workspaces the user owns or that are shared with them.
-				key: "user",
-				label: "User",
-				icon: <UserIcon />,
-				getOptions: getUserOptions,
-			},
-			{
-				key: "owner",
-				label: "Owner",
-				icon: <UserKeyIcon />,
-				getOptions: getUserOptions,
-			},
-		);
 
 		return next;
 	}, [canListUsers, canFilterDormant, me, showOrganizations, queryClient]);
@@ -129,12 +129,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			return response.workspaces.map((workspace) => ({
 				value: workspace.id,
 				label: workspace.name,
-				subtitle: [
-					workspace.owner_name,
-					workspace.template_display_name || workspace.template_name,
-				]
-					.filter(Boolean)
-					.join(" · "),
 				imageUrl: workspace.owner_avatar_url,
 				href: `/@${workspace.owner_name}/${workspace.name}`,
 			}));
@@ -162,7 +156,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				onChange={filter.update}
 				categories={categories}
 				placeholder="Search and filter workspaces…"
-				className="max-w-lg"
+				// Starts at a compact width and widens to fit chips before wrapping.
+				className="w-auto min-w-lg max-w-full self-start"
 				errorMessage={
 					showValidationError ? getValidationErrorMessage(error) : undefined
 				}
