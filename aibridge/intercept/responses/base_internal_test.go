@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
 	oairesponses "github.com/openai/openai-go/v3/responses"
@@ -17,6 +18,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -706,6 +708,75 @@ func TestWriteUpstreamError(t *testing.T) {
 			if tc.expectBodyContains != "" {
 				assert.Contains(t, w.Body.String(), tc.expectBodyContains, "response body")
 			}
+		})
+	}
+}
+
+// TestNewResponsesServiceBedrockAuth verifies the Bedrock mantle service uses
+// the user's key as a bearer token when present and SigV4 otherwise.
+func TestNewResponsesServiceBedrockAuth(t *testing.T) {
+	t.Parallel()
+
+	const userKey = "user-bedrock-api-key" //nolint:gosec // G101: test-only fake credential.
+
+	tests := []struct {
+		name string
+		cred intercept.Credential
+		// check asserts on the Authorization header the upstream received.
+		check func(t *testing.T, header http.Header)
+	}{
+		{
+			name: "byok uses bearer token",
+			cred: intercept.BYOK{Secret: userKey, Header: intercept.AuthHeaderAuthorization},
+			check: func(t *testing.T, header http.Header) {
+				require.Equal(t, "Bearer "+userKey, header.Get("Authorization"))
+				require.Empty(t, header.Get("X-Amz-Date"))
+			},
+		},
+		{
+			name: "centralized uses sigv4",
+			cred: intercept.AWSSigV4{AccessKey: "AKID"},
+			check: func(t *testing.T, header http.Header) {
+				require.Contains(t, header.Get("Authorization"), "AWS4-HMAC-SHA256")
+				require.Contains(t, header.Get("Authorization"), "/bedrock-mantle/aws4_request")
+				require.NotEmpty(t, header.Get("X-Amz-Date"))
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var received http.Header
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				received = r.Header.Clone()
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"resp_1","object":"response","output":[]}`))
+			}))
+			t.Cleanup(upstream.Close)
+
+			reqPayload, err := NewRequestPayload([]byte(`{"model":"openai.gpt-x","input":"hi"}`))
+			require.NoError(t, err)
+
+			base := &responsesInterceptionBase{
+				reqPayload: reqPayload,
+				cred:       tc.cred,
+				bedrockMantle: &awssig.MantleConfig{
+					BaseURL: upstream.URL,
+					Region:  "us-east-1",
+					Creds:   credentials.NewStaticCredentialsProvider("AKID", "secret", ""),
+				},
+				logger: slog.Make(),
+			}
+
+			svc := base.newResponsesService(context.Background())
+			_, err = svc.New(context.Background(), oairesponses.ResponseNewParams{Model: "openai.gpt-x"})
+			require.NoError(t, err)
+			require.NotNil(t, received)
+
+			tc.check(t, received)
+			require.Contains(t, received.Get("User-Agent"), awssig.PRMUserAgent)
 		})
 	}
 }
