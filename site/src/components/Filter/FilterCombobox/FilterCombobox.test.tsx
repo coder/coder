@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { render } from "#/testHelpers/renderHelpers";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
-import { FilterCombobox } from "./FilterCombobox";
+import { FilterCombobox, SEARCHABLE_OPTION_COUNT } from "./FilterCombobox";
+import { SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory } from "./types";
 
 const ownerCategory: FilterCategory = {
@@ -13,7 +14,10 @@ const ownerCategory: FilterCategory = {
 	getOptions: async () => [{ label: "alice", value: "alice" }],
 };
 
-const OWNER_NAMES = Array.from({ length: 12 }, (_, index) => `user-${index}`);
+const OWNER_NAMES = Array.from(
+	{ length: SEARCHABLE_OPTION_COUNT + 2 },
+	(_, index) => `user-${index}`,
+);
 
 // More owners than the flyout search threshold. `zed` is only returned by a
 // search, like a user beyond the first page of results.
@@ -264,7 +268,8 @@ describe("FilterCombobox", () => {
 			statusCategory,
 		]);
 
-		// Load the unfiltered Status options first.
+		// The Enter path picks the first cached Status row while the typed query
+		// is still debounced.
 		await user.click(filtersButton);
 		await screen.findByRole("option", { name: "Running" });
 		await user.click(input);
@@ -297,6 +302,65 @@ describe("FilterCombobox", () => {
 
 		await user.keyboard("{Escape}");
 		expect(onChange).toHaveBeenLastCalledWith("run");
+	});
+
+	it("holds back typed text that matches an option beyond the first page", async () => {
+		const { user, onChange, input } = setup([manyOwnersCategory]);
+
+		await user.click(input);
+		await screen.findByRole("option", { name: "Owner" });
+		await user.type(input, "zed");
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		expect(onChange).not.toHaveBeenCalledWith("zed");
+	});
+
+	it("does not apply held-back typed text when a chip is removed", async () => {
+		const { user, onChange, input } = setup([ownerCategory, statusCategory], {
+			initialValue: "owner:alice",
+		});
+
+		await user.click(input);
+		await screen.findByRole("option", { name: "Running" });
+		await user.type(input, "run");
+		await user.click(
+			screen.getByRole("button", { name: "Remove owner:alice" }),
+		);
+
+		expect(onChange).toHaveBeenLastCalledWith("");
+		expect(onChange).not.toHaveBeenCalledWith("run");
+	});
+
+	it("cancels a pending typed search when the menu is dismissed", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		try {
+			const onChange = vi.fn();
+			const user = userEvent.setup({
+				advanceTimers: vi.advanceTimersByTime,
+			});
+			render(
+				<FilterComboboxHarness
+					categories={[ownerCategory, statusCategory]}
+					initialValue=""
+					onChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("combobox", {
+				name: "Search and filter",
+			});
+
+			await user.click(input);
+			await screen.findByRole("option", { name: "Running" });
+			await user.type(input, "run");
+			await user.keyboard("{Escape}");
+			await user.type(input, "x{Backspace}");
+			await user.keyboard("{Escape}");
+			await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS * 2);
+
+			expect(onChange).toHaveBeenLastCalledWith("run");
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("applies typed text that could be a filter when switching to the full filter list", async () => {
@@ -387,6 +451,43 @@ describe("FilterCombobox", () => {
 		await user.click(screen.getByRole("option", { name: "Running" }));
 
 		expect(onChange).toHaveBeenLastCalledWith("status:running");
+	});
+
+	it("keeps matching value suggestions selectable while typed text is debounced", async () => {
+		const { user, onChange, input } = setup([ownerCategory, statusCategory]);
+
+		await user.click(input);
+		await screen.findByRole("option", { name: "Owner" });
+		await user.type(input, "ali");
+		await user.click(screen.getByRole("option", { name: "alice" }));
+
+		expect(onChange).toHaveBeenLastCalledWith("owner:alice");
+	});
+
+	it("does not keep locally matched rows for a category whose search failed", async () => {
+		const { user, onChange, input } = setup([
+			{
+				...ownerCategory,
+				getOptions: async (query) => {
+					if (query) {
+						throw new Error("failed");
+					}
+					return [{ label: "alice", value: "alice" }];
+				},
+			},
+		]);
+
+		await user.click(input);
+		await screen.findByRole("option", { name: "Owner" });
+		await user.type(input, "ali");
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Couldn’t load suggestions.",
+			),
+		);
+		await user.keyboard("{Enter}");
+
+		expect(onChange).not.toHaveBeenCalledWith("owner:alice");
 	});
 
 	it("keeps an applied option when Enter completes typed text that located it", async () => {
@@ -601,7 +702,7 @@ describe("FilterCombobox", () => {
 		});
 
 		it("drills into a category and selects an option", async () => {
-			const { user, onChange, filtersButton } = setup([
+			const { user, onChange, input, filtersButton } = setup([
 				ownerCategory,
 				statusCategory,
 			]);
@@ -613,6 +714,7 @@ describe("FilterCombobox", () => {
 			await waitFor(() =>
 				expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
 			);
+			expect(input).not.toHaveFocus();
 		});
 	});
 });
