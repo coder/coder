@@ -82,7 +82,7 @@ type ChatSearchDialogProps = {
 	readonly onOpenChange: (open: boolean) => void;
 	readonly focusInputOnOpen?: boolean;
 	readonly location: Location;
-	readonly recentChats?: readonly Chat[];
+	readonly recentChats: readonly Chat[];
 };
 
 const SEARCH_DEBOUNCE_MS = 500;
@@ -92,7 +92,7 @@ export const ChatSearchDialog: React.FC<ChatSearchDialogProps> = ({
 	onOpenChange,
 	focusInputOnOpen = true,
 	location,
-	recentChats = [],
+	recentChats,
 }) => {
 	const contentRef = useRef<HTMLDivElement | null>(null);
 	const inputRef = useRef<HTMLInputElement | null>(null);
@@ -152,7 +152,7 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 	onOpenChange,
 	location,
 	inputRef,
-	recentChats = [],
+	recentChats,
 }) => {
 	const navigate = useNavigate();
 	const [filters, setFilters] = useState<SearchFilter[]>([]);
@@ -193,7 +193,7 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 
 	// Use search results count when a query is active, otherwise count
 	// recent chats so keyboard navigation works in the default view too.
-	const recentChatsSlice = (recentChats ?? []).slice(0, 10);
+	const recentChatsSlice = recentChats.slice(0, 10);
 	const resultCount = hasQuery
 		? (searchQuery.data?.length ?? 0)
 		: recentChatsSlice.length;

@@ -15,7 +15,10 @@ const meta: Meta<typeof ChatSummary> = {
 		createdAt: "2024-05-01T12:00:00Z",
 		updatedAt: "2024-05-02T15:30:00Z",
 		costMicros: 1_250_000,
+		isCostLoading: false,
+		costError: false,
 		showCost: true,
+		isSubagent: false,
 	},
 	decorators: [
 		(Story) => (
