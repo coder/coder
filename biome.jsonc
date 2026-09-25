@@ -15,6 +15,7 @@
 	"linter": {
 		"rules": {
 			"a11y": {
+				"useKeyWithClickEvents": "off", // oxlint owns click-events-have-key-events
 				"useMediaCaption": "off", // oxlint owns media-has-caption
 				"noSvgWithoutTitle": "off",
 				"useButtonType": "off",
