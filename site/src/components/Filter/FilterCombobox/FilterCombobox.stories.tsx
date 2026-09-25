@@ -525,6 +525,7 @@ export const CrossCategoryValueSuggestions: Story = {
 		).not.toBeInTheDocument();
 		await userEvent.click(body.getByRole("option", { name: /testuser01/i }));
 		await expect(canvas.getByText(chip("owner:testuser01"))).toBeVisible();
+		await expect(input).toHaveValue("");
 	},
 };
 

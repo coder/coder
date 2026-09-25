@@ -369,15 +369,14 @@ export const useFilterCombobox = ({
 					chipValues,
 				);
 
-	// A rejected suggestion query must not leave the popup spinning forever;
-	// treat an error as "done loading" and surface it instead.
 	const typeaheadError =
 		activeCategoryKey === null && isBrowsing && suggestionOptions.isError;
 
 	const typeaheadActive = activeCategoryKey === null && isBrowsing;
 	const hasTypeaheadQuery = typeaheadActive && inputValue.trim().length > 0;
 	// Spin while suggestions are still fetching without rows, so an in-flight
-	// query never leaves an empty gap.
+	// query never leaves an empty gap. A failed category query shows the error
+	// and Retry even while other category queries are still fetching.
 	const typeaheadLoading =
 		hasTypeaheadQuery &&
 		!typeaheadError &&
