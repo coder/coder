@@ -253,6 +253,22 @@ type CategoryValueSuggestion = {
 	token: string;
 };
 
+/** Options whose label or value contains `text`, ignoring case. */
+export const filterOptionsByText = (
+	options: readonly FilterOption[],
+	text: string,
+): readonly FilterOption[] => {
+	const normalized = text.trim().toLowerCase();
+	if (normalized.length === 0) {
+		return options;
+	}
+	return options.filter(
+		(option) =>
+			option.label.toLowerCase().includes(normalized) ||
+			option.value.toLowerCase().includes(normalized),
+	);
+};
+
 const DEFAULT_SUGGESTIONS_PER_CATEGORY = 5;
 const DEFAULT_SUGGESTIONS_TOTAL = 15;
 

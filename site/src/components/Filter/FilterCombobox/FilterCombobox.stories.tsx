@@ -11,10 +11,7 @@ import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { setupMatchMedia } from "#/testHelpers/matchMedia";
-import {
-	belowLgViewportMediaQuery,
-	mobileViewportMediaQuery,
-} from "#/utils/mobile";
+import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { FilterCombobox } from "./FilterCombobox";
 import type { FilterCategory, FilterOption } from "./types";
 
@@ -172,7 +169,6 @@ export const MobileCategoryNavigation: Story = {
 	},
 	beforeEach: () =>
 		setupMatchMedia({
-			[belowLgViewportMediaQuery]: true,
 			[mobileViewportMediaQuery]: true,
 		}).restore,
 	play: async ({ canvasElement }) => {

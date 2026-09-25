@@ -1,6 +1,7 @@
 import type { UseQueryOptions } from "react-query";
 import type { FilterOption } from "./types";
 
+/** Delay before typed text reaches a category's `getOptions`. */
 export const SEARCH_DEBOUNCE_MS = 300;
 
 const filterComboboxOptionsKey = (categoryKey: string, query: string) =>

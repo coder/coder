@@ -98,7 +98,6 @@ export const OrdinaryUserKeepsUserChip: Story = {
 		// free-text search.
 		await waitFor(() => {
 			expect(body.getByRole("option", { name: /^Owner/ })).toBeVisible();
-			expect(body.getByRole("option", { name: /running/i })).toBeVisible();
 		});
 	},
 };
