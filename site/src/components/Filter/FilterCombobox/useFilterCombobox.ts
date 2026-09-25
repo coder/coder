@@ -249,10 +249,8 @@ export const useFilterCombobox = ({
 	const inputRef = useRef<HTMLInputElement | null>(null);
 
 	const queryClient = useQueryClient();
-	// Bumped when the input changes, when emitQuery sends a query, when an
-	// external value arrives, and on unmount, so a typed-text lookup that
-	// resolves after any of these is dropped. emitQueryKeepingLookup does not
-	// bump it.
+	// cancelTypedTextLookup bumps this, so a typed-text lookup that resolves
+	// after any cancel is dropped. emitQueryKeepingLookup does not cancel.
 	const typedTextLookupGenerationRef = useRef(0);
 	const {
 		debounced: scheduleTypedTextLookup,
@@ -590,12 +588,9 @@ export const useFilterCombobox = ({
 		suggestionOptions.refetch();
 	};
 
-	const updateFromChips = (tokens: string[], freeText?: string) => {
-		const nextFreeText = freeText ?? appliedFreeText();
-		if (freeText !== undefined) {
-			dispatch({ type: "setTypedFreeText", value: freeText });
-		}
-		emitQuery(composeFilterQuery(tokens, chipKeys, nextFreeText));
+	const updateFromChips = (tokens: string[], freeText: string) => {
+		dispatch({ type: "setTypedFreeText", value: freeText });
+		emitQuery(composeFilterQuery(tokens, chipKeys, freeText));
 	};
 
 	// Adding an option from an exclusive category replaces that category's
@@ -654,12 +649,12 @@ export const useFilterCombobox = ({
 	};
 
 	const commitCategoryOption = (token: string) => {
-		updateFromChips([...chipValues, token]);
+		updateFromChips([...chipValues, token], typedFreeText);
 		returnToCategories();
 	};
 
 	const toggleCategoryOption = (token: string) => {
-		updateFromChips(toggledChips(token));
+		updateFromChips(toggledChips(token), typedFreeText);
 		returnToCategories();
 	};
 
@@ -714,11 +709,10 @@ export const useFilterCombobox = ({
 		returnToCategories();
 	};
 
-	// True when text starts a category key or label, matches a loaded option,
-	// or matches an option that a category's getOptions returns for it within
-	// TYPED_TEXT_LOOKUP_TIMEOUT_MS. A failed lookup, or one still pending at the
-	// timeout, counts as no match. Callers hold such text back so results do
-	// not empty out mid-word.
+	// True when matchCategories matches text, text matches a loaded option, or
+	// a category's getOptions returns a matching option within
+	// TYPED_TEXT_LOOKUP_TIMEOUT_MS; a failed lookup counts as no match. Callers
+	// hold such text back so results do not empty out mid-word.
 	const couldBeFilterSearch = (text: string): Promise<boolean> => {
 		if (text.length === 0) {
 			return Promise.resolve(false);
