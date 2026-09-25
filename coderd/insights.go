@@ -601,7 +601,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		{
 			TemplateIDs: templateIDs(codersdk.AppFamilyVSCode),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: codersdk.TemplateBuiltinAppDisplayNameVSCode,
+			DisplayName: codersdk.AppFamilyVSCode.DisplayName(),
 			Slug:        "vscode",
 			Icon:        "/icon/code.svg",
 			Seconds:     usageSeconds[codersdk.AppFamilyVSCode],
@@ -609,7 +609,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		{
 			TemplateIDs: templateIDs(codersdk.AppFamilyJetBrains),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: codersdk.TemplateBuiltinAppDisplayNameJetBrains,
+			DisplayName: codersdk.AppFamilyJetBrains.DisplayName(),
 			Slug:        "jetbrains",
 			Icon:        "/icon/intellij.svg",
 			Seconds:     usageSeconds[codersdk.AppFamilyJetBrains],
@@ -623,7 +623,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		{
 			TemplateIDs: templateIDs(codersdk.AppFamilyReconnectingPTY),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
+			DisplayName: codersdk.AppFamilyReconnectingPTY.DisplayName(),
 			Slug:        "reconnecting-pty",
 			Icon:        "/icon/terminal.svg",
 			Seconds:     usageSeconds[codersdk.AppFamilyReconnectingPTY],
@@ -631,7 +631,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		{
 			TemplateIDs: templateIDs(codersdk.AppFamilySSH),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSSH,
+			DisplayName: codersdk.AppFamilySSH.DisplayName(),
 			Slug:        "ssh",
 			Icon:        "/icon/terminal.svg",
 			Seconds:     usageSeconds[codersdk.AppFamilySSH],
@@ -639,7 +639,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		{
 			TemplateIDs: templateIDs(codersdk.AppFamilySFTP),
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSFTP,
+			DisplayName: codersdk.AppFamilySFTP.DisplayName(),
 			Slug:        "sftp",
 			Icon:        "/icon/terminal.svg",
 			Seconds:     usageSeconds[codersdk.AppFamilySFTP],

@@ -424,7 +424,7 @@ coderd_dbpurge_records_purged_total{record_type=""} 0
 # HELP coderd_experiments Indicates whether each experiment is enabled (1) or not (0)
 # TYPE coderd_experiments gauge
 coderd_experiments{experiment=""} 0
-# HELP coderd_insights_applications_usage_seconds The application usage per template.
+# HELP coderd_insights_applications_usage_seconds The application usage per template. Built-in apps are totaled by family and have an empty slug.
 # TYPE coderd_insights_applications_usage_seconds gauge
 coderd_insights_applications_usage_seconds{template_name="",application_name="",slug="",organization_name=""} 0
 # HELP coderd_insights_parameters The parameter usage per template.
