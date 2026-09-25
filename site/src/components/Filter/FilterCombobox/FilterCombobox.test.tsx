@@ -198,6 +198,40 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	it("highlights the first category once placeholder rows are replaced", async () => {
+		const templates = heldSearch(
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => [],
+			},
+			"",
+		);
+		const { user, onChange, filtersButton } = setup([
+			ownerCategory,
+			templates.category,
+			statusCategory,
+		]);
+
+		await user.click(filtersButton);
+		await screen.findByRole("option", { name: /Running/ });
+		await act(async () =>
+			templates.resolve([
+				{ label: "docker", value: "docker" },
+				{ label: "k8s", value: "k8s" },
+			]),
+		);
+		await screen.findByRole("option", { name: "Template" });
+		await user.keyboard("{Enter}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{ArrowDown}{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
 	it("matches typed text to a hideable category while its options load", async () => {
 		const templates = heldSearch(
 			{
@@ -279,6 +313,7 @@ describe("FilterCombobox", () => {
 		await user.hover(await screen.findByRole("option", { name: "Template" }));
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 		expect(screen.getByRole("status")).not.toHaveTextContent("Loading filters");
+		await user.hover(screen.getByRole("option", { name: "Template" }));
 		await act(async () =>
 			retry.resolve([
 				{ label: "docker", value: "docker" },
