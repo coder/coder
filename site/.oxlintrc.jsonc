@@ -157,6 +157,7 @@
 		"jsx-no-duplicate-props": "error",
 		"no-dupe-keys": "error",
 		"no-duplicate-hooks": "error",
+		"no-fallthrough": ["error", { "allowEmptyCase": true }],
 		"no-extra-non-null-assertion": "error",
 		"no-focused-tests": "error",
 		"no-func-assign": "error",
@@ -208,7 +209,6 @@
 		// small < medium < large < xl.
 		// ==========================================================
 		"no-autofocus": "off", // a11y/noAutofocus (large)
-		"no-fallthrough": "off", // suspicious/noFallthroughSwitchClause (medium)
 		"click-events-have-key-events": "off", // a11y/useKeyWithClickEvents (small)
 		"no-danger": "off", // security/noDangerouslySetInnerHtml (small: Biome suppression to migrate)
 		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
