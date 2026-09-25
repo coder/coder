@@ -77,10 +77,19 @@ func NewMetrics(reg prometheus.Registerer) *metrics.Metrics {
 
 // NewRecorder creates a [Recorder] which logs each record and refuses
 // malformed ones before handing it to base.
-func NewRecorder(logger slog.Logger, tracer trace.Tracer, apiKeyID string, structured bool, base Recorder) Recorder {
-	return recorder.ChainMiddleware(
-		recorder.WithLogging(logger, apiKeyID, structured),
-		recorder.WithValidation(logger),
-		recorder.WithTracing(tracer),
-	)(base)
+//
+// middleware is inserted below the logging and validating middleware, so that
+// every record is logged and checked before any of it runs, and above the
+// tracing middleware, which must stay immediately above the recorder its spans
+// measure. Policy that drops records, such as [recorder.WithoutRecords],
+// belongs here: it keeps NewRecorder to its own concerns and leaves the choice
+// to the caller.
+func NewRecorder(logger slog.Logger, tracer trace.Tracer, apiKeyID string, structured bool, base Recorder, middleware ...recorder.Middleware) Recorder {
+	chain := make([]recorder.Middleware, 0, len(middleware)+3)
+	chain = append(chain, recorder.WithLogging(logger, apiKeyID, structured))
+	chain = append(chain, recorder.WithValidation(logger))
+	chain = append(chain, middleware...)
+	chain = append(chain, recorder.WithTracing(tracer))
+
+	return recorder.ChainMiddleware(chain...)(base)
 }

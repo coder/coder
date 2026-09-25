@@ -387,6 +387,18 @@ Expect the following differences:
 - Coder Agents users who exceed their budget see a usage limit error in chat.
   The error details include the AI Governance budget limit.
 
+## Cost controls without conversation content
+
+Cost control reads none of the tables that store prompts, tool call arguments or model thoughts.
+It depends only on the interception and token usage records, the model prices and the budget tables.
+
+A deployment that wants budgets and spend reporting without retaining conversation content can therefore set
+[`--ai-gateway-disable-content-recording`](./setup.md#disable-content-recording) and keep every cost control feature on this page.
+
+> [!NOTE]
+> [`--ai-gateway-retention`](./setup.md#data-retention) can't do this.
+> It purges the interception and token usage records too, so it sheds the cost ledger along with the content.
+
 ## Next steps
 
 - [Monitoring](./monitoring.md)

@@ -98,6 +98,10 @@ type CachedBridgePool struct {
 	logger          slog.Logger
 	options         PoolOptions
 
+	// recorderMiddleware is the record policy derived from options, resolved
+	// once here rather than on every cache miss.
+	recorderMiddleware []recorder.Middleware
+
 	singleflight *singleflight.Group[string, *aibridge.RequestBridge]
 
 	metrics *aibridge.Metrics
@@ -150,6 +154,15 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 		clk = quartz.NewReal()
 	}
 
+	var recorderMiddleware []recorder.Middleware
+	if options.DisableContentRecording {
+		recorderMiddleware = append(recorderMiddleware, recorder.WithoutRecords(recorder.DisabledRecords{
+			PromptUsage:  true,
+			ToolUsage:    true,
+			ModelThought: true,
+		}))
+	}
+
 	pool := &CachedBridgePool{
 		cache:   cache,
 		clock:   clk,
@@ -157,6 +170,8 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 		metrics: metrics,
 		tracer:  tracer,
 		logger:  logger,
+
+		recorderMiddleware: recorderMiddleware,
 
 		singleflight: &singleflight.Group[string, *aibridge.RequestBridge]{},
 
@@ -268,6 +283,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 			// against the context of the record call being served.
 			return clientFn(clientCtx)
 		}),
+		p.recorderMiddleware...,
 	)
 
 	// Slow path.
