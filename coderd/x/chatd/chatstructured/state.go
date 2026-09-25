@@ -112,32 +112,31 @@ func validText(s string, allowEmpty bool) bool {
 // EncodeRequestPart, EncodeControlPart and EncodeOutcomePart build internal
 // parts, returning ErrMalformedStructuredOutputMetadata for invalid payloads.
 func EncodeRequestPart(r Request) (codersdk.ChatMessagePart, error) {
-	if !r.valid() {
-		return codersdk.ChatMessagePart{}, ErrMalformedStructuredOutputMetadata
-	}
 	return encodePart(codersdk.ChatMessagePartTypeStructuredOutputRequest, r)
 }
 
 func EncodeControlPart(c Control) (codersdk.ChatMessagePart, error) {
-	if !c.valid() {
-		return codersdk.ChatMessagePart{}, ErrMalformedStructuredOutputMetadata
-	}
 	return encodePart(codersdk.ChatMessagePartTypeStructuredOutputControl, c)
 }
 
 func EncodeOutcomePart(o codersdk.ChatStructuredOutput) (codersdk.ChatMessagePart, error) {
-	if !validOutcome(o) {
-		return codersdk.ChatMessagePart{}, ErrMalformedStructuredOutputMetadata
-	}
 	return encodePart(codersdk.ChatMessagePartTypeStructuredOutputOutcome, o)
 }
 
+// encodePart marshals a payload and decodes the result with the strict
+// decoder, which also applies the validity rules, so every part it returns
+// decodes: marshaling can re-escape a raw value past the byte cap, and a raw
+// value can nest past the depth cap or hold what the raw screen rejects.
 func encodePart(typ codersdk.ChatMessagePartType, payload any) (codersdk.ChatMessagePart, error) {
 	data, err := json.Marshal(payload)
+	part := codersdk.ChatMessagePart{Type: typ, StructuredOutputData: data}
 	if err != nil {
 		return codersdk.ChatMessagePart{}, ErrMalformedStructuredOutputMetadata
 	}
-	return codersdk.ChatMessagePart{Type: typ, StructuredOutputData: data}, nil
+	if _, err := decodePart(part); err != nil {
+		return codersdk.ChatMessagePart{}, ErrMalformedStructuredOutputMetadata
+	}
+	return part, nil
 }
 
 // DecodeRequestPart, DecodeControlPart and DecodeOutcomePart strictly decode

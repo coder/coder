@@ -80,6 +80,18 @@ func TestStructuredOutputCodecs(t *testing.T) {
 			require.Equal(t, ErrMalformedStructuredOutputMetadata.Error(), err.Error())
 		}
 	}
+	// Encoding fails closed when its output would not decode: values nested
+	// past the payload depth cap, re-escaped past the byte cap, or holding
+	// what the raw screen rejects.
+	for _, value := range []string{
+		strings.Repeat("[", 33) + strings.Repeat("]", 33), `"` + strings.Repeat("<", 100<<10) + `"`,
+		`{"a":1,"a":2}`, `"\u0000"`, `1e2000`,
+	} {
+		_, err := EncodeControlPart(Control{RequestID: id, Kind: ControlCandidate, Value: json.RawMessage(value)})
+		require.ErrorIs(t, err, ErrMalformedStructuredOutputMetadata, value[:min(len(value), 20)])
+		_, err = EncodeOutcomePart(codersdk.ChatStructuredOutput{RequestID: id, Status: codersdk.ChatStructuredOutputStatusSucceeded, Value: json.RawMessage(value)})
+		require.ErrorIs(t, err, ErrMalformedStructuredOutputMetadata, value[:min(len(value), 20)])
+	}
 	_, err = DecodeControlPart(part)
 	require.ErrorIs(t, err, ErrMalformedStructuredOutputMetadata)
 	_, err = EncodeRequestPart(Request{Name: "a", Schema: json.RawMessage(`{}`)})
