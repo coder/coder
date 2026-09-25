@@ -291,6 +291,13 @@ func TestOAuth2ProviderTokenInQueryString(t *testing.T) {
 		requireIgnored(t, rw)
 	})
 
+	t.Run("PaddedAccessTokenQuery", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test?access_token="+url.QueryEscape(" "+oauthToken+" "), nil)
+		rw := httptest.NewRecorder()
+		httpmw.ExtractAPIKeyMW(cfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
+		requireIgnored(t, rw)
+	})
+
 	t.Run("BearerHeader", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/test", nil)
 		req.Header.Set("Authorization", "Bearer "+oauthToken)
@@ -310,6 +317,22 @@ func TestOAuth2ProviderTokenInQueryString(t *testing.T) {
 	t.Run("QueryAndBearerHeader", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/test?access_token="+url.QueryEscape(oauthToken), nil)
 		req.Header.Set("Authorization", "Bearer "+oauthToken)
+		rw := httptest.NewRecorder()
+		httpmw.ExtractAPIKeyMW(cfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
+		require.Equal(t, http.StatusOK, rw.Code)
+	})
+
+	t.Run("QueryAndSessionTokenHeader", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test?"+codersdk.SessionTokenCookie+"="+url.QueryEscape(oauthToken), nil)
+		req.Header.Set(codersdk.SessionTokenHeader, oauthToken)
+		rw := httptest.NewRecorder()
+		httpmw.ExtractAPIKeyMW(cfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
+		require.Equal(t, http.StatusOK, rw.Code)
+	})
+
+	t.Run("QueryAndCookie", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test?access_token="+url.QueryEscape(oauthToken), nil)
+		req.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: oauthToken})
 		rw := httptest.NewRecorder()
 		httpmw.ExtractAPIKeyMW(cfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
 		require.Equal(t, http.StatusOK, rw.Code)

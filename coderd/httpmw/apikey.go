@@ -131,6 +131,11 @@ func (c *OAuth2Configs) IsZero() bool {
 const (
 	SignedOutErrorMessage = "You are signed out or your session has expired. Please sign in again to continue."
 	internalErrorMessage  = "An internal error occurred. Please try again or contact the system administrator."
+
+	// accessTokenQueryParam is the RFC 6750 query parameter name.
+	accessTokenQueryParam = "access_token"
+	// bearerPrefix is compared case-insensitively per RFC 6750.
+	bearerPrefix = "bearer "
 )
 
 type ExtractAPIKeyConfig struct {
@@ -988,15 +993,12 @@ func APITokenFromRequest(r *http.Request) string {
 	}
 
 	// RFC 6750 Bearer Token support (added as fallback methods)
-	// Check Authorization: Bearer <token> header (case-insensitive per RFC 6750)
-	authHeader := r.Header.Get("Authorization")
-	if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
-		// Skip "Bearer " (7 characters) and trim surrounding whitespace
-		return strings.TrimSpace(authHeader[7:])
+	if bearer := bearerToken(r); bearer != "" {
+		return bearer
 	}
 
 	// Check access_token query parameter
-	accessToken := r.URL.Query().Get("access_token")
+	accessToken := r.URL.Query().Get(accessTokenQueryParam)
 	if accessToken != "" {
 		return strings.TrimSpace(accessToken)
 	}
@@ -1004,13 +1006,25 @@ func APITokenFromRequest(r *http.Request) string {
 	return ""
 }
 
-// tokenOnlyInQuery reports whether token was sent in a URL query parameter
-// and not also in the session cookie or an auth header. A copy in a header or
-// cookie means the request is honored as if the query copy were absent.
+// bearerToken returns the trimmed token from an Authorization: Bearer header,
+// or an empty string when the header is absent or uses another scheme.
+func bearerToken(r *http.Request) string {
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(strings.ToLower(authHeader), bearerPrefix) {
+		return ""
+	}
+	return strings.TrimSpace(authHeader[len(bearerPrefix):])
+}
+
+// tokenOnlyInQuery reports whether token is in the coder_session_token or
+// access_token query parameter and not in the session cookie, the
+// Coder-Session-Token header, or the Authorization: Bearer header.
 func tokenOnlyInQuery(r *http.Request, token string) bool {
 	query := r.URL.Query()
-	inQuery := slices.Contains(query[codersdk.SessionTokenCookie], token) ||
-		slices.Contains(query["access_token"], token)
+	// APITokenFromRequest trims the query value, so compare trimmed values.
+	matches := func(value string) bool { return strings.TrimSpace(value) == token }
+	inQuery := slices.ContainsFunc(query[codersdk.SessionTokenCookie], matches) ||
+		slices.ContainsFunc(query[accessTokenQueryParam], matches)
 	if !inQuery {
 		return false
 	}
@@ -1021,11 +1035,7 @@ func tokenOnlyInQuery(r *http.Request, token string) bool {
 	if r.Header.Get(codersdk.SessionTokenHeader) == token {
 		return false
 	}
-	authHeader := r.Header.Get("Authorization")
-	if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") && strings.TrimSpace(authHeader[7:]) == token {
-		return false
-	}
-	return true
+	return bearerToken(r) != token
 }
 
 // SplitAPIToken verifies the format of an API key and returns the split ID and
