@@ -132,6 +132,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		waitEnum            string
 		noWait              bool
 		logDirPath          string
+		logBufferSize       int64
 		remoteForwards      []string
 		env                 []string
 		usageApp            string
@@ -263,7 +264,18 @@ func (r *RootCmd) ssh() *serpent.Command {
 			wg.Add(1)
 			defer wg.Done()
 
-			if logDirPath != "" {
+			// Session diagnostic logging is on by default; --log-dir overrides the
+			// default user state directory.
+			{
+				logDir := logDirPath
+				if logDir == "" {
+					logDir = defaultSessionLogDir()
+				}
+				if err := os.MkdirAll(logDir, 0o700); err != nil {
+					return xerrors.Errorf("create log dir %q: %w", logDir, err)
+				}
+				pruneSessionLogs(logDir, keepSessionLogFiles)
+
 				nonce, err := cryptorand.StringCharset(cryptorand.Lower, 5)
 				if err != nil {
 					return xerrors.Errorf("generate nonce: %w", err)
@@ -287,14 +299,14 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 				logFileBaseName += ".log"
 
-				logFilePath := filepath.Join(logDirPath, logFileBaseName)
+				logFilePath := filepath.Join(logDir, logFileBaseName)
 				logFile, err := os.OpenFile(
 					logFilePath,
 					os.O_CREATE|os.O_APPEND|os.O_WRONLY|os.O_EXCL,
 					0o600,
 				)
 				if err != nil {
-					return xerrors.Errorf("error opening %s for logging: %w", logDirPath, err)
+					return xerrors.Errorf("error opening %s for logging: %w", logDir, err)
 				}
 				dc := cliutil.DiscardAfterClose(logFile)
 				go func() {
@@ -302,9 +314,15 @@ func (r *RootCmd) ssh() *serpent.Command {
 					_ = dc.Close()
 				}()
 
+				// Run at Info with a flight recorder so debug detail leading up to a
+				// connection failure is written to the log file (on the deferred error
+				// log above) without logging debug during normal operation. Verbose
+				// writes debug unconditionally.
 				logger = logger.AppendSinks(sloghuman.Sink(dc))
 				if r.verbose {
 					logger = logger.Leveled(slog.LevelDebug)
+				} else {
+					logger = logger.Leveled(slog.LevelInfo).FlightRecorder(int(clampLogBufferSize(logBufferSize)))
 				}
 
 				// log HTTP requests
@@ -843,6 +861,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			FlagShorthand: "l",
 			Value:         serpent.StringOf(&logDirPath),
 		},
+		logBufferSizeOption(&logBufferSize),
 		{
 			Flag:          "remote-forward",
 			Description:   "Enable remote port forwarding (remote_port:local_address:local_port).",
