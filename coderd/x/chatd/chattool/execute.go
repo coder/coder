@@ -212,6 +212,20 @@ func executeBackground(
 	return fantasy.NewTextResponse(string(data))
 }
 
+type processWaitKey struct{}
+
+// WithProcessWait returns a context that reports a process tool's wait budget
+// before waiting. reserve must be safe for concurrent calls from a tool batch.
+func WithProcessWait(ctx context.Context, reserve func(time.Duration)) context.Context {
+	return context.WithValue(ctx, processWaitKey{}, reserve)
+}
+
+func reserveProcessWait(ctx context.Context, timeout time.Duration) {
+	if reserve, ok := ctx.Value(processWaitKey{}).(func(time.Duration)); ok && timeout > 0 {
+		reserve(timeout)
+	}
+}
+
 // executeForeground starts a process and waits for its
 // completion, enforcing the configured timeout.
 func executeForeground(
@@ -236,6 +250,7 @@ func executeForeground(
 		timeout = parsed
 	}
 
+	reserveProcessWait(ctx, timeout)
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -470,6 +485,7 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 			// Save parent context before applying timeout.
 			parentCtx := ctx
 			if timeout > 0 {
+				reserveProcessWait(ctx, timeout)
 				opts = &workspacesdk.ProcessOutputOptions{
 					Wait: true,
 				}
