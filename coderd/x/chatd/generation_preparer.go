@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -69,7 +70,7 @@ func (server *Server) effectiveMCPServerConfigs(
 func (server *Server) prepareGeneration(
 	ctx context.Context,
 	input generationPrepareInput,
-) (generationPrepared, error) {
+) (prepared generationPrepared, err error) {
 	chat := input.Chat
 	logger := server.logger.With(
 		slog.F("chat_id", chat.ID),
@@ -86,9 +87,14 @@ func (server *Server) prepareGeneration(
 	}()
 
 	var (
-		promptRows []database.ChatMessage
-		mcpConfigs []database.MCPServerConfig
-		mcpTokens  []database.MCPServerUserToken
+		promptRows       []database.ChatMessage
+		mcpConfigs       []database.MCPServerConfig
+		mcpTokens        []database.MCPServerUserToken
+		inlineMCPServers []mcpclient.Server
+		// mcpLoadFailures are servers that never reached the connect
+		// step. They join the connect summaries so the debug panel shows
+		// them next to connection failures.
+		mcpLoadFailures []mcpclient.ConnectSummary
 	)
 
 	var g errgroup.Group
@@ -105,6 +111,12 @@ func (server *Server) prepareGeneration(
 		mcpConfigs, err = server.effectiveMCPServerConfigs(ctx, logger, chat)
 		return err
 	})
+	if server.inlineMCPServersEnabled() {
+		g.Go(func() error {
+			inlineMCPServers, mcpLoadFailures = server.loadInlineMCPServers(ctx, chat)
+			return nil
+		})
+	}
 	if err := g.Wait(); err != nil {
 		return generationPrepared{}, err
 	}
@@ -176,8 +188,20 @@ func (server *Server) prepareGeneration(
 		currentPlanMode,
 		chat.ParentChatID,
 	)
+	// The caller picks the inline servers for each turn, so all of them
+	// are allowed in plan mode.
+	inlineMCPConnectServers, approvedInlineMCPServerIDs := filterMCPServersForTurn(
+		inlineMCPServers,
+		currentPlanMode,
+		chat.ParentChatID,
+		func(srv mcpclient.Server) (uuid.UUID, bool) { return srv.ID, true },
+	)
+	// Both sets are nil outside plan mode, so this never writes to a nil
+	// map. Every tool source below is filtered against the union.
+	maps.Copy(approvedPlanMCPConfigIDs, approvedInlineMCPServerIDs)
 	if isExploreSubagent && isRootChat {
 		mcpConnectConfigs = nil
+		inlineMCPConnectServers = nil
 		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
 	}
 
@@ -221,9 +245,24 @@ func (server *Server) prepareGeneration(
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
 	}
+	// mcpCleanup and inlineMCPCleanup are assigned by g2 goroutines and
+	// read only after g2.Wait, so no error path can run this before
+	// they are set.
+	var mcpCleanup, inlineMCPCleanup func()
 	cleanup := func() {
+		if inlineMCPCleanup != nil {
+			inlineMCPCleanup()
+		}
+		if mcpCleanup != nil {
+			mcpCleanup()
+		}
 		workspaceCtx.close()
 	}
+	defer func() {
+		if err != nil {
+			cleanup()
+		}
+	}()
 
 	planPathFn := func(ctx context.Context) (string, string, error) {
 		conn, err := workspaceCtx.getWorkspaceConn(ctx)
@@ -273,7 +312,8 @@ func (server *Server) prepareGeneration(
 		instruction        string
 		mcpTools           []fantasy.AgentTool
 		mcpSummaries       []mcpclient.ConnectSummary
-		mcpCleanup         func()
+		inlineMCPTools     []fantasy.AgentTool
+		inlineMCPSummaries []mcpclient.ConnectSummary
 		workspaceMCPTools  []fantasy.AgentTool
 		workspaceSkills    []chattool.SkillMeta
 		personalSkills     []skillspkg.Skill
@@ -323,7 +363,6 @@ func (server *Server) prepareGeneration(
 		var resolveErr error
 		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
 		if resolveErr != nil {
-			cleanup()
 			return generationPrepared{}, resolveErr
 		}
 	}
@@ -336,7 +375,6 @@ func (server *Server) prepareGeneration(
 	var debug *generationDebug
 	if resolved.debugEnabled {
 		if debugSvc == nil {
-			cleanup()
 			return generationPrepared{}, xerrors.New("chat debug service missing after enablement check")
 		}
 		debug = &generationDebug{
@@ -391,13 +429,46 @@ func (server *Server) prepareGeneration(
 				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
 			}
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
+			mcpServers := make([]mcpclient.Server, 0, len(mcpConnectConfigs))
+			var invalidConfigs []mcpclient.ConnectSummary
+			for _, cfg := range mcpConnectConfigs {
+				if !cfg.Enabled {
+					continue
+				}
+				srv, err := mcpclient.ServerFromConfig(cfg)
+				if err != nil {
+					logger.Warn(ctx, "skipping MCP server with invalid config",
+						slog.F("server_slug", cfg.Slug), slog.Error(err))
+					invalidConfigs = append(invalidConfigs, mcpclient.ConnectSummary{
+						ConfigID: cfg.ID,
+						Slug:     cfg.Slug,
+						Outcome:  mcpclient.ConnectOutcomeError,
+						Error:    "invalid server config",
+					})
+					continue
+				}
+				mcpServers = append(mcpServers, srv)
+			}
 			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
 				ctx,
 				logger,
-				mcpConnectConfigs,
+				mcpServers,
 				mcpTokens,
 				chat.OwnerID,
 				server.oidcTokenSource,
+				chatprovider.CoderHeaders(chat),
+				server.mcpHTTPClient,
+			)
+			mcpSummaries = append(mcpSummaries, invalidConfigs...)
+			return nil
+		})
+	}
+	if len(inlineMCPConnectServers) > 0 {
+		g2.Go(func() error {
+			inlineMCPTools, inlineMCPSummaries, inlineMCPCleanup = mcpclient.ConnectInline(
+				ctx,
+				logger,
+				inlineMCPConnectServers,
 				chatprovider.CoderHeaders(chat),
 				server.mcpHTTPClient,
 			)
@@ -422,6 +493,8 @@ func (server *Server) prepareGeneration(
 		})
 	}
 	g2Err := g2.Wait()
+	mcpSummaries = append(mcpSummaries, inlineMCPSummaries...)
+	mcpSummaries = append(mcpSummaries, mcpLoadFailures...)
 	// Record connect outcomes before acting on any preparation error:
 	// ConnectAll has already run, so a failure below (or in g2 itself)
 	// would otherwise discard this attempt's outcomes.
@@ -429,16 +502,7 @@ func (server *Server) prepareGeneration(
 		input.RecordMCPConnectSummaries(ctx, chat, debug, mcpSummaries)
 	}
 	if g2Err != nil {
-		cleanup()
 		return generationPrepared{}, g2Err
-	}
-
-	if mcpCleanup != nil {
-		previousCleanup := cleanup
-		cleanup = func() {
-			mcpCleanup()
-			previousCleanup()
-		}
 	}
 
 	prompt, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(model.Provider(), prompt)
@@ -605,12 +669,22 @@ func (server *Server) prepareGeneration(
 	if !isExploreSubagent {
 		tools = append(tools, workspaceMCPTools...)
 	}
+	// Inline tools join after every trusted source so a name
+	// collision resolves in favor of the trusted tool, and before the
+	// plan-mode filter so they are subject to the same approved set.
+	tools = mcpclient.AppendInline(ctx, logger, tools, inlineMCPTools)
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 
-	tools, dynamicToolNames, err := appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode)
-	if err != nil {
-		cleanup()
-		return generationPrepared{}, err
+	var dynamicToolNames map[string]bool
+	if server.disableCallerSuppliedTools {
+		if chat.DynamicTools.Valid {
+			logger.Debug(ctx, "skipping dynamic tools: caller-supplied tools are disabled on this deployment")
+		}
+	} else {
+		tools, dynamicToolNames, err = appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode)
+		if err != nil {
+			return generationPrepared{}, err
+		}
 	}
 
 	var providerTools []chatloop.ProviderTool
@@ -638,7 +712,6 @@ func (server *Server) prepareGeneration(
 			logger:           server.logger.Named("computer_use"),
 		})
 		if err != nil {
-			cleanup()
 			return generationPrepared{}, xerrors.Errorf("register computer use provider tool for provider %q: %w", computerUseProvider, err)
 		}
 	} else {
@@ -647,7 +720,6 @@ func (server *Server) prepareGeneration(
 			isComputerUse:  false,
 		})
 		if err != nil {
-			cleanup()
 			return generationPrepared{}, err
 		}
 	}
@@ -728,7 +800,6 @@ func (server *Server) prepareGeneration(
 		providerFailure: modelOverrideFailureModeSoft,
 	})
 	if err != nil {
-		cleanup()
 		return generationPrepared{}, err
 	}
 	var compactionOverride *resolvedModelOverride
