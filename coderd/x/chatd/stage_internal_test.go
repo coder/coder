@@ -31,7 +31,7 @@ func newStageTestTracer(t *testing.T) (*chatloop.StageTracer, *tracetest.SpanRec
 
 // newStageMetricsTracer returns a stage tracer writing spans into an
 // in-memory recorder and metrics into a private registry.
-func newStageMetricsTracer(t *testing.T) (*chatloop.StageTracer, *tracetest.SpanRecorder, *prometheus.Registry) {
+func newStageMetricsTracer(t *testing.T, opts ...chatloop.StageTracerOption) (*chatloop.StageTracer, *tracetest.SpanRecorder, *prometheus.Registry) {
 	t.Helper()
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
@@ -40,7 +40,7 @@ func newStageMetricsTracer(t *testing.T) (*chatloop.StageTracer, *tracetest.Span
 		require.NoError(t, provider.Shutdown(context.Background()))
 	})
 	registry := prometheus.NewRegistry()
-	return chatloop.NewStageTracer(provider, chatloop.NewMetricsWithOptions(registry, chatloop.MetricsOptions{StageMetrics: true})), recorder, registry
+	return chatloop.NewStageTracer(provider, chatloop.NewMetricsWithOptions(registry, chatloop.MetricsOptions{StageMetrics: true}), opts...), recorder, registry
 }
 
 // anomalyCount returns the stage anomaly count recorded for reason.
