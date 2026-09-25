@@ -3513,7 +3513,7 @@ export interface ChatStructuredOutput {
 	 * Value is the validated output of a succeeded request. The JSON null
 	 * value is a valid output and is distinct from an absent value.
 	 */
-	readonly value?: Record<string, string>;
+	readonly value?: unknown;
 	readonly error?: ChatStructuredOutputError;
 }
 
