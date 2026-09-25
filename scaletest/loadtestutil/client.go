@@ -22,7 +22,7 @@ func DupClientCopyingHeaders(client *codersdk.Client, header http.Header) (*code
 	}
 	nc.HTTPClient.Transport = &codersdk.HeaderTransport{
 		Transport: t.Clone(),
-		Provider: dynamicHeaderProvider{
+		Provider: nestedHeaderProvider{
 			inner:  provider,
 			static: header.Clone(),
 		},
@@ -30,13 +30,13 @@ func DupClientCopyingHeaders(client *codersdk.Client, header http.Header) (*code
 	return nc, nil
 }
 
-// dynamicHeaderProvider resolves current headers before adding its static headers.
-type dynamicHeaderProvider struct {
+// nestedHeaderProvider resolves current headers before adding its static headers.
+type nestedHeaderProvider struct {
 	inner  codersdk.HeaderProvider
 	static http.Header
 }
 
-func (p dynamicHeaderProvider) Headers(ctx context.Context) (http.Header, error) {
+func (p nestedHeaderProvider) Headers(ctx context.Context) (http.Header, error) {
 	headers, err := p.inner.Headers(ctx)
 	if err != nil {
 		return nil, err
