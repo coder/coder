@@ -31,6 +31,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogjson"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
@@ -4329,8 +4330,8 @@ func TestStructuredLogging(t *testing.T) {
 				// No log expected (disabled or error case).
 				require.Empty(t, lines)
 			} else {
-				matchedLines := getLogLinesWithMessage(lines, aibridgedserver.InterceptionLogMarker)
-				require.GreaterOrEqual(t, len(matchedLines), 1, "expected at least 1 log line(s) with message %q", aibridgedserver.InterceptionLogMarker)
+				matchedLines := getLogLinesWithMessage(lines, recorder.InterceptionLogMarker)
+				require.GreaterOrEqual(t, len(matchedLines), 1, "expected at least 1 log line(s) with message %q", recorder.InterceptionLogMarker)
 
 				fields := matchedLines[0].Fields
 				for key, expected := range tc.expectedFields {

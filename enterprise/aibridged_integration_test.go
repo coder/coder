@@ -26,9 +26,9 @@ import (
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	aibtracing "github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/coderd/aibridged"
-	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -258,7 +258,7 @@ func TestIntegration(t *testing.T) {
 	require.Equal(t, database.CredentialKindCentralized, intc0.CredentialKind)
 	require.Equal(t, "test...-key", intc0.CredentialHint)
 
-	intc0Metadata := gjson.GetBytes(intc0.Metadata.RawMessage, aibridgedserver.MetadataUserAgentKey)
+	intc0Metadata := gjson.GetBytes(intc0.Metadata.RawMessage, recorder.MetadataUserAgentKey)
 	require.Equal(t, userAgent, intc0Metadata.String(), "interception metadata user agent should match request user agent")
 
 	prompts, err := db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptions[0].ID)
