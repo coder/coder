@@ -9519,10 +9519,6 @@ export interface TemplateBuilderBasesResponse {
  */
 export interface TemplateBuilderComposeModule {
 	readonly id: string;
-	/**
-	 * AgentName targets a base coder_agent by name. Empty uses the base default.
-	 */
-	readonly agent_name?: string;
 	readonly variables?: Record<string, string>;
 }
 
