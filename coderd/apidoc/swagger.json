@@ -17840,8 +17840,12 @@
 		},
 		"codersdk.ChatBusyBehavior": {
 			"type": "string",
-			"enum": ["queue", "interrupt"],
-			"x-enum-varnames": ["ChatBusyBehaviorQueue", "ChatBusyBehaviorInterrupt"]
+			"enum": ["queue", "steer", "interrupt"],
+			"x-enum-varnames": [
+				"ChatBusyBehaviorQueue",
+				"ChatBusyBehaviorSteer",
+				"ChatBusyBehaviorInterrupt"
+			]
 		},
 		"codersdk.ChatClientType": {
 			"type": "string",
@@ -19256,6 +19260,14 @@
 		"codersdk.ChatQueuedMessage": {
 			"type": "object",
 			"properties": {
+				"busy_behavior": {
+					"enum": ["queue", "steer", "interrupt"],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ChatBusyBehavior"
+						}
+					]
+				},
 				"chat_id": {
 					"type": "string",
 					"format": "uuid"
@@ -19809,7 +19821,7 @@
 			"type": "object",
 			"properties": {
 				"busy_behavior": {
-					"enum": ["queue", "interrupt"],
+					"enum": ["queue", "steer", "interrupt"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.ChatBusyBehavior"

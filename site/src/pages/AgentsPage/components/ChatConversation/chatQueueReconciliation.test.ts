@@ -23,6 +23,7 @@ describe("restoreOptimisticRequestSnapshot", () => {
 				chat_id: "chat-abc-123",
 				created_at: "2025-01-01T00:00:00.000Z",
 				content: [{ type: "text" as const, text: "queued" }],
+				busy_behavior: "queue",
 			},
 		]);
 		store.setChatStatus("running");

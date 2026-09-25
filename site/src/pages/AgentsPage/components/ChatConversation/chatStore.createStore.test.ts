@@ -30,6 +30,7 @@ const makeQueuedMessage = (
 		chat_id: chatID,
 		created_at: "2025-01-01T00:00:00Z",
 		content: [{ type: "text", text }],
+		busy_behavior: "queue",
 	}) as TypesGen.ChatQueuedMessage;
 
 const testChatID = "chat-1";

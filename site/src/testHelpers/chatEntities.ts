@@ -159,5 +159,6 @@ export const MockChatQueuedMessage: ChatQueuedMessage = {
 	id: 1,
 	chat_id: "chat-1",
 	content: [{ type: "text", text: "Queued message" }],
+	busy_behavior: "queue",
 	created_at: MOCK_TIMESTAMP,
 };

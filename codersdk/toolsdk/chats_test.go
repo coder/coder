@@ -764,10 +764,29 @@ func TestChatTools(t *testing.T) {
 			BusyBehavior: codersdk.ChatBusyBehaviorQueue,
 		})
 		require.NoError(t, err)
+		steered, err := testTool(t, toolsdk.SendChatMessage, tb, toolsdk.SendChatMessageArgs{
+			ChatID:       created.ID,
+			Text:         "Steered while busy.",
+			BusyBehavior: codersdk.ChatBusyBehaviorSteer,
+		})
+		require.NoError(t, err)
+		require.True(t, steered.Queued)
+		messages, err := expClient.GetChatMessages(ctx, uuid.MustParse(created.ID), nil)
+		require.NoError(t, err)
+		behaviors := make([]codersdk.ChatBusyBehavior, 0, len(messages.QueuedMessages))
+		for _, queued := range messages.QueuedMessages {
+			behaviors = append(behaviors, queued.BusyBehavior)
+		}
+		require.Equal(t, []codersdk.ChatBusyBehavior{
+			codersdk.ChatBusyBehaviorQueue,
+			codersdk.ChatBusyBehaviorQueue,
+			codersdk.ChatBusyBehaviorSteer,
+		}, behaviors)
 		transcript, err := testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{ChatID: created.ID})
 		require.NoError(t, err)
 		require.Contains(t, transcript.QueuedMessages, "Queued while busy.")
 		require.Contains(t, transcript.QueuedMessages, "(attached files: queued-only.txt)")
+		require.Contains(t, transcript.QueuedMessages, "Steered while busy.")
 
 		interrupted, err := testTool(t, toolsdk.InterruptChat, tb, toolsdk.InterruptChatArgs{ChatID: created.ID})
 		require.NoError(t, err)

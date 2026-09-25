@@ -2054,9 +2054,13 @@ export interface ChatAutoArchiveDaysResponse {
 }
 
 // From codersdk/chats.go
-export type ChatBusyBehavior = "interrupt" | "queue";
+export type ChatBusyBehavior = "interrupt" | "queue" | "steer";
 
-export const ChatBusyBehaviors: ChatBusyBehavior[] = ["interrupt", "queue"];
+export const ChatBusyBehaviors: ChatBusyBehavior[] = [
+	"interrupt",
+	"queue",
+	"steer",
+];
 
 // From codersdk/chats.go
 export type ChatClientType = "api" | "ui";
@@ -3311,6 +3315,7 @@ export interface ChatQueuedMessage {
 	readonly chat_id: string;
 	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
+	readonly busy_behavior: ChatBusyBehavior;
 	readonly created_at: string;
 }
 
