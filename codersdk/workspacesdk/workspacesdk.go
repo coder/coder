@@ -461,10 +461,12 @@ type CoderConnectQueryOptions struct {
 	HostnameSuffix string
 }
 
-// IsCoderConnectRunning checks if Coder Connect (OS level tunnel to workspaces) is running on the system. If you
-// already know the hostname suffix your deployment uses, you can pass it in the CoderConnectQueryOptions to avoid an
-// API call to AgentConnectionInfoGeneric.
-func (c *Client) IsCoderConnectRunning(ctx context.Context, o CoderConnectQueryOptions) (bool, error) {
+// IsCoderVpnConnected checks if Coder Connect (OS level tunnel to workspaces) is running on the system and has a
+// working connection to the deployment. While Coder Connect is disconnected from the control plane and cannot reach
+// any workspace, it stops publishing DNS names and this returns false. If you already know the hostname suffix your
+// deployment uses, you can pass it in the CoderConnectQueryOptions to avoid an API call to
+// AgentConnectionInfoGeneric.
+func (c *Client) IsCoderVpnConnected(ctx context.Context, o CoderConnectQueryOptions) (bool, error) {
 	suffix := o.HostnameSuffix
 	if suffix == "" {
 		info, err := c.AgentConnectionInfoGeneric(ctx)
