@@ -1,6 +1,7 @@
 package httpmw_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -269,7 +270,10 @@ func TestOAuth2ProviderTokenInQueryString(t *testing.T) {
 		wwwAuth := rw.Header().Get("WWW-Authenticate")
 		require.True(t, strings.HasPrefix(wwwAuth, `Bearer realm="coder"`), wwwAuth)
 		require.NotContains(t, wwwAuth, "error=")
-		require.Contains(t, rw.Body.String(), "Authorization header")
+		var resp codersdk.Response
+		require.NoError(t, json.Unmarshal(rw.Body.Bytes(), &resp))
+		require.Equal(t, "OAuth2 access token in the URL query string was ignored.", resp.Message)
+		require.Contains(t, resp.Detail, "Authorization header")
 	}
 
 	t.Run("AccessTokenQuery", func(t *testing.T) {

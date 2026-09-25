@@ -136,6 +136,11 @@ const (
 	accessTokenQueryParam = "access_token"
 	// bearerPrefix is compared case-insensitively per RFC 6750.
 	bearerPrefix = "bearer "
+
+	//nolint:gosec // G101: message text, not a hardcoded credential.
+	oauth2TokenInQueryMessage = "OAuth2 access token in the URL query string was ignored."
+	//nolint:gosec // G101: message text, not a hardcoded credential.
+	oauth2TokenInQueryDetail = "OAuth 2.1 section 5.1 requires resource servers to ignore access tokens in the URL query string. Send the token in the Authorization header as a bearer token."
 )
 
 type ExtractAPIKeyConfig struct {
@@ -583,8 +588,8 @@ func apiKeyFromRequestValidate(ctx context.Context, db database.Store, logger sl
 		return nil, &ValidateAPIKeyError{
 			Code: http.StatusUnauthorized,
 			Response: codersdk.Response{
-				Message: SignedOutErrorMessage,
-				Detail:  errDetailOAuth2TokenInQuery,
+				Message: oauth2TokenInQueryMessage,
+				Detail:  oauth2TokenInQueryDetail,
 			},
 		}
 	}
@@ -883,7 +888,7 @@ func buildWWWAuthenticateHeader(accessURL *url.URL, r *http.Request, code int, r
 	switch code {
 	case http.StatusUnauthorized:
 		switch {
-		case response.Detail == errDetailOAuth2TokenInQuery:
+		case response.Message == oauth2TokenInQueryMessage:
 			// The query token was ignored, so the request carried no usable
 			// credentials. RFC 6750 section 3 says not to include an error
 			// code in that case.
@@ -956,10 +961,6 @@ func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, s
 	}.WithCachedASTValue()
 	return actor, roles.Status, nil
 }
-
-// errDetailOAuth2TokenInQuery is the response detail for an OAuth2 provider
-// token that was sent only in the URL query string.
-const errDetailOAuth2TokenInQuery = "OAuth2 access tokens in the URL query string are ignored (OAuth 2.1 section 5.1). Send the token in the Authorization header as a bearer token." //nolint:gosec // G101: message text, not a hardcoded credential.
 
 // APITokenFromRequest returns the api token from the request.
 // Find the session token from:
