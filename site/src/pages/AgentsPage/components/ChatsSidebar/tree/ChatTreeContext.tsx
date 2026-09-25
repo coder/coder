@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import type { ChatTree } from "./chatTree";
 
@@ -25,6 +25,8 @@ export type ChatTreeContextValue = {
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
+	/** Extra content under the age in a row's right column. Absent unless an experiment supplies it. */
+	readonly renderTrailing?: (chat: Chat) => ReactNode;
 };
 
 export const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
