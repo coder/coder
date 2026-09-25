@@ -269,7 +269,15 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 								"block flex-1 truncate text-[13px] leading-4",
 								isActive || isEmphasizedTitle
 									? "text-content-primary"
-									: "text-content-secondary [@media(hover:hover)]:group-hover:text-content-primary",
+									: cn(
+											"[@media(hover:hover)]:group-hover:text-content-primary",
+											// Two-line rows dim the title slightly; compact rows
+											// have no second line to carry the contrast, so they
+											// recede further.
+											isCompact
+												? "text-content-secondary"
+												: "text-content-primary/80",
+										),
 							)}
 						>
 							{chat.title}

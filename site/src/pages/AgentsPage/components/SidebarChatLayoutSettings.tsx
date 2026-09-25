@@ -26,9 +26,9 @@ export const SidebarChatLayoutSettings: FC = () => {
 			</h3>
 			<div className="flex items-center justify-between gap-4">
 				<p className="m-0 flex-1 text-xs text-content-secondary">
-					How chats appear in the sidebar. 'Two lines' shows pull request
-					changes and the latest summary under each title. 'One line' shows only
-					the title.
+					How chats appear in the sidebar. 'One line' shows the chat status,
+					title, pull request status, and shared indicator. 'Two lines' adds the
+					latest summary, pull request changes, and time of last activity.
 				</p>
 				<Select
 					value={layout}
