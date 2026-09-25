@@ -86,7 +86,7 @@ const useToolCallContext = () => {
 /**
  * Props for {@link ToolCall.Root}.
  *
- * The root can be controlled with `view` or `expanded`, or uncontrolled
+ * The root can be controlled with `expanded`, or uncontrolled
  * with `defaultView` and `defaultExpanded`. When both uncontrolled props
  * are provided, `defaultView` wins because it can represent the more
  * specific `preview` state.
@@ -107,9 +107,7 @@ type ToolCallRootProps = Omit<React.ComponentProps<"div">, "children"> & {
 	defaultView?: ToolCallView;
 	expanded?: boolean;
 	onExpandedChange?: (expanded: boolean) => void;
-	onViewChange?: (view: ToolCallView) => void;
 	ariaLabel?: ToolCallAriaLabel;
-	view?: ToolCallView;
 };
 
 /**
@@ -129,22 +127,19 @@ const Root: React.FC<ToolCallRootProps> = ({
 	defaultView,
 	expanded: expandedProp,
 	onExpandedChange,
-	onViewChange,
 	ariaLabel,
 	className,
-	view: viewProp,
 	...divProps
 }) => {
 	const [uncontrolledView, setUncontrolledView] = useState<ToolCallView>(
 		defaultView ?? (defaultExpanded ? "expanded" : "collapsed"),
 	);
 	const controlledView =
-		viewProp ??
-		(expandedProp === undefined
+		expandedProp === undefined
 			? undefined
 			: expandedProp
 				? "expanded"
-				: "collapsed");
+				: "collapsed";
 	const view = controlledView ?? uncontrolledView;
 	const expanded = view !== "collapsed";
 	const collapsible = hasContent;
@@ -155,7 +150,6 @@ const Root: React.FC<ToolCallRootProps> = ({
 		if (controlledView === undefined) {
 			setUncontrolledView(nextView);
 		}
-		onViewChange?.(nextView);
 		onExpandedChange?.(nextView !== "collapsed");
 	};
 
@@ -273,20 +267,15 @@ const LeadingIcon: React.FC<ToolCallLeadingIconProps> = ({
 type ToolCallLabelProps = {
 	children: React.ReactNode;
 	className?: string;
-	shimmerWhenActive?: boolean;
 };
 
-const Label: React.FC<ToolCallLabelProps> = ({
-	children,
-	className,
-	shimmerWhenActive = true,
-}) => {
+const Label: React.FC<ToolCallLabelProps> = ({ children, className }) => {
 	const { active } = useToolCallContext();
 	const labelClassName = cn(
 		"min-w-0 truncate text-[13px] leading-6",
 		className,
 	);
-	if (active && shimmerWhenActive && typeof children === "string") {
+	if (active && typeof children === "string") {
 		return (
 			<Shimmer as="span" className={labelClassName}>
 				{children}
@@ -397,7 +386,6 @@ type ToolCallHeaderProps = {
 	secondaryLabel?: React.ReactNode;
 	trailing?: React.ReactNode;
 	showStatus?: boolean;
-	headerClassName?: string;
 };
 
 /**
@@ -417,10 +405,9 @@ const Header: React.FC<ToolCallHeaderProps> = ({
 	secondaryLabel,
 	trailing,
 	showStatus = true,
-	headerClassName,
 }) => {
 	return (
-		<HeaderButton className={headerClassName}>
+		<HeaderButton>
 			<LeadingIcon name={iconName} iconUrl={iconUrl} serverName={serverName} />
 			<Label>{label}</Label>
 			{secondaryLabel}
