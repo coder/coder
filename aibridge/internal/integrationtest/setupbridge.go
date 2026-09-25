@@ -179,9 +179,7 @@ func newBridgeTestServer(
 	}
 
 	mockRec := &testutil.MockRecorder{}
-	rec := aibridge.NewRecorder(cfg.logger, cfg.tracer, cfg.apiKeyID, cfg.structuredLogging, func(context.Context) (aibridge.Recorder, error) {
-		return mockRec, nil
-	}, cfg.recorderMiddleware...)
+	rec := aibridge.NewRecorder(cfg.logger, cfg.tracer, cfg.apiKeyID, cfg.structuredLogging, mockRec, cfg.recorderMiddleware...)
 
 	bridge, err := aibridge.NewRequestBridge(
 		ctx, providers, rec, cfg.mcpProxy,

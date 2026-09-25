@@ -35,7 +35,7 @@ const (
 // If the wrapped recorder is nil, calls are logged but not delegated on.
 //
 // LogRecorder is the single place where calls to a [Recorder] are logged.
-// Logs were taken from [WrappedRecorder] and [AsyncRecorder] for backwards
+// Logs were taken from the recorders which logged them before, for backwards
 // compatibility. A single failure therefore still produces two lines for
 // most records. This is suboptimal, but a requirement for backwards compatibility.
 type LogRecorder struct {
@@ -320,8 +320,8 @@ type logEntry struct {
 }
 
 // logResult centralizes logging done throughout the [LogRecorder] for consistency.
-// [LogRecorder] takes over the logging responsibility from both [WrappedRecorder]
-// and [AsyncRecorder]. To preserve the inherited behavior, it logs two similar
+// [LogRecorder] takes over the logging responsibility from the recorders which
+// logged before it. To preserve the inherited behavior, it logs two similar
 // lines for every call. This duplicate logging is suboptimal, but also load bearing.
 // It cannot be easily deduplicated, because customers have had the opportunity to
 // build observability and alerting based on it.

@@ -75,9 +75,8 @@ func NewMetrics(reg prometheus.Registerer) *metrics.Metrics {
 	return metrics.NewMetrics(reg)
 }
 
-// NewRecorder creates a [Recorder] which logs each record, refuses malformed
-// ones, and acquires a client per call. clientFn receives the context of the
-// call it serves.
+// NewRecorder creates a [Recorder] which logs each record and refuses
+// malformed ones before handing it to base.
 //
 // middleware is inserted below the logging and validating middleware, so that
 // every record is logged and checked before any of it runs, and above the
@@ -85,12 +84,12 @@ func NewMetrics(reg prometheus.Registerer) *metrics.Metrics {
 // measure. Policy that drops records, such as [recorder.WithoutRecords],
 // belongs here: it keeps NewRecorder to its own concerns and leaves the choice
 // to the caller.
-func NewRecorder(logger slog.Logger, tracer trace.Tracer, apiKeyID string, structured bool, clientFn func(context.Context) (Recorder, error), middleware ...recorder.Middleware) Recorder {
+func NewRecorder(logger slog.Logger, tracer trace.Tracer, apiKeyID string, structured bool, base Recorder, middleware ...recorder.Middleware) Recorder {
 	chain := make([]recorder.Middleware, 0, len(middleware)+3)
 	chain = append(chain, recorder.WithLogging(logger, apiKeyID, structured))
 	chain = append(chain, recorder.WithValidation(logger))
 	chain = append(chain, middleware...)
 	chain = append(chain, recorder.WithTracing(tracer))
 
-	return recorder.ChainMiddleware(chain...)(recorder.NewWrappedRecorder(clientFn))
+	return recorder.ChainMiddleware(chain...)(base)
 }
