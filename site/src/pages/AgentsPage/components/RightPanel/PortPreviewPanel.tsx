@@ -3,7 +3,14 @@ import {
 	MessageSquarePlusIcon,
 	NetworkIcon,
 } from "lucide-react";
-import { type FC, useEffect, useId, useRef, useState } from "react";
+import {
+	type FC,
+	useEffect,
+	useEffectEvent,
+	useId,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import { formatAnnotations } from "#/annotator/formatAnnotations";
 import {
@@ -27,6 +34,7 @@ import {
 	useComposer,
 } from "../../context/ComposerContext";
 import { useAnnotatorBridge } from "../../hooks/useAnnotatorBridge";
+import { parseEditedFiles, sourceFileWasEdited } from "../../utils/editedFiles";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 
 const sendRetries = 6;
@@ -60,6 +68,19 @@ async function deliver(
 	return false;
 }
 
+// Elements from annotations sent this turn, highlighted in the preview
+// until the agent's turn ends. `started` guards against a send resolving
+// before the chat reports the turn as running; further annotations sent
+// during the same turn accumulate rather than replace each other.
+type WorkingAnnotations = {
+	items: HighlightItem[];
+	// Source file behind each element, keyed by annotation id, when the app
+	// exposed one. Limits the end-of-turn acknowledgement to the elements
+	// the agent's edits actually reached.
+	sources: Record<string, string>;
+	started: boolean;
+};
+
 export const PortPreviewPanel: FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
@@ -71,6 +92,10 @@ export const PortPreviewPanel: FC<{
 	// Drives the shimmer over annotated elements: on while the agent works
 	// on a sent annotation message, cleared when it stops.
 	isAgentWorking?: boolean;
+	// Files the agent edited this turn, newline-joined. When the turn ends,
+	// annotations whose element came from one of them are acknowledged as
+	// changed instead of just clearing.
+	editedFiles?: string;
 	annotatorReadyTimeoutMs?: number;
 }> = ({
 	workspace,
@@ -79,6 +104,7 @@ export const PortPreviewPanel: FC<{
 	tab,
 	canAnnotate = false,
 	isAgentWorking = false,
+	editedFiles = "",
 	annotatorReadyTimeoutMs,
 }) => {
 	const url = portForwardURL(
@@ -102,14 +128,7 @@ export const PortPreviewPanel: FC<{
 	// hosts the overlay instead of the iframe so annotations still reach
 	// this chat; closing it hands control back to the frame.
 	const [popout, setPopout] = useState<{ window: Window; key: number }>();
-	// Elements from annotations sent this turn, highlighted in the preview
-	// until the agent's turn ends. `started` guards against a send resolving
-	// before the chat reports the turn as running; further annotations sent
-	// during the same turn accumulate rather than replace each other.
-	const [workingOn, setWorkingOn] = useState<{
-		items: HighlightItem[];
-		started: boolean;
-	}>();
+	const [workingOn, setWorkingOn] = useState<WorkingAnnotations>();
 
 	// Each saved comment goes straight to the agent as its own message.
 	// Sends are serialised so quick successive comments arrive in order.
@@ -125,10 +144,17 @@ export const PortPreviewPanel: FC<{
 			selector: element.selector,
 			url: submission.page.url,
 		}));
+		const sources: Record<string, string> = {};
+		for (const { id, element } of submission.annotations) {
+			if (element.sourceLocation) {
+				sources[id] = element.sourceLocation;
+			}
+		}
 		sendQueueRef.current = sendQueueRef.current.then(async () => {
 			if (await deliver(composer, message)) {
 				setWorkingOn((current) => ({
 					items: [...(current?.items ?? []), ...items],
+					sources: { ...current?.sources, ...sources },
 					started: current?.started ?? false,
 				}));
 			}
@@ -209,6 +235,22 @@ export const PortPreviewPanel: FC<{
 		bridge.setPicking(!bridge.requested);
 	};
 
+	// The turn is over: acknowledge the annotations whose source file the
+	// agent edited and clear the rest. An event rather than an effect
+	// dependency, so edits landing mid-turn do not re-send the highlights
+	// and restart the shimmer.
+	const finishTurn = useEffectEvent((finished: WorkingAnnotations) => {
+		const edited = parseEditedFiles(editedFiles);
+		const changed = finished.items
+			.filter((item) => sourceFileWasEdited(finished.sources[item.id], edited))
+			.map((item) => item.id);
+		if (changed.length > 0) {
+			bridge.resolveHighlights(changed);
+		} else {
+			bridge.clearHighlights();
+		}
+	});
+
 	// The overlay owns the drawing; this only tells it what to show. Runs
 	// again when the overlay reloads so a pending shimmer is restored.
 	useEffect(() => {
@@ -223,7 +265,7 @@ export const PortPreviewPanel: FC<{
 			return;
 		}
 		if (workingOn.started) {
-			bridge.clearHighlights();
+			finishTurn(workingOn);
 			setWorkingOn(undefined);
 			return;
 		}
@@ -231,13 +273,7 @@ export const PortPreviewPanel: FC<{
 		// no-op, or the turn ended before the status reached us), drop it.
 		const timer = setTimeout(() => setWorkingOn(undefined), turnStartGraceMs);
 		return () => clearTimeout(timer);
-	}, [
-		workingOn,
-		isAgentWorking,
-		bridge.ready,
-		bridge.highlight,
-		bridge.clearHighlights,
-	]);
+	}, [workingOn, isAgentWorking, bridge.ready, bridge.highlight]);
 
 	// Escape leaves annotate mode from either side. Focus normally stays in
 	// the dashboard when the button is clicked, so move it into the frame

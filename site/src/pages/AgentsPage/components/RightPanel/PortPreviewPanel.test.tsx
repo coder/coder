@@ -41,7 +41,7 @@ function frameWindow(frame: HTMLIFrameElement): Window {
 }
 
 function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
-	const panel = (isAgentWorking: boolean) => (
+	const panel = (isAgentWorking: boolean, editedFiles?: string) => (
 		<ComposerProvider>
 			<Composer onSend={onSend} />
 			<PortPreviewPanel
@@ -51,13 +51,14 @@ function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
 				tab={tab}
 				canAnnotate
 				isAgentWorking={isAgentWorking}
+				editedFiles={editedFiles}
 				annotatorReadyTimeoutMs={readyTimeoutMs}
 			/>
 		</ComposerProvider>
 	);
 	const view = renderComponent(panel(false));
-	const setAgentWorking = (isAgentWorking: boolean) =>
-		view.rerender(panel(isAgentWorking));
+	const setAgentWorking = (isAgentWorking: boolean, editedFiles?: string) =>
+		view.rerender(panel(isAgentWorking, editedFiles));
 	// Requesting the overlay remounts the iframe, so always look it up fresh.
 	const frame = () => screen.getByTitle<HTMLIFrameElement>("Preview :3000");
 	const frameOrigin = new URL(frame().src).origin;
@@ -411,6 +412,66 @@ describe("PortPreviewPanel annotations", () => {
 				{ type: "coder-annotator:clear-highlights" },
 				frameOrigin,
 			),
+		);
+	});
+
+	it("acknowledges the annotations whose source files the agent edited", async () => {
+		const { frame, frameOrigin, receive, onSend, setAgentWorking } =
+			renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+		const annotation = submission.annotations[0];
+		receive({
+			...submission,
+			annotations: [
+				{
+					...annotation,
+					element: {
+						...annotation.element,
+						sourceLocation: "/app/src/components/SaveButton.tsx:14",
+					},
+				},
+				{
+					...annotation,
+					id: "b",
+					element: {
+						...annotation.element,
+						selector: "h1",
+						sourceLocation: "/app/src/components/Title.tsx:3",
+					},
+				},
+				{ ...annotation, id: "c" },
+			],
+		});
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+
+		setAgentWorking(true);
+		await waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "coder-annotator:highlight" }),
+				frameOrigin,
+			),
+		);
+
+		// The agent edited the button's file under the workspace root, not the
+		// container path the app reported, and touched an unrelated file.
+		setAgentWorking(
+			false,
+			[
+				"/home/coder/app/src/components/SaveButton.tsx",
+				"/home/coder/app/src/components/Other.tsx",
+			].join("\n"),
+		);
+		await waitFor(() =>
+			expect(postMessage).toHaveBeenLastCalledWith(
+				{ type: "coder-annotator:resolved", ids: ["a"] },
+				frameOrigin,
+			),
+		);
+		expect(postMessage).not.toHaveBeenCalledWith(
+			{ type: "coder-annotator:clear-highlights" },
+			frameOrigin,
 		);
 	});
 

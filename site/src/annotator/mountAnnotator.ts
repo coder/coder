@@ -1,6 +1,6 @@
 import { describeElement } from "./describeElement";
 import { outlineInset, viewportBox } from "./geometry";
-import { createHighlightLayer } from "./highlights";
+import { createHighlightLayer, statusChip } from "./highlights";
 import { carryMarkerAcrossNavigation } from "./navigation";
 import pickingCursorStyles from "./pickingCursor.css?inline";
 import {
@@ -21,6 +21,9 @@ type AnnotatorHandle = {
 	// `hint` shows the first-run hint alongside picking mode.
 	setPicking(picking: boolean, hint?: boolean): void;
 	setHighlights(items: HighlightItem[]): void;
+	// Acknowledges the listed annotations as changed by the agent and clears
+	// the rest.
+	resolveHighlights(ids: string[]): void;
 	getState(): AnnotatorState;
 	destroy(): void;
 };
@@ -60,9 +63,6 @@ const closeIcon =
 
 const plusIcon =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>';
-
-const checkIcon =
-	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 
 const sparklesIcon =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></svg>';
@@ -324,10 +324,7 @@ export function mountAnnotator(
 		flash.style.height = `${box.height}px`;
 		flash.classList.toggle("at-top", box.clampedTop);
 		flash.classList.toggle("at-right", box.clampedRight);
-		const chip = el(doc, "span", "sent-chip");
-		chip.innerHTML = checkIcon;
-		chip.append("Sent");
-		flash.append(chip);
+		flash.append(statusChip(doc, "Sent"));
 		shadow.append(flash);
 		win.setTimeout(() => flash.remove(), sentFlashMs);
 	};
@@ -581,6 +578,7 @@ export function mountAnnotator(
 	return {
 		setPicking,
 		setHighlights: highlights.set,
+		resolveHighlights: highlights.resolve,
 		getState: () => ({ picking }),
 		destroy: () => {
 			setPicking(false);
