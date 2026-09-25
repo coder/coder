@@ -13,15 +13,30 @@ import {
 type DraftChatProps = {
 	/** Labels that place the chat on the board, sent with the create request. */
 	readonly labels: Record<string, string>;
-	/** Appended to the first message as a fenced block when present. A note may itself contain a three-backtick fence. */
+	/**
+	 * Appended to the first message in a backtick fence one longer than the
+	 * longest backtick run inside it (at least four), so no title, summary or
+	 * note can close the block early.
+	 */
 	readonly context: string | undefined;
 	readonly onCreated: (chatId: string) => void;
+};
+
+const fenced = (text: string) => {
+	const longestRun = Math.max(
+		0,
+		...(text.match(/`+/g) ?? []).map((run) => run.length),
+	);
+	const fence = "`".repeat(Math.max(4, longestRun + 1));
+	return `${fence}\n${text}\n${fence}`;
 };
 
 /**
  * The regular create form inside a board window. Submit is a copy of
  * AgentCreatePage.handleCreateChat plus labels and context, so the chat is
- * born on the board and the regular system prompt applies unchanged.
+ * born on the board and the regular system prompt applies unchanged; the
+ * experiment copies helpers instead of exporting them from production
+ * modules.
  */
 export const DraftChat: FC<DraftChatProps> = ({
 	labels,
@@ -34,8 +49,6 @@ export const DraftChat: FC<DraftChatProps> = ({
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 
-	// Kept as a copy: this experiment copies small helpers instead of
-	// exporting them from shared modules.
 	const handleCreateChat = async ({
 		message,
 		fileIDs,
@@ -46,10 +59,7 @@ export const DraftChat: FC<DraftChatProps> = ({
 		organizationId,
 		planMode,
 	}: CreateChatOptions) => {
-		const text = [
-			message.trim() ? message : "",
-			context ? `\`\`\`\`\n${context}\n\`\`\`\`` : "",
-		]
+		const text = [message.trim() ? message : "", context ? fenced(context) : ""]
 			.filter(Boolean)
 			.join("\n\n");
 		const content: TypesGen.ChatInputPart[] = [];

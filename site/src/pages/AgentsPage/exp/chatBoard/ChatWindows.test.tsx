@@ -19,11 +19,11 @@ const win: ChatWindow = {
 
 const renderWindow = ({
 	frame = {},
-	onAssistant,
+	cardAssistant,
 }: {
 	/** Geometry only: the union's discriminant cannot be spread over. */
 	frame?: Partial<Pick<ChatWindow, "x" | "y" | "width" | "height">>;
-	onAssistant?: { cardTitle: string; open: () => void };
+	cardAssistant?: { cardTitle: string; open: () => void };
 } = {}) => {
 	const onChange = vi.fn();
 	renderComponent(
@@ -36,7 +36,7 @@ const renderWindow = ({
 			onInteract={vi.fn()}
 			onPreviewEnter={vi.fn()}
 			onPreviewLeave={vi.fn()}
-			onAssistant={onAssistant}
+			cardAssistant={cardAssistant}
 		>
 			<div>chat body</div>
 		</FloatingChat>,
@@ -168,7 +168,7 @@ describe("FloatingChat", () => {
 	it("opens the card's assistant from the title bar", async () => {
 		const user = userEvent.setup();
 		const open = vi.fn();
-		renderWindow({ onAssistant: { cardTitle: "Epic", open } });
+		renderWindow({ cardAssistant: { cardTitle: "Epic", open } });
 
 		await user.click(
 			screen.getByRole("button", { name: "Assistant for Epic" }),

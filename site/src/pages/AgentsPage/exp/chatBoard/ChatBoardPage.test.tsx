@@ -138,15 +138,19 @@ describe("ChatBoardPage", () => {
 		const user = userEvent.setup();
 		mockChats(
 			() =>
-				Promise.resolve([{ ...MockChat, labels: { "board/effort.0": "Q3" } }]),
+				Promise.resolve([
+					{ ...MockChat, labels: { "board/effort.0": "Q3" } },
+					launch(),
+				]),
 			() => Promise.resolve([]),
 		);
 		vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
 		renderWithAuth(<ChatBoardPage />);
-		await screen.findByRole("article");
+		await screen.findAllByRole("article");
 
 		await user.click(screen.getByRole("button", { name: "Efforts" }));
 		await user.click(await screen.findByRole("menuitemradio", { name: /Q3/ }));
+		await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(1));
 		await user.click(screen.getByRole("button", { name: "Q3" }));
 		await user.click(
 			await screen.findByRole("menuitem", { name: "Rename effort" }),
@@ -158,6 +162,11 @@ describe("ChatBoardPage", () => {
 		expect(
 			await screen.findByRole("button", { name: "Q4" }),
 		).toBeInTheDocument();
+
+		// The filter and a search both apply: no search result, no card.
+		await user.type(screen.getByRole("textbox", { name: "Filter cards" }), "x");
+		await screen.findByText("0 cards");
+		expect(screen.queryAllByRole("article")).toHaveLength(0);
 	});
 
 	it("shows the search error instead of an unfiltered board", async () => {
@@ -217,35 +226,34 @@ describe("ChatBoardPage", () => {
 		expect(toast.error).toHaveBeenCalledWith("label limit");
 	});
 
-	it("shows the board assistant's label writes once its turn ends", async () => {
-		const user = userEvent.setup();
-		const assistant = (status: ChatStatus): Chat => ({
-			...MockChat,
-			id: "board-assistant",
-			status,
-			labels: { "board/assistant": "board" },
-		});
-		mockChats(
-			listResponses(
-				[launch(), assistant("running")],
-				[launch(), assistant("waiting")],
-				[launch({ "board/column": "Done" }), assistant("waiting")],
-			),
-			() => Promise.resolve([]),
-		);
-		renderWithAuth(<ChatBoardPage />);
-		await screen.findByRole("article");
+	it.each(["board", "launch"])(
+		"shows the label writes of the %s assistant once its turn ends",
+		async (assistantKey) => {
+			const assistant = (status: ChatStatus): Chat => ({
+				...MockChat,
+				id: "assistant",
+				status,
+				labels: { "board/assistant": assistantKey },
+			});
+			mockChats(
+				listResponses(
+					[launch(), assistant("running")],
+					[launch(), assistant("waiting")],
+					[launch({ "board/column": "Done" }), assistant("waiting")],
+				),
+				() => Promise.resolve([]),
+			);
+			renderWithAuth(<ChatBoardPage />);
+			await screen.findByRole("article");
 
-		await user.click(screen.getByRole("button", { name: "Board assistant" }));
-		await screen.findByText("chat board-assistant");
-
-		// Only the status changes here; the column arrives with the refetch
-		// the turn's end triggers.
-		refetchOnFocus();
-		expect(
-			await screen.findByRole("region", { name: "Done column" }),
-		).toBeInTheDocument();
-	});
+			// Only the status changes here; the column arrives with the refetch
+			// the turn's end triggers.
+			refetchOnFocus();
+			expect(
+				await screen.findByRole("region", { name: "Done column" }),
+			).toBeInTheDocument();
+		},
+	);
 
 	it("clears a saved effort filter that no card carries", async () => {
 		const key = `agents.board.${MockUserOwner.id}`;
@@ -271,8 +279,8 @@ describe("ChatBoardPage", () => {
 		await openCardDraft(user);
 
 		refetchOnFocus();
-		// Hidden alone, the draft would come back with a reload; it must be
-		// dropped from the saved windows too.
+		// Without the close, the invisible draft stays last in the windows and
+		// Escape would dismiss it instead of the window on top.
 		await waitFor(() => {
 			const key = Object.keys(localStorage).find((k) =>
 				k.startsWith("agents.board."),
@@ -313,6 +321,29 @@ describe("ChatBoardPage", () => {
 					},
 				],
 			}),
+		);
+	});
+
+	it("sends a card draft without the card context unless ticked", async () => {
+		const user = userEvent.setup();
+		mockChats(
+			() => Promise.resolve([launch()]),
+			() => Promise.resolve([]),
+		);
+		const create = vi
+			.spyOn(API.experimental, "createChat")
+			.mockResolvedValue({ ...MockChat, id: "new-chat" });
+		renderWithAuth(<ChatBoardPage />);
+		await openCardDraft(user);
+
+		await user.click(screen.getByRole("button", { name: "send" }));
+
+		await waitFor(() =>
+			expect(create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					content: [{ type: "text", text: "Hello" }],
+				}),
+			),
 		);
 	});
 });

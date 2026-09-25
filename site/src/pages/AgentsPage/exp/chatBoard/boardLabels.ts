@@ -16,8 +16,9 @@ const EFFORT_PREFIX = `${BOARD_LABEL_PREFIX}effort.`;
 /** On an assistant chat: its card's id, or `board` for the board assistant. Such chats are not cards themselves. */
 export const ASSISTANT_KEY = `${BOARD_LABEL_PREFIX}assistant`;
 
-// Server limit on a label value, see coderd/httpapi/chatlabels.go.
-const MAX_LABEL_VALUE_BYTES = 256;
+// Server limits on a chat's labels, see coderd/httpapi/chatlabels.go.
+export const MAX_LABEL_VALUE_BYTES = 256;
+export const MAX_LABELS_PER_CHAT = 50;
 
 export const INBOX_COLUMN = "Inbox";
 
@@ -286,8 +287,8 @@ export const parseEfforts = (labels: Record<string, string>): string[] => {
 	const byIndex: [number, string][] = [];
 	for (const [key, value] of Object.entries(labels)) {
 		if (!isEffortKey(key)) continue;
-		const index = Number(key.slice(EFFORT_PREFIX.length));
-		if (Number.isInteger(index)) byIndex.push([index, value]);
+		const index = key.slice(EFFORT_PREFIX.length);
+		if (/^\d+$/.test(index)) byIndex.push([Number(index), value]);
 	}
 	return cleanEfforts(byIndex.sort(([a], [b]) => a - b).map(([, v]) => v));
 };
@@ -320,7 +321,7 @@ export const setCommentsLabels = (
 	return out;
 };
 
-/** Removes card-level data (title, comments, efforts) from a chat that stops being a primary. */
+/** Removes card-level data (title, color, position, comments, efforts) and the group link from a chat that stops being a primary. */
 export const stripCardLabels = (
 	labels: Record<string, string>,
 ): Record<string, string> =>

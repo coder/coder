@@ -39,7 +39,9 @@ export const refetchChatListUntilLanded = (
 		if (action.type === "success" && !action.manual) {
 			unsubscribe();
 		} else if (action.type === "error") {
-			if (retries >= MAX_RETRIES) {
+			// With no observer left (the board unmounted while fetching), an
+			// invalidation starts no fetch, so no response would ever end this.
+			if (retries >= MAX_RETRIES || event.query.getObserversCount() === 0) {
 				unsubscribe();
 				return;
 			}

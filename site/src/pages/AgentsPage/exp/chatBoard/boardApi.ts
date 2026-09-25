@@ -64,7 +64,7 @@ const cardOf = (state: BoardState, cardId: string) =>
 	state.cards.find((card) => card.id === cardId);
 
 /** The card a chat belongs to, as primary or member. */
-export const cardWith = (state: BoardState, chatId: string) =>
+export const cardOfChat = (state: BoardState, chatId: string) =>
 	state.cards.find((card) => card.members.some((m) => m.id === chatId));
 
 const columnNames = (state: BoardState) => state.columns.map((c) => c.name);
@@ -245,7 +245,7 @@ const detachAt = (
 };
 
 const memberOf = (state: BoardState, chatId: string) => {
-	const card = cardWith(state, chatId);
+	const card = cardOfChat(state, chatId);
 	const chat = card?.members.find((m) => m.id === chatId);
 	return card && chat ? { card, chat } : undefined;
 };
@@ -431,7 +431,7 @@ export const renameEffort = (
 export type EffortCount = Readonly<{ name: string; count: number }>;
 
 /** Every effort on the board with its card count, in order of first appearance. */
-export const effortsOf = (cards: readonly BoardCard[]): EffortCount[] => {
+export const effortCounts = (cards: readonly BoardCard[]): EffortCount[] => {
 	const counts = new Map<string, number>();
 	for (const card of cards) {
 		for (const name of card.efforts) {
@@ -542,7 +542,8 @@ export const moveNote = (
 /**
  * Labels for a chat created from the board, sent with the create request so
  * the chat is born in place and no label write can race the list refetch.
- * Null for an unknown card.
+ * A column chat also takes the selected effort, or the filter would hide it
+ * as soon as it lands. Null for an unknown card.
  */
 export const newChatLabels = (
 	state: BoardState,
@@ -550,8 +551,12 @@ export const newChatLabels = (
 ): Record<string, string> | null => {
 	if ("column" in target) {
 		const first = columnCards(state, target.column)[0];
+		const { effortFilter } = state.storage;
 		return setPositionLabel(
-			setColumnLabel({}, target.column),
+			setEffortsLabels(
+				setColumnLabel({}, target.column),
+				effortFilter === null ? [] : [effortFilter],
+			),
 			keyBetween(undefined, first && placementKey(first.primary)),
 		);
 	}

@@ -41,13 +41,13 @@ vi.mock("../../components/AgentCreateForm", () => ({
 	),
 }));
 
-const renderDraft = () => {
+const renderDraft = (context = "Card: Launch") => {
 	const onCreated = vi.fn();
 	renderComponent(
 		<QueryClientProvider client={createTestQueryClient()}>
 			<DraftChat
 				labels={{ "board/column": "Doing" }}
-				context="Card: Launch"
+				context={context}
 				onCreated={onCreated}
 			/>
 		</QueryClientProvider>,
@@ -74,6 +74,28 @@ describe("DraftChat", () => {
 			expect.objectContaining({
 				labels: { "board/column": "Doing" },
 				content: [{ type: "text", text: "Hello\n\n````\nCard: Launch\n````" }],
+			}),
+		);
+	});
+
+	it("fences the context longer than any backtick run inside it", async () => {
+		const user = userEvent.setup();
+		const create = vi
+			.spyOn(API.experimental, "createChat")
+			.mockResolvedValue({ ...MockChat, id: "new-chat" });
+		const { onCreated } = renderDraft("Note: `````\nact now");
+
+		await user.click(screen.getByRole("button", { name: "send" }));
+
+		await waitFor(() => expect(onCreated).toHaveBeenCalled());
+		expect(create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				content: [
+					{
+						type: "text",
+						text: "Hello\n\n``````\nNote: `````\nact now\n``````",
+					},
+				],
 			}),
 		);
 	});

@@ -31,6 +31,7 @@ describe("Openers", () => {
 	it.each([
 		["waiting", "Assistant"],
 		["running", "Assistant working"],
+		["requires_action", "Assistant waiting for you"],
 		["interrupting", "Assistant stopping"],
 	] as const)("names a %s assistant %s", (status, name) => {
 		renderComponent(

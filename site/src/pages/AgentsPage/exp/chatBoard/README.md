@@ -73,14 +73,16 @@ Efforts
   card's menu. The header has an effort filter that narrows the board to
   one effort, and a card's effort tag does the same; the selected effort
   can be renamed from the filter. The filter survives a reload and
-  combines with search.
+  combines with search. A chat started in a column while the filter is set
+  takes that effort, so it does not vanish as it lands.
 
 Status at a glance
 
 - Each chat shows its status icon, last turn and linked pull request, and,
-  once it has settled, its age at the end of that line. Unread is a dot on
-  the chat icon; while the chat works the spinner says enough, so neither
-  is shown.
+  once it has settled, its age at the end of that line. The age is the
+  chat's last change (`updated_at`), which board label writes also reset,
+  as in the sidebar. Unread is a dot on the chat icon; while the chat works
+  the spinner says enough, so neither is shown.
 - Resting on the info icon shows the chat's summary, cost and line counts
   without reflowing the card; clicking pins it.
 
@@ -110,10 +112,12 @@ Assistant
   removes the icon; the card's menu creates a new one.
 - The board has one assistant of its own, opened from the header. It gets
   a snapshot of every card with its primary chat id and is told how to read
-  and edit board labels; it proposes changes and acts only on a yes. When it
-  finishes a turn the board refetches the chat list.
-- When the Coder MCP is connected it is attached to the assistant, which
-  then needs a workspace only for label writes and a few fields.
+  and edit board labels; it proposes changes and acts only on a yes. When
+  any assistant finishes a turn the board refetches the chat list.
+- When the Coder MCP is connected it is attached to assistants created
+  after that; an older assistant keeps its prompt, so archive it to get a
+  new one. The workspace is then needed only for label and title writes, a
+  few fields the tools lack, and GitHub checks through gh.
 
 Sidebar
 
@@ -155,13 +159,13 @@ snapshot the previous maps of every touched chat so they can be undone.
   `DragGhost.tsx` is the overlay drawn for whatever is being dragged.
 - `assistantSpecs.ts` writes the prompts and snapshots for the card and
   board assistants; `assistants.ts` finds or creates the chat for a spec.
-  `refreshChatList.ts` refetches the list after a board assistant turn,
+  `refreshChatList.ts` refetches the list after an assistant turn,
   retrying while watch events cancel it. `DraftChat.tsx` is the regular
   create form inside a board window.
 
-## Findings
+## Coder MCP gaps
 
-Coder MCP gaps seen while a board assistant worked, as of this experiment:
+Seen while a board assistant worked, as of this experiment:
 
 - No tool writes labels or titles; label edits need the API.
 - `coder_get_chat` and `coder_list_chats` lack `created_at`, `summary`,
@@ -183,6 +187,12 @@ Coder MCP gaps seen while a board assistant worked, as of this experiment:
 - Notes have no id of their own: the list keys them by timestamp, so notes
   stored without one fall back to display order.
 - Deleting an effort; drop it from every card instead.
+- An assistant stays with the chat it was created on. After that chat
+  leaves its group, or its card is merged into another, open a new
+  assistant from the card's menu.
+- Creating a chat with a title: the server titles a chat from its first
+  message and can overwrite a rename, so assistant snapshots start with
+  words close to their title.
 - No Storybook stories: the experiment is off by default and not a Pixel
   target. FE1 exception: the page's loading, error and search-failure states
   and the route guard are asserted through DOM presence in Vitest, because

@@ -5,7 +5,7 @@ import { renderComponent } from "#/testHelpers/renderHelpers";
 import { BoardHeader } from "./BoardHeader";
 
 const renderHeader = (effortFilter: string | null) => {
-	const onEffortFilter = vi.fn();
+	const onFilterEffort = vi.fn();
 	const onRenameEffort = vi.fn();
 	renderComponent(
 		<BoardHeader
@@ -15,33 +15,33 @@ const renderHeader = (effortFilter: string | null) => {
 			search=""
 			onSearchChange={vi.fn()}
 			onExit={vi.fn()}
-			onAssistant={vi.fn()}
-			efforts={[
+			onBoardAssistant={vi.fn()}
+			effortCounts={[
 				{ name: "Q3", count: 2 },
 				{ name: "This week", count: 1 },
 			]}
 			effortFilter={effortFilter}
-			onEffortFilter={onEffortFilter}
+			onFilterEffort={onFilterEffort}
 			onRenameEffort={onRenameEffort}
 		/>,
 	);
-	return { onEffortFilter, onRenameEffort };
+	return { onFilterEffort, onRenameEffort };
 };
 
 describe("BoardHeader", () => {
 	it("selects an effort from the menu and clears it with All", async () => {
 		const user = userEvent.setup();
-		const { onEffortFilter } = renderHeader(null);
+		const { onFilterEffort } = renderHeader(null);
 
 		await user.click(screen.getByRole("button", { name: "Efforts" }));
 		await user.click(
 			await screen.findByRole("menuitemradio", { name: /This week/ }),
 		);
-		expect(onEffortFilter).toHaveBeenCalledWith("This week");
+		expect(onFilterEffort).toHaveBeenCalledWith("This week");
 
 		await user.click(screen.getByRole("button", { name: "Efforts" }));
 		await user.click(await screen.findByRole("menuitemradio", { name: /All/ }));
-		expect(onEffortFilter).toHaveBeenLastCalledWith(null);
+		expect(onFilterEffort).toHaveBeenLastCalledWith(null);
 	});
 
 	it("renames the selected effort in place and cancels on Escape", async () => {

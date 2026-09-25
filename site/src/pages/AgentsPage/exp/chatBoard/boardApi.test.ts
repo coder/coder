@@ -8,7 +8,7 @@ import {
 	cardContext,
 	deleteColumn,
 	detachChat,
-	effortsOf,
+	effortCounts,
 	joinCard,
 	mergeCards,
 	moveCard,
@@ -438,6 +438,20 @@ describe("boardApi", () => {
 		expect(newChatLabels(state, { column: "Inbox" })).toEqual({
 			"board/pos": "560000",
 		});
+		const filtered = {
+			...state,
+			storage: { ...state.storage, effortFilter: "Q3" },
+		};
+		expect(newChatLabels(filtered, { column: "Doing" })).toEqual({
+			"board/column": "Doing",
+			"board/effort.0": "Q3",
+			"board/pos": "360000",
+		});
+		// A card draft joins the group's efforts, so the filter adds none.
+		expect(newChatLabels(filtered, { cardId: "a" })).toEqual({
+			"board/group": "a",
+			"board/column": "Doing",
+		});
 	});
 
 	it("newChatLabels for a card joins the group without a position", () => {
@@ -573,7 +587,7 @@ describe("boardApi", () => {
 		expect(plan.p).not.toHaveProperty("board/effort.0");
 	});
 
-	it("effortsOf counts cards per effort in order of first appearance", () => {
+	it("effortCounts counts cards per effort in order of first appearance", () => {
 		const cards = buildCards([
 			chat("a", { "board/pos": "300", "board/effort.0": "Q3" }),
 			chat("b", {
@@ -584,10 +598,10 @@ describe("boardApi", () => {
 			chat("c", { "board/pos": "100" }),
 		]);
 
-		expect(effortsOf(cards)).toEqual([
+		expect(effortCounts(cards)).toEqual([
 			{ name: "Q3", count: 2 },
 			{ name: "This week", count: 1 },
 		]);
-		expect(effortsOf([])).toEqual([]);
+		expect(effortCounts([])).toEqual([]);
 	});
 });

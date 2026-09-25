@@ -6,11 +6,9 @@ type IconButtonProps = ComponentProps<"button"> & {
 };
 
 /**
- * The size-4 icon control used in card and column headers: the actions
- * trigger, the chat opener, the column's new-chat button. Those headers
- * are drag handles, so the press never propagates and cannot start a drag;
- * `z-[1]` keeps it above a card's open-chat surface. Spreads the rest so
- * Radix can use it as a trigger with `asChild`.
+ * Stops pointerdown so a press in a drag-handle header cannot start a drag;
+ * `z-[1]` keeps it above a card's open-chat surface. Spreads props so Radix
+ * `asChild` works.
  */
 export const IconButton: FC<IconButtonProps> = ({
 	className,

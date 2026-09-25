@@ -71,7 +71,7 @@ type BoardCardProps = ChatOpenHandlers & {
 	/** A tag click narrows the board to that effort. */
 	readonly onFilterEffort: (name: string) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
-	readonly onAssistant: () => void;
+	readonly onCardAssistant: () => void;
 	readonly onNewChat: () => void;
 	readonly onRemoveFromGroup: (chat: Chat) => void;
 	readonly onAddNote: (text: string) => void;
@@ -91,7 +91,7 @@ export const BoardCard: React.FC<BoardCardProps> = ({
 	onSetEfforts,
 	onFilterEffort,
 	onRenameChat,
-	onAssistant,
+	onCardAssistant,
 	onNewChat,
 	onRemoveFromGroup,
 	onOpen,
@@ -221,7 +221,7 @@ export const BoardCard: React.FC<BoardCardProps> = ({
 						label={card.title}
 						permanent
 						items={[
-							{ label: "Assistant", icon: BotIcon, onSelect: onAssistant },
+							{ label: "Assistant", icon: BotIcon, onSelect: onCardAssistant },
 							{
 								label: "New chat in card",
 								icon: MessageSquarePlusIcon,

@@ -4,10 +4,10 @@ import {
 	changeWindow,
 	closeWindow,
 	dismissTop,
-	draftCreated,
 	draftWindow,
 	dropPreview,
 	raise,
+	replaceDraftWithChat,
 	toFront,
 	windowBeside,
 	windowCentered,
@@ -96,7 +96,7 @@ describe("window geometry", () => {
 		expect(draftWindow({ column: "Doing" })).toEqual({
 			kind: "draft",
 			target: { column: "Doing" },
-			withContext: false,
+			includeCardContext: false,
 			x: (1400 - 520) / 2,
 			y: (900 - 640) / 2,
 			width: 520,
@@ -136,9 +136,12 @@ describe("window list", () => {
 		expect(list[1]).toMatchObject({ target: { cardId: "p" } });
 		const toggled = changeWindow(list, {
 			...draftWindow({ cardId: "p" }),
-			withContext: true,
+			includeCardContext: true,
 		});
-		expect(toggled[1]).toMatchObject({ kind: "draft", withContext: true });
+		expect(toggled[1]).toMatchObject({
+			kind: "draft",
+			includeCardContext: true,
+		});
 		expect(closeWindow(toggled, "draft")).toEqual([win("a")]);
 		expect(raise(toggled, "draft").at(-1)?.kind).toBe("draft");
 	});
@@ -147,16 +150,16 @@ describe("window list", () => {
 		viewport(1400, 900);
 		const draft = { ...draftWindow({ cardId: "p" }), x: 30, y: 40 };
 		const list = [draft, win("a")];
-		expect(draftCreated(list, { cardId: "p" }, "n")).toEqual([
+		expect(replaceDraftWithChat(list, { cardId: "p" }, "n")).toEqual([
 			{ ...win("n"), x: 30, y: 40, width: 520, height: 640 },
 			win("a"),
 		]);
-		expect(draftCreated(list, { column: "Doing" }, "n")).toEqual([
+		expect(replaceDraftWithChat(list, { column: "Doing" }, "n")).toEqual([
 			draft,
 			win("a"),
 			windowCentered("n"),
 		]);
-		expect(draftCreated([win("a")], { cardId: "p" }, "n")).toEqual([
+		expect(replaceDraftWithChat([win("a")], { cardId: "p" }, "n")).toEqual([
 			win("a"),
 			windowCentered("n"),
 		]);
