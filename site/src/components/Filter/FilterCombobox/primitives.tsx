@@ -28,6 +28,13 @@ import {
 // with `components/Command`; a future consolidation into a variant-driven
 // `Command*` layer could remove the duplication.
 
+/**
+ * Height cap shared by the popup and the menus inside it. The popup lets
+ * flyouts overflow, so each menu caps its own height and scrolls.
+ */
+export const menuMaxHeightClassName =
+	"max-h-[min(24rem,var(--radix-popper-available-height))]";
+
 const FilterComboboxAnchorContext =
 	createContext<RefObject<HTMLDivElement | null> | null>(null);
 
@@ -178,7 +185,8 @@ export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 				}
 			}}
 			className={cn(
-				"flex w-(--radix-popover-trigger-width) max-h-[min(24rem,var(--radix-popper-available-height))] flex-col overflow-y-hidden p-0",
+				menuMaxHeightClassName,
+				"flex w-(--radix-popover-trigger-width) flex-col overflow-y-hidden p-0",
 				className,
 			)}
 			{...props}

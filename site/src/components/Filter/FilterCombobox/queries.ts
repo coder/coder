@@ -2,8 +2,9 @@ import type { UseQueryOptions } from "react-query";
 import type { FilterOption } from "./types";
 
 /**
- * Delay after the last keystroke before typed text is sent to `onChange` and
- * to a category's `getOptions`.
+ * Delay after the last keystroke before typed text is sent to each category's
+ * `getOptions`. Free text reaches `onChange` only after those lookups find no
+ * matching filter; see `couldBeFilterSearch`.
  */
 export const SEARCH_DEBOUNCE_MS = 300;
 
