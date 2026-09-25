@@ -514,12 +514,6 @@ const diffStatusEqual = (
 	);
 };
 
-const pickTitleFields = ({
-	title,
-	title_source,
-	title_updated_at,
-}: TypesGen.Chat) => ({ title, title_source, title_updated_at });
-
 /**
  * Merges event-scoped chat fields into a cached summary, using updated_at
  * as a stale guard while still adopting the latest DB-backed model config.
@@ -539,18 +533,29 @@ export const mergeWatchedChatSummary = (
 		cachedChat.updated_at,
 		watchedChat.updated_at,
 	);
-	const isFreshEnough = updatedAtComparison <= 0;
+	// A title event's row can be newer than a status_change that has not
+	// arrived yet, so a title event changes only the title fields, ordered
+	// by title_updated_at because title writes do not change updated_at.
+	const isFreshEnough = !isTitleEvent && updatedAtComparison <= 0;
 	const nextStatus =
 		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
-	// Title writes do not change updated_at, so title events are ordered
-	// by title_updated_at instead.
+	// Servers from before title_updated_at existed omit it; apply their
+	// title events unordered.
 	const hasNewerTitle =
 		isTitleEvent &&
-		compareUpdatedAtInstants(
-			cachedChat.title_updated_at,
-			watchedChat.title_updated_at,
-		) < 0;
-	const titleFields = pickTitleFields(hasNewerTitle ? watchedChat : cachedChat);
+		(!cachedChat.title_updated_at ||
+			!watchedChat.title_updated_at ||
+			compareUpdatedAtInstants(
+				cachedChat.title_updated_at,
+				watchedChat.title_updated_at,
+			) < 0);
+	const nextTitleFields = hasNewerTitle
+		? {
+				title: watchedChat.title,
+				title_source: watchedChat.title_source,
+				title_updated_at: watchedChat.title_updated_at,
+			}
+		: undefined;
 	// Diff status freshness is tracked outside chats.updated_at, so apply
 	// diff_status_change payloads even when the chat summary timestamp is older.
 	const nextDiffStatus = isDiffStatusEvent
@@ -598,13 +603,9 @@ export const mergeWatchedChatSummary = (
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true
 			: cachedChat.has_unread;
-	// Only status_change advances the watermark. The row in another event
-	// can have an updated_at newer than a status_change that has not
-	// arrived yet; advancing on it would make that status_change stale.
-	const nextUpdatedAt =
-		isStatusEvent && isFreshEnough
-			? watchedChat.updated_at
-			: cachedChat.updated_at;
+	const nextUpdatedAt = isFreshEnough
+		? watchedChat.updated_at
+		: cachedChat.updated_at;
 
 	// Keep updated_at in the no-op guard. This gives up the old streaming
 	// rerender shortcut so later stale events cannot pass isFreshEnough
@@ -628,7 +629,7 @@ export const mergeWatchedChatSummary = (
 
 	return {
 		...cachedChat,
-		...titleFields,
+		...nextTitleFields,
 		status: nextStatus,
 		diff_status: nextDiffStatus,
 		workspace_id: nextWorkspaceId,
@@ -1627,7 +1628,7 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, title }: UpdateChatTitleVariables) =>
 		API.experimental.updateChat(chatId, { title }),
 
-	// Do not patch the title into the cache here: the server assigns
+	// Invalidate instead of patching the cache: the server assigns
 	// title_updated_at, and a cached title without it cannot be ordered
 	// against title_change events.
 	onSettled: (

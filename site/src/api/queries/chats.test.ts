@@ -3016,11 +3016,9 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
-	// A title_change applies the title fields only when its
-	// title_updated_at is newer than the cached one, regardless of
-	// updated_at, and never touches status or updated_at.
 	it.each<{
 		name: string;
+		cached?: Partial<TypesGen.Chat>;
 		watched: Partial<TypesGen.Chat>;
 		titleFrom: "watched" | "cached";
 	}>([
@@ -3066,13 +3064,28 @@ describe("mergeWatchedChatSummary", () => {
 			},
 			titleFrom: "cached",
 		},
-	])("$name", ({ watched, titleFrom }) => {
+		{
+			name: "applies a title when the cached chat has no title_updated_at",
+			cached: { title_updated_at: undefined },
+			watched: {
+				title: "After",
+				title_updated_at: "2024-12-31T23:59:59.000Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "applies a title event that has no title_updated_at",
+			watched: { title: "After", title_updated_at: undefined },
+			titleFrom: "watched",
+		},
+	])("$name", ({ cached, watched, titleFrom }) => {
 		const cachedChat = makeChat("chat-1", {
 			status: "running",
 			title: "Before",
 			title_source: "user",
 			title_updated_at: "2025-01-01T00:00:00.000Z",
 			updated_at: "2025-01-01T00:00:00.000Z",
+			...cached,
 		});
 		const watchedChat = makeChat("chat-1", {
 			status: "waiting",
@@ -3097,13 +3110,15 @@ describe("mergeWatchedChatSummary", () => {
 		}
 	});
 
-	it("does not advance updated_at from a non-status event", () => {
+	it("changes only the title fields from a title event", () => {
 		const cachedChat = makeChat("chat-1", {
 			status: "running",
+			last_model_config_id: "model-a",
 			updated_at: "2025-01-01T00:00:01.000Z",
 		});
 		const titleEvent = makeChat("chat-1", {
 			status: "waiting",
+			last_model_config_id: "model-b",
 			title: "New title",
 			title_updated_at: "2025-01-01T00:00:03.000Z",
 			updated_at: "2025-01-01T00:00:03.000Z",
@@ -3118,6 +3133,7 @@ describe("mergeWatchedChatSummary", () => {
 		});
 		expect(afterTitle).toMatchObject({
 			status: "running",
+			last_model_config_id: "model-a",
 			title: "New title",
 			updated_at: "2025-01-01T00:00:01.000Z",
 		});
@@ -3128,6 +3144,33 @@ describe("mergeWatchedChatSummary", () => {
 			}),
 		).toMatchObject({
 			status: "waiting",
+			updated_at: "2025-01-01T00:00:02.000Z",
+		});
+	});
+
+	it("does not let an older summary row revert fields a newer event set", () => {
+		const cachedChat = makeChat("chat-1", {
+			last_model_config_id: "model-a",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const newerSummary = makeChat("chat-1", {
+			last_model_config_id: "model-b",
+			updated_at: "2025-01-01T00:00:02.000Z",
+		});
+		const olderSummary = makeChat("chat-1", {
+			last_model_config_id: "model-a",
+			updated_at: "2025-01-01T00:00:01.000Z",
+		});
+
+		const afterNewer = mergeWatchedChatSummary(cachedChat, newerSummary, {
+			eventKind: "chat_summary_change",
+		});
+		expect(
+			mergeWatchedChatSummary(afterNewer, olderSummary, {
+				eventKind: "summary_change",
+			}),
+		).toMatchObject({
+			last_model_config_id: "model-b",
 			updated_at: "2025-01-01T00:00:02.000Z",
 		});
 	});
