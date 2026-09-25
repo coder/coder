@@ -74,9 +74,10 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 				"invalid_client_metadata", "invalid scope: "+err.Error())
 			return
 		}
-		if unknown, ok := firstUnknownRegisteredScope(req.Scope); ok {
+		scope, err := registeredScopeAllowlist(req.Scope)
+		if err != nil {
 			writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
-				"invalid_client_metadata", fmt.Sprintf("invalid scope: unknown scope %q", unknown))
+				"invalid_client_metadata", "invalid scope: "+err.Error())
 			return
 		}
 
@@ -135,7 +136,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 				GrantTypes:              slice.ToStrings(req.GrantTypes),
 				ResponseTypes:           slice.ToStrings(req.ResponseTypes),
 				TokenEndpointAuthMethod: sql.NullString{String: string(req.TokenEndpointAuthMethod), Valid: true},
-				Scope:                   scopeAllowlist(req.Scope),
+				Scope:                   scope,
 				Contacts:                req.Contacts,
 				ClientUri:               sql.NullString{String: req.ClientURI, Valid: req.ClientURI != ""},
 				LogoUri:                 sql.NullString{String: req.LogoURI, Valid: req.LogoURI != ""},
@@ -350,15 +351,17 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 		// scope list that fails them. Skip the checks when the request resends
 		// the stored value unchanged, so those apps can still update other
 		// fields.
+		scope := scopeAllowlist(req.Scope)
 		if req.Scope != existingApp.Scope.String {
 			if err := codersdk.ValidateOAuth2ScopeList(req.Scope); err != nil {
 				writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
 					"invalid_client_metadata", "invalid scope: "+err.Error())
 				return
 			}
-			if unknown, ok := firstUnknownRegisteredScope(req.Scope); ok {
+			scope, err = registeredScopeAllowlist(req.Scope)
+			if err != nil {
 				writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
-					"invalid_client_metadata", fmt.Sprintf("invalid scope: unknown scope %q", unknown))
+					"invalid_client_metadata", "invalid scope: "+err.Error())
 				return
 			}
 		}
@@ -411,7 +414,7 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			GrantTypes:              slice.ToStrings(req.GrantTypes),
 			ResponseTypes:           slice.ToStrings(req.ResponseTypes),
 			TokenEndpointAuthMethod: sql.NullString{String: string(req.TokenEndpointAuthMethod), Valid: true},
-			Scope:                   scopeAllowlist(req.Scope),
+			Scope:                   scope,
 			Contacts:                req.Contacts,
 			ClientUri:               sql.NullString{String: req.ClientURI, Valid: req.ClientURI != ""},
 			LogoUri:                 sql.NullString{String: req.LogoURI, Valid: req.LogoURI != ""},

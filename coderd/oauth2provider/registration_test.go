@@ -680,30 +680,45 @@ func TestUpdateClientConfiguration_LegacyInvalidScope(t *testing.T) {
 		stored     string
 		scope      string
 		wantStatus int
+		// The stored scope after the request. A resent value is kept as is,
+		// a changed value is narrowed to the catalog, and a rejected value
+		// leaves the stored one untouched.
+		wantScope string
 	}{
 		{
 			name:       "ResendingStoredOversizedScopeIsAccepted",
 			stored:     oversized,
 			scope:      oversized,
 			wantStatus: http.StatusOK,
+			wantScope:  oversized,
 		},
 		{
 			name:       "NewOversizedScopeIsRejected",
 			stored:     oversized,
 			scope:      oversized + " workspace:update",
 			wantStatus: http.StatusBadRequest,
+			wantScope:  oversized,
 		},
 		{
 			name:       "ResendingStoredUnknownScopeIsAccepted",
 			stored:     unknown,
 			scope:      unknown,
 			wantStatus: http.StatusOK,
+			wantScope:  unknown,
 		},
 		{
-			name:       "NewUnknownScopeIsRejected",
+			name:       "NewMixedScopeIsNarrowed",
 			stored:     unknown,
-			scope:      unknown + " other:scope",
+			scope:      unknown + " template:read",
+			wantStatus: http.StatusOK,
+			wantScope:  "workspace:read template:read",
+		},
+		{
+			name:       "NewAllUnknownScopeIsRejected",
+			stored:     unknown,
+			scope:      "other:scope",
 			wantStatus: http.StatusBadRequest,
+			wantScope:  unknown,
 		},
 	}
 
@@ -749,9 +764,7 @@ func TestUpdateClientConfiguration_LegacyInvalidScope(t *testing.T) {
 
 			app, err := db.GetOAuth2ProviderAppByClientID(ctx, legacy.ID)
 			require.NoError(t, err)
-			// Neither request changes the stored scope: the unchanged value
-			// is kept and the invalid new value is rejected.
-			require.Equal(t, tt.stored, app.Scope.String)
+			require.Equal(t, tt.wantScope, app.Scope.String)
 			if tt.wantStatus == http.StatusOK {
 				require.Equal(t, "renamed-app", app.Name)
 			} else {

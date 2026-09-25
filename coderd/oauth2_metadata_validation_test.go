@@ -552,41 +552,54 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 	tests := []struct {
 		name  string
 		scope string
+		// The scope the registration response reports. Unknown names are
+		// dropped and aliases are canonicalized.
+		wantScope string
 		// The unknown name the error must report. Empty means the request is accepted.
 		wantUnknown string
 	}{
 		{
-			name:  "DefaultEmpty",
-			scope: "",
+			name:      "DefaultEmpty",
+			scope:     "",
+			wantScope: "",
 		},
 		{
-			name:  "ValidLowLevel",
-			scope: "workspace:read",
+			name:      "ValidLowLevel",
+			scope:     "workspace:read",
+			wantScope: "workspace:read",
 		},
 		{
-			name:  "ValidComposite",
-			scope: "coder:workspaces.access",
+			name:      "ValidComposite",
+			scope:     "coder:workspaces.access",
+			wantScope: "coder:workspaces.access",
 		},
 		{
-			name:  "ValidMultiple",
-			scope: "workspace:read template:read coder:all",
+			name:      "ValidMultiple",
+			scope:     "workspace:read template:read coder:all",
+			wantScope: "workspace:read template:read coder:all",
 		},
 		{
-			name:  "ValidAliases",
-			scope: "all application_connect",
+			name:      "ValidAliases",
+			scope:     "all application_connect",
+			wantScope: "coder:all coder:application_connect",
 		},
 		{
-			name:        "UnknownName",
-			scope:       "workspace:read nosuch:scope",
-			wantUnknown: "nosuch:scope",
+			name:      "UnknownNameDropped",
+			scope:     "workspace:read nosuch:scope",
+			wantScope: "workspace:read",
 		},
 		{
-			name:        "OIDCNames",
+			name:      "OIDCNamesDropped",
+			scope:     "openid profile email workspace:read",
+			wantScope: "workspace:read",
+		},
+		{
+			name:        "OnlyUnknownNames",
 			scope:       "openid profile email",
 			wantUnknown: "openid",
 		},
 		{
-			name:        "InternalOnlyName",
+			name:        "OnlyInternalName",
 			scope:       "debug_info:read",
 			wantUnknown: "debug_info:read",
 		},
@@ -604,10 +617,11 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 				Scope:        test.scope,
 			}
 
-			_, err := client.PostOAuth2ClientRegistration(ctx, req)
+			resp, err := client.PostOAuth2ClientRegistration(ctx, req)
 
 			if test.wantUnknown == "" {
 				require.NoError(t, err)
+				require.Equal(t, test.wantScope, resp.Scope)
 				return
 			}
 			require.ErrorContains(t, err, "invalid_client_metadata")

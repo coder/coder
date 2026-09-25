@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -167,14 +168,30 @@ func GetApp(accessURL *url.URL) http.HandlerFunc {
 	}
 }
 
-// scopeAllowlist wraps a scope list for storage. Every write path stores the
-// spelling as given; readers canonicalize. An empty list stores as an empty,
+// scopeAllowlist wraps a scope list for storage. The admin API stores the
+// spelling as given and readers canonicalize. An empty list stores as an empty,
 // valid string, meaning no allowlist.
 func scopeAllowlist(raw string) sql.NullString {
 	return sql.NullString{
 		String: raw,
 		Valid:  true,
 	}
+}
+
+// registeredScopeAllowlist narrows a DCR scope list to the catalog names for
+// storage (RFC 7591 section 3.2.2). A list that keeps no catalog name is
+// refused rather than stored as "", which would mean no allowlist. A list with
+// no names is stored as given.
+func registeredScopeAllowlist(raw string) (sql.NullString, error) {
+	names := strings.Fields(raw)
+	if len(names) == 0 {
+		return scopeAllowlist(raw), nil
+	}
+	kept := grantableScopes(raw)
+	if len(kept) == 0 {
+		return sql.NullString{}, xerrors.Errorf("unknown scope %q, and no supported scope remains", names[0])
+	}
+	return scopeAllowlist(strings.Join(kept, " ")), nil
 }
 
 // writeInvalidScopeError writes a 400 when a scope list is too large and

@@ -133,3 +133,40 @@ func TestValidateRedirectURIFieldsAgree(t *testing.T) {
 		})
 	}
 }
+
+func TestRegisteredScopeAllowlist(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     string
+		want    string
+		wantErr string
+	}{
+		{name: "EmptyIsNoAllowlist", raw: "", want: ""},
+		// Whitespace only grants nothing at authorization. Collapsing it to ""
+		// would make it unrestricted.
+		{name: "WhitespaceKeptAsGiven", raw: "  ", want: "  "},
+		{name: "CatalogNamesKept", raw: "workspace:read template:read", want: "workspace:read template:read"},
+		{name: "AliasesCanonicalized", raw: "all application_connect", want: "coder:all coder:application_connect"},
+		{name: "DuplicatesDropped", raw: "workspace:read all coder:all", want: "workspace:read coder:all"},
+		{name: "UnknownNamesDropped", raw: "openid workspace:read offline_access", want: "workspace:read"},
+		{name: "OnlyUnknownRejected", raw: "openid profile", wantErr: `unknown scope "openid"`},
+		{name: "InternalOnlyRejected", raw: "debug_info:read", wantErr: `unknown scope "debug_info:read"`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := registeredScopeAllowlist(tc.raw)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.True(t, got.Valid)
+			require.Equal(t, tc.want, got.String)
+		})
+	}
+}

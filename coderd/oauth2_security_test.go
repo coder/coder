@@ -225,13 +225,20 @@ func TestOAuth2PrivilegeEscalation(t *testing.T) {
 		regResp, err := client.PostOAuth2ClientRegistration(ctx, regReq)
 		require.NoError(t, err)
 
-		// An update that adds a scope name outside the catalog is rejected and
-		// the stored scope is left as it was.
+		// An update that adds a scope name outside the catalog stores only
+		// the catalog names and reports what it kept.
 		updateReq := codersdk.OAuth2ClientRegistrationRequest{
 			RedirectURIs: []string{"https://example.com/callback"},
 			ClientName:   clientName,
 			Scope:        "workspace:read nosuch:admin",
 		}
+		updated, err := client.PutOAuth2ClientConfiguration(ctx, regResp.ClientID, regResp.RegistrationAccessToken, updateReq)
+		require.NoError(t, err)
+		require.Equal(t, "workspace:read", updated.Scope)
+
+		// An update that keeps no catalog name is rejected rather than stored
+		// as an empty allowlist, which would mean unrestricted.
+		updateReq.Scope = "nosuch:admin"
 		_, err = client.PutOAuth2ClientConfiguration(ctx, regResp.ClientID, regResp.RegistrationAccessToken, updateReq)
 		require.ErrorContains(t, err, "invalid_client_metadata")
 		require.ErrorContains(t, err, "unknown scope")
