@@ -60,6 +60,13 @@ func openRequestGate(ctx context.Context, logger slog.Logger, store database.Sto
 	})
 }
 
+// preload records the governing request the turn's prepared history already
+// determined, so the gate never reads history itself. It has no effect once
+// the gate decided.
+func (g *finalizerGate) preload(requestID uuid.UUID) {
+	g.once.Do(func() { g.requestID, g.governs = requestID, requestID != uuid.Nil })
+}
+
 func (g *finalizerGate) governing() (uuid.UUID, bool, error) {
 	g.once.Do(func() { g.requestID, g.governs, g.err = g.load() })
 	return g.requestID, g.governs, g.err
@@ -140,4 +147,82 @@ func (g *finalizerGate) forward(part codersdk.ChatMessagePart) (codersdk.ChatMes
 	}
 	part.Args = finalizerPlaceholderArgs
 	return part, true
+}
+
+// finalizerSeparateStepFeedback answers a finalizer call that shared its
+// step with another tool call the exclusive policy does not cover.
+const finalizerSeparateStepFeedback = chatstructured.FinalizerToolName + " must be called alone in its own step, without other tool calls. Call it again by itself."
+
+// structuredTurnFor returns the open structured output request of history's
+// latest user turn, or uuid.Nil, and its compiled schema when the finalizer
+// can be offered. A schema that fails to compile offers no finalizer.
+func structuredTurnFor(ctx context.Context, logger slog.Logger, chatID uuid.UUID, history []database.ChatMessage) (uuid.UUID, *chatstructured.Schema) {
+	state, open := openStructuredRequest(ctx, logger, chatID, history)
+	if !open {
+		return uuid.Nil, nil
+	}
+	schema, err := chatstructured.CompileSchema(state.Request.Schema)
+	if err != nil {
+		logger.Warn(ctx, "structured output schema does not compile; finalizer not offered", slog.F("chat_id", chatID))
+		return state.Request.RequestID, nil
+	}
+	return state.Request.RequestID, schema
+}
+
+// finalizerBatchControls decides, on the server, the structured output
+// control for an executed batch holding finalizer results, and returns it
+// keyed by the first finalizer call ID. step holds the parts of the
+// assistant row that emitted the batch. Only a lone finalizer call in a step
+// without other tool calls or an earlier rejection can yield a candidate:
+// the exact output bytes its arguments carry when they satisfy the schema.
+// Any other batch records one rejection for the step unless screening
+// already did, and a finalizer result that would acknowledge such a call is
+// replaced in content with fixed feedback.
+func finalizerBatchControls(schema *chatstructured.Schema, requestID uuid.UUID, step []codersdk.ChatMessagePart, content []fantasy.Content) (map[string][]codersdk.ChatMessagePart, error) {
+	var finalizers []codersdk.ChatMessagePart
+	siblings, rejected := 0, false
+	for _, part := range step {
+		switch {
+		case isFinalizerCallPart(part):
+			finalizers = append(finalizers, part)
+		case part.Type == codersdk.ChatMessagePartTypeToolCall:
+			siblings++
+		case part.Type == codersdk.ChatMessagePartTypeStructuredOutputControl:
+			control, err := chatstructured.DecodeControlPart(part)
+			rejected = rejected || (err == nil && control.Kind == chatstructured.ControlRejection)
+		}
+	}
+	lone := len(finalizers) == 1 && siblings == 0 && !rejected
+	firstID := ""
+	for i, block := range content {
+		result, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+		if !ok || result.ToolName != chatstructured.FinalizerToolName {
+			continue
+		}
+		if firstID == "" {
+			firstID = result.ToolCallID
+		}
+		if _, isError := result.Result.(fantasy.ToolResultOutputContentError); !lone && !isError {
+			result.Result = fantasy.ToolResultOutputContentError{Error: xerrors.New(finalizerSeparateStepFeedback)}
+			content[i] = result
+		}
+	}
+	if firstID == "" || (!lone && rejected) {
+		return map[string][]codersdk.ChatMessagePart{}, nil
+	}
+	control := chatstructured.Control{RequestID: requestID, Kind: chatstructured.ControlRejection}
+	if lone {
+		output, err := chatstructured.FinalizerOutput(finalizers[0].Args)
+		if err == nil {
+			_, err = schema.Validate(output)
+		}
+		if err == nil {
+			control = chatstructured.Control{RequestID: requestID, Kind: chatstructured.ControlCandidate, Value: output}
+		}
+	}
+	part, err := chatstructured.EncodeControlPart(control)
+	if err != nil {
+		return nil, xerrors.Errorf("encode structured output control: %w", err)
+	}
+	return map[string][]codersdk.ChatMessagePart{firstID: {part}}, nil
 }

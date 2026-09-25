@@ -1,8 +1,10 @@
 package chatd
 
 import (
+	"bytes"
 	"cmp"
 	"context"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -43,6 +45,13 @@ func activeRequestReceipt(ctx context.Context, logger slog.Logger, store databas
 // history's latest user turn and reports whether it is open. History that
 // cannot be reconstructed logs a warning and counts as no open request.
 func openStructuredRequest(ctx context.Context, logger slog.Logger, chatID uuid.UUID, history []database.ChatMessage) (chatstructured.ActiveRequestState, bool) {
+	// Only user rows carry requests; ordinary chats skip parsing entirely.
+	if !slices.ContainsFunc(history, func(msg database.ChatMessage) bool {
+		return msg.Role == database.ChatMessageRoleUser &&
+			bytes.Contains(msg.Content.RawMessage, []byte(codersdk.ChatMessagePartTypeStructuredOutputRequest))
+	}) {
+		return chatstructured.ActiveRequestState{}, false
+	}
 	rows := make([]chatstructured.Row, 0, len(history))
 	for _, msg := range history {
 		parts, err := chatprompt.ParseContent(msg)

@@ -89,6 +89,16 @@ func copyJSON(v any) any {
 // original bytes. Re-encoding the parsed value could change its size, for
 // example by escaping U+2028, and so change which caps apply.
 func (s *Schema) CheckFinalizerArguments(raw []byte) (any, error) {
+	output, err := FinalizerOutput(raw)
+	if err != nil {
+		return nil, err
+	}
+	return s.Validate(output)
+}
+
+// FinalizerOutput screens raw finalizer arguments and returns the exact bytes
+// of their output value, without schema validation.
+func FinalizerOutput(raw []byte) (json.RawMessage, error) {
 	if err := ScreenFinalizerArguments(raw); err != nil {
 		return nil, err
 	}
@@ -100,7 +110,7 @@ func (s *Schema) CheckFinalizerArguments(raw []byte) (any, error) {
 	if err := json.Unmarshal(raw, &args); err != nil {
 		return nil, xerrors.Errorf("extract finalizer output: %w", err)
 	}
-	return s.Validate(args.Output)
+	return args.Output, nil
 }
 
 // ScreenFinalizerArguments parses raw finalizer arguments under the envelope

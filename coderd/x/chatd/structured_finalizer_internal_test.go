@@ -8,10 +8,13 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
@@ -227,4 +230,107 @@ func TestFinalizerStreamCap(t *testing.T) {
 	_, ok := gate.forward(codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "x", ToolName: "execute", ArgsDelta: strings.Repeat("e", 90<<10)})
 	require.True(t, ok)
 	require.Zero(t, loads)
+}
+
+func TestFinalizerBatchControls(t *testing.T) {
+	t.Parallel()
+	requestID := uuid.New()
+	schema, err := chatstructured.CompileSchema([]byte(`{"type":"object","properties":{"a":{"type":"string"}},"required":["a"]}`))
+	require.NoError(t, err)
+	call := func(id, name, args string, providerExecuted bool) codersdk.ChatMessagePart {
+		return codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: id, ToolName: name, Args: json.RawMessage(args), ProviderExecuted: providerExecuted}
+	}
+	result := func(id string, isError bool) fantasy.Content {
+		out := fantasy.ToolResultContent{ToolCallID: id, ToolName: chatstructured.FinalizerToolName, Result: fantasy.ToolResultOutputContentText{Text: "Structured output accepted."}}
+		if isError {
+			out.Result = fantasy.ToolResultOutputContentError{Error: xerrors.New("rejected")}
+		}
+		return out
+	}
+	earlier, err := chatstructured.EncodeControlPart(chatstructured.Control{RequestID: requestID, Kind: chatstructured.ControlRejection})
+	require.NoError(t, err)
+	valid, fin := `{"output":{"a":"x"}}`, chatstructured.FinalizerToolName
+	rejection := &chatstructured.Control{RequestID: requestID, Kind: chatstructured.ControlRejection}
+	for _, tt := range []struct {
+		name     string
+		step     []codersdk.ChatMessagePart
+		content  []fantasy.Content
+		want     *chatstructured.Control
+		override bool
+	}{
+		{
+			name: "Valid", step: []codersdk.ChatMessagePart{call("f", fin, valid, false)}, content: []fantasy.Content{result("f", false)},
+			want: &chatstructured.Control{RequestID: requestID, Kind: chatstructured.ControlCandidate, Value: json.RawMessage(`{"a":"x"}`)},
+		},
+		{name: "SchemaMismatch", step: []codersdk.ChatMessagePart{call("f", fin, `{"output":{"a":1}}`, false)}, content: []fantasy.Content{result("f", true)}, want: rejection},
+		{name: "TwoFinalizers", step: []codersdk.ChatMessagePart{call("f", fin, valid, false), call("g", fin, valid, false)}, content: []fantasy.Content{result("f", true), result("g", true)}, want: rejection},
+		{name: "ProviderExecutedSibling", step: []codersdk.ChatMessagePart{call("f", fin, valid, false), call("w", "web_search", `{}`, true)}, content: []fantasy.Content{result("f", false)}, want: rejection, override: true},
+		// A step already rejected by screening never gets a second rejection.
+		{name: "ScreenedSibling", step: []codersdk.ChatMessagePart{call("f", fin, valid, false), call("g", fin, `{}`, false), earlier}, content: []fantasy.Content{result("f", false)}, override: true},
+		{name: "NoFinalizer", step: []codersdk.ChatMessagePart{call("x", "execute", `{}`, false)}, content: []fantasy.Content{fantasy.ToolResultContent{ToolCallID: "x", ToolName: "execute"}}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			controls, err := finalizerBatchControls(schema, requestID, tt.step, tt.content)
+			require.NoError(t, err)
+			if tt.want == nil {
+				require.Empty(t, controls)
+			} else {
+				require.Len(t, controls[tt.step[0].ToolCallID], 1)
+				got, err := chatstructured.DecodeControlPart(controls[tt.step[0].ToolCallID][0])
+				require.NoError(t, err)
+				require.Equal(t, *tt.want, got)
+			}
+			if tt.override {
+				first, ok := fantasy.AsContentType[fantasy.ToolResultContent](tt.content[0])
+				require.True(t, ok)
+				output, ok := first.Result.(fantasy.ToolResultOutputContentError)
+				require.True(t, ok)
+				require.Equal(t, finalizerSeparateStepFeedback, output.Error.Error())
+			}
+		})
+	}
+}
+
+// Client tool results can never answer a finalizer call, even one pending
+// beside a dynamic tool call.
+func TestSubmitToolResultsRejectsFinalizerCall(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	f := newTaskTestFixture(t)
+	dynamicTools, err := json.Marshal([]codersdk.DynamicTool{{Name: "dyn", InputSchema: json.RawMessage(`{"type":"object"}`)}})
+	require.NoError(t, err)
+	created, err := chatstate.CreateChat(ctx, f.db, f.pubsub, chatstate.CreateChatInput{
+		OrganizationID: f.org.ID, OwnerID: f.user.ID, LastModelConfigID: f.model.ID, Title: "test", ClientType: database.ChatClientTypeApi,
+		DynamicTools:    pqtype.NullRawMessage{RawMessage: dynamicTools, Valid: true},
+		InitialMessages: []chatstate.Message{structuredUserMessage(t, f, uuid.New())},
+	})
+	require.NoError(t, err)
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall("dyn_call", "dyn", json.RawMessage(`{}`)),
+		codersdk.ChatMessageToolCall("finalizer_call", chatstructured.FinalizerToolName, json.RawMessage(`{"output":{}}`)),
+	})
+	require.NoError(t, err)
+	machine := chatstate.NewChatMachine(f.db, f.pubsub, created.Chat.ID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		if _, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{{
+			Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, ContentVersion: chatprompt.CurrentContentVersion, Content: content,
+		}}}); err != nil {
+			return err
+		}
+		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
+		return err
+	}))
+	before, _ := structuredHistory(t, f, created.Chat.ID)
+
+	server := &Server{db: f.db, pubsub: f.rawPS, logger: testutil.Logger(t)}
+	err = server.SubmitToolResults(ctx, SubmitToolResultsOptions{
+		ChatID: created.Chat.ID, UserID: f.user.ID,
+		Results: []codersdk.ToolResult{{ToolCallID: "dyn_call", Output: json.RawMessage(`{}`)}, {ToolCallID: "finalizer_call", Output: json.RawMessage(`{}`)}},
+	})
+	var validation *ToolResultValidationError
+	require.ErrorAs(t, err, &validation)
+	require.Equal(t, "Unexpected tool result.", validation.Message)
+	after, _ := structuredHistory(t, f, created.Chat.ID)
+	require.Equal(t, before, after)
 }
