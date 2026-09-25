@@ -39,6 +39,11 @@ const meta: Meta<typeof Tool> = {
 		name: "execute",
 		args: { command: executeCommand },
 		status: "completed",
+		isError: false,
+		subagentTitles: new Map(),
+		subagentVariants: new Map(),
+		shellToolDisplayMode: "auto",
+		codeDiffDisplayMode: "auto",
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -2938,6 +2943,12 @@ export const AllToolIconsTranscript: Story = {
 						]}
 						tools={[]}
 						keyPrefix="all-tool-icons-thinking"
+						isStreaming={false}
+						subagentTitles={new Map()}
+						subagentVariants={new Map()}
+						hasUserResponseAfterAskQuestion={false}
+						onImageClick={fn()}
+						onTextFileClick={fn()}
 					/>
 					{allToolShowcaseItems.map((tool, index) => (
 						<Tool
@@ -2946,11 +2957,12 @@ export const AllToolIconsTranscript: Story = {
 							status={tool.status ?? "completed"}
 							args={tool.args}
 							result={tool.result}
-							isError={tool.isError}
+							isError={tool.isError ?? false}
 							killedBySignal={tool.killedBySignal}
 							modelIntent={tool.modelIntent}
 							parsedCommands={tool.parsedCommands}
-							subagentVariants={tool.subagentVariants}
+							subagentTitles={new Map()}
+							subagentVariants={tool.subagentVariants ?? new Map()}
 							shellToolDisplayMode="always_collapsed"
 							codeDiffDisplayMode="always_collapsed"
 							showDesktopPreviews={false}
@@ -3019,11 +3031,12 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 								status={tool.status ?? "completed"}
 								args={tool.args}
 								result={tool.result}
-								isError={tool.isError}
+								isError={tool.isError ?? false}
 								killedBySignal={tool.killedBySignal}
 								modelIntent={tool.modelIntent}
 								parsedCommands={tool.parsedCommands}
-								subagentVariants={tool.subagentVariants}
+								subagentTitles={new Map()}
+								subagentVariants={tool.subagentVariants ?? new Map()}
 								hookRewritten
 								shellToolDisplayMode="always_collapsed"
 								codeDiffDisplayMode="always_collapsed"

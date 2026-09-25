@@ -13,6 +13,9 @@ const renderTool = (props: {
 				command="make build"
 				transcriptBlocks={[]}
 				isError={false}
+				errorText=""
+				isBackgrounded={false}
+				shellToolDisplayMode="auto"
 				{...props}
 			/>
 		</TooltipProvider>,

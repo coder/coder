@@ -101,7 +101,14 @@ const meta: Meta<typeof Tool> = {
 			</div>
 		),
 	],
-	args: { name: "ask_user_question" },
+	args: {
+		name: "ask_user_question",
+		isError: false,
+		subagentTitles: new Map(),
+		subagentVariants: new Map(),
+		shellToolDisplayMode: "auto",
+		codeDiffDisplayMode: "auto",
+	},
 };
 
 export default meta;

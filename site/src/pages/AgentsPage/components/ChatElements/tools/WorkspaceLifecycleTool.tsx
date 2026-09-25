@@ -10,7 +10,7 @@ type WorkspaceLifecycleToolProps = {
 	workspaceName: string;
 	isError: boolean;
 	errorMessage?: string;
-	noBuild?: boolean;
+	noBuild: boolean;
 	labelOverride?: string;
 };
 

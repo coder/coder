@@ -68,6 +68,11 @@ describe("Tool workspace lifecycle rows", () => {
 							name={name}
 							status={status}
 							result={isRunning ? undefined : { build_id: buildId }}
+							isError={false}
+							subagentTitles={new Map()}
+							subagentVariants={new Map()}
+							shellToolDisplayMode="auto"
+							codeDiffDisplayMode="auto"
 						/>
 					</ChatWorkspaceContext>
 				</QueryClientProvider>,
