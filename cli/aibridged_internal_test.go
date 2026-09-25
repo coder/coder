@@ -367,6 +367,10 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 func TestProtoToProviderSpecClaudePlatform(t *testing.T) {
 	t.Parallel()
 
+	descriptor := (&proto.AIProviderKindClaudePlatformAWS{}).ProtoReflect().Descriptor()
+	require.Zero(t, descriptor.ReservedNames().Len())
+	require.Zero(t, descriptor.ReservedRanges().Len())
+
 	t.Run("AllFields", func(t *testing.T) {
 		t.Parallel()
 		spec := protoToProviderSpec(&proto.AIProvider{
@@ -479,7 +483,7 @@ func TestBuildProviderClaudePlatformWithoutKeys(t *testing.T) {
 			Region:      "us-east-1",
 			WorkspaceID: "ws-build-iam",
 		},
-	}, codersdk.AIBridgeConfig{AllowBYOK: serpent.Bool(false)}, nil)
+	}, codersdk.AIBridgeConfig{AllowBYOK: serpent.Bool(false)}, slogtest.Make(t, nil), nil)
 	require.NoError(t, err)
 	assert.Equal(t, aibridge.ProviderAnthropic, provider.Type())
 	assert.Equal(t, "claude-platform-iam", provider.Name())
@@ -492,12 +496,12 @@ func TestBuildProviderKeyless(t *testing.T) {
 		t.Parallel()
 		_, err := buildProvider(t.Context(), aiProviderSpec{
 			Type: database.AIProviderTypeAnthropic, Name: "anthropic", Enabled: true,
-		}, codersdk.AIBridgeConfig{AllowBYOK: serpent.Bool(false)}, nil)
+		}, codersdk.AIBridgeConfig{AllowBYOK: serpent.Bool(false)}, slogtest.Make(t, nil), nil)
 		require.EqualError(t, err, "anthropic provider has no api keys configured and BYOK is not enabled")
 
 		p, err := buildProvider(t.Context(), aiProviderSpec{
 			Type: database.AIProviderTypeAnthropic, Name: "anthropic", Enabled: true,
-		}, codersdk.AIBridgeConfig{AllowBYOK: serpent.Bool(true)}, nil)
+		}, codersdk.AIBridgeConfig{AllowBYOK: serpent.Bool(true)}, slogtest.Make(t, nil), nil)
 		require.NoError(t, err)
 		require.Equal(t, aibridge.ProviderAnthropic, p.Type())
 	})
@@ -509,7 +513,7 @@ func TestBuildProviderKeyless(t *testing.T) {
 			ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{Region: "us-east-1", WorkspaceID: "ws-build"},
 		}
 		for _, allowBYOK := range []bool{false, true} {
-			p, err := buildProvider(t.Context(), spec, codersdk.AIBridgeConfig{AllowBYOK: serpent.Bool(allowBYOK)}, nil)
+			p, err := buildProvider(t.Context(), spec, codersdk.AIBridgeConfig{AllowBYOK: serpent.Bool(allowBYOK)}, slogtest.Make(t, nil), nil)
 			require.NoError(t, err)
 			require.Equal(t, aibridge.ProviderAnthropic, p.Type())
 		}
