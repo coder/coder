@@ -146,7 +146,7 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		APIDumpDir:       p.cfg.APIDumpDir,
 		SendActorHeaders: p.cfg.SendActorHeaders,
 	}
-	cred, err := p.resolveCredential(r)
+	cred, err := p.ResolveCredential(r)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return nil, xerrors.Errorf("resolve credential: %w", err)
@@ -162,7 +162,7 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 	return interceptor, nil
 }
 
-// resolveCredential determines the upstream credential for a request. At this
+// ResolveCredential determines the upstream credential for a request. At this
 // point the request contains only LLM provider headers. Any Coder-specific
 // authentication has already been stripped.
 //
@@ -174,7 +174,7 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 // When both BYOK headers are present, X-Api-Key takes priority to match
 // claude-code behavior. Centralized requests require a key pool, except for
 // Bedrock providers, which authenticate via AWS signing rather than a pool.
-func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, error) {
+func (p *Anthropic) ResolveCredential(r *http.Request) (intercept.Credential, error) {
 	if apiKey := r.Header.Get(intercept.AuthHeaderXAPIKey); apiKey != "" {
 		return intercept.BYOK{Secret: apiKey, Header: intercept.AuthHeaderXAPIKey}, nil
 	}

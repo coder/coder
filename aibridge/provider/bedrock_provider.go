@@ -175,7 +175,7 @@ func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, trace
 		APIDumpDir:       p.cfg.APIDumpDir,
 		SendActorHeaders: p.cfg.SendActorHeaders,
 	}
-	cred, err := p.resolveCredential(r)
+	cred, err := p.ResolveCredential(r)
 	if err != nil {
 		return nil, xerrors.Errorf("resolve credential: %w", err)
 	}
@@ -200,7 +200,7 @@ func (p *Bedrock) createChatCompletionsInterceptor(id uuid.UUID, r *http.Request
 	}
 
 	cfg := p.bedrockInterceptConfig()
-	cred, err := p.resolveCredential(r)
+	cred, err := p.ResolveCredential(r)
 	if err != nil {
 		return nil, xerrors.Errorf("resolve credential: %w", err)
 	}
@@ -229,7 +229,7 @@ func (p *Bedrock) createResponsesInterceptor(id uuid.UUID, r *http.Request, trac
 	}
 
 	cfg := p.bedrockInterceptConfig()
-	cred, err := p.resolveCredential(r)
+	cred, err := p.ResolveCredential(r)
 	if err != nil {
 		return nil, xerrors.Errorf("resolve credential: %w", err)
 	}
@@ -267,12 +267,12 @@ func (p *Bedrock) bedrockInterceptConfig() intercept.Config {
 	}
 }
 
-// resolveCredential determines the upstream credential for a request. Bedrock
+// ResolveCredential determines the upstream credential for a request. Bedrock
 // authenticates via AWS signing, so when no BYOK header is present it returns
 // the Bedrock credential backed by the runtime's access key. BYOK
 // X-Api-Key/Authorization headers are honored for users who bring their own
 // key.
-func (p *Bedrock) resolveCredential(r *http.Request) (intercept.Credential, error) {
+func (p *Bedrock) ResolveCredential(r *http.Request) (intercept.Credential, error) {
 	if apiKey := r.Header.Get(intercept.AuthHeaderXAPIKey); apiKey != "" {
 		return intercept.BYOK{Secret: apiKey, Header: intercept.AuthHeaderXAPIKey}, nil
 	}

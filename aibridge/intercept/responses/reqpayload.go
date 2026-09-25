@@ -58,7 +58,8 @@ func (p RequestPayload) Stream() bool {
 	return gjson.GetBytes(p, reqPathStream).Bool()
 }
 
-func (p RequestPayload) model() string {
+// Model returns the model from the request body.
+func (p RequestPayload) Model() string {
 	return gjson.GetBytes(p, reqPathModel).String()
 }
 
