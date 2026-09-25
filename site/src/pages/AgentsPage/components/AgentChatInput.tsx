@@ -167,9 +167,9 @@ type AgentChatInputProps = {
 	userPromptHistory?: readonly string[];
 
 	// Optional context-usage summary shown to the left of the send button.
-	// Pass `null` to render fallback values (e.g. when limit is unknown).
+	// Fields the provider has not reported render as fallback values.
 	// Omit entirely to hide the indicator.
-	contextUsage?: AgentContextUsage | null;
+	contextUsage?: AgentContextUsage;
 	// Re-pins the chat to the workspace's latest context snapshot,
 	// surfaced by the context indicator when the pinned context has
 	// drifted.
