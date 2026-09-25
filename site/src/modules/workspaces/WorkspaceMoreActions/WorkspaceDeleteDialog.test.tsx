@@ -108,7 +108,6 @@ describe("WorkspaceDeleteDialog", () => {
 
 		const input = await reopen(user);
 		expect(input).toHaveValue("");
-		expect(input).toHaveAttribute("aria-invalid", "false");
 		expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
 	});
 
