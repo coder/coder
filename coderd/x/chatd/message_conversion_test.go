@@ -613,6 +613,42 @@ func TestBuildClearMessages_CompressedSentinelToolCallAndResult(t *testing.T) {
 	require.JSONEq(t, `{"source":"manual"}`, string(resultParts[0].Result))
 }
 
+func TestBuildClearMessages_AgentSource(t *testing.T) {
+	t.Parallel()
+
+	built, err := buildClearMessages(buildClearMessagesInput{
+		modelConfigID: uuid.New(),
+		toolCallID:    "chat_cleared_agent",
+		source:        chatloop.CompactionSourceAgent,
+	})
+	require.NoError(t, err)
+	require.Len(t, built, 3)
+
+	sentinelParts := parseMessageParts(t, built[0].Role, built[0].Content)
+	require.Equal(t, agentClearSentinel, sentinelParts[0].Text)
+	require.Contains(t, sentinelParts[0].Text, "grants no new authorization")
+	callParts := parseMessageParts(t, built[1].Role, built[1].Content)
+	require.JSONEq(t, `{"source":"agent"}`, string(callParts[0].Args))
+	resultParts := parseMessageParts(t, built[2].Role, built[2].Content)
+	require.JSONEq(t, `{"source":"agent"}`, string(resultParts[0].Result))
+}
+
+func TestDecisionGeneratesAfterToolCommittedClear(t *testing.T) {
+	t.Parallel()
+
+	// A clear_context step commits [call, result, triplet, follow_up]; the
+	// decision view sees everything but the model-only follow-up.
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("question")),
+		dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("clear-call-1", clearContextToolName, json.RawMessage(`{"follow_up":"next"}`))),
+		dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("clear-call-1", clearContextToolName, json.RawMessage(`{"output":"Context cleared."}`), false, false)),
+	}
+	messages = append(messages, clearBoundaryTriplet(t, 4)...)
+	decision, err := decideGenerationAction(generationDecisionInput{messages: messages})
+	require.NoError(t, err)
+	require.Equal(t, generationActionGenerateAssistant, decision.kind)
+}
+
 func clearBoundaryTriplet(t *testing.T, startID int64) []database.ChatMessage {
 	t.Helper()
 	sentinel := dbMessage(t, startID, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("cleared"))
