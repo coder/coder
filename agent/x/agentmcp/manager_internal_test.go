@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -256,8 +257,8 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	m := &Manager{execer: agentexec.DefaultExecer, fs: afero.NewOsFs(), envInfo: &usershell.SystemEnvInfo{}}
-	client, err := m.connectServer(ctx, cfg)
+	m := &Manager{execer: agentexec.DefaultExecer, fs: afero.NewOsFs(), envInfo: &usershell.SystemEnvInfo{}, clock: quartz.NewReal()}
+	client, _, err := m.connectServer(ctx, cfg)
 	require.NoError(t, err, "connectServer should succeed")
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -313,7 +314,7 @@ func TestCreateTransport_StdioSetsWorkingDir(t *testing.T) {
 		func() string { return workDir })
 	t.Cleanup(func() { _ = m.Close() })
 
-	transport, err := m.createTransport(ctx, ServerConfig{
+	transport, _, err := m.createTransport(ctx, ServerConfig{
 		Name:      "fake",
 		Transport: "stdio",
 		Command:   "true",
@@ -362,7 +363,26 @@ func TestResolveWorkingDir(t *testing.T) {
 
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over
 // stdin/stdout, just enough for initialize + tools/list.
+// TEST_MCP_FAKE_SERVER_HANG=1 models a server that never answers the
+// handshake: it drains stdin until the client closes it.
 func runFakeMCPServer() {
+	if os.Getenv("TEST_MCP_FAKE_SERVER_HANG") == "1" {
+		_, _ = io.Copy(io.Discard, os.Stdin)
+		return
+	}
+	// TEST_MCP_FAKE_SERVER_ECHO_ENV names an environment variable whose
+	// value the server echoes inside a JSON-RPC error, modeling a server
+	// that leaks its environment: on initialize when
+	// TEST_MCP_FAKE_SERVER_INIT_FAILS=1, and on tools/list while the
+	// file named by TEST_MCP_FAKE_SERVER_LIST_FAILS_IF_FILE exists.
+	echoed := os.Getenv(os.Getenv("TEST_MCP_FAKE_SERVER_ECHO_ENV"))
+	rpcError := func(id json.RawMessage, msg string) map[string]any {
+		return map[string]any{
+			"jsonrpc": "2.0",
+			"id":      id,
+			"error":   map[string]any{"code": -32000, "message": msg + ": " + echoed},
+		}
+	}
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -379,6 +399,10 @@ func runFakeMCPServer() {
 		var resp any
 		switch req.Method {
 		case "initialize":
+			if os.Getenv("TEST_MCP_FAKE_SERVER_INIT_FAILS") == "1" {
+				resp = rpcError(req.ID, "initialize rejected")
+				break
+			}
 			resp = map[string]any{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
@@ -397,20 +421,32 @@ func runFakeMCPServer() {
 			// No response needed for notifications.
 			continue
 		case "tools/list":
+			if marker := os.Getenv("TEST_MCP_FAKE_SERVER_LIST_FAILS_IF_FILE"); marker != "" {
+				if _, err := os.Stat(marker); err == nil {
+					resp = rpcError(req.ID, "tools/list rejected")
+					break
+				}
+			}
+			tools := []map[string]any{
+				{
+					"name":        "echo",
+					"description": "echoes input",
+					"inputSchema": map[string]any{
+						"type":       "object",
+						"properties": map[string]any{},
+					},
+				},
+			}
+			// TEST_MCP_FAKE_SERVER_TOOLS=none models a server that
+			// connects but exposes nothing.
+			if os.Getenv("TEST_MCP_FAKE_SERVER_TOOLS") == "none" {
+				tools = []map[string]any{}
+			}
 			resp = map[string]any{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result": map[string]any{
-					"tools": []map[string]any{
-						{
-							"name":        "echo",
-							"description": "echoes input",
-							"inputSchema": map[string]any{
-								"type":       "object",
-								"properties": map[string]any{},
-							},
-						},
-					},
+					"tools": tools,
 				},
 			}
 		default:
