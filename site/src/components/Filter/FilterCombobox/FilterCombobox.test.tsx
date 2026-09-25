@@ -1193,6 +1193,7 @@ describe("FilterCombobox", () => {
 			{
 				initialValue: "owner:alice status:running outdated:true dev",
 				fakeTimers: true,
+				skipHover: true,
 			},
 		);
 
@@ -1205,6 +1206,34 @@ describe("FilterCombobox", () => {
 		expect(onChange).not.toHaveBeenCalledWith("dev ali");
 		expect(input).toHaveValue("");
 		expect(input).toHaveFocus();
+
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		await user.click(await screen.findByRole("button", { name: "alice" }));
+		expect(onChange).toHaveBeenLastCalledWith("owner:alice");
+	});
+
+	it("leaves focus in place when Clear all is clicked without focus", async () => {
+		const { user, input } = setup(
+			[ownerCategory, statusCategory, attributesCategory],
+			{ initialValue: "owner:alice status:running outdated:true" },
+		);
+
+		await user.click(screen.getByRole("button", { name: "Clear all" }));
+
+		expect(input).not.toHaveFocus();
+	});
+
+	it("reaches Clear all from the input with Escape and Tab", async () => {
+		const { user, input } = setup(
+			[ownerCategory, statusCategory, attributesCategory],
+			{ initialValue: "owner:alice status:running outdated:true" },
+		);
+
+		await user.click(input);
+		await user.keyboard("{Escape}");
+		await user.tab();
+
+		expect(screen.getByRole("button", { name: "Clear all" })).toHaveFocus();
 	});
 
 	it("clears every chip with Clear all while a category is open", async () => {

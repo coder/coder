@@ -382,7 +382,7 @@ export function FilterCombobox({
 								variant="outline"
 								size="md"
 								data-slot="combobox-chip-search"
-								className="px-2 font-medium"
+								className={cn(chipRowItemHeightClassName, "px-2 font-medium")}
 							>
 								{typedFreeText}
 							</Badge>
@@ -394,7 +394,7 @@ export function FilterCombobox({
 								variant="dashed"
 								size="md"
 								data-slot="combobox-chip-draft"
-								className="px-2 font-medium"
+								className={cn(chipRowItemHeightClassName, "px-2 font-medium")}
 								aria-hidden
 							>
 								{`${activeCategory.key}:`}
