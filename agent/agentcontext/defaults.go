@@ -1,5 +1,9 @@
 package agentcontext
 
+// globalInstructionsRoot is the directory whose instruction files apply to
+// the whole conversation rather than to a directory tree.
+const globalInstructionsRoot = "~/.coder"
+
 // defaultBuiltinRoots returns the scan roots layered after
 // user-added sources and before working-directory discovery. These mirror the
 // agentcontextconfig API resolves at every chat hydrate. The
@@ -9,7 +13,7 @@ package agentcontext
 func defaultBuiltinRoots() []string {
 	return []string{
 		// User-level Coder config.
-		"~/.coder",
+		globalInstructionsRoot,
 		"~/.coder/skills",
 		// Claude Code plugin cache, picked up by the plugin
 		// RFC follow-up. v1 ignores plugin manifests, but
