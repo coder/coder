@@ -66,7 +66,20 @@ type Server struct {
 	// cancelFn closes the lifecycleCtx with the reason it closed.
 	cancelFn context.CancelCauseFunc
 
+	// poolOptions configures the interception pool created at startup.
+	poolOptions PoolOptions
+
 	shutdownOnce sync.Once
+}
+
+// ServerOption configures a [Server] at construction.
+type ServerOption func(*Server)
+
+// WithPoolOptions builds the server's interception pool with options instead of
+// [DefaultPoolOptions]. The deployment's record policy reaches the pool that
+// serves requests this way; see [PoolOptionsFromConfig].
+func WithPoolOptions(options PoolOptions) ServerOption {
+	return func(s *Server) { s.poolOptions = options }
 }
 
 // backend holds either an interception pool or a proxy router.
@@ -80,7 +93,7 @@ type backend struct {
 
 // New starts a gateway server. Creates a request pool only when interception
 // mode is selected. Mode is fixed at startup and requires a restart to change.
-func New(ctx context.Context, rpcDialer Dialer, logger slog.Logger, tracer trace.Tracer, experiments codersdk.Experiments, metrics *aibridge.Metrics) (*Server, error) {
+func New(ctx context.Context, rpcDialer Dialer, logger slog.Logger, tracer trace.Tracer, experiments codersdk.Experiments, metrics *aibridge.Metrics, opts ...ServerOption) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
@@ -97,6 +110,10 @@ func New(ctx context.Context, rpcDialer Dialer, logger slog.Logger, tracer trace
 		reverseProxyExp: experiments.Enabled(codersdk.ExperimentAIGatewayReverseProxy),
 		metrics:         metrics,
 		inflight:        aibridge.NewInflightGate(logger),
+		poolOptions:     DefaultPoolOptions,
+	}
+	for _, opt := range opts {
+		opt(daemon)
 	}
 
 	if !daemon.reverseProxyExp {
@@ -237,7 +254,7 @@ func (s *Server) initializeBackend(ctx context.Context, client DRPCClient) error
 
 // initializeInterception creates and publishes the server-owned request pool.
 func (s *Server) initializeInterception() error {
-	pool, err := NewCachedBridgePool(DefaultPoolOptions, nil, s.logger.Named("pool"), s.metrics, s.tracer)
+	pool, err := NewCachedBridgePool(s.poolOptions, nil, s.logger.Named("pool"), s.metrics, s.tracer)
 	if err != nil {
 		return xerrors.Errorf("create request pool: %w", err)
 	}
@@ -332,6 +349,21 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 	}
 	s.backend.Store(&backend{proxyRouter: s.inflight.Middleware(router), keyPools: router.KeyPools})
 	return nil
+}
+
+// PoolOptions reports the options the published interception pool was built
+// with, so a caller can assert that its configuration reached the pool serving
+// requests. It reports the zero value in proxy mode, which has no pool.
+func (s *Server) PoolOptions() PoolOptions {
+	current := s.backend.Load()
+	if current == nil {
+		return PoolOptions{}
+	}
+	pool, ok := current.pool.(*CachedBridgePool)
+	if !ok {
+		return PoolOptions{}
+	}
+	return pool.Options()
 }
 
 // KeyPoolStateCollector reports key states from the current provider snapshot.
