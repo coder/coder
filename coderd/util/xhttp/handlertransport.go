@@ -15,10 +15,10 @@ import (
 // response header: on WriteHeader, Write, or Flush, or when h returns.
 // The body streams through an [io.Pipe], so SSE and chunked responses
 // arrive as h writes them. As with net/http.Server, the request that h
-// serves ends when the caller cancels or h returns: its context ends and
-// its body closes. When the caller cancels, a body read returns the
-// cancellation cause. When h panics, the status is 500 and a body read
-// returns an error.
+// serves ends when the caller cancels or closes the response body, or when
+// h returns: its context ends and its body closes. When the caller cancels,
+// a body read returns the cancellation cause. When h panics, the status is
+// 500 and a body read returns an error.
 func HandlerTransport(h http.Handler) http.RoundTripper {
 	return &handlerTransport{handler: h}
 }
@@ -28,8 +28,8 @@ type handlerTransport struct {
 }
 
 func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// ctx ends when the caller cancels or h returns. Its cause ends the
-	// response body.
+	// ctx ends when the caller cancels or closes the response body, or when
+	// h returns. Its cause ends the response body.
 	ctx, end := context.WithCancelCause(req.Context())
 	// Cloning lets the handler mutate or store its request without
 	// surprising the caller.
@@ -85,11 +85,26 @@ func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		ProtoMajor:    1,
 		ProtoMinor:    1,
 		Header:        rw.frozenHeader,
-		Body:          pr,
+		Body:          &responseBody{PipeReader: pr, end: end},
 		Request:       req,
 		ContentLength: -1,
 	}, nil
 }
+
+// responseBody ends the request that h serves when the caller closes it, as
+// closing a net/http response body early does.
+type responseBody struct {
+	*io.PipeReader
+	end context.CancelCauseFunc
+}
+
+func (b *responseBody) Close() error {
+	err := b.PipeReader.Close()
+	b.end(errResponseBodyClosed)
+	return err
+}
+
+var errResponseBodyClosed = xerrors.New("response body closed")
 
 // pipeResponseWriter is an [http.ResponseWriter] that streams the response
 // body into an [io.PipeWriter]. The first call to WriteHeader (implicit or

@@ -127,6 +127,25 @@ func TestHandlerTransport(t *testing.T) {
 		require.ErrorIs(t, err, context.Canceled)
 	})
 
+	// Closing the response body must end the request that the handler
+	// serves, as it does over net/http, even when the handler only waits on
+	// its context.
+	t.Run("CloseBodyEndsRequest", func(t *testing.T) {
+		t.Parallel()
+
+		ended := make(chan error, 1)
+		h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			<-r.Context().Done()
+			ended <- r.Context().Err()
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp := roundTrip(ctx, t, h)
+		require.NoError(t, resp.Body.Close())
+		require.ErrorIs(t, testutil.RequireReceive(ctx, t, ended), context.Canceled)
+	})
+
 	t.Run("HandlerPanic", func(t *testing.T) {
 		t.Parallel()
 
