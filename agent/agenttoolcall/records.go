@@ -10,12 +10,14 @@ package agenttoolcall
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
 
@@ -36,6 +38,24 @@ var (
 	ErrInputMismatch             = xerrors.New("tool call input differs from the recorded input")
 	ErrToolCallCanceled          = xerrors.New("tool call was canceled")
 )
+
+// ErrorCode returns the workspacesdk.ToolCallErrorCode that answers a
+// request refused with one of the errors above. ok is false for any other
+// error.
+func ErrorCode(err error) (code workspacesdk.ToolCallErrorCode, ok bool) {
+	switch {
+	case errors.Is(err, ErrStaleToolCall):
+		return workspacesdk.ToolCallErrorStale, true
+	case errors.Is(err, ErrAgentStartedAfterToolCall):
+		return workspacesdk.ToolCallErrorAgentStartedAfterToolCall, true
+	case errors.Is(err, ErrInputMismatch):
+		return workspacesdk.ToolCallErrorInputMismatch, true
+	case errors.Is(err, ErrToolCallCanceled):
+		return workspacesdk.ToolCallErrorCanceled, true
+	default:
+		return "", false
+	}
+}
 
 // ageMargin covers request transit time after chatd measured the tool call age.
 const ageMargin = 2 * time.Second

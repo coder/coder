@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/agent/agenttoolcall"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -746,4 +747,33 @@ func goCancel(ctx context.Context, r *agenttoolcall.Records[string], k agenttool
 		res <- cancelResult{value: v, started: started, err: err}
 	}()
 	return res
+}
+
+func TestErrorCode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		err      error
+		wantCode workspacesdk.ToolCallErrorCode
+		wantOK   bool
+	}{
+		{name: "Stale", err: agenttoolcall.ErrStaleToolCall, wantCode: workspacesdk.ToolCallErrorStale, wantOK: true},
+		{name: "AgentStartedAfterToolCall", err: agenttoolcall.ErrAgentStartedAfterToolCall, wantCode: workspacesdk.ToolCallErrorAgentStartedAfterToolCall, wantOK: true},
+		{name: "InputMismatch", err: agenttoolcall.ErrInputMismatch, wantCode: workspacesdk.ToolCallErrorInputMismatch, wantOK: true},
+		{name: "Canceled", err: agenttoolcall.ErrToolCallCanceled, wantCode: workspacesdk.ToolCallErrorCanceled, wantOK: true},
+		{name: "Wrapped", err: xerrors.Errorf("start: %w", agenttoolcall.ErrStaleToolCall), wantCode: workspacesdk.ToolCallErrorStale, wantOK: true},
+		{name: "Nil"},
+		{name: "Other", err: xerrors.New("spawn failed")},
+		{name: "ContextCanceled", err: context.Canceled},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			code, ok := agenttoolcall.ErrorCode(tt.err)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.wantCode, code)
+		})
+	}
 }

@@ -8,8 +8,10 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agenttoolcall"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 // API exposes file-related operations performed through the agent.
@@ -19,6 +21,12 @@ type API struct {
 	pathStore         *agentgit.PathStore
 	envInfo           usershell.EnvInfoer
 	bundleFilesLimits workspacesdk.BundleFilesLimits
+	clock             quartz.Clock
+	// toolCalls decides whether an edit or write with tool call headers
+	// acts, and records its response for repeated requests and cancels.
+	// Keys are unique per tool call, so the edit and write routes never
+	// read each other's records in practice.
+	toolCalls *agenttoolcall.Records[fileResult]
 }
 
 // Option configures the API.
@@ -38,6 +46,14 @@ func WithEnvInfo(envInfo usershell.EnvInfoer) Option {
 	}
 }
 
+// WithClock sets the clock that measures agent uptime for tool call
+// decisions.
+func WithClock(clock quartz.Clock) Option {
+	return func(api *API) {
+		api.clock = clock
+	}
+}
+
 func NewAPI(logger slog.Logger, filesystem afero.Fs, pathStore *agentgit.PathStore, opts ...Option) *API {
 	api := &API{
 		logger:            logger,
@@ -45,10 +61,12 @@ func NewAPI(logger slog.Logger, filesystem afero.Fs, pathStore *agentgit.PathSto
 		pathStore:         pathStore,
 		envInfo:           usershell.SystemEnvInfo{},
 		bundleFilesLimits: defaultBundleFilesLimits,
+		clock:             quartz.NewReal(),
 	}
 	for _, opt := range opts {
 		opt(api)
 	}
+	api.toolCalls = agenttoolcall.NewRecords[fileResult](api.clock)
 	return api
 }
 
@@ -61,8 +79,10 @@ func (api *API) Routes() http.Handler {
 	r.Get("/read-file", api.HandleReadFile)
 	r.Get("/read-file-lines", api.HandleReadFileLines)
 	r.Post("/write-file", api.HandleWriteFile)
+	r.Post("/write-file/{id}/cancel", api.handleCancelToolCall)
 	r.Post("/upload-chat-file", api.HandleUploadChatFile)
 	r.Post("/edit-files", api.HandleEditFiles)
+	r.Post("/edit-files/{id}/cancel", api.handleCancelToolCall)
 	r.Post("/bundle-files", api.HandleBundleFiles)
 
 	return r

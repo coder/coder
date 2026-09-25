@@ -202,24 +202,14 @@ func (api *API) startProcess(ctx context.Context, req workspacesdk.StartProcessR
 // writeToolCallError writes the HTTP 409 for an agenttoolcall decision
 // error and reports whether err was one.
 func writeToolCallError(ctx context.Context, rw http.ResponseWriter, err error) bool {
-	var resp workspacesdk.ToolCallError
-	switch {
-	case errors.Is(err, agenttoolcall.ErrStaleToolCall):
-		resp.Code = workspacesdk.ToolCallErrorStale
-		resp.Message = "The tool call is in an older message than the chat's latest message."
-	case errors.Is(err, agenttoolcall.ErrAgentStartedAfterToolCall):
-		resp.Code = workspacesdk.ToolCallErrorAgentStartedAfterToolCall
-		resp.Message = "The workspace agent started after the tool call was committed."
-	case errors.Is(err, agenttoolcall.ErrInputMismatch):
-		resp.Code = workspacesdk.ToolCallErrorInputMismatch
-		resp.Message = "The request differs from the recorded request for this tool call."
-	case errors.Is(err, agenttoolcall.ErrToolCallCanceled):
-		resp.Code = workspacesdk.ToolCallErrorCanceled
-		resp.Message = "The tool call was canceled."
-	default:
+	code, ok := agenttoolcall.ErrorCode(err)
+	if !ok {
 		return false
 	}
-	httpapi.Write(ctx, rw, http.StatusConflict, resp)
+	httpapi.Write(ctx, rw, http.StatusConflict, workspacesdk.ToolCallError{
+		Response: codersdk.Response{Message: err.Error()},
+		Code:     code,
+	})
 	return true
 }
 
