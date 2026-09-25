@@ -121,7 +121,7 @@ that do not define one in their template. Template-defined autostop rules always
 take precedence. Active conversations extend the stop time automatically.
 
 This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**.
-The maximum configurable value is 30 days.
+The maximum configurable value is 30&nbsp;days.
 When disabled, workspaces follow their template's autostop rules (or none, if the template does not define any).
 
 ### Concurrent agents
@@ -165,7 +165,7 @@ See [Git Providers](./git-providers.md) for details.
 
 Administrators can configure a retention period for archived conversations.
 When enabled, archived conversations and orphaned files older than the
-retention period are automatically purged. The default is 30 days.
+retention period are automatically purged. The default is 30&nbsp;days.
 
 This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**.
 Refer to [Data Retention](./chat-retention.md) for details.

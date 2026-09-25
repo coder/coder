@@ -108,7 +108,7 @@ List keys and the most recent heartbeat for each:
 coder ai-gateway keys list
 ```
 
-A replica records a heartbeat when its control connection is established, then refreshes it every 60 seconds while that connection is active.
+A replica records a heartbeat when its control connection is established, then refreshes it every 60&nbsp;seconds while that connection is active.
 The heartbeat reports control-connection liveness rather than client request volume.
 Coder stores one timestamp per key, so replicas that share a key cannot be distinguished.
 
@@ -134,7 +134,7 @@ coder ai-gateway keys delete standalone-production
 Add `--yes` to skip the confirmation prompt in automation.
 
 Deleting a key rejects new connections immediately.
-An established session closes when its next heartbeat detects the deletion, within 60 seconds.
+An established session closes when its next heartbeat detects the deletion, within 60&nbsp;seconds.
 The replica then tries to reconnect, receives HTTP 401, and treats that as fatal: the process exits non-zero rather than retrying.
 Stop or update every replica before deleting its key for an orderly rotation.
 

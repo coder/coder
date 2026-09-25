@@ -18,7 +18,7 @@ particularly with database migrations in high availability (HA) deployments.
   the fewest developers are actively using their workspaces.
 - **The larger the version jump, the more migrations will run.** If you are
   upgrading across multiple minor versions, expect longer migration times.
-- **Large upgrades should complete in minutes** (typically 4-7 minutes). If your
+- **Large upgrades should complete in minutes** (typically 4-7&nbsp;minutes). If your
   upgrade is taking significantly longer, there may be an issue requiring
   investigation.
 - **Check for known issues affecting your upgrade path.** Some version upgrades
@@ -187,7 +187,7 @@ If you encounter any of the following issues, contact
 [Coder support](../../../support/index.md):
 
 - Locking issues that cannot be mitigated by the steps in this guide
-- Migrations taking significantly longer than expected (more than 15 minutes)
+- Migrations taking significantly longer than expected (more than 15&nbsp;minutes)
   without evidence of lock contention—this may indicate database resource
   constraints requiring investigation
 - Resource consumption issues (excessive memory, CPU, or OOM kills) during

@@ -66,7 +66,7 @@ registry, or another Terraform registry). This avoids redundant network and
 disk I/O on each build and prevents build failures caused by a module source
 being slow or temporarily unavailable.
 
-Coder limits cached module archives to 20MB per template version. If your
+Coder limits cached module archives to 20&nbsp;MB per template version. If your
 modules exceed this limit, some are skipped and unavailable for [Dynamic
 Parameters](./dynamic-parameters.md#module-not-loaded-errors-when-using-dynamic-parameters)
 evaluation, though builds still fetch the skipped modules directly. Template

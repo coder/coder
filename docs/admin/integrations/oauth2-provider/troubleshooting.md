@@ -61,7 +61,7 @@ If that stored scope names something this deployment cannot mint, the exchange a
 The usual cause is a grant made against a scope the deployment has since dropped.
 Authorize again to negotiate a scope it still supports; the stored scope is not something the client can change by requesting a different one.
 
-The exchange also re-checks the code's scope against the application's registered `scope`, which can change during the 10 minutes a code stays valid.
+The exchange also re-checks the code's scope against the application's registered `scope`, which can change during the 10&nbsp;minutes a code stays valid.
 Two more descriptions can open the `error_description` here:
 
 - `scope is no longer allowed by this app's registered scopes`: the allowlist narrowed after the code was issued and no longer covers the code's scope.
@@ -80,7 +80,7 @@ That is a Coder policy choice: withdrawing scope from a session already running 
 A refresh token keeps its granted scope until it expires, which can be up to the configured refresh lifetime; revoke the token to cut a live session.
 
 Codes issued before the upgrade that added scope columns carry `coder:all`, recorded as an unrestricted grant.
-For an application with a narrower `scope` allowlist, those codes are refused with `scope is no longer allowed by this app's registered scopes` until they expire, which takes at most 10 minutes.
+For an application with a narrower `scope` allowlist, those codes are refused with `scope is no longer allowed by this app's registered scopes` until they expire, which takes at most 10&nbsp;minutes.
 Authorizing again issues a code within the current allowlist.
 
 ## "invalid_scope" for a refresh that names a scope

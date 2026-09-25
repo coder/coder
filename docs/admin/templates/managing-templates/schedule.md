@@ -16,7 +16,7 @@ Template [admins](../../users/index.md) may define these default values:
   stops it.
 - [**Autostop requirement**](#autostop-requirement): Enforce mandatory workspace
   restarts to apply template updates regardless of user activity.
-- **Activity bump**: The duration by which to extend a workspace's deadline when activity is detected (default: 1 hour). The workspace will be considered inactive when no sessions are detected (VSCode, JetBrains, Terminal, or SSH). For details on what counts as activity, see the [user guide on activity detection](../../../user-guides/workspace-scheduling.md#activity-detection).
+- **Activity bump**: The duration by which to extend a workspace's deadline when activity is detected (default: 1&nbsp;hour). The workspace will be considered inactive when no sessions are detected (VSCode, JetBrains, Terminal, or SSH). For details on what counts as activity, see the [user guide on activity detection](../../../user-guides/workspace-scheduling.md#activity-detection).
 - **Dormancy**: This allows automatic deletion of unused workspaces to reduce
   spend on idle resources.
 

@@ -20,7 +20,7 @@ Retention policies help you:
 > [!NOTE]
 > Retention policies are disabled by default (set to `0`) to preserve existing
 > behavior. The exceptions are API keys and workspace agent logs, which default
-> to 7 days.
+> to 7&nbsp;days.
 
 ## Configuration
 
@@ -47,11 +47,11 @@ a YAML configuration file.
 Retention durations support days (`d`) and weeks (`w`) in addition to standard
 Go duration units (`h`, `m`, `s`):
 
-- `7d` - 7 days
-- `2w` - 2 weeks
-- `30d` - 30 days
-- `90d` - 90 days
-- `365d` - 1 year
+- `7d` - 7&nbsp;days
+- `2w` - 2&nbsp;weeks
+- `30d` - 30&nbsp;days
+- `90d` - 90&nbsp;days
+- `365d` - 1&nbsp;year
 
 ### CLI Example
 
@@ -94,7 +94,7 @@ ai_gateway:
 Coder runs a background process that periodically deletes old records. The
 purge process:
 
-1. Runs approximately every 10 minutes.
+1. Runs approximately every 10&nbsp;minutes.
 2. Processes records in batches to avoid database lock contention.
 3. Deletes records older than the configured retention period.
 4. Logs the number of deleted records for monitoring.
@@ -113,7 +113,7 @@ API key retention only affects **expired** keys. A key is deleted only when:
 1. The key has expired (past its `expires_at` timestamp).
 2. The key has been expired for longer than the retention period.
 
-Setting `--api-keys-retention=7d` deletes keys that expired more than 7 days
+Setting `--api-keys-retention=7d` deletes keys that expired more than 7&nbsp;days
 ago. Active keys are never deleted by the retention policy.
 
 Keeping expired keys for a short period allows Coder to return a more helpful
@@ -128,12 +128,12 @@ can always debug issues with active workspaces.
 
 For non-latest builds, logs are deleted if the agent hasn't connected within the
 retention period. Setting `--workspace-agent-logs-retention=7d` deletes logs for
-agents that haven't connected in 7 days (excluding those from the latest build).
+agents that haven't connected in 7&nbsp;days (excluding those from the latest build).
 
 ### AI Gateway Data Behavior
 
 AI Gateway retention applies to interception records and all related data,
-including token usage, prompts, and tool invocations. The default of 60 days
+including token usage, prompts, and tool invocations. The default of 60&nbsp;days
 provides a reasonable balance between storage costs and the ability to analyze
 usage patterns.
 
@@ -168,9 +168,9 @@ ai_gateway:
 
 Common compliance frameworks have varying retention requirements:
 
-- **SOC 2**: Typically requires 1 year of audit logs.
-- **HIPAA**: Requires 6 years for certain records.
-- **PCI DSS**: Requires 1 year of audit logs, with 3 months immediately
+- **SOC 2**: Typically requires 1&nbsp;year of audit logs.
+- **HIPAA**: Requires 6&nbsp;years for certain records.
+- **PCI DSS**: Requires 1&nbsp;year of audit logs, with 3&nbsp;months immediately
   available.
 - **GDPR**: Requires data minimization but does not specify maximum retention.
 

@@ -38,7 +38,7 @@ days of the week your workspace is allowed to autostart.
 
 Use autostop to stop a workspace after a number of hours. Autostop won't stop a
 workspace if you're still using it. It will wait for the user to become inactive
-before checking connections again (1 hour by default). Template admins can
+before checking connections again (1&nbsp;hour by default). Template admins can
 modify this duration with the **activity bump** template setting.
 
 > [!NOTE]
@@ -120,7 +120,7 @@ The intended configuration for autostop is to combine it with autostart, and set
 a "working schedule" for your workspace. It's pretty intuitive:
 
 If I want to use my workspace from 9 to 5 on weekdays, I would set my autostart
-to 9:00 AM every day with an autostop of 9 hours. My workspace will always be
+to 9:00 AM every day with an autostop of 9&nbsp;hours. My workspace will always be
 available during these hours, regardless of how long I spend away from my
 laptop. If I end up working overtime and log off at 6:00 PM, the activity bump
 will kick in, postponing the shutdown until 7:00 PM.
@@ -131,7 +131,7 @@ If you'd like to ignore the TTL from autostop and have your workspace solely
 function on activity detection, you can set your autostop equal to activity
 bump duration.
 
-Let's say that both are set to 5 hours. When either your workspace autostarts or
+Let's say that both are set to 5&nbsp;hours. When either your workspace autostarts or
 you sign in, you will have confidence that the only condition for shutdown is 5
 hours of inactivity.
 

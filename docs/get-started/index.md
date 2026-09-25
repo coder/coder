@@ -3,7 +3,7 @@ title: Quickstart
 ---
 
 Follow this guide to get your first Coder development environment
-running in under 10 minutes. This guide covers the essential concepts and shows
+running in under 10&nbsp;minutes. This guide covers the essential concepts and shows
 you how to create your first workspace and open it in your preferred editor.
 This workspace includes a basic set of tools to edit most code bases.
 
@@ -32,9 +32,9 @@ explained through a cooking analogy:
 
 ## Prerequisites
 
-- A machine with 2+ CPU cores and 4GB+ RAM (ideally a separate machine or VM, not your primary dev machine)
+- A machine with 2+ CPU cores and 4&nbsp;GB+ RAM (ideally a separate machine or VM, not your primary dev machine)
 - Familiarity with running commands in the terminal
-- 10 minutes of your time
+- 10&nbsp;minutes of your time
 
 <details>
 <summary>Why a separate machine?</summary>
@@ -289,7 +289,7 @@ Now it's time to launch a workspace.
 
 1. Select **Create workspace**.
 
-After a short wait (10-15 seconds on most modern computers), Coder will start your new workspace:
+After a short wait (10-15&nbsp;seconds on most modern computers), Coder will start your new workspace:
 
 ![getting-started-workspace is running](../images/screenshots/workspace-running-with-topbar.png)_Workspace is running_
 

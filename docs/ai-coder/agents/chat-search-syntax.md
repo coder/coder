@@ -43,7 +43,7 @@ be combined with `title:`, `pr_title:`, or `pr:`.
 - Results use the standard chat list ordering (pinned first, then most
   recently updated) and pagination, without match snippets.
 - Message content becomes searchable shortly after it is written
-  (background indexing, usually within 10 minutes). Titles and PR
+  (background indexing, usually within 10&nbsp;minutes). Titles and PR
   titles are searchable immediately.
 
 ## Examples

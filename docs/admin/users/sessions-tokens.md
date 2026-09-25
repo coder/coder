@@ -28,7 +28,7 @@ export CODER_SESSION_TOKEN=$(coder login token)
 
 ### Session Durations
 
-By default, sessions last 24 hours and are automatically refreshed. You can
+By default, sessions last 24&nbsp;hours and are automatically refreshed. You can
 configure
 [`CODER_SESSION_DURATION`](../../reference/cli/server.md#--session-duration) to
 change the duration and

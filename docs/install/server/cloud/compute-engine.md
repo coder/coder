@@ -24,7 +24,7 @@ Two SKU's are available via the Google Cloud Marketplace:
 Be sure to keep the default firewall options checked so you can connect over
 HTTP, HTTPS, and SSH.
 
-We recommend keeping the default instance type (`e2-standard-4`, 4 cores and 16
+We recommend keeping the default instance type (`e2-standard-4`, 4&nbsp;cores and 16
 GB memory) if you plan on provisioning Docker containers as workspaces on this
 VM instance. Keep in mind this platforms is intended for proof-of-concept
 deployments and you should adjust your infrastructure when preparing for
@@ -38,7 +38,7 @@ Your browser does not support the video tag.
 Be sure to add a keypair so that you can connect over SSH to further
 [configure Coder](../../../admin/setup/index.md).
 
-After launching the instance, wait 30 seconds and navigate to the public IPv4
+After launching the instance, wait 30&nbsp;seconds and navigate to the public IPv4
 address. You should be redirected to a public tunnel URL.
 
 ![Coder on GCP Marketplace start](../../../images/platforms/gcp/start.png)

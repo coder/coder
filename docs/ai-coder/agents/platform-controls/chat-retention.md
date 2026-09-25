@@ -15,7 +15,7 @@ Debug run and step cleanup is controlled separately. See
 
 ## How it works
 
-A background process runs approximately every 10 minutes to remove expired
+A background process runs approximately every 10&nbsp;minutes to remove expired
 conversation data. Only archived conversations are eligible for deletion —
 active (non-archived) conversations are never purged.
 
@@ -27,7 +27,7 @@ Conversation and file cleanup operations run in batches of 1,000 rows per cycle.
 ## Configuration
 
 Navigate to **Admin settings** > **AI** > **Coder Agents** > **Lifecycle** to configure the conversation retention period.
-The default is 30 days.
+The default is 30&nbsp;days.
 Use the toggle to disable retention entirely.
 
 Use the admin API to read or update the value:

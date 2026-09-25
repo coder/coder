@@ -250,7 +250,7 @@ To invalidate presets:
 1. Confirm the action in the dialog.
 
 Once presets are invalidated, the **next reconciliation loop** run will delete the old prebuilt workspaces and create new ones to maintain the desired instance count.
-The process typically completes within a few reconciliation cycles (the interval is controlled by `CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`, which defaults to 1 minute, or `1m0s`).
+The process typically completes within a few reconciliation cycles (the interval is controlled by `CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`, which defaults to 1&nbsp;minute, or `1m0s`).
 
 > [!NOTE]
 > Preset invalidation only affects unclaimed prebuilt workspaces owned by the `prebuilds` system user.
