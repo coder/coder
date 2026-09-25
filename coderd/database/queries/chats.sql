@@ -411,6 +411,20 @@ WHERE
 ORDER BY
     id ASC;
 
+-- name: GetChatMessagesAllVisibilitiesByChatID :many
+-- Returns every non-deleted message, model-only rows included, in id order.
+-- Structured output state reads it because a candidate invalidation rides
+-- on a model-only row.
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND deleted = false
+ORDER BY
+    id ASC;
+
 -- name: GetChatMessagesByRevisionForStream :many
 -- Stream deltas and reset snapshots must use the same message order.
 SELECT

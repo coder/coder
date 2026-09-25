@@ -3,6 +3,8 @@ package chatd_test
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -30,6 +33,7 @@ type finalizerRun struct {
 	results  []codersdk.ChatMessagePart
 	controls []chatstructured.Control
 	state    chatstructured.ActiveRequestState
+	hidden   []chatstructured.Control // on model-only rows
 	client   []codersdk.ChatMessage
 	receipts []codersdk.ChatStructuredOutput
 	requests [][]chattest.OpenAIMessage
@@ -46,10 +50,17 @@ func runFinalizerTurn(t *testing.T, schema json.RawMessage, calls ...chattest.Op
 	return runStructuredTurn(t, schema, 0, calls)
 }
 
-// runStructuredTurn runs one turn whose model steps emit steps in order and
-// then answer with text; a non-zero failStatus fails the first model call
-// before them.
+// runStructuredTurn runs one turn whose model steps emit steps in order, an
+// empty step answering with text, and then answer with text; a non-zero
+// failStatus fails the first model call before them.
 func runStructuredTurn(t *testing.T, schema json.RawMessage, failStatus int, steps ...[]chattest.OpenAIToolCall) finalizerRun {
+	t.Helper()
+	return runStructuredHookTurn(t, nil, schema, failStatus, steps...)
+}
+
+// runStructuredHookTurn is runStructuredTurn with lifecycle hooks answered by
+// hook; a zero status answers with an empty response.
+func runStructuredHookTurn(t *testing.T, hook func(agenthooks.Request) (int, string), schema json.RawMessage, failStatus int, steps ...[]chattest.OpenAIToolCall) finalizerRun {
 	t.Helper()
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -73,7 +84,7 @@ func runStructuredTurn(t *testing.T, schema json.RawMessage, failStatus int, ste
 			}
 			step--
 		}
-		if step >= len(steps) {
+		if step >= len(steps) || len(steps[step]) == 0 {
 			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 		}
 		calls := steps[step]
@@ -88,6 +99,20 @@ func runStructuredTurn(t *testing.T, schema json.RawMessage, failStatus int, ste
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		if hook != nil {
+			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var request agenthooks.Request
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+				if status, body := hook(request); status != 0 {
+					w.WriteHeader(status)
+					_, _ = w.Write([]byte(body))
+					return
+				}
+				_, _ = w.Write([]byte(`{}`))
+			}))
+			t.Cleanup(consumer.Close)
+			cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		}
 	})
 	tools, err := json.Marshal([]mcp.Tool{{Name: "dyn", InputSchema: map[string]any{"type": "object"}}})
 	require.NoError(t, err)
@@ -108,13 +133,21 @@ func runStructuredTurn(t *testing.T, schema json.RawMessage, failStatus int, ste
 	}, testutil.IntervalFast)
 	run.status = done.Status
 
-	history, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	history, err := db.GetChatMessagesAllVisibilitiesByChatID(ctx, chat.ID)
 	require.NoError(t, err)
 	rows := make([]chatstructured.Row, 0, len(history))
 	for _, msg := range history {
 		parts, err := chatprompt.ParseContent(msg)
 		require.NoError(t, err)
 		rows = append(rows, chatstructured.Row{ID: msg.ID, Role: codersdk.ChatMessageRole(msg.Role), Visibility: chatstructured.Visibility(msg.Visibility), Parts: parts})
+		if msg.Visibility == database.ChatMessageVisibilityModel {
+			for _, part := range parts {
+				if control, err := chatstructured.DecodeControlPart(part); err == nil {
+					run.hidden = append(run.hidden, control)
+				}
+			}
+			continue
+		}
 		run.client = append(run.client, db2sdk.ChatMessage(msg))
 		if out, err := chatstate.ReceiptRowOutcome(msg); err == nil {
 			run.receipts = append(run.receipts, out)

@@ -488,6 +488,10 @@ type sqlcQuerier interface {
 	// after the given timestamp. Uses message created_at so that
 	// ongoing activity in long-running chats is captured each window.
 	GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]GetChatMessageSummariesPerChatRow, error)
+	// Returns every non-deleted message, model-only rows included, in id order.
+	// Structured output state reads it because a candidate invalidation rides
+	// on a model-only row.
+	GetChatMessagesAllVisibilitiesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	// Ordered by id to match the @after_id cursor. created_at is the transaction
 	// start time, so it can disagree with append order when a transaction takes the
 	// chat row lock later than one that started after it.

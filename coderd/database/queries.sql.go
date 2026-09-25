@@ -8932,6 +8932,70 @@ func (q *sqlQuerier) GetChatMessageSummariesPerChat(ctx context.Context, created
 	return items, nil
 }
 
+const getChatMessagesAllVisibilitiesByChatID = `-- name: GetChatMessagesAllVisibilitiesByChatID :many
+SELECT
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND deleted = false
+ORDER BY
+    id ASC
+`
+
+// Returns every non-deleted message, model-only rows included, in id order.
+// Structured output state reads it because a candidate invalidation rides
+// on a model-only row.
+func (q *sqlQuerier) GetChatMessagesAllVisibilitiesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesAllVisibilitiesByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+			&i.CreatedBy,
+			&i.ContentVersion,
+			&i.TotalCostMicros,
+			&i.RuntimeMs,
+			&i.Deleted,
+			&i.ProviderResponseID,
+			&i.Revision,
+			&i.ReasoningEffort,
+			&i.SearchTsv,
+			&i.SearchTsvConfig,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
     id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config

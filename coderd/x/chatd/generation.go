@@ -1365,7 +1365,11 @@ func (s *taskStarter) commitGenerationStep(
 		// step; a separate commit races the runner and can be dropped
 		// on crash.
 		if failClosed {
-			if _, err := tx.FinishError(chatstate.FinishErrorInput{LastError: postCommitLastError}); err != nil {
+			receipts, err := generationFailedReceipts(ctx, s.opts.Logger, store, input.ChatID)
+			if err != nil {
+				return err
+			}
+			if _, err := tx.FinishError(chatstate.FinishErrorInput{LastError: postCommitLastError, TerminalMessages: receipts}); err != nil {
 				return xerrors.Errorf("tx.FinishError: %w", err)
 			}
 		}
@@ -1512,7 +1516,7 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
-		receipts, err := structuredFinishMessages(ctx, store, input.ChatID, input.structuredTerminal)
+		receipts, err := structuredFinishMessages(ctx, s.opts.Logger, store, input.ChatID, input.structuredTerminal)
 		if err != nil {
 			return err
 		}
@@ -1579,13 +1583,22 @@ func (s *taskStarter) finishGenerationTurn(
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
-		if len(stopMessages) > 0 {
-			if _, err := tx.CommitStep(chatstate.CommitStepInput{Messages: stopMessages}); err != nil {
+		commit := stopMessages
+		if continueTurn {
+			// The resumed turn must finalize again: its old candidate no
+			// longer answers the request.
+			var err error
+			if commit, err = structuredInvalidation(ctx, s.opts.Logger, store, input.ChatID, messages, stopMessages); err != nil {
+				return err
+			}
+		}
+		if len(commit) > 0 {
+			if _, err := tx.CommitStep(chatstate.CommitStepInput{Messages: commit}); err != nil {
 				return xerrors.Errorf("commit stop hook messages: %w", err)
 			}
 		}
 		if !continueTurn {
-			receipts, err := structuredFinishMessages(ctx, store, input.ChatID, input.structuredTerminal)
+			receipts, err := structuredFinishMessages(ctx, s.opts.Logger, store, input.ChatID, input.structuredTerminal)
 			if err != nil {
 				return err
 			}
@@ -1661,11 +1674,7 @@ func (s *taskStarter) finishGenerationError(
 				Error: &codersdk.ChatStructuredOutputError{Code: codersdk.ChatStructuredOutputErrorCodeConfigurationError, Message: configuration.reason},
 			})
 		} else {
-			var history []database.ChatMessage
-			if history, err = store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: input.ChatID}); err == nil {
-				receipts, err = activeRequestReceipt(ctx, s.opts.Logger, store, input.ChatID, history,
-					structuredFailure(chatstructured.ActiveRequestState{}, codersdk.ChatStructuredOutputErrorCodeGenerationFailed).outcome)
-			}
+			receipts, err = generationFailedReceipts(ctx, s.opts.Logger, store, input.ChatID)
 		}
 		if err != nil {
 			return xerrors.Errorf("structured output receipt: %w", err)

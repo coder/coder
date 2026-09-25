@@ -3481,6 +3481,14 @@ func (q *querier) GetChatMessageSummariesPerChat(ctx context.Context, createdAft
 	return q.db.GetChatMessageSummariesPerChat(ctx, createdAfter)
 }
 
+func (q *querier) GetChatMessagesAllVisibilitiesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
+	// Authorize read on the parent chat.
+	if _, err := q.GetChatByID(ctx, chatID); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatMessagesAllVisibilitiesByChatID(ctx, chatID)
+}
+
 func (q *querier) GetChatMessagesByChatID(ctx context.Context, arg database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {
 	// Authorize read on the parent chat.
 	_, err := q.GetChatByID(ctx, arg.ChatID)
