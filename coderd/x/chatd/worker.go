@@ -28,11 +28,6 @@ type chatWorker struct {
 	unsubscribe func()
 	wakeCh      chan struct{}
 	wg          sync.WaitGroup
-
-	// capacityWaits tracks when each chat was first refused a capacity
-	// slot. Read and written only by the acquisition goroutine
-	// (acquireOnce and the functions it calls); it has no lock.
-	capacityWaits map[uuid.UUID]capacityWait
 }
 
 // newChatWorker constructs a chat worker. The worker is idle until Start is
@@ -45,11 +40,7 @@ func newChatWorker(server *Server, opts chatWorkerOptions) (*chatWorker, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &chatWorker{
-		server:        server,
-		opts:          withDefaults,
-		capacityWaits: make(map[uuid.UUID]capacityWait),
-	}, nil
+	return &chatWorker{server: server, opts: withDefaults}, nil
 }
 
 // Start starts the acquisition and runner manager loops.
@@ -197,10 +188,9 @@ func (w *chatWorker) acquisitionLoop(
 
 func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manager *runnerManager) {
 	// Fetch twice the budget so one full pool cannot hide candidates in the other.
-	limit := w.opts.AcquisitionBatchSize * 2
 	rows, err := w.opts.Store.GetChatWorkerAcquisitionCandidates(ctx, database.GetChatWorkerAcquisitionCandidatesParams{
 		StaleSeconds: w.opts.HeartbeatStaleSeconds,
-		LimitCount:   limit,
+		LimitCount:   w.opts.AcquisitionBatchSize * 2,
 	})
 	if err != nil {
 		if ctx.Err() == nil {
@@ -212,11 +202,6 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 	acquired := int32(0)
 	rootPoolRefused := false
 	subagentPoolRefused := false
-	// A batch shorter than the limit holds every candidate, so a chat
-	// absent from it has left the candidate set.
-	if len(rows) < int(limit) {
-		w.pruneCapacityWaits(rows)
-	}
 	for _, row := range rows {
 		if acquired >= w.opts.AcquisitionBatchSize {
 			return
@@ -226,9 +211,6 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 		isSubagent := row.ParentChatID.Valid
 		if row.Status == database.ChatStatusRunning &&
 			((isSubagent && subagentPoolRefused) || (!isSubagent && rootPoolRefused)) {
-			// The pool refused an earlier candidate this pass, so this
-			// one is waiting for capacity as well.
-			w.noteCapacityRefused(row.ID, row.HistoryVersion, row.UpdatedAt)
 			continue
 		}
 		candidateAcquired, err := w.acquireCandidateSafely(ctx, workerID, manager, row.ID)
@@ -279,7 +261,6 @@ func (w *chatWorker) acquireCandidate(
 	chatID uuid.UUID,
 ) (bool, error) {
 	runnerID := uuid.New()
-	var loadedChat database.Chat
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := store.GetChatByID(ctx, chatID)
@@ -313,7 +294,6 @@ func (w *chatWorker) acquireCandidate(
 		if err != nil {
 			return xerrors.Errorf("agent admission: %w", err)
 		}
-		loadedChat = chat
 		if !admitted {
 			// Roll back to suppress the ownership hint, which would wake every
 			// worker into an immediate retry of this unowned chat.
@@ -323,11 +303,9 @@ func (w *chatWorker) acquireCandidate(
 		return err
 	})
 	if errors.Is(err, errCapacityRefused) {
-		w.noteCapacityRefused(loadedChat.ID, loadedChat.HistoryVersion, loadedChat.UpdatedAt)
 		return false, errCapacityRefused
 	}
 	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) {
-		w.forgetCapacityWait(chatID)
 		return false, nil
 	}
 	if err != nil {
@@ -339,7 +317,6 @@ func (w *chatWorker) acquireCandidate(
 		}
 		return false, err
 	}
-	w.recordCapacityWait(ctx, loadedChat)
 	return true, nil
 }
 
