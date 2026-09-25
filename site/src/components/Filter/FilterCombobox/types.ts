@@ -45,9 +45,10 @@ export type FilterCategory = {
 	 * one option. When `getOptions("")` omits values the results can contain,
 	 * the row can hide while its one option would still narrow the results. Its
 	 * empty-query options are fetched when the filter renders. Until every
-	 * category with this flag has loaded them, the unnarrowed menu shows
-	 * placeholder rows in place of all submenu rows. An applied chip or a failed
-	 * lookup keeps it in the menu. Does not apply to inline categories.
+	 * category with this flag finishes its first load, successfully or not, the
+	 * unnarrowed menu shows placeholder rows in place of all submenu rows. An
+	 * applied chip or a failed lookup keeps it in the menu; a retry that returns
+	 * at most one option removes it. Does not apply to inline categories.
 	 */
 	hideWhenSingleOption?: boolean;
 };

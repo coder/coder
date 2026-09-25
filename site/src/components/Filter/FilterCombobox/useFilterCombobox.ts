@@ -363,28 +363,28 @@ export const useFilterCombobox = ({
 		combine: (results) => {
 			const optionsByKey = new Map<string, readonly FilterOption[]>();
 			const erroredKeys = new Set<string>();
-			const failedKeys = new Set<string>();
-			const firstLoadKeys = new Set<string>();
+			const failedOrRetryingKeys = new Set<string>();
+			const hideableFirstLoadKeys = new Set<string>();
 			results.forEach((result, index) => {
-				const { key } = categories[index];
+				const { key, hideWhenSingleOption } = categories[index];
 				if (result.data) {
 					optionsByKey.set(key, result.data);
 				} else if (result.isError) {
 					erroredKeys.add(key);
 				}
-				// A retry puts a failed query back to pending, so the failure
-				// count tells a retry from the first load.
+				// A retry puts a failed query back to pending, so
+				// `errorUpdateCount` tells a retry from the first load.
 				if (!result.data && result.errorUpdateCount > 0) {
-					failedKeys.add(key);
-				} else if (result.isPending) {
-					firstLoadKeys.add(key);
+					failedOrRetryingKeys.add(key);
+				} else if (hideWhenSingleOption && result.isPending) {
+					hideableFirstLoadKeys.add(key);
 				}
 			});
 			return {
 				optionsByKey,
 				erroredKeys,
-				failedKeys,
-				firstLoadKeys,
+				failedOrRetryingKeys,
+				hideableFirstLoadKeys,
 				refetch: (categoryKey: string) => {
 					const index = categories.findIndex(
 						(category) => category.key === categoryKey,
@@ -394,35 +394,37 @@ export const useFilterCombobox = ({
 			};
 		},
 	});
-	const isHideableLoading = (category: FilterCategory) =>
-		category.hideWhenSingleOption === true &&
-		unfilteredOptions.firstLoadKeys.has(category.key);
+	const isHideableFirstLoad = (category: FilterCategory) =>
+		unfilteredOptions.hideableFirstLoadKeys.has(category.key);
 	// A hideable category stays in the menu while its options first load, so
 	// typed text can match it; while it has an applied chip, so the chip can be
 	// changed; and after a failed lookup, including while its retry runs, so its
-	// flyout can offer a retry.
+	// flyout can offer a retry. A retry that returns at most one option removes
+	// it.
 	const isInMenu = (category: FilterCategory, chips = chipValues) =>
 		!category.hideWhenSingleOption ||
-		isHideableLoading(category) ||
-		unfilteredOptions.failedKeys.has(category.key) ||
+		isHideableFirstLoad(category) ||
+		unfilteredOptions.failedOrRetryingKeys.has(category.key) ||
 		(unfilteredOptions.optionsByKey.get(category.key)?.length ?? 0) > 1 ||
 		chips.some((token) => categoryForChip(token) === category);
 	const menuCategories = allSubmenuCategories.filter((category) =>
 		isInMenu(category),
 	);
-	// Until every hideable category's options load, the full list is unknown,
-	// so the unnarrowed category list shows one placeholder row per submenu
-	// category. The list that replaces them can be shorter.
-	const hideableOptionsLoading = allSubmenuCategories.some(isHideableLoading);
+	const hideableFirstLoadPending =
+		allSubmenuCategories.some(isHideableFirstLoad);
 
 	const categoryQuery =
 		activeCategoryKey !== null || browseAll ? "" : inputValue.trim();
+	// Until every hideable category finishes its first load, successfully or
+	// not, the full list is unknown, so the unnarrowed category list shows one
+	// placeholder row per submenu category. The list that replaces them can be
+	// shorter.
 	const categoryPlaceholderCount =
 		open &&
 		activeCategoryKey === null &&
 		typedInlinePrefix === null &&
 		categoryQuery.length === 0 &&
-		hideableOptionsLoading
+		hideableFirstLoadPending
 			? allSubmenuCategories.length
 			: 0;
 	const listedCategories =
@@ -431,6 +433,20 @@ export const useFilterCombobox = ({
 			: categoryQuery.length === 0
 				? menuCategories
 				: matchCategories(categoryQuery, menuCategories);
+
+	// Placeholder rows are not cmdk items, so an inline row takes the highlight
+	// while they show. Once they are replaced, the first category row takes it,
+	// as it would in a menu that opened without placeholders.
+	const placeholdersShown = categoryPlaceholderCount > 0;
+	const firstListedCategoryKey = listedCategories[0]?.key;
+	const placeholdersShownRef = useRef(placeholdersShown);
+	useEffect(() => {
+		const wereShown = placeholdersShownRef.current;
+		placeholdersShownRef.current = placeholdersShown;
+		if (wereShown && !placeholdersShown && firstListedCategoryKey) {
+			highlightRef.current?.set(firstListedCategoryKey);
+		}
+	}, [placeholdersShown, firstListedCategoryKey]);
 
 	const activeOptionsQuerySource = activeCategoryKey !== null ? inputValue : "";
 	const debouncedActiveOptionsQuery = useDebouncedValue(
@@ -819,9 +835,18 @@ export const useFilterCombobox = ({
 		}
 	};
 
+	// Chip tokens in the typed text become chips, so a token the menu held back
+	// while it was typed is not sent as search text or repeated.
 	const applyTypedSearch = () => {
 		cancelTypedTextLookup();
-		const query = composeFilterQuery(chipValues, chipKeys, typedFreeText);
+		const query = composeFilterQuery(
+			dedupeChips(
+				[...chipValues, ...queryToChips(typedFreeText, chipKeys)],
+				chipKeys,
+			),
+			chipKeys,
+			extractFreeText(typedFreeText, chipKeys),
+		);
 		if (query !== lastEmittedRef.current) {
 			emitQuery(query);
 		}
@@ -975,7 +1000,7 @@ export const useFilterCombobox = ({
 
 	// Text typed in the main menu may be a free-text search, so no row is
 	// highlighted until the user moves to one. Inside a category, in the
-	// all-filters list, or after a typed key: prefix the text narrows filters, so
+	// all-filters list, or after a typed `key:` prefix the text narrows filters, so
 	// the first match stays highlighted.
 	const typingFreeText = hasTypeaheadQuery && typedInlinePrefix === null;
 
@@ -1060,27 +1085,35 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		// A highlighted row can unmount without cmdk reporting a new highlight,
-		// so only a value naming a rendered row counts.
-		const highlightedValue = getHighlightedValue();
-		const highlightedRow = [
+		// Row values in the order MainPanel renders them, so the first is the
+		// top row.
+		const rowValues = [
 			...listedCategories.map((category) => category.key),
 			...inlineOptionRows.map((row) => row.token),
 			...valueSuggestions.map((suggestion) => suggestion.token),
-		].includes(highlightedValue)
+		];
+		// A highlighted row can unmount without cmdk reporting a new highlight,
+		// so only a value naming a rendered row counts.
+		const highlightedValue = getHighlightedValue();
+		const renderedHighlightedValue = rowValues.includes(highlightedValue)
 			? highlightedValue
 			: "";
 
 		// With free-typed text and no row highlighted, Enter applies the text as
 		// a free-text search and closes the menu.
-		if (event.key === "Enter" && typingFreeText && highlightedRow === "") {
+		if (
+			event.key === "Enter" &&
+			typingFreeText &&
+			renderedHighlightedValue === ""
+		) {
 			event.preventDefault();
 			applyTypedSearch();
 			dispatch({ type: "close" });
 			return;
 		}
 
-		// Enter and Tab complete the highlighted row, and Tab otherwise moves
+		// Enter and Tab complete the highlighted row. While typing free text with
+		// no row highlighted, Tab completes the top row; otherwise Tab moves
 		// focus. ArrowRight only opens a highlighted category.
 		const isComplete =
 			event.key === "Enter" || (event.key === "Tab" && !event.shiftKey);
@@ -1088,16 +1121,9 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		// With no row highlighted, Tab completes the top row. The order below
-		// must match the order MainPanel renders these lists.
 		const highlighted =
-			highlightedRow ||
-			(event.key === "Tab" && typingFreeText
-				? (listedCategories[0]?.key ??
-					inlineOptionRows[0]?.token ??
-					valueSuggestions[0]?.token ??
-					"")
-				: "");
+			renderedHighlightedValue ||
+			(event.key === "Tab" && typingFreeText ? (rowValues[0] ?? "") : "");
 		const category = listedCategories.find(
 			(entry) => entry.key === highlighted,
 		);
