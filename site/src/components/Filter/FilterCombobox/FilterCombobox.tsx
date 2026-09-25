@@ -769,9 +769,9 @@ function FlyoutSearch({
 				value={value}
 				onChange={(event) => onChange(event.currentTarget.value)}
 				onKeyDown={(event) => {
-					const isListNavigation =
+					const reachesList =
 						event.key === "Enter" || isListNavigationKey(event);
-					if (navigatesList && isListNavigation) {
+					if (navigatesList && reachesList) {
 						return;
 					}
 					event.stopPropagation();
@@ -789,8 +789,8 @@ type OptionsPanelProps = Readonly<{
 	/** Shown above the options when the category is searchable. */
 	search?: { value: string; onChange: (value: string) => void };
 	/**
-	 * The options are combobox rows, so list navigation keys reach them from
-	 * the panel's own controls instead of stopping there.
+	 * The options are combobox rows, so list navigation keys and Enter reach
+	 * them from the panel's own controls instead of stopping there.
 	 */
 	navigatesList?: boolean;
 	emptyMessage?: string;

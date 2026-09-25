@@ -809,9 +809,18 @@ export const useFilterCombobox = ({
 		}
 	};
 
+	// Chip tokens in the typed text become chips, so a token the menu held back
+	// while it was typed is not sent as search text or repeated.
 	const applyTypedSearch = () => {
 		cancelTypedTextLookup();
-		const query = composeFilterQuery(chipValues, chipKeys, typedFreeText);
+		const query = composeFilterQuery(
+			dedupeChips(
+				[...chipValues, ...queryToChips(typedFreeText, chipKeys)],
+				chipKeys,
+			),
+			chipKeys,
+			extractFreeText(typedFreeText, chipKeys),
+		);
 		if (query !== lastEmittedRef.current) {
 			emitQuery(query);
 		}
@@ -957,7 +966,7 @@ export const useFilterCombobox = ({
 
 	// Text typed in the main menu may be a free-text search, so no row is
 	// highlighted until the user moves to one. Inside a category, in the
-	// all-filters list, or after a typed key: prefix the text narrows filters, so
+	// all-filters list, or after a typed `key:` prefix the text narrows filters, so
 	// the first match stays highlighted.
 	const typingFreeText = hasTypeaheadQuery && typedInlinePrefix === null;
 
@@ -1042,27 +1051,35 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		// A highlighted row can unmount without cmdk reporting a new highlight,
-		// so only a value naming a rendered row counts.
-		const highlightedValue = getHighlightedValue();
-		const highlightedRow = [
+		// Row values in the order MainPanel renders them, so the first is the
+		// top row.
+		const rowValues = [
 			...listedCategories.map((category) => category.key),
 			...inlineOptionRows.map((row) => row.token),
 			...valueSuggestions.map((suggestion) => suggestion.token),
-		].includes(highlightedValue)
+		];
+		// A highlighted row can unmount without cmdk reporting a new highlight,
+		// so only a value naming a rendered row counts.
+		const highlightedValue = getHighlightedValue();
+		const renderedHighlightedValue = rowValues.includes(highlightedValue)
 			? highlightedValue
 			: "";
 
 		// With free-typed text and no row highlighted, Enter applies the text as
 		// a free-text search and closes the menu.
-		if (event.key === "Enter" && typingFreeText && highlightedRow === "") {
+		if (
+			event.key === "Enter" &&
+			typingFreeText &&
+			renderedHighlightedValue === ""
+		) {
 			event.preventDefault();
 			applyTypedSearch();
 			dispatch({ type: "close" });
 			return;
 		}
 
-		// Enter and Tab complete the highlighted row, and Tab otherwise moves
+		// Enter and Tab complete the highlighted row. While typing free text with
+		// no row highlighted, Tab completes the top row; otherwise Tab moves
 		// focus. ArrowRight only opens a highlighted category.
 		const isComplete =
 			event.key === "Enter" || (event.key === "Tab" && !event.shiftKey);
@@ -1070,16 +1087,9 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		// With no row highlighted, Tab completes the top row. The order below
-		// must match the order MainPanel renders these lists.
 		const highlighted =
-			highlightedRow ||
-			(event.key === "Tab" && typingFreeText
-				? (listedCategories[0]?.key ??
-					inlineOptionRows[0]?.token ??
-					valueSuggestions[0]?.token ??
-					"")
-				: "");
+			renderedHighlightedValue ||
+			(event.key === "Tab" && typingFreeText ? (rowValues[0] ?? "") : "");
 		const category = listedCategories.find(
 			(entry) => entry.key === highlighted,
 		);
