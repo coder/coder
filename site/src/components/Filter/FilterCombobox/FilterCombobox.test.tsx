@@ -48,18 +48,17 @@ const emptyTemplateCategory: FilterCategory = {
 
 const neverResolves = () => new Promise<never>(() => {});
 
-// Owner options whose search for `query` resolves when the test says so.
-const heldOwnerSearch = (query: string) => {
+const heldSearch = (base: FilterCategory, query: string) => {
 	const search = Promise.withResolvers<FilterOption[]>();
 	const category: FilterCategory = {
-		...ownerCategory,
+		...base,
 		getOptions: (text) =>
-			text === query ? search.promise : ownerCategory.getOptions(text),
+			text === query ? search.promise : base.getOptions(text),
 	};
 	return { category, resolve: search.resolve };
 };
 
-// Lets the debounce fire and pending lookups settle.
+// Fires the debounce and runs callbacks of lookups that have already resolved.
 const settleTypedText = () =>
 	act(() => vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS));
 
@@ -335,25 +334,16 @@ describe("FilterCombobox", () => {
 	});
 
 	it("holds back typed text that matches an option beyond the first page", async () => {
-		const search = Promise.withResolvers<FilterOption[]>();
-		const { user, onChange, input } = setup(
-			[
-				{
-					...manyOwnersCategory,
-					getOptions: (query) =>
-						query === "zed"
-							? search.promise
-							: manyOwnersCategory.getOptions(query),
-				},
-			],
-			{ fakeTimers: true },
-		);
+		const owners = heldSearch(manyOwnersCategory, "zed");
+		const { user, onChange, input } = setup([owners.category], {
+			fakeTimers: true,
+		});
 
 		await user.click(input);
 		await screen.findByRole("option", { name: "Owner" });
 		await user.type(input, "zed");
 		await settleTypedText();
-		await act(async () => search.resolve([{ label: "zed", value: "zed" }]));
+		await act(async () => owners.resolve([{ label: "zed", value: "zed" }]));
 		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
 
 		expect(onChange).not.toHaveBeenCalledWith("zed");
@@ -412,7 +402,7 @@ describe("FilterCombobox", () => {
 	});
 
 	it("drops a typed-text lookup that resolves after the text changed", async () => {
-		const owner = heldOwnerSearch("foo");
+		const owner = heldSearch(ownerCategory, "foo");
 		const { user, onChange, input } = setup([owner.category], {
 			fakeTimers: true,
 		});
@@ -429,7 +419,7 @@ describe("FilterCombobox", () => {
 	});
 
 	it("drops a typed-text lookup that resolves after unmounting", async () => {
-		const owner = heldOwnerSearch("zzz");
+		const owner = heldSearch(ownerCategory, "zzz");
 		const { user, onChange, input, unmount } = setup([owner.category], {
 			fakeTimers: true,
 		});
@@ -446,6 +436,7 @@ describe("FilterCombobox", () => {
 	it("applies unmatched typed text after a chip is removed during the debounce", async () => {
 		const { user, onChange, input } = setup([ownerCategory, statusCategory], {
 			initialValue: "owner:alice",
+			fakeTimers: true,
 		});
 
 		await user.click(input);
@@ -453,12 +444,53 @@ describe("FilterCombobox", () => {
 		await user.click(
 			screen.getByRole("button", { name: "Remove owner:alice" }),
 		);
+		await settleTypedText();
 
-		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("xyz"));
+		expect(onChange).toHaveBeenLastCalledWith("xyz");
+	});
+
+	it("holds back typed text once one category's search matches while another is pending", async () => {
+		const templateCategory: FilterCategory = {
+			key: "template",
+			label: "Template",
+			getOptions: async (query) =>
+				query === "zed" ? [{ label: "zed", value: "zed" }] : [],
+		};
+		const { user, onChange, input } = setup(
+			[
+				{
+					...ownerCategory,
+					getOptions: (query) =>
+						query ? neverResolves() : ownerCategory.getOptions(query),
+				},
+				templateCategory,
+			],
+			{ fakeTimers: true },
+		);
+
+		await user.click(input);
+		await user.type(input, "zed");
+		await settleTypedText();
+		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
+
+		expect(onChange).not.toHaveBeenCalledWith("zed");
+	});
+
+	it("drops the deleted search when Backspace continues into a chip", async () => {
+		const { user, onChange, input } = setup([ownerCategory], {
+			initialValue: "owner:alice zzz",
+			fakeTimers: true,
+		});
+
+		await user.click(input);
+		await user.keyboard("{End}{Backspace}{Backspace}{Backspace}{Backspace}");
+		await settleTypedText();
+
+		expect(onChange).toHaveBeenLastCalledWith("");
 	});
 
 	it("applies unmatched typed text with the remaining chips after a chip is removed during its lookup", async () => {
-		const owner = heldOwnerSearch("xyz");
+		const owner = heldSearch(ownerCategory, "xyz");
 		const { user, onChange, input } = setup([owner.category, statusCategory], {
 			initialValue: "owner:alice status:running",
 			fakeTimers: true,

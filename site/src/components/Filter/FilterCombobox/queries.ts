@@ -3,8 +3,8 @@ import type { FilterOption } from "./types";
 
 /**
  * Delay after the last keystroke before typed text is sent to each category's
- * `getOptions`. Free text reaches `onChange` only after those lookups find no
- * matching filter; see `couldBeFilterSearch`.
+ * `getOptions`. `couldBeFilterSearch` decides whether the text then reaches
+ * `onChange`.
  */
 export const SEARCH_DEBOUNCE_MS = 300;
 

@@ -207,9 +207,10 @@ type UseFilterComboboxOptions = {
 };
 
 /**
- * Drives `FilterCombobox`: a `mode` state machine for the
- * popup, debounced query emission back to the caller, and the react-query
- * lookups for category options and cross-category suggestions.
+ * Drives `FilterCombobox`: a `mode` state machine for the popup, free-text
+ * emission that waits for option lookups and withholds text matching a
+ * filter, and the react-query lookups for category options and
+ * cross-category suggestions.
  * Local state is reconciled against the caller-owned `value` so an external
  * update wins over any in-flight local edit.
  */
@@ -248,8 +249,10 @@ export const useFilterCombobox = ({
 	const inputRef = useRef<HTMLInputElement | null>(null);
 
 	const queryClient = useQueryClient();
-	// Bumped by every input change and emit, so a typed-text lookup that
-	// resolves late cannot replace a newer query.
+	// Bumped when the input changes, when emitQuery sends a query, when an
+	// external value arrives, and on unmount, so a typed-text lookup that
+	// resolves after any of these is dropped. emitQueryKeepingLookup does not
+	// bump it.
 	const typedTextLookupGenerationRef = useRef(0);
 	const {
 		debounced: scheduleTypedTextLookup,
@@ -265,15 +268,15 @@ export const useFilterCombobox = ({
 	}, [cancelTypedTextLookupTimer]);
 	useEffect(() => cancelTypedTextLookup, [cancelTypedTextLookup]);
 
-	// Sends a query without cancelling a pending typed-text lookup, which reads
-	// the chips of the last sent query when it resolves.
-	const sendQuery = (query: string) => {
+	// A pending typed-text lookup reads the chips of the last sent query when
+	// it resolves.
+	const emitQueryKeepingLookup = (query: string) => {
 		lastEmittedRef.current = query;
 		onChange(query);
 	};
 	const emitQuery = (query: string) => {
 		cancelTypedTextLookup();
-		sendQuery(query);
+		emitQueryKeepingLookup(query);
 	};
 	const appliedFreeText = () =>
 		extractFreeText(lastEmittedRef.current, chipKeys);
@@ -691,11 +694,11 @@ export const useFilterCombobox = ({
 		returnToCategories();
 	};
 
-	// True when text names a category, matches an option of any category
-	// (including options only a search returns), or a lookup returns a match
-	// before `TYPED_TEXT_LOOKUP_TIMEOUT_MS`. A failed or slower lookup counts
-	// as no match. Callers hold such text back so results do not empty out
-	// mid-word.
+	// True when text starts a category key or label, matches a loaded option,
+	// or matches an option that a category's getOptions returns for it within
+	// TYPED_TEXT_LOOKUP_TIMEOUT_MS. A failed lookup, or one still pending at the
+	// timeout, counts as no match. Callers hold such text back so results do
+	// not empty out mid-word.
 	const couldBeFilterSearch = (text: string): Promise<boolean> => {
 		if (text.length === 0) {
 			return Promise.resolve(false);
@@ -706,32 +709,21 @@ export const useFilterCombobox = ({
 		if (matchCategories(text, categories).length > 0 || matchesLoadedOption) {
 			return Promise.resolve(true);
 		}
-		const lookups = categories.map((category) =>
-			queryClient
-				.fetchQuery(
-					filterComboboxOptions(category.key, category.getOptions, text, true),
-				)
-				.then(
-					(options) => filterOptionsByText(options, text).length > 0,
-					() => false,
-				),
-		);
-		return new Promise((resolve) => {
-			const timeout = setTimeout(
-				() => resolve(false),
-				TYPED_TEXT_LOOKUP_TIMEOUT_MS,
+		const matches = categories.map(async (category) => {
+			const options = await queryClient.fetchQuery(
+				filterComboboxOptions(category.key, category.getOptions, text, true),
 			);
-			const settle = (matched: boolean) => {
-				clearTimeout(timeout);
-				resolve(matched);
-			};
-			for (const lookup of lookups) {
-				void lookup.then((matched) => matched && settle(true));
+			if (filterOptionsByText(options, text).length === 0) {
+				throw new Error("No matching option");
 			}
-			void Promise.all(lookups).then((matches) =>
-				settle(matches.some(Boolean)),
-			);
+			return true;
 		});
+		return Promise.race([
+			Promise.any(matches).catch(() => false),
+			new Promise<boolean>((resolve) =>
+				setTimeout(resolve, TYPED_TEXT_LOOKUP_TIMEOUT_MS, false),
+			),
+		]);
 	};
 
 	const applyTypedTextUnlessFilter = async (
@@ -888,7 +880,7 @@ export const useFilterCombobox = ({
 	// Chip removal leaves the popup, the input, and a pending typed-text lookup
 	// untouched.
 	const handleRemoveChip = (token: string) => {
-		sendQuery(
+		emitQueryKeepingLookup(
 			composeFilterQuery(
 				chipValues.filter((entry) => entry !== token),
 				chipKeys,
@@ -920,7 +912,7 @@ export const useFilterCombobox = ({
 			chipValues.length > 0
 		) {
 			event.preventDefault();
-			updateFromChips(chipValues.slice(0, -1));
+			updateFromChips(chipValues.slice(0, -1), "");
 			return;
 		}
 

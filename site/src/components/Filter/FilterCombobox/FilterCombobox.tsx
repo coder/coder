@@ -1013,17 +1013,17 @@ function CategoryOptionsList({
 			{options === undefined && <LoadingOptions />}
 			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
 				{options?.map((option) => {
-					const item = optionToken(categoryKey, option);
-					const selected = selectedTokens.includes(item);
+					const token = optionToken(categoryKey, option);
+					const selected = selectedTokens.includes(token);
 					return (
 						<FilterComboboxItem
 							className={cn(
 								OPTION_ITEM_CLASS,
 								selected && "text-content-primary",
 							)}
-							key={item}
-							value={item}
-							onSelect={() => onSelectOption(item)}
+							key={token}
+							value={token}
+							onSelect={() => onSelectOption(token)}
 						>
 							<OptionRowContent
 								icon={option.startIcon}

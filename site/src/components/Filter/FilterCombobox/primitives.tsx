@@ -29,8 +29,9 @@ import {
 // `Command*` layer could remove the duplication.
 
 /**
- * Height cap shared by the popup and the menus inside it. The popup lets
- * flyouts overflow, so each menu caps its own height and scrolls.
+ * Height cap for the popup, and for each menu inside it when the caller makes
+ * the popup `overflow-visible` so flyouts can extend past it, as
+ * `FilterCombobox` does.
  */
 export const menuMaxHeightClassName =
 	"max-h-[min(24rem,var(--radix-popper-available-height))]";
