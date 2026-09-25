@@ -78,6 +78,7 @@ describe("WorkspaceDeleteDialog", () => {
 		expect(input).toHaveAccessibleDescription(
 			"“wrong name” does not match the name of this workspace",
 		);
+		expect(screen.getByRole("alert")).toHaveTextContent("does not match");
 	});
 
 	it("clears the submitted error when the user edits the name", async () => {
