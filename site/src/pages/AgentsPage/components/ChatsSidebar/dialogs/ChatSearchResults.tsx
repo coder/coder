@@ -257,15 +257,8 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 		className: statusClassName,
 		label: statusLabel,
 		prIcon,
-		diffStatus,
+		lineStats,
 	} = getChatDisplayConfig(chat);
-	const PRIcon = prIcon?.icon;
-	const additions = diffStatus?.additions ?? 0;
-	const deletions = diffStatus?.deletions ?? 0;
-	const changedFiles = diffStatus?.changed_files ?? 0;
-	const hasLineStats =
-		Boolean(diffStatus?.url) &&
-		(additions > 0 || deletions > 0 || changedFiles > 0);
 	const subtitle = chat.last_turn_summary?.trim() || "No summary available";
 
 	useEffect(() => {
@@ -298,18 +291,20 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 					{chat.title}
 				</div>
 				<div className="flex min-w-0 items-center gap-1.5 text-xs">
-					{PRIcon && prIcon && (
-						<PRIcon
+					{prIcon && (
+						<prIcon.icon
 							role="img"
 							aria-label={prIcon.label}
 							className={cn("size-3.5 shrink-0", prIcon.className)}
 						/>
 					)}
-					{hasLineStats && (
+					{lineStats && (
 						<span className="inline-flex shrink-0 items-center gap-0.5 tabular-nums">
-							<span className="text-git-added-bright">+{additions}</span>
+							<span className="text-git-added-bright">
+								+{lineStats.additions}
+							</span>
 							<span className="text-git-deleted-bright">
-								&minus;{deletions}
+								&minus;{lineStats.deletions}
 							</span>
 						</span>
 					)}
