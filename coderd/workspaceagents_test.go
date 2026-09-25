@@ -953,7 +953,7 @@ func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
 			WorkspaceID:      r.Workspace.ID,
 			WorkspaceName:    r.Workspace.Name,
 			AgentName:        resources[0].Agents[0].Name,
-			Type:             database.ConnectionTypeTunnel,
+			Kind:             database.ConnectionKindTunnel,
 			Code: sql.NullInt32{
 				Int32: http.StatusSwitchingProtocols,
 				Valid: true,
@@ -3137,7 +3137,7 @@ func TestUserTailnetConnectionLog(t *testing.T) {
 		return connLogger.Contains(t, database.UpsertConnectionLogParams{
 			WorkspaceID:      allowedWorkspace.ID,
 			AgentName:        allowedSDKWorkspace.LatestBuild.Resources[0].Agents[0].Name,
-			Type:             database.ConnectionTypeTunnel,
+			Kind:             database.ConnectionKindTunnel,
 			Code:             sql.NullInt32{Int32: http.StatusSwitchingProtocols, Valid: true},
 			UserID:           uuid.NullUUID{UUID: memberUser.ID, Valid: true},
 			UserAgent:        sql.NullString{},
@@ -3154,7 +3154,7 @@ func TestUserTailnetConnectionLog(t *testing.T) {
 		return connLogger.Contains(t, database.UpsertConnectionLogParams{
 			WorkspaceID:      deniedWorkspace.ID,
 			AgentName:        deniedSDKWorkspace.LatestBuild.Resources[0].Agents[0].Name,
-			Type:             database.ConnectionTypeTunnel,
+			Kind:             database.ConnectionKindTunnel,
 			Code:             sql.NullInt32{Int32: http.StatusForbidden, Valid: true},
 			UserID:           uuid.NullUUID{UUID: memberUser.ID, Valid: true},
 			ConnectionStatus: database.ConnectionStatusConnected,

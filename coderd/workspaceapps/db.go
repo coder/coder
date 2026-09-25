@@ -452,18 +452,18 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 		}
 
 		var (
-			connType   database.ConnectionType
+			connKind   database.ConnectionKind
 			slugOrPort = aReq.dbReq.AppSlugOrPort
 		)
 
 		switch {
 		case aReq.dbReq.AccessMethod == AccessMethodTerminal:
-			connType = database.ConnectionTypeWorkspaceApp
+			connKind = database.ConnectionKindWorkspaceApp
 			slugOrPort = "terminal"
 		case aReq.dbReq.App.ID == uuid.Nil:
-			connType = database.ConnectionTypePortForwarding
+			connKind = database.ConnectionKindPortForwarding
 		default:
-			connType = database.ConnectionTypeWorkspaceApp
+			connKind = database.ConnectionKindWorkspaceApp
 		}
 
 		// An empty slug_or_port is reserved for tunnel sessions (see
@@ -542,7 +542,7 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 			WorkspaceID:      aReq.dbReq.Workspace.ID,
 			WorkspaceName:    aReq.dbReq.Workspace.Name,
 			AgentName:        aReq.dbReq.Agent.Name,
-			Type:             connType,
+			Kind:             connKind,
 			Code: sql.NullInt32{
 				Int32: statusCode,
 				Valid: true,
@@ -553,7 +553,7 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 				UUID:  userID,
 				Valid: userID != uuid.Nil,
 			},
-			SlugOrPort:       sql.NullString{Valid: slugOrPort != "", String: slugOrPort},
+			AppNameOrPort:    sql.NullString{Valid: slugOrPort != "", String: slugOrPort},
 			ConnectionStatus: database.ConnectionStatusConnected,
 
 			// N/A

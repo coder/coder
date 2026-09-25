@@ -73,6 +73,7 @@ endif
 	site/src/api/chatModelOptionsGenerated.json \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
+	site/src/api/connectionTypesGenerated.ts \
 	site/src/theme/icons.json \
 	examples/examples.gen.json \
 	docs/manifest.json \
@@ -590,6 +591,7 @@ SITE_GEN_FILES := \
 	site/src/api/typesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
+	site/src/api/connectionTypesGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
 	site/src/theme/icons.json
 
@@ -1127,6 +1129,7 @@ gen/mark-fresh:
 		codersdk/apikey_scopes_gen.go \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
+		site/src/api/connectionTypesGenerated.ts \
 		site/src/api/chatModelOptionsGenerated.json \
 		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/index.md \
@@ -1335,6 +1338,9 @@ site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typ
 
 site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go | _gen _gen/bin/typegen
 	$(call atomic_write,_gen/bin/typegen countries,./scripts/biome_format.sh)
+
+site/src/api/connectionTypesGenerated.ts: site/node_modules/.installed scripts/typegen/connectiontypes.tstmpl scripts/typegen/main.go codersdk/connectionlog.go codersdk/appname.go | _gen _gen/bin/typegen
+	$(call atomic_write,_gen/bin/typegen connectiontypes,./scripts/biome_format.sh)
 
 site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go | _gen _gen/bin/modeloptionsgen
 	$(call atomic_write,_gen/bin/modeloptionsgen | tail -n +2,./scripts/biome_format.sh)
