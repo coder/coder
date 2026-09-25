@@ -1141,6 +1141,8 @@ The loop processes one operation at a time. It must not process another input ha
 3. If none of the above conditions indicate that local state may be stale, return no-op.
 4. Otherwise fetch from the database.
 
+TODO: `Sync` now fetches for any hint whose `snapshot_version` is newer than `local.snapshot_version`, because a message change is only visible through the snapshot watermark. Describe this here and in steps 2 and 3.
+
 After fetching, if `db.snapshot_version <= local.snapshot_version`, return no-op. Otherwise apply the database result.
 
 The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fetches unconditionally, and applies the database result the same way. Because it runs against the null local state, every database field is newer and the full state is emitted.
@@ -1148,6 +1150,7 @@ The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fet
 Applying the database result means, in deterministic order:
 
 1. If `db.history_version > local.history_version`, run message synchronization.
+    - TODO: message synchronization now runs whenever the database result is applied, emitting the fetched delta independently of `history_version`; the `preview_reset` rule in step 7 is unchanged. Describe this here.
 2. If `db.queue_version > local.queue_version`, run queue synchronization.
 3. If `db.status != local.status`, run status synchronization.
 4. If `db.status = error` and `db.history_version > local.error_history_version`, run error synchronization.
@@ -1207,6 +1210,8 @@ Flow:
 
 1. `Sync` observes `db.history_version > local.history_version`.
 2. Fetch rows from `chat_messages` where `revision > local.history_version`.
+
+TODO: message synchronization now runs whenever `db.snapshot_version > local.snapshot_version` and fetches rows where `revision > local.snapshot_version`, the last applied snapshot watermark, so message changes that do not advance `history_version` still reach the client. Describe this here.
 3. Inspect the fetched rows.
 
 If no fetched rows are soft-deleted:

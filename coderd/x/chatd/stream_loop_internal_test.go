@@ -9,6 +9,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -49,8 +50,15 @@ func TestStreamLoopSyncHintDecision(t *testing.T) {
 			hint: streamSyncHint{snapshotVersion: 5},
 		},
 		{
-			name: "new snapshot with no changed fields is ignored",
+			// Message changes are only visible through the snapshot watermark.
+			name: "new snapshot with no other changed fields fetches",
 			hint: streamSyncHint{snapshotVersion: 6, historyVersion: 2, queueVersion: 3, retryVersion: 4, status: database.ChatStatusRunning, workerID: uuid.NullUUID{UUID: workerA, Valid: true}, generationAttempt: 1},
+			want: true,
+		},
+		{
+			name: "new snapshot alone fetches",
+			hint: streamSyncHint{snapshotVersion: 6},
+			want: true,
 		},
 		{
 			name: "new history fetches",
@@ -312,12 +320,122 @@ func TestStreamLoopInitialSyncRecoversWithoutHint(t *testing.T) {
 		Status:          database.ChatStatusWaiting,
 		SnapshotVersion: 2,
 	}, nil)
+	tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
+		ChatID:        chatID,
+		AfterRevision: 1,
+	}).Return(nil, nil)
 
 	events, _, changed, err := loop.syncDB(ctx)
 	require.NoError(t, err)
 	require.True(t, changed)
 	requireEventTypes(t, events, codersdk.ChatStreamEventTypeStatus)
 	require.Equal(t, codersdk.ChatStatusWaiting, events[0].Status.Status)
+}
+
+func TestStreamLoopMessageOnlySnapshot(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+	loop.state.snapshotVersion = 5
+	loop.state.historyVersion = 5
+	loop.state.generationAttempt = 1
+	loop.state.lastPartSeq = 3
+	loop.state.status = database.ChatStatusRunning
+	loop.state.initialMessageSyncDone = true
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusRunning, SnapshotVersion: 6, HistoryVersion: 5, GenerationAttempt: 1}
+
+	// A message change without an execution-history change emits the message
+	// but keeps the preview and buffered parts of the running generation.
+	events := loop.applyDBSnapshot(streamDBSnapshot{
+		chat:            chat,
+		changedMessages: []database.ChatMessage{streamMessage(t, chatID, 9, 6, database.ChatMessageRoleAssistant, "receipt", false)},
+	})
+	requireEventTypes(t, events, codersdk.ChatStreamEventTypeMessage)
+	require.Equal(t, int64(9), events[0].Message.ID)
+	require.Equal(t, int64(3), loop.state.lastPartSeq)
+	require.Equal(t, int64(6), loop.state.snapshotVersion)
+	require.Equal(t, int64(5), loop.state.historyVersion)
+	require.Equal(t, map[int64]int64{9: 6}, loop.state.knownMessages)
+
+	// An empty delta emits nothing.
+	chat.SnapshotVersion = 7
+	require.Empty(t, loop.applyDBSnapshot(streamDBSnapshot{chat: chat}))
+	require.Equal(t, int64(7), loop.state.snapshotVersion)
+	require.Equal(t, int64(3), loop.state.lastPartSeq)
+}
+
+func TestStreamLoopMessageWatermarkAndFailedRead(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	loop := newStreamLoop(database.Chat{ID: chatID}, db, slogtest.Make(t, nil), 0)
+	loop.state.snapshotVersion = 4
+	loop.state.historyVersion = 2
+	loop.state.status = database.ChatStatusRunning
+	loop.state.initialMessageSyncDone = true
+	loop.state.knownMessages[1] = 2
+	before := loop.state
+	before.knownMessages = map[int64]int64{1: 2}
+
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusRunning, SnapshotVersion: 5, HistoryVersion: 2}
+	db.EXPECT().InTx(gomock.Any(), nil).Times(2).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(tx) },
+	)
+	tx.EXPECT().GetChatByIDForShare(gomock.Any(), chatID).Times(2).Return(chat, nil)
+	tx.EXPECT().GetChatByID(gomock.Any(), chatID).Times(2).Return(chat, nil)
+	// The watermark is the last applied snapshot, not the history version,
+	// and a failed read retries with the same watermark.
+	params := database.GetChatMessagesByRevisionForStreamParams{ChatID: chatID, AfterRevision: 4}
+	gomock.InOrder(
+		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), params).Return(nil, xerrors.New("read failed")),
+		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), params).Return(
+			[]database.ChatMessage{streamMessage(t, chatID, 2, 5, database.ChatMessageRoleAssistant, "new", false)}, nil),
+	)
+
+	_, _, changed, err := loop.sync(ctx, streamSyncHint{snapshotVersion: 5})
+	require.Error(t, err)
+	require.False(t, changed)
+	require.Equal(t, before, loop.state)
+
+	events, _, changed, err := loop.sync(ctx, streamSyncHint{snapshotVersion: 5})
+	require.NoError(t, err)
+	require.True(t, changed)
+	requireEventTypes(t, events, codersdk.ChatStreamEventTypeMessage)
+	require.Equal(t, int64(5), loop.state.snapshotVersion)
+	require.Equal(t, int64(2), loop.state.historyVersion)
+}
+
+func TestStreamLoopInitialSyncWatermarkIsZero(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	loop := newStreamLoop(database.Chat{ID: chatID}, db, slogtest.Make(t, nil), 0)
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusWaiting, SnapshotVersion: 1, HistoryVersion: 1}
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(tx) },
+	)
+	tx.EXPECT().GetChatByIDForShare(gomock.Any(), chatID).Return(chat, nil)
+	tx.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil)
+	tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{ChatID: chatID}).Return(
+		[]database.ChatMessage{streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "hi", false)}, nil)
+
+	events, _, changed, err := loop.syncDB(ctx)
+	require.NoError(t, err)
+	require.True(t, changed)
+	requireEventTypes(t, events,
+		codersdk.ChatStreamEventTypeMessage,
+		codersdk.ChatStreamEventTypeStatus,
+		codersdk.ChatStreamEventTypePreviewReset,
+	)
 }
 
 func requireEventTypes(t *testing.T, events []codersdk.ChatStreamEvent, types ...codersdk.ChatStreamEventType) {
