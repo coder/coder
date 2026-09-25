@@ -178,6 +178,200 @@ Confirm that Docker is installed and running on the host.
 If you run Docker through rootless Docker, [Colima](https://colima.run), Podman, or a similar tool, the daemon may expose its socket at a non-default path, so set `DOCKER_HOST` to point at it.
 Refer to [Cannot connect to the Docker daemon](../../install/server/docker.md#cannot-connect-to-the-docker-daemon) for the full steps.
 
+## Template provisioning failures
+
+The sections above cover issues with a workspace *after* it has been created. The
+following issues instead occur while a template is being pushed or a workspace is
+being built, i.e. while `terraform apply` is running. This Terraform run happens
+on the Coder host (`coderd`) or on an [external provisioner](../provisioners/index.md),
+not inside the workspace itself, so the fixes below apply to the machine or pod
+running the provisioner rather than to the workspace.
+
+### Docker socket permission denied during provisioning
+
+If a template's `terraform apply` fails with an error such as:
+
+```txt
+Got permission denied while trying to connect to the Docker daemon socket at
+unix:///var/run/docker.sock
+```
+
+or:
+
+```txt
+Error: Cannot connect to the Docker daemon at unix:///var/run/docker.sock.
+Is the docker daemon running?
+```
+
+the provisioner process cannot reach the Docker socket used by the template's
+`docker` provider (for example `docker_container` or `docker_volume`
+resources). This is a separate host-level issue from
+[Cannot connect to the Docker daemon](#cannot-connect-to-the-docker-daemon)
+above, which covers the daemon not running at all. Fix it based on how you run
+`coderd`:
+
+- **Docker Compose / `docker run`**: mount the host socket into the container
+  and add the container to the `docker` group so it can read/write the socket:
+
+  ```yaml
+  services:
+    coder:
+      image: ghcr.io/coder/coder:latest
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+      group_add:
+        - "999" # gid of the `docker` group, see below
+  ```
+
+  Get the correct `gid` with `getent group docker | cut -d: -f3` and use that
+  value for `group_add` (or `--group-add` for `docker run`). See
+  [Install Coder via Docker](../../install/docker.md#i-cannot-add-docker-templates)
+  for more details.
+
+- **Kubernetes**: the `coderd` pod does not (and should not) mount the
+  node's Docker socket, so Docker-based templates cannot run directly from a
+  pod deployed via the [Helm chart](../../install/kubernetes.md). Run an
+  [external provisioner](../provisioners/index.md) on a host or VM that has access
+  to a Docker socket instead, and use the same `group_add`/socket mount
+  guidance as the Docker Compose case above for that host. If you don't
+  specifically need `docker_container` resources, use a
+  [Kubernetes-native template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes)
+  (`kubernetes_pod` or `kubernetes_deployment`) instead, which only needs the
+  Kubernetes API and not a Docker socket.
+
+- **System service (systemd)**: add the user that runs the `coder` service to
+  the `docker` group, then restart the service so the new group membership
+  takes effect (group membership is only applied on login/process start):
+
+  ```console
+  sudo usermod -aG docker coder
+  sudo systemctl restart coder
+  ```
+
+  Alternatively, set `SupplementaryGroups=docker` under `[Service]` in the
+  unit file (e.g. `/etc/systemd/system/coder.service`) to grant the group
+  without modifying the user's primary group list, then run
+  `sudo systemctl daemon-reload && sudo systemctl restart coder`.
+
+### Cloud or Kubernetes provider authentication failures
+
+If `terraform apply` fails while creating cloud resources with errors such as:
+
+```txt
+error configuring Terraform AWS Provider: no valid credential sources for Terraform AWS Provider found
+```
+
+```txt
+google: could not find default credentials. See https://cloud.google.com/docs/authentication/external/set-up-adc for more information
+```
+
+```txt
+Error: building AzureRM Client: obtain subscription() from Azure CLI: parse access token: ...
+```
+
+```txt
+Error: Get "https://<cluster>/api/v1/namespaces/...": Unauthorized
+```
+
+the credentials used by the template's cloud or Kubernetes provider block
+(e.g. `provider "aws" {}`, `provider "google" {}`, `provider "azurerm" {}`, or
+`provider "kubernetes" {}`) are missing or invalid **in the environment where
+the provisioner runs**, not in the workspace. Coder's
+[example templates](https://github.com/coder/coder/tree/main/examples/templates)
+intentionally leave these provider blocks empty so they pick up ambient
+credentials, so those credentials must be supplied out-of-band:
+
+- **Docker Compose / system service (systemd)**: export the provider's
+  standard credential environment variables (or mount a credentials file)
+  for the process running `coderd`/the provisioner:
+
+  ```yaml
+  # docker-compose.yaml
+  services:
+    coder:
+      environment:
+        - AWS_ACCESS_KEY_ID=...
+        - AWS_SECRET_ACCESS_KEY=...
+        - GOOGLE_APPLICATION_CREDENTIALS=/creds/gcp-key.json
+        - ARM_CLIENT_ID=...
+        - ARM_CLIENT_SECRET=...
+        - ARM_TENANT_ID=...
+        - ARM_SUBSCRIPTION_ID=...
+      volumes:
+        - ./gcp-key.json:/creds/gcp-key.json:ro
+  ```
+
+  For a systemd install, put the same variables in an `EnvironmentFile`
+  referenced by the unit (e.g. `EnvironmentFile=/etc/coder.d/coder.env`), then
+  run `sudo systemctl daemon-reload && sudo systemctl restart coder`. If
+  `coderd` runs on the cloud provider's own compute (e.g. an EC2 instance with
+  an instance profile, or a GCE VM with a service account attached), no
+  explicit credentials are usually needed since the provider SDK reads them
+  from the instance metadata service.
+
+- **Kubernetes**: for cloud providers (AWS/GCP/Azure), prefer workload
+  identity over static keys, for example
+  [IAM roles for service accounts (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)
+  on EKS or
+  [Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity)
+  on GKE, or supply credentials via a mounted `Secret` using `coder.env` in
+  your Helm `values.yaml`:
+
+  ```yaml
+  coder:
+    env:
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: cloud-credentials
+            key: aws_access_key_id
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: cloud-credentials
+            key: aws_secret_access_key
+  ```
+
+  For the `kubernetes` provider itself (used by
+  [Kubernetes-based templates](https://github.com/coder/coder/tree/main/examples/templates/kubernetes)),
+  `Unauthorized` or `forbidden` errors usually mean the `coder` service
+  account lacks RBAC permissions in the workspaces namespace. The
+  [Helm chart](../../install/kubernetes.md) grants a default set of
+  permissions via `coder.serviceAccount.workspacePerms` and
+  `coder.serviceAccount.enableDeployments`; add additional rules with
+  `coder.serviceAccount.extraRules`, or grant access to additional namespaces
+  with `coder.serviceAccount.workspaceNamespaces` in your `values.yaml`:
+
+  ```yaml
+  coder:
+    serviceAccount:
+      workspacePerms: true
+      enableDeployments: true
+      extraRules:
+        - apiGroups: [""]
+          resources: ["services"]
+          verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  ```
+
+### Provisioner cannot write files (permission denied)
+
+If `terraform apply` or `terraform init` fails with `permission denied` or
+`operation not permitted` while writing to the provisioner's working
+directory (state, plugin cache, or module downloads), the OS user running the
+provisioner does not own that directory:
+
+- **Docker Compose / `docker run`**: verify that any bind-mounted volume used
+  for `CODER_CACHE_DIRECTORY` is writable by the container's user (`coder` by
+  default), for example `sudo chown -R 1000:1000 <host-path>` for the default
+  non-root `coder` user in the published image.
+- **Kubernetes**: ensure any `PersistentVolumeClaim` mounted for the cache
+  directory is writable by the pod's `securityContext.runAsUser`/`fsGroup`.
+  If you change the pod's security context in `values.yaml`, update the
+  volume's ownership to match.
+- **System service (systemd)**: confirm the unit's `User=`/`Group=` (if set)
+  own the configured `CODER_CACHE_DIRECTORY` and any directories referenced by
+  `CODER_CONFIG_DIR`, e.g. `sudo chown -R coder:coder /var/lib/coder`.
+
 ## Docker Workspaces on Raspberry Pi OS
 
 ### Unable to query ContainerMemory
