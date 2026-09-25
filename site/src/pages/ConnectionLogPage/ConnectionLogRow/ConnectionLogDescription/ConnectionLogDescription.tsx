@@ -1,8 +1,8 @@
 import type { FC, ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
+import { connectionTypeDisplayNames } from "#/api/connectionTypesGenerated";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
-import { connectionTypeToFriendlyName } from "#/utils/connection";
 
 type ConnectionLogDescriptionProps = {
 	connectionLog: ConnectionLog;
@@ -11,8 +11,14 @@ type ConnectionLogDescriptionProps = {
 export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 	connectionLog,
 }) => {
-	const { type, workspace_owner_username, workspace_name, web_info } =
-		connectionLog;
+	const {
+		type,
+		app_name,
+		app_display_name,
+		workspace_owner_username,
+		workspace_name,
+		web_info,
+	} = connectionLog;
 
 	switch (type) {
 		case "port_forwarding":
@@ -72,24 +78,6 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 			);
 		}
 
-		case "reconnecting_pty":
-		case "ssh":
-		case "jetbrains":
-		case "vscode": {
-			const friendlyType = connectionTypeToFriendlyName(type);
-			return (
-				<span>
-					{friendlyType} session to {workspace_owner_username}'s{" "}
-					<Link asChild showExternalIcon={false} className="text-base">
-						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
-							<strong>{workspace_name}</strong>
-						</RouterLink>
-					</Link>{" "}
-					workspace{" "}
-				</span>
-			);
-		}
-
 		case "tunnel": {
 			if (!web_info) return null;
 			const { user, status_code } = web_info;
@@ -109,6 +97,29 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 						</RouterLink>
 					</Link>{" "}
 					workspace
+				</span>
+			);
+		}
+
+		default: {
+			const typeName = connectionTypeDisplayNames[type];
+			return (
+				<span>
+					{app_display_name || typeName}{" "}
+					{app_name && app_name !== type && (
+						<>
+							<span className="text-xs text-content-secondary">
+								({typeName})
+							</span>{" "}
+						</>
+					)}
+					session to {workspace_owner_username}'s{" "}
+					<Link asChild showExternalIcon={false} className="text-base">
+						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
+							<strong>{workspace_name}</strong>
+						</RouterLink>
+					</Link>{" "}
+					workspace{" "}
 				</span>
 			);
 		}

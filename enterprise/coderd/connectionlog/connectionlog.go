@@ -383,13 +383,13 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		workspaceID      = make([]uuid.UUID, 0, count)
 		workspaceName    = make([]string, 0, count)
 		agentName        = make([]string, 0, count)
-		connType         = make([]database.ConnectionType, 0, count)
+		connKind         = make([]database.ConnectionKind, 0, count)
 		code             = make([]int32, 0, count)
 		codeValid        = make([]bool, 0, count)
 		ip               = make([]pqtype.Inet, 0, count)
 		userAgent        = make([]string, 0, count)
 		userID           = make([]uuid.UUID, 0, count)
-		slugOrPort       = make([]string, 0, count)
+		appNameOrPort    = make([]string, 0, count)
 		connectionID     = make([]uuid.UUID, 0, count)
 		disconnectReason = make([]string, 0, count)
 		disconnectTime   = make([]time.Time, 0, count)
@@ -403,13 +403,13 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		workspaceID = append(workspaceID, e.WorkspaceID)
 		workspaceName = append(workspaceName, e.WorkspaceName)
 		agentName = append(agentName, e.AgentName)
-		connType = append(connType, e.Type)
+		connKind = append(connKind, e.Kind)
 		code = append(code, e.Code.Int32)
 		codeValid = append(codeValid, e.Code.Valid)
 		ip = append(ip, e.IP)
 		userAgent = append(userAgent, e.UserAgent.String)
 		userID = append(userID, e.UserID.UUID)
-		slugOrPort = append(slugOrPort, e.SlugOrPort.String)
+		appNameOrPort = append(appNameOrPort, e.AppNameOrPort.String)
 		connectionID = append(connectionID, e.ConnectionID.UUID)
 		disconnectReason = append(disconnectReason, e.DisconnectReason.String)
 		disconnectTime = append(disconnectTime, e.disconnectTime)
@@ -430,13 +430,13 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		WorkspaceID:      workspaceID,
 		WorkspaceName:    workspaceName,
 		AgentName:        agentName,
-		Type:             connType,
+		Kind:             connKind,
 		Code:             code,
 		CodeValid:        codeValid,
 		Ip:               ip,
 		UserAgent:        userAgent,
 		UserID:           userID,
-		SlugOrPort:       slugOrPort,
+		AppNameOrPort:    appNameOrPort,
 		ConnectionID:     connectionID,
 		DisconnectReason: disconnectReason,
 		DisconnectTime:   disconnectTime,

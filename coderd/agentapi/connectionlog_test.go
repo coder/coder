@@ -41,64 +41,78 @@ func TestConnectionLog(t *testing.T) {
 	)
 
 	tests := []struct {
-		name   string
-		id     uuid.UUID
-		action *agentproto.Connection_Action
-		typ    *agentproto.Connection_Type
-		time   time.Time
-		ip     string
-		status int32
-		reason string
+		name    string
+		id      uuid.UUID
+		action  *agentproto.Connection_Action
+		typ     *agentproto.Connection_Type
+		kind    database.ConnectionKind
+		appName string
+		time    time.Time
+		ip      string
+		status  int32
+		reason  string
 	}{
 		{
-			name:   "SSH Connect",
-			id:     uuid.New(),
-			action: agentproto.Connection_CONNECT.Enum(),
-			typ:    agentproto.Connection_SSH.Enum(),
-			time:   dbtime.Now(),
-			ip:     "127.0.0.1",
-			status: 200,
+			name:    "SSH Connect",
+			id:      uuid.New(),
+			action:  agentproto.Connection_CONNECT.Enum(),
+			typ:     agentproto.Connection_SSH.Enum(),
+			kind:    database.ConnectionKindSSH,
+			appName: "ssh",
+			time:    dbtime.Now(),
+			ip:      "127.0.0.1",
+			status:  200,
 		},
 		{
-			name:   "VS Code Connect",
-			id:     uuid.New(),
-			action: agentproto.Connection_CONNECT.Enum(),
-			typ:    agentproto.Connection_VSCODE.Enum(),
-			time:   dbtime.Now(),
-			ip:     "8.8.8.8",
+			name:    "VS Code Connect",
+			id:      uuid.New(),
+			action:  agentproto.Connection_CONNECT.Enum(),
+			typ:     agentproto.Connection_VSCODE.Enum(),
+			kind:    database.ConnectionKindSSH,
+			appName: "vscode",
+			time:    dbtime.Now(),
+			ip:      "8.8.8.8",
 		},
 		{
-			name:   "JetBrains Connect",
-			id:     uuid.New(),
-			action: agentproto.Connection_CONNECT.Enum(),
-			typ:    agentproto.Connection_JETBRAINS.Enum(),
-			time:   dbtime.Now(),
+			name:    "JetBrains Connect",
+			id:      uuid.New(),
+			action:  agentproto.Connection_CONNECT.Enum(),
+			typ:     agentproto.Connection_JETBRAINS.Enum(),
+			kind:    database.ConnectionKindSSH,
+			appName: "jetbrains",
+			time:    dbtime.Now(),
 			// Sometimes, JetBrains clients report as localhost, see
 			// https://github.com/coder/coder/issues/20194
 			ip: "localhost",
 		},
 		{
-			name:   "Reconnecting PTY Connect",
-			id:     uuid.New(),
-			action: agentproto.Connection_CONNECT.Enum(),
-			typ:    agentproto.Connection_RECONNECTING_PTY.Enum(),
-			time:   dbtime.Now(),
+			name:    "Reconnecting PTY Connect",
+			id:      uuid.New(),
+			action:  agentproto.Connection_CONNECT.Enum(),
+			typ:     agentproto.Connection_RECONNECTING_PTY.Enum(),
+			kind:    database.ConnectionKindReconnectingPTY,
+			appName: "reconnecting_pty",
+			time:    dbtime.Now(),
 		},
 		{
-			name:   "SSH Disconnect",
-			id:     uuid.New(),
-			action: agentproto.Connection_DISCONNECT.Enum(),
-			typ:    agentproto.Connection_SSH.Enum(),
-			time:   dbtime.Now(),
+			name:    "SSH Disconnect",
+			id:      uuid.New(),
+			action:  agentproto.Connection_DISCONNECT.Enum(),
+			typ:     agentproto.Connection_SSH.Enum(),
+			kind:    database.ConnectionKindSSH,
+			appName: "ssh",
+			time:    dbtime.Now(),
 		},
 		{
-			name:   "SSH Disconnect",
-			id:     uuid.New(),
-			action: agentproto.Connection_DISCONNECT.Enum(),
-			typ:    agentproto.Connection_SSH.Enum(),
-			time:   dbtime.Now(),
-			status: 500,
-			reason: "because error says so",
+			name:    "SSH Disconnect",
+			id:      uuid.New(),
+			action:  agentproto.Connection_DISCONNECT.Enum(),
+			typ:     agentproto.Connection_SSH.Enum(),
+			kind:    database.ConnectionKindSSH,
+			appName: "ssh",
+			time:    dbtime.Now(),
+			status:  500,
+			reason:  "because error says so",
 		},
 	}
 	for _, tt := range tests {
@@ -152,8 +166,9 @@ func TestConnectionLog(t *testing.T) {
 					Int32: tt.status,
 					Valid: *tt.action == agentproto.Connection_DISCONNECT,
 				},
-				IP:   expectedIP,
-				Type: agentProtoConnectionTypeToConnectionLog(t, *tt.typ),
+				IP:            expectedIP,
+				Kind:          tt.kind,
+				AppNameOrPort: sql.NullString{String: tt.appName, Valid: true},
 				DisconnectReason: sql.NullString{
 					String: tt.reason,
 					Valid:  tt.reason != "",
@@ -165,12 +180,6 @@ func TestConnectionLog(t *testing.T) {
 			}))
 		})
 	}
-}
-
-func agentProtoConnectionTypeToConnectionLog(t *testing.T, typ agentproto.Connection_Type) database.ConnectionType {
-	a, err := db2sdk.ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ)
-	require.NoError(t, err)
-	return a
 }
 
 func agentProtoConnectionActionToConnectionLog(t *testing.T, action agentproto.Connection_Action) database.ConnectionStatus {

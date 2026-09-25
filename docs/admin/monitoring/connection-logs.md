@@ -56,8 +56,12 @@ You can filter connection logs by the following parameters:
 - `workspace_owner` - The username of the owner of the workspace being connected
     to.
 - `type` - The type of the connection, such as SSH, VS Code, or workspace app.
+    An IDE type includes every app in it, so `type:vscode` includes Cursor and
+    Devin sessions.
     For more connection types, refer to the
     [CoderSDK documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#ConnectionType).
+- `app` - The app that connected, such as `cursor`, or the slug of a workspace
+    app, such as `code-server`.
 - `username`: The name of the user who initiated the connection.
    Results do not include agent-reported SSH or IDE sessions.
 - `user_email`: The email of the user who initiated the connection.

@@ -1016,12 +1016,12 @@ type UpsertConnectionLogParams struct {
 	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`
 	WorkspaceName    string           `db:"workspace_name" json:"workspace_name"`
 	AgentName        string           `db:"agent_name" json:"agent_name"`
-	Type             ConnectionType   `db:"type" json:"type"`
+	Kind             ConnectionKind   `db:"kind" json:"kind"`
 	Code             sql.NullInt32    `db:"code" json:"code"`
 	IP               pqtype.Inet      `db:"ip" json:"ip"`
 	UserAgent        sql.NullString   `db:"user_agent" json:"user_agent"`
 	UserID           uuid.NullUUID    `db:"user_id" json:"user_id"`
-	SlugOrPort       sql.NullString   `db:"slug_or_port" json:"slug_or_port"`
+	AppNameOrPort    sql.NullString   `db:"app_name_or_port" json:"app_name_or_port"`
 	ConnectionID     uuid.NullUUID    `db:"connection_id" json:"connection_id"`
 	DisconnectReason sql.NullString   `db:"disconnect_reason" json:"disconnect_reason"`
 	Time             time.Time        `db:"time" json:"time"`

@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"cmp"
 	"net/http"
 	"net/netip"
 
@@ -132,20 +133,31 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		sshInfo *codersdk.ConnectionLogSSHInfo
 	)
 
-	switch dblog.ConnectionLog.Type {
-	case database.ConnectionTypeWorkspaceApp,
-		database.ConnectionTypePortForwarding,
-		database.ConnectionTypeTunnel:
+	var (
+		connType       codersdk.ConnectionType
+		appName        string
+		appDisplayName string
+	)
+	switch kind := dblog.ConnectionLog.Kind; kind {
+	case database.ConnectionKindWorkspaceApp,
+		database.ConnectionKindPortForwarding,
+		database.ConnectionKindTunnel:
+		connType = codersdk.ConnectionType(kind)
+		if kind == database.ConnectionKindWorkspaceApp {
+			appName = dblog.ConnectionLog.AppNameOrPort.String
+			appDisplayName = appName
+		}
 		webInfo = &codersdk.ConnectionLogWebInfo{
 			UserAgent:  dblog.ConnectionLog.UserAgent.String,
 			User:       user,
-			SlugOrPort: dblog.ConnectionLog.SlugOrPort.String,
+			SlugOrPort: dblog.ConnectionLog.AppNameOrPort.String,
 			StatusCode: dblog.ConnectionLog.Code.Int32,
 		}
-	case database.ConnectionTypeSsh,
-		database.ConnectionTypeReconnectingPty,
-		database.ConnectionTypeJetbrains,
-		database.ConnectionTypeVscode:
+	// Agent connections. On older rows the kind names the app.
+	default:
+		appName = cmp.Or(dblog.ConnectionLog.AppNameOrPort.String, string(kind))
+		appDisplayName = codersdk.AppDisplayName(appName)
+		connType = codersdk.ConnectionTypeOfApp(appName)
 		sshInfo = &codersdk.ConnectionLogSSHInfo{
 			ConnectionID:     dblog.ConnectionLog.ConnectionID.UUID,
 			DisconnectReason: dblog.ConnectionLog.DisconnectReason.String,
@@ -172,7 +184,9 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		WorkspaceID:            dblog.ConnectionLog.WorkspaceID,
 		WorkspaceName:          dblog.ConnectionLog.WorkspaceName,
 		AgentName:              dblog.ConnectionLog.AgentName,
-		Type:                   codersdk.ConnectionType(dblog.ConnectionLog.Type),
+		Type:                   connType,
+		AppName:                appName,
+		AppDisplayName:         appDisplayName,
 		IP:                     ip,
 		WebInfo:                webInfo,
 		SSHInfo:                sshInfo,

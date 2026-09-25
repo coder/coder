@@ -382,12 +382,7 @@ CREATE TYPE chat_status AS ENUM (
     'interrupting'
 );
 
-CREATE TYPE connection_status AS ENUM (
-    'connected',
-    'disconnected'
-);
-
-CREATE TYPE connection_type AS ENUM (
+CREATE TYPE connection_kind AS ENUM (
     'ssh',
     'vscode',
     'jetbrains',
@@ -395,6 +390,11 @@ CREATE TYPE connection_type AS ENUM (
     'workspace_app',
     'port_forwarding',
     'tunnel'
+);
+
+CREATE TYPE connection_status AS ENUM (
+    'connected',
+    'disconnected'
 );
 
 CREATE TYPE cors_behavior AS ENUM (
@@ -2369,16 +2369,18 @@ CREATE TABLE connection_logs (
     workspace_id uuid NOT NULL,
     workspace_name text NOT NULL,
     agent_name text NOT NULL,
-    type connection_type NOT NULL,
+    kind connection_kind NOT NULL,
     ip inet,
     code integer,
     user_agent text,
     user_id uuid,
-    slug_or_port text,
+    app_name_or_port text,
     connection_id uuid,
     disconnect_time timestamp with time zone,
     disconnect_reason text
 );
+
+COMMENT ON COLUMN connection_logs.kind IS 'What observed the connection: the agent (ssh, reconnecting_pty) or coderd (workspace_app, port_forwarding, tunnel). vscode and jetbrains appear only on older rows, as ssh by that app.';
 
 COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.';
 
@@ -2386,7 +2388,7 @@ COMMENT ON COLUMN connection_logs.user_agent IS 'Null for SSH events. For web co
 
 COMMENT ON COLUMN connection_logs.user_id IS 'Null for SSH events. For web connections, this is the ID of the user that made the request.';
 
-COMMENT ON COLUMN connection_logs.slug_or_port IS 'Null for SSH events. For web connections, this is the slug of the app or the port number being forwarded.';
+COMMENT ON COLUMN connection_logs.app_name_or_port IS 'By kind: the app the agent reported, the workspace app slug, or the forwarded port. Null for tunnels and for older agent rows, whose kind names the app.';
 
 COMMENT ON COLUMN connection_logs.connection_id IS 'The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.';
 

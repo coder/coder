@@ -1916,6 +1916,79 @@ func AllChatStatusValues() []ChatStatus {
 	}
 }
 
+type ConnectionKind string
+
+const (
+	ConnectionKindSSH             ConnectionKind = "ssh"
+	ConnectionKindVSCode          ConnectionKind = "vscode"
+	ConnectionKindJetBrains       ConnectionKind = "jetbrains"
+	ConnectionKindReconnectingPTY ConnectionKind = "reconnecting_pty"
+	ConnectionKindWorkspaceApp    ConnectionKind = "workspace_app"
+	ConnectionKindPortForwarding  ConnectionKind = "port_forwarding"
+	ConnectionKindTunnel          ConnectionKind = "tunnel"
+)
+
+func (e *ConnectionKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionKind(s)
+	case string:
+		*e = ConnectionKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionKind: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionKind struct {
+	ConnectionKind ConnectionKind `json:"connection_kind"`
+	Valid          bool           `json:"valid"` // Valid is true if ConnectionKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionKind), nil
+}
+
+func (e ConnectionKind) Valid() bool {
+	switch e {
+	case ConnectionKindSSH,
+		ConnectionKindVSCode,
+		ConnectionKindJetBrains,
+		ConnectionKindReconnectingPTY,
+		ConnectionKindWorkspaceApp,
+		ConnectionKindPortForwarding,
+		ConnectionKindTunnel:
+		return true
+	}
+	return false
+}
+
+func AllConnectionKindValues() []ConnectionKind {
+	return []ConnectionKind{
+		ConnectionKindSSH,
+		ConnectionKindVSCode,
+		ConnectionKindJetBrains,
+		ConnectionKindReconnectingPTY,
+		ConnectionKindWorkspaceApp,
+		ConnectionKindPortForwarding,
+		ConnectionKindTunnel,
+	}
+}
+
 type ConnectionStatus string
 
 const (
@@ -1971,79 +2044,6 @@ func AllConnectionStatusValues() []ConnectionStatus {
 	return []ConnectionStatus{
 		ConnectionStatusConnected,
 		ConnectionStatusDisconnected,
-	}
-}
-
-type ConnectionType string
-
-const (
-	ConnectionTypeSsh             ConnectionType = "ssh"
-	ConnectionTypeVscode          ConnectionType = "vscode"
-	ConnectionTypeJetbrains       ConnectionType = "jetbrains"
-	ConnectionTypeReconnectingPty ConnectionType = "reconnecting_pty"
-	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
-	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
-	ConnectionTypeTunnel          ConnectionType = "tunnel"
-)
-
-func (e *ConnectionType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = ConnectionType(s)
-	case string:
-		*e = ConnectionType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for ConnectionType: %T", src)
-	}
-	return nil
-}
-
-type NullConnectionType struct {
-	ConnectionType ConnectionType `json:"connection_type"`
-	Valid          bool           `json:"valid"` // Valid is true if ConnectionType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullConnectionType) Scan(value interface{}) error {
-	if value == nil {
-		ns.ConnectionType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.ConnectionType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullConnectionType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.ConnectionType), nil
-}
-
-func (e ConnectionType) Valid() bool {
-	switch e {
-	case ConnectionTypeSsh,
-		ConnectionTypeVscode,
-		ConnectionTypeJetbrains,
-		ConnectionTypeReconnectingPty,
-		ConnectionTypeWorkspaceApp,
-		ConnectionTypePortForwarding,
-		ConnectionTypeTunnel:
-		return true
-	}
-	return false
-}
-
-func AllConnectionTypeValues() []ConnectionType {
-	return []ConnectionType{
-		ConnectionTypeSsh,
-		ConnectionTypeVscode,
-		ConnectionTypeJetbrains,
-		ConnectionTypeReconnectingPty,
-		ConnectionTypeWorkspaceApp,
-		ConnectionTypePortForwarding,
-		ConnectionTypeTunnel,
 	}
 }
 
@@ -5353,23 +5353,24 @@ type ChatUserModelOverride struct {
 }
 
 type ConnectionLog struct {
-	ID               uuid.UUID      `db:"id" json:"id"`
-	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`
-	OrganizationID   uuid.UUID      `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID uuid.UUID      `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceID      uuid.UUID      `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName    string         `db:"workspace_name" json:"workspace_name"`
-	AgentName        string         `db:"agent_name" json:"agent_name"`
-	Type             ConnectionType `db:"type" json:"type"`
-	Ip               pqtype.Inet    `db:"ip" json:"ip"`
+	ID               uuid.UUID `db:"id" json:"id"`
+	ConnectTime      time.Time `db:"connect_time" json:"connect_time"`
+	OrganizationID   uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string    `db:"workspace_name" json:"workspace_name"`
+	AgentName        string    `db:"agent_name" json:"agent_name"`
+	// What observed the connection: the agent (ssh, reconnecting_pty) or coderd (workspace_app, port_forwarding, tunnel). vscode and jetbrains appear only on older rows, as ssh by that app.
+	Kind ConnectionKind `db:"kind" json:"kind"`
+	Ip   pqtype.Inet    `db:"ip" json:"ip"`
 	// Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.
 	Code sql.NullInt32 `db:"code" json:"code"`
 	// Null for SSH events. For web connections, this is the User-Agent header from the request.
 	UserAgent sql.NullString `db:"user_agent" json:"user_agent"`
 	// Null for SSH events. For web connections, this is the ID of the user that made the request.
 	UserID uuid.NullUUID `db:"user_id" json:"user_id"`
-	// Null for SSH events. For web connections, this is the slug of the app or the port number being forwarded.
-	SlugOrPort sql.NullString `db:"slug_or_port" json:"slug_or_port"`
+	// By kind: the app the agent reported, the workspace app slug, or the forwarded port. Null for tunnels and for older agent rows, whose kind names the app.
+	AppNameOrPort sql.NullString `db:"app_name_or_port" json:"app_name_or_port"`
 	// The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.
 	ConnectionID uuid.NullUUID `db:"connection_id" json:"connection_id"`
 	// The time the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
