@@ -261,8 +261,6 @@ func TestChatInlineMCPServers(t *testing.T) {
 		db, ps := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		internal := newChatInlineMCPHandler("bot", "Echoes the input")
-		internalServers := mcpclient.NewInternalServers()
-		internalURL := internalServers.Register("bot", internal.handler)
 		callerSupplied := newChatInlineMCPServer(t, "caller", "Echoes the input")
 		model := newChatInlineMCPModel(t, "bot__echo")
 		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
@@ -274,7 +272,7 @@ func TestChatInlineMCPServers(t *testing.T) {
 			cfg.Experiments = slices.DeleteFunc(slices.Clone(cfg.Experiments), func(experiment codersdk.Experiment) bool {
 				return experiment == codersdk.ExperimentChatInlineMCPServers
 			})
-			cfg.InternalMCPServers = internalServers
+			cfg.InternalMCPServers = map[string]http.Handler{"bot": internal.handler}
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
 		})
 
@@ -284,7 +282,7 @@ func TestChatInlineMCPServers(t *testing.T) {
 			Title:          "inline-mcp-internal",
 			ModelConfigID:  modelConfig.ID,
 			InlineMCPServers: []codersdk.InlineMCPServerRequest{
-				{Slug: "bot", URL: internalURL, ForwardCoderHeaders: true},
+				{Slug: "bot", URL: mcpclient.InternalURL("bot"), ForwardCoderHeaders: true},
 				{Slug: "caller", URL: callerSupplied.url},
 			},
 			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("Echo something.")},
