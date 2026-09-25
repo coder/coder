@@ -2040,6 +2040,10 @@ export interface Chat {
 	readonly last_model_config_id: string;
 	readonly last_reasoning_effort?: string;
 	readonly title: string;
+	/**
+	 * TitleSource is where Title came from. Automatic title generation
+	 * replaces only a fallback title; a rename replaces any title.
+	 */
 	readonly title_source: ChatTitleSource;
 	/**
 	 * TitleUpdatedAt orders title changes. Title writes do not change
