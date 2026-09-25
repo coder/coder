@@ -165,6 +165,7 @@ type sqlcQuerier interface {
 	DeleteChatQueuedMessageReturningCount(ctx context.Context, arg DeleteChatQueuedMessageReturningCountParams) (int64, error)
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
+	DeleteEmptyAIBridgeTokenUsageHourly(ctx context.Context, emptyHourlyIds []int64) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
 	DeleteExternalAuthLink(ctx context.Context, arg DeleteExternalAuthLinkParams) error
 	DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAIBudget, error)
@@ -190,8 +191,8 @@ type sqlcQuerier interface {
 	// since app_secret_id is NULL for public (secretless) clients and would
 	// silently exclude their tokens from this delete.
 	DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error
-	// Cumulative count.
-	DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error)
+	// Cumulative count and emptied usage-hour IDs.
+	DeleteOldAIBridgeRecords(ctx context.Context, lockedIds []uuid.UUID) (DeleteOldAIBridgeRecordsRow, error)
 	DeleteOldAuditLogConnectionEvents(ctx context.Context, arg DeleteOldAuditLogConnectionEventsParams) error
 	// Deletes old audit logs based on retention policy, excluding deprecated
 	// connection events (connect, disconnect, open, close) which are handled
@@ -1121,6 +1122,7 @@ type sqlcQuerier interface {
 	// Returns the hydrated chat IDs so callers can notify watchers of every
 	// chat the statement pinned.
 	HydrateAgentChatsContext(ctx context.Context, arg HydrateAgentChatsContextParams) ([]uuid.UUID, error)
+	IncrementAIBridgeTokenUsageHourlyLocked(ctx context.Context, arg IncrementAIBridgeTokenUsageHourlyLockedParams) error
 	// Increments generation_attempt and returns the resulting value.
 	IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error)
 	// Adds cost_micros to the spend for (user_id, effective_group_id, day).
@@ -1316,11 +1318,8 @@ type sqlcQuerier interface {
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
-	// Returns one page of per-user AI spend for @organization_id over the
-	// [period_start, period_end) window, most expensive first, together with the
-	// providers, clients, and models each user spent through and the count and
-	// totals over every matching user. It must keep the same joins and predicates as
-	// ExportOrganizationAISpend so both report the same token usage.
+	// Whole UTC hours use historical group attribution; the two disjoint edge
+	// scans retain exact timestamp boundaries without scanning the interior raw rows.
 	ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
@@ -1337,12 +1336,15 @@ type sqlcQuerier interface {
 	ListUserSkillMetadataByUserID(ctx context.Context, userID uuid.UUID) ([]ListUserSkillMetadataByUserIDRow, error)
 	ListWorkspaceAgentContextResources(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentContextResource, error)
 	ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error)
+	LockAIBridgeHourlyBucket(ctx context.Context, arg LockAIBridgeHourlyBucketParams) error
+	LockAIBridgeInterceptionForUsage(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Locks the chat row with FOR UPDATE and atomically increments its
 	// snapshot_version, returning the post-bump chat. This is the single
 	// entry point ChatMachine.Update uses to acquire the row lock and
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	LockOldAIBridgeInterceptionsForPurge(ctx context.Context, arg LockOldAIBridgeInterceptionsForPurgeParams) ([]uuid.UUID, error)
 	// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
 	// current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock
 	// is held the key cannot be deleted, and a committed deletion is observed as

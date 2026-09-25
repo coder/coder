@@ -1715,6 +1715,32 @@ CREATE TABLE aibridge_model_thoughts (
 
 COMMENT ON TABLE aibridge_model_thoughts IS 'Audit log of model thinking in intercepted requests in AI Bridge';
 
+CREATE TABLE aibridge_token_usage_hourly (
+    id bigint NOT NULL,
+    organization_id uuid NOT NULL,
+    hour timestamp with time zone NOT NULL,
+    effective_group_id uuid NOT NULL,
+    initiator_id uuid NOT NULL,
+    provider text NOT NULL,
+    provider_name text NOT NULL,
+    model text NOT NULL,
+    client text NOT NULL,
+    cost_micros bigint DEFAULT 0 NOT NULL,
+    unpriced_usage_count bigint DEFAULT 0 NOT NULL,
+    usage_count bigint DEFAULT 0 NOT NULL,
+    CONSTRAINT aibridge_token_usage_hourly_unpriced_usage_count_check CHECK ((unpriced_usage_count >= 0)),
+    CONSTRAINT aibridge_token_usage_hourly_usage_count_check CHECK ((usage_count >= 0))
+);
+
+ALTER TABLE aibridge_token_usage_hourly ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME aibridge_token_usage_hourly_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
 CREATE TABLE aibridge_token_usages (
     id uuid NOT NULL,
     interception_id uuid NOT NULL,
@@ -4277,6 +4303,9 @@ ALTER TABLE ONLY ai_user_daily_spend
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY aibridge_token_usage_hourly
+    ADD CONSTRAINT aibridge_token_usage_hourly_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY aibridge_token_usages
     ADD CONSTRAINT aibridge_token_usages_pkey PRIMARY KEY (id);
 
@@ -4738,6 +4767,12 @@ CREATE INDEX idx_aibridge_interceptions_thread_parent_id ON aibridge_interceptio
 CREATE INDEX idx_aibridge_interceptions_thread_root_id ON aibridge_interceptions USING btree (thread_root_id);
 
 CREATE INDEX idx_aibridge_model_thoughts_interception_id ON aibridge_model_thoughts USING btree (interception_id);
+
+CREATE INDEX idx_aibridge_token_usage_hourly_group ON aibridge_token_usage_hourly USING btree (effective_group_id, hour);
+
+CREATE INDEX idx_aibridge_token_usage_hourly_org_hour ON aibridge_token_usage_hourly USING btree (organization_id, hour);
+
+CREATE INDEX idx_aibridge_token_usages_created_at_group ON aibridge_token_usages USING btree (created_at, effective_group_id) WHERE (effective_group_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_token_usages_effective_group_id_created_at ON aibridge_token_usages USING btree (effective_group_id, created_at) WHERE (effective_group_id IS NOT NULL);
 

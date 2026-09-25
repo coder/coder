@@ -1163,10 +1163,9 @@ const deleteOldAIBridgeRecords = `-- name: DeleteOldAIBridgeRecords :one
 WITH
   -- We don't have FK relationships between the dependent tables and aibridge_interceptions, so we can't rely on DELETE CASCADE.
   to_delete AS (
-    SELECT id FROM aibridge_interceptions
-    WHERE started_at < $1::timestamp with time zone
+    SELECT id, initiator_id, provider, provider_name, model, client FROM aibridge_interceptions
+    WHERE id = ANY($1::uuid[])
   ),
-  -- CTEs are executed in order.
   model_thoughts AS (
     DELETE FROM aibridge_model_thoughts
     WHERE interception_id IN (SELECT id FROM to_delete)
@@ -1180,7 +1179,31 @@ WITH
   token_usages AS (
     DELETE FROM aibridge_token_usages
     WHERE interception_id IN (SELECT id FROM to_delete)
-    RETURNING 1
+    RETURNING interception_id, effective_group_id, created_at, cost_micros
+  ),
+  removed_hourly AS (
+    SELECT tu.effective_group_id,
+      date_trunc('hour', tu.created_at, 'UTC') AS hour,
+      ai.initiator_id, ai.provider, ai.provider_name, ai.model, COALESCE(ai.client, 'Unknown') AS client,
+      COALESCE(SUM(tu.cost_micros), 0)::bigint AS cost_micros,
+      COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::bigint AS unpriced_usage_count,
+      COUNT(*)::bigint AS usage_count
+    FROM token_usages tu
+    JOIN to_delete ai ON ai.id = tu.interception_id
+    WHERE tu.effective_group_id IS NOT NULL
+    GROUP BY tu.effective_group_id, 2, ai.initiator_id, ai.provider, ai.provider_name,
+      ai.model, COALESCE(ai.client, 'Unknown')
+  ),
+  hourly_decrements AS (
+    UPDATE aibridge_token_usage_hourly h SET
+      cost_micros = h.cost_micros - d.cost_micros,
+      unpriced_usage_count = h.unpriced_usage_count - d.unpriced_usage_count,
+      usage_count = h.usage_count - d.usage_count
+    FROM removed_hourly d
+    WHERE h.effective_group_id = d.effective_group_id AND h.hour = d.hour
+      AND h.initiator_id = d.initiator_id AND h.provider = d.provider
+      AND h.provider_name = d.provider_name AND h.model = d.model AND h.client = d.client
+    RETURNING h.id, h.usage_count
   ),
   user_prompts AS (
     DELETE FROM aibridge_user_prompts
@@ -1198,15 +1221,21 @@ SELECT (
   (SELECT COUNT(*) FROM token_usages) +
   (SELECT COUNT(*) FROM user_prompts) +
   (SELECT COUNT(*) FROM interceptions)
-)::bigint as total_deleted
+)::bigint AS total_deleted,
+COALESCE((SELECT array_agg(id) FILTER (WHERE usage_count = 0) FROM hourly_decrements), '{}')::bigint[] AS empty_hourly_ids
 `
 
-// Cumulative count.
-func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
-	row := q.db.QueryRowContext(ctx, deleteOldAIBridgeRecords, beforeTime)
-	var total_deleted int64
-	err := row.Scan(&total_deleted)
-	return total_deleted, err
+type DeleteOldAIBridgeRecordsRow struct {
+	TotalDeleted   int64   `db:"total_deleted" json:"total_deleted"`
+	EmptyHourlyIds []int64 `db:"empty_hourly_ids" json:"empty_hourly_ids"`
+}
+
+// Cumulative count and emptied usage-hour IDs.
+func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, lockedIds []uuid.UUID) (DeleteOldAIBridgeRecordsRow, error) {
+	row := q.db.QueryRowContext(ctx, deleteOldAIBridgeRecords, pq.Array(lockedIds))
+	var i DeleteOldAIBridgeRecordsRow
+	err := row.Scan(&i.TotalDeleted, pq.Array(&i.EmptyHourlyIds))
+	return i, err
 }
 
 const getAIBridgeChatCost = `-- name: GetAIBridgeChatCost :one
@@ -2727,6 +2756,51 @@ func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Contex
 	return items, nil
 }
 
+const lockAIBridgeInterceptionForUsage = `-- name: LockAIBridgeInterceptionForUsage :one
+SELECT id FROM aibridge_interceptions WHERE id = $1::uuid FOR KEY SHARE
+`
+
+func (q *sqlQuerier) LockAIBridgeInterceptionForUsage(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, lockAIBridgeInterceptionForUsage, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const lockOldAIBridgeInterceptionsForPurge = `-- name: LockOldAIBridgeInterceptionsForPurge :many
+SELECT id FROM aibridge_interceptions
+WHERE started_at < $1::timestamptz
+ORDER BY started_at, id LIMIT $2::int FOR UPDATE
+`
+
+type LockOldAIBridgeInterceptionsForPurgeParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) LockOldAIBridgeInterceptionsForPurge(ctx context.Context, arg LockOldAIBridgeInterceptionsForPurgeParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, lockOldAIBridgeInterceptionsForPurge, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateAIBridgeInterceptionEnded = `-- name: UpdateAIBridgeInterceptionEnded :one
 UPDATE aibridge_interceptions
 	SET ended_at = $1::timestamptz,
@@ -2788,6 +2862,16 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 		&i.WorkspaceID,
 	)
 	return i, err
+}
+
+const deleteEmptyAIBridgeTokenUsageHourly = `-- name: DeleteEmptyAIBridgeTokenUsageHourly :exec
+DELETE FROM aibridge_token_usage_hourly
+WHERE id = ANY($1::bigint[]) AND usage_count = 0
+`
+
+func (q *sqlQuerier) DeleteEmptyAIBridgeTokenUsageHourly(ctx context.Context, emptyHourlyIds []int64) error {
+	_, err := q.db.ExecContext(ctx, deleteEmptyAIBridgeTokenUsageHourly, pq.Array(emptyHourlyIds))
+	return err
 }
 
 const deleteGroupAIBudget = `-- name: DeleteGroupAIBudget :one
@@ -3651,6 +3735,64 @@ func (q *sqlQuerier) GetUserEveryoneFallbackGroup(ctx context.Context, userID uu
 	return group_id, err
 }
 
+const incrementAIBridgeTokenUsageHourlyLocked = `-- name: IncrementAIBridgeTokenUsageHourlyLocked :exec
+WITH dimensions AS (
+    SELECT g.organization_id, date_trunc('hour', $1::timestamptz, 'UTC') AS hour,
+        g.id AS effective_group_id, $2::uuid AS initiator_id,
+        $3::text AS provider, $4::text AS provider_name,
+        $5::text AS model, COALESCE($6::text, 'Unknown') AS client,
+        COALESCE($7::bigint, 0) AS cost_micros,
+        ($7::bigint IS NULL)::int::bigint AS unpriced_usage_count
+    FROM groups g WHERE g.id = $8::uuid
+), updated AS (
+    UPDATE aibridge_token_usage_hourly h SET
+        cost_micros = h.cost_micros + d.cost_micros,
+        unpriced_usage_count = h.unpriced_usage_count + d.unpriced_usage_count,
+        usage_count = h.usage_count + 1
+    FROM dimensions d
+    WHERE h.organization_id = d.organization_id AND h.hour = d.hour
+        AND h.effective_group_id = d.effective_group_id AND h.initiator_id = d.initiator_id
+        AND h.provider = d.provider AND h.provider_name = d.provider_name
+        AND h.model = d.model AND h.client = d.client
+    RETURNING h.id
+), inserted AS (
+    INSERT INTO aibridge_token_usage_hourly (
+        organization_id, hour, effective_group_id, initiator_id, provider, provider_name, model, client,
+        cost_micros, unpriced_usage_count, usage_count
+    )
+    SELECT d.organization_id, d.hour, d.effective_group_id, d.initiator_id,
+        d.provider, d.provider_name, d.model, d.client, d.cost_micros, d.unpriced_usage_count, 1
+    FROM dimensions d WHERE NOT EXISTS (SELECT 1 FROM updated)
+    RETURNING id
+)
+SELECT COUNT(*) FROM inserted
+`
+
+type IncrementAIBridgeTokenUsageHourlyLockedParams struct {
+	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
+	InitiatorID      uuid.UUID      `db:"initiator_id" json:"initiator_id"`
+	Provider         string         `db:"provider" json:"provider"`
+	ProviderName     string         `db:"provider_name" json:"provider_name"`
+	Model            string         `db:"model" json:"model"`
+	Client           sql.NullString `db:"client" json:"client"`
+	CostMicros       sql.NullInt64  `db:"cost_micros" json:"cost_micros"`
+	EffectiveGroupID uuid.UUID      `db:"effective_group_id" json:"effective_group_id"`
+}
+
+func (q *sqlQuerier) IncrementAIBridgeTokenUsageHourlyLocked(ctx context.Context, arg IncrementAIBridgeTokenUsageHourlyLockedParams) error {
+	_, err := q.db.ExecContext(ctx, incrementAIBridgeTokenUsageHourlyLocked,
+		arg.CreatedAt,
+		arg.InitiatorID,
+		arg.Provider,
+		arg.ProviderName,
+		arg.Model,
+		arg.Client,
+		arg.CostMicros,
+		arg.EffectiveGroupID,
+	)
+	return err
+}
+
 const incrementUserAIDailySpend = `-- name: IncrementUserAIDailySpend :one
 INSERT INTO ai_user_daily_spend (user_id, effective_group_id, day, spend_micros)
 VALUES ($1, $2, (($3::timestamptz) AT TIME ZONE 'UTC')::date, $4)
@@ -3686,48 +3828,78 @@ func (q *sqlQuerier) IncrementUserAIDailySpend(ctx context.Context, arg Incremen
 }
 
 const listOrganizationAISpendUsers = `-- name: ListOrganizationAISpendUsers :many
-WITH spend AS (
-	SELECT
-		ai.initiator_id AS user_id,
-		COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
-		COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
-		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
-		ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
-		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models
-	FROM aibridge_token_usages tu
-	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
-	JOIN groups ON groups.id = tu.effective_group_id
-	WHERE groups.organization_id = $1
-		AND tu.created_at >= $4::timestamptz
-		AND tu.created_at < $5::timestamptz
-		AND CASE
-			WHEN $6::text != '' THEN ai.provider_name = $6::text
-			ELSE true
-		END
-		AND CASE
-			WHEN $7::text != '' THEN ai.model = $7::text
-			ELSE true
-		END
-		AND CASE
-			WHEN $8::text != '' THEN COALESCE(ai.client, 'Unknown') = $8::text
-			ELSE true
-		END
-	GROUP BY ai.initiator_id
+WITH bounds AS NOT MATERIALIZED (
+    SELECT
+        $4::timestamptz AS period_start,
+        $5::timestamptz AS period_end,
+        date_trunc('hour', $4::timestamptz, 'UTC') AS start_hour,
+        date_trunc('hour', $5::timestamptz, 'UTC') AS end_hour
+), ranges AS NOT MATERIALIZED (
+    SELECT period_start, period_end, start_hour, end_hour, CASE WHEN period_start = start_hour THEN start_hour
+        ELSE start_hour + interval '1 hour' END AS whole_start
+    FROM bounds
+), facts AS (
+    SELECT h.initiator_id AS user_id, h.provider, h.model, h.client,
+        h.cost_micros, h.unpriced_usage_count
+    FROM aibridge_token_usage_hourly h
+    JOIN groups g ON g.id = h.effective_group_id
+    CROSS JOIN ranges r
+    WHERE h.organization_id = $1
+        AND g.organization_id = $1
+        AND h.hour >= r.whole_start AND h.hour < r.end_hour
+        AND ($6::text = '' OR h.provider_name = $6::text)
+        AND ($7::text = '' OR h.model = $7::text)
+        AND ($8::text = '' OR h.client = $8::text)
+    UNION ALL
+    SELECT ai.initiator_id, ai.provider, ai.model, COALESCE(ai.client, 'Unknown'),
+        COALESCE(tu.cost_micros, 0), CASE WHEN tu.cost_micros IS NULL THEN 1::bigint ELSE 0::bigint END
+    FROM aibridge_token_usages tu
+    JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+    JOIN groups g ON g.id = tu.effective_group_id
+    CROSS JOIN ranges r
+    WHERE g.organization_id = $1
+        AND tu.created_at >= r.period_start
+        AND tu.created_at < LEAST(r.period_end, r.whole_start)
+        AND ($6::text = '' OR ai.provider_name = $6::text)
+        AND ($7::text = '' OR ai.model = $7::text)
+        AND ($8::text = '' OR COALESCE(ai.client, 'Unknown') = $8::text)
+    UNION ALL
+    SELECT ai.initiator_id, ai.provider, ai.model, COALESCE(ai.client, 'Unknown'),
+        COALESCE(tu.cost_micros, 0), CASE WHEN tu.cost_micros IS NULL THEN 1::bigint ELSE 0::bigint END
+    FROM aibridge_token_usages tu
+    JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+    JOIN groups g ON g.id = tu.effective_group_id
+    CROSS JOIN ranges r
+    WHERE g.organization_id = $1
+        AND tu.created_at >= GREATEST(r.whole_start, r.end_hour)
+        AND tu.created_at < r.period_end
+        AND ($6::text = '' OR ai.provider_name = $6::text)
+        AND ($7::text = '' OR ai.model = $7::text)
+        AND ($8::text = '' OR COALESCE(ai.client, 'Unknown') = $8::text)
+), spend AS (
+    SELECT user_id,
+        SUM(cost_micros)::bigint AS cost_micros,
+        SUM(unpriced_usage_count)::bigint AS unpriced_usage_count,
+        ARRAY_AGG(DISTINCT provider ORDER BY provider)::text[] AS providers,
+        ARRAY_AGG(DISTINCT client ORDER BY client)::text[] AS clients,
+        ARRAY_AGG(DISTINCT model ORDER BY model)::text[] AS models
+    FROM facts
+    GROUP BY user_id
 )
 SELECT
-	spend.user_id,
-	users.username,
-	users.name,
-	users.avatar_url,
-	$1::uuid AS organization_id,
-	spend.cost_micros,
-	spend.unpriced_usage_count,
-	spend.providers,
-	spend.clients,
-	spend.models,
-	COUNT(*) OVER ()::BIGINT AS count,
-	COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
-	COALESCE(SUM(spend.unpriced_usage_count) OVER (), 0)::BIGINT AS total_unpriced_usage_count
+    spend.user_id,
+    users.username,
+    users.name,
+    users.avatar_url,
+    $1::uuid AS organization_id,
+    spend.cost_micros,
+    spend.unpriced_usage_count,
+    spend.providers,
+    spend.clients,
+    spend.models,
+    COUNT(*) OVER ()::BIGINT AS count,
+    COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
+    COALESCE(SUM(spend.unpriced_usage_count) OVER (), 0)::BIGINT AS total_unpriced_usage_count
 FROM spend
 JOIN users ON users.id = spend.user_id
 ORDER BY cost_micros DESC, LOWER(users.username), spend.user_id
@@ -3762,11 +3934,8 @@ type ListOrganizationAISpendUsersRow struct {
 	TotalUnpricedUsageCount int64     `db:"total_unpriced_usage_count" json:"total_unpriced_usage_count"`
 }
 
-// Returns one page of per-user AI spend for @organization_id over the
-// [period_start, period_end) window, most expensive first, together with the
-// providers, clients, and models each user spent through and the count and
-// totals over every matching user. It must keep the same joins and predicates as
-// ExportOrganizationAISpend so both report the same token usage.
+// Whole UTC hours use historical group attribution; the two disjoint edge
+// scans retain exact timestamp boundaries without scanning the interior raw rows.
 func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listOrganizationAISpendUsers,
 		arg.OrganizationID,
@@ -3811,6 +3980,24 @@ func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListO
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockAIBridgeHourlyBucket = `-- name: LockAIBridgeHourlyBucket :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    ($1::uuid)::text || ($2::uuid)::text ||
+    (extract(epoch FROM date_trunc('hour', $3::timestamptz, 'UTC'))::bigint)::text, 0
+))
+`
+
+type LockAIBridgeHourlyBucketParams struct {
+	EffectiveGroupID uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
+	InitiatorID      uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) LockAIBridgeHourlyBucket(ctx context.Context, arg LockAIBridgeHourlyBucketParams) error {
+	_, err := q.db.ExecContext(ctx, lockAIBridgeHourlyBucket, arg.EffectiveGroupID, arg.InitiatorID, arg.CreatedAt)
+	return err
 }
 
 const upsertAIModelPrices = `-- name: UpsertAIModelPrices :exec

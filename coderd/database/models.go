@@ -4949,6 +4949,21 @@ type APIKey struct {
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
 }
 
+type AibridgeTokenUsageHourly struct {
+	ID                 int64     `db:"id" json:"id"`
+	OrganizationID     uuid.UUID `db:"organization_id" json:"organization_id"`
+	Hour               time.Time `db:"hour" json:"hour"`
+	EffectiveGroupID   uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
+	InitiatorID        uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	Provider           string    `db:"provider" json:"provider"`
+	ProviderName       string    `db:"provider_name" json:"provider_name"`
+	Model              string    `db:"model" json:"model"`
+	Client             string    `db:"client" json:"client"`
+	CostMicros         int64     `db:"cost_micros" json:"cost_micros"`
+	UnpricedUsageCount int64     `db:"unpriced_usage_count" json:"unpriced_usage_count"`
+	UsageCount         int64     `db:"usage_count" json:"usage_count"`
+}
+
 type AuditLog struct {
 	ID               uuid.UUID       `db:"id" json:"id"`
 	Time             time.Time       `db:"time" json:"time"`

@@ -592,6 +592,14 @@ func (m queryMetricsStore) DeleteCustomRole(ctx context.Context, arg database.De
 	return r0
 }
 
+func (m queryMetricsStore) DeleteEmptyAIBridgeTokenUsageHourly(ctx context.Context, emptyHourlyIds []int64) error {
+	start := time.Now()
+	r0 := m.s.DeleteEmptyAIBridgeTokenUsageHourly(ctx, emptyHourlyIds)
+	m.queryLatencies.WithLabelValues("DeleteEmptyAIBridgeTokenUsageHourly").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteEmptyAIBridgeTokenUsageHourly").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteExpiredAPIKeys(ctx, arg)
@@ -712,7 +720,7 @@ func (m queryMetricsStore) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx conte
 	return r0
 }
 
-func (m queryMetricsStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int64, error) {
+func (m queryMetricsStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime []uuid.UUID) (database.DeleteOldAIBridgeRecordsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteOldAIBridgeRecords(ctx, beforeTime)
 	m.queryLatencies.WithLabelValues("DeleteOldAIBridgeRecords").Observe(time.Since(start).Seconds())
@@ -4056,6 +4064,14 @@ func (m queryMetricsStore) HydrateAgentChatsContext(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) IncrementAIBridgeTokenUsageHourlyLocked(ctx context.Context, arg database.IncrementAIBridgeTokenUsageHourlyLockedParams) error {
+	start := time.Now()
+	r0 := m.s.IncrementAIBridgeTokenUsageHourlyLocked(ctx, arg)
+	m.queryLatencies.WithLabelValues("IncrementAIBridgeTokenUsageHourlyLocked").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IncrementAIBridgeTokenUsageHourlyLocked").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.IncrementChatGenerationAttempt(ctx, id)
@@ -4944,6 +4960,22 @@ func (m queryMetricsStore) ListWorkspaceAgentPortShares(ctx context.Context, wor
 	return r0, r1
 }
 
+func (m queryMetricsStore) LockAIBridgeHourlyBucket(ctx context.Context, arg database.LockAIBridgeHourlyBucketParams) error {
+	start := time.Now()
+	r0 := m.s.LockAIBridgeHourlyBucket(ctx, arg)
+	m.queryLatencies.WithLabelValues("LockAIBridgeHourlyBucket").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockAIBridgeHourlyBucket").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) LockAIBridgeInterceptionForUsage(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockAIBridgeInterceptionForUsage(ctx, id)
+	m.queryLatencies.WithLabelValues("LockAIBridgeInterceptionForUsage").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockAIBridgeInterceptionForUsage").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockChatAndBumpSnapshotVersion(ctx, id)
@@ -4957,6 +4989,14 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	r0, r1 := m.s.LockChatByID(ctx, id)
 	m.queryLatencies.WithLabelValues("LockChatByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) LockOldAIBridgeInterceptionsForPurge(ctx context.Context, beforeTime database.LockOldAIBridgeInterceptionsForPurgeParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockOldAIBridgeInterceptionsForPurge(ctx, beforeTime)
+	m.queryLatencies.WithLabelValues("LockOldAIBridgeInterceptionsForPurge").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockOldAIBridgeInterceptionsForPurge").Inc()
 	return r0, r1
 }
 
@@ -6790,6 +6830,14 @@ func (m queryMetricsStore) CountAuthorizedConnectionLogs(ctx context.Context, ar
 	m.queryLatencies.WithLabelValues("CountAuthorizedConnectionLogs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountAuthorizedConnectionLogs").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) IncrementAIBridgeTokenUsageHourly(ctx context.Context, arg database.IncrementAIBridgeTokenUsageHourlyParams) error {
+	start := time.Now()
+	r0 := m.s.IncrementAIBridgeTokenUsageHourly(ctx, arg)
+	m.queryLatencies.WithLabelValues("IncrementAIBridgeTokenUsageHourly").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IncrementAIBridgeTokenUsageHourly").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) ListAuthorizedAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams, prepared rbac.PreparedAuthorized) ([]string, error) {
