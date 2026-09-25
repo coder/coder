@@ -2,6 +2,7 @@ package agentproc
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,15 +13,18 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agenttoolcall"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -37,11 +41,30 @@ type API struct {
 	pathStore *agentgit.PathStore
 }
 
+// Option configures an API.
+type Option func(*apiOptions)
+
+type apiOptions struct {
+	clock quartz.Clock
+}
+
+// WithClock sets the clock used for process timestamps, process age, and
+// the agent start that tool call decisions compare against.
+func WithClock(clock quartz.Clock) Option {
+	return func(o *apiOptions) {
+		o.clock = clock
+	}
+}
+
 // NewAPI creates a new process API handler.
-func NewAPI(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, pathStore *agentgit.PathStore, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *API {
+func NewAPI(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, pathStore *agentgit.PathStore, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string, opts ...Option) *API {
+	options := apiOptions{clock: quartz.NewReal()}
+	for _, opt := range opts {
+		opt(&options)
+	}
 	return &API{
 		logger:    logger,
-		manager:   newManager(logger, execer, fs, envInfo, updateEnv, workingDir),
+		manager:   newManager(logger, execer, fs, envInfo, updateEnv, workingDir, options.clock),
 		pathStore: pathStore,
 	}
 }
@@ -59,10 +82,13 @@ func (api *API) Routes() http.Handler {
 	r.Get("/list", api.handleListProcesses)
 	r.Get("/{id}/output", api.handleProcessOutput)
 	r.Post("/{id}/signal", api.handleSignalProcess)
+	r.Post("/{id}/cancel", api.handleCancelProcess)
 	return r
 }
 
-// handleStartProcess starts a new process.
+// handleStartProcess starts a new process. With tool call headers it
+// starts at most one process per tool call, whose ID is the tool call
+// UUID, and returns that process to repeated requests.
 func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -82,18 +108,75 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var chatID string
-	if chatContext, ok := agentchat.FromContext(ctx); ok {
-		chatID = chatContext.ID.String()
+	toolCall, hasToolCall, err := workspacesdk.ToolCallFromHeaders(r.Header)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid tool call headers.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
-	proc, err := api.manager.start(req, chatID)
+	var proc *process
+	if hasToolCall {
+		chatContext, ok := agentchat.FromContext(ctx)
+		if !ok {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Tool call headers require the %s header.", workspacesdk.CoderChatIDHeader),
+			})
+			return
+		}
+		key := agenttoolcall.Key{ChatID: chatContext.ID, MessageID: toolCall.MessageID, ToolCallID: toolCall.ID}
+		proc, err = api.startToolCall(ctx, req, key, toolCall.Age)
+		if writeToolCallError(ctx, rw, err) {
+			return
+		}
+	} else {
+		proc, err = api.startProcess(ctx, req, uuid.New().String(), nil)
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to start process.",
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.StartProcessResponse{
+		ID:      proc.id,
+		Started: true,
+		AgeMs:   api.manager.age(proc).Milliseconds(),
+	})
+}
+
+// startToolCall starts the process for a tool call at most once, with
+// the tool call UUID as its ID, and returns the recorded process or
+// error to repeated requests.
+func (api *API) startToolCall(ctx context.Context, req workspacesdk.StartProcessRequest, key agenttoolcall.Key, age time.Duration) (*process, error) {
+	// The input is the request as sent, including the requested WorkDir
+	// rather than the resolved one, so a repeated request matches even
+	// if the agent's working directory changed in between.
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, xerrors.Errorf("encode process request: %w", err)
+	}
+	id := workspacesdk.ToolCallUUID(key.ChatID, key.MessageID, key.ToolCallID).String()
+	return api.manager.records.Start(ctx, key, age, sha256.Sum256(body), func() (*process, error) {
+		return api.startProcess(ctx, req, id, &key)
+	})
+}
+
+// startProcess spawns a process with the given ID and chat context from
+// ctx, and notifies git watchers when it exits.
+func (api *API) startProcess(ctx context.Context, req workspacesdk.StartProcessRequest, id string, toolCall *agenttoolcall.Key) (*process, error) {
+	var chatID string
+	if chatContext, ok := agentchat.FromContext(ctx); ok {
+		chatID = chatContext.ID.String()
+	}
+
+	proc, err := api.manager.start(req, chatID, id, toolCall)
+	if err != nil {
+		return nil, err
 	}
 
 	// Notify git watchers after the process finishes so that
@@ -113,10 +196,31 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.StartProcessResponse{
-		ID:      proc.id,
-		Started: true,
-	})
+	return proc, nil
+}
+
+// writeToolCallError writes the HTTP 409 for an agenttoolcall decision
+// error and reports whether err was one.
+func writeToolCallError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	var resp workspacesdk.ToolCallError
+	switch {
+	case errors.Is(err, agenttoolcall.ErrStaleToolCall):
+		resp.Code = workspacesdk.ToolCallErrorStale
+		resp.Message = "The tool call is in an older message than the chat's latest message."
+	case errors.Is(err, agenttoolcall.ErrAgentStartedAfterToolCall):
+		resp.Code = workspacesdk.ToolCallErrorAgentStartedAfterToolCall
+		resp.Message = "The workspace agent started after the tool call was committed."
+	case errors.Is(err, agenttoolcall.ErrInputMismatch):
+		resp.Code = workspacesdk.ToolCallErrorInputMismatch
+		resp.Message = "The request differs from the recorded request for this tool call."
+	case errors.Is(err, agenttoolcall.ErrToolCallCanceled):
+		resp.Code = workspacesdk.ToolCallErrorCanceled
+		resp.Message = "The tool call was canceled."
+	default:
+		return false
+	}
+	httpapi.Write(ctx, rw, http.StatusConflict, resp)
+	return true
 }
 
 // handleListProcesses lists all tracked processes.
@@ -216,6 +320,7 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		Running:   info.Running,
 		ExitCode:  info.ExitCode,
 		Command:   info.Command,
+		AgeMs:     api.manager.age(proc).Milliseconds(),
 	})
 }
 
@@ -287,5 +392,80 @@ func (api *API) handleSignalProcess(rw http.ResponseWriter, r *http.Request) {
 		Message: fmt.Sprintf(
 			"Signal %q sent to process %q.", req.Signal, id,
 		),
+	})
+}
+
+// handleCancelProcess cancels a tool call's process. It kills a running
+// process and waits for it to exit, returns an exited process's result
+// unchanged, and records a tool call the agent never received as
+// canceled so that a start still in transit does nothing.
+func (api *API) handleCancelProcess(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id := chi.URLParam(r, "id")
+
+	chatContext, ok := agentchat.FromContext(ctx)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Canceling a process requires the %s header.", workspacesdk.CoderChatIDHeader),
+		})
+		return
+	}
+	toolCall, ok, err := workspacesdk.ToolCallFromHeaders(r.Header)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid tool call headers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Canceling a process requires tool call headers.",
+		})
+		return
+	}
+	key := agenttoolcall.Key{ChatID: chatContext.ID, MessageID: toolCall.MessageID, ToolCallID: toolCall.ID}
+	wantID := workspacesdk.ToolCallUUID(key.ChatID, key.MessageID, key.ToolCallID).String()
+	if id != wantID {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Process ID %q is not the ID of the tool call in the headers.", id),
+		})
+		return
+	}
+
+	proc, started, err := api.manager.records.Cancel(ctx, key, toolCall.Age)
+	// Cancel reports an aborted wait for a pending start on the same path
+	// as a recorded start error. The client is gone, and answering
+	// started=false for a process that is starting would be wrong.
+	if err != nil && ctx.Err() != nil {
+		return
+	}
+	if writeToolCallError(ctx, rw, err) {
+		return
+	}
+	// Any other error is the recorded start error: no process started.
+	if !started || err != nil {
+		httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.CancelProcessResponse{})
+		return
+	}
+
+	killed, err := proc.killAndWait(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to cancel process.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// The process has exited, so its output is final.
+	info := proc.info()
+	output, truncated := proc.output()
+	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.CancelProcessResponse{
+		Started:   true,
+		Canceled:  killed,
+		Output:    output,
+		Truncated: truncated,
+		ExitCode:  info.ExitCode,
+		AgeMs:     api.manager.age(proc).Milliseconds(),
 	})
 }
