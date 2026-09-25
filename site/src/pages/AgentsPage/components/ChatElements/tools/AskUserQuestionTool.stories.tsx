@@ -105,6 +105,11 @@ const meta: Meta<typeof Tool> = {
 		name: "ask_user_question",
 		organizationId: "organization-id",
 		mcpServers: [],
+		isError: false,
+		subagentTitles: new Map(),
+		subagentVariants: new Map(),
+		shellToolDisplayMode: "auto",
+		codeDiffDisplayMode: "auto",
 	},
 };
 

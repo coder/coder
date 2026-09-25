@@ -73,6 +73,11 @@ describe("Tool workspace lifecycle rows", () => {
 							result={isRunning ? undefined : { build_id: buildId }}
 							organizationId="organization-id"
 							mcpServers={[]}
+							isError={false}
+							subagentTitles={new Map()}
+							subagentVariants={new Map()}
+							shellToolDisplayMode="auto"
+							codeDiffDisplayMode="auto"
 						/>
 					</ChatWorkspaceContext>
 				</QueryClientProvider>,
@@ -117,6 +122,10 @@ describe("Tool manage_automations label", () => {
 				result={{ error: "unknown action" }}
 				organizationId="organization-id"
 				mcpServers={[]}
+				subagentTitles={new Map()}
+				subagentVariants={new Map()}
+				shellToolDisplayMode="auto"
+				codeDiffDisplayMode="auto"
 			/>,
 		);
 

@@ -30,12 +30,12 @@ type ProcessOutputToolProps = {
 	 * affects label tense and signal badges; the row must not animate for
 	 * it, because the snapshot never updates once the poll completes.
 	 */
-	processRunning?: boolean;
+	processRunning: boolean;
 	exitCode: number | null;
 	isError: boolean;
 	errorMessage?: string;
 	killedBySignal?: "kill" | "terminate";
-	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
+	shellToolDisplayMode: TypesGen.AgentDisplayMode;
 };
 
 const getProcessOutputLabel = ({
@@ -70,7 +70,7 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 	command,
 	modelIntent,
 	status,
-	processRunning = false,
+	processRunning,
 	exitCode,
 	isError,
 	errorMessage,
@@ -93,7 +93,7 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 
 	return (
 		<ToolCall.Root
-			key={`${shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
+			key={`${shellToolDisplayMode}:${autoDisplayState}`}
 			className="group/proc w-full"
 			status={status}
 			isError={isError}
