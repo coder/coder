@@ -447,8 +447,8 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if again {
 			continue
 		}
-		if err != nil && !turnContinues(ctx, err) {
-			input.TurnSpan.Invalidate(input.TurnToken, turnOutcomeForError(ctx, err), err)
+		if stepAbandonsTurn(ctx, err) {
+			input.TurnSpan.Invalidate(input.TurnToken, chatloop.TurnOutcomeAbandoned, err)
 		}
 		// The step's stage has ended by now, so a turn the step finished
 		// or invalidated closes with that stage counted.
@@ -457,26 +457,14 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	}
 }
 
-// turnContinues reports whether a failed generation step leads to a
-// retry of the same turn rather than closing it: a retryable task
-// error, or an attempt canceled by the task timeout, which the task
-// runner retries.
-func turnContinues(ctx context.Context, err error) bool {
-	return errors.Is(err, errTaskRetryable) || errors.Is(context.Cause(ctx), errTaskTimeout)
-}
-
-// turnOutcomeForError classifies a failed generation step: a done task
-// context is interrupted, an expected exit without cancellation (a
-// fence or history mismatch) is abandoned, and anything else is error.
-func turnOutcomeForError(ctx context.Context, err error) chatloop.TurnOutcome {
-	switch {
-	case ctx.Err() != nil:
-		return chatloop.TurnOutcomeInterrupted
-	case errors.Is(err, errTaskExpectedExit):
-		return chatloop.TurnOutcomeAbandoned
-	default:
-		return chatloop.TurnOutcomeError
-	}
+// stepAbandonsTurn reports whether a failed generation step closes its
+// turn as abandoned: an expected, non-retryable exit, such as a fence
+// or history mismatch, while ctx is live. Every other error on a live
+// ctx is retried as the same turn. A done ctx means the task was
+// canceled or timed out, and the step records no outcome for either.
+func stepAbandonsTurn(ctx context.Context, err error) bool {
+	return err != nil && ctx.Err() == nil &&
+		errors.Is(err, errTaskExpectedExit) && !errors.Is(err, errTaskRetryable)
 }
 
 // runGenerationStep runs one step of a turn: preparation, the action
@@ -1655,9 +1643,6 @@ func (s *taskStarter) finishGenerationError(
 		slog.Error(cause),
 	)
 	lastError, message := generationLastError(cause)
-	// Committing the status change cancels ctx, so the outcome is
-	// classified before the commit.
-	outcome := turnOutcomeForError(ctx, cause)
 	var committed database.Chat
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
@@ -1678,7 +1663,7 @@ func (s *taskStarter) finishGenerationError(
 		recordGenerationFinishFailure(input.DebugTurn, err)
 		return err
 	}
-	input.TurnSpan.Invalidate(input.TurnToken, outcome, cause)
+	input.TurnSpan.Invalidate(input.TurnToken, chatloop.TurnOutcomeError, cause)
 	input.DebugTurn.RecordOutcome(chatdebug.StatusError)
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)

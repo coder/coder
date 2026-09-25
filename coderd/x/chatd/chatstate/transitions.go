@@ -858,6 +858,10 @@ type PromoteQueuedMessageResult struct {
 	QueuedMessage        database.ChatQueuedMessage
 	InsertedMessage      *database.ChatMessage
 	CancellationMessages []database.ChatMessage
+	// PromotedQueuedAt is the queued row's creation time when this
+	// transition promoted it into history, and the zero time when it
+	// only moved the row to the queue head.
+	PromotedQueuedAt time.Time
 }
 
 // PromoteQueuedMessage promotes the target queued message to the
@@ -949,6 +953,7 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 		QueuedMessage:        target,
 		InsertedMessage:      &insertedUserMsg,
 		CancellationMessages: cancellations,
+		PromotedQueuedAt:     target.CreatedAt,
 	}, nil
 }
 

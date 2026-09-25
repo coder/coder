@@ -14903,6 +14903,13 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, string(chatloop.ChatKindRoot), chatd.SpanAttr(t, queueWait, chatloop.AttrChatKind))
 		require.Equal(t, org.Name, chatd.SpanAttr(t, queueWait, chatloop.AttrOrganizationName))
 	}
+	// requireInterrupted asserts a turn the interrupt task closed.
+	requireInterrupted := func(t *testing.T, turn sdktrace.ReadOnlySpan) {
+		t.Helper()
+		require.Equal(t, string(chatloop.TurnOutcomeInterrupted), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
+		require.Equal(t, codes.Error, turn.Status().Code)
+		require.Equal(t, chatd.ErrChatInterrupted.Error(), turn.Status().Description)
+	}
 
 	t.Run("Completed", func(t *testing.T) {
 		t.Parallel()
@@ -14989,7 +14996,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, chatd.SpanAttr(t, execute, chatloop.AttrModel), chatd.SpanAttr(t, toolCall, chatloop.AttrModel))
 	})
 
-	t.Run("RetryKeepsTurnOpen", func(t *testing.T) {
+	t.Run("ProviderRetryKeepsTurnOpen", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
@@ -15025,6 +15032,62 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 			return step.SpanContext().SpanID() == backoff.Parent().SpanID()
 		}), "retry_backoff runs inside a generation step of the turn")
 		require.Len(t, index[string(chatloop.StageStream)], 2)
+	})
+
+	// The task timeout cancels a step waiting on its provider retry
+	// backoff. The task runner retries the step, and the retry continues
+	// the same turn.
+	t.Run("TaskTimeoutRetryKeepsTurnOpen", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+		retryTrap := clock.Trap().NewTimer("chatworker", "generation-retry")
+		defer retryTrap.Close()
+		taskRetryTrap := clock.Trap().NewTimer("chatworker", "task-retry-generation")
+		defer taskRetryTrap.Close()
+		var calls atomic.Int32
+		h := newHarness(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			if calls.Add(1) == 1 {
+				return chattest.OpenAIRateLimitResponse()
+			}
+			return textResponse()
+		}, func(cfg *chatd.Config) { cfg.Clock = clock })
+		chat := createChatThroughServer(ctx, t, h.db, h.server, h.org.ID, h.user.ID, h.model.ID, "hello")
+		// The step is held while creating its backoff timer, so the task
+		// timeout fires before the backoff can elapse.
+		retryTimer := retryTrap.MustWait(ctx)
+		advanceMockClockBy(ctx, t, clock, chatd.DefaultTaskTimeout)
+		retryTimer.MustRelease(ctx)
+		taskRetry := taskRetryTrap.MustWait(ctx)
+		taskRetry.MustRelease(ctx)
+		advanceMockClockBy(ctx, t, clock, taskRetry.Duration)
+		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
+
+		var turns []sdktrace.ReadOnlySpan
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			turns = nil
+			for _, span := range h.recorder.Ended() {
+				if span.Name() == string(chatloop.StageChatTurn) {
+					turns = append(turns, span)
+				}
+			}
+			return slices.ContainsFunc(turns, func(turn sdktrace.ReadOnlySpan) bool {
+				return chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome) == string(chatloop.TurnOutcomeCompleted)
+			})
+		}, testutil.IntervalFast)
+		require.Len(t, turns, 1)
+		require.Zero(t, chatd.StageAnomalyCount(t, h.registry, chatloop.StageAnomalyStaleAnchor))
+		steps := 0
+		for _, span := range h.recorder.Ended() {
+			if span.Name() == string(chatloop.StageGenerationStep) {
+				steps++
+				require.Equal(t, turns[0].SpanContext().SpanID(), span.Parent().SpanID())
+			}
+		}
+		require.GreaterOrEqual(t, steps, 2)
 	})
 
 	t.Run("PostToolUseHookFailureFailsTurn", func(t *testing.T) {
@@ -15185,9 +15248,87 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 
 		turns := index[string(chatloop.StageChatTurn)]
 		requireStandaloneQueueWait(t, index, sent.QueuedMessage.CreatedAt, h.org)
-		require.Equal(t, string(chatloop.TurnOutcomeInterrupted), chatd.SpanAttr(t, turns[0], chatloop.AttrTurnOutcome))
+		requireInterrupted(t, turns[0])
 		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turns[1], chatloop.AttrTurnOutcome))
 		require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
+	})
+
+	// Promoting a queued message on a running chat interrupts the turn;
+	// the queued message is promoted, and its queue_wait recorded, only
+	// once the interruption finishes.
+	t.Run("PromoteQueuedWhileRunning", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		started, release := make(chan struct{}), make(chan struct{})
+		defer close(release)
+		h := newHarness(t, blockFirstStream(started, release, textResponse()))
+		chat := createChatThroughServer(ctx, t, h.db, h.server, h.org.ID, h.user.ID, h.model.ID, "hello")
+		testutil.TryReceive(ctx, t, started)
+		sent, err := h.server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:       chat.ID,
+			CreatedBy:    h.user.ID,
+			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("next")},
+			BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		require.True(t, sent.Queued)
+		_, err = h.server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+			ChatID:          chat.ID,
+			QueuedMessageID: sent.QueuedMessage.ID,
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
+		index := waitForTurns(ctx, t, h.recorder, 2)
+
+		turns := index[string(chatloop.StageChatTurn)]
+		requireStandaloneQueueWait(t, index, sent.QueuedMessage.CreatedAt, h.org)
+		requireInterrupted(t, turns[0])
+		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turns[1], chatloop.AttrTurnOutcome))
+	})
+
+	// A message edit replaces the prompt: the edited turn is abandoned,
+	// not interrupted, and the replacement runs in its own turn.
+	t.Run("EditAbandonsTurn", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		started, release := make(chan struct{}), make(chan struct{})
+		defer close(release)
+		h := newHarness(t, blockFirstStream(started, release, textResponse()))
+		chat := createChatThroughServer(ctx, t, h.db, h.server, h.org.ID, h.user.ID, h.model.ID, "hello")
+		testutil.TryReceive(ctx, t, started)
+		_, err := h.server.EditMessage(ctx, chatd.EditMessageOptions{
+			ChatID:          chat.ID,
+			CreatedBy:       h.user.ID,
+			EditedMessageID: lastUserMessage(ctx, t, h.db, chat.ID).ID,
+			Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
+		index := waitForTurns(ctx, t, h.recorder, 2)
+
+		turns := index[string(chatloop.StageChatTurn)]
+		require.Equal(t, string(chatloop.TurnOutcomeAbandoned), chatd.SpanAttr(t, turns[0], chatloop.AttrTurnOutcome))
+		require.Equal(t, codes.Unset, turns[0].Status().Code)
+		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turns[1], chatloop.AttrTurnOutcome))
+		require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
+	})
+
+	// Server shutdown cancels the running task; the runner closes the
+	// turn as abandoned when it exits.
+	t.Run("ShutdownAbandonsTurn", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		started, release := make(chan struct{}), make(chan struct{})
+		defer close(release)
+		h := newHarness(t, blockFirstStream(started, release, textResponse()))
+		createChatThroughServer(ctx, t, h.db, h.server, h.org.ID, h.user.ID, h.model.ID, "hello")
+		testutil.TryReceive(ctx, t, started)
+		require.NoError(t, h.server.Close())
+		index := waitForTurns(ctx, t, h.recorder, 1)
+
+		turn := single(t, index, chatloop.StageChatTurn)
+		require.Equal(t, string(chatloop.TurnOutcomeAbandoned), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
+		require.Equal(t, codes.Unset, turn.Status().Code)
 	})
 
 	// failWithQueuedMessage runs the first prompt to an error while a

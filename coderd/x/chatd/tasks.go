@@ -262,6 +262,12 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	if err != nil {
 		return normalizeTaskInfrastructureError(err, "lock chat for interrupt")
 	}
+	// The chat is interrupting, so the open turn, if any, is the one the
+	// user stopped. It is marked before FinishInterruption commits: the
+	// commit can promote a queued prompt, and that prompt's turn would
+	// otherwise replace the stopped one and close it as abandoned.
+	turnToken := input.TurnSpan.OpenToken()
+	input.TurnSpan.Invalidate(turnToken, chatloop.TurnOutcomeInterrupted, errChatInterrupted)
 
 	key := messagepartbuffer.Key{
 		ChatID:            input.ChatID,
@@ -343,6 +349,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		return normalizeTaskTransitionError(err, "finish interruption")
 	}
 	input.DebugTurn.RecordOutcome(chatdebug.StatusInterrupted)
+	input.TurnSpan.Settle(turnToken)
 	s.server.recordQueueWait(ctx, committed, promotedQueuedAt)
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)
