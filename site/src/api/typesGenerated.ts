@@ -2004,6 +2004,12 @@ export interface Chat {
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
+	 * InlineMCPServers lists the inline MCP servers declared on the chat,
+	 * without headers. Only the single-chat GET sets it.
+	 * Experimental.
+	 */
+	readonly inline_mcp_servers?: readonly InlineMCPServer[];
+	/**
 	 * Children holds child (subagent) chats nested under this root
 	 * chat. Always initialized to an empty slice so the JSON field
 	 * is present as []. Child chats cannot create their own
@@ -2696,6 +2702,14 @@ export interface ChatMessage {
 	readonly role: ChatMessageRole;
 	readonly content?: readonly ChatMessagePart[];
 	readonly usage?: ChatMessageUsage;
+	/**
+	 * QueuedMessageID is the ID of the queued message this message was
+	 * promoted from. It matches ChatQueuedMessage.ID in the response that
+	 * queued the message. It is nil when the message was not promoted from
+	 * the queue (edits create a new message without it) or when a server
+	 * version that did not record the link created it.
+	 */
+	readonly queued_message_id?: number;
 }
 
 // From codersdk/chats.go
@@ -3567,6 +3581,7 @@ export interface ChatToolResultPart {
 	readonly mcp_server_config_id?: string;
 	readonly result?: unknown;
 	readonly result_delta?: string;
+	readonly reasoning_delta?: string;
 	readonly result_reset?: boolean;
 	readonly is_error?: boolean;
 	readonly is_media?: boolean;
@@ -3859,6 +3874,11 @@ export interface CreateChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: string[];
+	/**
+	 * InlineMCPServers replaces the inline MCP servers.
+	 * nil: no change, empty: remove all.
+	 */
+	readonly inline_mcp_servers?: InlineMCPServerRequest[];
 	readonly busy_behavior?: ChatBusyBehavior;
 	/**
 	 * PlanMode switches the chat's persistent plan mode.
@@ -3931,6 +3951,11 @@ export interface CreateChatRequest {
 	 * subject to change.
 	 */
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
+	/**
+	 * InlineMCPServers declares MCP servers by value on this chat, next
+	 * to the org-configured servers selected by MCPServerIDs. Experimental.
+	 */
+	readonly inline_mcp_servers?: readonly InlineMCPServerRequest[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
 }
@@ -4810,6 +4835,7 @@ export interface DeploymentValues {
 	readonly disable_owner_workspace_exec?: boolean;
 	readonly disable_workspace_sharing?: boolean;
 	readonly disable_chat_sharing?: boolean;
+	readonly disable_chat_caller_supplied_tools?: boolean;
 	readonly disable_workspace_agent_context_sync?: boolean;
 	readonly disable_user_secret_file_path?: boolean;
 	readonly proxy_health_status_interval?: number;
@@ -5063,7 +5089,9 @@ export type Experiment =
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
+	| "chat-inline-mcp-servers"
 	| "chat-virtual-desktop"
+	| "enable-ai-workspace-debug"
 	| "example"
 	| "mcp-server-http"
 	| "mcp-tool-search"
@@ -5079,7 +5107,9 @@ export const Experiments: Experiment[] = [
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
+	"chat-inline-mcp-servers",
 	"chat-virtual-desktop",
+	"enable-ai-workspace-debug",
 	"example",
 	"mcp-server-http",
 	"mcp-tool-search",
@@ -5800,6 +5830,42 @@ export const InboxNotificationFallbackIconTemplate = "DEFAULT_ICON_TEMPLATE";
 // From codersdk/inboxnotification.go
 export const InboxNotificationFallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE";
 
+// From codersdk/chats.go
+/**
+ * InlineMCPServer is the redacted view of an inline MCP server.
+ */
+export interface InlineMCPServer {
+	readonly id: string;
+	readonly slug: string;
+	/**
+	 * URL is empty unless the chat owner makes the request.
+	 */
+	readonly url: string;
+	readonly has_custom_headers: boolean;
+	readonly tool_allow_list: readonly string[];
+	readonly tool_deny_list: readonly string[];
+	readonly allow_in_subagents: boolean;
+	readonly forward_coder_headers: boolean;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * InlineMCPServerRequest declares a streamable HTTP MCP server by value on
+ * one chat. Headers are never returned. Header values are encrypted at
+ * rest when database encryption is configured.
+ */
+export interface InlineMCPServerRequest {
+	readonly slug: string;
+	readonly url: string;
+	readonly headers?: Record<string, string>;
+	readonly tool_allow_list?: readonly string[];
+	readonly tool_deny_list?: readonly string[];
+	readonly allow_in_subagents?: boolean;
+	readonly forward_coder_headers?: boolean;
+}
+
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
 
@@ -6176,6 +6242,60 @@ export const MaxChatFileIDs = 50;
  * attachments.
  */
 export const MaxChatFileSizeBytes = 10485760;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServerHeaderNameBytes = 128;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServerHeaderValueBytes = 8192;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServerHeaders = 16;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServerSlugBytes = 32;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServerToolFilters = 64;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServerToolNameBytes = 128;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServerURLBytes = 2048;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServers = 5;
+
+// From codersdk/chats.go
+/**
+ * Inline MCP server declaration caps. Clients can validate before sending.
+ */
+export const MaxInlineMCPServersBytes = 24576;
 
 // From codersdk/usersecretsimport.go
 /**
@@ -11758,6 +11878,19 @@ export interface WorkspaceBuild {
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
 	readonly has_external_agent?: boolean;
+}
+
+// From codersdk/workspacebuilds.go
+/**
+ * WorkspaceBuildDebugEventRequest is the request body for
+ * POST /api/v2/workspacebuilds/{workspacebuild}/debug-events.
+ */
+export interface WorkspaceBuildDebugEventRequest {
+	/**
+	 * ID identifies this click so a later step of the funnel can be
+	 * attributed to it.
+	 */
+	readonly id: string;
 }
 
 // From codersdk/workspacebuilds.go

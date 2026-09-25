@@ -589,6 +589,11 @@ disableWorkspaceSharing: false
 # their chats.
 # (default: <unset>, type: bool)
 disableChatSharing: false
+# Disable caller-supplied tools in chats. Chat requests that include
+# unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing chats run
+# without their dynamic tools and inline MCP servers.
+# (default: <unset>, type: bool)
+disableChatCallerSuppliedTools: false
 # Stop persisting workspace agent context snapshots (instructions, skills, and MCP
 # state used for pinned chat context). When set, coderd rejects agent context
 # pushes as unimplemented and agents stop sending them; chats cannot pin workspace
@@ -623,7 +628,7 @@ client:
   # (default: <unset>, type: string-array)
   sshConfigOptions: []
   # The upgrade message to display to users when a client/server mismatch is
-  # detected. By default it instructs users to update using 'curl -L
+  # detected. By default it instructs users to update using 'curl -fsSL
   # https://coder.com/install.sh | sh'.
   # (default: <unset>, type: string)
   cliUpgradeMessage: ""
