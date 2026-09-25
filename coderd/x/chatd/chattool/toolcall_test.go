@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
 
@@ -67,4 +68,23 @@ func TestToolCallIdentityContext(t *testing.T) {
 	assert.Equal(t, want.MessageID, got.MessageID)
 	assert.Equal(t, want.ToolCallID, got.ToolCallID)
 	assert.Equal(t, time.Minute, got.Age.Now())
+}
+
+func TestToolCallIdentityAgentRequests(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	dbNow := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
+	id := chattool.ToolCallIdentity{
+		ChatID:     uuid.New(),
+		MessageID:  42,
+		ToolCallID: "call_" + uuid.NewString(),
+		Age:        chattool.NewToolCallAge(clock, dbNow, dbNow.Add(-time.Minute)),
+	}
+
+	assert.Equal(t, workspacesdk.ToolCallUUID(id.ChatID, 42, id.ToolCallID).String(), id.ProcessID())
+	assert.Equal(t, workspacesdk.ToolCall{MessageID: 42, ID: id.ToolCallID, Age: time.Minute}, id.AgentToolCall())
+	// Each request measures the age when it is built.
+	clock.Advance(3 * time.Second)
+	assert.Equal(t, workspacesdk.ToolCall{MessageID: 42, ID: id.ToolCallID, Age: time.Minute + 3*time.Second}, id.AgentToolCall())
 }

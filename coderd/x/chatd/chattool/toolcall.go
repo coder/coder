@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
 
@@ -47,6 +48,23 @@ type ToolCallIdentity struct {
 	MessageID  int64
 	ToolCallID string
 	Age        ToolCallAge
+}
+
+// AgentToolCall returns the tool call to attach to a workspace agent
+// request with workspacesdk.WithToolCall. Its age is measured now, so
+// build it immediately before the request.
+func (id ToolCallIdentity) AgentToolCall() workspacesdk.ToolCall {
+	return workspacesdk.ToolCall{
+		MessageID: id.MessageID,
+		ID:        id.ToolCallID,
+		Age:       id.Age.Now(),
+	}
+}
+
+// ProcessID returns the ID the workspace agent gives a process started
+// for this tool call. An agent without tool call support picks another.
+func (id ToolCallIdentity) ProcessID() string {
+	return workspacesdk.ToolCallUUID(id.ChatID, id.MessageID, id.ToolCallID).String()
 }
 
 type toolCallIdentityKey struct{}
