@@ -261,6 +261,8 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 	rec := aibridge.NewRecorder(
 		p.logger.Named("recorder"),
 		p.tracer,
+		req.APIKeyID,
+		p.options.StructuredLogging,
 		recorder.NewDRPCRecorder(req.APIKeyID, func(clientCtx context.Context) (proto.DRPCRecorderClient, error) {
 			// The recorder outlives this Acquire call, so the client is acquired
 			// against the context of the record call being served.
