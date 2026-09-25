@@ -702,7 +702,7 @@ export const useFilterCombobox = ({
 	// row is not in the menu, because the picked option hid it or the category
 	// was entered by typing its hidden key, the first row in the menu is
 	// highlighted instead; cmdk keeps a highlight that names no row.
-	const returnToCategories = (nextChips = chipValues) => {
+	const highlightCategoryListRow = (nextChips: string[]) => {
 		const staysInMenu = (category: FilterCategory) =>
 			isInMenu(category, nextChips);
 		const activeCategoryStaysInMenu =
@@ -714,6 +714,9 @@ export const useFilterCombobox = ({
 						category.key !== activeCategoryKey && staysInMenu(category),
 				)?.key ?? "");
 		setHighlightedValue(nextHighlight ?? "");
+	};
+	const returnToCategories = (nextChips = chipValues) => {
+		highlightCategoryListRow(nextChips);
 		dispatch({ type: "leaveCategory" });
 	};
 
@@ -982,6 +985,9 @@ export const useFilterCombobox = ({
 	// cancels a pending typed-text lookup, and an open category returns to the
 	// full list while the popup stays open.
 	const clearAll = () => {
+		if (activeCategoryKey !== null) {
+			highlightCategoryListRow([]);
+		}
 		dispatch({ type: "clear" });
 		emitQuery("");
 	};

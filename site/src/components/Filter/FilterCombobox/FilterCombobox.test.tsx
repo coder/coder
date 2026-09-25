@@ -1517,6 +1517,34 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("dev"));
 	});
 
+	it("highlights a category row after Clear all from a category its chip listed", async () => {
+		const { user, onChange, input } = setup(
+			[
+				ownerCategory,
+				{
+					key: "template",
+					label: "Template",
+					hideWhenSingleOption: true,
+					getOptions: async () => [{ label: "docker", value: "docker" }],
+				},
+				statusCategory,
+			],
+			{ initialValue: "template:docker owner:alice status:running" },
+		);
+
+		await user.click(input);
+		await user.type(input, "template:");
+		await screen.findByRole("option", { name: "docker" });
+		await user.click(screen.getByRole("button", { name: "Clear all" }));
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		await user.keyboard("{Enter}");
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
 	it("moves focus to the input when a focused Clear all is clicked", async () => {
 		const { user, input } = setup(
 			[ownerCategory, statusCategory, attributesCategory],
