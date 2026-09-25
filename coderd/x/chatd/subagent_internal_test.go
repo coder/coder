@@ -155,7 +155,8 @@ func newInternalTestServer(
 		opt(&cfg)
 	}
 
-	evaluator, err := experimentrules.New(cfg.logger, experimentstest.Store{}, experimentsOrDefault(cfg.experiments))
+	experiments := experimentsOrDefault(cfg.experiments)
+	evaluator, err := experimentrules.New(cfg.logger, experimentstest.Store{}, experiments)
 	require.NoError(t, err)
 	server, err := New(ps, Config{
 		Logger:    cfg.logger,
@@ -166,7 +167,7 @@ func newInternalTestServer(
 		// does not interfere with test assertions.
 		PendingChatAcquireInterval: testutil.WaitLong,
 		ProviderAPIKeys:            keys,
-		Experiments:                experimentsOrDefault(cfg.experiments),
+		Experiments:                experiments,
 		ExperimentEvaluator:        evaluator,
 		AIBridgeTransportFactory:   cfg.transportFactory,
 		Limits:                     cfg.limits,

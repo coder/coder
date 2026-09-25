@@ -141,8 +141,6 @@ describe("logout", () => {
 			undefined,
 		);
 
-		// Experiments are decided per user, so the next user must not be
-		// seeded with the previous user's list.
 		expect(clearMetadataByKey).toHaveBeenCalledWith("user");
 		expect(clearMetadataByKey).toHaveBeenCalledWith("experiments");
 	});
