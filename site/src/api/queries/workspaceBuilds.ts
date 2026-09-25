@@ -1,7 +1,8 @@
-import type {
-	QueryOptions,
-	UseInfiniteQueryOptions,
-	UseQueryOptions,
+import {
+	type QueryOptions,
+	queryOptions,
+	type UseInfiniteQueryOptions,
+	type UseQueryOptions,
 } from "react-query";
 import { API } from "#/api/api";
 import type {
@@ -38,12 +39,11 @@ export const workspaceBuildByNumber = (
 const workspaceBuildByIdKey = (workspaceBuildId: string) =>
 	["workspaceBuilds", workspaceBuildId] as const;
 
-export function workspaceBuildById(workspaceBuildId: string) {
-	return {
+export const workspaceBuildById = (workspaceBuildId: string) =>
+	queryOptions({
 		queryKey: workspaceBuildByIdKey(workspaceBuildId),
 		queryFn: () => API.getWorkspaceBuild(workspaceBuildId),
-	} as const satisfies QueryOptions<WorkspaceBuild>;
-}
+	});
 
 type ReportWorkspaceBuildDebugClickArgs = {
 	workspaceBuildId: string;
