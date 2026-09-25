@@ -30325,11 +30325,6 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "project_id": {
-                    "description": "ProjectID changes the chat project. A UUID value of nil clears the project.",
-                    "type": "string",
-                    "format": "uuid"
-                },
                 "title": {
                     "type": "string"
                 },
