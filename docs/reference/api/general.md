@@ -193,6 +193,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "upstream_proxy_ca": "string"
       },
       "bridge": {
+        "actor_header_id": "string",
+        "actor_header_meta_username": "string",
         "allow_byok": true,
         "api_dump_dir": "string",
         "budget_period": "string",

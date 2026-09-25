@@ -98,19 +98,21 @@ func IsActorHeader(name string) bool {
 }
 
 // headersFromActor produces a map of headers from a given [aibcontext.Actor].
-func headersFromActor(actor *aibcontext.Actor) map[string]string {
+func headersFromActor(actor *aibcontext.Actor, names map[string]string) map[string]string {
 	if actor == nil {
 		return nil
 	}
 
-	headers := make(map[string]string, len(actor.Metadata)+1)
-
-	// Add actor ID.
-	headers[ActorIDHeader()] = actor.ID
-
-	// Add headers for provided metadata.
-	for k, v := range actor.Metadata {
-		headers[ActorMetadataHeader(k)] = fmt.Sprintf("%v", v)
+	headers := make(map[string]string, len(names))
+	if name := names["id"]; name != "" {
+		headers[name] = actor.ID
+	}
+	if name := names["username"]; name != "" {
+		if value, ok := actor.Metadata["Username"]; ok {
+			if value := fmt.Sprint(value); value != "" {
+				headers[name] = value
+			}
+		}
 	}
 
 	return headers
@@ -203,7 +205,7 @@ func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 // applies identity from the authenticated request actor.
 //
 //nolint:revive // sendActorHeaders carries the provider's SendActorHeaders setting.
-func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, authHeaderName string, sendActorHeaders bool, actor *aibcontext.Actor) http.Header {
+func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, authHeaderName string, sendActorHeaders bool, actorHeaderNames map[string]string, actor *aibcontext.Actor) http.Header {
 	headers := PrepareClientHeaders(clientHeaders)
 	if headers == nil {
 		headers = make(http.Header)
@@ -214,10 +216,17 @@ func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, auth
 		headers.Set(authHeaderName, v)
 	}
 
-	if sendActorHeaders {
-		for name, value := range headersFromActor(actor) {
-			headers.Set(name, value)
-		}
+	if !sendActorHeaders {
+		return headers
+	}
+	for _, name := range []string{ActorIDHeader(), ActorMetadataHeader("Username")} {
+		headers.Del(name)
+	}
+	for _, name := range actorHeaderNames {
+		headers.Del(name)
+	}
+	for name, value := range headersFromActor(actor, actorHeaderNames) {
+		headers.Set(name, value)
 	}
 	return headers
 }

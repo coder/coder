@@ -175,6 +175,7 @@ func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, trace
 		BaseURL:          p.cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
 		SendActorHeaders: p.cfg.SendActorHeaders,
+		ActorHeaderNames: p.cfg.ActorHeaderNames,
 	}
 	cred, err := p.resolveCredential(r)
 	if err != nil {
@@ -265,6 +266,7 @@ func (p *Bedrock) bedrockInterceptConfig() intercept.Config {
 		BaseURL:          p.runtime.Cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
 		SendActorHeaders: p.cfg.SendActorHeaders,
+		ActorHeaderNames: p.cfg.ActorHeaderNames,
 	}
 }
 

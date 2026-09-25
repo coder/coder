@@ -61,6 +61,27 @@ Coder build versions are not the compatibility criterion.
 
 For upgrade and rollback ordering, refer to [Version compatibility](./standalone.md#version-compatibility) in the standalone deployment guide.
 
+## Actor header forwarding
+
+Enable `--ai-gateway-send-actor-headers`, `CODER_AI_GATEWAY_SEND_ACTOR_HEADERS`, or `ai_gateway.send_actor_headers` to add actor identity to intercepted upstream requests.
+The setting is disabled by default.
+
+When enabled, AI Gateway emits these headers by default:
+
+| Actor attribute | Default header                        | Value                                              |
+|-----------------|---------------------------------------|----------------------------------------------------|
+| `id`            | `X-AI-Bridge-Actor-ID`                | The authenticated Coder user ID.                   |
+| `username`      | `X-AI-Bridge-Actor-Metadata-Username` | The username from the authenticated Coder account. |
+
+Configure the ID header with `--ai-gateway-actor-header-id`, `CODER_AI_GATEWAY_ACTOR_HEADER_ID`, or `ai_gateway.actor_header_id`.
+Configure the username header with `--ai-gateway-actor-header-meta-username`, `CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME`, or `ai_gateway.actor_header_meta_username`.
+
+Each option uses its own precedence: the CLI flag overrides the environment variable, the environment variable overrides the YAML value, and the default applies when none is set.
+Set an option to an empty value to disable that actor attribute without disabling the other attribute.
+
+AI Gateway uses values from the authenticated Coder account, not client-supplied headers.
+Gateway does not inject actor headers on passthrough routes.
+
 ## Supported APIs
 
 API support is divided into two categories:

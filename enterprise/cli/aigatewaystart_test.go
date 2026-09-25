@@ -859,18 +859,21 @@ func TestAIGatewayStart_ConfigYAML(t *testing.T) {
 func TestAIGatewayStart_ConfigYAML_Invalid(t *testing.T) {
 	t.Parallel()
 
-	configFile := filepath.Join(t.TempDir(), "config.yaml")
-	err := os.WriteFile(configFile, []byte(
-		"introspection:\n  prometheus:\n    unknown_field: true\n",
-	), 0o600)
-	require.NoError(t, err)
-
-	inv, _ := newCLI(t,
-		"ai-gateway", "start",
-		"--key", "test-key",
-		"--config", configFile,
-	)
-
-	err = inv.Run()
-	require.ErrorContains(t, err, `unknown option "introspection.prometheus.unknown_field"`)
+	for _, tc := range []struct {
+		name    string
+		config  string
+		wantErr string
+	}{
+		{"unknown option", "introspection:\n  prometheus:\n    unknown_field: true\n", `unknown option "introspection.prometheus.unknown_field"`},
+		{"reserved actor header", "ai_gateway:\n  actor_header_id: Authorization\n", "reserved AI Gateway actor header name"},
+		{"reserved actor username header", "ai_gateway:\n  actor_header_meta_username: Content-Type\n", "reserved AI Gateway actor header name"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			configFile := filepath.Join(t.TempDir(), "config.yaml")
+			require.NoError(t, os.WriteFile(configFile, []byte(tc.config), 0o600))
+			inv, _ := newCLI(t, "ai-gateway", "start", "--key", "test-key", "--config", configFile)
+			require.ErrorContains(t, inv.Run(), tc.wantErr)
+		})
+	}
 }
