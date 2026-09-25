@@ -694,25 +694,31 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it.each([
-		["Enter", "{Enter}"],
-		["Space", " "],
-	])(
-		"removes a chip with %s on its remove button and focuses the input",
-		async (_, key) => {
-			const { user, onChange, input } = setup([ownerCategory, statusCategory], {
-				initialValue: "owner:alice status:running",
-			});
+	it("activates flyout option buttons and Retry with Enter", async () => {
+		let failed = false;
+		const getOptions = vi.fn(async (query: string) => {
+			if (query === "" && !failed) {
+				failed = true;
+				throw new Error("boom");
+			}
+			return ownerCategory.getOptions(query);
+		});
+		const { user, onChange, filtersButton } = setup(
+			[{ ...ownerCategory, getOptions }],
+			{ skipHover: true },
+		);
 
-			screen.getByRole("button", { name: "Remove owner:alice" }).focus();
-			await user.keyboard(key);
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		(await screen.findByRole("button", { name: "Retry" })).focus();
+		await user.keyboard("{Enter}");
+		(await screen.findByRole("button", { name: "alice" })).focus();
+		await user.keyboard("{Enter}");
 
-			await waitFor(() =>
-				expect(onChange).toHaveBeenLastCalledWith("status:running"),
-			);
-			expect(input).toHaveFocus();
-		},
-	);
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
 
 	it("keeps matching rows selectable while typed text is debounced", async () => {
 		const { user, onChange, input } = setup([ownerCategory, statusCategory]);
