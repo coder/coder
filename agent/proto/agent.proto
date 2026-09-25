@@ -389,11 +389,15 @@ message Connection {
 
 	bytes id = 1;
 	Action action = 2;
+	// The app's family, for coderd without app_name. RECONNECTING_PTY marks a
+	// web terminal.
 	Type type = 3;
 	google.protobuf.Timestamp timestamp = 4;
 	string ip = 5;
 	int32 status_code = 6;
 	optional string reason = 7;
+	// The app that connected, such as "cursor".
+	string app_name = 8;
 }
 
 message ReportConnectionRequest {

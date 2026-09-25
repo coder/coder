@@ -88,6 +88,7 @@ import (
 //
 // API v2.12:
 //   - Added the client_session_id to TelemetryEvent.
+//   - Added app_name to Connection on the Agent API.
 const (
 	CurrentMajor = 2
 	CurrentMinor = 12
