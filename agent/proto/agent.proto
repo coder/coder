@@ -389,9 +389,9 @@ message Connection {
 
 	bytes id = 1;
 	Action action = 2;
-	// The app's family, for coderd without app_name. RECONNECTING_PTY marks a
-	// web terminal.
-	Type type = 3;
+	// Superseded by app_name. Agents still send the app's family for coderd
+	// that predates app_name.
+	Type type = 3 [deprecated = true];
 	google.protobuf.Timestamp timestamp = 4;
 	string ip = 5;
 	int32 status_code = 6;

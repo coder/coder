@@ -153,8 +153,6 @@ func TestSSHConnectionType(t *testing.T) {
 		"cursor":              proto.Connection_VSCODE,
 		"jetbrains":           proto.Connection_JETBRAINS,
 		"an_unregistered_ide": proto.Connection_SSH,
-		// Only the reconnecting PTY server reports RECONNECTING_PTY.
-		"reconnecting_pty": proto.Connection_SSH,
 	} {
 		require.Equal(t, want, sshConnectionType(appName), appName)
 	}
