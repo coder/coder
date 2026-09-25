@@ -181,11 +181,16 @@ export function FilterCombobox({
 	const panelCategoryKey = activeCategoryKey ?? flyoutCategoryKey;
 	const [panelOffset, setPanelOffset] = useState(0);
 	useLayoutEffect(() => {
-		setPanelOffset(
+		const row =
 			panelCategoryKey === null
-				? 0
-				: (categoryRows.current.get(panelCategoryKey)?.offsetTop ?? 0),
-		);
+				? undefined
+				: categoryRows.current.get(panelCategoryKey);
+		// The main menu scrolls, so the row's position is measured within its
+		// visible area.
+		const scrollTop =
+			row?.closest<HTMLElement>('[data-slot="filter-main-panel"]')?.scrollTop ??
+			0;
+		setPanelOffset(row ? Math.max(0, row.offsetTop - scrollTop) : 0);
 	}, [panelCategoryKey]);
 	// cmdk owns the highlighted row for both pointer and keyboard, so the flyout
 	// follows it: it closes when the highlight leaves the category rows and
@@ -651,7 +656,9 @@ function MainPanel({
 		<FilterComboboxList
 			data-slot="filter-main-panel"
 			className={cn(
-				"w-(--radix-popover-trigger-width) max-w-full shrink-0 rounded-md border border-border bg-surface-primary p-2 shadow-md sm:w-64",
+				// The popup itself lets flyouts overflow, so the menu caps its own
+				// height and scrolls.
+				"max-h-[min(24rem,var(--radix-popper-available-height))] w-(--radix-popover-trigger-width) max-w-full shrink-0 rounded-md border border-border bg-surface-primary p-2 shadow-md sm:w-64",
 				embedded &&
 					"w-full rounded-none border-0 bg-transparent p-0 shadow-none",
 			)}
