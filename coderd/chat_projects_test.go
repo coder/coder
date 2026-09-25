@@ -45,17 +45,30 @@ func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 
 	updatedName := "Renamed Project"
 	updatedDescription := "Updated description"
+	updatedIcon := " /emojis/1f680.png "
 	updated, err := client.UpdateChatProject(ctx, project.ID, codersdk.UpdateChatProjectRequest{
 		Name:        &updatedName,
 		Description: &updatedDescription,
+		Icon:        &updatedIcon,
 	})
 	require.NoError(t, err)
 	require.Equal(t, updatedName, updated.Name)
 	require.Equal(t, updatedDescription, updated.Description)
+	require.Equal(t, "/emojis/1f680.png", updated.Icon)
+
+	// Omitted fields keep their stored values.
+	keptName := "Renamed Again"
+	updated, err = client.UpdateChatProject(ctx, project.ID, codersdk.UpdateChatProjectRequest{Name: &keptName})
+	require.NoError(t, err)
+	require.Equal(t, "/emojis/1f680.png", updated.Icon)
+
+	longIcon := strings.Repeat("x", 257)
+	_, err = client.UpdateChatProject(ctx, project.ID, codersdk.UpdateChatProjectRequest{Icon: &longIcon})
+	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
 
 	_, err = client.CreateChatProject(ctx, codersdk.CreateChatProjectRequest{
 		OrganizationID: firstUser.OrganizationID,
-		Name:           updatedName,
+		Name:           keptName,
 	})
 	require.Equal(t, 409, coderdtest.SDKError(t, err).StatusCode())
 
@@ -63,8 +76,8 @@ func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 	// reuse one without learning that it exists elsewhere.
 	otherRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	other := codersdk.NewExperimentalClient(otherRaw)
-	otherProject := createChatProject(t, other, firstUser.OrganizationID, updatedName)
-	require.Equal(t, updatedName, otherProject.Name)
+	otherProject := createChatProject(t, other, firstUser.OrganizationID, keptName)
+	require.Equal(t, keptName, otherProject.Name)
 
 	require.NoError(t, client.DeleteChatProject(ctx, project.ID))
 	storedChat, err := client.GetChat(ctx, chat.ID)
