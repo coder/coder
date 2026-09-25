@@ -50,7 +50,8 @@ func TestHandlerTransport(t *testing.T) {
 		require.Equal(t, "/path", string(body))
 	})
 
-	// Chunks must arrive before the handler returns. SSE depends on it.
+	// Flush must commit the header before the first chunk, and each chunk
+	// must arrive before the handler returns. SSE depends on both.
 	t.Run("Streams", func(t *testing.T) {
 		t.Parallel()
 
@@ -60,11 +61,12 @@ func TestHandlerTransport(t *testing.T) {
 			released[i] = make(chan struct{})
 		}
 		h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
 			flusher, ok := w.(http.Flusher)
 			if !assert.True(t, ok, "ResponseWriter must implement http.Flusher") {
 				return
 			}
+			w.Header().Set("Content-Type", "text/event-stream")
+			flusher.Flush()
 			for i := range chunks {
 				<-released[i]
 				_, _ = fmt.Fprintf(w, "chunk-%d\n", i)
@@ -74,6 +76,8 @@ func TestHandlerTransport(t *testing.T) {
 
 		resp := roundTrip(testutil.Context(t, testutil.WaitShort), t, h)
 		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 		br := bufio.NewReader(resp.Body)
 		for i := range chunks {
 			close(released[i])
