@@ -16,6 +16,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/experiments"
+	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -284,11 +286,15 @@ func testOptions(t *testing.T, f *workerTestFixture, starter chatWorkerTaskStart
 // that workers and task starters dereference.
 func newUnstartedServer(t *testing.T, ps dbpubsub.Pubsub, db database.Store) *Server {
 	t.Helper()
-	server := New(ps, Config{
-		Logger:    testutil.Logger(t),
-		Database:  db,
-		ReplicaID: uuid.New(),
+	evaluator, err := experiments.New(testutil.Logger(t), experimentstest.Store{}, nil)
+	require.NoError(t, err)
+	server, err := New(ps, Config{
+		Logger:              testutil.Logger(t),
+		Database:            db,
+		ReplicaID:           uuid.New(),
+		ExperimentEvaluator: evaluator,
 	})
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = server.Close() })
 	return server
 }

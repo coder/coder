@@ -330,6 +330,9 @@ export const logout = (queryClient: QueryClient): MutationOptions => {
 			 * should be moved.
 			 */
 			defaultMetadataManager.clearMetadataByKey("user");
+			// Experiments are decided per user, so the embedded list must not
+			// seed the next user's session.
+			defaultMetadataManager.clearMetadataByKey("experiments");
 			queryClient.removeQueries();
 		},
 	};

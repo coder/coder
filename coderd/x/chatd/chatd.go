@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -208,6 +209,7 @@ type Server struct {
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
+	experimentEvaluator      *experiments.Evaluator
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
@@ -2871,7 +2873,10 @@ type Config struct {
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
-	PrometheusRegistry             prometheus.Registerer
+	// ExperimentEvaluator decides user-scoped experiments for a chat's
+	// owner. It is required.
+	ExperimentEvaluator *experiments.Evaluator
+	PrometheusRegistry  prometheus.Registerer
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -2889,7 +2894,10 @@ type Config struct {
 // New creates a new chat processor with the required pubsub dependency.
 // The processor polls for pending chats and processes them. It is the
 // caller's responsibility to call Close on the returned instance.
-func New(ps pubsub.Pubsub, cfg Config) *Server {
+func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
+	if cfg.ExperimentEvaluator == nil {
+		return nil, xerrors.New("chatd: experiment evaluator is required")
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 
 	pendingChatAcquireInterval := cfg.PendingChatAcquireInterval
@@ -2986,6 +2994,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		},
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
+		experimentEvaluator:      cfg.ExperimentEvaluator,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,
@@ -3089,7 +3098,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 
 	// Spawn background goroutines that all servers need.
 
-	return p
+	return p, nil
 }
 
 // Start runs the background acquire/wake loop that picks up

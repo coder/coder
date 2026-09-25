@@ -1,10 +1,11 @@
 import { QueryClient } from "react-query";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
 	UpdateUserAppearanceSettingsRequest,
 	UserAppearanceSettings,
 } from "#/api/typesGenerated";
-import { myAppearanceKey, updateAppearanceSettings } from "./users";
+import { defaultMetadataManager } from "#/hooks/useEmbeddedMetadata";
+import { logout, myAppearanceKey, updateAppearanceSettings } from "./users";
 
 const appearanceSettings = (
 	overrides: Partial<UserAppearanceSettings> = {},
@@ -119,5 +120,30 @@ describe("updateAppearanceSettings", () => {
 			...optimisticSettings,
 			...serverSettings,
 		});
+	});
+});
+
+describe("logout", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("clears the embedded user and experiments metadata", () => {
+		const clearMetadataByKey = vi.spyOn(
+			defaultMetadataManager,
+			"clearMetadataByKey",
+		);
+
+		logout(new QueryClient()).onSettled?.(
+			undefined,
+			null,
+			undefined,
+			undefined,
+		);
+
+		// Experiments are decided per user, so the next user must not be
+		// seeded with the previous user's list.
+		expect(clearMetadataByKey).toHaveBeenCalledWith("user");
+		expect(clearMetadataByKey).toHaveBeenCalledWith("experiments");
 	});
 });
