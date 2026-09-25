@@ -21,56 +21,51 @@ import (
 	"github.com/coder/quartz"
 )
 
-// stageSampleCount reports false when stage has no series.
-func stageSampleCount(t *testing.T, registry *prometheus.Registry, stage Stage) (uint64, bool) {
+// familyMetrics returns the series of the named family, or nil when it
+// has none.
+func familyMetrics(t *testing.T, registry *prometheus.Registry, name string) []*dto.Metric {
 	t.Helper()
 	families, err := registry.Gather()
 	require.NoError(t, err)
 	for _, family := range families {
-		if family.GetName() != "coderd_chatd_stage_duration_seconds" {
-			continue
-		}
-		for _, metric := range family.GetMetric() {
-			if metricLabel(metric, "stage") == string(stage) {
-				return metric.GetHistogram().GetSampleCount(), true
-			}
+		if family.GetName() == name {
+			return family.GetMetric()
 		}
 	}
-	return 0, false
+	return nil
 }
 
-// modelStageSeries reports false when stage has no series.
-func modelStageSeries(t *testing.T, registry *prometheus.Registry, stage Stage) (*dto.Metric, bool) {
+// stageSeries reports false when stage has no series in the family.
+func stageSeries(t *testing.T, registry *prometheus.Registry, family string, stage Stage) (*dto.Metric, bool) {
 	t.Helper()
-	families, err := registry.Gather()
-	require.NoError(t, err)
-	for _, family := range families {
-		if family.GetName() != "coderd_chatd_model_stage_duration_seconds" {
-			continue
-		}
-		for _, metric := range family.GetMetric() {
-			if metricLabel(metric, "stage") == string(stage) {
-				return metric, true
-			}
+	for _, metric := range familyMetrics(t, registry, family) {
+		if metricLabel(metric, "stage") == string(stage) {
+			return metric, true
 		}
 	}
 	return nil, false
 }
 
-func ttftSampleCount(t *testing.T, registry *prometheus.Registry) uint64 {
+// stageSampleCount reports false when stage has no series.
+func stageSampleCount(t *testing.T, registry *prometheus.Registry, stage Stage) (uint64, bool) {
 	t.Helper()
-	families, err := registry.Gather()
-	require.NoError(t, err)
-	var count uint64
-	for _, family := range families {
-		if family.GetName() != "coderd_chatd_ttft_seconds" {
-			continue
-		}
-		for _, metric := range family.GetMetric() {
-			count += metric.GetHistogram().GetSampleCount()
-		}
+	metric, ok := stageSeries(t, registry, "coderd_chatd_stage_duration_seconds", stage)
+	return metric.GetHistogram().GetSampleCount(), ok
+}
+
+// histogramTotals sums the sample count and sum across every series of
+// the named histogram family.
+func histogramTotals(t *testing.T, registry *prometheus.Registry, name string) (uint64, float64) {
+	t.Helper()
+	var (
+		count uint64
+		sum   float64
+	)
+	for _, metric := range familyMetrics(t, registry, name) {
+		count += metric.GetHistogram().GetSampleCount()
+		sum += metric.GetHistogram().GetSampleSum()
 	}
-	return count
+	return count, sum
 }
 
 func metricLabel(metric *dto.Metric, name string) string {
@@ -95,6 +90,20 @@ func endedSpan(t *testing.T, spans *tracetest.SpanRecorder, stage Stage) sdktrac
 	}
 	require.NotNil(t, found, "no %s span was recorded", stage)
 	return found
+}
+
+// requireEndedBefore asserts that the first span ended before the
+// second. The recorder lists spans in end order, which a mock clock's
+// equal timestamps cannot show.
+func requireEndedBefore(t *testing.T, spans *tracetest.SpanRecorder, first, second Stage) {
+	t.Helper()
+	var names []string
+	for _, span := range spans.Ended() {
+		if span.Name() == string(first) || span.Name() == string(second) {
+			names = append(names, span.Name())
+		}
+	}
+	require.Equal(t, []string{string(first), string(second)}, names)
 }
 
 // recordedErrorMessage returns the message of the span's first
@@ -142,20 +151,41 @@ func newStageMetricsFixture(t *testing.T) stageMetricsFixture {
 	}
 }
 
-func histogramSum(t *testing.T, registry *prometheus.Registry, name string) float64 {
+// guardedStream opens an anthropic/claude attempt on the fixture's
+// clock, tracer and metrics.
+func (f stageMetricsFixture) guardedStream(
+	ctx context.Context,
+	model StageModel,
+	open func(context.Context) (fantasy.StreamResponse, error),
+) (guardedAttempt, error) {
+	return guardedStream(ctx, "anthropic", "claude", f.clock, time.Minute, open, f.metrics, f.tracer, model)
+}
+
+// requireUnobservedTTFT asserts that the time_to_first_token span
+// ended with wantErr and that neither TTFT histogram observed it.
+func (f stageMetricsFixture) requireUnobservedTTFT(t *testing.T, wantErr string) {
 	t.Helper()
-	families, err := registry.Gather()
-	require.NoError(t, err)
-	var sum float64
-	for _, family := range families {
-		if family.GetName() != name {
-			continue
-		}
-		for _, metric := range family.GetMetric() {
-			sum += metric.GetHistogram().GetSampleSum()
-		}
-	}
-	return sum
+	span := endedSpan(t, f.spans, StageTimeToFirstToken)
+	require.Equal(t, codes.Error, span.Status().Code)
+	require.Equal(t, wantErr, recordedErrorMessage(t, span))
+	_, ok := stageSampleCount(t, f.registry, StageTimeToFirstToken)
+	require.False(t, ok, "a window closed without an output part must not be observed")
+	count, _ := histogramTotals(t, f.registry, "coderd_chatd_ttft_seconds")
+	require.Zero(t, count)
+}
+
+// requireObservedTTFT asserts one successful time_to_first_token window
+// of want on both TTFT histograms.
+func (f stageMetricsFixture) requireObservedTTFT(t *testing.T, want time.Duration) {
+	t.Helper()
+	require.Equal(t, codes.Unset, endedSpan(t, f.spans, StageTimeToFirstToken).Status().Code)
+	stage, ok := stageSeries(t, f.registry, "coderd_chatd_stage_duration_seconds", StageTimeToFirstToken)
+	require.True(t, ok)
+	require.Equal(t, uint64(1), stage.GetHistogram().GetSampleCount())
+	require.InDelta(t, want.Seconds(), stage.GetHistogram().GetSampleSum(), 1e-9)
+	count, sum := histogramTotals(t, f.registry, "coderd_chatd_ttft_seconds")
+	require.Equal(t, uint64(1), count)
+	require.InDelta(t, want.Seconds(), sum, 1e-9)
 }
 
 // drainStream returns the number of parts consumed.
@@ -174,42 +204,29 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t)
 
-		attempt, err := guardedStream(
-			ContextWithScope(t.Context(), ScopeTurn), "anthropic", "claude", fixture.clock, time.Minute,
+		attempt, err := fixture.guardedStream(ContextWithScope(t.Context(), ScopeTurn),
+			StageModel{ProviderType: "bedrock", Model: "claude", Effort: "high"},
 			func(context.Context) (fantasy.StreamResponse, error) {
 				return fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 					fixture.clock.Advance(250 * time.Millisecond)
 					yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, Delta: "hi"})
 				}), nil
 			},
-			fixture.metrics, fixture.tracer, StageModel{ProviderType: "bedrock", Model: "claude", Effort: "high"},
 		)
 		require.NoError(t, err)
-		parts := 0
-		for range attempt.stream {
-			parts++
-		}
-		require.Equal(t, 1, parts)
+		require.Equal(t, 1, drainStream(attempt.stream))
 		attempt.release()
 
-		count, ok := stageSampleCount(t, fixture.registry, StageTimeToFirstToken)
-		require.True(t, ok)
-		require.Equal(t, uint64(1), count)
-		modelSeries, ok := modelStageSeries(t, fixture.registry, StageTimeToFirstToken)
+		fixture.requireObservedTTFT(t, 250*time.Millisecond)
+		modelSeries, ok := stageSeries(t, fixture.registry, "coderd_chatd_model_stage_duration_seconds", StageTimeToFirstToken)
 		require.True(t, ok)
 		require.Equal(t, uint64(1), modelSeries.GetHistogram().GetSampleCount())
 		require.Equal(t, "bedrock", metricLabel(modelSeries, "provider_type"))
 		require.Equal(t, "claude", metricLabel(modelSeries, "model"))
-		require.Equal(t, uint64(1), ttftSampleCount(t, fixture.registry))
-		// Both histograms measure the same window on the same clock.
-		require.InDelta(t, 0.25, histogramSum(t, fixture.registry, "coderd_chatd_ttft_seconds"), 1e-9)
-		require.InDelta(t, 0.25, histogramSum(t, fixture.registry, "coderd_chatd_stage_duration_seconds"), 1e-9)
-		ttftSpan := endedSpan(t, fixture.spans, StageTimeToFirstToken)
-		require.Equal(t, codes.Unset, ttftSpan.Status().Code)
 		// provider is the wire protocol and provider_type the configured
 		// AI provider type.
 		providers := map[attribute.Key][]string{}
-		for _, attr := range ttftSpan.Attributes() {
+		for _, attr := range endedSpan(t, fixture.spans, StageTimeToFirstToken).Attributes() {
 			if attr.Key == AttrProvider || attr.Key == AttrProviderType {
 				providers[attr.Key] = append(providers[attr.Key], attr.Value.AsString())
 			}
@@ -225,51 +242,14 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		fixture := newStageMetricsFixture(t)
 
 		openErr := xerrors.New("provider refused the request")
-		_, err := guardedStream(
-			t.Context(), "anthropic", "claude", quartz.NewMock(t), time.Minute,
+		_, err := fixture.guardedStream(t.Context(), StageModel{Model: "claude"},
 			func(context.Context) (fantasy.StreamResponse, error) {
 				return nil, openErr
 			},
-			fixture.metrics, fixture.tracer, StageModel{Model: "claude"},
 		)
 		require.ErrorIs(t, err, openErr)
 
-		span := endedSpan(t, fixture.spans, StageTimeToFirstToken)
-		require.Equal(t, codes.Error, span.Status().Code)
-		require.Equal(t, openErr.Error(), recordedErrorMessage(t, span))
-		_, ok := stageSampleCount(t, fixture.registry, StageTimeToFirstToken)
-		require.False(t, ok, "a failed window must not be observed")
-		require.Zero(t, ttftSampleCount(t, fixture.registry), "a failed window is not model latency")
-	})
-
-	t.Run("ErrorPartEndsSpanWithoutObservation", func(t *testing.T) {
-		t.Parallel()
-		fixture := newStageMetricsFixture(t)
-
-		streamErr := xerrors.New("provider returned 500")
-		attempt, err := guardedStream(
-			t.Context(), "anthropic", "claude", quartz.NewMock(t), time.Minute,
-			func(context.Context) (fantasy.StreamResponse, error) {
-				return fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
-					yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeError, Error: streamErr})
-				}), nil
-			},
-			fixture.metrics, fixture.tracer, StageModel{Model: "claude"},
-		)
-		require.NoError(t, err)
-		parts := 0
-		for range attempt.stream {
-			parts++
-		}
-		require.Equal(t, 1, parts)
-		attempt.release()
-
-		span := endedSpan(t, fixture.spans, StageTimeToFirstToken)
-		require.Equal(t, codes.Error, span.Status().Code)
-		require.Equal(t, streamErr.Error(), recordedErrorMessage(t, span))
-		_, ok := stageSampleCount(t, fixture.registry, StageTimeToFirstToken)
-		require.False(t, ok, "an error part must not be observed")
-		require.Zero(t, ttftSampleCount(t, fixture.registry), "an error part is not a first token")
+		fixture.requireUnobservedTTFT(t, openErr.Error())
 	})
 
 	t.Run("WarningsThenErrorEndsSpanWithoutObservation", func(t *testing.T) {
@@ -277,34 +257,26 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		fixture := newStageMetricsFixture(t)
 
 		streamErr := xerrors.New("provider returned 429")
-		attempt, err := guardedStream(
-			t.Context(), "anthropic", "claude", fixture.clock, time.Minute,
+		attempt, err := fixture.guardedStream(t.Context(), StageModel{Model: "claude"},
 			func(context.Context) (fantasy.StreamResponse, error) {
 				return streamFromParts([]fantasy.StreamPart{
 					{Type: fantasy.StreamPartTypeWarnings},
 					{Type: fantasy.StreamPartTypeError, Error: streamErr},
 				}), nil
 			},
-			fixture.metrics, fixture.tracer, StageModel{Model: "claude"},
 		)
 		require.NoError(t, err)
-		drainStream(attempt.stream)
+		require.Equal(t, 2, drainStream(attempt.stream))
 		attempt.release()
 
-		span := endedSpan(t, fixture.spans, StageTimeToFirstToken)
-		require.Equal(t, codes.Error, span.Status().Code)
-		require.Equal(t, streamErr.Error(), recordedErrorMessage(t, span))
-		_, ok := stageSampleCount(t, fixture.registry, StageTimeToFirstToken)
-		require.False(t, ok, "a warnings part is not a first token")
-		require.Zero(t, ttftSampleCount(t, fixture.registry))
+		fixture.requireUnobservedTTFT(t, streamErr.Error())
 	})
 
 	t.Run("WarningsThenContentObservesOnce", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t)
 
-		attempt, err := guardedStream(
-			t.Context(), "anthropic", "claude", fixture.clock, time.Minute,
+		attempt, err := fixture.guardedStream(t.Context(), StageModel{Model: "claude"},
 			func(context.Context) (fantasy.StreamResponse, error) {
 				return fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 					if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeWarnings}) {
@@ -314,23 +286,21 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 					if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, Delta: "hi"}) {
 						return
 					}
+					fixture.clock.Advance(time.Second)
+					if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, Delta: " there"}) {
+						return
+					}
 					yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop})
 				}), nil
 			},
-			fixture.metrics, fixture.tracer, StageModel{Model: "claude"},
 		)
 		require.NoError(t, err)
 		drainStream(attempt.stream)
 		attempt.release()
 
-		span := endedSpan(t, fixture.spans, StageTimeToFirstToken)
-		require.Equal(t, codes.Unset, span.Status().Code)
-		count, ok := stageSampleCount(t, fixture.registry, StageTimeToFirstToken)
-		require.True(t, ok)
-		require.Equal(t, uint64(1), count)
-		require.Equal(t, uint64(1), ttftSampleCount(t, fixture.registry))
-		// The window closes at the text part, after the warnings part.
-		require.InDelta(t, 1, histogramSum(t, fixture.registry, "coderd_chatd_ttft_seconds"), 1e-9)
+		// The window closes at the first text part, after the warnings
+		// part, and the second text part does not observe again.
+		fixture.requireObservedTTFT(t, time.Second)
 	})
 
 	t.Run("StartMarkerThenErrorObservesOnStartMarker", func(t *testing.T) {
@@ -338,8 +308,7 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		fixture := newStageMetricsFixture(t)
 
 		streamErr := xerrors.New("provider returned 500")
-		attempt, err := guardedStream(
-			t.Context(), "openai", "gpt-5", fixture.clock, time.Minute,
+		attempt, err := fixture.guardedStream(t.Context(), StageModel{Model: "claude"},
 			func(context.Context) (fantasy.StreamResponse, error) {
 				return fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 					fixture.clock.Advance(time.Second)
@@ -350,7 +319,6 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 					yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeError, Error: streamErr})
 				}), nil
 			},
-			fixture.metrics, fixture.tracer, StageModel{Model: "gpt-5"},
 		)
 		require.NoError(t, err)
 		drainStream(attempt.stream)
@@ -358,13 +326,7 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 
 		// A start marker is a streamed output part, so the window
 		// closes on it and the later error does not reopen it.
-		span := endedSpan(t, fixture.spans, StageTimeToFirstToken)
-		require.Equal(t, codes.Unset, span.Status().Code)
-		count, ok := stageSampleCount(t, fixture.registry, StageTimeToFirstToken)
-		require.True(t, ok)
-		require.Equal(t, uint64(1), count)
-		require.Equal(t, uint64(1), ttftSampleCount(t, fixture.registry))
-		require.InDelta(t, 1, histogramSum(t, fixture.registry, "coderd_chatd_ttft_seconds"), 1e-9)
+		fixture.requireObservedTTFT(t, time.Second)
 	})
 
 	t.Run("SilenceTimeoutClassifiesSpanError", func(t *testing.T) {
@@ -372,15 +334,13 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		fixture := newStageMetricsFixture(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		attempt, err := guardedStream(
-			ctx, "anthropic", "claude", fixture.clock, time.Minute,
+		attempt, err := fixture.guardedStream(ctx, StageModel{Model: "claude"},
 			func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
 				return fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 					fixture.clock.Advance(time.Minute).MustWait(ctx)
 					yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeError, Error: attemptCtx.Err()})
 				}), nil
 			},
-			fixture.metrics, fixture.tracer, StageModel{Model: "claude"},
 		)
 		require.NoError(t, err)
 		drainStream(attempt.stream)
@@ -388,65 +348,32 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		attempt.release()
 		require.ErrorIs(t, finishErr, errStreamSilenceTimeout)
 
-		span := endedSpan(t, fixture.spans, StageTimeToFirstToken)
-		require.Equal(t, codes.Error, span.Status().Code)
-		require.Equal(t, errStreamSilenceTimeout.Error(), recordedErrorMessage(t, span))
-		_, ok := stageSampleCount(t, fixture.registry, StageTimeToFirstToken)
-		require.False(t, ok)
-		require.Zero(t, ttftSampleCount(t, fixture.registry))
+		fixture.requireUnobservedTTFT(t, errStreamSilenceTimeout.Error())
 	})
 
 	t.Run("FinishWithoutContentEndsSpanWithoutObservation", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t)
 
-		attempt, err := guardedStream(
-			t.Context(), "anthropic", "claude", fixture.clock, time.Minute,
+		attempt, err := fixture.guardedStream(t.Context(), StageModel{Model: "claude"},
 			func(context.Context) (fantasy.StreamResponse, error) {
 				return streamFromParts([]fantasy.StreamPart{
 					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
 				}), nil
 			},
-			fixture.metrics, fixture.tracer, StageModel{Model: "claude"},
 		)
 		require.NoError(t, err)
 		drainStream(attempt.stream)
 		attempt.release()
 
-		span := endedSpan(t, fixture.spans, StageTimeToFirstToken)
-		require.Equal(t, codes.Error, span.Status().Code)
-		require.Equal(t, errNoFirstToken.Error(), recordedErrorMessage(t, span))
-		_, ok := stageSampleCount(t, fixture.registry, StageTimeToFirstToken)
-		require.False(t, ok, "a finish part is not a first token")
-		require.Zero(t, ttftSampleCount(t, fixture.registry))
-	})
-
-	t.Run("ReleaseWithoutPartRecordsSpanWithoutObservation", func(t *testing.T) {
-		t.Parallel()
-		fixture := newStageMetricsFixture(t)
-
-		attempt, err := guardedStream(
-			t.Context(), "anthropic", "claude", quartz.NewMock(t), time.Minute,
-			func(context.Context) (fantasy.StreamResponse, error) {
-				return fantasy.StreamResponse(func(func(fantasy.StreamPart) bool) {}), nil
-			},
-			fixture.metrics, fixture.tracer, StageModel{Model: "claude"},
-		)
-		require.NoError(t, err)
-		attempt.release()
-
-		span := endedSpan(t, fixture.spans, StageTimeToFirstToken)
-		require.Equal(t, codes.Error, span.Status().Code)
-		require.Equal(t, errNoFirstToken.Error(), recordedErrorMessage(t, span))
-		_, ok := stageSampleCount(t, fixture.registry, StageTimeToFirstToken)
-		require.False(t, ok, "a window closed without a token must not be observed")
-		require.Zero(t, ttftSampleCount(t, fixture.registry))
+		fixture.requireUnobservedTTFT(t, errNoFirstToken.Error())
 	})
 }
 
 func TestGenerateAssistantStreamStage(t *testing.T) {
 	t.Parallel()
 
+	stageModel := StageModel{ProviderType: "bedrock", Model: "claude", Effort: "high"}
 	generateWith := func(t *testing.T, fixture stageMetricsFixture, streamFn func(context.Context, fantasy.Call) (fantasy.StreamResponse, error)) error {
 		t.Helper()
 		model := &chattest.FakeModel{
@@ -460,7 +387,7 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 			Clock:      fixture.clock,
 			Metrics:    fixture.metrics,
 			Stages:     fixture.tracer,
-			StageModel: StageModel{Model: "claude"},
+			StageModel: stageModel,
 		})
 		return err
 	}
@@ -470,6 +397,13 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		return generateWith(t, fixture, func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
 			return streamFromParts(parts), nil
 		})
+	}
+
+	requireStreamObserved := func(t *testing.T, fixture stageMetricsFixture) {
+		t.Helper()
+		count, ok := stageSampleCount(t, fixture.registry, StageStream)
+		require.True(t, ok)
+		require.Equal(t, uint64(1), count)
 	}
 
 	t.Run("SuccessEndsStreamAfterFirstToken", func(t *testing.T) {
@@ -487,10 +421,14 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		require.Equal(t, codes.Unset, stream.Status().Code)
 		require.Equal(t, codes.Unset, ttft.Status().Code)
 		require.Equal(t, stream.SpanContext().SpanID(), ttft.Parent().SpanID())
-		require.False(t, ttft.EndTime().After(stream.EndTime()))
-		count, ok := stageSampleCount(t, fixture.registry, StageStream)
-		require.True(t, ok)
-		require.Equal(t, uint64(1), count)
+		requireEndedBefore(t, fixture.spans, StageTimeToFirstToken, StageStream)
+		require.Subset(t, stream.Attributes(), []attribute.KeyValue{
+			attribute.String(AttrProvider, "anthropic"),
+			attribute.String(AttrProviderType, stageModel.ProviderType),
+			attribute.String(AttrModel, stageModel.Model),
+			attribute.String(AttrReasoningEffort, stageModel.Effort),
+		})
+		requireStreamObserved(t, fixture)
 	})
 
 	t.Run("OpenFailureEndsStreamWithError", func(t *testing.T) {
@@ -503,17 +441,13 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		})
 		require.ErrorContains(t, err, openErr.Error())
 
-		stream := endedSpan(t, fixture.spans, StageStream)
-		ttft := endedSpan(t, fixture.spans, StageTimeToFirstToken)
-		require.Equal(t, codes.Error, stream.Status().Code)
-		require.Equal(t, codes.Error, ttft.Status().Code)
-		require.False(t, ttft.EndTime().After(stream.EndTime()))
-		count, ok := stageSampleCount(t, fixture.registry, StageStream)
-		require.True(t, ok)
-		require.Equal(t, uint64(1), count)
+		require.Equal(t, codes.Error, endedSpan(t, fixture.spans, StageStream).Status().Code)
+		require.Equal(t, codes.Error, endedSpan(t, fixture.spans, StageTimeToFirstToken).Status().Code)
+		requireEndedBefore(t, fixture.spans, StageTimeToFirstToken, StageStream)
+		requireStreamObserved(t, fixture)
 	})
 
-	t.Run("EmptyStreamClosesTTFTInsideStream", func(t *testing.T) {
+	t.Run("EmptyStreamClosesTTFTBeforeStream", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t)
 
@@ -521,16 +455,10 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 			{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
 		})
 
-		stream := endedSpan(t, fixture.spans, StageStream)
-		ttft := endedSpan(t, fixture.spans, StageTimeToFirstToken)
-		require.Equal(t, codes.Error, ttft.Status().Code)
-		require.Equal(t, errNoFirstToken.Error(), recordedErrorMessage(t, ttft))
-		require.False(t, ttft.EndTime().After(stream.EndTime()), "release must close the window before the stream stage ends")
-		_, ok := stageSampleCount(t, fixture.registry, StageTimeToFirstToken)
-		require.False(t, ok)
-		count, ok := stageSampleCount(t, fixture.registry, StageStream)
-		require.True(t, ok)
-		require.Equal(t, uint64(1), count)
+		// Only the attempt release closes this window, and it must do so
+		// before the stream stage ends.
+		requireEndedBefore(t, fixture.spans, StageTimeToFirstToken, StageStream)
+		requireStreamObserved(t, fixture)
 	})
 
 	t.Run("StreamErrorEndsStreamWithError", func(t *testing.T) {
@@ -547,8 +475,6 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		stream := endedSpan(t, fixture.spans, StageStream)
 		require.Equal(t, codes.Error, stream.Status().Code)
 		require.Equal(t, streamErr.Error(), recordedErrorMessage(t, stream))
-		count, ok := stageSampleCount(t, fixture.registry, StageStream)
-		require.True(t, ok)
-		require.Equal(t, uint64(1), count)
+		requireStreamObserved(t, fixture)
 	})
 }
