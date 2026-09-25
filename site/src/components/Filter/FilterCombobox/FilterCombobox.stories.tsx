@@ -387,7 +387,7 @@ export const TypeaheadMatchingCategories: Story = {
 		await expect(
 			body.queryByRole("option", { name: /Status/i }),
 		).not.toBeInTheDocument();
-		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard("{ArrowDown}{Enter}");
 		await expect(canvas.getByText("owner:")).toBeVisible();
 		await waitFor(() => expect(body.getByText("alice")).toBeVisible());
 	},

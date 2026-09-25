@@ -889,6 +889,44 @@ describe("FilterCombobox", () => {
 		expect(onChange).toHaveBeenLastCalledWith("zzz");
 	});
 
+	it("searches workspaces with Enter when free-typed text matches a filter", async () => {
+		const { user, onChange, input } = setup([ownerCategory]);
+
+		await user.click(input);
+		await user.type(input, "ali");
+		const option = await screen.findByRole("option", { name: "alice" });
+		await waitFor(() =>
+			expect(option).toHaveAttribute("aria-selected", "false"),
+		);
+		await user.keyboard("{Enter}");
+
+		expect(onChange).toHaveBeenLastCalledWith("ali");
+		expect(input).toHaveValue("ali");
+		expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+	});
+
+	it("completes the first match for free-typed text with Tab", async () => {
+		const { user, onChange, input } = setup([ownerCategory]);
+
+		await user.click(input);
+		await user.type(input, "ali");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{Tab}");
+
+		expect(onChange).toHaveBeenLastCalledWith("owner:alice");
+	});
+
+	it("picks a match for free-typed text after an arrow key", async () => {
+		const { user, onChange, input } = setup([ownerCategory]);
+
+		await user.click(input);
+		await user.type(input, "ali");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{ArrowDown}{Enter}");
+
+		expect(onChange).toHaveBeenLastCalledWith("owner:alice");
+	});
+
 	it("keeps an applied option when Enter completes typed text that located it", async () => {
 		const { user, onChange, input } = setup([ownerCategory, statusCategory], {
 			initialValue: "owner:alice status:running",
@@ -897,7 +935,7 @@ describe("FilterCombobox", () => {
 		await user.click(input);
 		await user.type(input, "ali");
 		await screen.findByRole("option", { name: "alice" });
-		await user.keyboard("{Enter}");
+		await user.keyboard("{ArrowDown}{Enter}");
 		expect(onChange).toHaveBeenLastCalledWith("owner:alice status:running");
 		expect(input).toHaveValue("");
 
