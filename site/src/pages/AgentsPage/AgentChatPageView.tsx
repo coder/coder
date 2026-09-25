@@ -47,7 +47,7 @@ import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
 import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
 import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
-import { ChatTopBar } from "./components/ChatTopBar";
+import { ChatTopBar, ChatTopBarFrame } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "./components/RightPanel/DesktopPanel";
@@ -1089,7 +1089,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 			)}
 		>
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col sm:min-w-(--agents-chat-panel-min-width,0px)">
-				<ChatTopBar
+				<ChatTopBarFrame
 					panel={{
 						showSidebarPanel: false,
 						onToggleSidebar: () => {},
@@ -1146,7 +1146,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 export const AgentChatPageNotFoundView: FC = () => {
 	return (
 		<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-			<ChatTopBar
+			<ChatTopBarFrame
 				panel={{
 					showSidebarPanel: false,
 					onToggleSidebar: () => {},
