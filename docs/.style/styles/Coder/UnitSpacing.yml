@@ -8,7 +8,14 @@
 # literal values such as `30s` stay untouched when they sit in code font.
 #
 # Hyphenated compound modifiers (`12-hour clock`, `4-core node`) don't match
-# because the token allows only a space or nothing between number and unit.
+# because the token allows only whitespace or nothing between number and unit.
+# The whitespace class is spelled out as ASCII: Vale's regex engine treats
+# `\s` as Unicode, which would match the U+00A0 this rule asks for.
+#
+# A number and unit split across a soft line break (`16` at the end of one
+# line, `GB` at the start of the next) also match inside a plain paragraph.
+# Vale can't map a match back to the source when the next line starts with
+# list indentation or a blockquote marker, so those splits go unreported.
 #
 # Level: warning. The unit list is curated, and a count followed by a unit-like
 # word can still be a judgment call.
@@ -19,7 +26,7 @@ level: warning
 ignorecase: false
 nonword: true
 tokens:
-  - '\b\d+(?:\.\d+)? ?(?:ns|µs|ms|s|secs?|seconds?|mins?|minutes?|h|hrs?|hours?|days?|weeks?|months?|years?|B|KB|KiB|MB|MiB|GB|GiB|TB|TiB|Kbps|Mbps|Gbps|MHz|GHz|vCPUs?|CPUs?|cores?)\b'
+  - '\b\d+(?:\.\d+)?[ \t\n]*(?:ns|µs|ms|s|secs?|seconds?|mins?|minutes?|h|hrs?|hours?|days?|weeks?|months?|years?|B|KB|KiB|MB|MiB|GB|GiB|TB|TiB|Kbps|Mbps|Gbps|MHz|GHz|vCPUs?|CPUs?|cores?)\b'
 exceptions:
   # HTTP status code plurals, such as "413s".
   - '\b[1-5]\d{2}s\b'
