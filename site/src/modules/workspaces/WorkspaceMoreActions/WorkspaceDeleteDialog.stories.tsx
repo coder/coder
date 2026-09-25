@@ -92,14 +92,3 @@ export const FilledWrongSubmitted: Story = {
 		);
 	},
 };
-
-// A long wrong name wraps under the input.
-export const FilledWrongLongName: Story = {
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.type(
-			body.getByTestId("delete-dialog-name-confirmation"),
-			"this-is-a-very-long-workspace-name-that-does-not-match-anything{Enter}",
-		);
-	},
-};

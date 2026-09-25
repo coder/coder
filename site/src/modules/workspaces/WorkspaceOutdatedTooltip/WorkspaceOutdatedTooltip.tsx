@@ -34,10 +34,8 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
-	// A parent `useClickableTableRow` row navigates on click, and native buttons
-	// dispatch a click on Enter and Space. Radix composes its own click handler,
-	// so the popover still opens. The span's key handlers only satisfy Biome's
-	// lint/a11y/useKeyWithClickEvents.
+	// Keep trigger clicks from triggering a parent clickable row's navigation.
+	// Radix composes its own click handler, so the popover still opens.
 	const stopPropagation = (event: React.SyntheticEvent) => {
 		event.stopPropagation();
 	};

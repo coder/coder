@@ -38,9 +38,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 		useState<CreateWorkspaceBuildRequest["orphan"]>(false);
 	const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
-	// This component stays mounted while closed. Like the typed name in
-	// useDeleteConfirmation, clear "Orphan Resources" whenever the dialog
-	// closes so it is never pre-checked on reopen.
+	// The dialog stays mounted while closed, so clear the checkbox on close.
 	if (isOpen !== prevIsOpen) {
 		setPrevIsOpen(isOpen);
 		if (!isOpen) {

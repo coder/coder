@@ -10,9 +10,7 @@ type HarnessProps = {
 	closeOnConfirm: boolean;
 };
 
-// The parent owns `isOpen`, as real callers do. Some close the dialog after
-// confirming (including after a failed delete, as the organization page
-// does), others keep it open so the user can retry.
+// Callers either close the dialog after confirming or keep it open to retry.
 const Harness: FC<HarnessProps> = ({ onConfirm, onCancel, closeOnConfirm }) => {
 	const [isOpen, setIsOpen] = useState(true);
 	return (
@@ -84,16 +82,7 @@ describe("DeleteDialog", () => {
 		expect(screen.queryByRole("alert")).toBeNull();
 	});
 
-	it("confirms on Enter when the name matches", async () => {
-		const user = userEvent.setup();
-		const { onConfirm, input } = renderDialog();
-
-		await user.type(input, "my-workspace{Enter}");
-
-		expect(onConfirm).toHaveBeenCalledTimes(1);
-	});
-
-	it("keeps the typed name while the dialog stays open after confirming, so a failed delete can be retried", async () => {
+	it("confirms on Enter and keeps the typed name while the dialog stays open", async () => {
 		const user = userEvent.setup();
 		const { onConfirm, input } = renderDialog();
 

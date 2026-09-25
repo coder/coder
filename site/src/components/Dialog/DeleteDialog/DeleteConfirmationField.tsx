@@ -10,14 +10,9 @@ import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 
 /**
- * State for a "type the name to confirm" field: the typed value, whether it
- * matches `name`, and whether to show the mismatch error. The owning dialog
- * uses `confirmed` to enable its delete action.
- *
- * The state clears whenever `isOpen` becomes false, however the dialog was
- * closed, so reopening never shows a previously typed name with the delete
- * action already enabled. While the dialog stays open (for example after a
- * failed delete that the owner lets the user retry) the typed name is kept.
+ * State for a "type the name to confirm" field. It clears when `isOpen` becomes
+ * false and is kept while the dialog stays open, so a failed delete can be
+ * retried.
  */
 export const useDeleteConfirmation = (name: string, isOpen: boolean) => {
 	const [value, setValue] = useState("");
@@ -25,18 +20,12 @@ export const useDeleteConfirmation = (name: string, isOpen: boolean) => {
 	const [hasSubmittedInvalid, setHasSubmittedInvalid] = useState(false);
 	const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
-	const reset = () => {
-		setValue("");
-		setIsFocused(false);
-		setHasSubmittedInvalid(false);
-	};
-
-	// Adjusting state while rendering, per React's guidance for resetting
-	// state when a prop changes, avoids an extra render with stale state.
 	if (isOpen !== prevIsOpen) {
 		setPrevIsOpen(isOpen);
 		if (!isOpen) {
-			reset();
+			setValue("");
+			setIsFocused(false);
+			setHasSubmittedInvalid(false);
 		}
 	}
 
@@ -58,8 +47,7 @@ export const useDeleteConfirmation = (name: string, isOpen: boolean) => {
 			onFocus: () => setIsFocused(true),
 			onBlur: () => setIsFocused(false),
 			onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => {
-				// Handled here rather than in onSubmit because a form whose submit
-				// button is disabled for a wrong name never submits.
+				// The form never submits while its submit button is disabled.
 				if (event.key === "Enter" && !confirmed) {
 					setHasSubmittedInvalid(true);
 				}
@@ -99,7 +87,6 @@ export const DeleteConfirmationField: FC<DeleteConfirmationFieldProps> = ({
 				data-testid="delete-dialog-name-confirmation"
 			/>
 			{showError && (
-				// pre-wrap keeps a stray space visible inside the quotes.
 				<span
 					id={errorId}
 					role="alert"

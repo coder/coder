@@ -33,9 +33,8 @@ export type UseClickableResult<
 }>;
 
 /**
- * React bubbles events from portaled content (dialogs, menus, popovers) through
- * the component tree, so a handler can receive events whose target is not
- * inside its element in the DOM. Those belong to the portaled content.
+ * React bubbles events from portaled content (dialogs, menus) through the
+ * component tree, even though the target is outside the element in the DOM.
  */
 export const isFromPortal = (event: SyntheticEvent<unknown>): boolean =>
 	event.currentTarget instanceof Node &&
@@ -67,9 +66,8 @@ export const useClickable = <
 
 		/*
 		 * Mirrors native buttons: Enter activates on keydown (repeats while held),
-		 * Space on keyup (fires once on release). Only events targeting this element
-		 * count. React bubbles key events from descendants, including portaled
-		 * dialogs, so Enter or Space typed into them would otherwise activate it.
+		 * Space on keyup. Keys typed into descendants, including portaled dialogs,
+		 * must not activate it.
 		 */
 		onKeyDown: (event) => {
 			if (event.target !== event.currentTarget) {

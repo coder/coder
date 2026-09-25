@@ -32,9 +32,8 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 	const displayName = provider.display_name || provider.name;
 	const disabled = !provider.enabled;
 
-	// A parent `useClickableTableRow` row navigates on click, and native buttons
-	// dispatch a click on Enter and Space. Radix composes its own click handler,
-	// so the tooltip still opens.
+	// Keep tooltip clicks from triggering the clickable row's navigation. Radix
+	// composes its own click handler, so the tooltip still opens.
 	const stopPropagation = (event: React.SyntheticEvent) => {
 		event.stopPropagation();
 	};

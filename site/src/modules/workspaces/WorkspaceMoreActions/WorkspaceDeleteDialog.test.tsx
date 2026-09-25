@@ -13,8 +13,7 @@ type HarnessProps = {
 	onCancel: () => void;
 };
 
-// Mirrors WorkspaceMoreActions: the dialog stays mounted and the parent
-// toggles `isOpen`, closing it on both cancel and confirm.
+// Like WorkspaceMoreActions, the dialog stays mounted while closed.
 const Harness: FC<HarnessProps> = ({ onConfirm, onCancel, ...props }) => {
 	const [isOpen, setIsOpen] = useState(true);
 	return (
@@ -92,15 +91,6 @@ describe("WorkspaceDeleteDialog", () => {
 		expect(screen.queryByRole("alert")).toBeNull();
 	});
 
-	it("confirms on Enter when the name matches", async () => {
-		const user = userEvent.setup();
-		const { onConfirm } = renderDialog();
-
-		await user.type(getInput(), `${MockWorkspace.name}{Enter}`);
-
-		expect(onConfirm).toHaveBeenCalledWith(false);
-	});
-
 	it("starts empty when reopened after cancelling with the correct name typed", async () => {
 		const user = userEvent.setup();
 		const { onCancel } = renderDialog();
@@ -114,12 +104,12 @@ describe("WorkspaceDeleteDialog", () => {
 		expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
 	});
 
-	it("starts empty when reopened after confirming", async () => {
+	it("confirms on Enter and starts empty when reopened", async () => {
 		const user = userEvent.setup();
 		const { onConfirm } = renderDialog();
 
 		await user.type(getInput(), `${MockWorkspace.name}{Enter}`);
-		expect(onConfirm).toHaveBeenCalledTimes(1);
+		expect(onConfirm).toHaveBeenCalledExactlyOnceWith(false);
 
 		const input = await reopen(user);
 		expect(input).toHaveValue("");
