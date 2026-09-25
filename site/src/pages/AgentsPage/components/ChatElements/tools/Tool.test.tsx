@@ -13,10 +13,19 @@ import {
 import { createMockWebSocket } from "#/testHelpers/websockets";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
-import { Tool } from "./Tool";
+import { getToolRenderer, Tool, toolRenderers } from "./Tool";
 
 afterEach(() => {
 	vi.restoreAllMocks();
+});
+
+describe("getToolRenderer", () => {
+	it("uses the web search renderer only for provider-executed web_search calls", () => {
+		const genericRenderer = getToolRenderer("unregistered_tool", undefined);
+		expect(getToolRenderer("web_search", true)).toBe(toolRenderers.web_search);
+		expect(getToolRenderer("web_search", false)).toBe(genericRenderer);
+		expect(getToolRenderer("web_search", undefined)).toBe(genericRenderer);
+	});
 });
 
 describe("Tool workspace lifecycle rows", () => {
