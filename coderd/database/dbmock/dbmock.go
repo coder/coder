@@ -9751,6 +9751,21 @@ func (mr *MockStoreMockRecorder) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wor
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteWorkspaceAgentsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).SoftDeleteWorkspaceAgentsByWorkspaceID), ctx, workspaceID)
 }
 
+// SyncAgentChatsContextAddedResources mocks base method.
+func (m *MockStore) SyncAgentChatsContextAddedResources(ctx context.Context, arg database.SyncAgentChatsContextAddedResourcesParams) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SyncAgentChatsContextAddedResources", ctx, arg)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SyncAgentChatsContextAddedResources indicates an expected call of SyncAgentChatsContextAddedResources.
+func (mr *MockStoreMockRecorder) SyncAgentChatsContextAddedResources(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAgentChatsContextAddedResources", reflect.TypeOf((*MockStore)(nil).SyncAgentChatsContextAddedResources), ctx, arg)
+}
+
 // SyncAgentChatsContextMCPResources mocks base method.
 func (m *MockStore) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()

@@ -13,19 +13,23 @@ The workspace agent owns discovery.
 It scans a fixed set of locations for instruction files, skills, and MCP configuration, then pushes the result to Coder as a single context snapshot.
 Chats never scan the workspace themselves; they read the snapshot the agent pushed.
 
-A workspace-attached chat pins one snapshot.
-The pinned copy is what the agent's system prompt and tool list are built from, so a chat keeps working with a consistent view of your skills and MCP tools even while you edit files in the workspace.
+A workspace-attached chat pins its own copy of each resource in the snapshot.
+The pinned copies are what the agent's system prompt and tool list are built from, so a chat keeps working with the files it has already read even while you edit them in the workspace.
 
 The lifecycle of an edit looks like this:
 
 1. You add a skill, edit `.mcp.json`, or change an instruction file in the workspace.
 1. A file watcher notices the change, and the agent re-scans after a short period and then pushes a new snapshot.
 1. Chats that have not pinned a snapshot yet pin the new one immediately.
-1. Chats that already pinned an older snapshot are marked out of date instead of being switched over.
+1. Active chats that already pinned an older snapshot, whether idle, working, or waiting on you, receive any new instruction files and skills right away, because nothing they have already read changes.
+   A chat that is in an error state or is being stopped keeps its pin until the first push after it leaves that state.
+1. Changed or removed instruction files and skills mark the chat out of date instead of being switched over.
+   A skill whose name matches one the chat already has counts as a change, not an addition.
 1. Selecting **Refresh context** in the chat re-pins that chat to the latest snapshot.
 
-This is why an in-flight chat can keep using an older snapshot: a push never rewrites a chat's pinned context.
-The pin only moves when the chat is first hydrated or when you refresh it.
+This is why an in-flight chat can keep using an older version of a file it already read: a push adds to a chat's pinned context but never rewrites it.
+The pinned copy of an existing file only changes when you refresh the chat or when the chat is rebound to a different agent, for example after a workspace rebuild.
+MCP servers are the exception: their tool lists follow the workspace on every push without marking the chat out of date.
 
 The agent publishes nothing until the workspace is ready.
 Until startup scripts finish, the agent holds an empty snapshot, so a chat opened during workspace startup can show no skills and no MCP tools until the first real push lands.
@@ -86,7 +90,7 @@ Because `~/.coder/skills` is itself a scan root, skills placed directly under it
 
 Each discovered skill contributes its name and description to the `<available-skills>` block in the agent's system prompt.
 The full instructions are loaded only when the agent calls a tool, and they are served from the chat's pinned snapshot rather than read live from the workspace.
-A skill added after a chat pinned its snapshot appears in that chat after you refresh its context.
+A skill added after a chat pinned its snapshot reaches an active chat on the agent's next push, as described under [How the workspace shares context with chats](#how-the-workspace-shares-context-with-chats); a skill that changed, or that replaces one of the same name, waits for you to refresh the chat's context.
 
 Two tools are registered when skills are present:
 
@@ -231,9 +235,11 @@ When the connected tool list changes, the agent re-scans and pushes a new snapsh
 
 Editing `.mcp.json` does not require a workspace restart.
 The agent notices edits to the file and reloads its servers automatically.
-The reload changes the pushed snapshot, but an MCP-only change does not mark existing chats out of date, and the dashboard offers **Refresh context** only on chats that are marked out of date.
-New chats and chats that have not pinned a snapshot yet receive the new tool set immediately.
-An existing chat keeps its current tool set until another context change, such as editing an instruction file or a skill, marks it out of date; refreshing then re-pins the whole snapshot, including the new MCP tools.
+The reload changes the pushed snapshot, and every chat bound to the workspace, open or new, receives the new tool set on that push.
+An archived chat is skipped and catches up on the first push after you unarchive it.
+An MCP-only change never marks a chat out of date, so no refresh is needed for it.
+A server named after the path of an instruction file the chat has pinned is not MCP-only: that chat is marked out of date and gets the server when you refresh.
+A chat in an error state or being stopped is marked on the first push after it leaves that state, as above.
 
 The snapshot carries tool definitions only, not a way to run them.
 Every workspace MCP tool call is proxied back through the workspace agent, so a chat can list workspace MCP tools while the workspace is unreachable, but calling one requires a running workspace with the server connected.
