@@ -2252,7 +2252,7 @@ func (api *API) applyChatTitleUpdate(
 		return chat, true
 	}
 
-	updatedChat, wrote, err := api.chatDaemon.RenameChatTitle(ctx, chat, trimmedTitle)
+	updatedChat, wrote, err := api.chatDaemon.RenameChatTitle(ctx, chat.ID, trimmedTitle)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.ResourceNotFound(rw)

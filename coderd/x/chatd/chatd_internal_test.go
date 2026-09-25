@@ -1033,7 +1033,7 @@ func TestRenameChatTitle(t *testing.T) {
 				_, chat := seedTitleChat(t, db, stored, source)
 				server := &Server{db: db, logger: slogtest.Make(t, nil)}
 
-				got, wrote, err := server.RenameChatTitle(ctx, chat, newTitle)
+				got, wrote, err := server.RenameChatTitle(ctx, chat.ID, newTitle)
 				require.NoError(t, err)
 				require.Equal(t, wantWrite, wrote)
 				require.Equal(t, newTitle, got.Title)
