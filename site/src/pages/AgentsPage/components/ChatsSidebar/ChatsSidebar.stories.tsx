@@ -1848,6 +1848,33 @@ export const AgentWithWorkspaceMenuFull: Story = {
 	},
 };
 
+export const AgentWithWorkspaceContextMenuFull: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-with-context-menu",
+				title: "Agent with context menu",
+				workspace_id: "workspace-1",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		fireEvent.contextMenu(
+			within(canvasElement).getByTestId(
+				"agents-tree-node-chat-with-context-menu",
+			),
+		);
+		await within(document.body).findByText("Pin agent");
+	},
+};
+
 export const ArchiveActionsFollowChatStatus: Story = {
 	args: {
 		chats: [
