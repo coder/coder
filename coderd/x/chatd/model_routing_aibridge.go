@@ -130,9 +130,8 @@ const (
 )
 
 // stageSpanRoundTripper emits one provider_attempt stage per HTTP
-// round trip to the model provider, so retried requests each get
-// their own span. stageModel labels every attempt with the identity
-// the client was built for.
+// round trip to the AI Gateway, so retried requests each get their
+// own span.
 type stageSpanRoundTripper struct {
 	base       http.RoundTripper
 	stages     *chatloop.StageTracer

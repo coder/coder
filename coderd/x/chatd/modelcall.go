@@ -81,15 +81,15 @@ type resolvedModelCall struct {
 // from the model name, so a copilot provider serving gpt-5 would be
 // labeled openai. The wire provider is empty until the model is built.
 func (r resolvedModelCall) stageModel() chatloop.StageModel {
-	model := chatloop.StageModel{
+	stageModel := chatloop.StageModel{
 		ProviderType: string(r.route.Provider.Type),
 		Model:        r.resolvedModel,
 		Effort:       r.resolvedEffort,
 	}
 	if r.model.Valid() {
-		model.Provider = r.model.Provider()
+		stageModel.Provider = r.model.Provider()
 	}
-	return model
+	return stageModel
 }
 
 // resolveModelCall is the single pipeline from a spec to a ready model

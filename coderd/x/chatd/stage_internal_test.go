@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
@@ -31,9 +32,14 @@ func newStageTestTracer(t *testing.T) (*chatloop.StageTracer, *tracetest.SpanRec
 type stubRoundTripper struct {
 	status int
 	err    error
+	// seen, when set, receives the span context of each request.
+	seen *trace.SpanContext
 }
 
 func (s stubRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if s.seen != nil {
+		*s.seen = trace.SpanContextFromContext(req.Context())
+	}
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -57,7 +63,7 @@ func spanAttribute(t *testing.T, span sdktrace.ReadOnlySpan, key string) (attrib
 func TestStageSpanRoundTripper(t *testing.T) {
 	t.Parallel()
 
-	model := chatloop.StageModel{ProviderType: "bedrock", Model: "claude-sonnet-4-5", Effort: "medium"}
+	stageModel := chatloop.StageModel{ProviderType: "bedrock", Model: "claude-sonnet-4-5", Effort: "medium"}
 	tests := []struct {
 		name           string
 		base           stubRoundTripper
@@ -86,7 +92,10 @@ func TestStageSpanRoundTripper(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			tracer, recorder := newStageTestTracer(t)
-			transport := &stageSpanRoundTripper{base: test.base, stages: tracer, stageModel: model}
+			var seen trace.SpanContext
+			base := test.base
+			base.seen = &seen
+			transport := &stageSpanRoundTripper{base: base, stages: tracer, stageModel: stageModel}
 
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://provider.example/v1/messages", nil)
 			require.NoError(t, err)
@@ -107,6 +116,8 @@ func TestStageSpanRoundTripper(t *testing.T) {
 			span := ended[0]
 			require.Equal(t, string(chatloop.StageProviderAttempt), span.Name())
 			require.Equal(t, test.wantStatusCode, span.Status().Code)
+			// The base transport runs under the provider_attempt span.
+			require.Equal(t, span.SpanContext(), seen)
 			statusCode, sawStatusCode := spanAttribute(t, span, chatloop.AttrHTTPStatusCode)
 			require.Equal(t, !test.wantErr, sawStatusCode)
 			if sawStatusCode {
@@ -114,9 +125,9 @@ func TestStageSpanRoundTripper(t *testing.T) {
 			}
 			require.Subset(t, span.Attributes(), []attribute.KeyValue{
 				attribute.String(chatloop.AttrHTTPMethod, http.MethodPost),
-				attribute.String(chatloop.AttrProviderType, model.ProviderType),
-				attribute.String(chatloop.AttrModel, model.Model),
-				attribute.String(chatloop.AttrReasoningEffort, model.Effort),
+				attribute.String(chatloop.AttrProviderType, stageModel.ProviderType),
+				attribute.String(chatloop.AttrModel, stageModel.Model),
+				attribute.String(chatloop.AttrReasoningEffort, stageModel.Effort),
 			})
 		})
 	}
