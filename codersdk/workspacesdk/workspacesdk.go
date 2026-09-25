@@ -328,6 +328,8 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	}
 	defer func() {
 		if err != nil {
+			// getHeaders may block on a refresh while holding the DERP lock.
+			// Cancel its context before Close waits for that lock.
 			cancel()
 			_ = conn.Close()
 		}
