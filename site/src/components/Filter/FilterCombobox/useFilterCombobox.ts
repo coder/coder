@@ -15,6 +15,7 @@ import {
 	dedupeChips,
 	extractFreeText,
 	matchCategories,
+	optionToken,
 	parseChipToken,
 	parseTypedCategoryPrefix,
 	queryToChips,
@@ -134,18 +135,20 @@ type StatusMessageInput = {
 	activeOptionsLoading: boolean;
 	activeOptionsError: boolean;
 	activeOptionsEmpty: boolean;
+	typeaheadLoading: boolean;
 	typeaheadError: boolean;
 	typeaheadEmpty: boolean;
 };
 
-// Live-region text for each terminal state so screen readers hear loading,
-// failures, and empty results rather than silence. Typeahead loading is voiced
-// by the standalone <Spinner label> instead, to avoid a duplicate announcement.
+// Live-region text for each state so screen readers hear loading, failures,
+// and empty results rather than silence. Typeahead loading shows no spinner,
+// so this is its only announcement.
 const deriveStatusMessage = ({
 	activeCategoryLabel,
 	activeOptionsLoading,
 	activeOptionsError,
 	activeOptionsEmpty,
+	typeaheadLoading,
 	typeaheadError,
 	typeaheadEmpty,
 }: StatusMessageInput): string => {
@@ -160,6 +163,9 @@ const deriveStatusMessage = ({
 			return `No ${activeCategoryLabel} matches`;
 		}
 		return `Filtering by ${activeCategoryLabel}`;
+	}
+	if (typeaheadLoading) {
+		return "Loading suggestions";
 	}
 	if (typeaheadError) {
 		return "Couldn't load suggestions.";
@@ -259,8 +265,6 @@ export const useFilterCombobox = ({
 		() => queryToChips(value, chipKeys),
 		[chipKeys, value],
 	);
-	const optionToken = (category: FilterCategory, option: FilterOption) =>
-		option.token ?? chipToken(category.key, option.value);
 
 	// Categories with a flyout or drill-in list. Inline categories render their
 	// options directly in the main panel and never enter category mode.
@@ -416,7 +420,7 @@ export const useFilterCombobox = ({
 				return [];
 			}
 			return (optionsByCategory.get(category.key) ?? []).map((option) => {
-				const token = option.token ?? chipToken(category.key, option.value);
+				const token = optionToken(category.key, option);
 				return {
 					categoryKey: category.key,
 					categoryLabel: category.inlineOptionsLabel ?? `${category.label} is…`,
@@ -486,6 +490,7 @@ export const useFilterCombobox = ({
 		activeOptionsLoading,
 		activeOptionsError,
 		activeOptionsEmpty,
+		typeaheadLoading,
 		typeaheadError,
 		typeaheadEmpty,
 	});
@@ -668,7 +673,7 @@ export const useFilterCombobox = ({
 			normalized.length > 0 &&
 			categories.some((category) =>
 				(previewOptions.optionsByKey.get(category.key) ?? []).some((option) => {
-					const token = optionToken(category, option);
+					const token = optionToken(category.key, option);
 					return (
 						chipValues.includes(token) &&
 						(option.label.toLowerCase().includes(normalized) ||
@@ -766,7 +771,7 @@ export const useFilterCombobox = ({
 			const highlighted = highlightedItem;
 			const candidate = chipToken(activeCategory.key, inputValue.trim());
 			const hasHighlightedOption = activeOptions?.some(
-				(option) => optionToken(activeCategory, option) === highlighted,
+				(option) => optionToken(activeCategory.key, option) === highlighted,
 			);
 			if (
 				!activeOptionsLoading &&
@@ -793,8 +798,7 @@ export const useFilterCombobox = ({
 			);
 			const hasHighlightedOption = inlineOptions.some(
 				({ categoryKey, option }) =>
-					(option.token ?? chipToken(categoryKey, option.value)) ===
-					highlightedItem,
+					optionToken(categoryKey, option) === highlightedItem,
 			);
 			if (
 				!typeaheadQueryPending &&

@@ -8,6 +8,12 @@ import type { FilterCategory, FilterOption } from "./types";
 
 export const chipToken = (key: string, value: string) => `${key}:${value}`;
 
+/** Token an option commits under `key`: its explicit token, or `key:value`. */
+export const optionToken = (
+	key: string,
+	option: Pick<FilterOption, "token" | "value">,
+) => option.token ?? chipToken(key, option.value);
+
 type ChipDisplaySource = Pick<FilterCategory, "key" | "chipKeys">;
 
 const PREVIEW_OPTION_LIMIT = 4;
@@ -29,14 +35,14 @@ export const categoryPreview = (
 	options: readonly FilterOption[] | undefined,
 ): CategoryPreview => {
 	const ownedKeys = category.chipKeys ?? [category.key];
-	const optionToken = (option: FilterOption) =>
-		option.token ?? chipToken(category.key, option.value);
 	const selected = chips.flatMap((chip) => {
 		const parsed = parseChipToken(chip, ownedKeys);
 		if (!parsed) {
 			return [];
 		}
-		const option = options?.find((entry) => optionToken(entry) === chip);
+		const option = options?.find(
+			(entry) => optionToken(category.key, entry) === chip,
+		);
 		return [
 			option?.appliedLabel ??
 				option?.label ??
@@ -314,7 +320,7 @@ export const collectValueSuggestions = (
 				break;
 			}
 
-			const token = option.token ?? chipToken(category.key, option.value);
+			const token = optionToken(category.key, option);
 
 			if (
 				!option.label.toLowerCase().includes(normalized) &&
