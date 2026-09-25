@@ -245,6 +245,14 @@ type CategoryValueSuggestion = {
 	token: string;
 };
 
+// `normalized` is trimmed and lowercased.
+const optionMatches = (
+	option: Pick<FilterOption, "label" | "value">,
+	normalized: string,
+) =>
+	option.label.toLowerCase().includes(normalized) ||
+	option.value.toLowerCase().includes(normalized);
+
 /** Options whose label or value contains `text`, ignoring case. */
 export const filterOptionsByText = (
 	options: readonly FilterOption[],
@@ -254,11 +262,7 @@ export const filterOptionsByText = (
 	if (normalized.length === 0) {
 		return options;
 	}
-	return options.filter(
-		(option) =>
-			option.label.toLowerCase().includes(normalized) ||
-			option.value.toLowerCase().includes(normalized),
-	);
+	return options.filter((option) => optionMatches(option, normalized));
 };
 
 const DEFAULT_SUGGESTIONS_PER_CATEGORY = 5;
@@ -296,10 +300,7 @@ export const collectValueSuggestions = (
 
 			const token = optionToken(category.key, option);
 
-			if (
-				!option.label.toLowerCase().includes(normalized) &&
-				!option.value.toLowerCase().includes(normalized)
-			) {
+			if (!optionMatches(option, normalized)) {
 				continue;
 			}
 
