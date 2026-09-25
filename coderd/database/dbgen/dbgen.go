@@ -488,6 +488,10 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			String: takeFirst(seed.DisconnectReason.String, ""),
 			Valid:  takeFirst(seed.DisconnectReason.Valid, false),
 		},
+		ClientSessionID: sql.NullString{
+			String: takeFirst(seed.ClientSessionID.String, ""),
+			Valid:  takeFirst(seed.ClientSessionID.Valid, false),
+		},
 		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
 	}
 
@@ -514,6 +518,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		ConnectionID:     []uuid.UUID{arg.ConnectionID.UUID},
 		DisconnectReason: []string{arg.DisconnectReason.String},
 		DisconnectTime:   []time.Time{disconnectTime.Time},
+		ClientSessionID:  []string{arg.ClientSessionID.String},
 	})
 	require.NoError(t, err, "insert connection log")
 

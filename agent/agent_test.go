@@ -135,7 +135,7 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			defer cancel()
 
 			//nolint:dogsled
-			conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+			conn, agentClient, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 
 			sshClient, err := conn.SSHClientOnPort(ctx, port)
 			require.NoError(t, err)
@@ -158,6 +158,10 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			_ = stdin.Close()
 			err = session.Wait()
 			require.NoError(t, err, "waiting for session to exit")
+
+			assertConnectionReport(t, agentClient, connectionReport{
+				connectionType: proto.Connection_SSH,
+			})
 		})
 	}
 
@@ -365,7 +369,9 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		err = session.Wait()
 		require.NoError(t, err)
 
-		assertConnectionReport(t, agentClient, proto.Connection_VSCODE, 0, "")
+		assertConnectionReport(t, agentClient, connectionReport{
+			connectionType: proto.Connection_VSCODE,
+		})
 	})
 
 	t.Run("TracksJetBrains", func(t *testing.T) {
@@ -438,7 +444,9 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			"never saw stats after conn closes",
 		)
 
-		assertConnectionReport(t, agentClient, proto.Connection_JETBRAINS, 0, "")
+		assertConnectionReport(t, agentClient, connectionReport{
+			connectionType: proto.Connection_JETBRAINS,
+		})
 	})
 }
 
@@ -1421,7 +1429,9 @@ func TestAgent_SFTP(t *testing.T) {
 
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+		assertConnectionReport(t, agentClient, connectionReport{
+			connectionType: proto.Connection_SSH,
+		})
 	})
 
 	t.Run("CustomWorkingDirectory", func(t *testing.T) {
@@ -1454,7 +1464,9 @@ func TestAgent_SFTP(t *testing.T) {
 
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+		assertConnectionReport(t, agentClient, connectionReport{
+			connectionType: proto.Connection_SSH,
+		})
 	})
 
 	t.Run("MissingWorkingDirectory", func(t *testing.T) {
@@ -1509,7 +1521,9 @@ func TestAgent_SCP(t *testing.T) {
 
 	// Close the client to trigger disconnect event.
 	scpClient.Close()
-	assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+	assertConnectionReport(t, agentClient, connectionReport{
+		connectionType: proto.Connection_SSH,
+	})
 }
 
 func TestAgent_FileTransferBlocked(t *testing.T) {
@@ -1544,7 +1558,10 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		require.Error(t, err)
 		assertFileTransferBlocked(t, err.Error())
 
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
+		assertConnectionReport(t, agentClient, connectionReport{
+			connectionType: proto.Connection_SSH,
+			status:         agentssh.BlockedFileTransferErrorCode,
+		})
 	})
 
 	t.Run("SCP with go-scp package", func(t *testing.T) {
@@ -1568,7 +1585,10 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		require.Error(t, err)
 		assertFileTransferBlocked(t, err.Error())
 
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
+		assertConnectionReport(t, agentClient, connectionReport{
+			connectionType: proto.Connection_SSH,
+			status:         agentssh.BlockedFileTransferErrorCode,
+		})
 	})
 
 	t.Run("Forbidden commands", func(t *testing.T) {
@@ -1605,7 +1625,10 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				require.NoError(t, err)
 				assertFileTransferBlocked(t, string(msg))
 
-				assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
+				assertConnectionReport(t, agentClient, connectionReport{
+					connectionType: proto.Connection_SSH,
+					status:         agentssh.BlockedFileTransferErrorCode,
+				})
 			})
 		}
 	})
@@ -2311,7 +2334,9 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			netConn0, err := conn.ReconnectingPTY(ctx, idConnectionReport, 80, 80, "bash --norc")
 			require.NoError(t, err)
 			_ = netConn0.Close()
-			assertConnectionReport(t, agentClient, proto.Connection_RECONNECTING_PTY, 0, "")
+			assertConnectionReport(t, agentClient, connectionReport{
+				connectionType: proto.Connection_RECONNECTING_PTY,
+			})
 
 			// --norc disables executing .bashrc, which is often used to customize the bash prompt
 			netConn1, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
@@ -4425,7 +4450,14 @@ func requireEcho(t *testing.T, conn net.Conn) {
 	require.Equal(t, "test", string(b))
 }
 
-func assertConnectionReport(t testing.TB, agentClient *agenttest.Client, connectionType proto.Connection_Type, status int, reason string) {
+type connectionReport struct {
+	connectionType  proto.Connection_Type
+	status          int
+	reason          string
+	clientSessionID string
+}
+
+func assertConnectionReport(t testing.TB, agentClient *agenttest.Client, report connectionReport) {
 	t.Helper()
 
 	var reports []*proto.ReportConnectionRequest
@@ -4440,19 +4472,20 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client, connect
 
 	assert.Equal(t, proto.Connection_CONNECT, reports[0].GetConnection().GetAction(), "first report should be connect")
 	assert.Equal(t, proto.Connection_DISCONNECT, reports[1].GetConnection().GetAction(), "second report should be disconnect")
-	assert.Equal(t, connectionType, reports[0].GetConnection().GetType(), "connect type should be %s", connectionType)
-	assert.Equal(t, connectionType, reports[1].GetConnection().GetType(), "disconnect type should be %s", connectionType)
+	assert.Equal(t, report.connectionType, reports[0].GetConnection().GetType(), "connect type should be %s", report.connectionType)
+	assert.Equal(t, report.connectionType, reports[1].GetConnection().GetType(), "disconnect type should be %s", report.connectionType)
 	t1 := reports[0].GetConnection().GetTimestamp().AsTime()
 	t2 := reports[1].GetConnection().GetTimestamp().AsTime()
 	assert.True(t, t1.Before(t2) || t1.Equal(t2), "connect timestamp should be before or equal to disconnect timestamp")
 	assert.NotEmpty(t, reports[0].GetConnection().GetIp(), "connect ip should not be empty")
 	assert.NotEmpty(t, reports[1].GetConnection().GetIp(), "disconnect ip should not be empty")
 	assert.Equal(t, 0, int(reports[0].GetConnection().GetStatusCode()), "connect status code should be 0")
-	assert.Equal(t, status, int(reports[1].GetConnection().GetStatusCode()), "disconnect status code should be %d", status)
+	assert.Equal(t, report.status, int(reports[1].GetConnection().GetStatusCode()), "disconnect status code should be %d", report.status)
 	assert.Equal(t, "", reports[0].GetConnection().GetReason(), "connect reason should be empty")
-	if reason != "" {
-		assert.Contains(t, reports[1].GetConnection().GetReason(), reason, "disconnect reason should contain %s", reason)
+	if report.reason != "" {
+		assert.Contains(t, reports[1].GetConnection().GetReason(), report.reason, "disconnect reason should contain %s", report.reason)
 	} else {
 		t.Logf("connection report disconnect reason: %s", reports[1].GetConnection().GetReason())
 	}
+	assert.Equal(t, report.clientSessionID, reports[0].GetConnection().GetClientSessionId(), "connect reason should be %s", report.clientSessionID)
 }
