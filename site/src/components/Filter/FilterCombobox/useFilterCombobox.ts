@@ -600,8 +600,6 @@ export const useFilterCombobox = ({
 		activeOptions !== undefined &&
 		activeOptions.length === 0;
 
-	// Announce a live-region message for each terminal state so screen readers
-	// hear loading, failures, and empty results rather than silence.
 	const statusMessage = deriveStatusMessage({
 		activeCategoryLabel: activeCategory?.label,
 		activeOptionsLoading,
