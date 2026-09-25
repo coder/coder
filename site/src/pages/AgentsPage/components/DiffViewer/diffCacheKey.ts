@@ -1,8 +1,9 @@
 /**
- * The @pierre/diffs worker pool keys cached ASTs by each file's `cacheKey`,
- * which defaults to the file name (or prevName:name for renames) when
- * unset; hash the parsed content so different diff bodies for the same
- * path land on distinct keys, stable across re-renders and remounts.
+ * The @pierre/diffs worker pool only caches highlighted ASTs for files with
+ * a `cacheKey`, and renderers compare keyed diffs by key instead of object
+ * identity. Hash the parsed content so re-parsed but unchanged files keep
+ * their cache hits and skip re-rendering, while different diff bodies for
+ * the same path land on distinct keys.
  */
 export const getContentCacheKey = (text: string): string => {
 	// FNV-1a plus the text length. The key only needs to separate different
