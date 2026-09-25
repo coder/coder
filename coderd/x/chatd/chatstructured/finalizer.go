@@ -36,7 +36,7 @@ var ErrInvalidFinalizerArguments = xerrors.New("finalizer arguments must be an o
 var finalizerSentinels = []error{
 	ErrInvalidFinalizerArguments, ErrTooLarge, ErrInvalidUTF8, ErrMalformed, ErrTrailingData, ErrTooDeep,
 	ErrTooManyNodes, ErrArrayTooLong, ErrDuplicateKey, ErrNullCharacter, ErrUnpairedSurrogate,
-	ErrNumberTooLong, ErrExponentTooLarge,
+	ErrNumberTooLong, ErrExponentTooLarge, ErrNumberOutOfRange,
 }
 
 // FinalizerDefinition returns a fresh tool definition whose output property

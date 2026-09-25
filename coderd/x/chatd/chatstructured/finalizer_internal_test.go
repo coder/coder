@@ -94,10 +94,16 @@ func TestCheckFinalizerArguments(t *testing.T) {
 		{open, `{"output":` + string(objectValue(4096)) + `}`, ErrTooManyNodes},
 		{open, `{"output":"` + strings.Repeat("a", 80<<10+1-13) + `"}`, ErrTooLarge},
 		{open, `{"output":"` + strings.Repeat("a", 64<<10) + `"}`, ErrTooLarge},
+		{open, `{"output":1e400}`, ErrNumberOutOfRange},
+		{open, `{"output":[-1e309]}`, ErrNumberOutOfRange},
 	} {
 		got, err := tt.s.CheckFinalizerArguments([]byte(tt.args))
 		if tt.want != nil {
 			require.ErrorIs(t, err, tt.want, tt.args)
+			// The runner must name each rejection class, not the generic text.
+			resp, err := tt.s.FinalizerRunner().Run(context.Background(), fantasy.ToolCall{Input: tt.args})
+			require.NoError(t, err)
+			require.Contains(t, resp.Content, tt.want.Error(), tt.args)
 			continue
 		}
 		require.NoError(t, err, tt.args)
