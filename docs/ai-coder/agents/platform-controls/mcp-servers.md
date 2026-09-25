@@ -326,21 +326,21 @@ A subagent chat in plan mode gets none of them.
 
 ### Limits
 
-| Limit                         | Value                  |
-|-------------------------------|------------------------|
-| Servers per chat              | 5                      |
-| Total size of one declaration | 24&nbsp;KiB            |
-| Slug                          | 32&nbsp;B              |
-| URL                           | 2&nbsp;KiB             |
-| Headers per server            | 16                     |
-| Header name                   | 128&nbsp;B             |
-| Header value                  | 8&nbsp;B to 8&nbsp;KiB |
-| Tool names per filter list    | 64                     |
-| Tool name                     | 128&nbsp;B             |
-| Tools per server              | 64                     |
-| HTTP response body            | 1&nbsp;MiB             |
-| Tool result                   | 256&nbsp;KiB           |
-| Time per tool call            | 60&nbsp;s              |
+| Limit                         | Value        |
+|-------------------------------|--------------|
+| Servers per chat              | 5            |
+| Total size of one declaration | 24&nbsp;KiB  |
+| Slug                          | 32&nbsp;B    |
+| URL                           | 2&nbsp;KiB   |
+| Headers per server            | 16           |
+| Header name                   | 128&nbsp;B   |
+| Header value                  | 8&nbsp;KiB   |
+| Tool names per filter list    | 64           |
+| Tool name                     | 128&nbsp;B   |
+| Tools per server              | 64           |
+| HTTP response body            | 1&nbsp;MiB   |
+| Tool result                   | 256&nbsp;KiB |
+| Time per tool call            | 60&nbsp;s    |
 
 ### URL and header requirements
 
