@@ -429,7 +429,8 @@ export function FilterCombobox({
 							>
 								<button
 									type="button"
-									// Keep focus in the combobox input.
+									// A click does not move focus to the button, so a focused
+									// input keeps it.
 									onMouseDown={(event) => event.preventDefault()}
 									onClick={(event) => {
 										// The button unmounts, so focus it held moves to the
