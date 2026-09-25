@@ -100,9 +100,10 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 		}
 
 		runtime := &claudePlatformTransport{
-			cfg:   runtimeCfg,
-			inner: http.DefaultTransport,
-			creds: newLazyAWSCredentials(runtimeCfg.Region),
+			logger: cfg.Logger,
+			cfg:    runtimeCfg,
+			inner:  http.DefaultTransport,
+			creds:  newLazyAWSCredentials(runtimeCfg.Region),
 		}
 		claudePlatform = runtime
 		cfg.BaseURL = runtimeCfg.ResolvedBaseURL()
@@ -239,7 +240,7 @@ func (p *Anthropic) WrapPassthroughTransport(inner http.RoundTripper) http.Round
 	if cp == nil {
 		return inner
 	}
-	return &claudePlatformTransport{inner: inner, cfg: cp.cfg, creds: cp.creds}
+	return &claudePlatformTransport{inner: inner, cfg: cp.cfg, creds: cp.creds, logger: cp.logger}
 }
 
 func (*Anthropic) AuthHeader() string {
