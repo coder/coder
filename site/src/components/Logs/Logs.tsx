@@ -19,7 +19,6 @@ export const LogsHeader: FC<LogsHeaderProps> = ({ title, detail }) => {
 				"logs-header",
 				"flex items-center border-solid border-0 border-b last:border-b-0 border-border font-sans",
 				"bg-surface-primary text-xs font-semibold leading-none",
-				"first-of-type:pt-4",
 			)}
 			style={{
 				padding: `12px var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,

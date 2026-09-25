@@ -1,4 +1,3 @@
-import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
@@ -9,6 +8,7 @@ import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
+import { LogNotice } from "./LogNotice";
 import type { ToolStatus } from "./utils";
 
 type WorkspaceBuildLogSectionProps = {
@@ -104,31 +104,20 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 
 	if (!effectiveBuildId) {
 		if (isRunning && workspaceId) {
-			return (
-				<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-					<LoaderIcon className="size-3 animate-spin motion-reduce:animate-none" />
-					<span>Loading build logs…</span>
-				</div>
-			);
+			return <LogNotice icon="loading">Loading build logs…</LogNotice>;
 		}
 		return null;
 	}
 
 	if (fetchFailed) {
-		return (
-			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-				<TriangleAlertIcon className="size-3" />
-				<span>Failed to load build logs.</span>
-			</div>
-		);
+		return <LogNotice icon="warning">Failed to load build logs.</LogNotice>;
 	}
 
 	if (timedOut && !hasLogs) {
 		return (
-			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-				<TriangleAlertIcon className="size-3" />
-				<span>Build logs are taking longer than expected.</span>
-			</div>
+			<LogNotice icon="warning">
+				Build logs are taking longer than expected.
+			</LogNotice>
 		);
 	}
 
@@ -138,20 +127,11 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 		completedLogsQuery.isSuccess &&
 		(!logs || logs.length === 0)
 	) {
-		return (
-			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-				<span>No build logs available.</span>
-			</div>
-		);
+		return <LogNotice>No build logs available.</LogNotice>;
 	}
 
 	if (!logs || logs.length === 0) {
-		return (
-			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-				<LoaderIcon className="size-3 animate-spin motion-reduce:animate-none" />
-				<span>Loading build logs…</span>
-			</div>
-		);
+		return <LogNotice icon="loading">Loading build logs…</LogNotice>;
 	}
 
 	return (

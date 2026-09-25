@@ -2545,7 +2545,7 @@ export const StartWorkspaceQuotaReached: Story = {
 	},
 };
 
-export const StartWorkspaceAgentStarting: Story = {
+export const StartWorkspaceAgentLogsStreaming: Story = {
 	args: {
 		name: "start_workspace",
 		status: "running",
@@ -2593,7 +2593,7 @@ export const StartWorkspaceAgentStarting: Story = {
 	},
 };
 
-export const StartWorkspaceAgentWaiting: Story = {
+export const StartWorkspaceAgentNotInLatestBuild: Story = {
 	args: {
 		name: "start_workspace",
 		status: "running",

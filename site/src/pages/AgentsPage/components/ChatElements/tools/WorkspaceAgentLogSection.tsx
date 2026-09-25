@@ -1,5 +1,4 @@
-import { LoaderIcon } from "lucide-react";
-import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
+import { type FC, useLayoutEffect, useRef } from "react";
 import { useQuery } from "react-query";
 import { workspaceById } from "#/api/queries/workspaces";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
@@ -8,8 +7,9 @@ import { Logs, LogsHeader } from "#/components/Logs/Logs";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { AgentLogOutput } from "#/modules/resources/AgentLogs/AgentLogLine";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
-import { findWorkspaceAgent } from "#/utils/workspace";
 import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
+import { getWorkspaceAgent } from "../../ChatConversation/chatHelpers";
+import { LogNotice } from "./LogNotice";
 import type { ToolStatus } from "./utils";
 
 type WorkspaceAgentLogSectionProps = {
@@ -41,7 +41,7 @@ export const WorkspaceAgentLogSection: FC<WorkspaceAgentLogSectionProps> = ({
 	});
 	const workspace = workspaceQuery.data;
 	const callBuildId = isRunning ? chatBuildId : buildId;
-	// The agent is looked up in the latest build, so that build must be the call's.
+	// The agent lookup searches only the latest build.
 	if (
 		!workspace ||
 		!callBuildId ||
@@ -51,43 +51,40 @@ export const WorkspaceAgentLogSection: FC<WorkspaceAgentLogSectionProps> = ({
 		return null;
 	}
 
-	const agent = chatAgentId
-		? findWorkspaceAgent(workspace, chatAgentId)
-		: undefined;
+	const agent = getWorkspaceAgent(workspace, chatAgentId);
 	if (!agent) {
-		return isRunning ? (
-			<WaitingNotice>Waiting for workspace agent…</WaitingNotice>
-		) : null;
+		return isRunning ? <WaitingForAgentStartup /> : null;
 	}
 
 	return (
-		<AgentStartupLogs key={agent.id} agent={agent} isRunning={isRunning} />
+		<AgentStartupLogs key={agent.id} agent={agent} isCallRunning={isRunning} />
 	);
 };
 
 type AgentStartupLogsProps = {
 	agent: WorkspaceAgent;
-	isRunning: boolean;
+	isCallRunning: boolean;
 };
 
-const AgentStartupLogs: FC<AgentStartupLogsProps> = ({ agent, isRunning }) => {
+const AgentStartupLogs: FC<AgentStartupLogsProps> = ({
+	agent,
+	isCallRunning,
+}) => {
 	const logs = useAgentLogs({ agentId: agent.id });
 
 	const endRef = useRef<HTMLDivElement>(null);
 	const hasScrolledRef = useRef(false);
 	useLayoutEffect(() => {
-		// After the call completes, scroll only for the replay: scrollIntoView
+		// After the call completes, scroll only for the first batch: scrollIntoView
 		// also moves the chat transcript.
-		if (logs.length > 0 && (isRunning || !hasScrolledRef.current)) {
+		if (logs.length > 0 && (isCallRunning || !hasScrolledRef.current)) {
 			endRef.current?.scrollIntoView({ block: "end" });
 			hasScrolledRef.current = true;
 		}
-	}, [logs, isRunning]);
+	}, [logs, isCallRunning]);
 
 	if (logs.length === 0) {
-		return isRunning ? (
-			<WaitingNotice>Waiting for agent logs…</WaitingNotice>
-		) : null;
+		return isCallRunning ? <WaitingForAgentStartup /> : null;
 	}
 
 	const lines = logs.map<Line>((log) => ({
@@ -115,9 +112,8 @@ const AgentStartupLogs: FC<AgentStartupLogsProps> = ({ agent, isRunning }) => {
 	);
 };
 
-const WaitingNotice: FC<{ children: ReactNode }> = ({ children }) => (
-	<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-		<LoaderIcon className="size-3 animate-spin motion-reduce:animate-none" />
-		<span>{children}</span>
-	</div>
+const WaitingForAgentStartup: FC = () => (
+	<LogNotice icon="loading">
+		Waiting for workspace agent startup to complete…
+	</LogNotice>
 );
