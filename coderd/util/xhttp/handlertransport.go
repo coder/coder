@@ -14,9 +14,11 @@ import (
 // with h in the calling process. RoundTrip returns when h commits the
 // response header: on WriteHeader, Write, or Flush, or when h returns.
 // The body streams through an [io.Pipe], so SSE and chunked responses
-// arrive as h writes them. When the request context ends, a body read
-// returns the context error. When h panics, the status is 500 and a body
-// read returns an error.
+// arrive as h writes them. As with net/http.Server, the request that h
+// serves ends when the caller cancels or h returns: its context ends and
+// its body closes. When the caller cancels, a body read returns the
+// cancellation cause. When h panics, the status is 500 and a body read
+// returns an error.
 func HandlerTransport(h http.Handler) http.RoundTripper {
 	return &handlerTransport{handler: h}
 }
@@ -26,18 +28,14 @@ type handlerTransport struct {
 }
 
 func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	ctx := req.Context()
-	pr, pw := io.Pipe()
-	rw := &pipeResponseWriter{
-		header:     http.Header{},
-		body:       pw,
-		gotHeaders: make(chan struct{}),
-	}
+	// ctx ends when the caller cancels or h returns. Its cause ends the
+	// response body.
+	ctx, end := context.WithCancelCause(req.Context())
 	// Cloning lets the handler mutate or store its request without
 	// surprising the caller.
 	served := req.Clone(ctx)
-	// Match net/http.Server: an empty path becomes "/", the body is never
-	// nil, and the body is closed when h returns.
+	// Match net/http.Server: an empty path becomes "/" and the body is
+	// never nil.
 	if served.URL.Path == "" {
 		served.URL.Path = "/"
 	}
@@ -46,32 +44,38 @@ func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 	reqBody := served.Body
 
-	// Close the pipe when the caller cancels, so an unresponsive handler
-	// does not strand the body read.
-	stop := context.AfterFunc(ctx, func() { _ = pw.CloseWithError(ctx.Err()) })
+	pr, pw := io.Pipe()
+	rw := &pipeResponseWriter{
+		header:     http.Header{},
+		body:       pw,
+		gotHeaders: make(chan struct{}),
+	}
+	// Release both bodies once, however the exchange ends, so neither a
+	// body producer nor a body reader waits on an unresponsive handler.
+	context.AfterFunc(ctx, func() {
+		_ = reqBody.Close()
+		_ = pw.CloseWithError(context.Cause(ctx))
+	})
 	go func() {
 		defer func() {
-			stop()
-			_ = reqBody.Close()
+			cause := io.EOF
 			if r := recover(); r != nil {
 				// Mirror net/http.Server behavior: a panicking handler
 				// produces a 500 instead of crashing the process.
 				rw.WriteHeader(http.StatusInternalServerError)
-				_ = pw.CloseWithError(xerrors.Errorf("handler panicked: %v", r))
+				cause = xerrors.Errorf("handler panicked: %v", r)
 			}
 			// Unblock RoundTrip when the handler returns without writing.
 			rw.WriteHeader(http.StatusOK)
-			// A canceled request ends the body with the context error, as
-			// a network failure would. Otherwise the body ends with EOF.
-			_ = pw.CloseWithError(ctx.Err())
+			end(cause)
 		}()
 		t.handler.ServeHTTP(rw, served)
 	}()
 
 	select {
 	case <-rw.gotHeaders:
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	case <-req.Context().Done():
+		return nil, req.Context().Err()
 	}
 
 	return &http.Response{

@@ -263,4 +263,51 @@ func TestHandlerTransport(t *testing.T) {
 		defer resp.Body.Close()
 		require.ErrorIs(t, testutil.RequireReceive(ctx, t, wrote), io.ErrClosedPipe)
 	})
+
+	// A canceled request must release the request body producer even when
+	// the handler ignores its context and never reads the body.
+	t.Run("CancelClosesRequestBody", func(t *testing.T) {
+		t.Parallel()
+
+		for _, beforeHeaders := range []bool{true, false} {
+			t.Run(fmt.Sprintf("BeforeHeaders=%t", beforeHeaders), func(t *testing.T) {
+				t.Parallel()
+
+				pr, pw := io.Pipe()
+				defer pr.Close()
+				wrote := make(chan error, 1)
+				go func() {
+					_, err := pw.Write([]byte("unread"))
+					wrote <- err
+				}()
+
+				release := make(chan struct{})
+				defer close(release)
+				h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					if !beforeHeaders {
+						w.WriteHeader(http.StatusOK)
+					}
+					<-release
+				})
+
+				waitCtx := testutil.Context(t, testutil.WaitShort)
+				ctx, cancel := context.WithCancel(waitCtx)
+				defer cancel()
+				req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://handler/", pr)
+				require.NoError(t, err)
+				if beforeHeaders {
+					cancel()
+				}
+				resp, err := xhttp.HandlerTransport(h).RoundTrip(req)
+				if beforeHeaders {
+					require.ErrorIs(t, err, context.Canceled)
+				} else {
+					require.NoError(t, err)
+					defer resp.Body.Close()
+					cancel()
+				}
+				require.ErrorIs(t, testutil.RequireReceive(waitCtx, t, wrote), io.ErrClosedPipe)
+			})
+		}
+	})
 }
