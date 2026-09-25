@@ -16,9 +16,15 @@ import {
 	BreadcrumbSeparator,
 } from "#/components/Breadcrumb/Breadcrumb";
 import { Loader } from "#/components/Loader/Loader";
+import { CollapsibleSidebar } from "#/components/Sidebar/CollapsibleSidebar";
+import {
+	DEPLOYMENT_BANNER_HEIGHT,
+	useIsDeploymentBannerVisible,
+} from "#/modules/dashboard/DeploymentBanner/DeploymentBanner";
 import { pageTitle } from "#/utils/page";
-import { Sidebar } from "./Sidebar";
 import { WorkspaceSettings } from "./useWorkspaceSettings";
+import { WorkspaceSettingsSidebar } from "./WorkspaceSettingsSidebar";
+import { WorkspaceSettingsSidebarHeader } from "./WorkspaceSettingsSidebarView";
 
 export const WorkspaceSettingsLayout: FC = () => {
 	const params = useParams() as {
@@ -30,8 +36,8 @@ export const WorkspaceSettingsLayout: FC = () => {
 	const workspaceQuery = useQuery(
 		workspaceByOwnerAndName(username, workspaceName),
 	);
-
 	const permissionsQuery = useQuery(workspacePermissions(workspaceQuery.data));
+	const isBannerVisible = useIsDeploymentBannerVisible();
 
 	if (workspaceQuery.isLoading) {
 		return <Loader />;
@@ -44,73 +50,77 @@ export const WorkspaceSettingsLayout: FC = () => {
 		<>
 			<title>{pageTitle(workspaceName, "Workspace Settings")}</title>
 
-			<div>
-				<Breadcrumb>
-					<BreadcrumbList>
-						<BreadcrumbItem>
-							<BreadcrumbPage>Workspace Settings</BreadcrumbPage>
-						</BreadcrumbItem>
-						{workspace && (
-							<>
-								<BreadcrumbSeparator />
-								<BreadcrumbItem>
-									<BreadcrumbPage className="flex items-center gap-2">
-										<Avatar
-											size="sm"
-											fallback={workspace.owner_name}
-											src={workspace.owner_avatar_url}
-										/>
-										{workspace.owner_name}
-									</BreadcrumbPage>
-								</BreadcrumbItem>
-								<BreadcrumbSeparator />
-								<BreadcrumbItem>
-									<BreadcrumbLink to="..">
+			{error || !workspace ? (
+				<div className="px-4 pt-6 sm:px-6 lg:px-10">
+					<ErrorAlert error={error} />
+				</div>
+			) : (
+				<WorkspaceSettings.Provider
+					value={{
+						owner: username,
+						workspace,
+						permissions: permissionsQuery.data,
+					}}
+				>
+					<div className="flex flex-1 flex-row">
+						<div className="relative z-30 border-0 border-r border-solid border-border">
+							<CollapsibleSidebar
+								label="Workspace settings"
+								storageKey="workspace-settings-sidebar-width"
+								header={<WorkspaceSettingsSidebarHeader />}
+								bottomInset={isBannerVisible ? DEPLOYMENT_BANNER_HEIGHT : 0}
+							>
+								<WorkspaceSettingsSidebar />
+							</CollapsibleSidebar>
+						</div>
+						<div className="flex-1 min-w-0">
+							<Breadcrumb>
+								<BreadcrumbList>
+									<BreadcrumbItem>
+										<BreadcrumbPage>Workspace Settings</BreadcrumbPage>
+									</BreadcrumbItem>
+									<BreadcrumbSeparator />
+									<BreadcrumbItem>
 										<BreadcrumbPage className="flex items-center gap-2">
 											<Avatar
-												variant="icon"
 												size="sm"
-												fallback={
-													workspace.template_display_name ||
-													workspace.template_name
-												}
-												src={workspace.template_icon}
+												fallback={workspace.owner_name}
+												src={workspace.owner_avatar_url}
 											/>
-											{workspace.name}
+											{workspace.owner_name}
 										</BreadcrumbPage>
-									</BreadcrumbLink>
-								</BreadcrumbItem>
-							</>
-						)}
-					</BreadcrumbList>
-				</Breadcrumb>
-				<div className="h-px border-none bg-border" />
-
-				<section className="px-4 sm:px-6 lg:px-10 max-w-(--breakpoint-2xl) mx-auto">
-					<div className="flex flex-col gap-8 py-6 lg:flex-row lg:gap-28 lg:py-10">
-						{error ? (
-							<ErrorAlert error={error} />
-						) : (
-							workspaceQuery.data && (
-								<WorkspaceSettings.Provider
-									value={{
-										owner: username,
-										workspace: workspaceQuery.data,
-										permissions: permissionsQuery.data,
-									}}
-								>
-									<Sidebar />
-									<div className="grow min-w-0">
-										<Suspense fallback={<Loader />}>
-											<Outlet />
-										</Suspense>
-									</div>
-								</WorkspaceSettings.Provider>
-							)
-						)}
+									</BreadcrumbItem>
+									<BreadcrumbSeparator />
+									<BreadcrumbItem>
+										<BreadcrumbLink to="..">
+											<BreadcrumbPage className="flex items-center gap-2">
+												<Avatar
+													variant="icon"
+													size="sm"
+													fallback={
+														workspace.template_display_name ||
+														workspace.template_name
+													}
+													src={workspace.template_icon}
+												/>
+												{workspace.name}
+											</BreadcrumbPage>
+										</BreadcrumbLink>
+									</BreadcrumbItem>
+								</BreadcrumbList>
+							</Breadcrumb>
+							<div className="h-px border-none bg-border" />
+							<div className="pt-6 pb-10 px-4 sm:px-6 lg:px-10">
+								<div className="max-w-(--breakpoint-2xl) mx-auto">
+									<Suspense fallback={<Loader />}>
+										<Outlet />
+									</Suspense>
+								</div>
+							</div>
+						</div>
 					</div>
-				</section>
-			</div>
+				</WorkspaceSettings.Provider>
+			)}
 		</>
 	);
 };

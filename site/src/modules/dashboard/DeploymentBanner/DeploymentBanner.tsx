@@ -16,6 +16,27 @@ const HIDE_DEPLOYMENT_BANNER_PATHS = [
 	/^\/@(?<username>[a-zA-Z0-9-]+)\/(?<workspace_name>[a-zA-Z0-9-]+)$/,
 ];
 
+/** Banner height in px (`h-9`). */
+export const DEPLOYMENT_BANNER_HEIGHT = 36;
+
+/** Whether the deployment banner shows for the current user and route. */
+export const useIsDeploymentBannerVisible = (): boolean => {
+	const { permissions } = useAuthenticated();
+	const deploymentStatsQuery = useQuery({
+		...deploymentStats(),
+		enabled: permissions.viewDeploymentStats,
+	});
+	const location = useLocation();
+	const isHidden = HIDE_DEPLOYMENT_BANNER_PATHS.some((regex) =>
+		regex.test(location.pathname),
+	);
+	return (
+		!isHidden &&
+		permissions.viewDeploymentConfig &&
+		deploymentStatsQuery.data !== undefined
+	);
+};
+
 export const DeploymentBanner: FC = () => {
 	const { permissions } = useAuthenticated();
 	const deploymentStatsQuery = useQuery({
@@ -26,16 +47,9 @@ export const DeploymentBanner: FC = () => {
 		...health(),
 		enabled: permissions.viewDeploymentConfig,
 	});
-	const location = useLocation();
-	const isHidden = HIDE_DEPLOYMENT_BANNER_PATHS.some((regex) =>
-		regex.test(location.pathname),
-	);
+	const isVisible = useIsDeploymentBannerVisible();
 
-	if (
-		isHidden ||
-		!permissions.viewDeploymentConfig ||
-		!deploymentStatsQuery.data
-	) {
+	if (!isVisible || !deploymentStatsQuery.data) {
 		return null;
 	}
 
