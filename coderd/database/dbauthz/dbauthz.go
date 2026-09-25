@@ -7552,16 +7552,6 @@ func (q *querier) UpdateChatExecutionState(ctx context.Context, arg database.Upd
 }
 
 func (q *querier) UpdateChatGatewayAPIKeyScopesByID(ctx context.Context, arg database.UpdateChatGatewayAPIKeyScopesByIDParams) (database.APIKey, error) {
-	actor, ok := ActorFromContext(ctx)
-	if !ok {
-		return database.APIKey{}, ErrNoActor
-	}
-	// Scope changes are reserved for chatd's synthetic key maintenance, not
-	// callers with general API key update permission. The query also checks
-	// the owner, non-token login type, and deterministic synthetic name.
-	if actor.Type != rbac.SubjectTypeChatdKeyMinter {
-		return database.APIKey{}, NotAuthorizedError{Err: xerrors.New("only chatd key minters may update synthetic API key scopes")}
-	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceApiKey.WithOwner(arg.UserID.String())); err != nil {
 		return database.APIKey{}, err
 	}

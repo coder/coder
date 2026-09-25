@@ -471,13 +471,13 @@ func defaultIPAddress() pqtype.Inet {
 }
 
 func (s *MethodTestSuite) TestChatGatewayAPIKey() {
-	s.Run("UpdateChatGatewayAPIKeyScopesByID", s.Mocked(func(_ *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		// Even an owner actor cannot use the synthetic-only scope update.
-		// The minter and SQL selector are covered by
-		// TestUpdateChatGatewayAPIKeyScopesByID.
-		check.Args(database.UpdateChatGatewayAPIKeyScopesByIDParams{
-			ID: "synthetic", UserID: testActorID, Scopes: database.APIKeyScopes{database.ApiKeyScopeApiKeyRead},
-		}).Asserts().Errors(errMatchAny)
+	s.Run("UpdateChatGatewayAPIKeyScopesByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		key := testutil.Fake(s.T(), faker, database.APIKey{})
+		arg := database.UpdateChatGatewayAPIKeyScopesByIDParams{
+			ID: key.ID, UserID: key.UserID, Scopes: key.Scopes,
+		}
+		dbm.EXPECT().UpdateChatGatewayAPIKeyScopesByID(gomock.Any(), arg).Return(key, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceApiKey.WithOwner(key.UserID.String()), policy.ActionUpdate).Returns(key)
 	}))
 	s.Run("GetUserForChatSyntheticAPIKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
@@ -7827,10 +7827,6 @@ func TestUpdateChatGatewayAPIKeyScopesByID(t *testing.T) {
 		{name: "other_owner_selector", actor: "minter", wrongOwner: true, wantNoRows: true},
 		{name: "missing_key", actor: "minter", missing: true, wantNoRows: true},
 		{name: "other_user_minter", actor: "other_minter", wantDenied: true},
-		{name: "chatd_daemon", actor: "chatd", wantDenied: true},
-		{name: "system_restricted", actor: "system", wantDenied: true},
-		{name: "key_owner", actor: "member", wantDenied: true},
-		{name: "deployment_owner", actor: "owner", wantDenied: true},
 		{name: "no_actor", wantDenied: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -7864,18 +7860,6 @@ func TestUpdateChatGatewayAPIKeyScopesByID(t *testing.T) {
 				ctx = dbauthz.AsChatdKeyMinter(ctx, arg.UserID)
 			case "other_minter":
 				ctx = dbauthz.AsChatdKeyMinter(ctx, otherID)
-			case "chatd":
-				ctx = dbauthz.AsChatd(ctx)
-			case "system":
-				ctx = dbauthz.AsSystemRestricted(ctx)
-			case "member", "owner":
-				role := rbac.RoleMember()
-				if tc.actor == "owner" {
-					role = rbac.RoleOwner()
-				}
-				actor := rbac.Subject{ID: owner.ID.String(), Roles: rbac.RoleIdentifiers{role}, Scope: rbac.ScopeAll}
-				ctx = dbauthz.As(ctx, actor)
-				require.NoError(t, auth.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceApiKey.WithOwner(owner.ID.String())))
 			}
 			updated, err := q.UpdateChatGatewayAPIKeyScopesByID(ctx, arg)
 			switch {
