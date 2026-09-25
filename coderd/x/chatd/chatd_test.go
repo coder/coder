@@ -11673,7 +11673,6 @@ func TestMCPToolSearchExperimentRules(t *testing.T) {
 	withoutToolSearch := slices.DeleteFunc(slices.Clone(codersdk.ExperimentsKnown), func(ex codersdk.Experiment) bool {
 		return ex == codersdk.ExperimentMCPToolSearch
 	})
-	dbStore := func(db database.Store) experimentrules.Store { return experimentrules.NewDBStore(db) }
 	// requireDeferred asserts whether the turn deferred MCP schemas behind
 	// find_tools (experiment on) or advertised them directly (off).
 	requireDeferred := func(t *testing.T, tools []string, deferred bool) {
@@ -11689,15 +11688,16 @@ func TestMCPToolSearchExperimentRules(t *testing.T) {
 
 	t.Run("condition decides per owner", func(t *testing.T) {
 		t.Parallel()
-		h := newHarness(t, withoutToolSearch, dbStore)
+		h := newHarness(t, withoutToolSearch, experimentrules.NewDBStore)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		other := dbgen.User(t, h.db, database.User{})
 		dbgen.OrganizationMember(t, h.db, database.OrganizationMember{UserID: other.ID, OrganizationID: h.org.ID})
-		_, _, _, err := experimentrules.WriteRule(ctx, h.db, h.owner.ID, codersdk.ExperimentMCPToolSearch, experimentrules.Rule{
+		_, _, changed, err := experimentrules.WriteRule(ctx, h.db, h.owner.ID, codersdk.ExperimentMCPToolSearch, experimentrules.Rule{
 			Mode:      experimentrules.ModeCondition,
 			Condition: fmt.Sprintf("user.username == %q", h.owner.Username),
 		}, 0)
 		require.NoError(t, err)
+		require.True(t, changed)
 
 		for i, tc := range []struct {
 			owner    database.User
@@ -11724,7 +11724,7 @@ func TestMCPToolSearchExperimentRules(t *testing.T) {
 
 	t.Run("rule changes apply on the next turn", func(t *testing.T) {
 		t.Parallel()
-		h := newHarness(t, withoutToolSearch, dbStore)
+		h := newHarness(t, withoutToolSearch, experimentrules.NewDBStore)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		revision := int64(0)
 		setMode := func(mode experimentrules.Mode) {
