@@ -130,6 +130,29 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 				}
 			}
 
+			chatMCPServers, err := cryptTx.GetChatMCPServersByChatOwnerID(ctx, uid)
+			if err != nil {
+				return xerrors.Errorf("get chat MCP servers for user %s: %w", uid, err)
+			}
+			for _, server := range chatMCPServers {
+				trimmed := strings.TrimSpace(server.Headers)
+				switch {
+				case trimmed == "" || trimmed == "{}":
+					log.Debug(ctx, "skipping empty chat MCP server headers", slog.F("user_id", uid), slog.F("chat_id", server.ChatID), slog.F("slug", server.Slug), slog.F("current", idx+1))
+				case server.HeadersKeyID.Valid && server.HeadersKeyID.String == ciphers[0].HexDigest():
+					log.Debug(ctx, "skipping chat MCP server headers", slog.F("user_id", uid), slog.F("chat_id", server.ChatID), slog.F("slug", server.Slug), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+				default:
+					if err := cryptTx.UpdateEncryptedChatMCPServerHeaders(ctx, database.UpdateEncryptedChatMCPServerHeadersParams{
+						ID:           server.ID,
+						Headers:      server.Headers,
+						HeadersKeyID: sql.NullString{}, // dbcrypt will re-encrypt
+					}); err != nil {
+						return xerrors.Errorf("rotate chat MCP server headers chat_id=%s slug=%s: %w", server.ChatID, server.Slug, err)
+					}
+					log.Debug(ctx, "rotated chat MCP server headers", slog.F("user_id", uid), slog.F("chat_id", server.ChatID), slog.F("slug", server.Slug), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+				}
+			}
+
 			return nil
 		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
@@ -338,6 +361,25 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 				log.Debug(ctx, "decrypted gitsshkey", slog.F("user_id", uid), slog.F("current", idx+1))
 			}
 
+			chatMCPServers, err := tx.GetChatMCPServersByChatOwnerID(ctx, uid)
+			if err != nil {
+				return xerrors.Errorf("get chat MCP servers for user %s: %w", uid, err)
+			}
+			for _, server := range chatMCPServers {
+				if !server.HeadersKeyID.Valid {
+					log.Debug(ctx, "skipping chat MCP server headers", slog.F("user_id", uid), slog.F("chat_id", server.ChatID), slog.F("slug", server.Slug), slog.F("current", idx+1))
+					continue
+				}
+				if err := tx.UpdateEncryptedChatMCPServerHeaders(ctx, database.UpdateEncryptedChatMCPServerHeadersParams{
+					ID:           server.ID,
+					Headers:      server.Headers,
+					HeadersKeyID: sql.NullString{}, // clear the key ID
+				}); err != nil {
+					return xerrors.Errorf("decrypt chat MCP server headers chat_id=%s slug=%s: %w", server.ChatID, server.Slug, err)
+				}
+				log.Debug(ctx, "decrypted chat MCP server headers", slog.F("user_id", uid), slog.F("chat_id", server.ChatID), slog.F("slug", server.Slug), slog.F("current", idx+1))
+			}
+
 			return nil
 		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
@@ -432,6 +474,8 @@ DELETE FROM user_ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 DELETE FROM user_secrets
 	WHERE value_key_id IS NOT NULL;
+DELETE FROM chat_mcp_servers
+	WHERE headers_key_id IS NOT NULL;
 -- gitsshkeys has no delete path in product code: rows are inserted on
 -- user creation and only ever mutated by regenerate. dbcrypt's 'delete'
 -- command is the one operation that needs to wipe encrypted content,

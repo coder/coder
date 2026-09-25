@@ -4599,7 +4599,7 @@ func requestAISpendExport(ctx context.Context, t *testing.T, client *codersdk.Cl
 // inspect the status code and error body directly.
 func requestAISpendUsers(ctx context.Context, t *testing.T, client *codersdk.Client, orgID uuid.UUID, params map[string]string) *http.Response {
 	t.Helper()
-	return requestAISpend(ctx, t, client, fmt.Sprintf("/api/v2/organizations/%s/ai/spend/users", orgID), params)
+	return requestAISpend(ctx, t, client, fmt.Sprintf("/api/experimental/organizations/%s/ai/spend/users", orgID), params)
 }
 
 func requestAISpend(ctx context.Context, t *testing.T, client *codersdk.Client, path string, params map[string]string) *http.Response {
@@ -5647,7 +5647,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 		t.Run("Default", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
-			report, err := adminClient.OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{})
+			report, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{})
 			require.NoError(t, err)
 			require.Equal(t, codersdk.OrganizationAISpendReport{
 				AISpendPeriodWindow: window,
@@ -5662,13 +5662,13 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 			// Count and totals describe the whole window on every page.
-			first, err := adminClient.OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{Limit: 1})
+			first, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{Limit: 1})
 			require.NoError(t, err)
 			require.Equal(t, []codersdk.OrganizationAISpendUser{other}, first.Users)
 			require.EqualValues(t, 2, first.Count)
 			require.EqualValues(t, 4500, first.Totals.CostMicros)
 
-			second, err := adminClient.OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{Limit: 1, Offset: 1})
+			second, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{Limit: 1, Offset: 1})
 			require.NoError(t, err)
 			require.Equal(t, []codersdk.OrganizationAISpendUser{target}, second.Users)
 			require.EqualValues(t, 2, second.Count)
@@ -5676,7 +5676,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 
 			// Past the last user nothing is returned but the totals still
 			// describe the whole window.
-			empty, err := adminClient.OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{Limit: 1, Offset: 2})
+			empty, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{Limit: 1, Offset: 2})
 			require.NoError(t, err)
 			require.Equal(t, codersdk.OrganizationAISpendReport{
 				AISpendPeriodWindow: window,
@@ -5752,7 +5752,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					t.Parallel()
 					ctx := testutil.Context(t, testutil.WaitLong)
-					report, err := adminClient.OrganizationAISpendUsers(ctx, group.OrganizationID, tc.filter, codersdk.OrganizationAISpendPage{})
+					report, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, tc.filter, codersdk.OrganizationAISpendPage{})
 					require.NoError(t, err)
 					require.Equal(t, tc.want, report)
 				})
@@ -5763,7 +5763,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 		t.Run("MatchesExport", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
-			report, err := adminClient.OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{})
+			report, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{})
 			require.NoError(t, err)
 			body, err := adminClient.ExportOrganizationAISpend(ctx, group.OrganizationID, codersdk.AISpendPeriodWindow{})
 			require.NoError(t, err)
@@ -5799,14 +5799,14 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		retentionStart := now.Add(-retention)
 
-		report, err := adminClient.OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{})
+		report, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.AISpendPeriodWindow{PeriodStart: retentionStart, PeriodEnd: monthEnd}, report.AISpendPeriodWindow)
 		require.NotNil(t, report.RetentionStart)
 		require.Equal(t, retentionStart, *report.RetentionStart)
 
 		// An explicit period before retention is rejected like the export.
-		_, err = adminClient.OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{
+		_, err = codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{
 			PeriodStart: retentionStart.Add(-time.Hour), PeriodEnd: retentionStart.Add(time.Hour),
 		}, codersdk.OrganizationAISpendPage{})
 		var sdkErr *codersdk.Error
@@ -5827,7 +5827,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		report, err := adminClient.OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{})
+		report, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd}, report.AISpendPeriodWindow)
 		require.Nil(t, report.RetentionStart)
@@ -5910,7 +5910,7 @@ func TestOrganizationAISpendUsersRoleAccess(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			report, err := tc.client.OrganizationAISpendUsers(ctx, owner.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{})
+			report, err := codersdk.NewExperimentalClient(tc.client).OrganizationAISpendUsers(ctx, owner.OrganizationID, codersdk.OrganizationAISpendFilter{}, codersdk.OrganizationAISpendPage{})
 			if tc.wantStatus != 0 {
 				var sdkErr *codersdk.Error
 				require.ErrorAs(t, err, &sdkErr)
