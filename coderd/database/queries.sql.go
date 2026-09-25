@@ -4524,6 +4524,49 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 	return err
 }
 
+const updateChatGatewayAPIKeyScopesByID = `-- name: UpdateChatGatewayAPIKeyScopesByID :one
+UPDATE
+	api_keys
+SET
+	scopes = $1
+WHERE
+	id = $2 AND
+	user_id = $3 AND
+	login_type != 'token' AND
+	token_name = 'chatd_' || user_id::text || '_session_token'
+RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
+`
+
+type UpdateChatGatewayAPIKeyScopesByIDParams struct {
+	Scopes APIKeyScopes `db:"scopes" json:"scopes"`
+	ID     string       `db:"id" json:"id"`
+	UserID uuid.UUID    `db:"user_id" json:"user_id"`
+}
+
+// Preserve delegated IDs and credentials when reconciling synthetic key scopes.
+// User-created tokens with colliding names must never be updated.
+// The token_name predicate must match chatd.GatewayTokenName.
+func (q *sqlQuerier) UpdateChatGatewayAPIKeyScopesByID(ctx context.Context, arg UpdateChatGatewayAPIKeyScopesByIDParams) (APIKey, error) {
+	row := q.db.QueryRowContext(ctx, updateChatGatewayAPIKeyScopesByID, arg.Scopes, arg.ID, arg.UserID)
+	var i APIKey
+	err := row.Scan(
+		&i.ID,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.LastUsed,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LoginType,
+		&i.LifetimeSeconds,
+		&i.IPAddress,
+		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
+	)
+	return i, err
+}
+
 const countAuditLogs = `-- name: CountAuditLogs :one
 SELECT COUNT(*) FROM (
 	SELECT 1

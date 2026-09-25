@@ -10087,6 +10087,21 @@ func (mr *MockStoreMockRecorder) UpdateChatExecutionState(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatExecutionState", reflect.TypeOf((*MockStore)(nil).UpdateChatExecutionState), ctx, arg)
 }
 
+// UpdateChatGatewayAPIKeyScopesByID mocks base method.
+func (m *MockStore) UpdateChatGatewayAPIKeyScopesByID(ctx context.Context, arg database.UpdateChatGatewayAPIKeyScopesByIDParams) (database.APIKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatGatewayAPIKeyScopesByID", ctx, arg)
+	ret0, _ := ret[0].(database.APIKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatGatewayAPIKeyScopesByID indicates an expected call of UpdateChatGatewayAPIKeyScopesByID.
+func (mr *MockStoreMockRecorder) UpdateChatGatewayAPIKeyScopesByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatGatewayAPIKeyScopesByID", reflect.TypeOf((*MockStore)(nil).UpdateChatGatewayAPIKeyScopesByID), ctx, arg)
+}
+
 // UpdateChatHeartbeats mocks base method.
 func (m *MockStore) UpdateChatHeartbeats(ctx context.Context, arg database.UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()

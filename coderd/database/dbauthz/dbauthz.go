@@ -7551,6 +7551,13 @@ func (q *querier) UpdateChatExecutionState(ctx context.Context, arg database.Upd
 	return q.db.UpdateChatExecutionState(ctx, arg)
 }
 
+func (q *querier) UpdateChatGatewayAPIKeyScopesByID(ctx context.Context, arg database.UpdateChatGatewayAPIKeyScopesByIDParams) (database.APIKey, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceApiKey.WithOwner(arg.UserID.String())); err != nil {
+		return database.APIKey{}, err
+	}
+	return q.db.UpdateChatGatewayAPIKeyScopesByID(ctx, arg)
+}
+
 func (q *querier) UpdateChatHeartbeats(ctx context.Context, arg database.UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
 	// The batch heartbeat is a system-level operation filtered by
 	// worker_id. Authorization is enforced by the AsChatd context
