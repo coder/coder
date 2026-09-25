@@ -121,10 +121,7 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 	return (
 		<OrganizationAgentSettingsView
 			defaultModelID={
-				modelsQuery.data
-					? (modelsQuery.data.models.find((model) => model.is_default)?.id ??
-						"")
-					: undefined
+				modelsQuery.data?.models.find((model) => model.is_default)?.id
 			}
 			onSaveDefaultModel={(modelID, options) =>
 				defaultModelMutation.mutate(

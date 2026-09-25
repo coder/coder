@@ -12,7 +12,6 @@ import { AgentSettingLayout } from "./AgentSettingLayout";
 import type { MutationCallbacks } from "./SubagentModelOverrideSettings";
 
 type DefaultModelSettingsProps = {
-	/** "" when the organization has no default; undefined until the default is known. */
 	defaultModelID: string | undefined;
 	enabledModels: readonly TypesGen.ChatModel[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
@@ -40,8 +39,6 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 	// refetch of the model catalog cannot discard it before Save, which formik's
 	// enableReinitialize would.
 	const [pendingModelID, setPendingModelID] = useState<string>();
-	const hasLoadedDefault = defaultModelID !== undefined;
-	const savedModelID = defaultModelID ?? "";
 	const enabledModelOptions = toEnabledModelSelectorOptions(
 		enabledModels,
 		providerInfoByID,
@@ -50,20 +47,21 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 	// come back if the catalog relists the model.
 	if (
 		pendingModelID !== undefined &&
-		(pendingModelID === savedModelID ||
+		(pendingModelID === defaultModelID ||
 			!enabledModelOptions.some((option) => option.id === pendingModelID))
 	) {
 		setPendingModelID(undefined);
 	}
-	const selectedModelID = pendingModelID ?? savedModelID;
+	const selectedModelID = pendingModelID ?? defaultModelID;
 
 	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		onSaveDefaultModel(selectedModelID, { onSuccess: showSavedState });
+		if (pendingModelID !== undefined) {
+			onSaveDefaultModel(pendingModelID, { onSuccess: showSavedState });
+		}
 	};
-	const isFormDisabled = disabled || isSaving || isLoading || !hasLoadedDefault;
-	const canSave =
-		hasLoadedDefault && !disabled && selectedModelID !== savedModelID;
+	const isFormDisabled = disabled || isSaving || isLoading;
+	const canSave = !disabled && pendingModelID !== undefined;
 	const isUnavailableSavedModel = isUnavailableHistoricalModelID(
 		selectedModelID,
 		enabledModelOptions,

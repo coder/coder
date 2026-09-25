@@ -79,7 +79,7 @@ export const UnavailableDefaultModel: Story = {
 };
 
 export const NoDefaultModel: Story = {
-	args: { defaultModelID: "" },
+	args: { defaultModelID: undefined },
 };
 
 export const ModelsLoadError: Story = {
