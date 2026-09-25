@@ -70,7 +70,7 @@ describe("DeleteDialog", () => {
 		expect(input).toHaveFocus();
 		expect(input).toHaveAttribute("aria-invalid", "true");
 		expect(input).toHaveAccessibleDescription(
-			"\u201cwrong-name\u201d does not match the name of this workspace",
+			"“wrong-name” does not match the name of this workspace",
 		);
 	});
 

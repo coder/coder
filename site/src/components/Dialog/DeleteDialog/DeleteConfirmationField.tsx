@@ -18,13 +18,12 @@ import { Label } from "#/components/Label/Label";
  * closed, so reopening never shows a previously typed name with the delete
  * action already enabled. While the dialog stays open (for example after a
  * failed delete that the owner lets the user retry) the typed name is kept.
- * `reset` clears it immediately.
  */
 export const useDeleteConfirmation = (name: string, isOpen: boolean) => {
 	const [value, setValue] = useState("");
 	const [isFocused, setIsFocused] = useState(false);
 	const [hasSubmittedInvalid, setHasSubmittedInvalid] = useState(false);
-	const [wasOpen, setWasOpen] = useState(isOpen);
+	const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
 	const reset = () => {
 		setValue("");
@@ -34,8 +33,8 @@ export const useDeleteConfirmation = (name: string, isOpen: boolean) => {
 
 	// Adjusting state while rendering, per React's guidance for resetting
 	// state when a prop changes, avoids an extra render with stale state.
-	if (isOpen !== wasOpen) {
-		setWasOpen(isOpen);
+	if (isOpen !== prevIsOpen) {
+		setPrevIsOpen(isOpen);
 		if (!isOpen) {
 			reset();
 		}
@@ -50,7 +49,6 @@ export const useDeleteConfirmation = (name: string, isOpen: boolean) => {
 		value,
 		confirmed,
 		showError,
-		reset,
 		inputProps: {
 			value,
 			onChange: (event: ChangeEvent<HTMLInputElement>) => {
