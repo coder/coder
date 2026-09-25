@@ -44,6 +44,8 @@ const StoryChatPageTimeline: FC<{
 			isHydratingMessages={false}
 			hasFetchMoreError={false}
 			onFetchMoreMessages={async () => {}}
+			urlTransform={(url) => url}
+			mcpServers={[]}
 		/>
 	</MessageScroller.Provider>
 );
@@ -131,6 +133,21 @@ const StoryChatPageInput: FC<{
 			canConfigureAgentSetup={false}
 			isEditing={false}
 			onCancelHistoryEdit={fn()}
+			isReadOnly={false}
+			onReasoningEffortChange={fn()}
+			unsupportedProviderNames={[]}
+			onPlanModeToggle={fn()}
+			isModelCatalogLoading={false}
+			inputRef={{ current: null }}
+			initialValue=""
+			remountKey={0}
+			onContentChange={fn()}
+			editingFileBlocks={[]}
+			mcpServers={[]}
+			selectedMCPServerIds={[]}
+			onMCPSelectionChange={fn()}
+			onMCPAuthComplete={fn()}
+			isWorkspaceLoading={false}
 		/>
 	</div>
 );
@@ -386,6 +403,8 @@ export const InterruptingShowsBusyComposer: Story = {
 						isHydratingMessages={false}
 						hasFetchMoreError={false}
 						onFetchMoreMessages={async () => {}}
+						urlTransform={(url) => url}
+						mcpServers={[]}
 					/>
 					<StoryChatPageInput
 						store={store}
@@ -459,6 +478,21 @@ const CompactionChatPageInput: FC = () => {
 				canConfigureAgentSetup={false}
 				isEditing={false}
 				onCancelHistoryEdit={fn()}
+				isReadOnly={false}
+				onReasoningEffortChange={fn()}
+				unsupportedProviderNames={[]}
+				onPlanModeToggle={fn()}
+				isModelCatalogLoading={false}
+				inputRef={{ current: null }}
+				initialValue=""
+				remountKey={0}
+				onContentChange={fn()}
+				editingFileBlocks={[]}
+				mcpServers={[]}
+				selectedMCPServerIds={[]}
+				onMCPSelectionChange={fn()}
+				onMCPAuthComplete={fn()}
+				isWorkspaceLoading={false}
 			/>
 		</div>
 	);

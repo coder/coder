@@ -55,14 +55,10 @@ export const AttachmentPreview: FC<{
 	onRemove: (attachment: number | File) => void;
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
-	onPreview?: (url: string) => void;
+	onPreview: (url: string) => void;
 	textContents?: Map<File, string>;
-	onTextPreview?: (
-		content: string,
-		fileName: string,
-		mediaType?: string,
-	) => void;
-	onInlineText?: (file: File, content?: string) => void;
+	onTextPreview: (content: string, fileName: string, mediaType: string) => void;
+	onInlineText: (file: File, content?: string) => void;
 }> = ({
 	attachments,
 	onRemove,
@@ -151,7 +147,7 @@ export const AttachmentPreview: FC<{
 								<button
 									type="button"
 									className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
-									onClick={() => onPreview?.(previewUrl)}
+									onClick={() => onPreview(previewUrl)}
 								>
 									<ImageThumbnail previewUrl={previewUrl} name={file.name} />
 								</button>
@@ -166,7 +162,7 @@ export const AttachmentPreview: FC<{
 											textFileId,
 										);
 										if (nextContent !== undefined) {
-											onTextPreview?.(nextContent, file.name, file.type);
+											onTextPreview(nextContent, file.name, file.type);
 										}
 									}}
 								>
@@ -187,7 +183,7 @@ export const AttachmentPreview: FC<{
 											textContent,
 											textFileId,
 										);
-										onInlineText?.(file, nextContent);
+										onInlineText(file, nextContent);
 									}}
 									className="absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
 									aria-label="Paste inline"

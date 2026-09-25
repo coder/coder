@@ -131,20 +131,20 @@ type AgentChatPageViewProps = {
 	modelCatalogError?: unknown;
 	unavailableModelNotice?: string;
 	reasoningEffort?: string;
-	onReasoningEffortChange?: (value: string) => void;
+	onReasoningEffortChange: (value: string) => void;
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
-	unsupportedProviderNames?: readonly string[];
+	unsupportedProviderNames: readonly string[];
 	aiGatewayDisabled?: boolean;
 	hasModelOptions: boolean;
-	isModelCatalogLoading?: boolean;
-	onPlanModeToggle?: (enabled: boolean) => void;
+	isModelCatalogLoading: boolean;
+	onPlanModeToggle: (enabled: boolean) => void;
 	isInputDisabled: boolean;
 	isSubmissionPending: boolean;
 	isInterruptPending: boolean;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
-	isWorkspaceLoading?: boolean;
+	isWorkspaceLoading: boolean;
 
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
@@ -170,8 +170,8 @@ type AgentChatPageViewProps = {
 	handleDeleteQueuedMessage: (id: number) => Promise<void>;
 	handlePromoteQueuedMessage: (id: number) => Promise<void>;
 
-	onImplementPlan?: () => Promise<void> | void;
-	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	onImplementPlan: () => Promise<void> | void;
+	onSendAskUserQuestionResponse: (message: string) => Promise<void> | void;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -180,7 +180,7 @@ type AgentChatPageViewProps = {
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
 
-	urlTransform?: UrlTransform;
+	urlTransform: UrlTransform;
 
 	// MCP server state.
 	mcpServers: readonly TypesGen.MCPServerConfig[];
@@ -301,13 +301,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	unsupportedProviderNames,
 	aiGatewayDisabled,
 	hasModelOptions,
-	isModelCatalogLoading = false,
+	isModelCatalogLoading,
 	onPlanModeToggle,
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
 	onWorkspaceChange,
-	isWorkspaceLoading = false,
+	isWorkspaceLoading,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	debugLoggingEnabled,
@@ -1057,9 +1057,9 @@ type AgentChatPageLoadingViewProps = {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
-	isModelCatalogLoading?: boolean;
-	planModeEnabled?: boolean;
-	onPlanModeToggle?: (enabled: boolean) => void;
+	isModelCatalogLoading: boolean;
+	planModeEnabled: boolean;
+	onPlanModeToggle: (enabled: boolean) => void;
 	showRightPanel: boolean;
 };
 
@@ -1075,7 +1075,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
-	isModelCatalogLoading = false,
+	isModelCatalogLoading,
 	planModeEnabled,
 	onPlanModeToggle,
 	showRightPanel,

@@ -62,6 +62,9 @@ const meta: Meta<typeof AgentChatInput> = {
 		modelOptions: [...defaultModelOptions],
 		modelSelectorPlaceholder: "Select model",
 		hasModelOptions: true,
+		planModeEnabled: false,
+		onPlanModeToggle: fn(),
+		isModelCatalogLoading: false,
 	},
 };
 
@@ -1057,13 +1060,6 @@ export const DisablePlanModeFromBadge: Story = {
 		await userEvent.click(dismiss);
 		expect(args.onPlanModeToggle).toHaveBeenCalledTimes(1);
 		expect(args.onPlanModeToggle).toHaveBeenCalledWith(false);
-	},
-};
-
-export const PlanningIndicatorWithoutToggle: Story = {
-	args: {
-		planModeEnabled: true,
-		onPlanModeToggle: undefined,
 	},
 };
 
