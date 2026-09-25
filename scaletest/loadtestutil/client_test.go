@@ -22,6 +22,7 @@ func (p *mutableHeaderProvider) Headers(context.Context) (http.Header, error) {
 	return p.headers, p.err
 }
 
+// Check that the copied client gets new headers when the provider changes them.
 func TestDupClientCopyingHeadersDynamic(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
