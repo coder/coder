@@ -153,10 +153,11 @@ type OpenAIToolCall struct {
 
 // OpenAIChunkChoice represents a choice in a streaming chunk.
 type OpenAIChunkChoice struct {
-	Index        int              `json:"index"`
-	Delta        string           `json:"delta,omitempty"`
-	ToolCalls    []OpenAIToolCall `json:"tool_calls,omitempty"`
-	FinishReason string           `json:"finish_reason,omitempty"`
+	Index          int              `json:"index"`
+	Delta          string           `json:"delta,omitempty"`
+	ReasoningDelta string           `json:"reasoning_delta,omitempty"`
+	ToolCalls      []OpenAIToolCall `json:"tool_calls,omitempty"`
+	FinishReason   string           `json:"finish_reason,omitempty"`
 }
 
 // OpenAIChunk represents a streaming chunk from OpenAI.
@@ -374,10 +375,15 @@ func writeChatCompletionsStreaming(w http.ResponseWriter, r *http.Request, chunk
 			choiceData := map[string]interface{}{
 				"index": choice.Index,
 			}
-			if choice.Delta != "" {
-				choiceData["delta"] = map[string]interface{}{
-					"content": choice.Delta,
+			if choice.Delta != "" || choice.ReasoningDelta != "" {
+				delta := map[string]interface{}{}
+				if choice.Delta != "" {
+					delta["content"] = choice.Delta
 				}
+				if choice.ReasoningDelta != "" {
+					delta["reasoning_content"] = choice.ReasoningDelta
+				}
+				choiceData["delta"] = delta
 			}
 			if len(choice.ToolCalls) > 0 {
 				// Tool calls come in the delta
