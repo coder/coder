@@ -11,9 +11,12 @@ package chatstructured
 
 import (
 	"cmp"
+	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -24,7 +27,9 @@ import (
 var (
 	// ErrValueMismatch is satisfied by every *ValidationError.
 	ErrValueMismatch = xerrors.New("json value does not match the schema")
-	errLoadDenied    = xerrors.New("json schema reference loading is denied")
+	// ErrNumberOutOfRange rejects a number that overflows float64.
+	ErrNumberOutOfRange = xerrors.New("json number is outside the supported range")
+	errLoadDenied       = xerrors.New("json schema reference loading is denied")
 )
 
 const (
@@ -78,8 +83,7 @@ func (f restrictedFactory) New(source string) gojsonschema.JSONLoader {
 	return restrictedLoader{JSONLoader: gojsonschema.NewGoLoader(nil), deny: true}
 }
 
-// restrictedLoader replaces the embedded loader's factory, so a root loader
-// resolves references through restrictedFactory.
+// restrictedLoader makes a root loader resolve references through restrictedFactory.
 type restrictedLoader struct {
 	gojsonschema.JSONLoader
 	factory restrictedFactory
@@ -107,8 +111,7 @@ func newSchemaLoader() *gojsonschema.SchemaLoader {
 	return sl
 }
 
-// compileMetaSchema compiles the bundled Draft-07 meta-schema in a loader
-// that can resolve nothing else.
+// compileMetaSchema compiles the bundled Draft-07 meta-schema, resolving nothing else.
 func compileMetaSchema() (*gojsonschema.Schema, error) {
 	f := restrictedFactory{allow: draft07MetaSchemaURL}
 	return newSchemaLoader().Compile(restrictedLoader{JSONLoader: f.New(draft07MetaSchemaURL), factory: f})
@@ -116,9 +119,9 @@ func compileMetaSchema() (*gojsonschema.Schema, error) {
 
 var trustedMetaSchema = sync.OnceValues(compileMetaSchema)
 
-// compileDenyAll compiles doc in a fresh loader that denies every
-// reference load. Library errors can quote the schema, so they collapse to
-// ErrInvalidSchema, joined with errLoadDenied when a load was attempted.
+// compileDenyAll compiles doc in a fresh loader that denies every reference load.
+// Library errors can quote the schema, so they collapse to ErrInvalidSchema,
+// joined with errLoadDenied when a load was attempted.
 func compileDenyAll(doc map[string]any) (*gojsonschema.Schema, error) {
 	s, err := newSchemaLoader().Compile(restrictedLoader{JSONLoader: gojsonschema.NewGoLoader(doc)})
 	if errors.Is(err, errLoadDenied) {
@@ -135,7 +138,7 @@ func compileDenyAll(doc map[string]any) (*gojsonschema.Schema, error) {
 // offline. Rejections are the preflight's sentinels or ErrInvalidSchema.
 func CompileSchema(raw []byte) (*Schema, error) {
 	screened, err := preflightSchema(raw)
-	if err != nil {
+	if err = cmp.Or(err, checkNumberRange(screened.document)); err != nil {
 		return nil, err
 	}
 	meta, err := trustedMetaSchema()
@@ -153,16 +156,18 @@ func CompileSchema(raw []byte) (*Schema, error) {
 	return &Schema{compiled: compiled, patternProperties: screened.patternProperties}, nil
 }
 
-// Validate parses raw under the output caps, with at most 256 nodes when
-// the schema uses patternProperties, and validates it. It returns the parsed
-// value, the raw JSON sentinel of a cap, or a *ValidationError.
+// Validate parses raw under the output caps, with at most 256 nodes when the
+// schema uses patternProperties, and validates it. It returns the parsed value,
+// a raw JSON or range sentinel, or a *ValidationError. The pinned library
+// compares const, enum and uniqueItems numbers at float64 precision; bounds and
+// multipleOf are exact.
 func (s *Schema) Validate(raw []byte) (any, error) {
 	lim := outputValueLimits
 	if s.patternProperties {
 		lim.maxNodes = patternPropertiesMaxNodes
 	}
 	value, err := parseJSON(raw, lim)
-	if err != nil {
+	if err = cmp.Or(err, checkNumberRange(value)); err != nil {
 		return nil, err
 	}
 	result, err := s.compiled.Validate(gojsonschema.NewBytesLoader(raw))
@@ -185,6 +190,25 @@ func (s *Schema) Validate(raw []byte) (any, error) {
 		}
 	}
 	return nil, &ValidationError{Issues: issues}
+}
+
+// checkNumberRange rejects a number that overflows float64 before the library
+// sees it: the pinned library converts numbers to float64 for const, enum and
+// uniqueItems and dereferences a nil result when that fails. Underflow is safe.
+func checkNumberRange(v any) error {
+	switch v := v.(type) {
+	case json.Number:
+		if _, err := strconv.ParseFloat(string(v), 64); err != nil {
+			return ErrNumberOutOfRange
+		}
+	case map[string]any:
+		return checkNumberRange(slices.Collect(maps.Values(v)))
+	case []any:
+		if slices.ContainsFunc(v, func(child any) bool { return checkNumberRange(child) != nil }) {
+			return ErrNumberOutOfRange
+		}
+	}
+	return nil
 }
 
 // truncateUTF8 cuts s to at most n bytes, dropping a partial final rune.
