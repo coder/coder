@@ -2,8 +2,10 @@ package chatstate_test
 
 import (
 	"database/sql"
+	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -697,4 +699,150 @@ func TestHistoryChangeClearsRetryState(t *testing.T) {
 	require.False(t, after.RetryState.Valid)
 	require.Equal(t, bumped.SnapshotVersion, after.RetryStateVersion,
 		"history reset of generation_attempt clears retry_state")
+}
+
+// receiptContent is the stored content of a structured output receipt: a
+// short text fallback plus exactly one outcome part.
+func receiptContent(t *testing.T) string {
+	t.Helper()
+	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("done"),
+		{Type: codersdk.ChatMessagePartTypeStructuredOutputOutcome, StructuredOutputData: []byte(`{"request_id":"r"}`)},
+	})
+	require.NoError(t, err)
+	return string(raw.RawMessage)
+}
+
+// receiptRow is one row of a multi-row INSERT; a nil content inserts NULL.
+type receiptRow struct {
+	chat             uuid.UUID
+	role, visibility string
+	version          int
+	content          *string
+}
+
+// TestMessageInsertExemptsStructuredOutputReceipts verifies that only rows
+// with the exact receipt shape skip the history reset on INSERT while still
+// taking their revision from the snapshot.
+func TestMessageInsertExemptsStructuredOutputReceipts(t *testing.T) {
+	t.Parallel()
+	tf := newTriggerFixture(t)
+	f := tf.f
+	ctx := testutil.Context(t, testutil.WaitLong)
+	receipt := receiptContent(t)
+	str := func(s string) *string { return &s }
+	outcome := `{"type":"structured-output-outcome","structured_output_data":{"request_id":"r"}}`
+
+	// prepare returns a chat whose snapshot is ahead of its history with a
+	// generation in progress, so a reset is observable.
+	prepare := func() database.Chat {
+		chat := createTestChat(t, f).Chat
+		_, err := f.DB.IncrementChatGenerationAttempt(ctx, chat.ID)
+		require.NoError(t, err)
+		chat, err = f.DB.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(1), chat.GenerationAttempt)
+		require.Less(t, chat.HistoryVersion, chat.SnapshotVersion)
+		return chat
+	}
+	insert := func(rows ...receiptRow) {
+		query, args := `INSERT INTO chat_messages (chat_id, role, visibility, content_version, content) VALUES `, []any{}
+		for i, r := range rows {
+			if i > 0 {
+				query += ","
+			}
+			n := len(args)
+			query += fmt.Sprintf("($%d, $%d::chat_message_role, $%d::chat_message_visibility, $%d, $%d::jsonb)", n+1, n+2, n+3, n+4, n+5)
+			args = append(args, r.chat, r.role, r.visibility, r.version, r.content)
+		}
+		_, err := tf.sqlDB.ExecContext(ctx, query, args...)
+		require.NoError(t, err)
+	}
+	requireFence := func(t *testing.T, before database.Chat, kept bool) {
+		t.Helper()
+		after, err := f.DB.GetChatByID(ctx, before.ID)
+		require.NoError(t, err)
+		if kept {
+			require.Equal(t, before.HistoryVersion, after.HistoryVersion)
+			require.Equal(t, before.GenerationAttempt, after.GenerationAttempt)
+		} else {
+			require.Equal(t, before.SnapshotVersion, after.HistoryVersion)
+			require.Zero(t, after.GenerationAttempt)
+		}
+		var revision int64
+		require.NoError(t, tf.sqlDB.QueryRowContext(ctx, `SELECT revision FROM chat_messages WHERE chat_id = $1 ORDER BY id DESC LIMIT 1`, before.ID).Scan(&revision))
+		require.Equal(t, before.SnapshotVersion, revision)
+	}
+	receiptOf := func(chat uuid.UUID) receiptRow { return receiptRow{chat, "assistant", "user", 1, str(receipt)} }
+
+	for name, tc := range map[string]struct {
+		row  func(uuid.UUID) receiptRow
+		kept bool
+	}{
+		"Receipt":         {receiptOf, true},
+		"OutcomeOnly":     {func(c uuid.UUID) receiptRow { return receiptRow{c, "assistant", "user", 1, str(`[` + outcome + `]`)} }, true},
+		"RoleUser":        {func(c uuid.UUID) receiptRow { return receiptRow{c, "user", "user", 1, str(receipt)} }, false},
+		"RoleTool":        {func(c uuid.UUID) receiptRow { return receiptRow{c, "tool", "user", 1, str(receipt)} }, false},
+		"RoleSystem":      {func(c uuid.UUID) receiptRow { return receiptRow{c, "system", "user", 1, str(receipt)} }, false},
+		"VisibilityBoth":  {func(c uuid.UUID) receiptRow { return receiptRow{c, "assistant", "both", 1, str(receipt)} }, false},
+		"VisibilityModel": {func(c uuid.UUID) receiptRow { return receiptRow{c, "assistant", "model", 1, str(receipt)} }, false},
+		"ContentVersion0": {func(c uuid.UUID) receiptRow { return receiptRow{c, "assistant", "user", 0, str(receipt)} }, false},
+		"ContentVersion2": {func(c uuid.UUID) receiptRow { return receiptRow{c, "assistant", "user", 2, str(receipt)} }, false},
+		"TwoOutcomes": {func(c uuid.UUID) receiptRow {
+			return receiptRow{c, "assistant", "user", 1, str(`[` + outcome + `,` + outcome + `]`)}
+		}, false},
+		"OutcomeAndToolCall": {func(c uuid.UUID) receiptRow {
+			return receiptRow{c, "assistant", "user", 1, str(`[` + outcome + `,{"type":"tool-call","tool_call_id":"c"}]`)}
+		}, false},
+		"UntypedSibling": {func(c uuid.UUID) receiptRow {
+			return receiptRow{c, "assistant", "user", 1, str(`[` + outcome + `,{"text":"x"}]`)}
+		}, false},
+		"NestedInText": {func(c uuid.UUID) receiptRow {
+			return receiptRow{c, "assistant", "user", 1, str(`[{"type":"text","text":"x","nested":` + outcome + `}]`)}
+		}, false},
+		"NestedArray":   {func(c uuid.UUID) receiptRow { return receiptRow{c, "assistant", "user", 1, str(`[[` + outcome + `]]`)} }, false},
+		"ObjectContent": {func(c uuid.UUID) receiptRow { return receiptRow{c, "assistant", "user", 1, str(outcome)} }, false},
+		"StringContent": {func(c uuid.UUID) receiptRow {
+			return receiptRow{c, "assistant", "user", 1, str(`"structured-output-outcome"`)}
+		}, false},
+		"EmptyArray":  {func(c uuid.UUID) receiptRow { return receiptRow{c, "assistant", "user", 1, str(`[]`)} }, false},
+		"NullContent": {func(c uuid.UUID) receiptRow { return receiptRow{c, "assistant", "user", 1, nil} }, false},
+		"ControlOnly": {func(c uuid.UUID) receiptRow {
+			return receiptRow{c, "assistant", "user", 1, str(`[{"type":"structured-output-control"}]`)}
+		}, false},
+	} {
+		chat := prepare()
+		insert(tc.row(chat.ID))
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			requireFence(t, chat, tc.kept)
+		})
+	}
+
+	// A receipt batched with an ordinary row for the same chat keeps normal
+	// fencing, and a batch spanning chats is filtered per row.
+	mixed := prepare()
+	insert(receiptOf(mixed.ID), receiptRow{mixed.ID, "assistant", "both", 1, str(string(userMessageContent(t, "ordinary")))})
+	requireFence(t, mixed, false)
+	receiptChat, ordinaryChat := prepare(), prepare()
+	insert(receiptOf(receiptChat.ID), receiptRow{ordinaryChat.ID, "user", "both", 1, str(string(userMessageContent(t, "ordinary")))})
+	requireFence(t, receiptChat, true)
+	requireFence(t, ordinaryChat, false)
+
+	// Editing or soft-deleting a receipt still invalidates execution.
+	for _, stmt := range []string{
+		`UPDATE chat_messages SET content = '[{"type":"text","text":"edited"}]'::jsonb WHERE chat_id = $1`,
+		`UPDATE chat_messages SET deleted = true WHERE chat_id = $1 AND role = 'assistant'`,
+	} {
+		chat := prepare()
+		insert(receiptOf(chat.ID))
+		bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
+		require.NoError(t, err)
+		_, err = tf.sqlDB.ExecContext(ctx, stmt, chat.ID)
+		require.NoError(t, err)
+		after, err := f.DB.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, bumped.SnapshotVersion, after.HistoryVersion, stmt)
+		require.Zero(t, after.GenerationAttempt, stmt)
+	}
 }

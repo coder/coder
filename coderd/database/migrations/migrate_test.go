@@ -4115,3 +4115,48 @@ func TestMigration000599OAuth2RedirectURIsPrimary(t *testing.T) {
 	require.NoError(t, err)
 	assertRows()
 }
+
+// TestMigration000602ReceiptHistoryExemptionRoundTrip checks that the down
+// migration restores the previous insert trigger function text exactly and
+// drops the receipt predicate, and that the up migration applies again.
+func TestMigration000602ReceiptHistoryExemptionRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	query := func(q string) (s string) {
+		require.NoError(t, sqlDB.QueryRowContext(ctx, q).Scan(&s))
+		return s
+	}
+	const functionSource = `SELECT COALESCE((SELECT prosrc FROM pg_proc WHERE proname = 'update_chat_history_after_message_insert'), '')`
+	const predicates = `SELECT count(*)::text FROM pg_proc WHERE proname = 'chat_message_is_structured_output_receipt'`
+
+	// Record the definition right before 000602 without assuming which
+	// migration precedes it.
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	var previous string
+	for version := uint(0); version != 602; {
+		previous = query(functionSource)
+		var more bool
+		version, more, err = next()
+		require.NoError(t, err)
+		require.True(t, more, "migration 602 not found")
+	}
+	applied := query(functionSource)
+	require.NotEqual(t, previous, applied)
+	require.Equal(t, "1", query(predicates))
+
+	for _, file := range []string{"down", "up"} {
+		migration, err := os.ReadFile("000602_chat_message_receipt_history_exemption." + file + ".sql")
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, string(migration))
+		require.NoError(t, err)
+		if file == "down" {
+			require.Equal(t, previous, query(functionSource))
+			require.Equal(t, "0", query(predicates))
+		}
+	}
+	require.Equal(t, applied, query(functionSource))
+	require.Equal(t, "1", query(predicates))
+}
