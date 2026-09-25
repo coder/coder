@@ -27,7 +27,7 @@ var (
 )
 
 // writeRule calls WriteRule and requires success.
-func writeRule(ctx context.Context, t *testing.T, db database.Store, actor uuid.UUID, rule experiments.Rule, expected int64) (experiments.Rule, experiments.Rule, bool) {
+func writeRule(ctx context.Context, t *testing.T, db database.Store, actor uuid.UUID, rule experiments.Rule, expected int64) (oldRule, newRule experiments.Rule, changed bool) {
 	t.Helper()
 	oldRule, newRule, changed, err := experiments.WriteRule(ctx, db, actor, scoped, rule, expected)
 	require.NoError(t, err)
