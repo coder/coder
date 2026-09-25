@@ -1199,7 +1199,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					defer closeBlockedUsersFunc()
 				}
 				var unsubscribeProviderReload func()
-				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
+				aibridgeDaemon, unsubscribeProviderReload, err = NewAIBridgeDaemon(ctx, AIBridgeDaemonOptions{
+					API:           coderAPI,
+					Config:        vals.AI.BridgeConfig,
+					Registerer:    aibridgeReg,
+					BridgeMetrics: aibridgeMetrics,
+				})
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
 				}
