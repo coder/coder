@@ -512,6 +512,14 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	return r0
 }
 
+func (m queryMetricsStore) DeleteChatContextDiscoveredResource(ctx context.Context, arg database.DeleteChatContextDiscoveredResourceParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatContextDiscoveredResource(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteChatContextDiscoveredResource").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatContextDiscoveredResource").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatContextResourcesByChatID(ctx, chatID)
@@ -6317,6 +6325,14 @@ func (m queryMetricsStore) UpsertChatComputerUseProvider(ctx context.Context, pr
 	r0 := m.s.UpsertChatComputerUseProvider(ctx, provider)
 	m.queryLatencies.WithLabelValues("UpsertChatComputerUseProvider").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatComputerUseProvider").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertChatContextDiscoveredResource(ctx context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatContextDiscoveredResource(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertChatContextDiscoveredResource").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatContextDiscoveredResource").Inc()
 	return r0
 }
 

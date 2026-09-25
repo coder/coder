@@ -5095,6 +5095,8 @@ type ChatContextResource struct {
 	SourcePath string    `db:"source_path" json:"source_path"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	// True when chatd pinned the row from a directory a tool touched during the chat rather than copying it from the agent snapshot. Discovered rows are ignored by snapshot drift checks and are replaced by the snapshot copy once the agent starts publishing the same source.
+	Discovered bool `db:"discovered" json:"discovered"`
 }
 
 type ChatDebugRun struct {
