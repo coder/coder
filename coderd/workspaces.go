@@ -121,6 +121,11 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Forbidden(rw)
 			return
 		}
+		// The build was requested but does not exist.
+		if errors.Is(err, errWorkspaceBuildNotFound) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
 			Detail:  err.Error(),
@@ -358,9 +363,9 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 
 	data, err := api.singleWorkspaceData(ctx, workspace, related)
 	if err != nil {
-		// Preserve concealment: a template the actor cannot read is reported as
-		// not found rather than forbidden.
-		if errors.Is(err, errWorkspaceTemplateUnauthorized) {
+		// Preserve concealment: a template the actor cannot read, or a build
+		// that does not exist, is reported as not found rather than forbidden.
+		if errors.Is(err, errWorkspaceTemplateUnauthorized) || errors.Is(err, errWorkspaceBuildNotFound) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -368,13 +373,6 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 			Message: "Internal error fetching workspace resources.",
 			Detail:  err.Error(),
 		})
-		return
-	}
-
-	// A workspace always has a build, so its absence when requested means the
-	// workspace was not found. When the build is not requested it is omitted.
-	if related.LatestBuild != nil && len(data.builds) == 0 {
-		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -2842,11 +2840,17 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 // template means the read was denied.
 var errWorkspaceTemplateUnauthorized = xerrors.New("not authorized to read workspace template")
 
+// errWorkspaceBuildNotFound indicates the actor requested a workspace's latest
+// build but none exists. A workspace should always have a build, so an
+// absent-but-requested build means the workspace was not found.
+var errWorkspaceBuildNotFound = xerrors.New("workspace build not found")
+
 // singleWorkspaceData loads related data for one workspace. Unlike the batch
 // workspaceData, which omits templates the actor cannot read so list endpoints
 // can skip them, it returns errWorkspaceTemplateUnauthorized when the template
-// was requested but is absent. Callers map that error to the response their
-// endpoint requires (403, 404, or an SSE error).
+// was requested but is absent, and errWorkspaceBuildNotFound when the latest
+// build was requested but is absent. Callers map those errors to the response
+// their endpoint requires (403, 404, or an SSE error).
 func (api *API) singleWorkspaceData(ctx context.Context, workspace database.Workspace, cfg wsrelated.Config) (workspaceData, error) {
 	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, cfg)
 	if err != nil {
@@ -2856,6 +2860,9 @@ func (api *API) singleWorkspaceData(ctx context.Context, workspace database.Work
 		return t.ID == workspace.TemplateID
 	}) {
 		return workspaceData{}, errWorkspaceTemplateUnauthorized
+	}
+	if cfg.LatestBuild != nil && len(data.builds) == 0 {
+		return workspaceData{}, errWorkspaceBuildNotFound
 	}
 	return data, nil
 }
