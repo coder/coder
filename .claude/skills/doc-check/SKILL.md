@@ -1,6 +1,6 @@
 ---
 name: doc-check
-description: Checks if code changes require documentation updates
+description: Checks if code changes require documentation updates. Use when reviewing a PR or diff for missing, stale, or incorrect docs under docs/; to write or restructure docs, use write-docs.
 ---
 
 # Documentation Check Skill
@@ -163,9 +163,7 @@ second one, and how the Slack notice knows a review had findings. A
 comment without it reads as silence to everything downstream.
 
 After you post or edit, read the comment back and confirm the marker is
-there. If it is not, edit the comment to add it. This happened on
-`coder/coder#28723`: the review found a real gap, posted it without the
-marker, and the notice said "No docs needed".
+there. If it is not, edit the comment to add it.
 
 ### One comment per pull request
 

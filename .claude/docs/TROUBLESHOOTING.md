@@ -25,7 +25,7 @@
 
 1. **"package should be X_test"**
    - **Solution**: Use `package_test` naming for test files
-   - Example: `identityprovider_test` for black-box testing
+   - Example: `oauth2provider_test` for black-box testing
 
 2. **Race conditions in tests**
    - **Solution**: Use unique identifiers instead of hardcoded names
@@ -55,7 +55,7 @@
 
 1. **RFC compliance failures**
     - **Solution**: Verify against actual RFC specifications, not assumptions
-    - Use WebFetch tool to get current RFC content for compliance verification
+    - Fetch the current RFC text (for example, with your harness's web fetch tool) for compliance verification
     - Read the actual RFC specifications before implementation
 
 2. **Default value mismatches**
@@ -91,8 +91,8 @@
 
 ## Systematic Debugging Approach
 
-YOU MUST ALWAYS find the root cause of any issue you are debugging
-YOU MUST NEVER fix a symptom or add a workaround instead of finding a root cause, even if it is faster.
+Find the root cause of an issue before fixing it. Do not fix a symptom or
+add a workaround in place of a root-cause fix, even when the workaround is faster.
 
 ### Multi-Issue Problem Solving
 
@@ -118,20 +118,23 @@ When facing multiple failing tests or complex integration issues:
    - Verify Before Continuing: Did your test work? If not, form new hypothesis - don't add more fixes
    - Use `make lint` and `make gen` after database changes
    - Verify RFC compliance with actual specifications
-   - Run comprehensive test suites before considering complete
+   - Before handoff, run the affected packages' tests and the broader checks the changed area requires
 
 ## Debug Commands
 
 ### Useful Debug Commands
 
-| Command                                      | Purpose                               |
-|----------------------------------------------|---------------------------------------|
-| `make lint`                                  | Run all linters                       |
-| `make gen`                                   | Generate mocks, database queries      |
-| `go test -v ./path/to/package -run TestName` | Run specific test with verbose output |
-| `go test -race ./...`                        | Run tests with race detector          |
+| Command                                              | Purpose                               |
+|------------------------------------------------------|---------------------------------------|
+| `make lint`                                          | Run all linters                       |
+| `make gen`                                           | Generate mocks, database queries      |
+| `go test -v ./path/to/package -run TestName`         | Run specific test with verbose output |
+| `make test-race TEST_PACKAGES=./path/to/package/...` | Run tests with race detector          |
 
 ### LSP Debugging
+
+These are the Claude Code tool names from `.mcp.json`; other harnesses name
+the same language-server operations differently.
 
 #### Go LSP (Backend)
 
@@ -168,7 +171,7 @@ When facing multiple failing tests or complex integration issues:
 
 ### Go Compilation Errors
 
-**Error**: `package should be identityprovider_test`
+**Error**: `package should be oauth2provider_test`
 
 - **Cause**: Test package naming convention violation
 - **Solution**: Use `package_test` naming for black-box tests
@@ -201,16 +204,16 @@ When facing multiple failing tests or complex integration issues:
 
 ### During Development
 
-1. **Run tests frequently**: `make test`
-2. **Use LSP tools for navigation**: Avoid manual searching
+1. **Run targeted tests frequently**: `make test RUN=TestName`
+2. **Use a language server for symbol navigation when available**; use text search for strings, SQL, and config
 3. **Follow RFC specifications precisely**
 4. **Update audit tables when adding database fields**
 
 ### Before Committing
 
-1. **Run full test suite**: `make test`
+1. **Run the affected packages' tests**: `make test TEST_PACKAGES=./path/to/package/...`
 2. **Check linting**: `make lint`
-3. **Test with race detector**: `make test-race`
+3. **Run the race detector when the change touches concurrency**: `make test-race TEST_PACKAGES=./path/to/package/...`
 
 ## Getting Help
 

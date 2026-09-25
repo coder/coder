@@ -165,7 +165,7 @@ superseded by the canonical content guidelines.
 ### Instructions
 
 - **Numbered lists** for sequential steps
-- **Start with verb**: "Navigate to", "Click", "Select", "Run"
+- **Start with verb**: "Navigate to", "Select", "Run" (write `select`, not `click`; DOC6 in [docs/AGENTS.md](../../docs/AGENTS.md))
 - **Be specific**: Include exact button/menu names in bold
 
 ## Code Examples
@@ -276,7 +276,7 @@ Document exact values from code:
 
 ## Documentation Manifest
 
-**CRITICAL**: All documentation pages must be added to `docs/manifest.json` to appear in navigation. Read the manifest file to understand the structure and find the appropriate section for your documentation. Place new pages in logical sections matching the existing hierarchy.
+Add every documentation page to `docs/manifest.json`; pages missing from the manifest do not appear in navigation. Read the manifest file to understand the structure and find the appropriate section for your documentation. Place new pages in logical sections matching the existing hierarchy.
 
 ## Documentation lands with the change
 
@@ -372,7 +372,7 @@ When you rename or move a doc page, create a PR in coder/coder.com to add the re
 2. **Be precise** - Use exact numbers, permission names, and API paths for
    the values that belong on the page per
    [Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
-3. **Visual structure** - Organize around screenshots when available
+3. **Screenshots** - Include one only when the topic needs it; refer to [Screenshot policy](#screenshot-policy)
 4. **Link everything** - Related docs, API endpoints, CLI references
 5. **Manifest inclusion** - Add to manifest.json for navigation
 6. **Add redirects** - When moving/renaming pages, add redirects in coder/coder.com repo

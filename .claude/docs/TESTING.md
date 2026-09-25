@@ -54,7 +54,7 @@ dominate package wall time.
 ### Test Package Naming
 
 - **Black-box tests**: Default to a `package foo_test` test file (e.g.,
-  `identityprovider_test`). This is what the `testpackage` linter enforces.
+  `oauth2provider_test`). This is what the `testpackage` linter enforces.
 - **White-box / internal tests**: When a test needs to touch unexported
   symbols, put it in a file named `*_internal_test.go` with `package foo`.
   The `testpackage` linter's `skip-regexp` already exempts that filename
@@ -84,10 +84,12 @@ dominate package wall time.
 
 ```text
 coderd/
-├── oauth2.go                    # Implementation
-├── oauth2_test.go              # Main tests
-├── oauth2_test_helpers.go      # Test utilities
-└── oauth2_validation.go        # Validation logic
+├── oauth2.go                    # Route handlers that delegate to oauth2provider
+├── oauth2_test.go               # API-level tests
+└── oauth2provider/
+    ├── tokens.go                # Implementation
+    ├── tokens_test.go           # Black-box tests (package oauth2provider_test)
+    └── tokens_internal_test.go  # White-box tests (package oauth2provider)
 ```
 
 ### Test Categories
@@ -160,7 +162,7 @@ When facing multiple failing tests or complex integration issues:
    - Test each fix individually before moving to next issue
    - Use `make lint` and `make gen` after database changes
    - Verify RFC compliance with actual specifications
-   - Run comprehensive test suites before considering complete
+   - Before handoff, run the affected packages' tests and the broader checks the changed area requires
 
 ## Test Data Management
 
@@ -210,6 +212,8 @@ tests := []struct {
 
 for _, tt := range tests {
     t.Run(tt.name, func(t *testing.T) {
+        t.Parallel()
+
         result, err := functionUnderTest(tt.input)
         if tt.wantErr {
             require.Error(t, err)
@@ -236,13 +240,14 @@ require.True(t, condition)
 ### Load Testing
 
 - Use `scaletest/` directory for load testing scenarios
-- Run `./scaletest/scaletest.sh` for performance testing
+- Run load scenarios with `coder exp scaletest` (see `cli/exp_scaletest.go`);
+  the runner template lives in `scaletest/templates/scaletest-runner/`
 
 ### Benchmarking
 
 ```go
 func BenchmarkFunction(b *testing.B) {
-    for i := 0; i < b.N; i++ {
+    for b.Loop() {
         // Function call to benchmark
         _ = functionUnderTest(input)
     }

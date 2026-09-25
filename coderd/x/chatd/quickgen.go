@@ -34,7 +34,7 @@ import (
 
 const titleGenerationPrompt = "Write a short title for the user's message. " +
 	"Populate the title field with the result. " +
-	"Return only the title text in 2-8 words. " +
+	"Keep the title to 2-8 words. " +
 	"Do not answer the user or describe the title-writing task. " +
 	"Preserve specific identifiers such as PR numbers, repo names, file paths, function names, and error messages. " +
 	"If the message is short or vague, stay close to the user's wording instead of inventing context. " +
@@ -75,12 +75,12 @@ func generateQuickgenObject[T any](
 	var result *fantasy.ObjectResult[T]
 	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 		var genErr error
-		result, genErr = object.Generate[T](retryCtx, model, call)
+		result, genErr = generateObject[T](retryCtx, model, call)
 		if call.Temperature != nil && isTemperatureRejectedError(genErr) {
 			// The model rejects the temperature parameter. Drop it
 			// for this and any later retry attempts.
 			call.Temperature = nil
-			result, genErr = object.Generate[T](retryCtx, model, call)
+			result, genErr = generateObject[T](retryCtx, model, call)
 		}
 		return genErr
 	}, nil)
@@ -104,6 +104,49 @@ func isTemperatureRejectedError(err error) bool {
 	}
 	text := strings.ToLower(providerErr.Error() + " " + string(providerErr.ResponseBody))
 	return strings.Contains(text, "temperature")
+}
+
+// generateObject generates a structured object, falling back to
+// text-mode generation when the provider rejects the forced tool_choice
+// that tool-mode generation sends. Some models, such as Claude Opus 5.5,
+// return a bad request for tool_choice "tool" and "any", and gateway
+// model aliases cannot be matched by name.
+func generateObject[T any](
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	call fantasy.ObjectCall,
+) (*fantasy.ObjectResult[T], error) {
+	result, err := object.Generate[T](ctx, model, call)
+	if isToolChoiceRejectedError(err) {
+		return object.Generate[T](ctx, textObjectModel{LanguageModel: model}, call)
+	}
+	return result, err
+}
+
+// textObjectModel generates objects by parsing a JSON text response
+// instead of forcing a tool call.
+type textObjectModel struct {
+	fantasy.LanguageModel
+}
+
+func (m textObjectModel) GenerateObject(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	return object.GenerateWithText(ctx, m.LanguageModel, call)
+}
+
+// isToolChoiceRejectedError reports whether a provider rejected the
+// request because the model does not accept a forced tool_choice, for
+// example Anthropic's "tool_choice: type \"tool\" and \"any\" are not
+// supported for this model.".
+func isToolChoiceRejectedError(err error) bool {
+	var providerErr *fantasy.ProviderError
+	if !errors.As(err, &providerErr) {
+		return false
+	}
+	if providerErr.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	text := strings.ToLower(providerErr.Error() + " " + string(providerErr.ResponseBody))
+	return strings.Contains(text, "tool_choice")
 }
 
 const (
@@ -470,7 +513,13 @@ func (p *Server) maybeGenerateChatTitle(
 	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
 }
 
-const titleMaxOutputTokens = int64(256)
+// Quickgen caps leave room for adaptive thinking, which counts toward the cap
+// on models that think by default (Claude 5+). Keep them at or below 1024:
+// for older Claude models with a configured effort, fantasy derives a
+// budget_tokens thinking budget from the cap and enables thinking once it
+// reaches 1024, and Anthropic rejects thinking with tool-mode generation's
+// forced tool_choice.
+const titleMaxOutputTokens = int64(1024)
 
 func titleObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 	return resolved.newObjectCall("propose_title", "Propose a short chat title.", titleMaxOutputTokens)
@@ -905,7 +954,7 @@ func renderManualTitlePrompt(
 	}
 
 	write("\n\nRequirements:\n")
-	write("- Return only the title text in 2-8 words.\n")
+	write("- Keep the title to 2-8 words.\n")
 	write("- Populate the title field only.\n")
 	write("- Do not answer the user or describe the title-writing task.\n")
 	write("- Preserve specific identifiers (PR numbers, repo names, file paths, function names, error messages).\n")
@@ -1013,7 +1062,8 @@ const (
 	summaryTranscriptMaxRunes = 16000
 	// Cap a single turn so one long message cannot dominate the budget.
 	summaryTranscriptPerMessageMaxRunes = 4000
-	summaryMaxOutputTokens              = 512
+	// Includes thinking headroom; see titleMaxOutputTokens.
+	summaryMaxOutputTokens = 1024
 	// Reject pathologically long or verbose summaries.
 	summaryMaxRunes             = 750
 	summaryHeadlineMaxRunes     = 200
@@ -1154,7 +1204,7 @@ func generateChatSummary(
 	var result *fantasy.ObjectResult[generatedChatSummary]
 	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 		var genErr error
-		result, genErr = object.Generate[generatedChatSummary](retryCtx, model, call)
+		result, genErr = generateObject[generatedChatSummary](retryCtx, model, call)
 		return genErr
 	}, nil)
 	if err != nil {
@@ -1404,7 +1454,8 @@ const turnStatusLabelPrompt = "You write compact chat status labels for a sideba
 	"Prefer short action or state phrases such as Finished, Submitted, Fixed, Testing, Still working, or Waiting for. " +
 	"No quotes, emoji, markdown, or trailing punctuation."
 
-const turnStatusLabelMaxOutputTokens = int64(64)
+// Includes thinking headroom; see titleMaxOutputTokens.
+const turnStatusLabelMaxOutputTokens = int64(1024)
 
 func turnStatusLabelObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 	return resolved.newObjectCall("propose_turn_status_label", "Propose a compact chat status label.", turnStatusLabelMaxOutputTokens)
