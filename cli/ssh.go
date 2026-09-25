@@ -539,7 +539,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 
 			if stdio {
-				rawSSH, err := conn.SSH(ctx)
+				rawSSH, err := conn.SSHTCPConn(ctx)
 				if err != nil {
 					return xerrors.Errorf("connect SSH: %w", err)
 				}

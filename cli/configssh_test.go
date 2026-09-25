@@ -108,7 +108,7 @@ func TestConfigSSH(t *testing.T) {
 				break
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			ssh, err := agentConn.SSH(ctx)
+			ssh, err := agentConn.SSHTCPConn(ctx)
 			cancel()
 			assert.NoError(t, err)
 			wg.Add(2)

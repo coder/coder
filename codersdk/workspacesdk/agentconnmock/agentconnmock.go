@@ -485,10 +485,10 @@ func (mr *MockAgentConnMockRecorder) ResolvePath(ctx, path any) *gomock.Call {
 }
 
 // SSH mocks base method.
-func (m *MockAgentConn) SSH(ctx context.Context) (workspacesdk.TCPConn, error) {
+func (m *MockAgentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SSH", ctx)
-	ret0, _ := ret[0].(workspacesdk.TCPConn)
+	ret0, _ := ret[0].(*gonet.TCPConn)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -542,6 +542,21 @@ func (m *MockAgentConn) SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPC
 func (mr *MockAgentConnMockRecorder) SSHOnPort(ctx, port any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SSHOnPort", reflect.TypeOf((*MockAgentConn)(nil).SSHOnPort), ctx, port)
+}
+
+// SSHTCPConn mocks base method.
+func (m *MockAgentConn) SSHTCPConn(ctx context.Context) (workspacesdk.TCPConn, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SSHTCPConn", ctx)
+	ret0, _ := ret[0].(workspacesdk.TCPConn)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SSHTCPConn indicates an expected call of SSHTCPConn.
+func (mr *MockAgentConnMockRecorder) SSHTCPConn(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SSHTCPConn", reflect.TypeOf((*MockAgentConn)(nil).SSHTCPConn), ctx)
 }
 
 // SetExtraHeaders mocks base method.

@@ -123,7 +123,9 @@ type AgentConn interface {
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
 	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
 	BundleFiles(ctx context.Context, req BundleFilesRequest) ([]byte, error)
-	SSH(ctx context.Context) (TCPConn, error)
+	// Deprecated: Use SSHTCPConn instead.
+	SSH(ctx context.Context) (*gonet.TCPConn, error)
+	SSHTCPConn(ctx context.Context) (TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
 	SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error)
@@ -277,10 +279,16 @@ func (c *agentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 	return conn, nil
 }
 
-// SSH makes an HTTP request with the client session ID that then upgrades into
-// an SSH connection.  If the agent does not support the endpoint, falls back to
-// dialing the port directly.
-func (c *agentConn) SSH(ctx context.Context) (TCPConn, error) {
+// SSH pipes the SSH protocol over the returned gonet.TCPConn.
+// This connects to the built-in SSH server in the workspace agent.
+func (c *agentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
+	return c.SSHOnPort(ctx, AgentSSHPort)
+}
+
+// SSHTCPConn makes an HTTP request with the client session ID that then
+// upgrades into an SSH connection.  If the agent does not support the endpoint,
+// falls back to dialing the port directly.
+func (c *agentConn) SSHTCPConn(ctx context.Context) (TCPConn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -324,7 +332,7 @@ func (c *agentConn) SSHClient(ctx context.Context) (*ssh.Client, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	netConn, err := c.SSH(ctx)
+	netConn, err := c.SSHTCPConn(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("ssh: %w", err)
 	}
