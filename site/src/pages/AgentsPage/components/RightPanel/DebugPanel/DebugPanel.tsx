@@ -30,7 +30,7 @@ import {
 
 type DebugPanelProps = {
 	chatId: string;
-	isVisible?: boolean;
+	isVisible: boolean;
 	download?: DownloadDebugFile;
 };
 
@@ -100,7 +100,7 @@ const fetchDebugRunDetailsForExport = async (
 
 export const DebugPanel: FC<DebugPanelProps> = ({
 	chatId,
-	isVisible = false,
+	isVisible,
 	download = saveAs,
 }) => {
 	const runsQuery = useQuery({

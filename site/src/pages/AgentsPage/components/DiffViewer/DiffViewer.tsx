@@ -30,24 +30,24 @@ import { useActiveFileTracking } from "./useActiveFileTracking";
 
 type DiffViewerProps = {
 	parsedFiles: readonly FileDiffMetadata[];
-	isExpanded?: boolean;
+	isExpanded: boolean;
 	isLoading?: boolean;
 	error?: unknown;
 	emptyMessage?: string;
 	diffStyle: DiffStyle;
-	onLineNumberClick?: (
+	onLineNumberClick: (
 		fileName: string,
 		props: { lineNumber: number; annotationSide: "additions" | "deletions" },
 	) => void;
 	/** Fires when a line selection is committed (e.g. on pointer up). */
-	onLineSelected?: (fileName: string, range: SelectedLineRange | null) => void;
+	onLineSelected: (fileName: string, range: SelectedLineRange | null) => void;
 	/** Fires continuously as the selection range changes during a drag. */
-	onLineSelectionChange?: (
+	onLineSelectionChange: (
 		fileName: string,
 		range: SelectedLineRange | null,
 	) => void;
-	getLineAnnotations?: (fileName: string) => DiffLineAnnotation<string>[];
-	getSelectedLines?: (fileName: string) => SelectedLineRange | null;
+	getLineAnnotations: (fileName: string) => DiffLineAnnotation<string>[];
+	getSelectedLines: (fileName: string) => SelectedLineRange | null;
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
 	scrollToFile?: string | null;
 	onScrollToFileComplete?: () => void;
@@ -163,9 +163,9 @@ export function compareTreePaths(a: string, b: string): number {
 // count at 1 but must still re-render, so fold each annotation's side and line
 // into the version. Exported for unit tests.
 export function annotationsVersion(
-	annotations: readonly DiffLineAnnotation<string>[] | undefined,
+	annotations: readonly DiffLineAnnotation<string>[],
 ): number {
-	if (!annotations || annotations.length === 0) {
+	if (annotations.length === 0) {
 		return 0;
 	}
 	return annotations.reduce(
@@ -460,22 +460,22 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		enableGutterUtility: true,
 		onLineNumberClick: (props, item) => {
 			if (item.type === "diff" && props.type === "diff-line") {
-				onLineNumberClick?.(item.item.id, props);
+				onLineNumberClick(item.item.id, props);
 			}
 		},
 		onLineSelected: (range, item) => {
 			if (item.type === "diff") {
-				onLineSelected?.(item.item.id, range);
+				onLineSelected(item.item.id, range);
 			}
 		},
 		onLineSelectionChange: (range, item) => {
 			if (item.type === "diff") {
-				onLineSelectionChange?.(item.item.id, range);
+				onLineSelectionChange(item.item.id, range);
 			}
 		},
 		onGutterUtilityClick: (range, item) => {
 			if (item.type === "diff") {
-				onLineSelected?.(item.item.id, range);
+				onLineSelected(item.item.id, range);
 			}
 		},
 	};
@@ -487,7 +487,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	);
 
 	const items: CodeViewItem<string>[] = sortedFiles.map((fileDiff) => {
-		const annotations = getLineAnnotations?.(fileDiff.name);
+		const annotations = getLineAnnotations(fileDiff.name);
 		return {
 			id: fileDiff.name,
 			type: "diff",
@@ -498,7 +498,6 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	});
 
 	const selectedLines = (() => {
-		if (!getSelectedLines) return undefined;
 		for (const fileDiff of sortedFiles) {
 			const range = getSelectedLines(fileDiff.name);
 			if (range) return { id: fileDiff.name, range };

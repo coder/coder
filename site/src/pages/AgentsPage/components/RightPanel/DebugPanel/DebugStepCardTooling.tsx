@@ -54,7 +54,7 @@ type ToolEventCardProps = {
 	toolCallId?: string;
 	payloadLabel?: string;
 	payload?: string;
-	copyLabel?: string;
+	copyLabel: string;
 };
 
 export const ToolEventCard: FC<ToolEventCardProps> = ({
@@ -74,7 +74,7 @@ export const ToolEventCard: FC<ToolEventCardProps> = ({
 					</span>
 				) : null}
 			</div>
-			{payloadLabel && payload && copyLabel ? (
+			{payloadLabel && payload ? (
 				<ToolPayloadDisclosure
 					label={payloadLabel}
 					code={payload}

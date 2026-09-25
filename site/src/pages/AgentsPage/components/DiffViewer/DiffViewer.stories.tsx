@@ -43,8 +43,12 @@ const meta: Meta<typeof DiffViewer> = {
 	args: {
 		parsedFiles,
 		diffStyle: "unified" satisfies DiffStyle,
+		isExpanded: false,
 		onLineNumberClick: fn(),
 		onLineSelected: fn(),
+		onLineSelectionChange: fn(),
+		getLineAnnotations: () => [],
+		getSelectedLines: () => null,
 		onScrollToFileComplete: fn(),
 	},
 	decorators: [

@@ -81,20 +81,20 @@ const AgentPortsSubMenu: FC<{
 export const RightPanelAddTabControl: FC<{
 	workspace?: Workspace;
 	agent?: WorkspaceAgent;
-	host?: string;
-	isRunning?: boolean;
+	host: string;
+	isRunning: boolean;
 	supportedSingletonTabs: readonly SingletonRightPanelTabId[];
 	visibleSingletonTabs: readonly SingletonRightPanelTabId[];
 	onToggleSingletonTab: (tabId: SingletonRightPanelTabId) => void;
 	onNewTerminal: () => void;
-	onOpenWorkspaceApp?: (app: WorkspaceApp) => void;
-	onOpenCommandApp?: (app: WorkspaceApp) => void;
-	onOpenPort?: (selection: PortSelection) => void;
+	onOpenWorkspaceApp: (app: WorkspaceApp) => void;
+	onOpenCommandApp: (app: WorkspaceApp) => void;
+	onOpenPort: (selection: PortSelection) => void;
 }> = ({
 	workspace,
 	agent,
-	host = "",
-	isRunning = false,
+	host,
+	isRunning,
 	supportedSingletonTabs,
 	visibleSingletonTabs,
 	onToggleSingletonTab,
@@ -177,7 +177,7 @@ export const RightPanelAddTabControl: FC<{
 						<>
 							<DropdownMenuSeparator className="my-1" />
 							{userApps.map((app) => {
-								if (app.command && onOpenCommandApp) {
+								if (app.command) {
 									return (
 										<DropdownMenuItem
 											key={app.id}
@@ -197,7 +197,7 @@ export const RightPanelAddTabControl: FC<{
 										</DropdownMenuItem>
 									);
 								}
-								if (isWorkspaceAppEmbeddable(app) && onOpenWorkspaceApp) {
+								if (isWorkspaceAppEmbeddable(app)) {
 									return (
 										<DropdownMenuItem
 											key={app.id}
@@ -230,22 +230,19 @@ export const RightPanelAddTabControl: FC<{
 						</>
 					)}
 
-					{workspace &&
-						agent &&
-						onOpenPort &&
-						canShowPortForwarding(agent, host) && (
-							<>
-								<DropdownMenuSeparator className="my-1" />
-								<AgentPortsSubMenu
-									workspace={workspace}
-									agent={agent}
-									host={host}
-									isOpen={open}
-									isRunning={isRunning}
-									onPortSelect={onOpenPort}
-								/>
-							</>
-						)}
+					{workspace && agent && canShowPortForwarding(agent, host) && (
+						<>
+							<DropdownMenuSeparator className="my-1" />
+							<AgentPortsSubMenu
+								workspace={workspace}
+								agent={agent}
+								host={host}
+								isOpen={open}
+								isRunning={isRunning}
+								onPortSelect={onOpenPort}
+							/>
+						</>
+					)}
 				</DropdownMenuContent>
 			</DropdownMenu>
 		</div>

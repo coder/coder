@@ -14,7 +14,7 @@ import { DesktopToolbar, type ScaleMode } from "./DesktopToolbar";
 type DesktopPanelProps = {
 	chatId: string;
 	/** When true the panel is the active sidebar tab. */
-	isVisible?: boolean;
+	isVisible: boolean;
 };
 
 export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
@@ -116,7 +116,7 @@ export type DesktopPanelViewProps = {
 	isControlling: boolean;
 	onTakeControl: () => void;
 	onReleaseControl: () => void;
-	onPopOut?: () => void;
+	onPopOut: () => void;
 };
 
 export const DesktopPanelView: FC<DesktopPanelViewProps> = ({

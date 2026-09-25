@@ -68,20 +68,20 @@ type GitPanelProps = {
 	/** Called when the user clicks the Commit button for a working repo. */
 	onCommit: (repoRoot: string) => void;
 	/** Whether the panel is in expanded/fullscreen mode. */
-	isExpanded?: boolean;
+	isExpanded: boolean;
 	/** Whether the watcher is loading its initial repository state. */
-	isGitStatusLoading?: boolean;
+	isGitStatusLoading: boolean;
 	/** Diff status for the remote/branch view (includes PR metadata). */
 	remoteDiffStats?: ChatDiffStatus;
 	/** Ref to the chat input, forwarded to RemoteDiffPanel. */
-	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	chatInputRef: RefObject<ChatMessageInputRef | null>;
 	/**
 	 * Repo roots that have been dirty at some point during this session.
 	 * Used to keep a repo's entry visible after its diff goes empty, so
 	 * the view switcher does not visibly flip when the agent edits a
 	 * file and then reverts it.
 	 */
-	everDirty?: ReadonlySet<string>;
+	everDirty: ReadonlySet<string>;
 };
 
 function repoLabel(repoRoot: string): string {
@@ -113,7 +113,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	onRefresh,
 	onCommit,
 	isExpanded,
-	isGitStatusLoading = false,
+	isGitStatusLoading,
 	remoteDiffStats,
 	chatInputRef,
 	everDirty,
@@ -157,11 +157,9 @@ export const GitPanel: FC<GitPanelProps> = ({
 	// the watcher) so a clean-revert does not hide the entry.
 	const localRepos = (() => {
 		const roots = new Set<string>(repoStats.keys());
-		if (everDirty) {
-			for (const root of everDirty) {
-				if (repositories.has(root)) {
-					roots.add(root);
-				}
+		for (const root of everDirty) {
+			if (repositories.has(root)) {
+				roots.add(root);
 			}
 		}
 		return Array.from(roots).sort((a, b) => a.localeCompare(b));
@@ -579,8 +577,8 @@ const RemoteContent: FC<{
 	prTab?: { prNumber: number; chatId: string };
 	hasGitContext: boolean;
 	isGitStatusLoading: boolean;
-	isExpanded?: boolean;
-	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	isExpanded: boolean;
+	chatInputRef: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
 	diffStatus?: ChatDiffStatus;
 }> = ({
@@ -640,9 +638,9 @@ const LocalRepoContent: FC<{
 	repo: WorkspaceAgentRepoChanges | undefined;
 	diffStats: DiffStats;
 	onCommit: (repoRoot: string) => void;
-	isExpanded?: boolean;
+	isExpanded: boolean;
 	diffStyle: DiffStyle;
-	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	chatInputRef: RefObject<ChatMessageInputRef | null>;
 }> = ({
 	repoRoot,
 	repo,

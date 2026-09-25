@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import { saveAs } from "file-saver";
 import { ChevronDownIcon, DownloadIcon } from "lucide-react";
 import { type FC, useId, useState } from "react";
 import { useQuery } from "react-query";
@@ -38,7 +37,7 @@ type DebugRunCardProps = {
 	run: ChatDebugRunSummary;
 	chatId: string;
 	isVisible: boolean;
-	download?: DownloadDebugFile;
+	download: DownloadDebugFile;
 };
 
 // Max characters shown in the run header label before truncation.
@@ -64,7 +63,7 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 	run,
 	chatId,
 	isVisible,
-	download = saveAs,
+	download,
 }) => {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [isExporting, setIsExporting] = useState(false);
@@ -281,7 +280,7 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 								</section>
 							) : null}
 							{steps.map((step) => (
-								<DebugStepCard key={step.id} step={step} defaultOpen={false} />
+								<DebugStepCard key={step.id} step={step} />
 							))}
 							{steps.length === 0 ? (
 								<p className="text-sm text-content-secondary">
