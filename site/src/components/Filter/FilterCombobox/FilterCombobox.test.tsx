@@ -1217,9 +1217,11 @@ describe("FilterCombobox", () => {
 		await user.keyboard("{ArrowRight}");
 		await screen.findByRole("option", { name: "alice" });
 		await user.click(screen.getByRole("button", { name: "Clear all" }));
-
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
-		expect(input).toHaveValue("");
+		await user.type(input, "dev");
+		await user.keyboard("{Enter}");
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("dev"));
 	});
 
 	it("moves focus to the input when a focused Clear all is clicked", async () => {
