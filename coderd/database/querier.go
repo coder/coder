@@ -1388,6 +1388,19 @@ type sqlcQuerier interface {
 	// current minimum position for that chat, moving it to the head.
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
+	// Case-insensitive substring search over the user-visible messages of one
+	// chat, newest first. search_text concatenates text parts and, for tool
+	// parts, tool_name plus args and result serialized as JSON text, so tool rows
+	// match without decoding content outside the database but the query must
+	// match the serialized form (strings are quoted and escaped). Reasoning and
+	// file parts are excluded. The jsonb_typeof guard skips legacy V0 rows whose
+	// content is a scalar JSON string. Only excerpt_chars characters starting
+	// context_chars before the first hit are returned, never the whole message.
+	// hit_pos is measured on lower(search_text) and applied to search_text, which
+	// assumes lower() preserves character length (holds for libc UTF-8
+	// collations, not guaranteed under ICU). Paged on id like
+	// GetChatMessagesByChatIDDescPaginated because id is the append order.
+	SearchChatMessages(ctx context.Context, arg SearchChatMessagesParams) ([]SearchChatMessagesRow, error)
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
 	// for the table.

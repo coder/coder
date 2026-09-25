@@ -746,6 +746,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"read_skill",
 			"read_skill_file",
 			"ask_user_question",
+			"search_chat_messages",
 		), planMode, uuid.NullUUID{}, nil)
 
 		require.Equal(t, []string{
@@ -766,6 +767,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"read_skill",
 			"read_skill_file",
 			"ask_user_question",
+			"search_chat_messages",
 		}, got)
 	})
 
@@ -789,6 +791,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"read_skill",
 			"read_skill_file",
 			"ask_user_question",
+			"search_chat_messages",
 		), planMode, uuid.NullUUID{UUID: uuid.New(), Valid: true}, nil)
 
 		require.Equal(t, []string{
@@ -797,6 +800,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"process_output",
 			"read_skill",
 			"read_skill_file",
+			"search_chat_messages",
 		}, got)
 		require.NotContains(t, got, "write_file")
 		require.NotContains(t, got, "edit_files")
@@ -884,6 +888,7 @@ func TestAllowedExploreToolNames(t *testing.T) {
 		newTestAgentTool("read_skill"),
 		newTestAgentTool("read_skill_file"),
 		newTestAgentTool("ask_user_question"),
+		newTestAgentTool("search_chat_messages"),
 		newTestAgentTool(chattool.FindToolsName),
 	})
 
@@ -894,6 +899,7 @@ func TestAllowedExploreToolNames(t *testing.T) {
 		"process_output",
 		"read_skill",
 		"read_skill_file",
+		"search_chat_messages",
 	}, got)
 	require.NotContains(t, got, "workspace-mcp__echo")
 	require.NotContains(t, got, "start_workspace")

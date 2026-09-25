@@ -384,6 +384,10 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	}
 	require.NotContains(t, childCalls[0], "ask_user_question",
 		"subagent chat should NOT have ask_user_question")
+
+	// search_chat_messages is offered on root and subagent turns alike.
+	require.Contains(t, rootCalls[0], "search_chat_messages")
+	require.Contains(t, childCalls[0], "search_chat_messages")
 }
 
 func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {

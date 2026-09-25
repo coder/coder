@@ -461,6 +461,95 @@ ORDER BY
 LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 50);
 
+-- name: SearchChatMessages :many
+-- Case-insensitive substring search over the user-visible messages of one
+-- chat, newest first. search_text concatenates text parts and, for tool
+-- parts, tool_name plus args and result serialized as JSON text, so tool rows
+-- match without decoding content outside the database but the query must
+-- match the serialized form (strings are quoted and escaped). Reasoning and
+-- file parts are excluded. The jsonb_typeof guard skips legacy V0 rows whose
+-- content is a scalar JSON string. Only excerpt_chars characters starting
+-- context_chars before the first hit are returned, never the whole message.
+-- hit_pos is measured on lower(search_text) and applied to search_text, which
+-- assumes lower() preserves character length (holds for libc UTF-8
+-- collations, not guaranteed under ICU). Paged on id like
+-- GetChatMessagesByChatIDDescPaginated because id is the append order.
+WITH candidates AS (
+    SELECT
+        cm.id,
+        cm.created_at,
+        cm.role,
+        (
+            SELECT string_agg(
+                concat_ws(' ',
+                    part->>'text',
+                    part->>'tool_name',
+                    (part->'args')::text,
+                    (part->'result')::text
+                ),
+                ' ' ORDER BY ordinality)
+            FROM jsonb_array_elements(cm.content) WITH ORDINALITY AS t(part, ordinality)
+            WHERE part->>'type' IN ('text', 'tool-call', 'tool-result')
+        ) AS search_text,
+        (
+            SELECT part->>'tool_name'
+            FROM jsonb_array_elements(cm.content) WITH ORDINALITY AS t(part, ordinality)
+            WHERE part->>'type' IN ('tool-call', 'tool-result')
+                AND part->>'tool_name' IS NOT NULL
+            ORDER BY ordinality
+            LIMIT 1
+        ) AS tool_name
+    FROM
+        chat_messages cm
+    WHERE
+        cm.chat_id = @chat_id::uuid
+        AND cm.deleted = false
+        AND cm.visibility IN ('user', 'both')
+        AND jsonb_typeof(cm.content) = 'array'
+        AND CASE
+            WHEN sqlc.narg('role')::chat_message_role IS NULL THEN true
+            ELSE cm.role = sqlc.narg('role')::chat_message_role
+        END
+        AND CASE
+            WHEN @before_id::bigint > 0 THEN cm.id < @before_id::bigint
+            ELSE true
+        END
+        AND CASE
+            WHEN sqlc.narg('since')::timestamptz IS NULL THEN true
+            ELSE cm.created_at >= sqlc.narg('since')::timestamptz
+        END
+        AND CASE
+            WHEN sqlc.narg('until')::timestamptz IS NULL THEN true
+            ELSE cm.created_at <= sqlc.narg('until')::timestamptz
+        END
+), matched AS (
+    SELECT
+        c.*,
+        strpos(lower(c.search_text), lower(@query::text)) AS hit_pos
+    FROM
+        candidates c
+    WHERE
+        strpos(lower(c.search_text), lower(@query::text)) > 0
+)
+SELECT
+    m.id,
+    m.created_at,
+    m.role,
+    COALESCE(m.tool_name, '')::text AS tool_name,
+    m.hit_pos::int AS hit_pos,
+    char_length(m.search_text)::int AS text_length,
+    substr(
+        m.search_text,
+        GREATEST(m.hit_pos - @context_chars::int, 1),
+        @excerpt_chars::int
+    )::text AS excerpt
+FROM
+    matched m
+ORDER BY
+    m.id DESC
+LIMIT
+    @limit_val::int;
+
 -- name: GetChatUserPromptsByChatID :many
 -- Returns the concatenated text of each user-visible user prompt in a
 -- chat, newest first. Used by the composer to populate the up/down

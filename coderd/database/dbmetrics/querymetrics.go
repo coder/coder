@@ -5080,6 +5080,14 @@ func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest
 	return r0
 }
 
+func (m queryMetricsStore) SearchChatMessages(ctx context.Context, arg database.SearchChatMessagesParams) ([]database.SearchChatMessagesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.SearchChatMessages(ctx, arg)
+	m.queryLatencies.WithLabelValues("SearchChatMessages").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SearchChatMessages").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]database.UsageEvent, error) {
 	start := time.Now()
 	r0, r1 := m.s.SelectUsageEventsForPublishing(ctx, now)
