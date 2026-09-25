@@ -46,6 +46,11 @@ func (m *MockProvider) BridgedRoutes() []string     { return m.Bridged }
 func (m *MockProvider) PassthroughRoutes() []string { return m.Passthrough }
 func (*MockProvider) AuthHeader() string            { return "Authorization" }
 
+// ResolveCredential returns a fixed BYOK credential for tests.
+func (*MockProvider) ResolveCredential(*http.Request) (intercept.Credential, error) {
+	return intercept.BYOK{Secret: "test-key", Header: intercept.AuthHeaderAuthorization}, nil
+}
+
 func (*MockProvider) KeyPool() *keypool.Pool { return nil }
 func (*MockProvider) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig {
 	return keypool.KeyFailoverConfig{}

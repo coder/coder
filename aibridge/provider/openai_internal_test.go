@@ -280,6 +280,12 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 			setHeaders:  map[string]string{},
 			wantErr:     ErrNoCredential,
 		},
+		{
+			name:        "Responses_NoCredential",
+			route:       routeResponses,
+			requestBody: `{"model": "gpt-5", "input": "hello", "stream": true}`,
+			wantErr:     ErrNoCredential,
+		},
 	}
 
 	for _, tc := range tests {
