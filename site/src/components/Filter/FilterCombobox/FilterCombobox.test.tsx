@@ -1659,34 +1659,44 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it("highlights a category row after removing the chip that listed the highlighted row", async () => {
-		const { user, onChange, input } = setup(
-			[
-				ownerCategory,
-				{
-					key: "template",
-					label: "Template",
-					hideWhenSingleOption: true,
-					getOptions: async () => [{ label: "docker", value: "docker" }],
-				},
-			],
-			{ initialValue: "template:docker" },
-		);
+	it.each([
+		["the remove button", "click"],
+		["Backspace", "Backspace"],
+	])(
+		"highlights a category row after removing the chip that listed the highlighted row with %s",
+		async (_, removal) => {
+			const { user, onChange, input } = setup(
+				[
+					ownerCategory,
+					{
+						key: "template",
+						label: "Template",
+						hideWhenSingleOption: true,
+						getOptions: async () => [{ label: "docker", value: "docker" }],
+					},
+				],
+				{ initialValue: "template:docker" },
+			);
 
-		await user.click(input);
-		await screen.findByRole("option", { name: "Template" });
-		await user.keyboard("{ArrowDown}{Escape}");
-		await user.click(
-			screen.getByRole("button", { name: "Remove template:docker" }),
-		);
-		await user.click(input);
-		await user.keyboard("{Enter}");
-		await user.click(await screen.findByRole("option", { name: "alice" }));
+			await user.click(input);
+			await screen.findByRole("option", { name: "Template" });
+			await user.keyboard("{ArrowDown}{Escape}");
+			if (removal === "click") {
+				await user.click(
+					screen.getByRole("button", { name: "Remove template:docker" }),
+				);
+			} else {
+				await user.keyboard("{Backspace}");
+			}
+			await user.click(input);
+			await user.keyboard("{Enter}");
+			await user.click(await screen.findByRole("option", { name: "alice" }));
 
-		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
-		);
-	});
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+			);
+		},
+	);
 
 	it("moves focus to the input when a focused Clear all is clicked", async () => {
 		const { user, input } = setup(

@@ -277,6 +277,10 @@ export const useFilterCombobox = ({
 	// A pending typed-text lookup reads the chips of the last sent query when
 	// it resolves.
 	const emitQueryKeepingLookup = (query: string) => {
+		highlightCategoryListRow(
+			queryToChips(query, chipKeys),
+			getHighlightedValue(),
+		);
 		lastEmittedRef.current = query;
 		onChange(query);
 	};
@@ -679,12 +683,13 @@ export const useFilterCombobox = ({
 		dispatch({ type: "close" });
 	};
 
-	// Returning to the category list highlights the row that was open, so the
-	// keyboard position is never lost when the option rows unmount. When the
-	// open or highlighted category row is not in the menu, because the picked
-	// option hid it, a removed chip or Clear all no longer lists it, or the
-	// category was entered by typing its hidden key, the first row in the menu
-	// is highlighted instead; cmdk keeps a highlight that names no row.
+	// Highlights the category row `rowKey` in the menu that `nextChips`
+	// produce. When that row is not in it, because the picked option hid it, a
+	// removed chip no longer lists it, or the category was entered by typing
+	// its hidden key, the first row in the menu is highlighted instead; cmdk
+	// keeps a highlight that names no row. Every emitted query runs this for
+	// the current highlight, so a row that leaves the menu while it is closed
+	// is not left highlighted.
 	const highlightCategoryListRow = (
 		nextChips: string[],
 		rowKey = activeCategoryKey,
@@ -699,11 +704,11 @@ export const useFilterCombobox = ({
 			isInMenu(category, nextChips);
 		const nextHighlight = staysInMenu(row)
 			? row.key
-			: allSubmenuCategories.find(
-					(category) => category !== row && staysInMenu(category),
-				)?.key;
+			: allSubmenuCategories.find(staysInMenu)?.key;
 		setHighlightedValue(nextHighlight ?? "");
 	};
+	// Highlights the row that was open, so the keyboard position is never lost
+	// when the option rows unmount.
 	const returnToCategories = (nextChips = chipValues) => {
 		highlightCategoryListRow(nextChips);
 		dispatch({ type: "leaveCategory" });
@@ -976,8 +981,6 @@ export const useFilterCombobox = ({
 	const clearAll = () => {
 		if (activeCategoryKey !== null) {
 			returnToCategories([]);
-		} else {
-			highlightCategoryListRow([], getHighlightedValue());
 		}
 		dispatch({ type: "clear" });
 		emitQuery("");
@@ -986,11 +989,9 @@ export const useFilterCombobox = ({
 	// Chip removal leaves the popup, the input, and a pending typed-text lookup
 	// untouched.
 	const handleRemoveChip = (token: string) => {
-		const nextChips = chipValues.filter((entry) => entry !== token);
-		highlightCategoryListRow(nextChips, getHighlightedValue());
 		emitQueryKeepingLookup(
 			composeFilterQuery(
-				nextChips,
+				chipValues.filter((entry) => entry !== token),
 				chipKeys,
 				extractFreeText(lastEmittedRef.current, chipKeys),
 			),
