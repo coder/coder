@@ -17,13 +17,12 @@ const ownerCategory: FilterCategory = {
 
 const scopedOwnerCategory: FilterCategory = {
 	...ownerCategory,
-	chipKeys: ["owner", "user"],
 	scopeToggle: {
 		label: (owner) =>
 			owner
 				? `Include workspaces shared with ${owner}`
 				: "Include shared workspaces",
-		chipKey: "user",
+		widenedKey: "user",
 		pillLabel: "shared with owner",
 	},
 };
@@ -888,6 +887,30 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(search).toHaveFocus());
 	});
 
+	it("commits an owner value suggestion under the widened key", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory]);
+		await user.click(input);
+		await user.type(input, "ali");
+		await user.click(await screen.findByRole("option", { name: /alice/ }));
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+	});
+
+	it.each([
+		["owner", "owner:alice"],
+		["user", "user:alice"],
+	])(
+		"commits an explicitly typed %s prefix under that key",
+		async (key, query) => {
+			const { user, onChange, input } = setup([scopedOwnerCategory]);
+			await user.click(input);
+			await user.type(input, `${key}:ali`);
+			await user.keyboard("{Enter}");
+			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(query));
+		},
+	);
+
 	it("commits options under the scope toggle key by default", async () => {
 		const { user, onChange, filtersButton } = setup([scopedOwnerCategory]);
 
@@ -956,6 +979,48 @@ describe("FilterCombobox", () => {
 
 		await user.keyboard("{Backspace}");
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+	});
+
+	it("keeps typed search text when removing the scope pill", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			initialValue: "user:alice",
+			fakeTimers: true,
+		});
+
+		await user.click(input);
+		await user.type(input, "xyz");
+		await settleTypedText();
+		await user.click(
+			screen.getByRole("button", { name: "Remove shared with owner" }),
+		);
+
+		expect(onChange).toHaveBeenLastCalledWith("owner:alice xyz");
+	});
+
+	it("replaces both parsed Owner keys when selecting an option", async () => {
+		const { user, onChange, filtersButton } = setup([scopedOwnerCategory], {
+			initialValue: "owner:bob user:carol",
+		});
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowRight}");
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+	});
+
+	it("commits an owner value suggestion under the category key when narrowed", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			initialValue: "owner:bob",
+		});
+		await user.click(input);
+		await user.type(input, "ali");
+		await user.click(await screen.findByRole("option", { name: /alice/ }));
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
 	});
 
 	it("opens the Owner flyout with its toggle when typing shared", async () => {
@@ -1032,6 +1097,32 @@ describe("FilterCombobox", () => {
 		await settleTypedText();
 
 		expect(onChange).not.toHaveBeenCalledWith("owner:alice shared");
+	});
+
+	it("does not match the middle of the scope phrase as a category", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			initialValue: "owner:alice",
+			fakeTimers: true,
+		});
+		await user.click(input);
+		await user.type(input, "with");
+		await settleTypedText();
+
+		expect(onChange).toHaveBeenLastCalledWith("owner:alice with");
+	});
+
+	it("keeps free text when Enter targets a row listed by the scope phrase", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			initialValue: "owner:alice",
+			skipHover: true,
+		});
+		await user.click(input);
+		await user.type(input, "shared");
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice shared"),
+		);
 	});
 
 	it("clears the typed text when picking an owner from the scope flyout", async () => {

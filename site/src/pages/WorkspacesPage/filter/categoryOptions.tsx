@@ -96,9 +96,8 @@ const selfUserOption = (me: UserIdentity): FilterOption => ({
 	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="sm" />,
 });
 
-// Users who cannot list other users still filter by themselves, so the User
-// and Owner categories stay available (and their keys stay recognized chip
-// keys) with just the "you" option.
+// Users who cannot list other users still filter by themselves, so the Owner
+// category and both its keys stay available with just the "you" option.
 export const getSelfUserFilterOptions = async (
 	query: string,
 	me: UserIdentity,
@@ -115,7 +114,7 @@ export const getSelfUserFilterOptions = async (
 	return [];
 };
 
-// Shared by the User and Owner categories: both take a username value.
+// Shared by the Owner category for both `owner` and `user` tokens.
 export const getUserFilterOptions = async (
 	query: string,
 	me: UserIdentity,

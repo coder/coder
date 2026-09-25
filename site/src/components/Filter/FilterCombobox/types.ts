@@ -11,7 +11,7 @@ export type FilterOption = {
 	 * Explicit chip token committed when this option is selected, overriding the
 	 * default `${categoryKey}:${value}`. Used by categories that group several
 	 * query keys, e.g. an "Attributes" category whose options commit
-	 * `outdated:true`, `dormant:true`, or `shared:true`.
+	 * `outdated:true` or `dormant:true`.
 	 */
 	token?: string;
 };
@@ -25,9 +25,9 @@ export type FilterCategory = {
 	aliases?: readonly string[];
 	/**
 	 * Query keys this category owns for chip parsing. Defaults to `[key]`. A
-	 * category that commits several distinct boolean keys (e.g. Attributes
-	 * committing `outdated`, `dormant`, `shared`) lists them all so the query
-	 * round-trips them as chips instead of free text.
+	 * category that commits distinct boolean keys (e.g. Attributes committing
+	 * `outdated` and `dormant`) lists them all so the query round-trips them as
+	 * chips instead of free text.
 	 */
 	chipKeys?: readonly string[];
 	/** Render this category's options as top-level toggle rows instead of a submenu. */
@@ -48,17 +48,28 @@ export type FilterCategory = {
 	showWhenSingleOption?: boolean;
 	/**
 	 * Switch shown below the category's options, on by default. While on,
-	 * options commit under `chipKey` instead of the category key, e.g. Owner
+	 * options commit under `widenedKey` instead of the category key, e.g. Owner
 	 * committing `user:alice` (owned by or shared with alice) instead of
 	 * `owner:alice`. While the category has a chip, a pill after it shows
 	 * `pillLabel` while the switch is on, and removing the pill turns it off.
-	 * `chipKey` must also be listed in `chipKeys` so it parses as this
-	 * category's chip.
 	 */
 	scopeToggle?: {
 		/** Switch label for the category's applied value, if there is one. */
 		label: (value: string | undefined) => string;
-		chipKey: string;
+		widenedKey: string;
+		/**
+		 * Pill text, shown lowercased. A 3+ character prefix of the whole phrase
+		 * lists this category and opens its flyout.
+		 */
 		pillLabel: string;
 	};
 };
+
+export const categoryChipKeys = (
+	category: FilterCategory,
+): readonly string[] => [
+	...new Set([
+		...(category.chipKeys ?? [category.key]),
+		...(category.scopeToggle ? [category.scopeToggle.widenedKey] : []),
+	]),
+];

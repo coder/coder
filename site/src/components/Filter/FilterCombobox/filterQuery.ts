@@ -37,9 +37,10 @@ export const chipDisplay = (
 	const owner = categories.find(
 		(category) =>
 			category.key !== key.toLowerCase() &&
-			category.chipKeys?.includes(key.toLowerCase()),
+			((category.chipKeys ?? [category.key]).includes(key.toLowerCase()) ||
+				category.scopeToggle?.widenedKey === key.toLowerCase()),
 	);
-	if (owner?.scopeToggle?.chipKey === key.toLowerCase()) {
+	if (owner?.scopeToggle?.widenedKey === key.toLowerCase()) {
 		return { key: owner.key, value };
 	}
 	if (owner) {
@@ -53,15 +54,22 @@ export const chipDisplay = (
 // from a query string) and `dedupeChips` (pairs from existing tokens).
 const dedupeInOrder = (
 	pairs: Iterable<{ key: string; value: string }>,
+	groupKey: (key: string) => string = (key) => key,
 ): string[] => {
-	// Map keeps first-seen insertion order and updating a key does not move it,
-	// which is exactly "first-seen position, last-seen value".
-	const byKey = new Map<string, string>();
-	for (const { key, value } of pairs) {
-		byKey.set(key, value);
+	const byKey = new Map<string, { key: string; value: string }>();
+	for (const pair of pairs) {
+		byKey.set(groupKey(pair.key), pair);
 	}
-	return [...byKey].map(([key, value]) => chipToken(key, value));
+	return [...byKey.values()].map(({ key, value }) => chipToken(key, value));
 };
+
+const scopeGroupKey = (key: string, categories: readonly ChipDisplaySource[]) =>
+	categories.find(
+		(category) =>
+			category.scopeToggle &&
+			((category.chipKeys ?? [category.key]).includes(key) ||
+				category.scopeToggle.widenedKey === key),
+	)?.key ?? key;
 
 export const parseChipToken = (
 	token: string,
@@ -91,6 +99,7 @@ export const parseChipToken = (
 export const queryToChips = (
 	query: string,
 	chipKeys: readonly string[],
+	categories: readonly ChipDisplaySource[] = [],
 ): string[] => {
 	const pairs: { key: string; value: string }[] = [];
 	for (const { key, value } of parseFilterTokens(query)) {
@@ -99,7 +108,7 @@ export const queryToChips = (
 			pairs.push({ key: normalizedKey, value });
 		}
 	}
-	return dedupeInOrder(pairs);
+	return dedupeInOrder(pairs, (key) => scopeGroupKey(key, categories));
 };
 
 /**
@@ -109,6 +118,7 @@ export const queryToChips = (
 export const dedupeChips = (
 	tokens: readonly string[],
 	chipKeys: readonly string[],
+	categories: readonly ChipDisplaySource[] = [],
 ): string[] => {
 	const pairs: { key: string; value: string }[] = [];
 	for (const token of tokens) {
@@ -117,7 +127,7 @@ export const dedupeChips = (
 			pairs.push(parsed);
 		}
 	}
-	return dedupeInOrder(pairs);
+	return dedupeInOrder(pairs, (key) => scopeGroupKey(key, categories));
 };
 
 /**
@@ -149,8 +159,9 @@ export const composeFilterQuery = (
 	tokens: readonly string[],
 	chipKeys: readonly string[],
 	freeText: string,
+	categories: readonly ChipDisplaySource[] = [],
 ): string => {
-	const parts = dedupeChips(tokens, chipKeys).map((token) => {
+	const parts = dedupeChips(tokens, chipKeys, categories).map((token) => {
 		const separatorIndex = token.indexOf(":");
 		const key = token.slice(0, separatorIndex);
 		const value = token.slice(separatorIndex + 1);
@@ -167,6 +178,7 @@ export const composeFilterQuery = (
 type CategoryMatchSource = {
 	key: string;
 	label: string;
+	/** Additional typed prefixes that enter this category. */
 	aliases?: readonly string[];
 	/** Query key options commit under when it differs from `key`. */
 	chipKey?: string;
@@ -175,13 +187,21 @@ type CategoryMatchSource = {
 export const parseTypedCategoryPrefix = (
 	raw: string,
 	categories: readonly CategoryMatchSource[],
-): { categoryKey: string; query: string; freeText: string } | null => {
+): {
+	categoryKey: string;
+	query: string;
+	freeText: string;
+	typedKey: string;
+} | null => {
 	const resolveCategory = (typedKey: string) =>
 		categories.find((entry) => {
 			if (entry.key === typedKey || entry.label.toLowerCase() === typedKey) {
 				return true;
 			}
-			return entry.aliases?.some((alias) => alias.toLowerCase() === typedKey);
+			return (
+				entry.aliases?.some((alias) => alias.toLowerCase() === typedKey) ??
+				false
+			);
 		});
 
 	// Scan every `key:` fragment and keep the last one that resolves to a
@@ -211,6 +231,9 @@ export const parseTypedCategoryPrefix = (
 
 	return {
 		categoryKey: chosen.category.key,
+		typedKey:
+			raw.slice(chosen.index, chosen.end).split(":")[0]?.trim().toLowerCase() ??
+			"",
 		query: raw.slice(chosen.end),
 		freeText: raw.slice(0, chosen.index).trim(),
 	};

@@ -163,8 +163,7 @@ export function FilterCombobox({
 	const [highlightedCategoryKey, setHighlightedCategoryKey] = useState<
 		string | null
 	>(null);
-	// Typing a scope toggle label (e.g. `shared`) opens that category's flyout
-	// while its row is highlighted, so the toggle is visible.
+	// Typing a 3+ character prefix of a scope pill phrase finds the flyout.
 	const shownFlyoutKey =
 		flyoutCategoryKey ??
 		(!isCoarsePointer &&
@@ -249,7 +248,7 @@ export function FilterCombobox({
 	// open explicitly rather than through the scope match.
 	const toggleFlyoutScope = (categoryKey: string) => {
 		setFlyoutCategoryKey(categoryKey);
-		actions.toggleScope(categoryKey);
+		actions.toggleScope(categoryKey, true);
 	};
 	const selectFlyoutOption = (token: string) => {
 		actions.toggleCategoryOption(token);
@@ -450,14 +449,8 @@ export function FilterCombobox({
 														{scopePillLabel}
 													</span>
 												</TooltipTrigger>
-												<TooltipContent>
-													{splitIntoTwoLines(
-														scopeFor(category.key)?.label ?? "",
-													).map((line) => (
-														<span key={line} className="block">
-															{line}
-														</span>
-													))}
+												<TooltipContent className="max-w-64 text-balance">
+													{scopeFor(category.key)?.label ?? ""}
 												</TooltipContent>
 											</Tooltip>
 										</FilterComboboxChip>
@@ -894,30 +887,6 @@ function FlyoutSearch({
 }
 
 type ScopeState = Readonly<{ widened: boolean; label: string }>;
-
-/**
- * Splits text at the space nearest its middle, so a tooltip shows it as two
- * even lines and sizes to the longer one.
- */
-function splitIntoTwoLines(text: string): string[] {
-	const middle = text.length / 2;
-	let splitAt = -1;
-	for (
-		let index = text.indexOf(" ");
-		index !== -1;
-		index = text.indexOf(" ", index + 1)
-	) {
-		if (
-			splitAt === -1 ||
-			Math.abs(index - middle) < Math.abs(splitAt - middle)
-		) {
-			splitAt = index;
-		}
-	}
-	return splitAt === -1
-		? [text]
-		: [text.slice(0, splitAt), text.slice(splitAt + 1)];
-}
 
 type FlyoutScopeToggleProps = Readonly<{
 	categoryKey: string;

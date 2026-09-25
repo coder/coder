@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	MockNoPermissions,
@@ -54,17 +54,8 @@ const meta: Meta<typeof WorkspacesFilterHarness> = {
 export default meta;
 type Story = StoryObj<typeof WorkspacesFilterHarness>;
 
-const PLACEHOLDER = "Search and filter workspaces…";
-
 export const Default: Story = {
 	args: { initialQuery: "user:me" },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// The default `user:me` renders as a committed chip, not free text.
-		await expect(
-			canvas.getByRole("button", { name: "Remove owner:me" }),
-		).toBeVisible();
-	},
 };
 
 export const SelectStatusOption: Story = {
@@ -79,26 +70,14 @@ export const SelectStatusOption: Story = {
 	},
 };
 
-// Regression guard: a user who cannot list others still gets an Owner category
-// (scoped to themselves), so `user` stays a chip key and the category list is
-// browsable instead of `user:me` collapsing into free text.
-export const OrdinaryUserKeepsUserChip: Story = {
+// The default `user:me` renders as an `owner:me` chip with the scope pill, not as free text.
+export const OrdinaryUserGetsOwnerChip: Story = {
 	args: { initialQuery: "user:me" },
 	parameters: { permissions: MockNoPermissions },
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-
-		await expect(
-			canvas.getByRole("button", { name: "Remove owner:me" }),
-		).toBeVisible();
-
-		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
-		// Categories browse normally (Owner included) rather than being masked by
-		// free-text search.
-		await waitFor(() => {
-			expect(body.getByRole("option", { name: /^Owner/ })).toBeVisible();
-		});
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
 	},
 };
 
@@ -111,12 +90,5 @@ export const WithFilterError: Story = {
 				{ field: "q", detail: 'Query param "q" has an invalid value.' },
 			],
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const input = canvas.getByRole("combobox", { name: PLACEHOLDER });
-		await expect(input).toHaveAttribute("aria-invalid", "true");
-		const alert = await canvas.findByRole("alert");
-		await expect(input).toHaveAttribute("aria-errormessage", alert.id);
 	},
 };

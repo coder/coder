@@ -624,7 +624,7 @@ const scopedOwnerCategories: FilterCategory[] = [
 				owner
 					? `Include workspaces shared with ${owner}`
 					: "Include shared workspaces",
-			chipKey: "user",
+			widenedKey: "user",
 			pillLabel: "shared with owner",
 		},
 		getOptions: async (query) => filterOptions(ownerOptions, query),

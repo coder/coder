@@ -107,6 +107,36 @@ describe("filterQuery", () => {
 		).toEqual(["owner:alice", "status:running"]);
 	});
 
+	it("collapses owner and user keys to the last Owner chip", () => {
+		const categories = [
+			{
+				key: "owner",
+				chipKeys: ["owner", "user"],
+				scopeToggle: {
+					label: () => "Include shared workspaces",
+					widenedKey: "user",
+					pillLabel: "shared with owner",
+				},
+			},
+		];
+		const chipKeys = ["owner", "user"];
+
+		expect(queryToChips("owner:alice user:bob", chipKeys, categories)).toEqual([
+			"user:bob",
+		]);
+		expect(queryToChips("user:bob owner:alice", chipKeys, categories)).toEqual([
+			"owner:alice",
+		]);
+		expect(
+			composeFilterQuery(
+				["owner:bob", "user:carol", "user:alice"],
+				chipKeys,
+				"",
+				categories,
+			),
+		).toBe("user:alice");
+	});
+
 	it("matches typed category prefixes by key, label, and alias", () => {
 		const categories = [
 			{ key: "owner", label: "Owner", aliases: ["user"] },
@@ -115,16 +145,19 @@ describe("filterQuery", () => {
 
 		expect(parseTypedCategoryPrefix("owner:me", categories)).toEqual({
 			categoryKey: "owner",
+			typedKey: "owner",
 			query: "me",
 			freeText: "",
 		});
 		expect(parseTypedCategoryPrefix("user:", categories)).toEqual({
 			categoryKey: "owner",
+			typedKey: "user",
 			query: "",
 			freeText: "",
 		});
 		expect(parseTypedCategoryPrefix("Status:running", categories)).toEqual({
 			categoryKey: "status",
+			typedKey: "status",
 			query: "running",
 			freeText: "",
 		});
@@ -140,6 +173,7 @@ describe("filterQuery", () => {
 			]),
 		).toEqual({
 			categoryKey: "owner",
+			typedKey: "owner",
 			query: "al",
 			freeText: "has-agent:connected",
 		});
@@ -150,6 +184,7 @@ describe("filterQuery", () => {
 
 		expect(parseTypedCategoryPrefix("pink owner:", categories)).toEqual({
 			categoryKey: "owner",
+			typedKey: "owner",
 			query: "",
 			freeText: "pink",
 		});
@@ -157,6 +192,7 @@ describe("filterQuery", () => {
 			parseTypedCategoryPrefix("pink-mockingbird-23 user:al", categories),
 		).toEqual({
 			categoryKey: "owner",
+			typedKey: "user",
 			query: "al",
 			freeText: "pink-mockingbird-23",
 		});
@@ -267,6 +303,22 @@ describe("chipDisplay", () => {
 		{ key: "owner" },
 		{ key: "attribute", chipKeys: ["outdated", "dormant", "shared"] },
 	];
+
+	it("displays widened user tokens using the Owner category", () => {
+		expect(
+			chipDisplay("user:alice", [
+				{
+					key: "owner",
+					chipKeys: ["owner", "user"],
+					scopeToggle: {
+						label: (value: string | undefined) => `Include ${value}`,
+						widenedKey: "user",
+						pillLabel: "shared with owner",
+					},
+				},
+			]),
+		).toEqual({ key: "owner", value: "alice" });
+	});
 
 	it("shows single-key chips as-is", () => {
 		expect(chipDisplay("owner:me", categories)).toEqual({
