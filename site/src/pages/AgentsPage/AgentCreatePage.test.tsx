@@ -137,7 +137,7 @@ describe("AgentCreatePage debug deep link", () => {
 		);
 	});
 
-	it("does not prefill again on a later history entry that carries the param", async () => {
+	it("moves the build ID out of the URL so New chat gets a plain composer", async () => {
 		enableExperiment();
 		const { uploadChatFile, createChat } = mockPageQueries();
 		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
@@ -146,6 +146,10 @@ describe("AgentCreatePage debug deep link", () => {
 		const { router } = renderPage();
 
 		await findEnabledSendButton();
+		expect(router.state.location).toMatchObject({
+			search: "?archived=archived",
+			state: { debugWorkspaceBuildId: failedBuild.id },
+		});
 		// The layout's links forward location.search to a new history entry.
 		await router.navigate({
 			pathname: "/agents",
