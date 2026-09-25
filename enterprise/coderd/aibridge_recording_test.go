@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -228,6 +229,23 @@ func TestEmbeddedAIGatewayRecordsContentByDefault(t *testing.T) {
 	tokens, err := dep.db.GetAIBridgeTokenUsagesByInterceptionID(ctx, intc.ID)
 	require.NoError(t, err)
 	require.Len(t, tokens, 1)
+
+	// Records carry the time the event happened, so every record of an
+	// interception falls within that interception's lifetime. Stamping them on
+	// the delivery goroutine instead allowed a record to be stamped after the
+	// interception it belongs to had ended.
+	require.False(t, intc.StartedAt.IsZero(), "interception was not stamped")
+	require.True(t, intc.EndedAt.Valid)
+	require.False(t, intc.EndedAt.Time.Before(intc.StartedAt), "ended before it started")
+	for name, createdAt := range map[string]time.Time{
+		"prompt":      prompts[0].CreatedAt,
+		"tool usage":  tools[0].CreatedAt,
+		"token usage": tokens[0].CreatedAt,
+	} {
+		require.False(t, createdAt.IsZero(), "%s was not stamped", name)
+		require.False(t, createdAt.Before(intc.StartedAt), "%s predates its interception", name)
+		require.False(t, createdAt.After(intc.EndedAt.Time), "%s outlives its interception", name)
+	}
 
 	// Structured logging is off by default, so nothing is exported.
 	require.Empty(t, dep.logs.interceptionRecords(t))
