@@ -1508,6 +1508,7 @@ type Snapshot struct {
 	UserSecretsSummary                   *UserSecretsSummary                   `json:"user_secrets_summary"`
 	TemplateBuilderSessions              []TemplateBuilderSession              `json:"template_builder_sessions"`
 	PremiumFunnelEvents                  []PremiumFunnelEvent                  `json:"premium_funnel_events"`
+	WorkspaceBuildDebugEvents            []WorkspaceBuildDebugEvent            `json:"workspace_build_debug_events"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -2540,6 +2541,27 @@ type PremiumFunnelEvent struct {
 	AttributionID uuid.UUID `json:"attribution_id"`
 	UserID        uuid.UUID `json:"user_id"`
 	CreatedAt     time.Time `json:"created_at"`
+}
+
+// Steps of the failed workspace build debug funnel. These are set by coderd
+// rather than the client so that a step cannot be forged.
+const (
+	WorkspaceBuildDebugEventClick = "click"
+)
+
+// WorkspaceBuildDebugEvent tracks a click on the "Debug with Coder Agents"
+// action shown for a failed workspace build. The workspace and build fields
+// come from the build itself so the workspace's later builds can be joined to
+// the click.
+type WorkspaceBuildDebugEvent struct {
+	ID               uuid.UUID `json:"id"`
+	EventType        string    `json:"event_type"`
+	UserID           uuid.UUID `json:"user_id"`
+	WorkspaceID      uuid.UUID `json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
+	Transition       string    `json:"transition"`
+	Reason           string    `json:"reason"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, client string, summary database.CalculateAIBridgeInterceptionsTelemetrySummaryRow) AIBridgeInterceptionsSummary {

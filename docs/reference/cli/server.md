@@ -1248,6 +1248,16 @@ Disable workspace sharing. Workspace ACL checking is disabled and only owners ca
 
 Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.
 
+### --disable-chat-caller-supplied-tools
+
+|             |                                                        |
+|-------------|--------------------------------------------------------|
+| Type        | <code>bool</code>                                      |
+| Environment | <code>$CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS</code> |
+| YAML        | <code>disableChatCallerSuppliedTools</code>            |
+
+Disable caller-supplied tools in chats. Chat requests that include unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing chats run without their dynamic tools and inline MCP servers.
+
 ### --disable-workspace-agent-context-sync
 
 |             |                                                          |
