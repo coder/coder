@@ -11,11 +11,12 @@ import (
 )
 
 // HandlerTransport returns an [http.RoundTripper] that serves each request
-// with h in the calling process. RoundTrip returns when h writes the
-// response header. The body streams through an [io.Pipe], so SSE and
-// chunked responses arrive as h writes them. When the request context
-// ends, a body read returns the context error. When h panics, the status
-// is 500 and a body read returns an error.
+// with h in the calling process. RoundTrip returns when h commits the
+// response header: on WriteHeader, Write, or Flush, or when h returns.
+// The body streams through an [io.Pipe], so SSE and chunked responses
+// arrive as h writes them. When the request context ends, a body read
+// returns the context error. When h panics, the status is 500 and a body
+// read returns an error.
 func HandlerTransport(h http.Handler) http.RoundTripper {
 	return &handlerTransport{handler: h}
 }
@@ -123,10 +124,12 @@ func (w *pipeResponseWriter) Write(p []byte) (int, error) {
 	return w.body.Write(p)
 }
 
-// Flush is a no-op because each pipe write returns only after the reader
-// consumes it. It satisfies [http.Flusher], so handlers that type-assert it
-// for SSE do not fall back to buffering.
-func (*pipeResponseWriter) Flush() {}
+// Flush commits the response header with status 200 if the handler has not
+// written it, as net/http does. Body bytes need no flush, because each pipe
+// write returns only after the reader consumes it.
+func (w *pipeResponseWriter) Flush() {
+	w.WriteHeader(http.StatusOK)
+}
 
 var (
 	_ http.ResponseWriter = (*pipeResponseWriter)(nil)
