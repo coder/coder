@@ -2696,6 +2696,14 @@ export interface ChatMessage {
 	readonly role: ChatMessageRole;
 	readonly content?: readonly ChatMessagePart[];
 	readonly usage?: ChatMessageUsage;
+	/**
+	 * QueuedMessageID is the ID of the queued message this message was
+	 * promoted from. It matches ChatQueuedMessage.ID in the response that
+	 * queued the message. It is nil when the message was not promoted from
+	 * the queue (edits create a new message without it) or when a server
+	 * version that did not record the link created it.
+	 */
+	readonly queued_message_id?: number;
 }
 
 // From codersdk/chats.go
@@ -3567,6 +3575,7 @@ export interface ChatToolResultPart {
 	readonly mcp_server_config_id?: string;
 	readonly result?: unknown;
 	readonly result_delta?: string;
+	readonly reasoning_delta?: string;
 	readonly result_reset?: boolean;
 	readonly is_error?: boolean;
 	readonly is_media?: boolean;

@@ -1,3 +1,7 @@
+---
+toc_depth: 2
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # Configuration reference
 
@@ -433,7 +437,7 @@ These options change the behavior of how clients interact with the Coder. Client
 
 ### CLI upgrade message
 
-The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.
+The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -fsSL https://coder.com/install.sh | sh'.
 
 - Environment variable: `CODER_CLI_UPGRADE_MESSAGE`
 - CLI flag: [`--cli-upgrade-message`](../../reference/cli/server.md#--cli-upgrade-message)
@@ -1806,7 +1810,10 @@ How often to reconcile workspace prebuilds state.
 - YAML key: `workspace_prebuilds.reconciliation_interval`
 - Default value: `1m0s`
 
-## ⚠️ Dangerous
+## Dangerous
+
+> [!CAUTION]
+> These options can break your deployment or weaken its security. Change them only when you understand the consequences.
 
 ### Allow path app sharing
 

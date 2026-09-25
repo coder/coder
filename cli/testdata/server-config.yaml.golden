@@ -623,7 +623,7 @@ client:
   # (default: <unset>, type: string-array)
   sshConfigOptions: []
   # The upgrade message to display to users when a client/server mismatch is
-  # detected. By default it instructs users to update using 'curl -L
+  # detected. By default it instructs users to update using 'curl -fsSL
   # https://coder.com/install.sh | sh'.
   # (default: <unset>, type: string)
   cliUpgradeMessage: ""

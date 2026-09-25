@@ -77,7 +77,7 @@ export const SelectStatusOption: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Toggle filters" }),
 		);
-		await userEvent.click(await body.findByRole("option", { name: "Status" }));
+		await userEvent.click(await body.findByRole("option", { name: /^Status/ }));
 		await userEvent.click(
 			await body.findByRole("option", { name: /running/i }),
 		);
@@ -113,12 +113,9 @@ export const OrdinaryUserKeepsUserChip: Story = {
 		// Categories browse normally (User and Owner included) rather than being
 		// masked by free-text search.
 		await waitFor(() => {
-			const names = body
-				.getAllByRole("option")
-				.map((option) => option.textContent?.trim());
-			expect(names).toEqual(
-				expect.arrayContaining(["Status", "User", "Owner"]),
-			);
+			expect(body.getByRole("option", { name: /^Status/ })).toBeVisible();
+			expect(body.getByRole("option", { name: /^User/ })).toBeVisible();
+			expect(body.getByRole("option", { name: /^Owner/ })).toBeVisible();
 		});
 	},
 };
