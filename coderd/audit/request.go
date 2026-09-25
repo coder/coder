@@ -278,7 +278,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.ChatOperationalSettings:
 		return typed.ID
 	case database.ExperimentRule:
-		// Derived from the experiment name; see database.ExperimentRule.
+		// Derived from the experiment name by experiments.AuditRecord.
 		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))

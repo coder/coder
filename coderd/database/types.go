@@ -84,7 +84,8 @@ type ChatOperationalSettings struct {
 
 // ExperimentRule is the audited form of one runtime experiment rule. The
 // rule itself is stored as JSON in site_configs. ID is derived from the
-// experiment name so that audit history groups by experiment.
+// experiment name (experiments.AuditRecord) so that audit history groups by
+// experiment.
 type ExperimentRule struct {
 	ID         uuid.UUID `db:"id" json:"id"`
 	Experiment string    `db:"experiment" json:"experiment"`
