@@ -214,7 +214,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	const hoverLayout =
 		"[@media(hover:hover)]:hover:-ml-[5px] [@media(hover:hover)]:hover:-mr-2 [@media(hover:hover)]:hover:pl-[5px] [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
 	const activeLayout =
-		"has-[[aria-current=page]]:-ml-[5px] has-[[aria-current=page]]:-mr-2 has-[[aria-current=page]]:pl-[3px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l-2 has-[[aria-current=page]]:border-content-secondary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[3px]";
+		"has-[[aria-current=page]]:-ml-[5px] has-[[aria-current=page]]:-mr-2 has-[[aria-current=page]]:pl-[3px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l-2 has-[[aria-current=page]]:border-content-disabled [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[3px]";
 	const sharedMenuItemProps = {
 		chat,
 		canManage,
