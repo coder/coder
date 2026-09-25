@@ -62,7 +62,7 @@ type RemoteDiffPanelProps = {
 	isExpanded: boolean;
 	chatInputRef: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
-	diffStatus?: TypesGen.ChatDiffStatus;
+	diffStatus: TypesGen.ChatDiffStatus;
 };
 
 export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
@@ -77,7 +77,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	// ---------------------------------------------------------------
 	const diffContentsQuery = useQuery({
 		...chatDiffContents(chatId),
-		enabled: Boolean(diffStatus?.url),
+		enabled: Boolean(diffStatus.url),
 	});
 
 	const diffContent = diffContentsQuery.data?.diff;
@@ -106,10 +106,10 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	// ---------------------------------------------------------------
 	// Header content
 	// ---------------------------------------------------------------
-	const pullRequestUrl = diffStatus?.url;
+	const pullRequestUrl = diffStatus.url;
 	const parsedPr = pullRequestUrl ? parsePullRequestUrl(pullRequestUrl) : null;
-	const baseBranch = diffStatus?.base_branch;
-	const headBranch = diffStatus?.head_branch;
+	const baseBranch = diffStatus.base_branch;
+	const headBranch = diffStatus.head_branch;
 
 	// ---------------------------------------------------------------
 	// Render
@@ -143,7 +143,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 						)}
 					</div>
 					<div className="ml-auto flex shrink-0 items-center gap-1.5">
-						{diffStatus?.additions || diffStatus?.deletions ? (
+						{diffStatus.additions || diffStatus.deletions ? (
 							<DiffStatBadge
 								additions={diffStatus.additions}
 								deletions={diffStatus.deletions}

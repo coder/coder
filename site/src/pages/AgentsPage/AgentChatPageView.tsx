@@ -341,10 +341,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
-	const parsedPrNumber = Number(
-		parsePullRequestUrl(chat.diff_status?.url)?.number,
-	);
-	const prNumber = chat.diff_status?.pr_number ?? (parsedPrNumber || undefined);
+	const diffStatus = chat.diff_status;
+	const parsedPrNumber = Number(parsePullRequestUrl(diffStatus?.url)?.number);
+	const prNumber = diffStatus?.pr_number ?? (parsedPrNumber || undefined);
+	const prTab =
+		diffStatus && prNumber
+			? { prNumber, chatId: agentId, diffStatus }
+			: undefined;
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -685,9 +688,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			case "git":
 				return (
 					<GitPanel
-						prTab={
-							prNumber && agentId ? { prNumber, chatId: agentId } : undefined
-						}
+						prTab={prTab}
 						repositories={gitWatcher.repositories}
 						everDirty={gitWatcher.everDirty}
 						isGitStatusLoading={
@@ -697,7 +698,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						onRefresh={handleRefresh}
 						onCommit={handleCommit}
 						isExpanded={visualExpanded}
-						remoteDiffStats={chat.diff_status}
+						remoteDiffStats={diffStatus}
 						chatInputRef={editing.chatInputRef}
 					/>
 				);

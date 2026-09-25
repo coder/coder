@@ -92,6 +92,23 @@ const makePrStatus = (
 	...overrides,
 });
 
+/** GitPanel args for a chat with a PR, as `AgentChatPageView` builds them. */
+const makePrArgs = (
+	prNumber: number,
+	overrides: Partial<ChatDiffStatus> = {},
+) => {
+	const diffStatus = makePrStatus(overrides);
+	return {
+		prTab: { prNumber, chatId: "test-chat", diffStatus },
+		remoteDiffStats: diffStatus,
+	};
+};
+
+const emptyPrStatus: ChatDiffStatus = {
+	...defaultDiffStatus,
+	pr_number: 23020,
+};
+
 // ---------------------------------------------------------------------------
 // Meta
 // ---------------------------------------------------------------------------
@@ -132,8 +149,7 @@ type Story = StoryObj<typeof GitPanel>;
 /** PR is open with a title, head/base branches, and working changes. */
 export const PullRequestAndWorkingChanges: Story = {
 	args: {
-		prTab: { prNumber: 23020, chatId: "test-chat" },
-		remoteDiffStats: makePrStatus(),
+		...makePrArgs(23020),
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
 	},
 	beforeEach: () => {
@@ -150,8 +166,7 @@ export const PullRequestAndWorkingChanges: Story = {
  */
 export const ViewSwitcherOpen: Story = {
 	args: {
-		prTab: { prNumber: 23020, chatId: "test-chat" },
-		remoteDiffStats: makePrStatus({
+		...makePrArgs(23020, {
 			pull_request_title: "feat: multi-repo workspace support",
 			head_branch: "feat/multi-repo",
 		}),
@@ -197,8 +212,7 @@ export const ViewSwitcherOpen: Story = {
 /** Draft PR with head/base branches. */
 export const DraftPullRequest: Story = {
 	args: {
-		prTab: { prNumber: 22950, chatId: "test-chat" },
-		remoteDiffStats: makePrStatus({
+		...makePrArgs(22950, {
 			url: "https://github.com/coder/coder/pull/22950",
 			pull_request_title: "fix: resolve race condition in workspace builds",
 			pull_request_draft: true,
@@ -222,8 +236,7 @@ export const DraftPullRequest: Story = {
 /** Merged PR. */
 export const MergedPullRequest: Story = {
 	args: {
-		prTab: { prNumber: 23000, chatId: "test-chat" },
-		remoteDiffStats: makePrStatus({
+		...makePrArgs(23000, {
 			url: "https://github.com/coder/coder/pull/23000",
 			pull_request_title: "chore: update dependencies to latest",
 			pull_request_state: "merged",
@@ -244,8 +257,7 @@ export const MergedPullRequest: Story = {
 /** Closed PR. */
 export const ClosedPullRequest: Story = {
 	args: {
-		prTab: { prNumber: 22800, chatId: "test-chat" },
-		remoteDiffStats: makePrStatus({
+		...makePrArgs(22800, {
 			url: "https://github.com/coder/coder/pull/22800",
 			pull_request_title: "feat: experimental websocket transport",
 			pull_request_state: "closed",
@@ -286,8 +298,7 @@ export const WorkingChangesOnly: Story = {
 /** Multiple repos with working changes. */
 export const MultipleRepos: Story = {
 	args: {
-		prTab: { prNumber: 23020, chatId: "test-chat" },
-		remoteDiffStats: makePrStatus({
+		...makePrArgs(23020, {
 			pull_request_title: "feat: multi-repo workspace support",
 			head_branch: "feat/multi-repo",
 			additions: 500,
@@ -315,10 +326,14 @@ export const MultipleRepos: Story = {
 	},
 };
 
-/** No remote changes, no working changes — empty state. */
+/**
+ * PR number known but no URL, remote changes, or working changes yet;
+ * empty state.
+ */
 export const EmptyState: Story = {
 	args: {
-		prTab: { prNumber: 23020, chatId: "test-chat" },
+		prTab: { prNumber: 23020, chatId: "test-chat", diffStatus: emptyPrStatus },
+		remoteDiffStats: emptyPrStatus,
 	},
 };
 
@@ -344,8 +359,7 @@ export const GitStatusLoading: Story = {
  */
 export const InlineCommentInput: Story = {
 	args: {
-		prTab: { prNumber: 23020, chatId: "test-chat" },
-		remoteDiffStats: makePrStatus(),
+		...makePrArgs(23020),
 	},
 	decorators: [
 		(Story) => (
