@@ -6,7 +6,10 @@ import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
-import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import {
+	createTestQueryClient,
+	renderComponent,
+} from "#/testHelpers/renderHelpers";
 import { createMockWebSocket } from "#/testHelpers/websockets";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
@@ -98,4 +101,26 @@ describe("Tool workspace lifecycle rows", () => {
 			}
 		},
 	);
+});
+
+describe("Tool generic rows", () => {
+	it("falls back to the tool name when the model intent is whitespace", () => {
+		renderComponent(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<Tool
+					name="custom_tool"
+					status="completed"
+					args={{ query: "value" }}
+					isError={false}
+					modelIntent="   "
+					subagentTitles={new Map()}
+					subagentVariants={new Map()}
+					shellToolDisplayMode="auto"
+					codeDiffDisplayMode="auto"
+				/>
+			</QueryClientProvider>,
+		);
+
+		expect(screen.getByRole("button")).toHaveAccessibleName("custom_tool");
+	});
 });
