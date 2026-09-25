@@ -514,6 +514,7 @@ func seedA1WithMixedOutstandingToolCalls(t *testing.T, f *testFixture, queuedExt
 			Content:       userMessageContent(t, body),
 			ModelConfigID: uuid.NullUUID{UUID: f.Model.ID, Valid: true},
 			CreatedBy:     createdBy,
+			BusyBehavior:  database.ChatBusyBehaviorQueue,
 		})
 		require.NoError(t, err)
 		queuedIDs = append(queuedIDs, queued.ID)

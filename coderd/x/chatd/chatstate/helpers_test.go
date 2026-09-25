@@ -27,7 +27,7 @@ func (r *recordingPubsub) ownershipPublishCount() int {
 }
 
 // sendQueuedMessage seeds one queued user message via SendMessage with
-// BusyBehaviorQueue. The chat must already be in a state that allows
+// ChatBusyBehaviorQueue. The chat must already be in a state that allows
 // SendMessage (typically R0, R1, or I*).
 func sendQueuedMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, body string) chatstate.SendMessageResult {
 	t.Helper()
@@ -37,7 +37,7 @@ func sendQueuedMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, b
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(body, f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorQueue,
+			BusyBehavior: database.ChatBusyBehaviorQueue,
 		})
 		return err
 	}))
@@ -45,7 +45,7 @@ func sendQueuedMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, b
 }
 
 // sendInterruptMessage seeds one queued user message via SendMessage
-// with BusyBehaviorInterrupt. From R0/R1 this transitions the chat to
+// with ChatBusyBehaviorInterrupt. From R0/R1 this transitions the chat to
 // `interrupting` and appends the new user message to the queue tail.
 func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, body string) chatstate.SendMessageResult {
 	t.Helper()
@@ -55,7 +55,7 @@ func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(body, f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			BusyBehavior: database.ChatBusyBehaviorInterrupt,
 		})
 		return err
 	}))

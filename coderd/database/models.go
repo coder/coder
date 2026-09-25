@@ -1422,6 +1422,67 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type ChatBusyBehavior string
+
+const (
+	ChatBusyBehaviorQueue     ChatBusyBehavior = "queue"
+	ChatBusyBehaviorSteer     ChatBusyBehavior = "steer"
+	ChatBusyBehaviorInterrupt ChatBusyBehavior = "interrupt"
+)
+
+func (e *ChatBusyBehavior) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatBusyBehavior(s)
+	case string:
+		*e = ChatBusyBehavior(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatBusyBehavior: %T", src)
+	}
+	return nil
+}
+
+type NullChatBusyBehavior struct {
+	ChatBusyBehavior ChatBusyBehavior `json:"chat_busy_behavior"`
+	Valid            bool             `json:"valid"` // Valid is true if ChatBusyBehavior is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatBusyBehavior) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatBusyBehavior, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatBusyBehavior.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatBusyBehavior) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatBusyBehavior), nil
+}
+
+func (e ChatBusyBehavior) Valid() bool {
+	switch e {
+	case ChatBusyBehaviorQueue,
+		ChatBusyBehaviorSteer,
+		ChatBusyBehaviorInterrupt:
+		return true
+	}
+	return false
+}
+
+func AllChatBusyBehaviorValues() []ChatBusyBehavior {
+	return []ChatBusyBehavior{
+		ChatBusyBehaviorQueue,
+		ChatBusyBehaviorSteer,
+		ChatBusyBehaviorInterrupt,
+	}
+}
+
 type ChatClientType string
 
 const (
@@ -5253,6 +5314,8 @@ type ChatQueuedMessage struct {
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	// queue: delivered at turn end. steer and interrupt: delivered before the next model call, together with every older row.
+	BusyBehavior ChatBusyBehavior `db:"busy_behavior" json:"busy_behavior"`
 }
 
 type ChatTable struct {

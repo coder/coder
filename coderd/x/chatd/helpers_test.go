@@ -454,7 +454,7 @@ func interruptChat(t *testing.T, f *workerTestFixture, chatID uuid.UUID) databas
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(t, "interrupt", f.user.ID, f.model.ID, f.apiKey.ID),
-			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			BusyBehavior: database.ChatBusyBehaviorInterrupt,
 		})
 		return err
 	}))

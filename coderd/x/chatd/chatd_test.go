@@ -1584,7 +1584,7 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	result, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:       chat.ID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+		BusyBehavior: database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	require.True(t, result.Queued)
@@ -1596,6 +1596,7 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Len(t, queued, 1)
+	require.Equal(t, database.ChatBusyBehaviorQueue, queued[0].BusyBehavior)
 
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
@@ -1718,7 +1719,7 @@ func TestMessageFileLinking(t *testing.T) {
 			codersdk.ChatMessageText("queued attachment"),
 			codersdk.ChatMessageFile(fileQueued, "image/png", "queued.png"),
 		},
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+		BusyBehavior: database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	require.True(t, queuedResult.Queued)
@@ -2083,7 +2084,7 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 		ChatID:        chat.ID,
 		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued b")},
 		ModelConfigID: modelConfigB.ID,
-		BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+		BusyBehavior:  database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	require.True(t, queuedB.Queued)
@@ -2092,7 +2093,7 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 		ChatID:        chat.ID,
 		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued c")},
 		ModelConfigID: modelConfigC.ID,
-		BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+		BusyBehavior:  database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	require.True(t, queuedC.Queued)
@@ -3203,7 +3204,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 			CreatedBy:     user.ID,
 			ModelConfigID: model.ID,
 			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued after interrupt")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
+			BusyBehavior:  database.ChatBusyBehaviorInterrupt,
 		})
 		require.NoError(t, err)
 		require.True(t, queued.Queued)
@@ -3313,7 +3314,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 			CreatedBy:     user.ID,
 			ModelConfigID: model.ID,
 			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue after interrupt")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
+			BusyBehavior:  database.ChatBusyBehaviorInterrupt,
 		})
 		require.NoError(t, err)
 		require.True(t, queued.Queued)
@@ -3413,7 +3414,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 			CreatedBy:     user.ID,
 			ModelConfigID: model.ID,
 			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue after provider interrupt")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
+			BusyBehavior:  database.ChatBusyBehaviorInterrupt,
 		})
 		require.NoError(t, err)
 		require.True(t, queued.Queued)
@@ -3523,7 +3524,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 			CreatedBy:     user.ID,
 			ModelConfigID: model.ID,
 			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue after mixed interrupt")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
+			BusyBehavior:  database.ChatBusyBehaviorInterrupt,
 		})
 		require.NoError(t, err)
 		require.True(t, queued.Queued)
@@ -3609,7 +3610,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 			CreatedBy:     user.ID,
 			ModelConfigID: model.ID,
 			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue after reasoning")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
+			BusyBehavior:  database.ChatBusyBehaviorInterrupt,
 		})
 		require.NoError(t, err)
 		require.True(t, queued.Queued)
@@ -6756,7 +6757,7 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 		CreatedBy:     user.ID,
 		ModelConfigID: model.ID,
 		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
-		BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+		BusyBehavior:  database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 
@@ -6798,7 +6799,7 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 		CreatedBy:     user.ID,
 		ModelConfigID: model.ID,
 		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
-		BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+		BusyBehavior:  database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	waitForChatStatus(ctx, t, db, planChat.ID, database.ChatStatusWaiting)
@@ -6931,7 +6932,7 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 			CreatedBy:     user.ID,
 			ModelConfigID: model.ID,
 			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+			BusyBehavior:  database.ChatBusyBehaviorQueue,
 		})
 		require.NoError(t, err)
 		waitForTerminalChat(ctx, t, db, chat.ID)
@@ -7808,7 +7809,7 @@ func TestActiveServer_AnthropicSanitizesProviderToolBeforeRequest(t *testing.T) 
 		CreatedBy:     user.ID,
 		ModelConfigID: model.ID,
 		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
-		BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+		BusyBehavior:  database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 
@@ -7915,7 +7916,7 @@ func TestActiveServer_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 			CreatedBy:     user.ID,
 			ModelConfigID: model.ID,
 			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+			BusyBehavior:  database.ChatBusyBehaviorQueue,
 		})
 		require.NoError(t, err)
 
@@ -7951,7 +7952,7 @@ func TestActiveServer_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 			CreatedBy:     user.ID,
 			ModelConfigID: model.ID,
 			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+			BusyBehavior:  database.ChatBusyBehaviorQueue,
 		})
 		require.NoError(t, err)
 
@@ -11169,7 +11170,7 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 			CreatedBy:     user.ID,
 			ModelConfigID: model.ID,
 			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
-			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+			BusyBehavior:  database.ChatBusyBehaviorQueue,
 		})
 		require.NoError(t, err)
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
@@ -13676,7 +13677,7 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 			ChatID:       chat.ID,
 			CreatedBy:    user.ID,
 			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("new")},
-			BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+			BusyBehavior: database.ChatBusyBehaviorQueue,
 		})
 		require.NoError(t, err)
 		require.NotEmpty(t, result.InsertedMessages)
@@ -13734,6 +13735,7 @@ func insertQueuedMessage(
 		Content:       content.RawMessage,
 		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 		CreatedBy:     createdBy,
+		BusyBehavior:  database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	return queued
@@ -13763,6 +13765,7 @@ func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
 		ReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
 		CreatedBy:       user.ID,
+		BusyBehavior:    database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	require.True(t, queued.ReasoningEffort.Valid)

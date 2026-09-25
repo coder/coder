@@ -1110,19 +1110,6 @@ type CreateOptions struct {
 	DynamicTools            json.RawMessage
 }
 
-// SendMessageBusyBehavior controls what happens when a chat is already active.
-type SendMessageBusyBehavior string
-
-const (
-	// SendMessageBusyBehaviorQueue queues user messages while the chat is busy.
-	SendMessageBusyBehaviorQueue SendMessageBusyBehavior = "queue"
-	// SendMessageBusyBehaviorInterrupt queues the message and
-	// interrupts the active run. The queued message is
-	// auto-promoted after the interrupted assistant response is
-	// persisted, ensuring correct message ordering.
-	SendMessageBusyBehaviorInterrupt SendMessageBusyBehavior = "interrupt"
-)
-
 // SendMessageOptions controls user message insertion with busy-state behavior.
 type SendMessageOptions struct {
 	ChatID          uuid.UUID
@@ -1130,9 +1117,11 @@ type SendMessageOptions struct {
 	Content         []codersdk.ChatMessagePart
 	ModelConfigID   uuid.UUID
 	ReasoningEffort *string
-	BusyBehavior    SendMessageBusyBehavior
-	PlanMode        *database.NullChatPlanMode
-	MCPServerIDs    *[]uuid.UUID
+	// BusyBehavior controls what happens when the chat is already
+	// active. An empty value means queue.
+	BusyBehavior database.ChatBusyBehavior
+	PlanMode     *database.NullChatPlanMode
+	MCPServerIDs *[]uuid.UUID
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1447,10 +1436,10 @@ func (p *Server) SendMessage(
 
 	busyBehavior := opts.BusyBehavior
 	if busyBehavior == "" {
-		busyBehavior = SendMessageBusyBehaviorQueue
+		busyBehavior = database.ChatBusyBehaviorQueue
 	}
 	switch busyBehavior {
-	case SendMessageBusyBehaviorQueue, SendMessageBusyBehaviorInterrupt:
+	case database.ChatBusyBehaviorQueue, database.ChatBusyBehaviorInterrupt:
 	default:
 		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
 	}
@@ -1547,7 +1536,7 @@ func (p *Server) SendMessage(
 		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      message,
-			BusyBehavior: busyBehaviorToChatState(busyBehavior),
+			BusyBehavior: busyBehavior,
 		})
 		if err != nil {
 			return err
