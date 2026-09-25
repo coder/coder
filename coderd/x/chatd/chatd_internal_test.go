@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
@@ -3861,5 +3862,31 @@ func TestServerOrganizationName(t *testing.T) {
 
 		require.Equal(t, "", server.organizationName(t.Context(), orgID))
 		require.Equal(t, "acme", server.organizationName(t.Context(), orgID))
+	})
+}
+
+func TestChatKind(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, chatloop.ChatKindRoot, chatKind(database.Chat{}))
+	require.Equal(t, chatloop.ChatKindSubagent, chatKind(database.Chat{
+		ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+	}))
+}
+
+func TestWithStageIdentity(t *testing.T) {
+	t.Parallel()
+
+	tracer, recorder := newStageTestTracer(t)
+	ctx := withStageIdentity(t.Context(), chatloop.ScopeTurn, chatloop.ChatKindSubagent, "acme")
+	_, span := tracer.Start(ctx, chatloop.StageCommit)
+	span.End(nil)
+
+	ended := recorder.Ended()
+	require.Len(t, ended, 1)
+	require.Subset(t, ended[0].Attributes(), []attribute.KeyValue{
+		attribute.String(chatloop.AttrScope, string(chatloop.ScopeTurn)),
+		attribute.String(chatloop.AttrChatKind, string(chatloop.ChatKindSubagent)),
+		attribute.String(chatloop.AttrOrganizationName, "acme"),
 	})
 }

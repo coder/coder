@@ -659,18 +659,6 @@ For every matching chat, it locks it, checks if the chat still meets the aforeme
 
 When a chat is successfully acquired, the acquisition loop requests the [Runner manager](#runner-manager) to spawn a chat runner for it.
 
-### Capacity wait
-
-The [Concurrent agent limiter](#concurrent-agent-limiter) can refuse an otherwise acquirable chat when its pool is full. The acquisition loop remembers, per chat, when this worker first saw the chat refused for capacity, together with the chat's `history_version` and `updated_at` at that refusal. A refused acquisition rolls back, so the refusal itself changes neither value. When the same worker later acquires the chat, it records a `capacity_wait` stage through `chatloop.StageTracer` from that first refusal to the acquisition, as a span and as an observation on `coderd_chatd_stage_duration_seconds`. The stage is recorded only when both values are unchanged and the chat is still `running`. Any change to either value (a new prompt, another replica acquiring or abandoning the chat, or an unrelated write to the chat row) discards the wait start, and the next refusal starts a new one. Chats admitted on their first attempt record nothing.
-
-The bookkeeping is local to the worker. The wait start is dropped when the worker skips the chat for a reason other than capacity (it is owned by a live runner, archived, deleted, or no longer runnable), and entries for chats that have left the candidate set are pruned only when the candidate batch is shorter than its limit, since a chat missing from a truncated batch may still be waiting. The map is touched only by the acquisition goroutine.
-
-The recorded wait is a lower bound, for three reasons:
-
-- The capacity limit is deployment-wide but the refusal history is per worker. A chat refused on one replica and acquired by another is measured from the acquiring replica's first refusal, or not at all if that replica admitted it on its first attempt.
-- A replica restart discards its history.
-- A chat gets a wait start only once it is within the first `2 * AcquisitionBatchSize` candidate rows. Under a deeper backlog, the time a chat spends outside that window is not counted.
-
 ### Load balancing
 
 The design doesn't attempt to distribute load between workers fairly. Whenever a chat needs an owner, all replicas race to acquire it. If there's a coder replica that has a lower latency to the database, it'll tend to acquire chats more frequently than other replicas.

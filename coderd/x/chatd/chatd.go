@@ -4901,6 +4901,15 @@ func chatKind(chat database.Chat) chatloop.ChatKind {
 	return chatloop.ChatKindRoot
 }
 
+// withStageIdentity returns ctx carrying the scope, chat kind, and
+// organization name that stages started or recorded on it and on
+// contexts derived from it take.
+func withStageIdentity(ctx context.Context, scope chatloop.Scope, kind chatloop.ChatKind, organization string) context.Context {
+	ctx = chatloop.ContextWithScope(ctx, scope)
+	ctx = chatloop.ContextWithChatKind(ctx, kind)
+	return chatloop.ContextWithOrganization(ctx, organization)
+}
+
 func (p *Server) goInflight(f func()) error {
 	if p.inflightClosed.Load() {
 		return errInflightClosed
