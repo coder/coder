@@ -193,8 +193,8 @@ type FilterComboboxItemProps = ComponentProps<typeof CommandPrimitive.Item>;
 
 /**
  * A dropdown row. Rows are actions, not toggles: pass `onSelect` to run the
- * row's behavior (open a category, add a chip, navigate to a result). cmdk
- * calls `onSelect` on click and on Enter for the highlighted row.
+ * row's behavior (open a category or add a chip). cmdk calls `onSelect` on
+ * click and on Enter for the highlighted row.
  */
 export const FilterComboboxItem: FC<FilterComboboxItemProps> = ({
 	className,
