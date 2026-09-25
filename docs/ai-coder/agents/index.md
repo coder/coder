@@ -261,9 +261,10 @@ tasks:
 | `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment                                                                                              |
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                                                                                    |
 | `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                                                                                              |
-| `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                                                                                               |
-| `message_agent`                             | Send a follow-up message to a running sub-agent                                                                                                                       |
-| `interrupt_agent`                           | Halt a sub-agent's current turn; it transitions to waiting or running if there are queued messages                                                                    |
+| `wait_agent`                                | Return the latest visible assistant message when a sub-agent is no longer running or interrupting                                                                     |
+| `message_agent`                             | Send a prioritized message from the root chat to a sub-agent, or from a sub-agent to its direct parent                                                                |
+| `queue_agent_work`                          | Schedule additional work after the current assignment and older queued work without interrupting active work                                                          |
+| `interrupt_agent`                           | Request interruption without adding an instruction or removing queued work                                                                                            |
 | `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard)                                                                                              |
 | `list_agents`                               | List spawned child agents, most recently active first                                                                                                                 |
 | `read_skill`                                | Read the instructions for a workspace skill by name                                                                                                                   |
@@ -275,11 +276,9 @@ These tools connect to the workspace over the same secure connection used for
 web terminals and IDE access. No additional ports or services are required in
 the workspace.
 
-Platform tools (`list_templates`, `read_template`, `create_workspace`,
-`start_workspace`, `stop_workspace`, `propose_plan`, `ask_user_question`) and orchestration tools (`spawn_agent`,
-`list_subagent_models`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`)
-are only available to root chats. Sub-agents do not have access to these
-tools and cannot create workspaces or spawn further sub-agents.
+Only root chats can use platform and orchestration tools, except for `message_agent`.
+Sub-agents can use `message_agent` to contact their direct parent, but can't create workspaces or spawn further sub-agents.
+Refer to [Orchestration tools](./architecture.md#orchestration-tools) for message ordering and lifecycle behavior.
 
 `spawn_agent` with `type=computer_use` additionally requires an
 Anthropic or OpenAI provider and the virtual desktop feature to be

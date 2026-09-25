@@ -31,7 +31,10 @@ import (
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
-var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
+var (
+	ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
+	ErrSubagentNotParent     = xerrors.New("target chat is not the direct parent of current chat")
+)
 
 // ErrSubagentWaitTimeout is returned by awaitSubagentCompletion when the
 // wait deadline elapses before the subagent reaches a terminal status. The
@@ -89,9 +92,13 @@ type waitAgentArgs struct {
 }
 
 type messageAgentArgs struct {
-	ChatID    string `json:"chat_id"`
-	Message   string `json:"message"`
-	Interrupt bool   `json:"interrupt,omitempty"`
+	ChatID  string `json:"chat_id"`
+	Message string `json:"message"`
+}
+
+type queueAgentWorkArgs struct {
+	ChatID  string `json:"chat_id"`
+	Message string `json:"message"`
 }
 
 type interruptAgentArgs struct {
@@ -585,12 +592,14 @@ func (p *Server) subagentTools(
 		),
 		fantasy.NewAgentTool(
 			"wait_agent",
-			"Wait for a spawned child agent to finish and return its response "+
-				"and status. Returns immediately when the agent finishes, even if "+
-				"a longer timeout is set. A timeout does not stop the child; it "+
-				"still owns its task. Wait again or check its status with "+
-				"list_agents; do not take over its work without an acknowledged "+
-				"handoff.",
+			"Wait until a spawned child agent is no longer running or "+
+				"interrupting, then return its status and, in the report field, "+
+				"its latest visible assistant message. The tool can return "+
+				"requires_action before the assignment "+
+				"is complete. The report may answer an earlier instruction; read "+
+				"it before treating it as completion or a handoff. A timeout does "+
+				"not stop the child; it still owns its assignment. Wait again or "+
+				"check its status with list_agents.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -733,73 +742,45 @@ func (p *Server) subagentTools(
 				return p.waitAgentSuccessResponse(ctx, recordingID, agentConn, parent, targetChat, report), nil
 			},
 		),
+		p.messageAgentTool(
+			currentChat,
+			"Send a prioritized instruction to a spawned child agent for a "+
+				"correction or scope change, or to resume it after resolving an "+
+				"error. An idle child starts work on the message. For a busy child, "+
+				"the tool requests interruption and moves the message ahead of "+
+				"older queued work without removing that work. Use list_agents "+
+				"for progress checks instead of sending a progress request. A "+
+				"successful result means Coder accepted the message, not that the "+
+				"child has stopped or responded. Use "+
+				"wait_agent for the child's latest report. An error can occur "+
+				"after the child already received the message, so resending may "+
+				"deliver it twice. If the child stopped with an error and has "+
+				"queued work, its oldest queued message starts before this one.",
+		),
 		fantasy.NewAgentTool(
-			"message_agent",
-			"Send a follow-up message to a previously spawned child "+
-				"agent. If the agent is idle, it resumes work on the "+
-				"message. If it is busy, the message is queued behind its "+
-				"current work and any earlier queued messages; set interrupt "+
-				"to true for corrections, changed scope, or a handoff that "+
-				"returns the child's task to you, so its current work stops "+
-				"first. Interrupting does not clear earlier queued messages, "+
-				"and the tool result does not confirm the child has stopped. "+
-				"Use wait_agent to collect the child's response. A handoff is "+
-				"acknowledged only when wait_agent returns the child's response "+
-				"to your handoff message; a message_agent result or an "+
-				"interrupting status is not an acknowledgment.",
-			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				if currentChat == nil {
-					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
-				}
-
-				targetChatID, err := parseSubagentToolChatID(args.ChatID)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
-				}
-
-				parent := currentChat()
-				var targetChatInfo *database.Chat
-				if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
-					targetChatInfo = &chat
-				} else if !xerrors.Is(lookupErr, sql.ErrNoRows) {
-					p.logger.Warn(ctx, "unexpected error looking up chat for message",
-						slog.F("chat_id", targetChatID),
-						slog.Error(lookupErr),
-					)
-				}
-				busyBehavior := SendMessageBusyBehaviorQueue
-				if args.Interrupt {
-					busyBehavior = SendMessageBusyBehaviorInterrupt
-				}
-				targetChat, err := p.sendSubagentMessage(
-					ctx,
-					parent.ID,
-					targetChatID,
-					args.Message,
-					busyBehavior,
-				)
-				if err != nil {
-					return subagentErrorResponse(err, targetChatInfo), nil
-				}
-
-				interrupted := false
-				if args.Interrupt && targetChatInfo != nil {
-					interrupted = targetChatInfo.Status == database.ChatStatusRunning
-				}
-				return toolJSONResponse(withSubagentType(map[string]any{
-					"chat_id":     targetChat.ID.String(),
-					"title":       targetChat.Title,
-					"status":      string(targetChat.Status),
-					"interrupted": interrupted,
-				}, targetChat)), nil
+			"queue_agent_work",
+			"Queue an additional assignment for a spawned child agent after its "+
+				"current assignment and older queued work. Use only for work that "+
+				"remains valid after those assignments finish. It does not interrupt "+
+				"or influence active work, so use message_agent for corrections and "+
+				"scope changes, and list_agents for progress checks. An idle "+
+				"child starts work on the assignment immediately. A successful "+
+				"result means Coder accepted the assignment, not that the child "+
+				"completed it.",
+			func(ctx context.Context, args queueAgentWorkArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return p.runSubagentMessageTool(ctx, currentChat, args.ChatID, args.Message, false)
 			},
 		),
 		fantasy.NewAgentTool(
 			"interrupt_agent",
-			"Interrupt a spawned child agent's current work. The "+
-				"status may briefly read interrupting before transitioning "+
-				"to waiting, or running if there are queued messages. "+
-				"Resume with message_agent or leave it idle.",
+			"Request interruption of a spawned child agent's current work "+
+				"without adding an instruction. Existing queued work is preserved "+
+				"and may start automatically. A waiting child is left unchanged "+
+				"and returns interrupted=false. For active work, "+
+				"interrupted=true means Coder accepted the interruption request, "+
+				"not that execution has stopped. The status may briefly read "+
+				"interrupting before transitioning to waiting, or running if there "+
+				"are queued messages.",
 			func(ctx context.Context, args interruptAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -845,8 +826,8 @@ func (p *Server) subagentTools(
 				"sort order is best-effort: an agent's position may shift "+
 				"if its updated_at changes between calls. Each "+
 				"agent has chat_id, title, type, status, created_at, "+
-				"updated_at. Status: running = working, "+
-				"interrupting = transient, waiting = idle, "+
+				"updated_at. Status: running = working, interrupting = transient, "+
+				"requires_action = waiting for tool results, waiting = idle, "+
 				"error = stopped on error.",
 			func(ctx context.Context, args listAgentsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
@@ -1058,8 +1039,8 @@ func (p *Server) createChildSubagentChatWithOptions(
 	// child chat creation does not hold one DB connection while waiting
 	// for another pool checkout.
 	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
-	// Delegated chats cannot call list_agents or message_agent, so
-	// strip the root-only orchestration guidance from their prompt.
+	// Delegated chats cannot call root lifecycle tools, so strip the
+	// root-only orchestration guidance from their prompt.
 	deploymentPrompt = strings.Replace(deploymentPrompt, subagentOrchestrationPromptBlock, "", 1)
 
 	// Review before persistence so spawned chats cannot bypass prompt policy.
@@ -1180,40 +1161,136 @@ func (p *Server) createChildSubagentChatWithOptions(
 	return child, nil
 }
 
-func (p *Server) sendSubagentMessage(
+func (p *Server) messageAgentTool(
+	currentChat func() database.Chat,
+	description string,
+) fantasy.AgentTool {
+	return fantasy.NewAgentTool(
+		"message_agent",
+		description,
+		func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return p.runSubagentMessageTool(ctx, currentChat, args.ChatID, args.Message, true)
+		},
+	)
+}
+
+func (p *Server) childMessageAgentTool(child database.Chat) fantasy.AgentTool {
+	return p.messageAgentTool(
+		func() database.Chat { return child },
+		"Message your direct parent at chat ID "+child.ParentChatID.UUID.String()+
+			". Other targets are rejected. Use this when you are blocked and need "+
+			"a decision, or when the parent needs information before your final "+
+			"response. Do not use it for routine progress updates. An idle parent "+
+			"starts work on the message. For a busy parent, the tool requests "+
+			"interruption and moves the message ahead of older queued work "+
+			"without removing that work. Success means Coder accepted the message, "+
+			"not that the parent stopped or responded. A reply from the parent "+
+			"arrives as a new message. If you cannot continue without a decision, "+
+			"end your turn after sending the message. An error can occur "+
+			"after the parent already received the message, so resending may "+
+			"deliver it twice. If the parent stopped with an error and has "+
+			"queued work, its oldest queued message starts before this one.",
+	)
+}
+
+func (p *Server) runSubagentMessageTool(
 	ctx context.Context,
-	parentChatID uuid.UUID,
+	currentChat func() database.Chat,
+	rawTargetChatID string,
+	message string,
+	direct bool,
+) (fantasy.ToolResponse, error) {
+	if currentChat == nil {
+		return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+	}
+
+	targetChatID, err := parseSubagentToolChatID(rawTargetChatID)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(err.Error()), nil
+	}
+
+	senderChat := currentChat()
+	var targetChatInfo *database.Chat
+	if !senderChat.ParentChatID.Valid || targetChatID == senderChat.ParentChatID.UUID {
+		if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
+			targetChatInfo = &chat
+		} else if !xerrors.Is(lookupErr, sql.ErrNoRows) {
+			p.logger.Warn(ctx, "unexpected error looking up chat for message",
+				slog.F("chat_id", targetChatID),
+				slog.Error(lookupErr),
+			)
+		}
+	}
+
+	targetChat, err := p.sendAgentMessage(ctx, senderChat, targetChatID, message, direct)
+	if err != nil {
+		return subagentErrorResponse(err, targetChatInfo), nil
+	}
+
+	return toolJSONResponse(withSubagentType(map[string]any{
+		"chat_id": targetChat.ID.String(),
+		"title":   targetChat.Title,
+		"status":  string(targetChat.Status),
+	}, targetChat)), nil
+}
+
+func (p *Server) sendAgentMessage(
+	ctx context.Context,
+	senderChat database.Chat,
 	targetChatID uuid.UUID,
 	message string,
-	busyBehavior SendMessageBusyBehavior,
+	direct bool,
 ) (database.Chat, error) {
 	message = strings.TrimSpace(message)
 	if message == "" {
 		return database.Chat{}, xerrors.New("message is required")
 	}
 
-	isDescendant, err := isSubagentDescendant(ctx, p.db, parentChatID, targetChatID)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if !isDescendant {
-		return database.Chat{}, ErrSubagentNotDescendant
+	if senderChat.ParentChatID.Valid {
+		if targetChatID != senderChat.ParentChatID.UUID {
+			return database.Chat{}, ErrSubagentNotParent
+		}
+	} else {
+		isDescendant, err := isSubagentDescendant(ctx, p.db, senderChat.ID, targetChatID)
+		if err != nil {
+			return database.Chat{}, err
+		}
+		if !isDescendant {
+			return database.Chat{}, ErrSubagentNotDescendant
+		}
 	}
 
-	// Look up the target chat to get the owner for CreatedBy.
+	// Agent messages are stored with the user role, so CreatedBy is the
+	// target chat's owner. The message content identifies the sending agent.
 	targetChat, err := p.db.GetChatByID(ctx, targetChatID)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
+	content := fmt.Sprintf(
+		"Message from agent %s (%s):\n%s",
+		senderChat.Title,
+		senderChat.ID,
+		message,
+	)
 
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
-		BusyBehavior: busyBehavior,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(content)},
+		BusyBehavior: SendMessageBusyBehaviorQueue,
 	})
 	if err != nil {
 		return database.Chat{}, err
+	}
+	if direct && sendResult.QueuedMessage != nil {
+		_, err = p.PromoteQueued(ctx, PromoteQueuedOptions{
+			ChatID:          targetChatID,
+			QueuedMessageID: sendResult.QueuedMessage.ID,
+		})
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("promote direct agent message: %w", err)
+		}
+		return p.db.GetChatByID(ctx, targetChatID)
 	}
 
 	return sendResult.Chat, nil

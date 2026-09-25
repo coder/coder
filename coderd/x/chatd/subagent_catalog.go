@@ -27,12 +27,13 @@ const (
 		spawnAgentToolName + " description for agent selection and ownership."
 )
 
-// unbilledSubagentToolNames excludes parent-side orchestration because
-// child chats bill their own runtime. Include deprecated aliases.
+// unbilledSubagentToolNames excludes agent orchestration because child chats
+// bill their own runtime. Include deprecated aliases.
 var unbilledSubagentToolNames = map[string]bool{
 	spawnAgentToolName:         true,
 	"wait_agent":               true,
 	"message_agent":            true,
+	"queue_agent_work":         true,
 	"interrupt_agent":          true,
 	"close_agent":              true,
 	"list_agents":              true,
@@ -315,28 +316,30 @@ func buildSpawnAgentDescription(
 		"Do not use type=\"" + subagentTypeExplore +
 		"\" for generic research, broad architecture analysis, planning " +
 		"synthesis, external or web research, parallel research, or tasks that " +
-		"may need edits. Each delegated task has one owner until its result " +
-		"is returned or a handoff is acknowledged. While a child owns a task, do " +
-		"only work independent of it; do not investigate, implement, or edit that " +
-		"task yourself. Separate files do not make tasks independent when they " +
-		"depend on an unresolved shared contract. Independent work that itself " +
-		"qualifies for delegation is another assignment, not your own. When your " +
-		"next step depends on a child's result, or its report will answer the " +
-		"question, use wait_agent rather than doing that work yourself. Treat a " +
-		"report's findings and cited locations as read context; re-check only a " +
-		"specific gap, contradiction, suspected change, or the exact content an " +
-		"edit needs. The child cannot spawn its own subagents; its tools depend " +
-		"on its type and mode. " +
-		"You may optionally set model_config_id (a model config UUID from " +
-		listSubagentModelsToolName + ") to run the child on a specific model " +
-		"instead of the configured default, and reasoning_effort to pin the " +
-		"child's reasoning effort; both apply only to type \"" +
-		subagentTypeGeneral + "\" and type \"" + subagentTypeExplore + "\". " +
-		"Agents persist after completion; reuse an agent via message_agent for " +
-		"follow-up work when it already has relevant context. Spawned agents are " +
-		"your responsibility: do not abandon one in a working state (running); " +
-		"retrieve its result, redirect it with message_agent, or stop " +
-		"it with interrupt_agent."
+		"may need edits. The child cannot spawn its own subagents; its tools " +
+		"depend on its type and mode. You may optionally set model_config_id " +
+		"(a model config UUID from " + listSubagentModelsToolName + ") to run " +
+		"the child on a specific model instead of the configured default, and " +
+		"reasoning_effort to pin the child's reasoning effort; both apply only " +
+		"to type \"" + subagentTypeGeneral + "\" and type \"" + subagentTypeExplore + "\". " +
+		"The child is responsible for carrying out the delegated assignment. " +
+		"While that assignment is active, do not perform the same investigation, " +
+		"implementation, or review yourself; continue only work " +
+		"that is independent of it. Separate files do not make tasks independent " +
+		"when they depend on an unresolved shared contract. You remain responsible " +
+		"for defining assignments, reviewing completed results, and completing the " +
+		"user's task. Use list_agents for progress checks. When your next step " +
+		"depends on a child's latest report, use wait_agent rather than doing " +
+		"that work yourself. Before taking over the child's work, read the returned " +
+		"report to confirm completion or a handoff. The report may answer an " +
+		"earlier instruction. A requires_action status is unfinished: the child is " +
+		"waiting for tool results. Use the child's findings and cited locations " +
+		"instead of repeating its investigation. Re-check only a specific gap, " +
+		"contradiction, suspected change, or the exact content an edit needs. " +
+		"Agents persist after completion. Use message_agent for corrections or " +
+		"scope changes, queue_agent_work for additional assignments after current " +
+		"and queued work, or request interruption with interrupt_agent. Follow " +
+		"each tool's delivery and lifecycle guidance. Do not abandon a running child."
 	if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 		description += " During plan mode, type=\"" + subagentTypeGeneral +
 			"\" is for non-mutating substantial investigation and planning support, " +
@@ -373,7 +376,7 @@ func planningOverlaySubagentGuidance() string {
 
 	return "Use read_file, execute, process_output, list_templates, read_template, " +
 		spawnAgentToolName + ", and approved external MCP tools when available to gather context. " +
-		"Workspace MCP tools are not available in root plan mode, and side-effecting built-in tools such as process_list, process_signal, message_agent, interrupt_agent, and computer-use actions remain unavailable. In Plan Mode, " +
+		"Workspace MCP tools are not available in root plan mode, and side-effecting built-in tools such as process_list, process_signal, message_agent, queue_agent_work, interrupt_agent, and computer-use actions remain unavailable. In Plan Mode, " +
 		spawnAgentToolName + " delegation is for investigation and planning " +
 		"support, not code writing or implementation. Use type=\"" + subagentTypeGeneral +
 		"\" for substantial investigation, reasoning, and planning support. " +

@@ -1010,6 +1010,44 @@ export const MessageAgentExploreStreamingFromResult: Story = {
 	},
 };
 
+export const QueueAgentWorkRunning: Story = {
+	args: {
+		name: "queue_agent_work",
+		status: "running",
+		args: { chat_id: "queue-work-child", message: "check the remaining tests" },
+		subagentTitles: new Map([["queue-work-child", "Inspect repository"]]),
+		subagentVariants: new Map([["queue-work-child", "explore"]]),
+	},
+};
+
+export const QueueAgentWorkAcceptedForRunningExploreAgent: Story = {
+	args: {
+		name: "queue_agent_work",
+		status: "completed",
+		args: { chat_id: "queue-work-child", message: "check the remaining tests" },
+		result: {
+			chat_id: "queue-work-child",
+			title: "Inspect repository",
+			type: "explore",
+			status: "running",
+		},
+	},
+};
+
+export const QueueAgentWorkError: Story = {
+	args: {
+		name: "queue_agent_work",
+		status: "error",
+		isError: true,
+		args: { chat_id: "queue-work-child", message: "check the remaining tests" },
+		result: {
+			type: "explore",
+			error: "chat message queue is full (max 20)",
+		},
+		subagentTitles: new Map([["queue-work-child", "Inspect repository"]]),
+	},
+};
+
 // interrupt_agent is the post-rename name for close_agent. The response
 // carries `interrupted: true`.
 export const InterruptAgentExploreCompleted: Story = {

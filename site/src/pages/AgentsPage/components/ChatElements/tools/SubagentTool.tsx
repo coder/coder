@@ -47,6 +47,12 @@ const SUBAGENT_VERBS: Record<
 		error: "Failed to message ",
 		timeout: "Timed out messaging ",
 	},
+	queue: {
+		completed: "Scheduled work for ",
+		running: "Scheduling work for ",
+		error: "Failed to schedule work for ",
+		timeout: "Timed out scheduling work for ",
+	},
 	interrupt: {
 		completed: "Interrupted ",
 		running: "Interrupting ",

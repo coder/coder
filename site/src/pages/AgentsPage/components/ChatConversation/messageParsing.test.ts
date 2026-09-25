@@ -1265,47 +1265,36 @@ describe("subagent transcript parsing", () => {
 });
 
 describe("getSubagentDescriptor", () => {
-	it("uses the inferred variant for lifecycle tools without explicit metadata", () => {
+	it("resolves inferred and fallback variants for every non-spawn lifecycle tool", () => {
 		const lifecycleTools = [
 			{ name: "wait_agent", action: "wait" },
 			{ name: "message_agent", action: "message" },
+			{ name: "queue_agent_work", action: "queue" },
 			{ name: "close_agent", action: "interrupt" },
 			{ name: "interrupt_agent", action: "interrupt" },
 		] as const;
 
 		for (const tool of lifecycleTools) {
-			const descriptor = getSubagentDescriptor({
+			const inferred = getSubagentDescriptor({
 				name: tool.name,
 				args: { chat_id: "desktop-child" },
 				result: { chat_id: "desktop-child", status: "running" },
 				inferredVariant: "computer_use",
 			});
-
-			expect(descriptor).toMatchObject({
+			expect(inferred).toMatchObject({
 				action: tool.action,
 				variant: "computer_use",
 				iconKind: "monitor",
 				supportsDesktopAffordance: true,
 			});
-		}
-	});
 
-	it("falls back to the general lifecycle variant without an inference", () => {
-		const lifecycleToolNames = [
-			"wait_agent",
-			"message_agent",
-			"close_agent",
-			"interrupt_agent",
-		] as const;
-
-		for (const name of lifecycleToolNames) {
-			const descriptor = getSubagentDescriptor({
-				name,
+			const fallback = getSubagentDescriptor({
+				name: tool.name,
 				args: { chat_id: "general-child" },
 				result: { chat_id: "general-child", status: "running" },
 			});
-
-			expect(descriptor).toMatchObject({
+			expect(fallback).toMatchObject({
+				action: tool.action,
 				variant: "general",
 				iconKind: "bot",
 				supportsDesktopAffordance: false,

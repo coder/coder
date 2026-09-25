@@ -531,6 +531,8 @@ func (server *Server) prepareGeneration(
 			storeFile:       storeChatAttachment,
 			isPlanModeTurn:  isPlanModeTurn,
 		})
+	} else {
+		tools = append(tools, server.childMessageAgentTool(chat))
 	}
 
 	skillOpts := chattool.ReadSkillOptions{
@@ -654,7 +656,7 @@ func (server *Server) prepareGeneration(
 
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
-		activeToolNames = allowedExploreToolNames(tools)
+		activeToolNames = allowedExploreToolNames(tools, chat.ParentChatID.Valid)
 	}
 	var allowInactiveTools map[string]bool
 	if decideMCPToolSearch(mcpToolSearchInput{

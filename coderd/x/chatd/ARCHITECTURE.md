@@ -883,6 +883,7 @@ The generation goroutine supports:
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
+    - TODO: Document bidirectional `message_agent`, direct-parent authorization for child callers, and FIFO `queue_agent_work` delivery.
     - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
 - file links
 - workspace binding

@@ -739,10 +739,15 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"stop_workspace",
 			"propose_plan",
 			"spawn_agent",
+			"spawn_explore_agent",
 			"wait_agent",
 			"message_agent",
+			"queue_agent_work",
 			"interrupt_agent",
+			"close_agent",
 			"list_agents",
+			"list_subagent_models",
+			"spawn_computer_use_agent",
 			"read_skill",
 			"read_skill_file",
 			"ask_user_question",
@@ -761,8 +766,10 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"stop_workspace",
 			"propose_plan",
 			"spawn_agent",
+			"spawn_explore_agent",
 			"wait_agent",
 			"list_agents",
+			"list_subagent_models",
 			"read_skill",
 			"read_skill_file",
 			"ask_user_question",
@@ -785,7 +792,15 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"stop_workspace",
 			"propose_plan",
 			"spawn_agent",
+			"spawn_explore_agent",
 			"wait_agent",
+			"message_agent",
+			"queue_agent_work",
+			"interrupt_agent",
+			"close_agent",
+			"list_agents",
+			"list_subagent_models",
+			"spawn_computer_use_agent",
 			"read_skill",
 			"read_skill_file",
 			"ask_user_question",
@@ -795,32 +810,10 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"read_file",
 			"execute",
 			"process_output",
+			"message_agent",
 			"read_skill",
 			"read_skill_file",
 		}, got)
-		require.NotContains(t, got, "write_file")
-		require.NotContains(t, got, "edit_files")
-		require.NotContains(t, got, "ask_user_question")
-		require.NotContains(t, got, "propose_plan")
-		require.NotContains(t, got, "start_workspace")
-		require.NotContains(t, got, "stop_workspace")
-		require.NotContains(t, got, "spawn_explore_agent")
-	})
-
-	t.Run("PlanModeStillExcludesDangerousTools", func(t *testing.T) {
-		t.Parallel()
-
-		got := activeToolNamesForTurn(makeTools(
-			"execute",
-			"process_output",
-			"message_agent",
-			"spawn_computer_use_agent",
-			"propose_plan",
-		), planMode, uuid.NullUUID{}, nil)
-
-		require.Equal(t, []string{"execute", "process_output", "propose_plan"}, got)
-		require.NotContains(t, got, "message_agent")
-		require.NotContains(t, got, "spawn_computer_use_agent")
 	})
 
 	t.Run("PlanModeExcludesUnknownTools", func(t *testing.T) {
@@ -837,8 +830,6 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"read_file",
 			"propose_plan",
 		}, got)
-		require.NotContains(t, got, "custom_tool")
-		require.NotContains(t, got, "another_custom_tool")
 	})
 
 	t.Run("PlanModeIncludesOnlyApprovedExternalMCPTools", func(t *testing.T) {
@@ -859,8 +850,6 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"read_file",
 			"approved-mcp__echo",
 		}, got)
-		require.NotContains(t, got, "blocked-mcp__echo")
-		require.NotContains(t, got, "workspace-mcp__echo")
 	})
 }
 
@@ -868,7 +857,7 @@ func TestAllowedExploreToolNames(t *testing.T) {
 	t.Parallel()
 
 	externalConfigID := uuid.New()
-	got := allowedExploreToolNames([]fantasy.AgentTool{
+	tools := []fantasy.AgentTool{
 		newTestAgentTool("read_file"),
 		newTestAgentTool("write_file"),
 		newTestMCPAgentTool("external-mcp__echo", externalConfigID),
@@ -880,13 +869,29 @@ func TestAllowedExploreToolNames(t *testing.T) {
 		newTestAgentTool("process_list"),
 		newTestAgentTool("process_signal"),
 		newTestAgentTool("spawn_agent"),
+		newTestAgentTool("spawn_explore_agent"),
 		newTestAgentTool("wait_agent"),
+		newTestAgentTool("message_agent"),
+		newTestAgentTool("queue_agent_work"),
+		newTestAgentTool("interrupt_agent"),
+		newTestAgentTool("close_agent"),
+		newTestAgentTool("list_agents"),
+		newTestAgentTool("list_subagent_models"),
+		newTestAgentTool("spawn_computer_use_agent"),
 		newTestAgentTool("read_skill"),
 		newTestAgentTool("read_skill_file"),
 		newTestAgentTool("ask_user_question"),
 		newTestAgentTool(chattool.FindToolsName),
-	})
-
+	}
+	require.Equal(t, []string{
+		"read_file",
+		"external-mcp__echo",
+		"execute",
+		"process_output",
+		"message_agent",
+		"read_skill",
+		"read_skill_file",
+	}, allowedExploreToolNames(tools, true))
 	require.Equal(t, []string{
 		"read_file",
 		"external-mcp__echo",
@@ -894,12 +899,7 @@ func TestAllowedExploreToolNames(t *testing.T) {
 		"process_output",
 		"read_skill",
 		"read_skill_file",
-	}, got)
-	require.NotContains(t, got, "workspace-mcp__echo")
-	require.NotContains(t, got, "start_workspace")
-	require.NotContains(t, got, "stop_workspace")
-	require.NotContains(t, got, "ask_user_question")
-	require.NotContains(t, got, chattool.FindToolsName)
+	}, allowedExploreToolNames(tools, false))
 }
 
 func TestAllowedBehaviorToolNames(t *testing.T) {
