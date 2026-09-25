@@ -134,17 +134,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		className: statusClassName,
 		label: statusLabel,
 		prIcon,
-		diffStatus,
+		lineStats,
 	} = getChatDisplayConfig(chat);
-	const PRIcon = prIcon?.icon;
-	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
-	const changedFiles = diffStatus?.changed_files ?? 0;
-	const additions = diffStatus?.additions ?? 0;
-	const deletions = diffStatus?.deletions ?? 0;
-	const hasLineStats = additions > 0 || deletions > 0 || changedFiles > 0;
-	const filesChangedLabel = `${changedFiles} ${
-		changedFiles === 1 ? "file" : "files"
-	}`;
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
@@ -262,23 +253,25 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
-										{PRIcon && prIcon && (
-											<PRIcon
+										{prIcon && (
+											<prIcon.icon
 												role="img"
 												aria-label={prIcon.label}
 												className={cn("size-3.5 shrink-0", prIcon.className)}
 											/>
 										)}
-										{hasLinkedDiffStatus && hasLineStats && (
+										{lineStats && (
 											<span
 												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-												title={`${filesChangedLabel}, +${additions} -${deletions}`}
+												title={`${lineStats.changedFiles} ${
+													lineStats.changedFiles === 1 ? "file" : "files"
+												}, +${lineStats.additions} -${lineStats.deletions}`}
 											>
 												<span className="text-git-added-bright">
-													+{additions}
+													+{lineStats.additions}
 												</span>
 												<span className="text-git-deleted-bright">
-													&minus;{deletions}
+													&minus;{lineStats.deletions}
 												</span>
 											</span>
 										)}

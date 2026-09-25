@@ -84,14 +84,29 @@ const getPRIconConfig = (
 	};
 };
 
-const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
-	return chat.diff_status;
+type ChatLineStats = {
+	additions: number;
+	deletions: number;
+	changedFiles: number;
+};
+
+const getLineStats = (
+	diffStatus: ChatDiffStatus | undefined,
+): ChatLineStats | undefined => {
+	if (!diffStatus?.url) {
+		return undefined;
+	}
+	const { additions, deletions, changed_files: changedFiles } = diffStatus;
+	return additions > 0 || deletions > 0 || changedFiles > 0
+		? { additions, deletions, changedFiles }
+		: undefined;
 };
 
 /**
  * Returns the icons and styling that represent a chat's current state.
  *
- * The status icon always reflects the chat status.
+ * The status icon always reflects the chat status. Line stats are only
+ * present when the diff is linked and at least one count is positive.
  */
 export const getChatDisplayConfig = (
 	chat: Chat,
@@ -100,15 +115,14 @@ export const getChatDisplayConfig = (
 	className: string;
 	label: string;
 	prIcon: ChatIconConfig | undefined;
-	diffStatus: ChatDiffStatus | undefined;
+	lineStats: ChatLineStats | undefined;
 } => {
-	const diffStatus = getChatDiffStatus(chat);
 	const config = getStatusConfig(chat.status);
 	return {
 		icon: config.icon,
 		className: config.className,
 		label: config.label,
-		prIcon: getPRIconConfig(diffStatus),
-		diffStatus,
+		prIcon: getPRIconConfig(chat.diff_status),
+		lineStats: getLineStats(chat.diff_status),
 	};
 };
