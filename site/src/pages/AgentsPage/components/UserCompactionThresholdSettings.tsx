@@ -45,9 +45,9 @@ type UserCompactionThresholdSettingsProps = {
 	 * Organization ID to the model config the organization routes compaction
 	 * through. Missing entries mean the chat model summarizes itself.
 	 */
-	compactionModelIDByOrganization?: ReadonlyMap<string, string>;
+	compactionModelIDByOrganization: ReadonlyMap<string, string>;
 	modelsError?: unknown;
-	isLoadingModels?: boolean;
+	isLoadingModels: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
 	isThresholdsLoading: boolean;
 	thresholdsError: unknown;
@@ -57,8 +57,6 @@ type UserCompactionThresholdSettingsProps = {
 	) => Promise<unknown>;
 	onResetThreshold: (modelId: string) => Promise<unknown>;
 };
-
-const noCompactionOverrides: ReadonlyMap<string, string> = new Map();
 
 const parseThresholdDraft = (value: string): number | null => {
 	const trimmedValue = value.trim();
@@ -92,7 +90,7 @@ export const UserCompactionThresholdSettings: FC<
 	models,
 	providerTypeByID,
 	organizations,
-	compactionModelIDByOrganization = noCompactionOverrides,
+	compactionModelIDByOrganization,
 	modelsError,
 	isLoadingModels,
 	thresholds,

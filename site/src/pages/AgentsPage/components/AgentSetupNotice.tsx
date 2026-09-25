@@ -11,7 +11,7 @@ type AgentSetupNoticeProps = {
 	organization?: Organization;
 	// Names of configured providers the harness cannot use, populated by
 	// the page only when no supported provider is configured.
-	unsupportedProviderNames?: readonly string[];
+	unsupportedProviderNames: readonly string[];
 	aiGatewayDisabled?: boolean;
 };
 
@@ -30,7 +30,7 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 	providerCount,
 	modelCount,
 	organization,
-	unsupportedProviderNames = [],
+	unsupportedProviderNames,
 	aiGatewayDisabled,
 }) => {
 	const hasProvider = providerCount > 0;

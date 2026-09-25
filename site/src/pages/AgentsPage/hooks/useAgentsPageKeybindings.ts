@@ -12,7 +12,7 @@ export function useAgentsPageKeybindings({
 	onToggleSearch,
 }: {
 	onNewAgent: () => void;
-	onToggleSearch?: () => void;
+	onToggleSearch: () => void;
 }) {
 	useEffect(() => {
 		const handler = (event: KeyboardEvent) => {
@@ -28,7 +28,7 @@ export function useAgentsPageKeybindings({
 				return;
 			}
 
-			if (key === "k" && onToggleSearch) {
+			if (key === "k") {
 				event.preventDefault();
 				onToggleSearch();
 			}
