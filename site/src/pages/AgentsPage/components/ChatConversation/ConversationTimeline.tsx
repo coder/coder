@@ -91,71 +91,168 @@ const LifecycleHookNotice: React.FC<{
 	</TimelineNotice>
 );
 
-const ChatMessageItem = memo<{
+const useAttachmentPreviews = () => {
+	const [previewImage, setPreviewImage] = useState<string | null>(null);
+	const [previewText, setPreviewText] = useState<PreviewTextAttachment | null>(
+		null,
+	);
+	const dialogs = (
+		<>
+			{previewImage && (
+				<ImageLightbox
+					src={previewImage}
+					onClose={() => setPreviewImage(null)}
+				/>
+			)}
+			{previewText !== null && (
+				<TextPreviewDialog
+					content={previewText.content}
+					fileName={previewText.fileName}
+					mediaType={previewText.mediaType}
+					onClose={() => setPreviewText(null)}
+				/>
+			)}
+		</>
+	);
+	return {
+		onImageClick: setPreviewImage,
+		onTextFileClick: setPreviewText,
+		dialogs,
+	};
+};
+
+// Wrapper shared by live and persisted rows so both render the same row DOM.
+const MessageRowFrame: React.FC<{
+	renderKey: string;
+	isAfterEditingMessage: boolean;
+	children: React.ReactNode;
+}> = ({ renderKey, isAfterEditingMessage, children }) => (
+	<div
+		data-testid={`chat-message-${renderKey}`}
+		className={cn(
+			isAfterEditingMessage && "opacity-40 pointer-events-none",
+			"group/msg relative transition-opacity duration-200",
+		)}
+		inert={isAfterEditingMessage ? true : undefined}
+	>
+		{children}
+	</div>
+);
+
+const LiveAssistantRow = memo<{
 	organizationId: string | undefined;
 	renderKey: string;
-	// Durable messages and live assistant output share one rendering path.
-	message?: TypesGen.ChatMessage;
-	parsed?: ParsedMessageContent;
-	liveStatus?: LiveStatusModel;
+	liveStatus: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
 	// component never has to decide when stream output is visible.
-	liveBlocks?: readonly RenderBlock[];
-	liveTools?: readonly MergedTool[];
-	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-	) => void;
-	editingMessageId?: number | null;
-	isAfterEditingMessage?: boolean;
-	hideActions?: boolean;
-	hasActiveStream?: boolean;
-	isAwaitingFirstStreamChunk?: boolean;
+	liveBlocks: readonly RenderBlock[];
+	liveTools: readonly MergedTool[];
+	subagentStatusOverrides: Map<string, TypesGen.ChatStatus> | undefined;
+	subagentTitles: Map<string, string>;
+	subagentVariants: Map<string, SubagentVariant>;
+	urlTransform?: UrlTransform;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+}>(
+	({
+		organizationId,
+		renderKey,
+		liveStatus,
+		liveBlocks,
+		liveTools,
+		subagentStatusOverrides,
+		subagentTitles,
+		subagentVariants,
+		urlTransform,
+		mcpServers,
+	}) => {
+		const previews = useAttachmentPreviews();
+		const conversationItemProps: { role: "assistant" } = { role: "assistant" };
+		return (
+			<MessageRowFrame renderKey={renderKey} isAfterEditingMessage={false}>
+				<ConversationItem {...conversationItemProps}>
+					<Message className="w-full">
+						<MessageContent className="whitespace-normal">
+							<AssistantOutput
+								organizationId={organizationId}
+								keyPrefix={renderKey}
+								blocks={liveBlocks}
+								tools={liveTools}
+								isStreaming={liveStatus.phase === "streaming"}
+								liveStatus={liveStatus}
+								subagentStatusOverrides={subagentStatusOverrides}
+								subagentTitles={subagentTitles}
+								subagentVariants={subagentVariants}
+								hasUserResponseAfterAskQuestion={false}
+								onImageClick={previews.onImageClick}
+								onTextFileClick={previews.onTextFileClick}
+								urlTransform={urlTransform}
+								mcpServers={mcpServers}
+							/>
+						</MessageContent>
+					</Message>
+				</ConversationItem>
+				{previews.dialogs}
+			</MessageRowFrame>
+		);
+	},
+);
+
+const PersistedMessageRow = memo<{
+	organizationId: string | undefined;
+	renderKey: string;
+	message: TypesGen.ChatMessage;
+	parsed: ParsedMessageContent;
+	onEditUserMessage:
+		| ((
+				messageId: number,
+				text: string,
+				fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		  ) => void)
+		| undefined;
+	editingMessageId: number | null | undefined;
+	isAfterEditingMessage: boolean;
+	hideActions: boolean;
+	hasActiveStream: boolean;
+	isAwaitingFirstStreamChunk: boolean;
 
 	// The bottom spacer fakes the height of the hidden action bar so
 	// chain-end messages keep even spacing before the next bubble.
 	// The last transcript message has nothing after it, so the spacer
 	// would render as a dangling blank at the end of the chat.
-	isLastMessage?: boolean;
+	isLastMessage: boolean;
 	onImplementPlan?: () => Promise<void> | void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	subagentTitles: Map<string, string>;
 	subagentVariants: Map<string, SubagentVariant>;
-	showDesktopPreviews?: boolean;
+	showDesktopPreviews: boolean;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
-	isChatCompleted?: boolean;
-	latestAskUserQuestionToolId?: string;
-	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
-	hasUserResponseAfterAskQuestion?: boolean;
+	isChatCompleted: boolean;
+	latestAskUserQuestionToolId: string | undefined;
+	askUserQuestionResponseTextByToolId: ReadonlyMap<string, string> | undefined;
+	hasUserResponseAfterAskQuestion: boolean;
 	prevUserMessageKey?: string;
 	nextUserMessageKey?: string;
-	onJumpToUserMessage?: (messageKey: string) => void;
+	onJumpToUserMessage: ((messageKey: string) => void) | undefined;
 }>(
 	({
 		organizationId,
 		renderKey,
 		message,
 		parsed,
-		liveStatus,
-		liveBlocks = [],
-		liveTools = [],
-		subagentStatusOverrides,
 		onEditUserMessage,
 		editingMessageId,
-		isAfterEditingMessage = false,
-		hideActions = false,
-		hasActiveStream = false,
-		isAwaitingFirstStreamChunk = false,
-		isLastMessage = false,
+		isAfterEditingMessage,
+		hideActions,
+		hasActiveStream,
+		isAwaitingFirstStreamChunk,
+		isLastMessage,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
 		latestAskUserQuestionToolId,
 		askUserQuestionResponseTextByToolId,
-		hasUserResponseAfterAskQuestion = false,
+		hasUserResponseAfterAskQuestion,
 		prevUserMessageKey,
 		nextUserMessageKey,
 		onJumpToUserMessage,
@@ -166,31 +263,25 @@ const ChatMessageItem = memo<{
 		subagentVariants,
 		showDesktopPreviews,
 	}) => {
-		const isUser = message?.role === "user";
-		const messageId = message?.id;
-		const [previewImage, setPreviewImage] = useState<string | null>(null);
-		const [previewText, setPreviewText] =
-			useState<PreviewTextAttachment | null>(null);
-		const displayState =
-			message && parsed
-				? deriveMessageDisplayState({
-						message,
-						parsed,
-						hideActions,
-						hasActiveStream,
-						isAwaitingFirstStreamChunk,
-					})
-				: undefined;
-		const canEditUserMessage =
-			isUser && messageId !== undefined && Boolean(onEditUserMessage);
+		const isUser = message.role === "user";
+		const messageId = message.id;
+		const previews = useAttachmentPreviews();
+		const displayState = deriveMessageDisplayState({
+			message,
+			parsed,
+			hideActions,
+			hasActiveStream,
+			isAwaitingFirstStreamChunk,
+		});
+		const canEditUserMessage = isUser && Boolean(onEditUserMessage);
 		const canJumpBetweenUserMessages =
 			isUser &&
 			Boolean(onJumpToUserMessage) &&
 			(prevUserMessageKey !== undefined || nextUserMessageKey !== undefined);
-		if (displayState?.shouldHide) {
+		if (displayState.shouldHide) {
 			return null;
 		}
-		if (message?.role === "system" && parsed) {
+		if (message.role === "system") {
 			return (
 				<div
 					className={cn(
@@ -223,24 +314,18 @@ const ChatMessageItem = memo<{
 		};
 
 		return (
-			<div
-				data-testid={`chat-message-${renderKey}`}
-				className={cn(
-					isAfterEditingMessage && "opacity-40 pointer-events-none",
-					"group/msg relative transition-opacity duration-200",
-				)}
-				inert={isAfterEditingMessage ? true : undefined}
+			<MessageRowFrame
+				renderKey={renderKey}
+				isAfterEditingMessage={isAfterEditingMessage}
 			>
 				<ConversationItem {...conversationItemProps}>
-					{isUser && displayState && parsed ? (
+					{isUser ? (
 						<UserMessageContent
 							displayState={displayState}
 							markdown={parsed.markdown}
-							isEditing={
-								messageId !== undefined && editingMessageId === messageId
-							}
-							onImageClick={setPreviewImage}
-							onTextFileClick={setPreviewText}
+							isEditing={editingMessageId === messageId}
+							onImageClick={previews.onImageClick}
+							onTextFileClick={previews.onTextFileClick}
 						/>
 					) : (
 						<Message className="w-full">
@@ -248,11 +333,9 @@ const ChatMessageItem = memo<{
 								<AssistantOutput
 									organizationId={organizationId}
 									keyPrefix={renderKey}
-									blocks={parsed?.blocks ?? liveBlocks}
-									tools={parsed?.tools ?? liveTools}
-									isStreaming={liveStatus?.phase === "streaming"}
-									liveStatus={liveStatus}
-									subagentStatusOverrides={subagentStatusOverrides}
+									blocks={parsed.blocks}
+									tools={parsed.tools}
+									isStreaming={false}
 									subagentTitles={subagentTitles}
 									subagentVariants={subagentVariants}
 									showDesktopPreviews={showDesktopPreviews}
@@ -266,8 +349,8 @@ const ChatMessageItem = memo<{
 									hasUserResponseAfterAskQuestion={
 										hasUserResponseAfterAskQuestion
 									}
-									onImageClick={setPreviewImage}
-									onTextFileClick={setPreviewText}
+									onImageClick={previews.onImageClick}
+									onTextFileClick={previews.onTextFileClick}
 									urlTransform={urlTransform}
 									mcpServers={mcpServers}
 								/>
@@ -275,7 +358,7 @@ const ChatMessageItem = memo<{
 						</Message>
 					)}
 				</ConversationItem>
-				{parsed?.hookNotices.map((notice, index) => (
+				{parsed.hookNotices.map((notice, index) => (
 					<LifecycleHookNotice
 						key={`${renderKey}-hook-notice-${index}`}
 						urlTransform={urlTransform}
@@ -283,8 +366,7 @@ const ChatMessageItem = memo<{
 						{notice}
 					</LifecycleHookNotice>
 				))}
-				{displayState &&
-					!hideActions &&
+				{!hideActions &&
 					(displayState.hasCopyableContent ||
 						canEditUserMessage ||
 						canJumpBetweenUserMessages) && (
@@ -295,7 +377,7 @@ const ChatMessageItem = memo<{
 							)}
 							data-testid="message-actions"
 						>
-							{displayState.hasCopyableContent && parsed && (
+							{displayState.hasCopyableContent && (
 								<CopyButton
 									text={parsed.markdown}
 									label="Copy message"
@@ -303,7 +385,7 @@ const ChatMessageItem = memo<{
 									tooltipSide="bottom"
 								/>
 							)}
-							{canEditUserMessage && messageId !== undefined && (
+							{canEditUserMessage && (
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Button
@@ -381,24 +463,11 @@ const ChatMessageItem = memo<{
 								)}
 						</div>
 					)}
-				{displayState?.needsAssistantBottomSpacer && !isLastMessage && (
+				{displayState.needsAssistantBottomSpacer && !isLastMessage && (
 					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
 				)}
-				{previewImage && (
-					<ImageLightbox
-						src={previewImage}
-						onClose={() => setPreviewImage(null)}
-					/>
-				)}
-				{previewText !== null && (
-					<TextPreviewDialog
-						content={previewText.content}
-						fileName={previewText.fileName}
-						mediaType={previewText.mediaType}
-						onClose={() => setPreviewText(null)}
-					/>
-				)}
-			</div>
+				{previews.dialogs}
+			</MessageRowFrame>
 		);
 	},
 );
@@ -563,7 +632,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					if (row.type === "live") {
 						return (
 							<MessageScroller.Item key={row.key} messageId={row.key}>
-								<ChatMessageItem
+								<LiveAssistantRow
 									organizationId={organizationId}
 									renderKey={row.key}
 									liveStatus={liveStatus}
@@ -595,7 +664,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								isUser && row.key === anchorUserRowKey && !suppressInitialAnchor
 							}
 						>
-							<ChatMessageItem
+							<PersistedMessageRow
 								organizationId={organizationId}
 								renderKey={row.key}
 								message={message}
