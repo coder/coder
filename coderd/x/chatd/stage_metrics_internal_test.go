@@ -1,4 +1,4 @@
-package chatd //nolint:testpackage // Reads the server's metrics to check the experiment wiring.
+package chatd
 
 import (
 	"fmt"
@@ -21,10 +21,10 @@ import (
 func TestServerStageMetricsFollowExperiment(t *testing.T) {
 	t.Parallel()
 
+	db, ps := dbtestutil.NewDB(t)
 	for _, enabled := range []bool{false, true} {
 		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
 			t.Parallel()
-			db, ps := dbtestutil.NewDB(t)
 			registry := prometheus.NewRegistry()
 			experiments := codersdk.Experiments{}
 			if enabled {
