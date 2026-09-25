@@ -13891,8 +13891,8 @@ type UpdateChatTitleByIDParams struct {
 	ID          uuid.UUID       `db:"id" json:"id"`
 }
 
-// Refuses the write and returns sql.ErrNoRows unless the current source
-// is fallback or the incoming source is user.
+// Writes only when the current source is fallback or the incoming source
+// is user.
 func (q *sqlQuerier) UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, updateChatTitleByID, arg.Title, arg.TitleSource, arg.ID)
 	var i Chat
