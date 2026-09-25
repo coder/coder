@@ -128,13 +128,13 @@ export const deriveMessageDisplayState = ({
 	parsed,
 	hideActions,
 	hasActiveStream,
-	isAwaitingFirstStreamChunk = false,
+	isAwaitingFirstStreamChunk,
 }: {
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
 	hideActions: boolean;
 	hasActiveStream: boolean;
-	isAwaitingFirstStreamChunk?: boolean;
+	isAwaitingFirstStreamChunk: boolean;
 }): MessageDisplayState => {
 	const isUser = message.role === "user";
 	const userInlineContent = isUser

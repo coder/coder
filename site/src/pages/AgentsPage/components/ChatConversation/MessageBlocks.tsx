@@ -27,113 +27,97 @@ import type { MergedTool, RenderBlock } from "./types";
 const ReasoningDisclosure = memo<{
 	id: string;
 	text: string;
-	isStreaming?: boolean;
+	isStreaming: boolean;
 	urlTransform?: UrlTransform;
-	thinkingDisplayMode?: ThinkingDisplayMode;
-}>(
-	({
-		id,
-		text,
-		isStreaming = false,
-		urlTransform,
-		thinkingDisplayMode: mode = "auto",
-	}) => {
-		const [manualToggle, setManualToggle] = useState<boolean | null>(null);
+	thinkingDisplayMode: ThinkingDisplayMode;
+}>(({ id, text, isStreaming, urlTransform, thinkingDisplayMode: mode }) => {
+	const [manualToggle, setManualToggle] = useState<boolean | null>(null);
 
-		// Reset manual override on streaming transitions so
-		// auto/preview modes collapse when streaming stops.
-		const [prevStreaming, setPrevStreaming] = useState(isStreaming);
-		if (prevStreaming !== isStreaming) {
-			setPrevStreaming(isStreaming);
-			if (mode === "auto" || mode === "preview") {
-				setManualToggle(null);
+	// Reset manual override on streaming transitions so
+	// auto/preview modes collapse when streaming stops.
+	const [prevStreaming, setPrevStreaming] = useState(isStreaming);
+	if (prevStreaming !== isStreaming) {
+		setPrevStreaming(isStreaming);
+		if (mode === "auto" || mode === "preview") {
+			setManualToggle(null);
+		}
+	}
+
+	const autoExpanded = (() => {
+		switch (mode) {
+			case "always_expanded":
+				return true;
+			case "always_collapsed":
+				return false;
+			case "auto":
+			case "preview":
+				return isStreaming;
+			default: {
+				const _exhaustive: never = mode;
+				return _exhaustive;
 			}
 		}
+	})();
 
-		const autoExpanded = (() => {
-			switch (mode) {
-				case "always_expanded":
-					return true;
-				case "always_collapsed":
-					return false;
-				case "auto":
-				case "preview":
-					return isStreaming;
-				default: {
-					const _exhaustive: never = mode;
-					return _exhaustive;
-				}
-			}
-		})();
+	const expanded = manualToggle ?? autoExpanded;
 
-		const expanded = manualToggle ?? autoExpanded;
+	const isPreviewConstrained =
+		mode === "preview" && isStreaming && manualToggle === null;
 
-		const isPreviewConstrained =
-			mode === "preview" && isStreaming && manualToggle === null;
+	const previewScrollRef = useRef<HTMLDivElement>(null);
 
-		const previewScrollRef = useRef<HTMLDivElement>(null);
+	const { visibleText } = useSmoothStreamingText({
+		fullText: text,
+		isStreaming,
+		bypassSmoothing: !isStreaming,
+		streamKey: id,
+	});
+	const displayText = isStreaming ? visibleText : text;
+	const { title, body } = getThinkingDisclosureDisplay(displayText);
+	const hasText = body.trim().length > 0;
 
-		const { visibleText } = useSmoothStreamingText({
-			fullText: text,
-			isStreaming,
-			bypassSmoothing: !isStreaming,
-			streamKey: id,
-		});
-		const displayText = isStreaming ? visibleText : text;
-		const { title, body } = getThinkingDisclosureDisplay(displayText);
-		const hasText = body.trim().length > 0;
+	// Auto-scroll the preview container to the bottom as new
+	// thinking content streams in. useLayoutEffect avoids a
+	// visible frame where content has grown but not scrolled.
+	const displayTextLength = body.length;
+	useLayoutEffect(() => {
+		if (displayTextLength && isPreviewConstrained && previewScrollRef.current) {
+			previewScrollRef.current.scrollTop =
+				previewScrollRef.current.scrollHeight;
+		}
+	}, [displayTextLength, isPreviewConstrained]);
 
-		// Auto-scroll the preview container to the bottom as new
-		// thinking content streams in. useLayoutEffect avoids a
-		// visible frame where content has grown but not scrolled.
-		const displayTextLength = body.length;
-		useLayoutEffect(() => {
-			if (
-				displayTextLength &&
-				isPreviewConstrained &&
-				previewScrollRef.current
-			) {
-				previewScrollRef.current.scrollTop =
-					previewScrollRef.current.scrollHeight;
-			}
-		}, [displayTextLength, isPreviewConstrained]);
-
-		return (
-			<div data-transcript-row="">
-				<ToolCall.Root
-					className="w-full"
-					status={isStreaming ? "running" : "completed"}
-					hasContent={hasText}
-					expanded={expanded}
-					onExpandedChange={(open) => setManualToggle(open)}
-				>
-					<ToolCall.Header
-						iconName="thinking"
-						label={title}
-						showStatus={false}
-					/>
-					<ToolCall.Content>
-						<div
-							ref={previewScrollRef}
-							className={cn(
-								"mt-1.5",
-								isPreviewConstrained && "max-h-24 overflow-y-auto",
-							)}
+	return (
+		<div data-transcript-row="">
+			<ToolCall.Root
+				className="w-full"
+				status={isStreaming ? "running" : "completed"}
+				hasContent={hasText}
+				expanded={expanded}
+				onExpandedChange={(open) => setManualToggle(open)}
+			>
+				<ToolCall.Header iconName="thinking" label={title} showStatus={false} />
+				<ToolCall.Content>
+					<div
+						ref={previewScrollRef}
+						className={cn(
+							"mt-1.5",
+							isPreviewConstrained && "max-h-24 overflow-y-auto",
+						)}
+					>
+						<Response
+							className="text-[11px] text-content-secondary"
+							urlTransform={urlTransform}
+							streaming={isStreaming}
 						>
-							<Response
-								className="text-[11px] text-content-secondary"
-								urlTransform={urlTransform}
-								streaming={isStreaming}
-							>
-								{body}
-							</Response>
-						</div>
-					</ToolCall.Content>
-				</ToolCall.Root>
-			</div>
-		);
-	},
-);
+							{body}
+						</Response>
+					</div>
+				</ToolCall.Content>
+			</ToolCall.Root>
+		</div>
+	);
+});
 
 // Runs the smooth-streaming jitter buffer while the turn is live and renders
 // the raw text once it is durable, so both shapes render through the same
@@ -192,20 +176,20 @@ export type BlockListProps = {
 	blocks: readonly RenderBlock[];
 	tools: readonly MergedTool[];
 	keyPrefix: string;
-	isStreaming?: boolean;
-	subagentTitles?: Map<string, string>;
-	subagentVariants?: Map<string, SubagentVariant>;
+	isStreaming: boolean;
+	subagentTitles: Map<string, string>;
+	subagentVariants: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	onImageClick?: (src: string) => void;
-	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
+	onImageClick: (src: string) => void;
+	onTextFileClick: (attachment: PreviewTextAttachment) => void;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
 	latestAskUserQuestionToolId?: string;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
-	hasUserResponseAfterAskQuestion?: boolean;
+	hasUserResponseAfterAskQuestion: boolean;
 	urlTransform?: UrlTransform;
 };
 
@@ -218,7 +202,7 @@ export const BlockList: FC<BlockListProps> = ({
 	blocks,
 	tools,
 	keyPrefix,
-	isStreaming = false,
+	isStreaming,
 	subagentTitles,
 	subagentVariants,
 	showDesktopPreviews,
@@ -231,7 +215,7 @@ export const BlockList: FC<BlockListProps> = ({
 	isChatCompleted,
 	latestAskUserQuestionToolId,
 	askUserQuestionResponseTextByToolId,
-	hasUserResponseAfterAskQuestion = false,
+	hasUserResponseAfterAskQuestion,
 	urlTransform,
 }) => {
 	const prefQuery = useQuery(preferenceSettings());
@@ -400,7 +384,6 @@ export const BlockList: FC<BlockListProps> = ({
 								onImageClick={onImageClick}
 								onTextFileClick={onTextFileClick}
 								framePreview
-								showTextStatus
 							/>
 						);
 					case "sources":

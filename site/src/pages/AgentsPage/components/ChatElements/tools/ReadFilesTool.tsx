@@ -22,8 +22,8 @@ const getReadFileItem = (tool: MergedTool): ReadFileItem => ({
 
 export const ReadFilesTool: FC<{
 	tools: readonly MergedTool[];
-	expanded?: boolean;
-	onExpandedChange?: (expanded: boolean) => void;
+	expanded: boolean;
+	onExpandedChange: (expanded: boolean) => void;
 }> = ({ tools, expanded, onExpandedChange }) => {
 	const [expandedFileIDs, setExpandedFileIDs] = useState<ReadonlySet<string>>(
 		new Set(),

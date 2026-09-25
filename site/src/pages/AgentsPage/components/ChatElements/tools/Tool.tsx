@@ -72,14 +72,14 @@ type ToolProps = Omit<ComponentProps<"div">, "children"> & {
 	result?: unknown;
 	/** Streamed advisor reasoning, present only while the advisor runs. */
 	reasoning?: string;
-	isError?: boolean;
+	isError: boolean;
 	/** Set when the server persisted the result as {data, mime_type, text}. */
 	isMedia?: boolean;
 	killedBySignal?: "kill" | "terminate";
 	/** Maps sub-agent chat IDs to their titles, built from transcript metadata. */
-	subagentTitles?: Map<string, string>;
+	subagentTitles: Map<string, string>;
 	/** Maps sub-agent chat IDs to their normalized variants. */
-	subagentVariants?: Map<string, SubagentVariant>;
+	subagentVariants: Map<string, SubagentVariant>;
 	/** When false, suppresses inline VNC previews while still
 	 * allowing the MonitorIcon variant to render. */
 	showDesktopPreviews?: boolean;
@@ -100,8 +100,8 @@ type ToolProps = Omit<ComponentProps<"div">, "children"> & {
 	parsedCommands?: readonly string[][];
 	startedAt?: string;
 	hookRewritten?: boolean;
-	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
-	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
+	shellToolDisplayMode: TypesGen.AgentDisplayMode;
+	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 };
 
 // Props passed to each tool-specific renderer function. Each renderer
@@ -117,8 +117,8 @@ type ToolRendererProps = {
 	isError: boolean;
 	isMedia?: boolean;
 	killedBySignal?: "kill" | "terminate";
-	subagentTitles?: Map<string, string>;
-	subagentVariants?: Map<string, SubagentVariant>;
+	subagentTitles: Map<string, string>;
+	subagentVariants: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
 	subagentStatusOverrides?: Map<string, string>;
 	onImplementPlan?: () => Promise<void> | void;
@@ -131,8 +131,8 @@ type ToolRendererProps = {
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	startedAt?: string;
-	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
-	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
+	shellToolDisplayMode: TypesGen.AgentDisplayMode;
+	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 };
 
 // ---------------------------------------------------------------------------
@@ -460,7 +460,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		args: parsedArgs ?? args,
 		result: rec ?? result,
 	});
-	const inferredVariant = chatId ? subagentVariants?.get(chatId) : undefined;
+	const inferredVariant = chatId ? subagentVariants.get(chatId) : undefined;
 	const descriptor = getSubagentDescriptor({
 		name,
 		args: parsedArgs ?? args,
@@ -492,7 +492,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		descriptor.fallbackTitle.charAt(0).toUpperCase() +
 		descriptor.fallbackTitle.slice(1);
 	if (chatId) {
-		const mappedTitle = subagentTitles?.get(chatId);
+		const mappedTitle = subagentTitles.get(chatId);
 		if (mappedTitle) {
 			title = mappedTitle;
 		}
@@ -1222,7 +1222,7 @@ export const Tool = memo(
 		args,
 		result,
 		reasoning,
-		isError = false,
+		isError,
 		isMedia,
 		killedBySignal,
 		subagentTitles,
