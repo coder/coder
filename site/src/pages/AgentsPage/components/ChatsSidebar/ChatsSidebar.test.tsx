@@ -74,6 +74,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 type WrapperProps = PropsWithChildren<{
 	experiments?: TypesGen.Experiment[];
 	organizations?: TypesGen.Organization[];
+	showOrganizations?: boolean;
 	initialEntry?: string;
 }>;
 
@@ -81,6 +82,7 @@ const Wrapper: FC<WrapperProps> = ({
 	children,
 	experiments = [],
 	organizations = [MockDefaultOrganization],
+	showOrganizations = false,
 	initialEntry = "/agents",
 }) => {
 	const queryClient = createTestQueryClient();
@@ -90,7 +92,7 @@ const Wrapper: FC<WrapperProps> = ({
 		appearance: MockAppearanceConfig,
 		buildInfo: MockBuildInfo,
 		organizations,
-		showOrganizations: false,
+		showOrganizations,
 		canViewOrganizationSettings: false,
 	};
 	return (
@@ -271,6 +273,129 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => {
 			expect(requestBody).toMatchObject({
 				organization_id: nonDefaultOrganization.id,
+			});
+		});
+		expect(screen.queryByTestId("compact-org-selector")).toBeNull();
+	});
+
+	it("creates a project in the organization chosen from the picker", async () => {
+		const user = userEvent.setup();
+		let requestBody: unknown;
+		server.use(
+			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
+			http.get("/api/v2/organizations", () =>
+				HttpResponse.json([MockDefaultOrganization, MockOrganization2]),
+			),
+			http.post("/api/v2/authcheck", async ({ request }) => {
+				const { checks } = (await request.json()) as {
+					checks: Record<string, unknown>;
+				};
+				return HttpResponse.json(
+					Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+				);
+			}),
+			http.post("/api/experimental/chats/projects", async ({ request }) => {
+				requestBody = await request.json();
+				return HttpResponse.json({
+					...MockChatProject,
+					organization_id: MockOrganization2.id,
+				});
+			}),
+		);
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				organizations={[MockDefaultOrganization, MockOrganization2]}
+				showOrganizations
+			>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "New project" }),
+		);
+		const dialog = await screen.findByRole("dialog", { name: "New project" });
+		await user.click(
+			await within(dialog).findByRole("button", {
+				name: `Organization: ${MockDefaultOrganization.display_name}`,
+			}),
+		);
+		await user.click(
+			screen.getByRole("option", { name: MockOrganization2.display_name }),
+		);
+		await user.type(
+			within(dialog).getByRole("textbox", { name: /Name/ }),
+			"Other org project",
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(requestBody).toMatchObject({
+				organization_id: MockOrganization2.id,
+				name: "Other org project",
+			});
+		});
+	});
+
+	it("sends the only chat organization when the default organization cannot create chats", async () => {
+		const user = userEvent.setup();
+		let requestBody: unknown;
+		server.use(
+			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
+			http.get("/api/v2/organizations", () =>
+				HttpResponse.json([MockDefaultOrganization, MockOrganization2]),
+			),
+			http.post("/api/v2/authcheck", async ({ request }) => {
+				const { checks } = (await request.json()) as {
+					checks: Record<string, unknown>;
+				};
+				return HttpResponse.json(
+					Object.fromEntries(
+						Object.keys(checks).map((key) => [
+							key,
+							key === MockOrganization2.id,
+						]),
+					),
+				);
+			}),
+			http.post("/api/experimental/chats/projects", async ({ request }) => {
+				requestBody = await request.json();
+				return HttpResponse.json({
+					...MockChatProject,
+					organization_id: MockOrganization2.id,
+				});
+			}),
+		);
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				organizations={[MockDefaultOrganization, MockOrganization2]}
+				showOrganizations
+			>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "New project" }),
+		);
+		const dialog = await screen.findByRole("dialog", { name: "New project" });
+		await user.type(
+			within(dialog).getByRole("textbox", { name: /Name/ }),
+			"Permitted org project",
+		);
+		await waitFor(() => {
+			expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+		});
+		expect(within(dialog).queryByTestId("compact-org-selector")).toBeNull();
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(requestBody).toMatchObject({
+				organization_id: MockOrganization2.id,
 			});
 		});
 	});
