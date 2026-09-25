@@ -97,7 +97,8 @@ curl -X GET http://coder-server:8080/api/v2/insights/templates?start_time=2019-0
     "active_users": 22,
     "apps_usage": [
       {
-        "display_name": "Visual Studio Code",
+        "display_name": "VS Code",
+        "family": "vscode",
         "icon": "string",
         "seconds": 80500,
         "slug": "vscode",

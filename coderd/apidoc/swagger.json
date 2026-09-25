@@ -17257,7 +17257,8 @@
 				"ssh",
 				"reconnecting_pty",
 				"sftp",
-				"unknown"
+				"unknown",
+				"workspace_app"
 			],
 			"x-enum-varnames": [
 				"AppFamilyVSCode",
@@ -17265,7 +17266,8 @@
 				"AppFamilySSH",
 				"AppFamilyReconnectingPTY",
 				"AppFamilySFTP",
-				"AppFamilyUnknown"
+				"AppFamilyUnknown",
+				"AppFamilyWorkspaceApp"
 			]
 		},
 		"codersdk.AppHostResponse": {
@@ -26399,7 +26401,15 @@
 			"properties": {
 				"display_name": {
 					"type": "string",
-					"example": "Visual Studio Code"
+					"example": "VS Code"
+				},
+				"family": {
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.AppFamilyName"
+						}
+					],
+					"example": "vscode"
 				},
 				"icon": {
 					"type": "string"

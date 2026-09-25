@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -573,77 +574,36 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// convertTemplateInsightsApps builds the list of builtin apps and template apps
-// from the provided database rows, builtin apps are implicitly a part of all
-// templates.
+// convertTemplateInsightsApps lists each session app with usage as a builtin
+// app, followed by the template apps.
 func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) ([]codersdk.TemplateAppUsage, error) {
-	// Session usage arrives per app name, the builtin apps below per family.
 	appSeconds, err := codersdk.DecodeAppMap[int64](usage.SessionAppUsageSeconds)
 	if err != nil {
 		return nil, xerrors.Errorf("decode session app usage seconds: %w", err)
 	}
-	usageSeconds := codersdk.SumByFamily(appSeconds)
 	appTemplateIDs, err := codersdk.DecodeAppMap[[]uuid.UUID](usage.SessionAppTemplateIds)
 	if err != nil {
 		return nil, xerrors.Errorf("decode session app template ids: %w", err)
 	}
-	templateIDsByFamily := codersdk.UnionByFamily(appTemplateIDs)
-	// Keep serializing empty template lists as [] instead of null.
-	templateIDs := func(family codersdk.AppFamilyName) []uuid.UUID {
-		if ids := templateIDsByFamily[family]; ids != nil {
-			return ids
-		}
-		return []uuid.UUID{}
-	}
 
-	// Builtin apps.
-	apps := []codersdk.TemplateAppUsage{
-		{
-			TemplateIDs: templateIDs(codersdk.AppFamilyVSCode),
+	// TODO(mafredri): We could take Web Terminal usage from appUsage since
+	// that should be more accurate. The difference is that this reflects
+	// the rpty session as seen by the agent (can live past the connection),
+	// whereas appUsage reflects the lifetime of the client connection. The
+	// condition finding the corresponding app entry in appUsage is:
+	// !app.IsApp && app.AccessMethod == "terminal" && app.SlugOrPort == ""
+	apps := make([]codersdk.TemplateAppUsage, 0, len(appSeconds)+len(appUsage))
+	for _, appName := range slices.Sorted(maps.Keys(appSeconds)) {
+		displayName, icon, family := codersdk.SessionAppPresentation(appName)
+		apps = append(apps, codersdk.TemplateAppUsage{
+			TemplateIDs: appTemplateIDs[appName],
 			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: codersdk.TemplateBuiltinAppDisplayNameVSCode,
-			Slug:        "vscode",
-			Icon:        "/icon/code.svg",
-			Seconds:     usageSeconds[codersdk.AppFamilyVSCode],
-		},
-		{
-			TemplateIDs: templateIDs(codersdk.AppFamilyJetBrains),
-			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: codersdk.TemplateBuiltinAppDisplayNameJetBrains,
-			Slug:        "jetbrains",
-			Icon:        "/icon/intellij.svg",
-			Seconds:     usageSeconds[codersdk.AppFamilyJetBrains],
-		},
-		// TODO(mafredri): We could take Web Terminal usage from appUsage since
-		// that should be more accurate. The difference is that this reflects
-		// the rpty session as seen by the agent (can live past the connection),
-		// whereas appUsage reflects the lifetime of the client connection. The
-		// condition finding the corresponding app entry in appUsage is:
-		// !app.IsApp && app.AccessMethod == "terminal" && app.SlugOrPort == ""
-		{
-			TemplateIDs: templateIDs(codersdk.AppFamilyReconnectingPTY),
-			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
-			Slug:        "reconnecting-pty",
-			Icon:        "/icon/terminal.svg",
-			Seconds:     usageSeconds[codersdk.AppFamilyReconnectingPTY],
-		},
-		{
-			TemplateIDs: templateIDs(codersdk.AppFamilySSH),
-			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSSH,
-			Slug:        "ssh",
-			Icon:        "/icon/terminal.svg",
-			Seconds:     usageSeconds[codersdk.AppFamilySSH],
-		},
-		{
-			TemplateIDs: templateIDs(codersdk.AppFamilySFTP),
-			Type:        codersdk.TemplateAppsTypeBuiltin,
-			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSFTP,
-			Slug:        "sftp",
-			Icon:        "/icon/terminal.svg",
-			Seconds:     usageSeconds[codersdk.AppFamilySFTP],
-		},
+			DisplayName: displayName,
+			Slug:        appName,
+			Icon:        icon,
+			Seconds:     appSeconds[appName],
+			Family:      family,
+		})
 	}
 
 	// Use a stable sort, similarly to how we would sort in the query, note that
@@ -671,6 +631,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Icon:        app.Icon,
 			Seconds:     app.UsageSeconds,
 			TimesUsed:   app.TimesUsed,
+			Family:      codersdk.AppFamilyWorkspaceApp,
 		})
 	}
 
