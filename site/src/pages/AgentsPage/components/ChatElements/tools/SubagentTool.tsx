@@ -60,7 +60,7 @@ const SUBAGENT_VERBS: Record<
  * the rendering logic for the three label variants readable.
  */
 function getSubagentLabel(
-	showDesktopPreview: boolean | undefined,
+	showDesktopPreview: boolean,
 	toolStatus: ToolStatus,
 	descriptor: SubagentDescriptor,
 	title: string,
@@ -120,15 +120,15 @@ const SubagentStatusIcon: React.FC<{
 	toolStatus: ToolStatus;
 	isError: boolean;
 	isTimeout: boolean;
-	iconKind?: SubagentDescriptor["iconKind"];
-	showDesktopPreview?: boolean;
+	iconKind: SubagentDescriptor["iconKind"];
+	showDesktopPreview: boolean;
 }> = ({
 	subagentStatus,
 	toolStatus,
 	isError,
 	isTimeout,
-	iconKind = "bot",
-	showDesktopPreview = false,
+	iconKind,
+	showDesktopPreview,
 }) => {
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const DefaultIcon = iconKind === "monitor" ? MonitorIcon : BotIcon;
@@ -168,9 +168,9 @@ export const SubagentTool: React.FC<{
 	report?: string;
 	toolStatus: ToolStatus;
 	isError: boolean;
-	isTimeout?: boolean;
+	isTimeout: boolean;
 	/** Show an inline VNC desktop preview (for computer-use subagents). */
-	showDesktopPreview?: boolean;
+	showDesktopPreview: boolean;
 	/** File ID for a completed recording (shown after tool completes). */
 	recordingFileId?: string;
 	/** File ID for the JPEG thumbnail of a completed recording. */
@@ -186,7 +186,7 @@ export const SubagentTool: React.FC<{
 	report,
 	toolStatus,
 	isError,
-	isTimeout = false,
+	isTimeout,
 	showDesktopPreview,
 	recordingFileId,
 	thumbnailFileId,

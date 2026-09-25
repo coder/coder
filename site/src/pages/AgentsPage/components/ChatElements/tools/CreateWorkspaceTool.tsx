@@ -19,7 +19,7 @@ export const CreateWorkspaceTool: React.FC<{
 	isError: boolean;
 	errorMessage?: string;
 	buildId?: string;
-	created?: boolean;
+	created: boolean;
 	labelOverride?: string;
 }> = ({
 	workspaceName,
@@ -28,7 +28,7 @@ export const CreateWorkspaceTool: React.FC<{
 	isError,
 	errorMessage,
 	buildId,
-	created = true,
+	created,
 	labelOverride,
 }) => {
 	const isRunning = status === "running";
@@ -43,7 +43,7 @@ export const CreateWorkspaceTool: React.FC<{
 			? labelOverride
 			: isError
 				? `Failed to create ${wsName || "workspace"}`
-				: created === false
+				: !created
 					? `Workspace ${wsName} already exists`
 					: wsName
 						? `Created ${wsName}`

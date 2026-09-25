@@ -8,9 +8,7 @@ import type { LiveStatusModel } from "./liveStatusModel";
 import { BlockList, type BlockListProps } from "./MessageBlocks";
 import { shouldShowGenericThinking } from "./streamingActivity";
 
-const LiveActivitySlot: FC<{ interrupting?: boolean }> = ({
-	interrupting = false,
-}) => (
+const LiveActivitySlot: FC<{ interrupting: boolean }> = ({ interrupting }) => (
 	<div
 		data-testid="live-activity-slot"
 		className="flex h-6 items-center gap-2 text-content-secondary"

@@ -4,11 +4,10 @@ import type { ToolCallView } from "./ToolCall";
 export type AgentDisplayState = ToolCallView;
 
 export const resolveAgentDisplayState = (
-	mode: AgentDisplayMode | undefined,
+	mode: AgentDisplayMode,
 	autoState: AgentDisplayState,
 ): AgentDisplayState => {
 	switch (mode) {
-		case undefined:
 		case "auto":
 			return autoState;
 		case "always_expanded":

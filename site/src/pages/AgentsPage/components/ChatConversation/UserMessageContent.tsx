@@ -60,16 +60,10 @@ const renderUserInlineContent = (blocks: readonly UserInlineRenderBlock[]) => {
 export const UserMessageContent: FC<{
 	displayState: MessageDisplayState;
 	markdown: string;
-	isEditing?: boolean;
-	onImageClick?: (src: string) => void;
-	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
-}> = ({
-	displayState,
-	markdown,
-	isEditing = false,
-	onImageClick,
-	onTextFileClick,
-}) => {
+	isEditing: boolean;
+	onImageClick: (src: string) => void;
+	onTextFileClick: (attachment: PreviewTextAttachment) => void;
+}> = ({ displayState, markdown, isEditing, onImageClick, onTextFileClick }) => {
 	return (
 		<Message className="w-fit max-w-[min(80vw,80%)]">
 			<MessageContent
@@ -104,7 +98,6 @@ export const UserMessageContent: FC<{
 									block={block}
 									onImageClick={onImageClick}
 									onTextFileClick={onTextFileClick}
-									showTextStatus
 								/>
 							))}
 						</div>

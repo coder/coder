@@ -6,7 +6,14 @@ const PROCESS_ID = "376b2458-e318-4442-8b87-51a0f9727f0e";
 const meta: Meta<typeof Tool> = {
 	title: "components/ai-elements/tool/ProcessSignal",
 	component: Tool,
-	args: { name: "process_signal" },
+	args: {
+		name: "process_signal",
+		isError: false,
+		subagentTitles: new Map(),
+		subagentVariants: new Map(),
+		shellToolDisplayMode: "auto",
+		codeDiffDisplayMode: "auto",
+	},
 };
 export default meta;
 type Story = StoryObj<typeof Tool>;
