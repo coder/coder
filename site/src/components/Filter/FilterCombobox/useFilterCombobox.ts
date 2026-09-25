@@ -345,9 +345,9 @@ export const useFilterCombobox = ({
 		[chipKeys, value],
 	);
 	// A category's first applied chip decides its scope toggle; with no chip
-	// the toggle is on. A typed `owner:` or `user:` prefix decides it instead
-	// while its category is open, and reaches the query only with the option
-	// picked.
+	// the toggle is on. While its category is open, a typed prefix decides it
+	// instead: `widenedKey` turns it on, and the category key or an alias turns
+	// it off. The typed key reaches the query only with the option picked.
 	const [typedScopeWidened, setTypedScopeWidened] = useState<boolean | null>(
 		null,
 	);
@@ -390,6 +390,21 @@ export const useFilterCombobox = ({
 		category.scopeToggle && isScopeWidened(category)
 			? category.scopeToggle.widenedKey
 			: category.key;
+	// With a chip under each key, an option whose value one of them holds maps
+	// to that chip, so its row shows as selected and a click removes it.
+	const categoryOptionToken = (
+		category: FilterCategory,
+		option: FilterOption,
+	) => {
+		const scopeChips = scopeChipsOf(category);
+		const appliedChip =
+			scopeChips.length > 1
+				? scopeChips.find(
+						(chip) => parseChipToken(chip, chipKeys)?.value === option.value,
+					)
+				: undefined;
+		return appliedChip ?? optionToken(optionChipKey(category), option);
+	};
 	const categoryForChip = (token: string) => {
 		const key = parseChipToken(token, chipKeys)?.key;
 		return key === undefined
@@ -1238,8 +1253,7 @@ export const useFilterCombobox = ({
 				inputValue.trim(),
 			);
 			const hasHighlightedOption = activeOptions?.some(
-				(option) =>
-					optionToken(optionChipKey(activeCategory), option) === highlighted,
+				(option) => categoryOptionToken(activeCategory, option) === highlighted,
 			);
 			if (
 				!activeOptionsLoading &&
@@ -1366,7 +1380,6 @@ export const useFilterCombobox = ({
 		inlineOptionRows,
 		chipValues,
 		highlightRef,
-		// Switch state for a scope category, undefined for other categories.
 		scopeState: (categoryKey: string) => {
 			const category = categories.find((entry) => entry.key === categoryKey);
 			const toggle = category?.scopeToggle;
@@ -1392,9 +1405,11 @@ export const useFilterCombobox = ({
 			const category = categoryForChip(token);
 			return category !== undefined && scopeChipsOf(category).length > 1;
 		},
-		optionChipKey: (categoryKey: string) => {
+		optionTokenFor: (categoryKey: string, option: FilterOption) => {
 			const category = categories.find((entry) => entry.key === categoryKey);
-			return category ? optionChipKey(category) : categoryKey;
+			return category
+				? categoryOptionToken(category, option)
+				: optionToken(categoryKey, option);
 		},
 		typeaheadError,
 		actions: {

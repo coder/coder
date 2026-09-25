@@ -21,7 +21,7 @@ export type FilterCategory = {
 	label: string;
 	getOptions: (query: string) => Promise<FilterOption[]>;
 	icon?: ReactNode;
-	/** Extra typed prefixes that enter this category. */
+	/** Extra names for this category, matched as typed text or a `name:` prefix. */
 	aliases?: readonly string[];
 	/**
 	 * Query keys this category owns for chip parsing. Defaults to `[key]`. A
@@ -58,8 +58,9 @@ export type FilterCategory = {
 	 * `owner:alice`. With no chip it is on and disabled, so the first pick
 	 * commits under `widenedKey`. Once a chip is applied, the switch follows
 	 * that chip's key and later picks keep it; with a chip under each key it is
-	 * disabled and both chips show their own query keys. A typed prefix naming
-	 * the category key or `widenedKey` sets the key for that entry's pick.
+	 * disabled and both chips show their own query keys. A typed prefix sets
+	 * the key for that entry's pick: `widenedKey` commits under `widenedKey`;
+	 * the category key or an alias commits under the category key.
 	 * While it is on, a pill after the chip reads `pillPrefix` and the chip's
 	 * value, and removing the pill turns the switch off. Applies only to
 	 * submenu categories, not inline ones.

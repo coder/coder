@@ -139,7 +139,7 @@ export function FilterCombobox({
 		scopeState,
 		scopePillCategoryKey,
 		showsOwnQueryKey,
-		optionChipKey,
+		optionTokenFor,
 		typeaheadError,
 		actions,
 	} = useFilterCombobox({
@@ -248,8 +248,9 @@ export function FilterCombobox({
 		}
 		updateFlyoutCategory(isCategoryRow ? highlighted : null);
 	};
-	// Typed text narrows the category rows, so a click enters the category like
-	// Enter does and only a scope match gets a flyout.
+	// Typed text narrows the category rows, so a click enters the category and
+	// drops the text, and only a scope match gets a flyout. Enter on a row
+	// listed only by the scope match applies the text as a search instead.
 	const flyoutCategory =
 		activeCategoryKey === null &&
 		(!categoriesNarrowedByText || shownFlyoutKey === scopeMatchKey)
@@ -303,7 +304,7 @@ export function FilterCombobox({
 					unfilteredOptionsByKey.get(activeCategoryKey)?.length
 				}
 				selectedTokens={chipValues}
-				chipKey={optionChipKey(activeCategoryKey)}
+				optionTokenFor={(option) => optionTokenFor(activeCategoryKey, option)}
 				scope={scopeState(activeCategoryKey)}
 				onToggleScope={actions.toggleScope}
 				searchValue={inputValue}
@@ -578,7 +579,9 @@ export function FilterCombobox({
 											flyoutCategory.key,
 										)}
 										selectedTokens={chipValues}
-										chipKey={optionChipKey(flyoutCategory.key)}
+										optionTokenFor={(option) =>
+											optionTokenFor(flyoutCategory.key, option)
+										}
 										scope={scopeState(flyoutCategory.key)}
 										onToggleScope={toggleFlyoutScope}
 										onMouseEnter={cancelHoverSwitch}
@@ -1046,7 +1049,8 @@ type FlyoutCategoryPanelProps = Readonly<{
 	options: readonly FilterOption[] | undefined;
 	optionsError: boolean;
 	selectedTokens: readonly string[];
-	chipKey: string;
+	/** Token an option commits, or the applied chip it removes. */
+	optionTokenFor: (option: FilterOption) => string;
 	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
 	onMouseEnter: () => void;
@@ -1060,7 +1064,7 @@ function FlyoutCategoryPanel({
 	options,
 	optionsError,
 	selectedTokens,
-	chipKey,
+	optionTokenFor,
 	scope,
 	onToggleScope,
 	onMouseEnter,
@@ -1123,7 +1127,7 @@ function FlyoutCategoryPanel({
 			)}
 			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
 				{(failed ? [] : filteredOptions).map((option) => {
-					const token = optionToken(chipKey, option);
+					const token = optionTokenFor(option);
 					const selected = selectedTokens.includes(token);
 					return (
 						<button
@@ -1160,7 +1164,8 @@ type CategoryOptionsListProps = Readonly<{
 	/** Size of the category's unfiltered option list, when cached. */
 	unfilteredOptionCount: number | undefined;
 	selectedTokens: readonly string[];
-	chipKey: string;
+	/** Token an option commits, or the applied chip it removes. */
+	optionTokenFor: (option: FilterOption) => string;
 	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
 	searchValue: string;
@@ -1177,7 +1182,7 @@ function CategoryOptionsList({
 	optionsError,
 	unfilteredOptionCount,
 	selectedTokens,
-	chipKey,
+	optionTokenFor,
 	scope,
 	onToggleScope,
 	searchValue,
@@ -1232,7 +1237,7 @@ function CategoryOptionsList({
 			{options === undefined && <LoadingOptions />}
 			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
 				{options?.map((option) => {
-					const token = optionToken(chipKey, option);
+					const token = optionTokenFor(option);
 					const selected = selectedTokens.includes(token);
 					return (
 						<FilterComboboxItem

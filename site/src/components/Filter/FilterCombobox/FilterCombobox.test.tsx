@@ -1848,7 +1848,7 @@ describe("FilterCombobox", () => {
 		expect(onChange).toHaveBeenLastCalledWith("owner:alice xyz");
 	});
 
-	it("keeps a second Owner token as a plain chip while typing", async () => {
+	it("keeps both Owner chips of owner:bob user:carol while typing", async () => {
 		const { user, onChange, input } = setup([scopedOwnerCategory], {
 			initialValue: "owner:bob user:carol",
 		});
@@ -1865,6 +1865,38 @@ describe("FilterCombobox", () => {
 
 		await user.click(screen.getByRole("button", { name: "Remove user:carol" }));
 		expect(onChange).toHaveBeenLastCalledWith("owner:bob dev");
+	});
+
+	it("shows each chip of user:me owner:carol under its own query key", async () => {
+		const { user, onChange } = setup([scopedOwnerCategory], {
+			initialValue: "user:me owner:carol",
+		});
+
+		await user.click(screen.getByRole("button", { name: "Remove user:me" }));
+
+		expect(onChange).toHaveBeenLastCalledWith("owner:carol");
+	});
+
+	it("removes the chip whose owner is clicked while both Owner keys are applied", async () => {
+		const { user, onChange, filtersButton } = setup(
+			[
+				{
+					...scopedOwnerCategory,
+					getOptions: async () =>
+						["me", "carol", "alice"].map((name) => ({
+							label: name,
+							value: name,
+						})),
+				},
+			],
+			{ initialValue: "user:me owner:carol" },
+		);
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowRight}");
+		await user.click(await screen.findByRole("option", { name: "carol" }));
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("user:me"));
 	});
 
 	it("keeps a second Owner token when another chip is removed", async () => {
@@ -1898,7 +1930,7 @@ describe("FilterCombobox", () => {
 		["owner:bob user:carol", "user:", "owner:bob user:alice"],
 		["owner:bob", "user:", "user:alice"],
 	])(
-		"replaces the Owner chip under the typed key when picking from %s after %s",
+		"commits under the typed key, replacing the matching or first Owner chip, from %s after %s",
 		async (initialValue, typed, expected) => {
 			const { user, onChange, input } = setup([scopedOwnerCategory], {
 				initialValue,
@@ -1955,10 +1987,10 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it("keeps a narrowed Owner scope for a typed alias", async () => {
+	it("commits under the Owner key for a typed alias", async () => {
 		const { user, onChange, input } = setup(
 			[{ ...scopedOwnerCategory, aliases: ["creator"] }],
-			{ initialValue: "owner:bob" },
+			{ initialValue: "user:bob" },
 		);
 
 		await user.click(input);
@@ -2158,6 +2190,20 @@ describe("FilterCombobox", () => {
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("owner:alice shared"),
 		);
+	});
+
+	it("drops the typed text when a row listed by the scope phrase is clicked", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			initialValue: "owner:alice",
+			skipHover: true,
+		});
+		await user.click(input);
+		await user.type(input, "shared");
+		await user.click(await screen.findByRole("option", { name: "Owner" }));
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		expect(onChange).not.toHaveBeenCalledWith("owner:alice shared");
 	});
 
 	it("offers the scope switch in a category whose options failed to load", async () => {
