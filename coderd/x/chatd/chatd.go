@@ -1595,7 +1595,7 @@ func (p *Server) SendMessage(
 	// Sidebar watch event keeps the chat list in sync. Stream side
 	// effects are handled by chat:update consumers.
 	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
-	p.recordQueueWait(ctx, result.Chat, promotedQueuedAt, p.stages.Now())
+	p.recordQueueWait(ctx, result.Chat, promotedQueuedAt)
 	return result, nil
 }
 
@@ -2161,7 +2161,7 @@ func (p *Server) PromoteQueued(
 	}
 
 	p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
-	p.recordQueueWait(ctx, refreshChat, promotedQueuedAt, p.stages.Now())
+	p.recordQueueWait(ctx, refreshChat, promotedQueuedAt)
 	return result, nil
 }
 
@@ -4882,20 +4882,20 @@ func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func(
 }
 
 // recordQueueWait emits the queue_wait stage for a message of chat that
-// sat queued from queuedAt until promotedAt. A zero queuedAt records
-// nothing. The span context is stripped from ctx so the stage is a
-// standalone span rather than a child of the span in ctx, and the
-// scope, chat kind, and organization are set explicitly because ctx
-// does not carry the turn's.
-func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queuedAt, promotedAt time.Time) {
+// sat queued from queuedAt until now. Call it after the transition that
+// promoted the message commits; a zero queuedAt, which such transitions
+// return when they promote nothing, records nothing. The span context
+// is stripped from ctx so the stage is a standalone span rather than a
+// child of the span in ctx. The stage is turn scoped and carries the
+// chat's kind and organization, which ctx need not carry.
+func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queuedAt time.Time) {
 	if queuedAt.IsZero() {
 		return
 	}
 	standalone := trace.ContextWithSpanContext(ctx, trace.SpanContext{})
-	standalone = chatloop.ContextWithChatKind(standalone, chatKind(chat))
-	standalone = chatloop.ContextWithOrganization(standalone, p.organizationName(ctx, chat.OrganizationID))
-	p.stages.RecordAs(standalone, chatloop.StageQueueWait, chatloop.ScopeTurn,
-		chatloop.StageModel{}, queuedAt, promotedAt, nil,
+	standalone = withStageIdentity(standalone, chatloop.ScopeTurn, chatKind(chat), p.organizationName(ctx, chat.OrganizationID))
+	p.stages.Record(standalone, chatloop.StageQueueWait, chatloop.StageModel{},
+		queuedAt, p.stages.Now(), nil,
 		attribute.String(chatloop.AttrChatID, chat.ID.String()),
 	)
 }
@@ -4905,9 +4905,7 @@ func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queued
 // context so the stages of the detached work carry them.
 func (p *Server) inflightChatContext(reqCtx context.Context, chat database.Chat) (context.Context, func()) {
 	ctx, stop := p.inflightContext(reqCtx)
-	ctx = chatloop.ContextWithChatKind(ctx, chatKind(chat))
-	ctx = chatloop.ContextWithOrganization(ctx, p.organizationName(ctx, chat.OrganizationID))
-	return ctx, stop
+	return withStageIdentity(ctx, chatloop.ScopeBackground, chatKind(chat), p.organizationName(ctx, chat.OrganizationID)), stop
 }
 
 // organizationName returns the name of the organization with id for

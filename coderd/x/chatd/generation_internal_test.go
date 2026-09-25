@@ -11,7 +11,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/testutil"
@@ -131,8 +130,7 @@ func TestRecordThinkingStages(t *testing.T) {
 	// The provider attribute is the model's wire protocol, which differs
 	// from the configured provider type for bedrock.
 	prepared := generationPrepared{
-		Model:      chatprovider.NewModel(&chattest.FakeModel{ProviderName: "anthropic"}, nil),
-		StageModel: chatloop.StageModel{ProviderType: "bedrock", Model: "claude", Effort: "high"},
+		StageModel: chatloop.StageModel{Provider: "anthropic", ProviderType: "bedrock", Model: "claude", Effort: "high"},
 	}
 
 	t.Run("PairsByIndex", func(t *testing.T) {
