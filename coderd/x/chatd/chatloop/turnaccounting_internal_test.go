@@ -93,7 +93,7 @@ func (f stageMetricsFixture) startTurn(t *testing.T) (context.Context, *StageSpa
 	ctx = ContextWithOrganization(ctx, "acme")
 	ctx = ContextWithTurnAccumulator(ctx, NewTurnAccumulator())
 	turnStart := f.clock.Now()
-	turnCtx, turnSpan := f.tracer.StartRootAt(ctx, StageChatTurn, turnStart, nil)
+	turnCtx, turnSpan := f.tracer.StartRootAt(ctx, StageChatTurn, turnStart)
 	return turnCtx, turnSpan, turnStart
 }
 
@@ -146,9 +146,9 @@ func (f stageMetricsFixture) syntheticTurn(t *testing.T, model StageModel) time.
 	toolStep.End(nil)
 
 	// A failed step: the stream never produced a first part, and the
-	// retry delay that follows it is its own category. The stream ends
-	// without an error, so only its failed first-token window makes the
-	// rest of it provider error.
+	// retry delay that follows it is its own category. The failed
+	// first-token window is provider error; the stream ends without an
+	// error, so the rest of it is streaming.
 	failedStepCtx, failedStep := f.tracer.Start(turnCtx, StageGenerationStep)
 	failedStep.SetGenerationAction("generate_assistant")
 	failedStreamCtx, failedStream := f.tracer.Start(failedStepCtx, StageStream)
@@ -188,8 +188,8 @@ func TestTurnAccountingPartition(t *testing.T) {
 	require.Equal(t, map[TurnCategory]float64{
 		TurnCategoryScheduling:       2,
 		TurnCategoryTimeToFirstToken: 3,
-		TurnCategoryStreaming:        4,
-		TurnCategoryProviderError:    3,
+		TurnCategoryStreaming:        4 + 1,
+		TurnCategoryProviderError:    2,
 		TurnCategoryRetryBackoff:     6,
 		TurnCategoryToolExecution:    5,
 		TurnCategoryCompaction:       8,
@@ -353,12 +353,9 @@ func TestTurnAccountingSchedulingIsAcquisitionOnly(t *testing.T) {
 	fixture := newStageMetricsFixture(t)
 	turnCtx, turnSpan, turnStart := fixture.startTurn(t)
 
-	// capacity_wait lies inside acquisition, and a turn-scoped
-	// queue_wait is not categorized.
+	// A turn-scoped queue_wait is not categorized.
 	fixture.tracer.Record(turnCtx, StageAcquisition, StageModel{},
 		turnStart, turnStart.Add(5*time.Second), nil)
-	fixture.tracer.Record(turnCtx, StageCapacityWait, StageModel{},
-		turnStart.Add(time.Second), turnStart.Add(4*time.Second), nil)
 	fixture.tracer.Record(turnCtx, StageQueueWait, StageModel{},
 		turnStart, turnStart.Add(2*time.Second), nil)
 	fixture.clock.Advance(6 * time.Second)
@@ -367,6 +364,28 @@ func TestTurnAccountingSchedulingIsAcquisitionOnly(t *testing.T) {
 	categories := turnCategories(t, fixture.registry)
 	require.Equal(t, 5.0, categories[TurnCategoryScheduling])
 	require.Equal(t, 1.0, categories[TurnCategoryUnattributed])
+	require.Empty(t, stageAnomalies(t, fixture.registry))
+}
+
+// TestTurnAccountingRecordedStageUnderStep covers a recorded stage
+// under an attributing stage: its window leaves the step's own time.
+func TestTurnAccountingRecordedStageUnderStep(t *testing.T) {
+	t.Parallel()
+	fixture := newStageMetricsFixture(t)
+	turnCtx, turnSpan, _ := fixture.startTurn(t)
+
+	stepCtx, step := fixture.tracer.Start(turnCtx, StageGenerationStep)
+	step.SetGenerationAction("generate_assistant")
+	fixture.clock.Advance(3 * time.Second)
+	fixture.tracer.Record(stepCtx, StageAcquisition, StageModel{},
+		fixture.clock.Now().Add(-2*time.Second), fixture.clock.Now(), nil)
+	step.End(nil)
+	turnSpan.EndTurn(TurnOutcomeCompleted, nil)
+
+	categories := turnCategories(t, fixture.registry)
+	require.Equal(t, 2.0, categories[TurnCategoryScheduling])
+	require.Equal(t, 1.0, categories[TurnCategoryChatdOverhead])
+	require.Zero(t, categories[TurnCategoryUnattributed])
 	require.Empty(t, stageAnomalies(t, fixture.registry))
 }
 
