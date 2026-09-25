@@ -121,3 +121,15 @@ export const WithFilterError: Story = {
 		await expect(input).toHaveAttribute("aria-errormessage", alert.id);
 	},
 };
+
+// With no filter applied, an ordinary user still sees the Owner and User rows,
+// though each offers only themselves.
+export const OrdinaryUserSeesSelfCategories: Story = {
+	args: { initialQuery: "" },
+	parameters: { permissions: MockNoPermissions },
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
+	},
+};

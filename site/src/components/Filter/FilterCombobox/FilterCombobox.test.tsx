@@ -6,12 +6,14 @@ import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { FilterCombobox, SEARCHABLE_OPTION_COUNT } from "./FilterCombobox";
 import { SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
-import { TYPED_TEXT_LOOKUP_TIMEOUT_MS } from "./useFilterCombobox";
+import {
+	SUGGESTIONS_ERROR_MESSAGE,
+	TYPED_TEXT_LOOKUP_TIMEOUT_MS,
+} from "./useFilterCombobox";
 
 const ownerCategory: FilterCategory = {
 	key: "owner",
 	label: "Owner",
-	showWhenSingleOption: true,
 	getOptions: async () => [{ label: "alice", value: "alice" }],
 };
 
@@ -140,6 +142,107 @@ const setup = (
 describe("FilterCombobox", () => {
 	afterEach(() => {
 		vi.useRealTimers();
+	});
+
+	it("fetches hideable categories before the menu opens and skips others", async () => {
+		const hideable = vi.fn(async () => [{ label: "Docker", value: "docker" }]);
+		const other = vi.fn(async () => [{ label: "alice", value: "alice" }]);
+		render(
+			<FilterComboboxHarness
+				categories={[
+					{
+						key: "template",
+						label: "Template",
+						hideWhenSingleOption: true,
+						getOptions: hideable,
+					},
+					{ key: "owner", label: "Owner", getOptions: other },
+				]}
+				initialValue=""
+				onChange={vi.fn()}
+			/>,
+		);
+		await waitFor(() => expect(hideable).toHaveBeenCalledWith(""));
+		expect(other).not.toHaveBeenCalled();
+	});
+
+	it("shows placeholder rows until hideable categories load", async () => {
+		const templates = heldSearch(
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => [],
+			},
+			"",
+		);
+		const { user, filtersButton } = setup([ownerCategory, templates.category]);
+
+		await user.click(filtersButton);
+		expect(
+			screen.queryByRole("option", { name: "Owner" }),
+		).not.toBeInTheDocument();
+		await act(async () =>
+			templates.resolve([
+				{ label: "docker", value: "docker" },
+				{ label: "k8s", value: "k8s" },
+			]),
+		);
+
+		expect(
+			await screen.findByRole("option", { name: "Template" }),
+		).toBeInTheDocument();
+		expect(screen.getByRole("option", { name: "Owner" })).toBeInTheDocument();
+	});
+
+	it("lists a hideable category whose options failed to load", async () => {
+		const { user, filtersButton } = setup([
+			ownerCategory,
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => {
+					throw new Error("failed");
+				},
+			},
+		]);
+
+		await user.click(filtersButton);
+
+		expect(
+			await screen.findByRole("option", { name: "Template" }),
+		).toBeInTheDocument();
+	});
+
+	it("ignores hidden options for suggestions but keeps hidden keys prefix-searchable", async () => {
+		const getOptions = vi.fn(async (query: string) =>
+			[{ label: "Docker", value: "docker" }].filter((option) =>
+				option.label.toLowerCase().includes(query.toLowerCase()),
+			),
+		);
+		const { user, input, onChange } = setup(
+			[
+				{
+					key: "template",
+					label: "Template",
+					hideWhenSingleOption: true,
+					getOptions,
+				},
+			],
+			{ fakeTimers: true },
+		);
+		await user.click(input);
+		await user.type(input, "dock");
+		await settleTypedText();
+		expect(onChange).toHaveBeenLastCalledWith("dock");
+		expect(getOptions).not.toHaveBeenCalledWith("dock");
+
+		await user.clear(input);
+		await user.type(input, "templ");
+		await settleTypedText();
+		await user.type(input, ":");
+		expect(onChange).not.toHaveBeenCalledWith("templ");
 	});
 
 	it("opens from the Filters button with keyboard focus and navigates categories", async () => {
@@ -290,14 +393,14 @@ describe("FilterCombobox", () => {
 		expect(onChange).toHaveBeenLastCalledWith("status:starting");
 	});
 
-	it("selects the first matching inline option with Enter before suggestions load", async () => {
+	it("selects the highlighted inline option with Enter before suggestions load", async () => {
 		const { user, onChange, input, filtersButton } = setup([
 			ownerCategory,
 			statusCategory,
 		]);
 
-		// The Enter path picks the first cached Status row while the typed query
-		// is still debounced.
+		// Cached Status rows are filtered locally, so Running is highlighted
+		// while the typed query is still debounced.
 		await user.click(filtersButton);
 		await screen.findByRole("option", { name: "Running" });
 		await user.click(input);
@@ -495,6 +598,49 @@ describe("FilterCombobox", () => {
 		expect(input).toHaveValue("");
 	});
 
+	it("keeps the applied search when a flyout option is picked from all filters", async () => {
+		const { user, onChange, filtersButton } = setup([ownerCategory], {
+			initialValue: "zzz",
+			skipHover: true,
+		});
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		await user.click(await screen.findByRole("button", { name: "alice" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice zzz"),
+		);
+	});
+
+	it("keeps the applied search when a typed drill-in value is committed", async () => {
+		const { user, onChange, input, filtersButton } = setup(
+			[
+				{
+					...ownerCategory,
+					getOptions: async (query) =>
+						query === "carol" ? [] : ownerCategory.getOptions(query),
+				},
+			],
+			{ initialValue: "zzz" },
+		);
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowDown}{ArrowRight}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.type(input, "carol");
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("option", { name: "alice" }),
+			).not.toBeInTheDocument(),
+		);
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:carol zzz"),
+		);
+	});
+
 	it("applies unmatched typed text with the remaining chips after a chip is removed during its lookup", async () => {
 		const owner = heldSearch(ownerCategory, "xyz");
 		const { user, onChange, input } = setup([owner.category, statusCategory], {
@@ -624,6 +770,50 @@ describe("FilterCombobox", () => {
 
 		expect(screen.getByRole("status")).toHaveTextContent("Loading suggestions");
 	});
+
+	it("announces a failed suggestion query while another is still fetching", async () => {
+		const { user, input } = setup([
+			{
+				...ownerCategory,
+				getOptions: async (query) => {
+					if (query) {
+						throw new Error("failed");
+					}
+					return [];
+				},
+			},
+			heldSearch(emptyTemplateCategory, "zzz").category,
+		]);
+
+		await user.click(input);
+		await user.type(input, "zzz");
+
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				SUGGESTIONS_ERROR_MESSAGE,
+			),
+		);
+	});
+
+	it.each([
+		["Enter", "{Enter}"],
+		["Space", " "],
+	])(
+		"removes a chip with %s on its remove button and focuses the input",
+		async (_, key) => {
+			const { user, onChange, input } = setup([ownerCategory, statusCategory], {
+				initialValue: "owner:alice status:running",
+			});
+
+			screen.getByRole("button", { name: "Remove owner:alice" }).focus();
+			await user.keyboard(key);
+
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("status:running"),
+			);
+			expect(input).toHaveFocus();
+		},
+	);
 
 	it("keeps matching rows selectable while typed text is debounced", async () => {
 		const { user, onChange, input } = setup([ownerCategory, statusCategory]);
@@ -805,6 +995,41 @@ describe("FilterCombobox", () => {
 		await user.click(await screen.findByRole("button", { name: "zed" }));
 
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:zed"));
+	});
+
+	it("returns keyboard navigation to a listed category after a one-option filter is removed", async () => {
+		const { user, onChange, input } = setup([
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => [{ label: "Docker", value: "docker" }],
+			},
+			{
+				...manyOwnersCategory,
+				key: "owner",
+				getOptions: async () => [
+					{ label: "alice", value: "alice" },
+					{ label: "bob", value: "bob" },
+				],
+			},
+		]);
+		await user.click(input);
+		await user.type(input, "template:");
+		await user.click(await screen.findByRole("option", { name: "Docker" }));
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("template:docker"),
+		);
+		await user.keyboard("{Enter}");
+		await screen.findByRole("option", { name: "Docker" });
+		await user.click(await screen.findByRole("option", { name: "Docker" }));
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		await user.keyboard("{Enter}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{ArrowDown}{Enter}");
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
 	});
 
 	it("retries a hover flyout whose options failed to load", async () => {
