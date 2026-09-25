@@ -45,6 +45,22 @@ func TestStructuredStopHooks(t *testing.T) {
 		}
 	})
 
+	// A pre_tool_use hook that denies every finalizer call rejects each
+	// batch, so the third denial exhausts the repair budget.
+	t.Run("DeniedFinalizerRejects", func(t *testing.T) {
+		t.Parallel()
+		run := runStructuredHookTurn(t, func(request agenthooks.Request) (int, string) {
+			if request.Type == agenthooks.EventPreToolUse {
+				return http.StatusOK, `{"permission":{"decision":"deny","reason":"blocked"}}`
+			}
+			return 0, ""
+		}, schema, 0, finalize("A"), finalize("B"), finalize("C"))
+		require.Len(t, run.requests, 3)
+		require.Equal(t, 3, run.state.Rejections)
+		require.Len(t, run.receipts, 1)
+		require.Equal(t, codersdk.ChatStructuredOutputErrorCodeValidationExhausted, run.receipts[0].Error.Code)
+	})
+
 	// A failing post_tool_use hook ends the turn with an error that also
 	// closes the open request.
 	t.Run("HookErrorClosesRequest", func(t *testing.T) {

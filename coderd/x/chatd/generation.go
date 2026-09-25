@@ -817,6 +817,17 @@ func (s *taskStarter) generateAssistant(
 	if err != nil {
 		return err
 	}
+	// A hook-denied finalizer call is resolved in this commit and never
+	// reaches finalizerBatchControls, so the step records its rejection here.
+	if prepared.StructuredRequestID != uuid.Nil && len(controlParts) == 0 && slices.ContainsFunc(preflight.Denied, func(result fantasy.ToolResultContent) bool {
+		return result.ToolName == chatstructured.FinalizerToolName
+	}) {
+		control, err := chatstructured.EncodeControlPart(chatstructured.Control{RequestID: prepared.StructuredRequestID, Kind: chatstructured.ControlRejection})
+		if err != nil {
+			return s.finishGenerationError(ctx, machine, input, xerrors.Errorf("encode structured output rejection: %w", err), requireGenerationAttempt(attempt.number))
+		}
+		controlParts = []codersdk.ChatMessagePart{control}
+	}
 	outcome.Step.Content = chathooks.ApplyAdmittedToolCalls(outcome.Step.Content, preflight)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:          prepared.ModelConfigID,

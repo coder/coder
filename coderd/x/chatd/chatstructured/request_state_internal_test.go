@@ -87,7 +87,17 @@ func TestActiveRequest(t *testing.T) {
 		{
 			name: "Invalidated",
 			rows: []Row{req, step(2, controlPart(t, a, ControlCandidate, `1`)), row(3, assistant, VisibilityBoth, controlPart(t, a, ControlInvalidation, ""))},
-			want: ActiveRequestState{Active: true, RequestRowID: 1, GenerationSteps: 1},
+			want: ActiveRequestState{Active: true, RequestRowID: 1, GenerationSteps: 1, Invalidated: true},
+		},
+		{
+			name: "InvalidationAnswered",
+			rows: []Row{req, step(2, controlPart(t, a, ControlCandidate, `1`)), row(3, user, VisibilityModel, controlPart(t, a, ControlInvalidation, "")), step(4)},
+			want: ActiveRequestState{Active: true, RequestRowID: 1, GenerationSteps: 2},
+		},
+		{
+			name: "InvalidationSurvivesReceipt",
+			rows: []Row{req, step(2, controlPart(t, a, ControlCandidate, `1`)), row(3, user, VisibilityModel, controlPart(t, a, ControlInvalidation, "")), row(4, assistant, VisibilityBoth, outcomePart(t, b))},
+			want: ActiveRequestState{Active: true, RequestRowID: 1, GenerationSteps: 1, Invalidated: true},
 		},
 		{
 			name: "ClosedStaysClosed",

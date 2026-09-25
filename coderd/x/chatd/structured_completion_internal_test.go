@@ -61,9 +61,11 @@ func TestDecideStructuredGenerationAction(t *testing.T) {
 		{name: "StepBudget", history: []database.ChatMessage{req, call("x", "execute"), result("x", "execute")}, maxSteps: 1, wantKind: generationActionFinishTurn, wantCode: codersdk.ChatStructuredOutputErrorCodeNotProduced},
 		{name: "CandidateKeepsWorking", history: []database.ChatMessage{req, call("f", fin), result("f", fin, candidate)}, wantKind: generationActionGenerateAssistant},
 		{name: "StepBudgetCandidate", history: []database.ChatMessage{req, call("f", fin), result("f", fin, candidate), call("x", "execute"), result("x", "execute")}, maxSteps: 2, wantKind: generationActionFinishTurn, success: true},
-		// After a restart no nudge forces a step: the invalidated candidate
-		// cannot close the turn.
-		{name: "InvalidatedCandidate", history: []database.ChatMessage{req, call("f", fin), result("f", fin, candidate), text, hookContext}, wantKind: generationActionFinishTurn, wantCode: codersdk.ChatStructuredOutputErrorCodeNotProduced},
+		// After a restart no nudge forces a step, so the trailing invalidation
+		// resumes the turn; once a later step ends without a candidate, the
+		// invalidated candidate cannot close it.
+		{name: "InvalidatedCandidate", history: []database.ChatMessage{req, call("f", fin), result("f", fin, candidate), text, hookContext}, wantKind: generationActionGenerateAssistant},
+		{name: "InvalidatedCandidateAnswered", history: []database.ChatMessage{req, call("f", fin), result("f", fin, candidate), text, hookContext, text}, wantKind: generationActionFinishTurn, wantCode: codersdk.ChatStructuredOutputErrorCodeNotProduced},
 		{name: "RepairStopAfter", history: []database.ChatMessage{req, call("e", "exit"), result("e", "exit", rejection)}, wantKind: generationActionGenerateAssistant},
 		{name: "UnrepairedStopAfter", history: []database.ChatMessage{req, call("e", "exit"), result("e", "exit")}, wantKind: generationActionFinishTurn, wantCode: codersdk.ChatStructuredOutputErrorCodeNotProduced},
 	} {

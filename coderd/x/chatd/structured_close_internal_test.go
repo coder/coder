@@ -240,3 +240,40 @@ func TestReconcileClosesActiveStructuredRequest(t *testing.T) {
 	}}, receiptOutcomes(added[1:]))
 	require.True(t, state.Closed)
 }
+
+// Promoting a queued message out of requires_action ends the waiting turn,
+// so its open structured output request closes as interrupted before the
+// promoted message.
+func TestPromoteQueuedClosesRequiresActionStructuredRequest(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	f := newTaskTestFixture(t)
+	requestID, toolName := uuid.New(), "dynamic_"+uuid.NewString()
+	dynamicTools, err := json.Marshal([]codersdk.DynamicTool{{Name: toolName, Description: "test tool", InputSchema: json.RawMessage(`{"type":"object"}`)}})
+	require.NoError(t, err)
+	created, err := chatstate.CreateChat(ctx, f.db, f.pubsub, chatstate.CreateChatInput{
+		OrganizationID: f.org.ID, OwnerID: f.user.ID, LastModelConfigID: f.model.ID, Title: "test", ClientType: database.ChatClientTypeApi,
+		DynamicTools:    pqtype.NullRawMessage{RawMessage: dynamicTools, Valid: true},
+		InitialMessages: []chatstate.Message{structuredUserMessage(t, f, requestID)},
+	})
+	require.NoError(t, err)
+	machine := chatstate.NewChatMachine(f.db, f.pubsub, created.Chat.ID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		if _, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{taskAssistantToolCallMessage(t, f.model.ID, toolName)}}); err != nil {
+			return err
+		}
+		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
+		return err
+	}))
+	queueTestMessages(t, machine, taskUserTextMessage(t, "queued", f.user.ID, f.model.ID, f.apiKey.ID))
+	queued, err := f.db.GetChatQueuedMessages(ctx, created.Chat.ID)
+	require.NoError(t, err)
+
+	server := &Server{db: f.db, pubsub: f.rawPS, logger: testutil.Logger(t)}
+	result, err := server.PromoteQueued(ctx, PromoteQueuedOptions{ChatID: created.Chat.ID, QueuedMessageID: queued[0].ID})
+	require.NoError(t, err)
+	history, _ := structuredHistory(t, f, created.Chat.ID)
+	require.Equal(t, result.PromotedMessage.ID, history[len(history)-1].ID)
+	require.Equal(t, []codersdk.ChatStructuredOutput{canceledStructuredOutput(requestID, codersdk.ChatStructuredOutputErrorCodeInterrupted, interruptedStructuredOutputMessage)},
+		receiptOutcomes(history[len(history)-2:len(history)-1]))
+}
