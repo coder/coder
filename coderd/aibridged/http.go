@@ -1,15 +1,19 @@
 package aibridged
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
@@ -129,11 +133,19 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		slog.F("auth_mode", authMode),
 		slog.F("auth_delegated", delegated),
 	)
-
 	resp, err := client.IsAuthorized(ctx, authReq)
 	if err != nil {
-		logger.Warn(ctx, "key authorization check failed", slog.Error(err))
-		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
+		authErr := authorizationErrorFromDRPC(err)
+		if s.metrics != nil {
+			s.metrics.AuthorizationCount.WithLabelValues(authorizationOutcomeForError(authErr.Kind)).Inc()
+		}
+		if authErr.Kind == intercept.AuthorizationErrorAuthentication || authErr.Kind == intercept.AuthorizationErrorPolicy {
+			logger.Warn(ctx, "key authorization denied", slog.Error(err))
+			http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
+		} else {
+			logger.Error(ctx, "key authorization evaluation failed", slog.Error(err))
+			http.Error(rw, "internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -178,6 +190,23 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx = intercept.WithRequestAuthorizer(ctx, func(authCtx context.Context, providerName, model string) error {
+		request := &proto.IsAuthorizedRequest{}
+		if authReq.GetKey() != "" {
+			request.Key = authReq.GetKey()
+		} else {
+			request.KeyId = authReq.GetKeyId()
+		}
+		request.ProviderName = &providerName
+		request.Model = &model
+
+		_, err := client.IsAuthorized(authCtx, request)
+		if err == nil {
+			return nil
+		}
+		return authorizationErrorFromDRPC(err)
+	})
+
 	// Rewire request context to include actor.
 	//
 	// [NOTE]
@@ -201,7 +230,27 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	handler.ServeHTTP(rw, r)
 }
 
-// attributionFromAuthorization extracts the workspace ID from the
+func authorizationErrorFromDRPC(err error) *intercept.AuthorizationError {
+	kind := intercept.AuthorizationErrorEvaluation
+	switch drpcerr.Code(err) {
+	case proto.AuthorizationErrorAuthentication:
+		kind = intercept.AuthorizationErrorAuthentication
+	case proto.AuthorizationErrorPolicy:
+		kind = intercept.AuthorizationErrorPolicy
+	case proto.AuthorizationErrorMalformed:
+		kind = intercept.AuthorizationErrorMalformed
+	}
+	return &intercept.AuthorizationError{Kind: kind, Err: err}
+}
+
+func authorizationOutcomeForError(kind intercept.AuthorizationErrorKind) string {
+	if kind == intercept.AuthorizationErrorAuthentication || kind == intercept.AuthorizationErrorPolicy {
+		return metrics.AuthorizationOutcomeDenied
+	}
+	return metrics.AuthorizationOutcomeError
+}
+
+// attributionFromAuthorization extracts workspace attribution from an
 // IsAuthorizedResponse. The proto carries only workspace_id for attribution;
 // organization and workspace name are not returned.
 func attributionFromAuthorization(resp *proto.IsAuthorizedResponse) (agplaibridge.Attribution, error) {

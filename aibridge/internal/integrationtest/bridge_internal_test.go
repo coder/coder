@@ -322,69 +322,111 @@ func TestAWSBedrockIntegration(t *testing.T) {
 	})
 
 	t.Run("/v1/messages", func(t *testing.T) {
-		for _, streaming := range []bool{true, false} {
-			t.Run(fmt.Sprintf("%s/streaming=%v", t.Name(), streaming), func(t *testing.T) {
-				t.Parallel()
+		t.Parallel()
 
-				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
-				t.Cleanup(cancel)
+		const (
+			primaryProfileARN = "arn:aws:bedrock:us-west-2:123456789012:inference-profile/primary"
+			fastProfileARN    = "arn:aws:bedrock:us-west-2:123456789012:inference-profile/fast"
+			primaryModel      = "anthropic.claude-opus-4-5"
+			fastModel         = "anthropic.claude-haiku-4-5"
+		)
+		for _, tc := range []struct {
+			name            string
+			requestModel    string
+			invocationModel string
+			billingModel    string
+		}{
+			{
+				name:            "primary",
+				requestModel:    "claude-sonnet-4-5",
+				invocationModel: primaryProfileARN,
+				billingModel:    primaryModel,
+			},
+			{
+				name:            "small-fast",
+				requestModel:    "claude-haiku-4-5",
+				invocationModel: fastProfileARN,
+				billingModel:    fastModel,
+			},
+		} {
+			for _, streaming := range []bool{true, false} {
+				t.Run(fmt.Sprintf("%s/streaming=%v", tc.name, streaming), func(t *testing.T) {
+					t.Parallel()
 
-				fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
-				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+					ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+					t.Cleanup(cancel)
 
-				// We define region here to validate that with Region & BaseURL defined, the latter takes precedence.
-				bedrockCfg := &config.AWSBedrock{
-					Region:          "us-west-2",
-					AccessKey:       "test-access-key",
-					AccessKeySecret: "test-secret-key",
-					Model:           "danthropic",      // This model should override the request's given one.
-					SmallFastModel:  "danthropic-mini", // Unused but needed for validation.
-					BaseURL:         upstream.URL,      // Use the mock server.
-				}
+					fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
+					upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
-				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
-					withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
-				)
+					// BaseURL must take precedence over Region for dispatch.
+					bedrockCfg := config.AWSBedrock{
+						Region:                 "us-west-2",
+						AccessKey:              "test-access-key",
+						AccessKeySecret:        "test-secret-key",
+						Model:                  primaryProfileARN,
+						SmallFastModel:         fastProfileARN,
+						ResolvedModel:          primaryModel,
+						ResolvedSmallFastModel: fastModel,
+						BaseURL:                upstream.URL,
+					}
 
-				// Make API call to aibridge for Anthropic /v1/messages, which will be routed via AWS Bedrock.
-				// We override the AWS Bedrock client to route requests through our mock server.
-				reqBody, err := sjson.SetBytes(fix.Request(), "stream", streaming)
-				require.NoError(t, err)
-				resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody)
-				require.NoError(t, err)
-				defer resp.Body.Close()
+					var authorizationCalls atomic.Int32
+					ctx = intercept.WithRequestAuthorizer(ctx, func(_ context.Context, providerName, invocationModel string) error {
+						authorizationCalls.Add(1)
+						assert.Equal(t, config.ProviderBedrock, providerName)
+						assert.Equal(t, tc.invocationModel, invocationModel)
+						return nil
+					})
+					bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+						withCustomProvider(aibridgetest.NewBedrockProvider(t, config.Anthropic{
+							Name:    config.ProviderBedrock,
+							BaseURL: upstream.URL,
+						}, bedrockCfg)),
+					)
 
-				// For streaming responses, consume the body to allow the stream to complete.
-				if streaming {
-					// Read the streaming response.
-					_, err = io.ReadAll(resp.Body)
+					reqBody, err := sjson.SetBytes(fix.Request(), "stream", streaming)
 					require.NoError(t, err)
-				}
+					reqBody, err = sjson.SetBytes(reqBody, "model", tc.requestModel)
+					require.NoError(t, err)
 
-				// Verify that Bedrock-specific model name was used in the request to the mock server
-				// and the interception data.
-				received := upstream.ReceivedRequests()
-				require.Len(t, received, 1)
+					resp, err := bridgeServer.makeRequest(t, http.MethodPost, "/bedrock/v1/messages", reqBody)
+					require.NoError(t, err)
+					defer resp.Body.Close()
+					require.Equal(t, http.StatusOK, resp.StatusCode)
+					_, err = io.Copy(io.Discard, resp.Body)
+					require.NoError(t, err)
+					require.EqualValues(t, 1, authorizationCalls.Load())
 
-				// The Anthropic SDK's Bedrock middleware extracts "model" and "stream"
-				// from the JSON body and encodes them in the URL path.
-				// See: https://github.com/anthropics/anthropic-sdk-go/blob/4d669338f2041f3c60640b6dd317c4895dc71cd4/bedrock/bedrock.go#L247-L248
-				pathParts := strings.Split(received[0].Path, "/")
-				require.True(t, len(pathParts) >= 3 && pathParts[1] == "model", "unexpected path: %s", received[0].Path)
-				require.Equal(t, bedrockCfg.Model, pathParts[2])
-				require.False(t, gjson.GetBytes(received[0].Body, "model").Exists(), "model should be stripped from body")
-				require.False(t, gjson.GetBytes(received[0].Body, "stream").Exists(), "stream should be stripped from body")
+					received := upstream.ReceivedRequests()
+					require.Len(t, received, 1)
 
-				// Verify PRM attribution is appended to the User-Agent header.
-				ua := received[0].Header.Get("User-Agent")
-				require.Contains(t, ua, awssig.PRMUserAgent,
-					"expected AWS PRM attribution in User-Agent header")
+					// The SDK moves model and stream into the URL path. The profile
+					// ARN must be dispatched, even though billing uses a resolved ID.
+					operation := "invoke"
+					if streaming {
+						operation = "invoke-with-response-stream"
+					}
+					require.Equal(t, "/model/"+tc.invocationModel+"/"+operation, received[0].Path)
+					require.False(t, gjson.GetBytes(received[0].Body, "model").Exists(), "model should be stripped from body")
+					require.False(t, gjson.GetBytes(received[0].Body, "stream").Exists(), "stream should be stripped from body")
 
-				interceptions := bridgeServer.Recorder.RecordedInterceptions()
-				require.Len(t, interceptions, 1)
-				require.Equal(t, interceptions[0].Model, bedrockCfg.Model)
-				bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
-			})
+					// Verify PRM attribution is appended to the User-Agent header.
+					ua := received[0].Header.Get("User-Agent")
+					require.Contains(t, ua, awssig.PRMUserAgent,
+						"expected AWS PRM attribution in User-Agent header")
+
+					interceptions := bridgeServer.Recorder.RecordedInterceptions()
+					require.Len(t, interceptions, 1)
+					require.Equal(t, tc.billingModel, interceptions[0].Model)
+					tokenUsages := bridgeServer.Recorder.RecordedTokenUsages()
+					require.NotEmpty(t, tokenUsages)
+					for _, usage := range tokenUsages {
+						require.Equal(t, interceptions[0].ID, usage.InterceptionID)
+					}
+					bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+				})
+			}
 		}
 	})
 

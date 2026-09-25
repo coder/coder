@@ -132,15 +132,7 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 	_, span := tracer.Start(r.Context(), "Intercept.CreateInterceptor")
 	defer tracing.EndSpanErr(span, &outErr)
 
-	// Extract the per-user Copilot key from the Authorization header.
-	key := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization))
-	if key == "" {
-		span.SetStatus(codes.Error, "missing authorization")
-		return nil, xerrors.New("missing Copilot authorization: Authorization header not found or invalid")
-	}
-
 	id := uuid.New()
-
 	// Copilot's API is OpenAI-compatible, so it reuses the OpenAI interceptors.
 	// It is always BYOK: the per-user key arrives in the Authorization header.
 	cfg := intercept.Config{
@@ -148,8 +140,6 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		BaseURL:      p.cfg.BaseURL,
 		APIDumpDir:   p.cfg.APIDumpDir,
 	}
-	cred := intercept.BYOK{Secret: key, Header: intercept.AuthHeaderAuthorization}
-
 	var interceptor intercept.Interceptor
 
 	path := strings.TrimPrefix(r.URL.Path, p.RoutePrefix())
@@ -158,6 +148,10 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		var req chatcompletions.ChatCompletionNewParamsWrapper
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			return nil, xerrors.Errorf("unmarshal chat completions request body: %w", err)
+		}
+		cred, err := authorizeAndResolveCredential(p, r, req.Model)
+		if err != nil {
+			return nil, err
 		}
 
 		if req.Stream {
@@ -175,6 +169,10 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal request body: %w", err)
 		}
+		cred, err := authorizeAndResolveCredential(p, r, reqPayload.Model())
+		if err != nil {
+			return nil, err
+		}
 
 		if reqPayload.Stream() {
 			interceptor = responses.NewStreamingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
@@ -191,6 +189,10 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal request body: %w", err)
 		}
+		cred, err := authorizeAndResolveCredential(p, r, reqPayload.InvocationModel(nil))
+		if err != nil {
+			return nil, err
+		}
 
 		if reqPayload.Stream() {
 			interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
@@ -205,4 +207,13 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
+}
+
+// ResolveCredential resolves Copilot's per-request BYOK token.
+func (*Copilot) ResolveCredential(r *http.Request) (intercept.Credential, error) {
+	key := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization))
+	if key == "" {
+		return nil, xerrors.New("missing Copilot authorization: Authorization header not found or invalid")
+	}
+	return intercept.BYOK{Secret: key, Header: intercept.AuthHeaderAuthorization}, nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +19,12 @@ const (
 	syntheticAPIKeyLifetime    = 30 * 24 * time.Hour
 	syntheticAPIKeyRenewMargin = 24 * time.Hour
 )
+
+var syntheticAPIKeyScopes = database.APIKeyScopes{
+	database.ApiKeyScopeApiKeyRead,
+	database.ApiKeyScopeChatModelConfigUse,
+	database.ApiKeyScopeAIGatewayUnrestrictedUse,
+}
 
 // GatewayTokenName returns the deterministic token name of the synthetic
 // gateway key for a user. The name is the lookup key: no mapping table exists,
@@ -38,10 +45,10 @@ func (p *Server) ensureSyntheticAPIKeyID(ctx context.Context, ownerID uuid.UUID)
 		UserID:    ownerID,
 		TokenName: GatewayTokenName(ownerID),
 	})
-	switch {
-	case err == nil && key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)):
+	if err == nil && slices.Equal(key.Scopes, syntheticAPIKeyScopes) && key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)) {
 		return key.ID, nil
-	case err != nil && !xerrors.Is(err, sql.ErrNoRows):
+	}
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return "", xerrors.Errorf("get synthetic API key: %w", err)
 	}
 	return p.mintSyntheticAPIKey(ctx, ownerID)
@@ -64,6 +71,18 @@ func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (st
 			TokenName: tokenName,
 		})
 		if err == nil {
+			if !slices.Equal(key.Scopes, syntheticAPIKeyScopes) {
+				// An in-flight transport may already hold this ID. Upgrade
+				// scopes in place without changing credentials or expiry.
+				key, err = tx.UpdateChatGatewayAPIKeyScopesByID(ctx, database.UpdateChatGatewayAPIKeyScopesByIDParams{
+					ID:     key.ID,
+					UserID: ownerID,
+					Scopes: syntheticAPIKeyScopes,
+				})
+				if err != nil {
+					return xerrors.Errorf("update synthetic API key scopes: %w", err)
+				}
+			}
 			keyID = key.ID
 			if key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)) {
 				return nil
@@ -93,10 +112,9 @@ func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (st
 			ExpiresAt:       p.clock.Now().Add(syntheticAPIKeyLifetime),
 			LifetimeSeconds: int64(syntheticAPIKeyLifetime.Seconds()),
 			TokenName:       tokenName,
-			// The key only attributes gateway requests; the secret is
-			// discarded, so it is never usable as a bearer credential. The
-			// minimal scope is defense in depth on top of that.
-			Scopes: database.APIKeyScopes{database.ApiKeyScopeApiKeyRead},
+			// The secret is discarded; delegated Gateway requests use the ID.
+			// Scopes permit model use, still constrained by the owner's roles.
+			Scopes: syntheticAPIKeyScopes,
 		})
 		if err != nil {
 			return xerrors.Errorf("generate synthetic API key: %w", err)

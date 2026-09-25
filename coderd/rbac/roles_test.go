@@ -292,6 +292,8 @@ func TestRolePermissions(t *testing.T) {
 	templateAdmin := authSubject{Name: "template-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleTemplateAdmin()}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 	userAdmin := authSubject{Name: "user-admin", Actor: rbac.Subject{ID: userAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleUserAdmin()}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 	auditor := authSubject{Name: "auditor", Actor: rbac.Subject{ID: auditorID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleAuditor()}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	aiGatewayUnrestricted := authSubject{Name: "ai_gateway_unrestricted", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleAIGatewayUnrestricted()}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
+	orgAdminWithSiteGrant := authSubject{Name: "org_admin_with_site_grant", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(orgID), rbac.RoleAIGatewayUnrestricted()}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 
 	orgAdmin := authSubject{Name: "org_admin", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAdmin(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
 	orgAuditor := authSubject{Name: "org_auditor", Actor: rbac.Subject{ID: auditorID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgAuditor(orgID)}, Scope: rbac.ScopeAll}.WithCachedASTValue()}
@@ -1434,6 +1436,24 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "AIGatewayUnrestrictedUse",
+			Actions:  []policy.Action{policy.ActionUse},
+			Resource: rbac.ResourceAIGatewayUnrestricted,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, userAdmin, aiGatewayUnrestricted, orgAdminWithSiteGrant},
+				false: {memberMe, orgMemberMe, orgWorkspaceAccessUser, auditor, orgAdmin, otherOrgAdmin, orgAuditor, orgUserAdmin, otherOrgUserAdmin, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, otherOrgAuditor},
+			},
+		},
+		{
+			Name:     "ChatModelConfigUse",
+			Actions:  []policy.Action{policy.ActionUse},
+			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {memberMe, orgWorkspaceAccessUser, auditor, orgAuditor, userAdmin, orgUserAdmin, otherOrgUserAdmin, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, otherOrgAdmin, otherOrgAuditor},
+			},
+		},
+		{
 			Name:     "ChatModelConfigRead",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID),
@@ -1601,6 +1621,7 @@ func TestListRoles(t *testing.T) {
 		"auditor",
 		"template-admin",
 		"user-admin",
+		"ai-gateway-unrestricted",
 	},
 		siteRoleNames)
 	orgID := uuid.New()
@@ -1822,4 +1843,17 @@ func TestRetiredRoleNames(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, roles, 1)
 	require.Equal(t, rbac.ScopedRoleOrgAuditor(orgID), roles[0].Identifier)
+}
+
+func TestAIGatewayRoleAssignment(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	siteRole := rbac.RoleAIGatewayUnrestricted()
+
+	require.True(t, rbac.CanAssignRole(rbac.RoleIdentifiers{rbac.RoleOwner()}, siteRole))
+	require.False(t, rbac.CanAssignRole(rbac.RoleIdentifiers{rbac.ScopedRoleOrgAdmin(orgID)}, siteRole))
+	require.False(t, rbac.CanAssignRole(rbac.RoleIdentifiers{rbac.RoleUserAdmin()}, siteRole))
+	require.False(t, rbac.CanAssignRole(rbac.RoleIdentifiers{rbac.ScopedRoleOrgUserAdmin(orgID)}, siteRole))
+	require.False(t, rbac.CanAssignRole(rbac.RoleIdentifiers{siteRole}, siteRole))
 }

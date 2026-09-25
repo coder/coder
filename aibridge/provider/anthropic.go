@@ -139,6 +139,10 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 	if err != nil {
 		return nil, xerrors.Errorf("unmarshal request body: %w", err)
 	}
+	cred, err := authorizeAndResolveCredential(p, r, reqPayload.InvocationModel(p.bedrock))
+	if err != nil {
+		return nil, err
+	}
 
 	cfg := intercept.Config{
 		ProviderName:     p.Name(),
@@ -146,12 +150,6 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		APIDumpDir:       p.cfg.APIDumpDir,
 		SendActorHeaders: p.cfg.SendActorHeaders,
 	}
-	cred, err := p.resolveCredential(r)
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return nil, xerrors.Errorf("resolve credential: %w", err)
-	}
-
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
 		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
@@ -174,7 +172,7 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 // When both BYOK headers are present, X-Api-Key takes priority to match
 // claude-code behavior. Centralized requests require a key pool, except for
 // Bedrock providers, which authenticate via AWS signing rather than a pool.
-func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, error) {
+func (p *Anthropic) ResolveCredential(r *http.Request) (intercept.Credential, error) {
 	if apiKey := r.Header.Get(intercept.AuthHeaderXAPIKey); apiKey != "" {
 		return intercept.BYOK{Secret: apiKey, Header: intercept.AuthHeaderXAPIKey}, nil
 	}

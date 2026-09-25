@@ -385,6 +385,36 @@ func TestBridgedRouteTakesPrecedenceOverPassthroughCatchAll(t *testing.T) {
 	assert.False(t, upstreamCalled)
 }
 
+func TestProviderMustAuthorizeBeforeInterception(t *testing.T) {
+	t.Parallel()
+
+	prov := &testutil.MockProvider{
+		NameStr: "openai",
+		Bridged: []string{"/v1/responses"},
+		InterceptorFunc: func(w http.ResponseWriter, r *http.Request, tracer trace.Tracer) (intercept.Interceptor, error) {
+			// Simulate a provider that constructs a valid interceptor without
+			// consulting the request's authorization hook.
+			interceptor, err := provider.NewOpenAI(config.OpenAI{}).CreateInterceptor(w, r.WithContext(context.Background()), tracer)
+			require.NoError(t, err)
+			require.NotNil(t, interceptor.Credential())
+			return interceptor, nil
+		},
+	}
+	bridge, err := aibridge.NewRequestBridge(t.Context(), []provider.Provider{prov}, nil, nil, slogtest.Make(t, nil), nil, bridgeTestTracer)
+	require.NoError(t, err)
+	ctx := intercept.WithRequestAuthorizer(t.Context(), func(context.Context, string, string) error {
+		t.Error("provider unexpectedly invoked authorization")
+		return nil
+	})
+	req := httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(`{"model":"gpt-5","input":"hello"}`)).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer test-key")
+	resp := httptest.NewRecorder()
+	bridge.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusInternalServerError, resp.Code)
+	require.Equal(t, "failed to create \"/openai/v1/responses\" interceptor\n", resp.Body.String())
+}
+
 func TestWebSocketUpgradeRejected(t *testing.T) {
 	t.Parallel()
 

@@ -2933,6 +2933,15 @@ func (q *querier) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecre
 	return q.db.GetAIGatewayKeyByHashedSecret(ctx, hashedSecret)
 }
 
+// GetAIModelAccessConfigs returns eligible model configurations for Gateway
+// authorization. It requires deployment-wide Gateway visibility.
+func (q *querier) GetAIModelAccessConfigs(ctx context.Context, arg database.GetAIModelAccessConfigsParams) ([]database.GetAIModelAccessConfigsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIModelAccessConfigs(ctx, arg)
+}
+
 func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice); err != nil {
 		return database.AIModelPrice{}, err
@@ -7549,6 +7558,23 @@ func (q *querier) UpdateChatExecutionState(ctx context.Context, arg database.Upd
 	}
 	_ = chat
 	return q.db.UpdateChatExecutionState(ctx, arg)
+}
+
+func (q *querier) UpdateChatGatewayAPIKeyScopesByID(ctx context.Context, arg database.UpdateChatGatewayAPIKeyScopesByIDParams) (database.APIKey, error) {
+	actor, ok := ActorFromContext(ctx)
+	if !ok {
+		return database.APIKey{}, ErrNoActor
+	}
+	// Scope changes are reserved for chatd's synthetic key maintenance, not
+	// callers with general API key update permission. The query also checks
+	// the owner, non-token login type, and deterministic synthetic name.
+	if actor.Type != rbac.SubjectTypeChatdKeyMinter {
+		return database.APIKey{}, NotAuthorizedError{Err: xerrors.New("only chatd key minters may update synthetic API key scopes")}
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceApiKey.WithOwner(arg.UserID.String())); err != nil {
+		return database.APIKey{}, err
+	}
+	return q.db.UpdateChatGatewayAPIKeyScopesByID(ctx, arg)
 }
 
 func (q *querier) UpdateChatHeartbeats(ctx context.Context, arg database.UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {

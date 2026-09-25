@@ -21,6 +21,15 @@ var ErrUnknownRoute = xerrors.New("unknown route")
 // request is not BYOK), so it cannot be authenticated.
 var ErrNoCredential = xerrors.New("no credential: request is not BYOK and the provider has no centralized keys")
 
+// CredentialError distinguishes credential resolution failures from request
+// parsing failures.
+type CredentialError struct {
+	Err error
+}
+
+func (e *CredentialError) Error() string { return e.Err.Error() }
+func (e *CredentialError) Unwrap() error { return e.Err }
+
 // Provider defines routes (bridged and passed through) for given provider.
 // Bridged routes are processed by dedicated interceptors.
 //
@@ -65,9 +74,12 @@ type Provider interface {
 	// BaseURL defines the base URL endpoint for this provider's API.
 	BaseURL() string
 
-	// CreateInterceptor starts a new [Interceptor] which is responsible for intercepting requests,
-	// communicating with the upstream provider and formulating a response to be sent to the requesting client.
+	// CreateInterceptor parses a supported request, authorizes its exact invocation
+	// model using the context hook if present, and resolves its credential before
+	// constructing an [intercept.Interceptor]. Authorization is synchronous.
 	CreateInterceptor(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error)
+	// ResolveCredential resolves the upstream credential after request authorization.
+	ResolveCredential(*http.Request) (intercept.Credential, error)
 
 	// RoutePrefix returns a prefix on which the provider's bridged and passthroguh routes will be registered.
 	// Must be unique across providers to avoid conflicts.
@@ -107,6 +119,20 @@ type Provider interface {
 	// APIDumpDir returns the directory path for dumping API requests and responses.
 	// Empty string is returned when API dumping is not enabled.
 	APIDumpDir() string
+}
+
+func authorizeAndResolveCredential(p Provider, r *http.Request, invocationModel string) (intercept.Credential, error) {
+	ctx := r.Context()
+	if authorize := intercept.RequestAuthorizerFromContext(ctx); authorize != nil {
+		if err := authorize(ctx, p.Name(), invocationModel); err != nil {
+			return nil, err
+		}
+	}
+	cred, err := p.ResolveCredential(r)
+	if err != nil {
+		return nil, &CredentialError{Err: err}
+	}
+	return cred, nil
 }
 
 // validProviderName matches lowercase alphanumeric names separated by hyphens.

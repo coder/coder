@@ -646,6 +646,8 @@ export type APIKeyScope =
 	| "ai_gateway_key:delete"
 	| "ai_gateway_key:read"
 	| "ai_gateway_key:update"
+	| "ai_gateway_unrestricted:*"
+	| "ai_gateway_unrestricted:use"
 	| "ai_model_price:*"
 	| "ai_model_price:read"
 	| "ai_model_price:update"
@@ -699,6 +701,7 @@ export type APIKeyScope =
 	| "chat_model_config:read"
 	| "chat_model_config:share"
 	| "chat_model_config:update"
+	| "chat_model_config:use"
 	| "chat:read"
 	| "chat:share"
 	| "chat:update"
@@ -893,6 +896,8 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"ai_gateway_key:delete",
 	"ai_gateway_key:read",
 	"ai_gateway_key:update",
+	"ai_gateway_unrestricted:*",
+	"ai_gateway_unrestricted:use",
 	"ai_model_price:*",
 	"ai_model_price:read",
 	"ai_model_price:update",
@@ -946,6 +951,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_model_config:read",
 	"chat_model_config:share",
 	"chat_model_config:update",
+	"chat_model_config:use",
 	"chat:read",
 	"chat:share",
 	"chat:update",
@@ -8271,6 +8277,7 @@ export const RBACActions: RBACAction[] = [
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
 	| "ai_gateway_key"
+	| "ai_gateway_unrestricted"
 	| "ai_provider"
 	| "ai_model_price"
 	| "ai_seat"
@@ -8325,6 +8332,7 @@ export type RBACResource =
 
 export const RBACResources: RBACResource[] = [
 	"ai_gateway_key",
+	"ai_gateway_unrestricted",
 	"ai_provider",
 	"ai_model_price",
 	"ai_seat",

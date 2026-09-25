@@ -32,6 +32,7 @@ The control connection carries the following:
 
 - Coder API key validation, which resolves each request to an active Coder user.
 - AI budget checks, which reject requests from users over their spend limit.
+- Model authorization for compatible standalone Gateways, using the authenticated Coder token's scopes and resource allow list.
 - Provider configuration, plus a change signal when the provider set changes.
 - AI session records.
 - **Deprecated**: the configuration and access tokens used by [injected MCP](./mcp.md).
@@ -60,6 +61,16 @@ A rejected replica receives an HTTP 400 response that reports the `client_api_ve
 Coder build versions are not the compatibility criterion.
 
 For upgrade and rollback ordering, refer to [Version compatibility](./standalone.md#version-compatibility) in the standalone deployment guide.
+
+## Model authorization
+
+For model-access rules and token restrictions, refer to [Model access](./auth.md#model-access).
+For role management, refer to [Upgrade behavior](./auth.md#upgrade-behavior), [Grant or revoke unrestricted access](./auth.md#grant-or-revoke-unrestricted-access), and [IdP-managed site roles](./auth.md#idp-managed-site-roles).
+
+For API role management, use [`GET /api/v2/users/{user}/roles`](../../reference/api/users.md#get-user-roles) and [`PUT /api/v2/users/{user}/roles`](../../reference/api/users.md#assign-role-to-user).
+The `PUT` request replaces the user's role set, so preserve the other roles when adding or removing `ai-gateway-unrestricted`.
+
+For older standalone gateways, refer to the [model authorization compatibility limits](./standalone.md#version-compatibility).
 
 ## Supported APIs
 

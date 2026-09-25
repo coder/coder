@@ -20,9 +20,13 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.3:
 //   - Adds workspace_id to RecordInterceptionRequest and IsAuthorizedResponse.
+//
+// API v1.4:
+//   - Adds optional provider/model authorization and typed authorization errors.
+//     Older Gateway clients retain key-only behavior without model enforcement.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 3
+	CurrentMinor = 4
 )
 
 // VersionQueryParam is the URL query parameter the standalone AI Gateway

@@ -25,8 +25,82 @@ For token creation, expiration, and revocation, refer to [Sessions and API token
 Authenticating with a Coder token avoids distributing centralized provider API keys, such as OpenAI or Anthropic keys, to individual users.
 AI Gateway handles upstream credentials centrally and forwards each request to the configured provider on the user's behalf.
 
+### Model access
+
+For bridged model requests, AI Gateway checks model authorization after it authenticates the Coder token.
+These are the requests listed as [intercepted APIs](./reference.md#supported-apis).
+
+Users with the site **Owner**, **User Admin**, or **AI Gateway Unrestricted** role can use any model that passes the deployment's normal license, provider, credential, and budget checks.
+The assignable site role is named `ai-gateway-unrestricted`.
+**Organization Admin** doesn't grant unrestricted model access, and there is no organization-level unrestricted role.
+
+Other active users can use only enabled, non-deleted model configurations in non-deleted organizations they belong to.
+The model configuration must match the exact provider instance and case-sensitive model ID.
+Configuring a provider alone doesn't grant model access.
+Model user and group ACLs don't govern this authorization check.
+
+The Multiple Organizations entitlement does not bypass model authorization.
+
+API token scopes and resource allow lists also apply to bridged model requests, including requests from Owners and User Admins.
+A token with insufficient scope or an allow list that excludes the authorized model configuration can fail even when its owner has model access.
+Use the narrowest token permissions that support your client instead of granting broad access by default.
+
+For older standalone gateways, refer to the [model authorization compatibility limits](./standalone.md#version-compatibility).
+
 The exact environment variable or setting name differs between tools.
 Refer to the list of [supported clients](./clients/index.md) and your tool's documentation for details.
+
+### Upgrade behavior
+
+On upgrade, Coder adds the site **AI Gateway Unrestricted** role to every existing non-deleted, non-system user.
+This one-time grant includes service accounts and inactive users, regardless of their organization memberships.
+It doesn't activate inactive users or bypass authentication checks.
+
+Users created after the migration receive no backfilled grant, including on fresh installations or when joining pre-upgrade organizations.
+They follow the [model-access rules](#model-access): configured models only, unless a site role grants unrestricted access.
+The first Owner on a fresh installation has unrestricted access through the Owner role.
+
+Like other site grants, the upgrade grant survives organization membership removal and organization deletion.
+To limit an existing user to configured models, [revoke the site role](#grant-or-revoke-unrestricted-access).
+
+[Site-role IdP sync](#idp-managed-site-roles) can remove the upgrade grant on the next sync unless your configuration includes `ai-gateway-unrestricted`.
+
+> [!WARNING]
+> The upgrade stops if a custom role already uses the name `ai-gateway-unrestricted`.
+> Rename the custom role and update its assignments before upgrading so Coder does not reinterpret it as the built-in site role.
+
+### Grant or revoke unrestricted access
+
+Only an Owner can assign or remove the site **AI Gateway Unrestricted** role for another user.
+Removing it doesn't remove unrestricted access provided by **Owner** or site **User Admin**.
+You can't edit your own roles.
+For OIDC users with site-role sync enabled, [manage the grant through your IdP](#idp-managed-site-roles) instead.
+
+To change another user's grant in the dashboard:
+
+1. Sign in as an Owner.
+1. Open **Admin settings** > **Deployment** > **Users**.
+1. Open the user's three-dot actions menu.
+1. Select **Edit roles**.
+1. Select **AI Gateway Unrestricted** to grant access, or clear it to revoke the grant, preserving the other role selections.
+1. Select **Confirm**.
+   Coder displays "User roles updated successfully."
+
+Alternatively, run [`coder users edit-roles <username|user_id>`](../../reference/cli/users_edit-roles.md) and select or clear `ai-gateway-unrestricted`, preserving the other preselected roles.
+On confirmation, the command updates the roles without printing a success message.
+If you use `--roles`, include every role you intend to retain: the flag replaces the full role set.
+
+### IdP-managed site roles
+
+For OIDC users with site-role sync enabled, grant or revoke `ai-gateway-unrestricted` through your identity provider and Coder's site-role sync configuration.
+Coder rejects manual role changes for these users through the dashboard, CLI, and API.
+
+The site-role mapping uses `CODER_OIDC_USER_ROLE_MAPPING` with the claim configured by `CODER_OIDC_USER_ROLE_FIELD`.
+Add `ai-gateway-unrestricted` to the mapped roles for users who need unrestricted access, preserving any other roles they need.
+To revoke the grant, remove it from the roles the user's claims map to and from any applicable default site roles.
+On the next sync, Coder replaces the user's stored site roles with the resulting role set.
+Organization-role sync doesn't manage this site grant.
+For configuration details, refer to [OIDC role sync](../../admin/users/idp-sync.md#role-sync).
 
 ### Create a Coder API token
 
@@ -92,6 +166,7 @@ Coder stores only a short prefix of the key for display and a SHA-256 hash for a
 Names must be unique, 64 characters or fewer, and use only lowercase letters, numbers, and hyphens.
 A name cannot start or end with a hyphen or contain consecutive hyphens.
 Gateway keys do not expire and cannot be scoped or restricted.
+The Coder API token used for client requests remains subject to its own scopes and resource allow list.
 
 Configure the standalone process with either of the following options, but not both:
 

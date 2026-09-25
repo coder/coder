@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -13,6 +14,7 @@ import (
 	openai "github.com/openai/openai-go/v3/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
@@ -608,20 +610,54 @@ func TestBedrock_CreateInterceptor_Credential(t *testing.T) {
 			for k, v := range tc.setHeaders {
 				req.Header.Set(k, v)
 			}
-			w := httptest.NewRecorder()
-
-			interceptor, err := p.CreateInterceptor(w, req, testTracer)
-			if tc.wantErr != nil {
-				require.ErrorIs(t, err, tc.wantErr)
-				require.Nil(t, interceptor)
-				return
-			}
+			interceptor, err := p.CreateInterceptor(httptest.NewRecorder(), req, testTracer)
 			require.NoError(t, err)
 			require.NotNil(t, interceptor)
-
 			cred := interceptor.Credential()
 			assert.Equal(t, tc.wantCredentialKind, cred.Kind(), "credential kind mismatch")
 			assert.Equal(t, tc.wantCredentialHint, cred.Hint(), "credential hint mismatch")
+		})
+	}
+}
+
+func TestBedrock_CreateInterceptor_Mantle(t *testing.T) {
+	t.Parallel()
+
+	p := newTestBedrock(t, config.Anthropic{Name: "bedrock-mantle"}, config.AWSBedrock{
+		Protocol:        config.BedrockProtocolMantle,
+		Region:          "us-west-2",
+		BaseURL:         "https://bedrock-mantle.us-west-2.api.aws",
+		AccessKey:       "test-key",
+		AccessKeySecret: "test-secret",
+	})
+	for _, route := range []string{routeMessages, routeBedrockChatCompletions, routeBedrockResponses} {
+		t.Run(route, func(t *testing.T) {
+			t.Parallel()
+
+			// Mantle preserves the client's exact target, including whitespace.
+			const model = " anthropic.claude-sonnet-4-5 "
+			body := fmt.Sprintf(`{"model":%q,"stream":true}`, model)
+			req := httptest.NewRequest(http.MethodPost, route, bytes.NewBufferString(body))
+			req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), expectAuthorization(t, "bedrock-mantle", model, nil)))
+			interceptor, err := p.CreateInterceptor(httptest.NewRecorder(), req, testTracer)
+			require.NoError(t, err)
+			require.NotNil(t, interceptor)
+			require.Equal(t, intercept.AWSSigV4{AccessKey: "test-key"}, interceptor.Credential())
+			require.Equal(t, model, interceptor.Model())
+			require.True(t, interceptor.Streaming())
+
+			req = httptest.NewRequest(http.MethodPost, route, bytes.NewBufferString(body))
+			authorizeErr := xerrors.New("authorization denied")
+			req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), expectAuthorization(t, "bedrock-mantle", model, authorizeErr)))
+			interceptor, err = p.CreateInterceptor(httptest.NewRecorder(), req, testTracer)
+			require.Same(t, authorizeErr, err)
+			require.Nil(t, interceptor)
+
+			req = httptest.NewRequest(http.MethodPost, route, bytes.NewBufferString(`invalid json`))
+			req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), unexpectedAuthorizer(t)))
+			interceptor, err = p.CreateInterceptor(httptest.NewRecorder(), req, testTracer)
+			require.Error(t, err)
+			require.Nil(t, interceptor)
 		})
 	}
 }
@@ -656,6 +692,7 @@ func TestBedrock_CreateInterceptor_InvokeModelOpenAIRoutes(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(`{}`))
 			w := httptest.NewRecorder()
 
+			req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), unexpectedAuthorizer(t)))
 			interceptor, err := p.CreateInterceptor(w, req, testTracer)
 			require.ErrorIs(t, err, ErrUnknownRoute)
 			require.Nil(t, interceptor)

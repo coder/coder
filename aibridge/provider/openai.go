@@ -111,18 +111,16 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 		APIDumpDir:       p.cfg.APIDumpDir,
 		SendActorHeaders: p.cfg.SendActorHeaders,
 	}
-	cred, err := p.resolveCredential(r)
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return nil, xerrors.Errorf("resolve credential: %w", err)
-	}
-
 	path := strings.TrimPrefix(r.URL.Path, p.RoutePrefix())
 	switch path {
 	case routeChatCompletions:
 		var req chatcompletions.ChatCompletionNewParamsWrapper
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			return nil, xerrors.Errorf("unmarshal request body: %w", err)
+		}
+		cred, err := authorizeAndResolveCredential(p, r, req.Model)
+		if err != nil {
+			return nil, err
 		}
 
 		if req.Stream {
@@ -139,6 +137,10 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 		reqPayload, err := responses.NewRequestPayload(payload)
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal request body: %w", err)
+		}
+		cred, err := authorizeAndResolveCredential(p, r, reqPayload.Model())
+		if err != nil {
+			return nil, err
 		}
 		if reqPayload.Stream() {
 			interceptor = responses.NewStreamingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
@@ -159,7 +161,7 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 // authentication has already been stripped. A BYOK token, if present, arrives
 // in the Authorization header. Otherwise the request uses the provider's
 // centralized key pool with failover, which must be configured.
-func (p *OpenAI) resolveCredential(r *http.Request) (intercept.Credential, error) {
+func (p *OpenAI) ResolveCredential(r *http.Request) (intercept.Credential, error) {
 	if token := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization)); token != "" {
 		return intercept.BYOK{Secret: token, Header: intercept.AuthHeaderAuthorization}, nil
 	}

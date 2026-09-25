@@ -318,6 +318,12 @@ The gateway treats certain handshake failures from `/api/v2/ai-gateway/serve` as
 - HTTP 404: endpoint not found.
   `coderd` may be too old and not expose the `/serve` endpoint.
 
+A standalone Gateway using AI Gateway API v1.4 or later sends provider and model context for model authorization.
+The Coder control plane then enforces model access and the token's scopes and resource allow list before forwarding the request.
+
+Older standalone Gateways remain allowed to connect during the compatibility window, but they use key-only authorization.
+Model restrictions and model-use key-scope enforcement are not guaranteed until the Gateway is upgraded to a version that supports AI Gateway API v1.4.
+
 Sequence changes that move both components:
 
 - To upgrade, upgrade `coderd` first, then roll out the standalone gateway release.

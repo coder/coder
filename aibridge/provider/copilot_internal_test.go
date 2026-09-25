@@ -2,6 +2,7 @@ package provider
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,11 +13,32 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 )
 
 var testTracer = otel.Tracer("copilot_test")
+
+func expectAuthorization(t *testing.T, providerName, invocationModel string, err error) intercept.RequestAuthorizer {
+	t.Helper()
+	calls := 0
+	t.Cleanup(func() { require.Equal(t, 1, calls) })
+	return func(_ context.Context, gotProvider, gotModel string) error {
+		calls++
+		require.Equal(t, providerName, gotProvider)
+		require.Equal(t, invocationModel, gotModel)
+		return err
+	}
+}
+
+func unexpectedAuthorizer(t testing.TB) intercept.RequestAuthorizer {
+	t.Helper()
+	return func(context.Context, string, string) error {
+		t.Error("authorizer called for an invalid or unsupported request")
+		return nil
+	}
+}
 
 // TestCopilot_KeyFailoverConfig verifies that Copilot, being BYOK-only,
 // returns a zero-value KeyFailoverConfig so that KeyFailoverTransport
@@ -34,17 +56,14 @@ func TestCopilot_KeyFailoverConfig(t *testing.T) {
 func TestCopilot_CreateInterceptor(t *testing.T) {
 	t.Parallel()
 
-	provider := NewCopilot(config.Copilot{})
+	provider := NewCopilot(config.Copilot{Name: "copilot-business"})
 
 	t.Run("MissingAuthorizationHeader", func(t *testing.T) {
 		t.Parallel()
 
 		body := `{"model": "gpt-4.1", "messages": [{"role": "user", "content": "hello"}]}`
 		req := httptest.NewRequest(http.MethodPost, routeCopilotChatCompletions, bytes.NewBufferString(body))
-		w := httptest.NewRecorder()
-
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
-
+		interceptor, err := provider.CreateInterceptor(httptest.NewRecorder(), req, testTracer)
 		require.Error(t, err)
 		require.Nil(t, interceptor)
 		assert.Contains(t, err.Error(), "missing Copilot authorization: Authorization header not found or invalid")
@@ -56,10 +75,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		body := `{"model": "claude-haiku-4.5", "messages": [{"role": "user", "content": "hello"}]}`
 		req := httptest.NewRequest(http.MethodPost, routeCopilotChatCompletions, bytes.NewBufferString(body))
 		req.Header.Set("Authorization", "InvalidFormat")
-		w := httptest.NewRecorder()
-
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
-
+		interceptor, err := provider.CreateInterceptor(httptest.NewRecorder(), req, testTracer)
 		require.Error(t, err)
 		require.Nil(t, interceptor)
 		assert.Contains(t, err.Error(), "missing Copilot authorization: Authorization header not found or invalid")
@@ -73,6 +89,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		w := httptest.NewRecorder()
 
+		req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), expectAuthorization(t, "copilot-business", "claude-haiku-4.5", nil)))
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 
 		require.NoError(t, err)
@@ -103,6 +120,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		w := httptest.NewRecorder()
 
+		req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), unexpectedAuthorizer(t)))
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 
 		require.Error(t, err)
@@ -143,7 +161,6 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		// Setup and process request
 		logger := slog.Make()
 		interceptor.Setup(logger, &testutil.MockRecorder{}, nil)
-
 		processReq := httptest.NewRequest(http.MethodPost, routeCopilotChatCompletions, nil)
 		err = interceptor.ProcessRequest(w, processReq)
 		require.NoError(t, err)
@@ -164,6 +181,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		w := httptest.NewRecorder()
 
+		req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), expectAuthorization(t, "copilot-business", "gpt-5-mini", nil)))
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 
 		require.NoError(t, err)
@@ -194,6 +212,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		w := httptest.NewRecorder()
 
+		req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), unexpectedAuthorizer(t)))
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 
 		require.Error(t, err)
@@ -255,6 +274,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		w := httptest.NewRecorder()
 
+		req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), expectAuthorization(t, "copilot-business", "claude-sonnet-4.5", nil)))
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 
 		require.NoError(t, err)
@@ -285,6 +305,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		w := httptest.NewRecorder()
 
+		req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), unexpectedAuthorizer(t)))
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 
 		require.Error(t, err)
@@ -346,6 +367,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		w := httptest.NewRecorder()
 
+		req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), unexpectedAuthorizer(t)))
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 
 		require.ErrorIs(t, err, ErrUnknownRoute)

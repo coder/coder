@@ -13,12 +13,17 @@ const (
 
 	InterceptionCountStatusFailed    = "failed"
 	InterceptionCountStatusCompleted = "completed"
+
+	AuthorizationOutcomeAllowed = "allowed"
+	AuthorizationOutcomeDenied  = "denied"
+	AuthorizationOutcomeError   = "error"
 )
 
 type Metrics struct {
 	// Interception-related metrics.
 	InterceptionDuration  *prometheus.HistogramVec
 	InterceptionCount     *prometheus.CounterVec
+	AuthorizationCount    *prometheus.CounterVec
 	InterceptionsInflight *prometheus.GaugeVec
 	PassthroughCount      *prometheus.CounterVec
 
@@ -58,6 +63,12 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "total",
 			Help:      "The count of intercepted requests.",
 		}, append(baseLabels, "status", "route", "method", "initiator_id", "client")),
+		AuthorizationCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Subsystem: "authorization",
+			Name:      "outcomes_total",
+			Help:      "The count of request model authorization outcomes.",
+		}, []string{"outcome"}),
+
 		// Pessimistic cardinality: N provider names, 5 models, 3 routes = up to 15N.
 		// NOTE: route is not unbounded because this is only for intercepted routes.
 		InterceptionsInflight: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{

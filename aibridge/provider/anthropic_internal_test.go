@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
@@ -119,7 +120,7 @@ func TestNewAnthropic_BedrockRegionResolution(t *testing.T) {
 func TestAnthropic_CreateInterceptor(t *testing.T) {
 	t.Parallel()
 
-	provider := newTestAnthropic(t, config.Anthropic{KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, "test-key")}, nil)
+	provider := newTestAnthropic(t, config.Anthropic{Name: "anthropic-custom", KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, "test-key")}, nil)
 
 	t.Run("Messages_NonStreamingRequest_BlockingInterceptor", func(t *testing.T) {
 		t.Parallel()
@@ -128,6 +129,7 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
 		w := httptest.NewRecorder()
 
+		req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), expectAuthorization(t, "anthropic-custom", "claude-opus-4-5", nil)))
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 
 		require.NoError(t, err)
@@ -156,6 +158,7 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
 		w := httptest.NewRecorder()
 
+		req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), unexpectedAuthorizer(t)))
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 
 		require.Error(t, err)
@@ -197,7 +200,6 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 		require.NoError(t, err)
 		require.NotNil(t, interceptor)
-
 		logger := slog.Make()
 		interceptor.Setup(logger, &testutil.MockRecorder{}, nil)
 
@@ -220,6 +222,7 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/anthropic/unknown/route", bytes.NewBufferString(body))
 		w := httptest.NewRecorder()
 
+		req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), unexpectedAuthorizer(t)))
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 
 		require.ErrorIs(t, err, ErrUnknownRoute)
@@ -230,6 +233,7 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 	t.Parallel()
 
+	deniedErr := xerrors.New("authorization denied")
 	tests := []struct {
 		name    string
 		pool    bool // provider has a centralized "test-key" pool
@@ -238,6 +242,7 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 		// False means dynamic mode (AWS default credential chain).
 		bedrockStatic bool
 		setHeaders    map[string]string
+		deny          bool
 		// wantErr, when set, means CreateInterceptor must fail with it. The
 		// remaining expectations are then ignored.
 		wantErr            error
@@ -317,6 +322,11 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			setHeaders: map[string]string{},
 			wantErr:    ErrNoCredential,
 		},
+		{
+			name:    "denied_before_missing_credential",
+			deny:    true,
+			wantErr: deniedErr,
+		},
 	}
 
 	for _, tc := range tests {
@@ -332,7 +342,7 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			}))
 			t.Cleanup(mockUpstream.Close)
 
-			acfg := config.Anthropic{BaseURL: mockUpstream.URL}
+			acfg := config.Anthropic{Name: "anthropic-custom", BaseURL: mockUpstream.URL}
 			if tc.pool {
 				acfg.KeyPool = testutil.SingleKeyPool(config.ProviderAnthropic, "test-key")
 			}
@@ -353,7 +363,13 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			}
 			w := httptest.NewRecorder()
 
+			if tc.deny {
+				req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), expectAuthorization(t, "anthropic-custom", "claude-opus-4-5", deniedErr)))
+			}
 			interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+			if tc.deny {
+				require.Same(t, deniedErr, err)
+			}
 			if tc.wantErr != nil {
 				require.ErrorIs(t, err, tc.wantErr)
 				require.Nil(t, interceptor)
@@ -366,8 +382,7 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			assert.Equal(t, tc.wantCredentialKind, cred.Kind(), "credential kind mismatch")
 			assert.Equal(t, tc.wantCredentialHint, cred.Hint(), "credential hint mismatch")
 
-			// Bedrock signs via AWS during ProcessRequest (needs real AWS
-			// credentials), covered by the integration tests.
+			// Bedrock signs via AWS during ProcessRequest and is covered by integration tests.
 			if tc.bedrock {
 				return
 			}

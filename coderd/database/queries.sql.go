@@ -3917,6 +3917,57 @@ func (q *sqlQuerier) UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertU
 	return i, err
 }
 
+const getAIModelAccessConfigs = `-- name: GetAIModelAccessConfigs :many
+SELECT
+    cmc.id,
+    cmc.organization_id
+FROM organization_members om
+JOIN organizations o ON o.id = om.organization_id
+JOIN chat_model_configs cmc ON cmc.organization_id = o.id
+JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
+WHERE om.user_id = $1::uuid
+  AND NOT o.deleted
+  AND cmc.enabled
+  AND NOT cmc.deleted
+  AND NOT ap.deleted
+  AND ap.name = $2::text
+  AND cmc.model = $3::text
+`
+
+type GetAIModelAccessConfigsParams struct {
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	ProviderName string    `db:"provider_name" json:"provider_name"`
+	Model        string    `db:"model" json:"model"`
+}
+
+type GetAIModelAccessConfigsRow struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) GetAIModelAccessConfigs(ctx context.Context, arg GetAIModelAccessConfigsParams) ([]GetAIModelAccessConfigsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIModelAccessConfigs, arg.UserID, arg.ProviderName, arg.Model)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIModelAccessConfigsRow
+	for rows.Next() {
+		var i GetAIModelAccessConfigsRow
+		if err := rows.Scan(&i.ID, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getActiveAISeatCount = `-- name: GetActiveAISeatCount :one
 SELECT
 	COUNT(*)
@@ -4522,6 +4573,48 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 		arg.IPAddress,
 	)
 	return err
+}
+
+const updateChatGatewayAPIKeyScopesByID = `-- name: UpdateChatGatewayAPIKeyScopesByID :one
+UPDATE
+	api_keys
+SET
+	scopes = $1
+WHERE
+	id = $2 AND
+	user_id = $3 AND
+	login_type != 'token' AND
+	token_name = 'chatd_' || user_id::text || '_session_token'
+RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
+`
+
+type UpdateChatGatewayAPIKeyScopesByIDParams struct {
+	Scopes APIKeyScopes `db:"scopes" json:"scopes"`
+	ID     string       `db:"id" json:"id"`
+	UserID uuid.UUID    `db:"user_id" json:"user_id"`
+}
+
+// Preserve delegated IDs and credentials when upgrading synthetic key scopes.
+// User-created tokens with colliding names must never be updated.
+func (q *sqlQuerier) UpdateChatGatewayAPIKeyScopesByID(ctx context.Context, arg UpdateChatGatewayAPIKeyScopesByIDParams) (APIKey, error) {
+	row := q.db.QueryRowContext(ctx, updateChatGatewayAPIKeyScopesByID, arg.Scopes, arg.ID, arg.UserID)
+	var i APIKey
+	err := row.Scan(
+		&i.ID,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.LastUsed,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LoginType,
+		&i.LifetimeSeconds,
+		&i.IPAddress,
+		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
+	)
+	return i, err
 }
 
 const countAuditLogs = `-- name: CountAuditLogs :one
@@ -31421,6 +31514,7 @@ WITH org_roles AS (
 				organizations.default_org_member_roles
 			)
 		) AS org_role
+	WHERE NOT organizations.deleted
 	GROUP BY
 		organization_members.user_id
 ),
@@ -31530,6 +31624,7 @@ SELECT
 				) AS org_roles
 			WHERE
 				user_id = users.id
+				AND NOT organizations.deleted
 		)
 	) :: text[] AS roles,
 	-- All groups the user is in.

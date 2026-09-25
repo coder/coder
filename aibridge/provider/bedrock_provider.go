@@ -168,6 +168,10 @@ func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, trace
 	if err != nil {
 		return nil, xerrors.Errorf("unmarshal request body: %w", err)
 	}
+	cred, err := authorizeAndResolveCredential(p, r, reqPayload.InvocationModel(&p.runtime))
+	if err != nil {
+		return nil, err
+	}
 
 	cfg := intercept.Config{
 		ProviderName:     p.Name(),
@@ -175,11 +179,6 @@ func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, trace
 		APIDumpDir:       p.cfg.APIDumpDir,
 		SendActorHeaders: p.cfg.SendActorHeaders,
 	}
-	cred, err := p.resolveCredential(r)
-	if err != nil {
-		return nil, xerrors.Errorf("resolve credential: %w", err)
-	}
-
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
 		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, &p.runtime, r.Header, tracer)
@@ -198,13 +197,12 @@ func (p *Bedrock) createChatCompletionsInterceptor(id uuid.UUID, r *http.Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, xerrors.Errorf("unmarshal request body: %w", err)
 	}
-
-	cfg := p.bedrockInterceptConfig()
-	cred, err := p.resolveCredential(r)
+	cred, err := authorizeAndResolveCredential(p, r, req.Model)
 	if err != nil {
-		return nil, xerrors.Errorf("resolve credential: %w", err)
+		return nil, err
 	}
 
+	cfg := p.bedrockInterceptConfig()
 	var interceptor intercept.Interceptor
 	if req.Stream {
 		interceptor = chatcompletions.NewBedrockStreamingInterceptor(id, &req, cfg, cred, p.mantleConfig(), r.Header, tracer)
@@ -227,13 +225,12 @@ func (p *Bedrock) createResponsesInterceptor(id uuid.UUID, r *http.Request, trac
 	if err != nil {
 		return nil, xerrors.Errorf("unmarshal request body: %w", err)
 	}
-
-	cfg := p.bedrockInterceptConfig()
-	cred, err := p.resolveCredential(r)
+	cred, err := authorizeAndResolveCredential(p, r, reqPayload.Model())
 	if err != nil {
-		return nil, xerrors.Errorf("resolve credential: %w", err)
+		return nil, err
 	}
 
+	cfg := p.bedrockInterceptConfig()
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
 		interceptor = responses.NewBedrockStreamingInterceptor(id, reqPayload, cfg, cred, p.mantleConfig(), r.Header, tracer)
@@ -272,7 +269,7 @@ func (p *Bedrock) bedrockInterceptConfig() intercept.Config {
 // the Bedrock credential backed by the runtime's access key. BYOK
 // X-Api-Key/Authorization headers are honored for users who bring their own
 // key.
-func (p *Bedrock) resolveCredential(r *http.Request) (intercept.Credential, error) {
+func (p *Bedrock) ResolveCredential(r *http.Request) (intercept.Credential, error) {
 	if apiKey := r.Header.Get(intercept.AuthHeaderXAPIKey); apiKey != "" {
 		return intercept.BYOK{Secret: apiKey, Header: intercept.AuthHeaderXAPIKey}, nil
 	}

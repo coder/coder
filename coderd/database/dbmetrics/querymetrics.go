@@ -1168,6 +1168,14 @@ func (m queryMetricsStore) GetAIGatewayKeyByHashedSecret(ctx context.Context, ha
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIModelAccessConfigs(ctx context.Context, arg database.GetAIModelAccessConfigsParams) ([]database.GetAIModelAccessConfigsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIModelAccessConfigs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAIModelAccessConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIModelAccessConfigs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIModelPriceByProviderModel(ctx, arg)
@@ -5317,6 +5325,14 @@ func (m queryMetricsStore) UpdateChatExecutionState(ctx context.Context, arg dat
 	r0, r1 := m.s.UpdateChatExecutionState(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatExecutionState").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatExecutionState").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatGatewayAPIKeyScopesByID(ctx context.Context, arg database.UpdateChatGatewayAPIKeyScopesByIDParams) (database.APIKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatGatewayAPIKeyScopesByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatGatewayAPIKeyScopesByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatGatewayAPIKeyScopesByID").Inc()
 	return r0, r1
 }
 

@@ -612,6 +612,7 @@ SELECT
 				) AS org_roles
 			WHERE
 				user_id = users.id
+				AND NOT organizations.deleted
 		)
 	) :: text[] AS roles,
 	-- All groups the user is in.
@@ -660,6 +661,7 @@ WITH org_roles AS (
 				organizations.default_org_member_roles
 			)
 		) AS org_role
+	WHERE NOT organizations.deleted
 	GROUP BY
 		organization_members.user_id
 ),

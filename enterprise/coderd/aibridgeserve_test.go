@@ -83,6 +83,15 @@ func TestAIGatewayServeSuccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, firstUser.UserID.String(), resp.GetOwnerId())
 
+	// Older Gateways retain key-only authorization during the compatibility
+	// window. They do not request model enforcement.
+	oldVersion := "1.3"
+	oldClient, err := dialAIGatewayServeWithVersion(ctx, t, client, created.Key, &oldVersion)
+	require.NoError(t, err)
+	oldResponse, err := oldClient.IsAuthorized(ctx, &aibridgedproto.IsAuthorizedRequest{Key: client.SessionToken()})
+	require.NoError(t, err)
+	require.Equal(t, firstUser.UserID.String(), oldResponse.GetOwnerId())
+
 	// DRPCProviderConfiguratorClient
 	_, err = dc.GetAIProviders(ctx, &aibridgedproto.GetAIProvidersRequest{})
 	require.NoError(t, err)

@@ -3809,6 +3809,77 @@ func TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles(t *testing.T) {
 	require.NotContains(t, shrunkSA.Roles, wantWorkspaceAccess)
 }
 
+func TestGetAIModelAccessConfigs(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	member := dbgen.User(t, db, database.User{})
+	outsider := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: member.ID})
+	providerName := "configured-provider-" + uuid.NewString()
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Name: providerName})
+	model := "configured-model-" + uuid.NewString()
+
+	query := func(userID uuid.UUID, name, modelName string) []database.GetAIModelAccessConfigsRow {
+		rows, err := db.GetAIModelAccessConfigs(ctx, database.GetAIModelAccessConfigsParams{
+			UserID: userID, ProviderName: name, Model: modelName,
+		})
+		require.NoError(t, err)
+		return rows
+	}
+
+	require.Empty(t, query(member.ID, providerName, model))
+
+	config := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		OrganizationID: org.ID,
+		Model:          model,
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		GroupACL:       database.ChatACL{},
+		UserACL:        database.ChatACL{},
+	})
+	rows := query(member.ID, providerName, model)
+	require.Len(t, rows, 1)
+	require.Equal(t, config.ID, rows[0].ID)
+	require.Equal(t, org.ID, rows[0].OrganizationID)
+	require.Empty(t, query(outsider.ID, providerName, model))
+	require.Empty(t, query(member.ID, "other-"+providerName, model))
+	require.Empty(t, query(member.ID, providerName, "other-"+model))
+	require.Empty(t, query(member.ID, providerName, strings.ToUpper(model)))
+
+	// ACLs, credentials, and provider enabled state are outside this query's contract.
+	_, err := sqlDB.ExecContext(ctx, `UPDATE ai_providers SET enabled = FALSE WHERE id = $1`, provider.ID)
+	require.NoError(t, err)
+	require.Len(t, query(member.ID, providerName, model), 1)
+
+	// A deleted provider is excluded even when it is enabled.
+	_, err = sqlDB.ExecContext(ctx, `UPDATE ai_providers SET enabled = TRUE, deleted = TRUE WHERE id = $1`, provider.ID)
+	require.NoError(t, err)
+	require.Empty(t, query(member.ID, providerName, model))
+
+	_, err = sqlDB.ExecContext(ctx, `UPDATE ai_providers SET deleted = FALSE WHERE id = $1`, provider.ID)
+	require.NoError(t, err)
+	require.Len(t, query(member.ID, providerName, model), 1)
+
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_model_configs SET enabled = FALSE WHERE id = $1`, config.ID)
+	require.NoError(t, err)
+	require.Empty(t, query(member.ID, providerName, model))
+
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_model_configs SET enabled = TRUE, deleted = TRUE WHERE id = $1`, config.ID)
+	require.NoError(t, err)
+	require.Empty(t, query(member.ID, providerName, model))
+
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_model_configs SET deleted = FALSE WHERE id = $1`, config.ID)
+	require.NoError(t, err)
+	require.Len(t, query(member.ID, providerName, model), 1)
+
+	_, err = sqlDB.ExecContext(ctx, `UPDATE organizations SET deleted = TRUE WHERE id = $1`, org.ID)
+	require.NoError(t, err)
+	require.Empty(t, query(member.ID, providerName, model))
+}
+
 func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {
 	t.Parallel()
 
@@ -18577,20 +18648,27 @@ func TestGetActiveUsersAuthorizationRolesParity(t *testing.T) {
 		})
 	}
 
-	// Site-wide role, zero org memberships.
 	owner := activeUser(database.User{RBACRoles: []string{rbac.RoleOwner().Name}})
-
-	// Plain single-org member; effective roles come from the implied
-	// member role plus the org's default member roles.
 	plain := activeUser(database.User{})
 	member(orgA.ID, plain)
 
-	// Explicit org roles across two organizations.
 	multiOrg := activeUser(database.User{})
 	member(orgA.ID, multiOrg, rbac.RoleOrgAdmin())
+
+	// Delete the organization before adding memberships so the fixture retains
+	// a membership row without violating the production deletion guard.
+	require.NoError(t, db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+		ID:        orgB.ID,
+		UpdatedAt: dbtime.Now(),
+	}))
 	member(orgB.ID, multiOrg)
 
-	// Custom org role.
+	deletedMember := activeUser(database.User{})
+	member(orgB.ID, deletedMember)
+	deletedSingle, err := db.GetAuthorizationUserRoles(ctx, deletedMember.ID)
+	require.NoError(t, err)
+	require.NotContains(t, deletedSingle.Roles, rbac.RoleOrgWorkspaceAccess()+":"+orgB.ID.String())
+
 	customRole, err := db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
 		Name:           "parity-role",
 		DisplayName:    "Parity Role",
@@ -18604,19 +18682,13 @@ func TestGetActiveUsersAuthorizationRolesParity(t *testing.T) {
 	custom := activeUser(database.User{})
 	member(orgA.ID, custom, customRole.Name)
 
-	// Group memberships.
 	grouped := activeUser(database.User{})
 	member(orgA.ID, grouped)
 	for range 2 {
 		group := dbgen.Group(t, db, database.Group{OrganizationID: orgA.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{
-			UserID:  grouped.ID,
-			GroupID: group.ID,
-		})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: grouped.ID, GroupID: group.ID})
 	}
 
-	// Excluded from the bulk query: service accounts and non-active
-	// users.
 	sa := activeUser(database.User{IsServiceAccount: true})
 	member(orgA.ID, sa)
 	suspended := dbgen.User(t, db, database.User{Status: database.UserStatusSuspended})
@@ -18624,12 +18696,11 @@ func TestGetActiveUsersAuthorizationRolesParity(t *testing.T) {
 
 	rows, err := db.GetActiveUsersAuthorizationRoles(ctx)
 	require.NoError(t, err)
-
 	gotIDs := make([]uuid.UUID, 0, len(rows))
 	for _, row := range rows {
 		gotIDs = append(gotIDs, row.ID)
 	}
-	require.ElementsMatch(t, []uuid.UUID{owner.ID, plain.ID, multiOrg.ID, custom.ID, grouped.ID}, gotIDs)
+	require.ElementsMatch(t, []uuid.UUID{owner.ID, plain.ID, multiOrg.ID, deletedMember.ID, custom.ID, grouped.ID}, gotIDs)
 
 	for _, row := range rows {
 		single, err := db.GetAuthorizationUserRoles(ctx, row.ID)

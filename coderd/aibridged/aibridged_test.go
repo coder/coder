@@ -16,6 +16,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
@@ -224,6 +225,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 		contextFn      func() context.Context
 		ignoreLogs     bool
 		expectedErr    error
+		expectedBody   string
 		expectedStatus int
 	}{
 		// Authnz-related failures.
@@ -245,7 +247,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 		{
 			name: "unauthorized",
 			applyMocksFn: func(client *mock.MockDRPCClient, _ *mock.MockPooler) {
-				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("not authorized"))
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, drpcerr.WithCode(xerrors.New("not authorized"), proto.AuthorizationErrorAuthentication))
 			},
 			expectedErr:    aibridged.ErrUnauthorized,
 			expectedStatus: http.StatusForbidden,
@@ -257,6 +259,26 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			},
 			expectedErr:    aibridged.ErrUnauthorized,
 			expectedStatus: http.StatusForbidden,
+		},
+		{
+			name: "authorization evaluation failed",
+			applyMocksFn: func(client *mock.MockDRPCClient, _ *mock.MockPooler) {
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(nil, drpcerr.WithCode(xerrors.New("database unavailable"), proto.AuthorizationErrorEvaluation))
+			},
+			ignoreLogs:     true,
+			expectedErr:    xerrors.New("internal server error"),
+			expectedBody:   "internal server error\n",
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name: "untyped authorization failure",
+			applyMocksFn: func(client *mock.MockDRPCClient, _ *mock.MockPooler) {
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("transport unavailable"))
+			},
+			ignoreLogs:     true,
+			expectedErr:    xerrors.New("internal server error"),
+			expectedBody:   "internal server error\n",
+			expectedStatus: http.StatusInternalServerError,
 		},
 
 		// Coderd connection-related failures.
@@ -370,6 +392,9 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err, "read response body")
 			require.Contains(t, string(body), tc.expectedErr.Error())
+			if tc.expectedBody != "" {
+				require.Equal(t, tc.expectedBody, string(body))
+			}
 			require.Equal(t, tc.expectedStatus, resp.StatusCode)
 		})
 	}
@@ -466,7 +491,7 @@ func TestServeHTTP_DelegatedAPIKey(t *testing.T) {
 		{
 			name: "invalid",
 			applyMocks: func(_ *testing.T, client *mock.MockDRPCClient, _ *mock.MockPooler, _ *mockHandler) {
-				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("unknown key"))
+				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(nil, drpcerr.WithCode(xerrors.New("unknown key"), proto.AuthorizationErrorAuthentication))
 			},
 			expectStatus: http.StatusForbidden,
 		},

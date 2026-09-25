@@ -11,6 +11,8 @@ const (
 	APIKeyScopeAiGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
 	APIKeyScopeAiGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
 	APIKeyScopeAiGatewayKeyUpdate                  APIKeyScope = "ai_gateway_key:update"
+	APIKeyScopeAiGatewayUnrestrictedAll            APIKeyScope = "ai_gateway_unrestricted:*"
+	APIKeyScopeAiGatewayUnrestrictedUse            APIKeyScope = "ai_gateway_unrestricted:use"
 	APIKeyScopeAiModelPriceAll                     APIKeyScope = "ai_model_price:*"
 	APIKeyScopeAiModelPriceRead                    APIKeyScope = "ai_model_price:read"
 	APIKeyScopeAiModelPriceUpdate                  APIKeyScope = "ai_model_price:update"
@@ -65,6 +67,7 @@ const (
 	APIKeyScopeChatModelConfigRead                 APIKeyScope = "chat_model_config:read"
 	APIKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
 	APIKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
+	APIKeyScopeChatModelConfigUse                  APIKeyScope = "chat_model_config:use"
 	APIKeyScopeCoderAll                            APIKeyScope = "coder:all"
 	APIKeyScopeCoderApikeysManageSelf              APIKeyScope = "coder:apikeys.manage_self"
 	APIKeyScopeCoderApplicationConnect             APIKeyScope = "coder:application_connect"
@@ -253,6 +256,7 @@ const (
 
 // PublicAPIKeyScopes lists all public low-level API key scopes.
 var PublicAPIKeyScopes = []APIKeyScope{
+	APIKeyScopeAiGatewayUnrestrictedUse,
 	APIKeyScopeApiKeyAll,
 	APIKeyScopeApiKeyCreate,
 	APIKeyScopeApiKeyDelete,
@@ -260,6 +264,7 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeApiKeyUpdate,
 	APIKeyScopeChatModelConfigRead,
 	APIKeyScopeChatModelConfigShare,
+	APIKeyScopeChatModelConfigUse,
 	APIKeyScopeCoderAll,
 	APIKeyScopeCoderApikeysManageSelf,
 	APIKeyScopeCoderApplicationConnect,

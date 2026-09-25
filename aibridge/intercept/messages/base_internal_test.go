@@ -322,9 +322,16 @@ func TestSmallFastModelCapturedAtConstruction(t *testing.T) {
 			t.Run(c.name+" "+tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				i := c.newInterception(mustMessagesPayload(t, tt.payload))
+				payload := mustMessagesPayload(t, tt.payload)
+				require.Equal(t, tt.expectConfigured, payload.InvocationModel(runtime))
+				i := c.newInterception(payload)
 				require.Equal(t, tt.expectModel, i.Model())
 				require.Equal(t, tt.expectConfigured, i.upstreamModel())
+				i.logger = slog.Make()
+				i.augmentRequestForBedrockInvokeModel()
+				require.Equal(t, tt.expectConfigured, i.reqPayload.model())
+				require.Equal(t, tt.expectConfigured, i.upstreamModel())
+				require.Equal(t, tt.expectModel, i.Model())
 			})
 		}
 	}

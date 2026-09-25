@@ -530,6 +530,9 @@ const (
 	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
 	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
 	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
+	ApiKeyScopeAIGatewayUnrestricted               APIKeyScope = "ai_gateway_unrestricted:*"
+	ApiKeyScopeAIGatewayUnrestrictedUse            APIKeyScope = "ai_gateway_unrestricted:use"
+	ApiKeyScopeChatModelConfigUse                  APIKeyScope = "chat_model_config:use"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -811,7 +814,10 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatModelConfigRead,
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
-		ApiKeyScopeChatModelConfigShare:
+		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeAIGatewayUnrestricted,
+		ApiKeyScopeAIGatewayUnrestrictedUse,
+		ApiKeyScopeChatModelConfigUse:
 		return true
 	}
 	return false
@@ -1062,6 +1068,9 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
 		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeAIGatewayUnrestricted,
+		ApiKeyScopeAIGatewayUnrestrictedUse,
+		ApiKeyScopeChatModelConfigUse,
 	}
 }
 

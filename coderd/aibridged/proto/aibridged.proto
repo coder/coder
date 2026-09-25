@@ -180,6 +180,10 @@ message IsAuthorizedRequest {
   // exists, has not expired, and belongs to a non-deleted non-system user.
   // Mutually exclusive with key.
   string key_id = 2;
+  // Both fields must be present and nonempty to authorize model use.
+  // When both are absent, only the key and user are authenticated.
+  optional string provider_name = 3;
+  optional string model = 4;
 }
 
 message IsAuthorizedResponse {

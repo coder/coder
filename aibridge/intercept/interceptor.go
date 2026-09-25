@@ -18,7 +18,7 @@ type Interceptor interface {
 	// Setup injects some required dependencies. This MUST be called before using the interceptor
 	// to process requests.
 	Setup(logger slog.Logger, rec recorder.Recorder, mcpProxy mcp.ServerProxier)
-	// Model returns the model in use for this [Interceptor].
+	// Model returns the model used for recording and pricing.
 	Model() string
 	// ProcessRequest handles the HTTP request.
 	ProcessRequest(w http.ResponseWriter, r *http.Request) error

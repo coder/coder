@@ -280,6 +280,12 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 			setHeaders:  map[string]string{},
 			wantErr:     ErrNoCredential,
 		},
+		{
+			name:        "Responses_NoCredential",
+			route:       routeResponses,
+			requestBody: `{"model": "gpt-5", "input": "hello", "stream": true}`,
+			wantErr:     ErrNoCredential,
+		},
 	}
 
 	for _, tc := range tests {
@@ -297,7 +303,7 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 			}))
 			t.Cleanup(mockUpstream.Close)
 
-			ocfg := config.OpenAI{BaseURL: mockUpstream.URL}
+			ocfg := config.OpenAI{Name: "openai-custom", BaseURL: mockUpstream.URL}
 			if tc.pool {
 				ocfg.KeyPool = testutil.SingleKeyPool(config.ProviderOpenAI, "centralized-key")
 			}
@@ -309,15 +315,22 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 			}
 			w := httptest.NewRecorder()
 
+			if tc.wantErr != nil {
+				model := "gpt-4"
+				if tc.route == routeResponses {
+					model = "gpt-5"
+				}
+				req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), expectAuthorization(t, "openai-custom", model, nil)))
+			}
 			interceptor, err := provider.CreateInterceptor(w, req, testTracer)
 			if tc.wantErr != nil {
 				require.ErrorIs(t, err, tc.wantErr)
+				require.IsType(t, &CredentialError{}, err)
 				require.Nil(t, interceptor)
 				return
 			}
 			require.NoError(t, err)
 			require.NotNil(t, interceptor)
-
 			cred := interceptor.Credential()
 			assert.Equal(t, tc.wantCredentialKind, cred.Kind(), "credential kind mismatch")
 			assert.Equal(t, tc.wantCredentialHint, cred.Hint(), "credential hint mismatch")
@@ -329,6 +342,23 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 
 			assert.Equal(t, tc.wantAuthorization, receivedHeaders.Get("Authorization"))
 			assert.Empty(t, receivedHeaders.Get("X-Api-Key"), "X-Api-Key must not be set upstream")
+		})
+	}
+}
+
+func TestOpenAI_CreateInterceptor_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
+	p := NewOpenAI(config.OpenAI{})
+	for _, route := range []string{routeChatCompletions, routeResponses} {
+		t.Run(route, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodPost, route, strings.NewReader(`invalid json`))
+			req = req.WithContext(intercept.WithRequestAuthorizer(req.Context(), unexpectedAuthorizer(t)))
+			interceptor, err := p.CreateInterceptor(httptest.NewRecorder(), req, testTracer)
+			require.ErrorContains(t, err, "unmarshal request body")
+			require.Nil(t, interceptor)
 		})
 	}
 }

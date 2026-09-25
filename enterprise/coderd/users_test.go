@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -472,6 +474,74 @@ func TestGrantSiteRoles(t *testing.T) {
 				}
 				require.ElementsMatch(t, roles, c.ExpectedRoles)
 			}
+		})
+	}
+}
+
+func TestAIGatewaySiteRoleLifecycle(t *testing.T) {
+	t.Parallel()
+
+	client, _, api, first := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	defaultOrg, err := client.Organization(ctx, first.OrganizationID)
+	require.NoError(t, err)
+	require.Equal(t, rbac.DefaultOrgMemberRoles(), defaultOrg.DefaultOrgMemberRoles)
+
+	nonDefaultOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+	require.Equal(t, rbac.DefaultOrgMemberRoles(), nonDefaultOrg.DefaultOrgMemberRoles)
+
+	userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleUserAdmin())
+	authorizer := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+
+	for _, org := range []codersdk.Organization{defaultOrg, nonDefaultOrg} {
+		t.Run(org.Name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			created, err := userAdminClient.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+				Email:           uuid.NewString() + "@coder.com",
+				Username:        coderdtest.RandomUsername(t),
+				Password:        "SomeSecurePassword!",
+				OrganizationIDs: []uuid.UUID{org.ID},
+			})
+			require.NoError(t, err)
+
+			storedMember, err := userAdminClient.OrganizationMember(ctx, org.ID.String(), created.ID.String())
+			require.NoError(t, err)
+			require.Empty(t, storedMember.Roles)
+
+			subject := coderdtest.AuthzUserSubjectWithDB(ctx, t, api.Database, created)
+			require.NotContains(t, subject.Roles.Names(), rbac.RoleAIGatewayUnrestricted(), "new users do not inherit the upgrade grant")
+			require.True(t, rbac.IsUnauthorizedError(authorizer.Authorize(ctx, subject, policy.ActionUse, rbac.ResourceAIGatewayUnrestricted)))
+
+			for _, role := range []rbac.RoleIdentifier{rbac.ScopedRoleOrgAdmin(org.ID), rbac.ScopedRoleOrgUserAdmin(org.ID)} {
+				manager, _ := coderdtest.CreateAnotherUser(t, client, org.ID, role)
+				require.NoError(t, client.DeleteOrganizationMember(ctx, org.ID, created.ID.String()))
+				_, err := manager.PostOrganizationMember(ctx, org.ID, created.ID.String())
+				require.NoError(t, err, "member management must not require unrestricted Gateway access")
+			}
+
+			updated, err := client.UpdateUserRoles(ctx, created.ID.String(), codersdk.UpdateRoles{
+				Roles: []string{rbac.RoleAuditor().Name, rbac.RoleAIGatewayUnrestricted().Name},
+			})
+			require.NoError(t, err)
+			subject = coderdtest.AuthzUserSubjectWithDB(ctx, t, api.Database, updated)
+			require.NoError(t, authorizer.Authorize(ctx, subject, policy.ActionUse, rbac.ResourceAIGatewayUnrestricted))
+
+			updated, err = client.UpdateUserRoles(ctx, created.ID.String(), codersdk.UpdateRoles{
+				Roles: []string{rbac.RoleAuditor().Name},
+			})
+			require.NoError(t, err)
+			subject = coderdtest.AuthzUserSubjectWithDB(ctx, t, api.Database, updated)
+			require.Contains(t, subject.Roles.Names(), rbac.RoleAuditor(), "revoking the Gateway role preserves other roles")
+			require.True(t, rbac.IsUnauthorizedError(authorizer.Authorize(ctx, subject, policy.ActionUse, rbac.ResourceAIGatewayUnrestricted)))
 		})
 	}
 }

@@ -2038,6 +2038,21 @@ func (mr *MockStoreMockRecorder) GetAIGatewayKeyByHashedSecret(ctx, hashedSecret
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIGatewayKeyByHashedSecret", reflect.TypeOf((*MockStore)(nil).GetAIGatewayKeyByHashedSecret), ctx, hashedSecret)
 }
 
+// GetAIModelAccessConfigs mocks base method.
+func (m *MockStore) GetAIModelAccessConfigs(ctx context.Context, arg database.GetAIModelAccessConfigsParams) ([]database.GetAIModelAccessConfigsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIModelAccessConfigs", ctx, arg)
+	ret0, _ := ret[0].([]database.GetAIModelAccessConfigsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIModelAccessConfigs indicates an expected call of GetAIModelAccessConfigs.
+func (mr *MockStoreMockRecorder) GetAIModelAccessConfigs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIModelAccessConfigs", reflect.TypeOf((*MockStore)(nil).GetAIModelAccessConfigs), ctx, arg)
+}
+
 // GetAIModelPriceByProviderModel mocks base method.
 func (m *MockStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	m.ctrl.T.Helper()
@@ -10085,6 +10100,21 @@ func (m *MockStore) UpdateChatExecutionState(ctx context.Context, arg database.U
 func (mr *MockStoreMockRecorder) UpdateChatExecutionState(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatExecutionState", reflect.TypeOf((*MockStore)(nil).UpdateChatExecutionState), ctx, arg)
+}
+
+// UpdateChatGatewayAPIKeyScopesByID mocks base method.
+func (m *MockStore) UpdateChatGatewayAPIKeyScopesByID(ctx context.Context, arg database.UpdateChatGatewayAPIKeyScopesByIDParams) (database.APIKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatGatewayAPIKeyScopesByID", ctx, arg)
+	ret0, _ := ret[0].(database.APIKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatGatewayAPIKeyScopesByID indicates an expected call of UpdateChatGatewayAPIKeyScopesByID.
+func (mr *MockStoreMockRecorder) UpdateChatGatewayAPIKeyScopesByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatGatewayAPIKeyScopesByID", reflect.TypeOf((*MockStore)(nil).UpdateChatGatewayAPIKeyScopesByID), ctx, arg)
 }
 
 // UpdateChatHeartbeats mocks base method.

@@ -190,7 +190,48 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			return
 		}
 
+		var authorizationErr error
+		authorizer := intercept.RequestAuthorizerFromContext(ctx)
+		authorized := authorizer == nil
+		if authorizer != nil {
+			ctx = intercept.WithRequestAuthorizer(ctx, func(authCtx context.Context, providerName, invocationModel string) error {
+				authorizationErr = authorizer(authCtx, providerName, invocationModel)
+				authorized = authorizationErr == nil
+				if authorized && m != nil {
+					m.AuthorizationCount.WithLabelValues(metrics.AuthorizationOutcomeAllowed).Inc()
+				}
+				return authorizationErr
+			})
+		}
 		interceptor, err := p.CreateInterceptor(w, r.WithContext(ctx), tracer)
+		// Preserve authorization failures even when a provider wraps the error.
+		if authorizationErr != nil {
+			kind := intercept.AuthorizationErrorEvaluation
+			if authErr, ok := errors.AsType[*intercept.AuthorizationError](authorizationErr); ok && authErr != nil {
+				kind = authErr.Kind
+			}
+			if kind == intercept.AuthorizationErrorAuthentication || kind == intercept.AuthorizationErrorPolicy {
+				if m != nil {
+					m.AuthorizationCount.WithLabelValues(metrics.AuthorizationOutcomeDenied).Inc()
+				}
+				logger.Warn(ctx, "request authorization denied", slog.F("provider", p.Name()), slog.F("authorization_error_kind", kind))
+				http.Error(w, "unauthorized", http.StatusForbidden)
+			} else {
+				if m != nil {
+					m.AuthorizationCount.WithLabelValues(metrics.AuthorizationOutcomeError).Inc()
+				}
+				logger.Error(ctx, "request authorization failed", slog.Error(authorizationErr), slog.F("provider", p.Name()), slog.F("authorization_error_kind", kind))
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+			}
+			return
+		}
+		if credentialErr, ok := errors.AsType[*provider.CredentialError](err); ok {
+			http.Error(w, fmt.Sprintf("failed to resolve credential: %v", credentialErr), http.StatusInternalServerError)
+			return
+		}
+		if err == nil && (!authorized || interceptor == nil || interceptor.Credential() == nil) {
+			err = xerrors.New("provider did not authorize the request or resolve a credential")
+		}
 		if err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to create interceptor: %v", err))
 			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {

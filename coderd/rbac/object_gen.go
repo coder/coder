@@ -25,6 +25,13 @@ var (
 		Type: "ai_gateway_key",
 	}
 
+	// ResourceAIGatewayUnrestricted
+	// Valid Actions
+	//  - "ActionUse" :: use any AI Gateway model
+	ResourceAIGatewayUnrestricted = Object{
+		Type: "ai_gateway_unrestricted",
+	}
+
 	// ResourceAiModelPrice
 	// Valid Actions
 	//  - "ActionRead" :: read AI model prices
@@ -135,6 +142,7 @@ var (
 	//  - "ActionRead" :: read chat model configs
 	//  - "ActionShare" :: share a chat model config with other users or groups
 	//  - "ActionUpdate" :: update a chat model config
+	//  - "ActionUse" :: use a chat model config
 	ResourceChatModelConfig = Object{
 		Type: "chat_model_config",
 	}
@@ -512,6 +520,7 @@ func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
 		ResourceAIGatewayKey,
+		ResourceAIGatewayUnrestricted,
 		ResourceAiModelPrice,
 		ResourceAIProvider,
 		ResourceAiSeat,
