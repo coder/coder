@@ -232,6 +232,39 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	it("keeps a highlight moved to an inline row while placeholder rows show", async () => {
+		const templates = heldSearch(
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => [],
+			},
+			"",
+		);
+		const { user, onChange, filtersButton } = setup([
+			ownerCategory,
+			templates.category,
+			statusCategory,
+		]);
+
+		await user.click(filtersButton);
+		await screen.findByRole("option", { name: /Running/ });
+		await user.keyboard("{ArrowDown}");
+		await act(async () =>
+			templates.resolve([
+				{ label: "docker", value: "docker" },
+				{ label: "k8s", value: "k8s" },
+			]),
+		);
+		await screen.findByRole("option", { name: "Template" });
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("status:running"),
+		);
+	});
+
 	it("matches typed text to a hideable category while its options load", async () => {
 		const templates = heldSearch(
 			{

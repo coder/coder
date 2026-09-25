@@ -388,9 +388,8 @@ export const useFilterCombobox = ({
 		unfilteredOptions.hideableFirstLoadKeys.has(category.key);
 	// A hideable category stays in the menu while its options first load, so
 	// typed text can match it; while it has an applied chip, so the chip can be
-	// changed; and after a failed lookup, including while its retry runs, so its
-	// flyout can offer a retry. A retry that returns at most one option removes
-	// it.
+	// changed. After a failed lookup, including while its retry runs, it stays
+	// so its flyout can offer a retry, until a retry returns at most one option.
 	const isInMenu = (category: FilterCategory, chips = chipValues) =>
 		!category.hideWhenSingleOption ||
 		isHideableFirstLoad(category) ||
@@ -424,19 +423,9 @@ export const useFilterCombobox = ({
 				? menuCategories
 				: matchCategories(categoryQuery, menuCategories);
 
-	// Placeholder rows are not cmdk items, so an inline row takes the highlight
-	// while they show. Once they are replaced, the first category row takes it,
-	// as it would in a menu that opened without placeholders.
+	// Placeholder rows are not cmdk items, so an inline row would take the
+	// automatic highlight while they show.
 	const placeholdersShown = categoryPlaceholderCount > 0;
-	const firstListedCategoryKey = listedCategories[0]?.key;
-	const placeholdersShownRef = useRef(placeholdersShown);
-	useEffect(() => {
-		const wereShown = placeholdersShownRef.current;
-		placeholdersShownRef.current = placeholdersShown;
-		if (wereShown && !placeholdersShown && firstListedCategoryKey) {
-			highlightRef.current?.set(firstListedCategoryKey);
-		}
-	}, [placeholdersShown, firstListedCategoryKey]);
 
 	const activeOptionsQuerySource = activeCategoryKey !== null ? inputValue : "";
 	const debouncedActiveOptionsQuery = useDebouncedValue(
@@ -1132,7 +1121,7 @@ export const useFilterCombobox = ({
 		listedCategories,
 		categoriesNarrowedByText: categoryQuery.length > 0,
 		categoryPlaceholderCount,
-		autoHighlight: !typingFreeText,
+		autoHighlight: !typingFreeText && !placeholdersShown,
 		unfilteredOptionsByKey: unfilteredOptions.optionsByKey,
 		unfilteredOptionsErroredKeys: unfilteredOptions.erroredKeys,
 		valueSuggestions,
