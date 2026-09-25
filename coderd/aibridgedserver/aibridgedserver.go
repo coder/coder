@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -192,6 +193,23 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 	return srv, nil
 }
 
+// recordTime resolves the time a gateway reported for a record. A gateway is a
+// separate process, possibly of a different version, so an unset time is
+// replaced with the server's own rather than persisted as the zero time, which
+// would place the record in year one and skew budget periods and retention.
+func (s *Server) recordTime(ctx context.Context, field string, reported *timestamppb.Timestamp, interceptionID string) time.Time {
+	if reported.IsValid() && !reported.AsTime().IsZero() {
+		return reported.AsTime()
+	}
+	now := dbtime.Now()
+	s.logger.Warn(ctx, "record reported no time, using server time",
+		slog.F("field", field),
+		slog.F("interception_id", interceptionID),
+		slog.F("server_time", now),
+	)
+	return now
+}
+
 func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
@@ -273,7 +291,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		ProviderName:                providerName,
 		Model:                       in.Model,
 		Metadata:                    out,
-		StartedAt:                   in.StartedAt.AsTime(),
+		StartedAt:                   s.recordTime(ctx, "started_at", in.GetStartedAt(), intcID.String()),
 		ThreadParentInterceptionID:  uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
 		ThreadRootInterceptionID:    uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
 		CredentialKind:              credentialKindOrDefault(in.CredentialKind),
@@ -320,7 +338,7 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 	}
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
 		ID:             intcID,
-		EndedAt:        in.EndedAt.AsTime(),
+		EndedAt:        s.recordTime(ctx, "ended_at", in.GetEndedAt(), intcID.String()),
 		CredentialHint: in.CredentialHint,
 		ErrorType:      errType,
 		ErrorMessage:   errMsg,
@@ -399,7 +417,7 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 // interception's cost) and, when the user is budgeted and the computed cost is
 // positive, accumulates that cost into the user's daily spend.
 func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIBridgeInterception, cost tokenUsageCost, in *proto.RecordTokenUsageRequest, metadataJSON []byte) error {
-	createdAt := in.GetCreatedAt().AsTime()
+	createdAt := s.recordTime(ctx, "created_at", in.GetCreatedAt(), intc.ID.String())
 
 	// Populated inside the transaction with any budget thresholds this
 	// interception crossed.
@@ -505,7 +523,7 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 		ProviderResponseID: in.GetMsgId(),
 		Prompt:             in.GetPrompt(),
 		Metadata:           out,
-		CreatedAt:          in.GetCreatedAt().AsTime(),
+		CreatedAt:          s.recordTime(ctx, "created_at", in.GetCreatedAt(), intcID.String()),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert user prompt: %w", err)
@@ -559,7 +577,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 		Injected:           in.GetInjected(),
 		InvocationError:    sql.NullString{String: in.GetInvocationError(), Valid: in.InvocationError != nil},
 		Metadata:           out,
-		CreatedAt:          in.GetCreatedAt().AsTime(),
+		CreatedAt:          s.recordTime(ctx, "created_at", in.GetCreatedAt(), intcID.String()),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert tool usage: %w", err)
@@ -598,7 +616,7 @@ func (s *Server) RecordModelThought(ctx context.Context, in *proto.RecordModelTh
 		InterceptionID: intcID,
 		Content:        in.GetContent(),
 		Metadata:       out,
-		CreatedAt:      in.GetCreatedAt().AsTime(),
+		CreatedAt:      s.recordTime(ctx, "created_at", in.GetCreatedAt(), intcID.String()),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert model thought: %w", err)
