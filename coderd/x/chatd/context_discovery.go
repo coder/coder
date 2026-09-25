@@ -5,11 +5,136 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 )
+
+const (
+	// instructionProbeTTL is how long a directory the agent reported empty
+	// is skipped, unless a later step makes it stale.
+	instructionProbeTTL = 10 * time.Minute
+	// maxInstructionProbeEntries bounds each probe cache across all agents;
+	// a cache is reset when it fills.
+	maxInstructionProbeEntries = 4096
+	// maxDiscoveredInstructionBytes caps the readable discovered content a
+	// chat holds across all steps, since every pinned body is rendered into
+	// every later prompt; files past the cap are pinned as excluded.
+	maxDiscoveredInstructionBytes = 1 << 20
+	// pendingProbeTTL is how long a directory a command ran in is re-probed
+	// on later touches of its tree: a background or timed-out command may
+	// still be writing after its result returned.
+	pendingProbeTTL = 10 * time.Minute
+)
+
+// instructionFileNames mirrors the agent resolver's recognized names so a
+// tool that writes one of them re-probes its directory.
+var instructionFileNames = []string{"AGENTS.md", "CLAUDE.md", ".cursorrules"}
+
+// instructionProbeCache remembers, per agent, directories reported empty
+// (shared by every chat), directories one chat's row cap kept out (that
+// chat only), and directories a command ran in, which are re-probed for a while.
+type instructionProbeCache struct {
+	mu      sync.Mutex
+	entries map[instructionProbeKey]time.Time
+	pending map[instructionProbeKey]time.Time
+}
+
+// instructionProbeKey has chatID uuid.Nil for entries every chat shares.
+type instructionProbeKey struct {
+	agentID uuid.UUID
+	chatID  uuid.UUID
+	dir     string
+}
+
+func (c *instructionProbeCache) negative(now time.Time, agentID, chatID uuid.UUID, dir string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, scope := range []uuid.UUID{uuid.Nil, chatID} {
+		if expiry, ok := c.entries[instructionProbeKey{agentID: agentID, chatID: scope, dir: pathKey(dir)}]; ok && now.Before(expiry) {
+			return true
+		}
+	}
+	return false
+}
+
+// markPending records directories a command ran in.
+func (c *instructionProbeCache) markPending(now time.Time, agentID uuid.UUID, dirs []string) {
+	keys := make([]instructionProbeKey, 0, len(dirs))
+	for _, dir := range dirs {
+		keys = append(keys, instructionProbeKey{agentID: agentID, dir: pathKey(dir)})
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.pending = insertBounded(c.pending, now, pendingProbeTTL, keys)
+}
+
+// isPending reports whether a command ran recently in dir or an ancestor,
+// since the command may be writing anywhere in its tree.
+func (c *instructionProbeCache) isPending(now time.Time, agentID uuid.UUID, dir string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for {
+		if expiry, ok := c.pending[instructionProbeKey{agentID: agentID, dir: pathKey(dir)}]; ok && now.Before(expiry) {
+			return true
+		}
+		if isRootAgentPath(dir) {
+			return false
+		}
+		dir = path.Dir(dir)
+	}
+}
+
+func (c *instructionProbeCache) markNegative(now time.Time, agentID, chatID uuid.UUID, dirs []string) {
+	keys := make([]instructionProbeKey, 0, len(dirs))
+	for _, dir := range dirs {
+		keys = append(keys, instructionProbeKey{agentID: agentID, chatID: chatID, dir: pathKey(dir)})
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries = insertBounded(c.entries, now, instructionProbeTTL, keys)
+}
+
+// insertBounded records keys with an expiry of now plus ttl. When the map
+// would exceed maxInstructionProbeEntries, expired entries go first and then
+// the whole map, which only costs the next touch a probe it may not need.
+func insertBounded(m map[instructionProbeKey]time.Time, now time.Time, ttl time.Duration, keys []instructionProbeKey) map[instructionProbeKey]time.Time {
+	if len(keys) == 0 {
+		return m
+	}
+	if m == nil {
+		m = make(map[instructionProbeKey]time.Time)
+	}
+	if len(m)+len(keys) > maxInstructionProbeEntries {
+		for key, expiry := range m {
+			if !now.Before(expiry) {
+				delete(m, key)
+			}
+		}
+		if len(m)+len(keys) > maxInstructionProbeEntries {
+			m = make(map[instructionProbeKey]time.Time)
+		}
+	}
+	for _, key := range keys {
+		m[key] = now.Add(ttl)
+	}
+	return m
+}
+
+func (c *instructionProbeCache) forget(agentID, chatID uuid.UUID, dirs []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, dir := range dirs {
+		for _, scope := range []uuid.UUID{uuid.Nil, chatID} {
+			delete(c.entries, instructionProbeKey{agentID: agentID, chatID: scope, dir: pathKey(dir)})
+		}
+	}
+}
 
 // agentPath normalizes a tool or agent path so the POSIX path package can
 // reason about it: a drive path's backslashes become forward slashes, which
@@ -35,6 +160,18 @@ func pathKey(p string) string {
 	return p
 }
 
+// isInstructionFilePath reports whether file has a recognized instruction
+// file name, spelled exactly on POSIX and in any case on a Windows drive.
+func isInstructionFilePath(file string) bool {
+	base := path.Base(file)
+	for _, name := range instructionFileNames {
+		if base == name || (isDrivePath(file) && strings.EqualFold(base, name)) {
+			return true
+		}
+	}
+	return false
+}
+
 // isAbsAgentPath reports whether the agent's file system takes p as
 // absolute: a drive root such as C:/ on Windows, a leading slash elsewhere.
 // The agent rejects a whole probe batch over one path it deems relative.
@@ -50,6 +187,13 @@ func isAbsAgentPath(p, operatingSystem string) bool {
 // Windows agent rejects as relative.
 func isUNCPath(raw string) bool {
 	return len(raw) >= 2 && (raw[0] == '\\' || raw[0] == '/') && (raw[1] == '\\' || raw[1] == '/')
+}
+
+// instructionRowDir is the directory an instruction row's file sits in,
+// which for a discovered row is the directory that was probed: the agent
+// reports a symlinked file under the link's own path.
+func instructionRowDir(row database.ChatContextResource) string {
+	return path.Dir(agentPath(row.Source))
 }
 
 func isRootAgentPath(dir string) bool {
@@ -170,4 +314,67 @@ func sortShallowestFirst(dirs []string) {
 		}
 		return strings.Compare(a, b)
 	})
+}
+
+// staleInstructionDirs lists, by pathKey, the directories an instruction
+// file was written to and the explicit execute workdirs, whose files may
+// have changed during the step.
+func staleInstructionDirs(files, dirs []string) map[string]struct{} {
+	stale := make(map[string]struct{}, len(dirs))
+	for _, file := range files {
+		if isInstructionFilePath(file) {
+			stale[pathKey(path.Dir(file))] = struct{}{}
+		}
+	}
+	for _, dir := range dirs {
+		stale[pathKey(dir)] = struct{}{}
+	}
+	return stale
+}
+
+// pinnedInstructionDirs lists, by pathKey, the directories whose files the
+// chat already holds, and separately those whose excluded file would fit
+// the bytes now free, so a later touch re-reads them.
+func pinnedInstructionDirs(rows []database.ChatContextResource) (pinned, freed map[string]struct{}) {
+	var used int64
+	for _, row := range rows {
+		if row.Discovered && row.BodyKind == database.WorkspaceAgentContextBodyKindInstructionFile && row.Status == database.WorkspaceAgentContextResourceStatusOk {
+			used += row.SizeBytes
+		}
+	}
+	free := maxDiscoveredInstructionBytes - used
+	freed = make(map[string]struct{})
+	pinned = make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		if row.BodyKind != database.WorkspaceAgentContextBodyKindInstructionFile {
+			continue
+		}
+		key := pathKey(instructionRowDir(row))
+		if row.Discovered && row.Status == database.WorkspaceAgentContextResourceStatusExcluded && row.SizeBytes <= free {
+			freed[key] = struct{}{}
+		}
+		pinned[key] = struct{}{}
+	}
+	for key := range freed {
+		delete(pinned, key)
+	}
+	return pinned, freed
+}
+
+// selectInstructionProbes keeps the stale candidates and those neither
+// pinned nor cached negative. pinnedDirs and stale are keyed by pathKey.
+func selectInstructionProbes(candidates []string, pinnedDirs, stale map[string]struct{}, negative func(dir string) bool) []string {
+	probe := make([]string, 0, len(candidates))
+	for _, dir := range candidates {
+		key := pathKey(dir)
+		if _, touched := stale[key]; touched {
+			probe = append(probe, dir)
+			continue
+		}
+		if _, ok := pinnedDirs[key]; ok || negative(dir) {
+			continue
+		}
+		probe = append(probe, dir)
+	}
+	return probe
 }
