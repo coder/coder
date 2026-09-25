@@ -89,6 +89,22 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
+			// A delete build means the user asked to remove this workspace.
+			// A successful delete is already handled by the ws.Deleted check
+			// above, but a failed or canceled delete leaves ws.Deleted false
+			// with partially destroyed infrastructure. Starting from that
+			// state would resurrect a workspace that was meant to be gone, so
+			// refuse instead of silently rebuilding it. Mirrors the
+			// deleted-workspace guard in codersdk/toolsdk bash.go.
+			if build.Transition == database.WorkspaceTransitionDelete {
+				return fantasy.NewTextErrorResponse(
+					"the workspace's most recent build was a delete, so it " +
+						"will not be started. If the deletion failed, retry " +
+						"deleting the workspace (or orphan-delete it); use " +
+						"create_workspace to provision a new one.",
+				), nil
+			}
+
 			// If a build is already in progress, wait for it.
 			switch job.JobStatus {
 			case database.ProvisionerJobStatusPending,
