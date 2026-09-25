@@ -298,7 +298,14 @@ export function FilterCombobox({
 				searchValue={inputValue}
 				onSearchChange={actions.onInputValueChange}
 				onRetry={actions.retryActiveOptions}
-				onSelectOption={actions.selectCategoryOption}
+				onSelectOption={(token) => {
+					actions.selectCategoryOption(token);
+					// The search field or a clicked row may hold focus and unmount
+					// with the list. On mobile, refocusing would reopen the keyboard.
+					if (!isMobile) {
+						actions.focusInput();
+					}
+				}}
 			/>
 		);
 	const mobilePanelEmpty = categoryOptionsList
@@ -824,13 +831,33 @@ function MainPanel({
 	);
 }
 
-type FlyoutSearchProps = Readonly<{
-	label: string;
+// Keys cmdk uses to move through and pick the highlighted option.
+const LIST_NAVIGATION_KEYS = new Set([
+	"ArrowUp",
+	"ArrowDown",
+	"Home",
+	"End",
+	"Enter",
+]);
+
+type FlyoutSearchConfig = {
 	value: string;
 	onChange: (value: string) => void;
-}>;
+	/**
+	 * The panel's options are combobox rows, so list navigation keys reach them
+	 * from the search field instead of stopping there.
+	 */
+	navigatesList?: boolean;
+};
 
-function FlyoutSearch({ label, value, onChange }: FlyoutSearchProps) {
+type FlyoutSearchProps = Readonly<FlyoutSearchConfig & { label: string }>;
+
+function FlyoutSearch({
+	label,
+	value,
+	onChange,
+	navigatesList = false,
+}: FlyoutSearchProps) {
 	return (
 		<div className="-mx-2 -mt-2 mb-2 flex items-center border-b border-border px-3">
 			<SearchIcon
@@ -843,7 +870,12 @@ function FlyoutSearch({ label, value, onChange }: FlyoutSearchProps) {
 				placeholder={`Search ${label.toLowerCase()}…`}
 				value={value}
 				onChange={(event) => onChange(event.currentTarget.value)}
-				onKeyDown={(event) => event.stopPropagation()}
+				onKeyDown={(event) => {
+					if (navigatesList && LIST_NAVIGATION_KEYS.has(event.key)) {
+						return;
+					}
+					event.stopPropagation();
+				}}
 			/>
 		</div>
 	);
@@ -917,7 +949,7 @@ type OptionsPanelProps = Readonly<{
 	embedded?: boolean;
 	offset: number;
 	/** Shown above the options when the category is searchable. */
-	search?: { value: string; onChange: (value: string) => void };
+	search?: FlyoutSearchConfig;
 	emptyMessage?: string;
 	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
@@ -958,11 +990,7 @@ function OptionsPanel({
 			}
 		>
 			{search && category && (
-				<FlyoutSearch
-					label={category.label}
-					value={search.value}
-					onChange={search.onChange}
-				/>
+				<FlyoutSearch label={category.label} {...search} />
 			)}
 			{children}
 			{emptyMessage && <EmptyOptions message={emptyMessage} />}
@@ -1161,7 +1189,11 @@ function CategoryOptionsList({
 			offset={offset}
 			search={
 				searchable
-					? { value: searchValue, onChange: onSearchChange }
+					? {
+							value: searchValue,
+							onChange: onSearchChange,
+							navigatesList: true,
+						}
 					: undefined
 			}
 			emptyMessage={options?.length === 0 ? "No matching options" : undefined}

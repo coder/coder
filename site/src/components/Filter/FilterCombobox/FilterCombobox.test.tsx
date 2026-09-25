@@ -478,6 +478,24 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
 	});
 
+	it("picks a category option with the keyboard from its search field", async () => {
+		const { user, onChange, input, filtersButton } = setup([
+			manyOwnersCategory,
+		]);
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowDown}{ArrowRight}");
+		const search = await screen.findByRole("textbox", { name: "Search Owner" });
+		await screen.findByRole("option", { name: "user-0" });
+		await user.click(search);
+		await user.keyboard("{ArrowDown}{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:user-0"),
+		);
+		expect(input).toHaveFocus();
+	});
+
 	it("keeps the category search field while results shrink", async () => {
 		const getOptions = vi.fn(manyOwnersCategory.getOptions);
 		const { user, filtersButton } = setup([
