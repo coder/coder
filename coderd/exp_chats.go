@@ -2679,12 +2679,12 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only the chat owner may send messages. Org admins pass the
-	// RBAC check above (org-level ActionUpdate), but chat
-	// processing forwards the *owner's* credentials (OIDC tokens,
-	// provider API keys) to external services. Allowing a
-	// non-owner to trigger processing would leak the owner's
-	// tokens to MCP servers the caller controls.
+	// Only the chat owner may send messages. RBAC already limits
+	// chat updates to the owner; this check stays as defense in depth
+	// because chat processing forwards the *owner's* credentials (OIDC
+	// tokens, provider API keys) to external services. Allowing a
+	// non-owner to trigger processing would leak the owner's tokens to
+	// MCP servers the caller controls.
 	if apiKey.UserID != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may send messages.",
@@ -3441,9 +3441,9 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only the chat owner may trigger compaction. Org admins pass the
-	// RBAC check above (org-level ActionUpdate), but compaction runs
-	// inference with the owner's delegated credentials.
+	// Only the chat owner may trigger compaction. See postChatMessages
+	// for the security rationale; compaction runs inference with the
+	// owner's delegated credentials.
 	if apiKey.UserID != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may compact the chat.",
