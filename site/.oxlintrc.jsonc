@@ -65,6 +65,7 @@
 
 		// --- correctness ---
 		"no-children-prop": "error",
+		"no-danger": "error",
 		"no-const-assign": "error",
 		"no-constant-condition": "error",
 		"no-constructor-return": "error",
@@ -210,7 +211,6 @@
 		// small < medium < large < xl.
 		// ==========================================================
 		"no-autofocus": "off", // a11y/noAutofocus (large)
-		"no-danger": "off", // security/noDangerouslySetInnerHtml (small: Biome suppression to migrate)
 		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
 		"iframe-has-title": "off", // a11y/useIframeTitle (small)

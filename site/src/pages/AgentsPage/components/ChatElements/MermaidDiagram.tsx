@@ -174,6 +174,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 					className="block [&>svg]:mx-auto [&>svg]:block [&>svg]:h-auto [&>svg]:max-w-full"
 					// Output is sanitized by DOMPurify before it reaches React, so
 					// the only HTML here is Mermaid's own SVG markup.
+					// oxlint-disable-next-line react/no-danger -- DOMPurify sanitizes the SVG.
 					dangerouslySetInnerHTML={{ __html: state.svg }}
 				/>
 				<span
@@ -192,6 +193,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 					<div
 						style={{ width: fittedWidth(state.svg) }}
 						className="max-h-[85vh] max-w-[90vw] overflow-auto rounded-md border border-solid border-border-default bg-surface-primary p-6 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:!max-w-none"
+						// oxlint-disable-next-line react/no-danger -- DOMPurify sanitizes the SVG.
 						dangerouslySetInnerHTML={{ __html: state.svg }}
 					/>
 				</Lightbox>
