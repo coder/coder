@@ -19789,7 +19789,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "title_source": {
-                    "$ref": "#/definitions/codersdk.ChatTitleSource"
+                    "description": "TitleSource is where Title came from. Automatic title generation\nreplaces only a fallback title; a rename replaces any title.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatTitleSource"
+                        }
+                    ]
                 },
                 "title_updated_at": {
                     "description": "TitleUpdatedAt orders title changes. Title writes do not change\nUpdatedAt.",
