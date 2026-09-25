@@ -255,14 +255,19 @@ func TestFallbackTitle(t *testing.T) {
 			want:    "fix the flaky test",
 		},
 		{
-			name:    "truncates to six words with ellipsis",
+			name:    "keeps every word of a long message",
 			message: "one two three four five six seven",
-			want:    "one two three four five six…",
+			want:    "one two three four five six seven",
 		},
 		{
-			name:    "caps six long words at eighty runes keeping the ellipsis",
+			name:    "caps at eighty runes with an ellipsis",
 			message: strings.Repeat(longWord+" ", 7),
 			want:    strings.Repeat("x", 30) + " " + strings.Repeat("x", 30) + " " + strings.Repeat("x", 17) + "…",
+		},
+		{
+			name:    "keeps a message of exactly eighty runes verbatim",
+			message: strings.Repeat("y", 80),
+			want:    strings.Repeat("y", 80),
 		},
 	}
 
@@ -273,6 +278,30 @@ func TestFallbackTitle(t *testing.T) {
 			got := chatprompt.FallbackTitle(tt.message)
 			require.Equal(t, tt.want, got)
 			require.LessOrEqual(t, len([]rune(got)), 80)
+		})
+	}
+}
+
+func TestIsFallbackTitle(t *testing.T) {
+	t.Parallel()
+
+	const message = "one two three four five six seven"
+
+	tests := []struct {
+		name  string
+		title string
+		want  bool
+	}{
+		{name: "current format", title: "one two three four five six seven", want: true},
+		{name: "legacy six-word format", title: "one two three four five six…", want: true},
+		{name: "custom title", title: "Counting to seven", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tt.want, chatprompt.IsFallbackTitle(tt.title, message))
 		})
 	}
 }
