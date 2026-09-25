@@ -17,7 +17,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/safedial"
 )
@@ -147,16 +146,6 @@ func validateInlineMCPServers(
 				validations = append(validations, codersdk.ValidationError{
 					Field:  field,
 					Detail: "header name is reserved",
-				})
-			case len(value) < codersdk.MinInlineMCPServerHeaderValueBytes:
-				validations = append(validations, codersdk.ValidationError{
-					Field:  field,
-					Detail: fmt.Sprintf("header value must be at least %d bytes", codersdk.MinInlineMCPServerHeaderValueBytes),
-				})
-			case strings.Contains(mcpclient.RedactedPlaceholder, value): //nolint:gocritic // The order is intended: reject values that the placeholder contains.
-				validations = append(validations, codersdk.ValidationError{
-					Field:  field,
-					Detail: fmt.Sprintf("header value must not be part of the redaction placeholder %q", mcpclient.RedactedPlaceholder),
 				})
 			case len(value) > codersdk.MaxInlineMCPServerHeaderValueBytes:
 				validations = append(validations, codersdk.ValidationError{

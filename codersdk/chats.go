@@ -47,10 +47,6 @@ const (
 	MaxInlineMCPServerHeaderValueBytes = 8 * 1024
 	MaxInlineMCPServerToolFilters      = 64
 	MaxInlineMCPServerToolNameBytes    = 128
-	// MinInlineMCPServerHeaderValueBytes is the shortest accepted header
-	// value. Shorter values are not secrets and are rejected so every
-	// accepted value is redacted.
-	MinInlineMCPServerHeaderValueBytes = 8
 )
 
 // AnthropicInlineImageCapBytes is Anthropic's documented per-image

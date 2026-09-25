@@ -6392,15 +6392,6 @@ export const MaxUserSecretsPerUserCount = 50;
  */
 export const MaxUserSecretsTotalValueBytes = 204800; // 200 KiB
 
-// From codersdk/chats.go
-/**
- * Inline MCP server declaration caps. Clients can validate before sending.
- * MinInlineMCPServerHeaderValueBytes is the shortest accepted header
- * value. Shorter values are not secrets and are rejected so every
- * accepted value is redacted.
- */
-export const MinInlineMCPServerHeaderValueBytes = 8;
-
 // From codersdk/organizations.go
 export interface MinimalOrganization {
 	readonly id: string;

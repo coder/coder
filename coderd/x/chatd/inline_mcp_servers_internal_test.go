@@ -11,15 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
-	"github.com/coder/coder/v2/codersdk"
 )
-
-// TestInlineMCPServerHeaderValueMinimum pins the API minimum to the
-// redactor minimum so every accepted header value is redacted.
-func TestInlineMCPServerHeaderValueMinimum(t *testing.T) {
-	t.Parallel()
-	require.GreaterOrEqual(t, codersdk.MinInlineMCPServerHeaderValueBytes, mcpclient.MinSensitiveValueBytes)
-}
 
 func TestLoadInlineMCPServers(t *testing.T) {
 	t.Parallel()

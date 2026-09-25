@@ -961,8 +961,8 @@ func AppendInline(
 // made. The key is reverse-DNS namespaced per the MCP _meta guidance.
 const toolCallIDMetaKey = "com.coder/tool_call_id"
 
-// RedactedPlaceholder replaces each sensitive value in redacted text.
-const RedactedPlaceholder = "[REDACTED]"
+// redactedPlaceholder replaces each sensitive value in redacted text.
+const redactedPlaceholder = "[REDACTED]"
 
 // MinSensitiveValueBytes is the shortest value the redactor will
 // replace. Shorter values cannot be secrets, and replacing them would
@@ -970,7 +970,7 @@ const RedactedPlaceholder = "[REDACTED]"
 const MinSensitiveValueBytes = 8
 
 // secretRedactor replaces a fixed set of sensitive strings with
-// RedactedPlaceholder. The zero value redacts nothing. Longer values
+// redactedPlaceholder. The zero value redacts nothing. Longer values
 // are replaced first so a value that contains another value is
 // redacted whole. Empty values, substrings of the placeholder, and
 // values shorter than MinSensitiveValueBytes are dropped: the first
@@ -986,7 +986,7 @@ func newSecretRedactor(values []string) secretRedactor {
 	values = slices.Clone(values)
 	values = slices.DeleteFunc(values, func(value string) bool {
 		return value == "" ||
-			strings.Contains(RedactedPlaceholder, value) ||
+			strings.Contains(redactedPlaceholder, value) ||
 			len(value) < MinSensitiveValueBytes
 	})
 	slices.SortFunc(values, func(a, b string) int {
@@ -1032,7 +1032,7 @@ func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
 
 func (r secretRedactor) redactString(value string) string {
 	for _, secret := range r.values {
-		value = strings.ReplaceAll(value, secret, RedactedPlaceholder)
+		value = strings.ReplaceAll(value, secret, redactedPlaceholder)
 	}
 	return value
 }
@@ -1054,7 +1054,7 @@ func (r secretRedactor) redactBytes(value []byte) []byte {
 	}
 	redacted := bytes.Clone(value)
 	for _, secret := range r.values {
-		redacted = bytes.ReplaceAll(redacted, []byte(secret), []byte(RedactedPlaceholder))
+		redacted = bytes.ReplaceAll(redacted, []byte(secret), []byte(redactedPlaceholder))
 	}
 	return redacted
 }
