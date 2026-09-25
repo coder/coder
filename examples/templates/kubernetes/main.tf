@@ -281,6 +281,10 @@ resource "kubernetes_deployment_v1" "main" {
           run_as_user     = 1000
           fs_group        = 1000
           run_as_non_root = true
+          // Only chown the home volume when its root is not already owned by fs_group.
+          // The default policy ("Always") recursively chowns every file on each start,
+          // which can take many minutes on large volumes.
+          fs_group_change_policy = "OnRootMismatch"
         }
 
         container {
