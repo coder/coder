@@ -157,9 +157,12 @@ An integration that relied on that has to move it into the body or the header.
 
 ## HTTP 401 for an access token in the query string
 
-Every API endpoint answers HTTP 401 when an access token issued by the OAuth2 provider arrives only in the URL query string, as `?access_token=` or `?coder_session_token=`.
+Coder ignores an access token issued by the OAuth2 provider when it arrives only in the URL query string, as `?access_token=` or `?coder_session_token=`.
 OAuth 2.1 section 5.1 requires the resource server to ignore access tokens in a URI query parameter.
-The response carries a `WWW-Authenticate: Bearer` challenge with no error code, because the ignored token leaves the request with no credentials, and the JSON body names the fix.
+Coder handles the request as if it carried no token at all.
+Most endpoints require a signed-in user, so they answer HTTP 401 with a `WWW-Authenticate: Bearer` header.
+That header carries no error code, since no token was accepted, and the JSON body says to send the token in the `Authorization` header instead.
+A few endpoints also work without a signed-in user, and those handle the request as an anonymous one and return no error.
 Send the token in the `Authorization` header instead, as shown under [Authorization code flow](./integration-patterns.md#authorization-code-flow).
 
 The rule applies to tokens the OAuth2 provider issued.
@@ -168,13 +171,17 @@ A dashboard page embedded in another application and authenticated with an OAuth
 
 A token that also appears in the `Authorization` header, the `Coder-Session-Token` header, or the session cookie is accepted, and the query copy is ignored.
 
-Each refusal writes a log line containing `oauth2 access token refused: sent in the URL query string` with the `api_key_id`, `user_id`, `app_id`, `path`, `remote_addr`, and `user_agent` of the request.
+Each ignored token writes a log line containing `oauth2 access token ignored: sent in the URL query string` with the `api_key_id`, `user_id`, `app_id`, `path`, `remote_addr`, and `user_agent` of the request.
 The `app_id` matches the application in the **OAuth2 Applications** admin page, and the `user_id` names the user whose authorization the integration is using.
 Search the Coder logs for that string to find the integration that sends the token in the URL.
-The refused token stays valid and is not marked as used.
+The ignored token stays valid and is not marked as used.
 
 A URL is recorded by reverse proxies, load balancers, CDN access logs, browser history, and `Referer` headers.
-Treat a token that was sent this way as exposed and revoke it, following [Revoke a token](./token-management.md#revoke-a-token).
+Treat a token that was sent this way as exposed and end it in one of these ways:
+
+- The integration owner, who holds the token value and the client credentials, revokes it following [Revoke a token](./token-management.md#revoke-a-token).
+- The user named by `user_id` ends their own tokens for the application following [Revoke your authorization for an application](./token-management.md#revoke-your-authorization-for-an-application).
+- An administrator deletes the key with the two IDs from the log line, `DELETE /api/v2/users/{user_id}/keys/{api_key_id}`, or cuts off every user of the application by deleting it or one of its secrets following [Delete an application](./token-management.md#delete-an-application).
 
 Earlier releases accepted the token in the query string.
 An integration that relied on that has to move it into the `Authorization` header.

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -238,7 +239,6 @@ func TestOAuth2ProviderTokenInQueryString(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
 
 	user := dbgen.User(t, db, database.User{})
 	app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
@@ -246,6 +246,8 @@ func TestOAuth2ProviderTokenInQueryString(t *testing.T) {
 		UserID:    user.ID,
 		LoginType: database.LoginTypeOAuth2ProviderApp,
 		ExpiresAt: dbtime.Now().Add(testutil.WaitLong),
+		// Old enough that an accepted request would update it.
+		LastUsed: dbtime.Now().Add(-2 * time.Hour),
 	})
 	dbgen.OAuth2ProviderAppToken(t, db, database.OAuth2ProviderAppToken{
 		AppID:    app.ID,
@@ -304,6 +306,7 @@ func TestOAuth2ProviderTokenInQueryString(t *testing.T) {
 		httpmw.ExtractAPIKeyMW(sinkCfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
 		requireIgnored(t, rw)
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		key, err := db.GetAPIKeyByID(ctx, oauthKey.ID)
 		require.NoError(t, err)
 		require.Equal(t, oauthKey.LastUsed, key.LastUsed)
@@ -311,7 +314,7 @@ func TestOAuth2ProviderTokenInQueryString(t *testing.T) {
 
 		warns := warnings(sink)
 		require.Len(t, warns, 1)
-		require.Equal(t, "oauth2 access token refused: sent in the URL query string", warns[0].Message)
+		require.Equal(t, "oauth2 access token ignored: sent in the URL query string", warns[0].Message)
 		require.Equal(t, oauthKey.ID, fieldValue(warns[0], "api_key_id"))
 		require.Equal(t, user.ID, fieldValue(warns[0], "user_id"))
 		require.Equal(t, app.ID, fieldValue(warns[0], "app_id"))

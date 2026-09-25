@@ -244,6 +244,7 @@ func PrecheckAPIKey(cfg ValidateAPIKeyConfig) func(http.Handler) http.Handler {
 // request. It performs all security-critical checks:
 //   - Token extraction and parsing
 //   - Database lookup + secret hash validation
+//   - Refusal of OAuth2 provider tokens sent only in the URL query string
 //   - Expiry check
 //   - OIDC/OAuth token refresh (if applicable)
 //   - API key LastUsed / ExpiresAt DB updates
@@ -503,6 +504,8 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 	}, nil
 }
 
+// APIKeyFromRequest returns the API key that authenticates r, or the error
+// response for the caller to write.
 func APIKeyFromRequest(ctx context.Context, db database.Store, logger slog.Logger, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, codersdk.Response, bool) {
 	key, valErr := apiKeyFromRequestValidate(ctx, db, logger, sessionTokenFunc, r)
 	if valErr != nil {
@@ -575,9 +578,8 @@ func apiKeyFromRequestValidate(ctx context.Context, db database.Store, logger sl
 	}
 
 	// OAuth 2.1 section 5.1 requires resource servers to ignore access tokens
-	// in the URL query string. This only applies to tokens issued by the
-	// OAuth2 provider. Coder session tokens still work in the query string
-	// because browsers cannot set headers on WebSocket connections.
+	// in the URL query string. Coder session tokens still work in the query
+	// string because browsers cannot set headers on WebSocket connections.
 	if key.LoginType == database.LoginTypeOAuth2ProviderApp && tokenOnlyInQuery(r, token) {
 		fields := []slog.Field{
 			slog.F("api_key_id", key.ID),
@@ -592,7 +594,7 @@ func apiKeyFromRequestValidate(ctx context.Context, db database.Store, logger sl
 		if appToken, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemOAuth2(ctx), key.ID); err == nil {
 			fields = append(fields, slog.F("app_id", appToken.AppID))
 		}
-		logger.Warn(ctx, "oauth2 access token refused: sent in the URL query string", fields...)
+		logger.Warn(ctx, "oauth2 access token ignored: sent in the URL query string", fields...)
 		return nil, &ValidateAPIKeyError{
 			Code: http.StatusUnauthorized,
 			Response: codersdk.Response{
@@ -978,8 +980,8 @@ func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, s
 // 4. RFC 6750 Authorization: Bearer header
 // 5. RFC 6750 access_token query parameter
 //
-// Tokens issued by the OAuth2 provider are refused later in validation when
-// they are found only in a query parameter (2 or 5).
+// apiKeyFromRequestValidate refuses OAuth2 provider tokens found only in the
+// coder_session_token or access_token query parameter.
 //
 // API tokens for apps are read from workspaceapps/cookies.go.
 func APITokenFromRequest(r *http.Request) string {
