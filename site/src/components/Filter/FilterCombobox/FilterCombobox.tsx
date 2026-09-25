@@ -316,14 +316,6 @@ export function FilterCombobox({
 								// actions focus, so aria-activedescendant navigation works.
 								event.preventDefault();
 							}}
-							onKeyDown={(event) => {
-								if (event.key !== "Enter") {
-									return;
-								}
-								event.preventDefault();
-								event.stopPropagation();
-								actions.showAllFilters();
-							}}
 							onClick={(event) => {
 								// Keyboard and assistive-technology activation (detail 0)
 								// only opens the menu; pointer clicks toggle it.
