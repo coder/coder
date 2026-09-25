@@ -33,7 +33,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
+	goleak.VerifyTestMain(migrationTestMain{m}, testutil.GoleakOptions...)
 }
 
 func TestMigrate(t *testing.T) {
@@ -85,13 +85,13 @@ func TestMigrate(t *testing.T) {
 	})
 }
 
-func testSQLDB(t testing.TB) *sql.DB {
+func testSQLDB(t testing.TB, opts ...dbtestutil.OpenOption) *sql.DB {
 	t.Helper()
 
 	// dbtestutil.Open clones an already migrated template database, but this
 	// package tests the migrations themselves, so start from Postgres' stock
 	// empty template instead.
-	connection, err := dbtestutil.Open(t, dbtestutil.WithDBFrom("template1"))
+	connection, err := dbtestutil.Open(t, append([]dbtestutil.OpenOption{dbtestutil.WithDBFrom("template1")}, opts...)...)
 	require.NoError(t, err)
 
 	db, err := sql.Open("postgres", connection)
@@ -1194,19 +1194,9 @@ func TestMigration000593RemoveHasAITaskAndTaskBuildReasons(t *testing.T) {
 	t.Parallel()
 
 	const migrationVersion = 593
-	sqlDB := testSQLDB(t)
+	sqlDB := testSQLDBAtVersion(t, migrationVersion-1)
 	next, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -1321,19 +1311,9 @@ func TestMigration000593TaskBuildReasonRewriteTiming(t *testing.T) {
 		taskReasonBuilds   = 3 * buildCount / 10
 	)
 
-	sqlDB := testSQLDB(t)
+	sqlDB := testSQLDBAtVersion(t, migrationVersion-1)
 	next, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -1667,20 +1647,9 @@ func TestMigration000504AIProvidersBackfill(t *testing.T) {
 
 	const migrationVersion = 504
 
-	sqlDB := testSQLDB(t)
-
+	sqlDB := testSQLDBAtVersion(t, migrationVersion-1)
 	next, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -1899,20 +1868,9 @@ func TestMigration000504AIProvidersBackfillOverridesNameConflict(t *testing.T) {
 
 	const migrationVersion = 504
 
-	sqlDB := testSQLDB(t)
-
+	sqlDB := testSQLDBAtVersion(t, migrationVersion-1)
 	next, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -2062,17 +2020,7 @@ func TestMigration000542ChatReasoningEffortBackfill(t *testing.T) {
 
 	const priorMigrationVersion = 539
 
-	sqlDB := testSQLDB(t)
-
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more || version == priorMigrationVersion {
-			break
-		}
-	}
+	sqlDB := testSQLDBAtVersion(t, priorMigrationVersion)
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -2180,17 +2128,7 @@ func TestMigration000555LegacyNoneLoginToPassword(t *testing.T) {
 
 	const priorMigrationVersion = 554
 
-	sqlDB := testSQLDB(t)
-
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more || version == priorMigrationVersion {
-			break
-		}
-	}
+	sqlDB := testSQLDBAtVersion(t, priorMigrationVersion)
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -2202,7 +2140,7 @@ func TestMigration000555LegacyNoneLoginToPassword(t *testing.T) {
 
 	// A legacy machine user: login_type 'none', not a service account, not a
 	// system user. This is the only row the migration should convert.
-	_, err = sqlDB.ExecContext(ctx,
+	_, err := sqlDB.ExecContext(ctx,
 		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type, is_service_account, is_system)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 		legacyNoneID, "legacy-none", "legacy-none@test.com", []byte{}, now, now, "active", pq.StringArray{}, "none", false, false)
@@ -2520,19 +2458,7 @@ func setupMigration000563Templates(t *testing.T) (
 
 	const migrationVersion = 562
 
-	sqlDB = testSQLDB(t)
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
+	sqlDB = testSQLDBAtVersion(t, migrationVersion-1)
 
 	ctx = testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -2540,7 +2466,7 @@ func setupMigration000563Templates(t *testing.T) (
 	userID = uuid.New()
 	templateIDs = []uuid.UUID{uuid.New(), uuid.New()}
 
-	_, err = sqlDB.ExecContext(ctx, `
+	_, err := sqlDB.ExecContext(ctx, `
 		INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles)
 		VALUES ($1, $2, $3, $4, $5, $5, '{}')
 	`, orgID, "agents-allowed-org", "Agents Allowed Org", "Migration test", now)
@@ -3019,7 +2945,7 @@ func TestMigration000585ChatSearchEnglishConfigDown(t *testing.T) {
 		t.SkipNow()
 	}
 
-	sqlDB := testSQLDB(t)
+	sqlDB := testSQLDB(t, dbtestutil.WithDBFrom(migrationTemplateName(t)))
 	require.NoError(t, migrations.Up(sqlDB))
 	db := database.New(sqlDB)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -3203,17 +3129,7 @@ func TestMigration000562OAuth2PublicClientTokensBackfill(t *testing.T) {
 
 	const priorMigrationVersion = 561
 
-	sqlDB := testSQLDB(t)
-
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more || version == priorMigrationVersion {
-			break
-		}
-	}
+	sqlDB := testSQLDBAtVersion(t, priorMigrationVersion)
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -3291,19 +3207,7 @@ func setupMigration000565Apps(t *testing.T) (*sql.DB, context.Context, map[strin
 
 	const priorMigrationVersion = 564
 
-	sqlDB := testSQLDB(t)
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", priorMigrationVersion)
-		}
-		if version == priorMigrationVersion {
-			break
-		}
-	}
+	sqlDB := testSQLDBAtVersion(t, priorMigrationVersion)
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -3669,21 +3573,9 @@ func TestMigration000580ChatModelConfigOrganization(t *testing.T) {
 	const migrationVersion = 580
 	const previousMigrationVersion = 579
 
-	sqlDB := testSQLDB(t)
-
-	// Migrate up to the migration before the org-scoping migration.
+	sqlDB := testSQLDBAtVersion(t, previousMigrationVersion)
 	next, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", previousMigrationVersion)
-		}
-		if version == previousMigrationVersion {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
