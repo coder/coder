@@ -115,7 +115,7 @@ export function FilterCombobox({
 		inlineOptions,
 		allInlineOptions,
 		chipValues,
-		highlightedItem,
+		highlightRef,
 		scopeWidened,
 		scopeValue,
 		optionChipKey,
@@ -147,13 +147,18 @@ export function FilterCombobox({
 	const flyoutCategoryKey = flyout.categoryKey;
 	const setFlyoutCategoryKey = (categoryKey: string | null) =>
 		setFlyout({ categoryKey, menuOpen: open });
+	// Highlighted category row, tracked here instead of the full highlight so
+	// moving through option rows does not re-render the lists.
+	const [highlightedCategoryKey, setHighlightedCategoryKey] = useState<
+		string | null
+	>(null);
 	// Typing a scope toggle label (e.g. `shared`) opens that category's flyout
 	// while its row is highlighted, so the toggle is visible.
 	const shownFlyoutKey =
 		flyoutCategoryKey ??
 		(!isCoarsePointer &&
 		scopeMatchKey !== null &&
-		highlightedItem === scopeMatchKey
+		highlightedCategoryKey === scopeMatchKey
 			? scopeMatchKey
 			: null);
 	const categoryRows = useRef(new Map<string, HTMLDivElement>());
@@ -210,13 +215,13 @@ export function FilterCombobox({
 	// follows it: it closes when the highlight leaves the category rows and
 	// switches when it lands on another category.
 	const handleItemHighlighted = (highlighted: string) => {
-		actions.setHighlightedItem(highlighted);
-		if (flyoutCategoryKey === null || highlighted === flyoutCategoryKey) {
-			return;
-		}
 		const isCategoryRow = listedCategories.some(
 			(category) => category.key === highlighted,
 		);
+		setHighlightedCategoryKey(isCategoryRow ? highlighted : null);
+		if (flyoutCategoryKey === null || highlighted === flyoutCategoryKey) {
+			return;
+		}
 		updateFlyoutCategory(isCategoryRow ? highlighted : null);
 	};
 	// Typed text narrows the category rows, so a click enters the category like
@@ -308,7 +313,7 @@ export function FilterCombobox({
 				onRemoveValue={actions.removeChip}
 				inputValue={inputValue}
 				onInputValueChange={actions.onInputValueChange}
-				highlightedValue={highlightedItem}
+				highlightRef={highlightRef}
 				onHighlightedValueChange={handleItemHighlighted}
 				label={placeholder}
 				className={cn(mobileOverlay && "min-h-10")}
@@ -528,6 +533,7 @@ export function FilterCombobox({
 							className="relative flex items-start gap-1 overflow-visible"
 							onMouseLeave={() => {
 								updateFlyoutCategory(null);
+								setHighlightedCategoryKey(null);
 								actions.setHighlightedItem("");
 							}}
 						>

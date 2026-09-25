@@ -20,6 +20,7 @@ import {
 	parseTypedCategoryPrefix,
 	queryToChips,
 } from "./filterQuery";
+import type { FilterComboboxHighlight } from "./primitives";
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
 
@@ -224,8 +225,13 @@ export const useFilterCombobox = ({
 
 	const lastEmittedRef = useRef(value);
 	const prevChipKeysRef = useRef(chipKeys);
-	// cmdk only reports highlight changes when its value is controlled.
-	const [highlightedItem, setHighlightedItem] = useState("");
+	// The highlight is owned by `FilterComboboxRoot`; keyboard handling reads it
+	// through this handle so highlight moves do not re-render the option lists.
+	const highlightRef = useRef<FilterComboboxHighlight | null>(null);
+	const getHighlightedItem = () => highlightRef.current?.get() ?? "";
+	const setHighlightedItem = (value: string) => {
+		highlightRef.current?.set(value);
+	};
 	const inputRef = useRef<HTMLInputElement | null>(null);
 
 	const { debounced: debouncedOnChange, cancelDebounce } = useDebouncedFunction(
@@ -910,7 +916,7 @@ export const useFilterCombobox = ({
 			activeCategory &&
 			inputValue.trim().length > 0
 		) {
-			const highlighted = highlightedItem;
+			const highlighted = getHighlightedItem();
 			const candidate = chipToken(
 				optionChipKey(activeCategory),
 				inputValue.trim(),
@@ -942,9 +948,9 @@ export const useFilterCombobox = ({
 		) {
 			const { categoryKey } = typedInlinePrefix;
 			const query = typedInlinePrefix.query.trim();
+			const highlighted = getHighlightedItem();
 			const hasHighlightedOption = inlineOptions.some(
-				(entry) =>
-					optionToken(entry.categoryKey, entry.option) === highlightedItem,
+				(entry) => optionToken(entry.categoryKey, entry.option) === highlighted,
 			);
 			const normalized = query.toLowerCase();
 			const localMatch = typeaheadQueryPending
@@ -975,7 +981,7 @@ export const useFilterCombobox = ({
 			mode === "browsing"
 		) {
 			const category = listedCategories.find(
-				(entry) => entry.key === highlightedItem,
+				(entry) => entry.key === getHighlightedItem(),
 			);
 			if (category) {
 				event.preventDefault();
@@ -990,7 +996,7 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		const highlighted = highlightedItem;
+		const highlighted = getHighlightedItem();
 		if (!highlighted) {
 			return;
 		}
@@ -1040,7 +1046,7 @@ export const useFilterCombobox = ({
 		inlineOptions,
 		allInlineOptions,
 		chipValues,
-		highlightedItem,
+		highlightRef,
 		// Whether a category's scope toggle is on, and the query key its options
 		// commit under right now.
 		scopeWidened: (categoryKey: string) => {
