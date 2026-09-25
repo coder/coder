@@ -259,22 +259,27 @@ jobs:
           # The workspace stops after about a day and then goes dormant. A chat
           # cannot repair a dormant workspace: start_workspace and
           # create_workspace both fail with
-          # "unauthorized: rbac: forbidden". The review then reads
-          # nothing and posts nothing, and this job used to still pass. Fail
-          # here instead, so the check reports what happened.
+          # "unauthorized: rbac: forbidden", so the review reads nothing and
+          # posts nothing. This job runs as the workspace owner, so it can
+          # activate the workspace and start it here.
           # https://linear.app/codercom/issue/CODAGT-1025
           WS_NAME="doc-check-pr-${PR_NUMBER}"
-          RESPONSE=$(curl -sS --fail-with-body -G \
-            -H "Coder-Session-Token: ${CODER_TOKEN}" \
-            --data-urlencode "q=owner:me name:${WS_NAME}" \
-            "${CODER_URL%/}/api/v2/workspaces") || {
-              echo "::warning::Could not read the workspace state from Coder. Continuing."
-              exit 0
-            }
+
           # The name filter matches substrings, so doc-check-pr-12 also
           # matches doc-check-pr-123. Keep only the exact name.
-          WORKSPACE=$(echo "${RESPONSE}" | jq -c --arg name "${WS_NAME}" \
-            'first(.workspaces[]? | select(.name == $name)) // empty')
+          find_workspace() {
+            curl -sS --fail-with-body -G \
+              -H "Coder-Session-Token: ${CODER_TOKEN}" \
+              --data-urlencode "q=owner:me name:${WS_NAME}" \
+              "${CODER_URL%/}/api/v2/workspaces" |
+              jq -c --arg name "${WS_NAME}" \
+                'first(.workspaces[]? | select(.name == $name)) // empty'
+          }
+
+          WORKSPACE=$(find_workspace) || {
+            echo "::warning::Could not read the workspace state from Coder. Continuing."
+            exit 0
+          }
           if [[ -z "${WORKSPACE}" ]]; then
             echo "${WS_NAME} does not exist yet. The review creates it."
             exit 0
@@ -282,17 +287,45 @@ jobs:
 
           DORMANT_AT=$(echo "${WORKSPACE}" | jq -r '.dormant_at // empty')
           if [[ -n "${DORMANT_AT}" ]]; then
-            echo "::error::${WS_NAME} is dormant since ${DORMANT_AT}. The review cannot run, because a chat cannot start its own dormant workspace: https://linear.app/codercom/issue/CODAGT-1025"
-            {
-              echo "### Documentation check did not run"
-              echo ""
-              echo "The workspace \`${WS_NAME}\` is dormant since ${DORMANT_AT}."
-              echo ""
-              echo "A chat cannot start its own dormant workspace, so the review would read no files and post no comment. See [CODAGT-1025](https://linear.app/codercom/issue/CODAGT-1025)."
-              echo ""
-              echo "To run the review now, start \`${WS_NAME}\` in Coder, then push again or re-run this job."
-            } >> "${GITHUB_STEP_SUMMARY}"
-            exit 1
+            report_activation_failure() {
+              echo "::error::${WS_NAME} is dormant since ${DORMANT_AT} and this job could not activate it. The review cannot run, because a chat cannot start its own dormant workspace: https://linear.app/codercom/issue/CODAGT-1025"
+              {
+                echo "### Documentation check did not run"
+                echo ""
+                echo "The workspace \`${WS_NAME}\` is dormant since ${DORMANT_AT}, and this job could not activate it."
+                echo ""
+                echo "A chat cannot start its own dormant workspace, so the review would read no files and post no comment. See [CODAGT-1025](https://linear.app/codercom/issue/CODAGT-1025)."
+                echo ""
+                echo "To run the review now, activate \`${WS_NAME}\` in Coder, then push again or re-run this job."
+              } >> "${GITHUB_STEP_SUMMARY}"
+            }
+
+            echo "${WS_NAME} is dormant since ${DORMANT_AT}. Activating it."
+            # Activation clears deleting_at and refreshes last_used_at, so the
+            # workspace does not go dormant again straight away. It leaves the
+            # workspace stopped, so the start below runs next.
+            curl -sS --fail-with-body -X PUT \
+              -H "Coder-Session-Token: ${CODER_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"dormant":false}' \
+              "${CODER_URL%/}/api/v2/workspaces/$(echo "${WORKSPACE}" | jq -r '.id')/dormant" > /dev/null || {
+                report_activation_failure
+                exit 1
+              }
+
+            # Refetch, because the rest of this step needs the state the
+            # activation left behind, and a chat cannot recover if the
+            # workspace is still dormant.
+            WORKSPACE=$(find_workspace) || {
+              echo "::warning::Could not confirm the workspace state after activation. Continuing."
+              exit 0
+            }
+            if [[ -z "${WORKSPACE}" ]] ||
+              [[ -n "$(echo "${WORKSPACE}" | jq -r '.dormant_at // empty')" ]]; then
+              report_activation_failure
+              exit 1
+            fi
+            echo "::notice::Activated ${WS_NAME}."
           fi
 
           # The previous run stopped the workspace when its review finished.
@@ -390,7 +423,9 @@ jobs:
           answers \`load workspace: unauthorized: rbac: forbidden\`, the
           workspace is dormant and you cannot repair it: stop, say you could
           not review the PR, and name the error. Post no comment, and do not
-          imply the docs are fine, because you did not read them.
+          imply the docs are fine, because you did not read them. This job
+          activates a dormant workspace before the review starts, so treat
+          that error as a state this run cannot fix.
 
           Create any new workspace from the \"coder-workflow-bot\" template."
 
