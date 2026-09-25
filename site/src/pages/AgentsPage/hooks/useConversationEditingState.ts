@@ -13,7 +13,7 @@ export class BuiltInCommandPendingError extends Error {}
 
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
-	chatID: string | undefined;
+	chatID: string;
 	onSend: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
@@ -23,14 +23,9 @@ export function useConversationEditingState(deps: {
 	inputValueRef: React.RefObject<string>;
 }) {
 	const { chatID, onSend, chatInputRef, inputValueRef } = deps;
-	const draftStorageKey = chatID
-		? `${draftInputStorageKeyPrefix}${chatID}`
-		: null;
+	const draftStorageKey = `${draftInputStorageKeyPrefix}${chatID}`;
 	const [{ editorInitialValue, initialEditorState }, setDraftState] = useState(
 		() => {
-			if (!draftStorageKey) {
-				return { editorInitialValue: "", initialEditorState: undefined };
-			}
 			const draft = parseStoredDraft(localStorage.getItem(draftStorageKey));
 			return {
 				editorInitialValue: draft.text,
@@ -74,9 +69,9 @@ export function useConversationEditingState(deps: {
 			// Read the current serialized editor state from localStorage
 			// (kept up-to-date by handleContentChange) rather than from
 			// the stale initialEditorState React state.
-			const currentEditorState = draftStorageKey
-				? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
-				: undefined;
+			const currentEditorState = parseStoredDraft(
+				localStorage.getItem(draftStorageKey),
+			).editorState;
 			setDraftBeforeHistoryEdit({
 				text: inputValueRef.current,
 				editorState: currentEditorState,
@@ -143,9 +138,7 @@ export function useConversationEditingState(deps: {
 		}
 		inputValueRef.current = "";
 		serializedEditorStateRef.current = undefined;
-		if (draftStorageKey) {
-			localStorage.removeItem(draftStorageKey);
-		}
+		localStorage.removeItem(draftStorageKey);
 		if (editedMessageID !== undefined) {
 			setDraftBeforeHistoryEdit(null);
 			setEditingFileBlocks([]);
@@ -195,17 +188,15 @@ export function useConversationEditingState(deps: {
 			return;
 		}
 
-		if (draftStorageKey) {
-			const shouldPersist = content.trim() || hasFileReferences;
-			if (shouldPersist) {
-				try {
-					localStorage.setItem(draftStorageKey, serializedEditorState);
-				} catch {
-					// QuotaExceededError, silently discard the draft.
-				}
-			} else {
-				localStorage.removeItem(draftStorageKey);
+		const shouldPersist = content.trim() || hasFileReferences;
+		if (shouldPersist) {
+			try {
+				localStorage.setItem(draftStorageKey, serializedEditorState);
+			} catch {
+				// QuotaExceededError, silently discard the draft.
 			}
+		} else {
+			localStorage.removeItem(draftStorageKey);
 		}
 	};
 

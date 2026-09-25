@@ -24,14 +24,6 @@ describe("sidebar tab persistence", () => {
 			expect(getPersistedSidebarTabId("chat-1")).toBe("terminal");
 		});
 
-		it("returns null when chatID is undefined", () => {
-			expect(getPersistedSidebarTabId(undefined)).toBeNull();
-		});
-
-		it("returns null when chatID is empty string", () => {
-			expect(getPersistedSidebarTabId("")).toBeNull();
-		});
-
 		it("reads from the key agents.last-active-tab.<chatID>", () => {
 			const chatID = "chat-xyz";
 			localStorage.setItem(`agents.last-active-tab.${chatID}`, "git");
@@ -45,16 +37,6 @@ describe("sidebar tab persistence", () => {
 			expect(
 				localStorage.getItem(`${lastActiveSidebarTabStorageKeyPrefix}chat-1`),
 			).toBe("desktop");
-		});
-
-		it("is a no-op when chatID is undefined", () => {
-			savePersistedSidebarTabId(undefined, "desktop");
-			expect(localStorage.length).toBe(0);
-		});
-
-		it("is a no-op when chatID is empty string", () => {
-			savePersistedSidebarTabId("", "desktop");
-			expect(localStorage.length).toBe(0);
 		});
 
 		it("can be round-tripped with getPersistedSidebarTabId", () => {
@@ -82,18 +64,6 @@ describe("sidebar tab persistence", () => {
 			clearPersistedSidebarTabId("chat-1");
 			clearPersistedSidebarTabId("chat-1");
 			expect(getPersistedSidebarTabId("chat-1")).toBeNull();
-		});
-
-		it("is a no-op when chatID is undefined", () => {
-			savePersistedSidebarTabId("chat-1", "git");
-			clearPersistedSidebarTabId(undefined);
-			expect(getPersistedSidebarTabId("chat-1")).toBe("git");
-		});
-
-		it("is a no-op when chatID is empty string", () => {
-			savePersistedSidebarTabId("chat-1", "git");
-			clearPersistedSidebarTabId("");
-			expect(getPersistedSidebarTabId("chat-1")).toBe("git");
 		});
 
 		it("only affects the target chat's entry", () => {

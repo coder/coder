@@ -71,7 +71,7 @@ describe("useConversationEditingState", () => {
 		setMobileViewport(false);
 	});
 
-	const renderEditing = (...args: [] | [string | undefined]) => {
+	const renderEditing = (...args: [] | [string]) => {
 		const onSend = vi.fn().mockResolvedValue(undefined);
 		const chatInputRef = createRef<ChatMessageInputRef>();
 		const inputValueRef = { current: "" };
@@ -362,22 +362,6 @@ describe("useConversationEditingState", () => {
 		expect(mockInput.clear).toHaveBeenCalled();
 		expect(mockInput.focus).toHaveBeenCalled();
 		expect(localStorage.getItem(expectedKey)).toBeNull();
-		unmount();
-	});
-
-	it("does not write a draft key when chatID is undefined", () => {
-		const { result, unmount } = renderEditing(undefined);
-
-		act(() => {
-			result.current.handleContentChange("should not persist", "{}", false);
-		});
-
-		// The ref is still updated even without persistence.
-		expect(result.current.inputValueRef.current).toBe("should not persist");
-		// No draft for "undefined" chatID should appear.
-		expect(
-			localStorage.getItem(`${draftInputStorageKeyPrefix}undefined`),
-		).toBeNull();
 		unmount();
 	});
 

@@ -24,7 +24,7 @@ const selectStreamToolResults = (state: {
 
 type UseChatToolInvalidationsOptions = {
 	store: ChatStore;
-	chatID: string | undefined;
+	chatID: string;
 	organizationName: string;
 	username: string;
 };
@@ -57,7 +57,7 @@ export function useChatToolInvalidations({
 			processedToolCallIdsRef.current.clear();
 		}
 
-		if (!toolResults || !chatID) {
+		if (!toolResults) {
 			processedToolCallIdsRef.current.clear();
 			return;
 		}

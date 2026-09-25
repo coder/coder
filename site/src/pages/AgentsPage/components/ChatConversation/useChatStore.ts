@@ -39,12 +39,9 @@ import type { RetryState } from "./types";
 // Prevents REST re-hydration from replaying a stale queue over the store.
 const writeQueuedMessagesToCache = (
 	queryClient: QueryClient,
-	chatID: string | undefined,
+	chatID: string,
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 ): void => {
-	if (!chatID) {
-		return;
-	}
 	const nextQueuedMessages = queuedMessages ?? [];
 	patchChatMessages(queryClient, chatID, (currentData) => {
 		if (!currentData?.pages?.length) {
@@ -68,11 +65,8 @@ const writeQueuedMessagesToCache = (
 
 const readQueuedMessagesFromCache = (
 	queryClient: QueryClient,
-	chatID: string | undefined,
+	chatID: string,
 ): readonly TypesGen.ChatQueuedMessage[] | undefined => {
-	if (!chatID) {
-		return undefined;
-	}
 	return queryClient.getQueryData<
 		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
 	>(chatMessagesKey(chatID))?.pages[0]?.queued_messages;
@@ -93,10 +87,10 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 		isActiveChatStatus(state.chatStatus));
 
 type UseChatStoreOptions = {
-	chatID: string | undefined;
+	chatID: string;
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
-	chatRecordUpdatedAt?: number;
+	chatRecordUpdatedAt: number;
 	chatMessagesData: TypesGen.ChatMessagesResponse | undefined;
 	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
@@ -123,7 +117,7 @@ export const useChatStore = (
 		chatID,
 		chatMessages,
 		chatRecord,
-		chatRecordUpdatedAt = 0,
+		chatRecordUpdatedAt,
 		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
@@ -153,7 +147,7 @@ export const useChatStore = (
 	const pendingStatusResyncUpdatedAtRef = useRef<number | null>(null);
 	const pendingStatusResyncVersionRef = useRef<number | null>(null);
 	const activeChatIDRef = useRef<string | null>(null);
-	const prevChatIDRef = useRef<string | undefined>(chatID);
+	const prevChatIDRef = useRef(chatID);
 	// Snapshot of the chatMessages elements from the last sync effect
 	// run. Used to detect whether chatMessages actually changed (e.g.
 	// after a refetch producing new objects) vs. just getting a new
@@ -199,7 +193,7 @@ export const useChatStore = (
 	// have been committed to the DB yet.
 	const upsertCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
-			if (!chatID || messages.length === 0) {
+			if (messages.length === 0) {
 				return;
 			}
 			upsertChatMessages(queryClient, chatID, messages);
@@ -215,9 +209,6 @@ export const useChatStore = (
 
 	const replaceCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
-			if (!chatID) {
-				return;
-			}
 			replaceChatMessagesHistory(queryClient, chatID, messages);
 			void invalidateChatSearches(queryClient);
 		},
@@ -338,13 +329,10 @@ export const useChatStore = (
 		// them on chat change so a stale promote suppression doesn't
 		// hide queued messages in another chat.
 		store.clearSuppressedQueuedMessageIDs();
-		if (!chatID) {
-			return;
-		}
 	}, [chatID, store]);
 
 	useEffect(() => {
-		if (!chatID || !chatMessagesData) {
+		if (!chatMessagesData) {
 			return;
 		}
 		// Allow re-hydration from REST as long as the WebSocket hasn't
@@ -376,9 +364,6 @@ export const useChatStore = (
 		const updateSidebarChat = (
 			updater: (chat: TypesGen.Chat) => TypesGen.Chat,
 		) => {
-			if (!chatID) {
-				return;
-			}
 			updateInfiniteChatsCache(queryClient, (chats) => {
 				let didUpdate = false;
 				const nextChats = chats.map((chat) => {
@@ -396,15 +381,13 @@ export const useChatStore = (
 		};
 
 		store.resetTransientState();
-		activeChatIDRef.current = chatID ?? null;
-		store.setActiveChatID(chatID ?? null);
+		activeChatIDRef.current = chatID;
+		store.setActiveChatID(chatID);
 
-		if (!chatID || !initialDataLoaded || aiGatewayDisabled) {
+		if (!initialDataLoaded || aiGatewayDisabled) {
 			return;
 		}
 
-		// Capture chatID as a narrowed string for use in closures.
-		const activeChatID = chatID;
 		// Local disposed flag so the message handler (which lives
 		// outside the utility) can bail out after cleanup.
 		let disposed = false;
@@ -724,7 +707,7 @@ export const useChatStore = (
 			connect() {
 				// Use the latest known message ID so the server only
 				// sends events the client hasn't seen yet.
-				const socket = watchChat(activeChatID, lastMessageIdRef.current);
+				const socket = watchChat(chatID, lastMessageIdRef.current);
 				socket.addEventListener("message", handleMessage);
 				return socket;
 			},
@@ -788,7 +771,7 @@ export const useChatStore = (
 			// A request that resolves after the user navigates away belongs to
 			// the previous chat, whose freshness and status are unrelated to
 			// the one now displayed by this shared store.
-			if (store.getActiveChatID() !== (chatID ?? null)) {
+			if (store.getActiveChatID() !== chatID) {
 				return;
 			}
 			pendingStatusResyncUpdatedAtRef.current = chatRecordUpdatedAt;
