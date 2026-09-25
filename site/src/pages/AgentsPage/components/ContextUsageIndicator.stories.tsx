@@ -156,7 +156,7 @@ export const Dirty: Story = {
 // so the popover explains when the numbers will appear.
 export const NoUsage: Story = {
 	args: {
-		usage: null,
+		usage: {},
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
