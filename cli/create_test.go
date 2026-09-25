@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/singleflight"
@@ -772,6 +773,13 @@ type param struct {
 func TestCreateWithRichParameters(t *testing.T) {
 	t.Parallel()
 
+	client, _, api := coderdtest.NewWithAPI(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	// Provisioners can pick up sibling jobs, so they share the parent lifetime.
+	newProvisioner := func() {
+		coderdtest.NewTaggedProvisionerDaemon(t, api, uuid.NewString(), nil)
+	}
+
 	// Default parameters and their expected values.
 	params := []param{
 		{
@@ -1118,8 +1126,7 @@ cli_param: from file`)
 			}
 
 			// Set up the template.
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			owner := coderdtest.CreateFirstUser(t, client)
+			newProvisioner()
 			member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(rparams))
 
@@ -1172,7 +1179,7 @@ cli_param: from file`)
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 				defer cancel()
 
-				workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{Name: workspaceName})
+				workspaces, err := member.Workspaces(ctx, codersdk.WorkspaceFilter{Owner: codersdk.Me, Name: workspaceName})
 				require.NoError(t, err, "expected to find created workspace")
 				require.Len(t, workspaces.Workspaces, 1)
 
