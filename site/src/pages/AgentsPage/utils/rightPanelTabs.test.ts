@@ -11,17 +11,20 @@ import {
 	MockWorkspaceApp,
 } from "#/testHelpers/entities";
 import {
+	activeSubTabStorageKeyPrefix,
 	clearPersistedRightPanelState,
+	getPersistedActiveSubTabIds,
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
-	getPersistedVisibleSingletonTabs,
 	rightPanelTabStorageKeyPrefix,
+	savePersistedActiveSubTabIds,
 	savePersistedDefaultTerminalHidden,
 	savePersistedRightPanelTabs,
-	savePersistedVisibleSingletonTabs,
-	visibleSingletonTabsStorageKeyPrefix,
 } from "./rightPanelTabStorage";
 import {
+	isTerminalRightPanelTab,
+	isWorkspacePreviewRightPanelTab,
+	resolveRightPanelTabId,
 	type UserRightPanelTab,
 	validateUserRightPanelTabs,
 } from "./rightPanelTabs";
@@ -232,19 +235,28 @@ describe("right-panel tab storage", () => {
 
 		savePersistedRightPanelTabs("chat-1", tabs);
 		savePersistedDefaultTerminalHidden("chat-1", true);
-		savePersistedVisibleSingletonTabs("chat-1", ["browser"]);
+		savePersistedActiveSubTabIds("chat-1", { terminal: "terminal-2" });
+		localStorage.setItem(
+			"agents.right-panel-singleton-tabs.chat-1",
+			'["browser"]',
+		);
 		savePersistedRightPanelTabs("chat-2", tabs);
 		savePersistedDefaultTerminalHidden("chat-2", true);
-		savePersistedVisibleSingletonTabs("chat-2", ["debug"]);
+		savePersistedActiveSubTabIds("chat-2", { workspace: "port-1" });
 
 		clearPersistedRightPanelState("chat-1");
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);
 		expect(getPersistedDefaultTerminalHidden("chat-1")).toBe(false);
-		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual([]);
+		expect(getPersistedActiveSubTabIds("chat-1")).toEqual({});
+		expect(
+			localStorage.getItem("agents.right-panel-singleton-tabs.chat-1"),
+		).toBeNull();
 		expect(getPersistedRightPanelTabs("chat-2")).toEqual(tabs);
 		expect(getPersistedDefaultTerminalHidden("chat-2")).toBe(true);
-		expect(getPersistedVisibleSingletonTabs("chat-2")).toEqual(["debug"]);
+		expect(getPersistedActiveSubTabIds("chat-2")).toEqual({
+			workspace: "port-1",
+		});
 	});
 
 	it("persists workspace_app tabs", () => {
@@ -318,59 +330,93 @@ describe("right-panel tab storage", () => {
 	});
 });
 
-describe("singleton right-panel tab storage", () => {
+describe("right-panel tab groups", () => {
+	const appTab: UserRightPanelTab = {
+		id: "workspace_app-1",
+		kind: "workspace_app",
+		label: "Preview",
+		agentId: MockWorkspaceAgent.id,
+		appId: MockWorkspaceApp.id,
+	};
+	const portTab: UserRightPanelTab = {
+		id: "port-1",
+		kind: "port",
+		label: "Port 3000",
+		agentId: MockWorkspaceAgent.id,
+		port: 3000,
+		protocol: "http",
+	};
+
+	it("splits terminals from workspace previews", () => {
+		const tabs = [terminalTab(), appTab, portTab];
+
+		expect(tabs.filter(isTerminalRightPanelTab)).toEqual([terminalTab()]);
+		expect(tabs.filter(isWorkspacePreviewRightPanelTab)).toEqual([
+			appTab,
+			portTab,
+		]);
+	});
+
+	it("keeps known top-level tab IDs", () => {
+		expect(resolveRightPanelTabId("git")).toBe("git");
+		expect(resolveRightPanelTabId("workspace")).toBe("workspace");
+		expect(resolveRightPanelTabId(null)).toBeNull();
+	});
+
+	it("maps IDs of former top-level chips onto their group tab", () => {
+		expect(resolveRightPanelTabId("terminal-abc")).toBe("terminal");
+		expect(resolveRightPanelTabId("workspace_app-abc")).toBe("workspace");
+		expect(resolveRightPanelTabId("port-abc")).toBe("workspace");
+	});
+
+	it("drops unknown IDs", () => {
+		expect(resolveRightPanelTabId("preview")).toBeNull();
+	});
+});
+
+describe("active chip storage", () => {
 	beforeEach(() => {
 		localStorage.clear();
 	});
 
-	it("hides every singleton panel when nothing is stored", () => {
-		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual([]);
+	it("falls back to the first chip when nothing is stored", () => {
+		expect(getPersistedActiveSubTabIds("chat-1")).toEqual({});
 	});
 
-	it("persists visible singleton panels per chat", () => {
-		savePersistedVisibleSingletonTabs("chat-1", ["browser", "debug"]);
+	it("persists the active chip of each group per chat", () => {
+		savePersistedActiveSubTabIds("chat-1", {
+			terminal: "terminal-2",
+			workspace: "port-1",
+		});
 
-		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual([
-			"browser",
-			"debug",
-		]);
-		expect(getPersistedVisibleSingletonTabs("chat-2")).toEqual([]);
+		expect(getPersistedActiveSubTabIds("chat-1")).toEqual({
+			terminal: "terminal-2",
+			workspace: "port-1",
+		});
+		expect(getPersistedActiveSubTabIds("chat-2")).toEqual({});
 	});
 
-	it("reads stored panels in a stable order without duplicates", () => {
+	it("ignores unknown groups and non-string values", () => {
 		localStorage.setItem(
-			`${visibleSingletonTabsStorageKeyPrefix}chat-1`,
-			JSON.stringify(["debug", "browser", "debug"]),
+			`${activeSubTabStorageKeyPrefix}chat-1`,
+			JSON.stringify({ terminal: 3, workspace: "port-1", browser: "x" }),
 		);
 
-		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual([
-			"browser",
-			"debug",
-		]);
-	});
-
-	it("ignores unknown panel IDs", () => {
-		localStorage.setItem(
-			`${visibleSingletonTabsStorageKeyPrefix}chat-1`,
-			JSON.stringify(["terminal", "summary", "desktop"]),
-		);
-
-		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual(["desktop"]);
+		expect(getPersistedActiveSubTabIds("chat-1")).toEqual({
+			workspace: "port-1",
+		});
 	});
 
 	it("ignores malformed stored values", () => {
-		localStorage.setItem(
-			`${visibleSingletonTabsStorageKeyPrefix}chat-1`,
-			"not-json",
-		);
+		localStorage.setItem(`${activeSubTabStorageKeyPrefix}chat-1`, "not-json");
 
-		expect(getPersistedVisibleSingletonTabs("chat-1")).toEqual([]);
+		expect(getPersistedActiveSubTabIds("chat-1")).toEqual({});
 	});
 
 	it("ignores undefined chat IDs", () => {
-		savePersistedVisibleSingletonTabs(undefined, ["browser"]);
+		savePersistedActiveSubTabIds(undefined, { terminal: "terminal" });
 
-		expect(getPersistedVisibleSingletonTabs(undefined)).toEqual([]);
+		expect(getPersistedActiveSubTabIds(undefined)).toEqual({});
 		expect(localStorage.length).toBe(0);
 	});
 });
