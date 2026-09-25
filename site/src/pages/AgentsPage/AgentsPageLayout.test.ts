@@ -720,8 +720,9 @@ describe("useFileAttachments processResizes", () => {
 		await vi.waitFor(() => {
 			const state = result.current.uploadStates.get(original);
 			expect(state?.status).toBe("error");
-			expect(state?.error).toMatch(/Anthropic/);
-			expect(state?.error).toMatch(/MiB/);
+			const error = state?.status === "error" ? state.error : undefined;
+			expect(error).toMatch(/Anthropic/);
+			expect(error).toMatch(/MiB/);
 		});
 		unmount();
 	});
@@ -768,9 +769,10 @@ describe("useFileAttachments processResizes", () => {
 		await vi.waitFor(() => {
 			const state = result.current.uploadStates.get(original);
 			expect(state?.status).toBe("error");
-			expect(state?.error).toMatch(/Anthropic/);
-			expect(state?.error).not.toMatch(/OpenAI/);
-			expect(state?.error).toMatch(/under 5\.0 MiB/);
+			const error = state?.status === "error" ? state.error : undefined;
+			expect(error).toMatch(/Anthropic/);
+			expect(error).not.toMatch(/OpenAI/);
+			expect(error).toMatch(/under 5\.0 MiB/);
 		});
 		unmount();
 	});

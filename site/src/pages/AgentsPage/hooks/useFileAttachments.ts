@@ -233,7 +233,7 @@ export function useFileAttachments(
 			return;
 		}
 		setUploadStates((prev) => new Map(prev).set(file, state));
-		if (persist && state.status === "uploaded" && state.fileId) {
+		if (persist && state.status === "uploaded") {
 			addPersistedAttachment(file, state.fileId, uploadOrgId);
 		}
 	};
@@ -488,7 +488,7 @@ export function useFileAttachments(
 		}
 		if (persist && removed) {
 			const state = uploadStates.get(removed);
-			if (state?.status === "uploaded" && state.fileId) {
+			if (state?.status === "uploaded") {
 				removePersistedAttachment(state.fileId);
 			}
 		}
