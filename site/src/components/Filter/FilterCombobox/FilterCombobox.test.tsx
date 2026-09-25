@@ -1774,9 +1774,12 @@ describe("FilterCombobox", () => {
 		},
 	);
 
-	it.each(["input", "Filters"])(
-		"highlights a category row after the caller clears the chip that listed the highlighted row and the %s reopens the menu",
-		async (opener) => {
+	it.each([
+		["the input", "input"],
+		["the Filters button", "Filters"],
+	])(
+		"highlights a category row after the caller clears the chip that listed the highlighted row and %s reopens the menu",
+		async (_, opener) => {
 			const user = userEvent.setup();
 			const onChange = vi.fn();
 			const Harness = () => {

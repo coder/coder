@@ -896,7 +896,9 @@ export const useFilterCombobox = ({
 			returnToCategories();
 			return;
 		}
-		// Focus fires no event on an input that already has it.
+		// A `value` change from the caller can drop the highlighted row.
+		// `handleInputFocus` repairs it, but `focus()` fires no focus event when
+		// the input already has focus.
 		highlightCategoryListRow(chipValues, getHighlightedValue());
 		applyTypedSearch();
 		dispatch({ type: "showAllFilters" });
