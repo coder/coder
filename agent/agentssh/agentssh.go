@@ -356,6 +356,10 @@ func extractAppName(env []string) (appName, rawAppName string, filteredEnv []str
 		// Normalize, don't classify: unknown names flow through.
 		appName = codersdk.NormalizeAppName(rawAppName)
 	}
+	// Only the reconnecting PTY server is the web terminal.
+	if appName == string(codersdk.AppFamilyReconnectingPTY) {
+		appName = string(codersdk.AppFamilyUnknown)
+	}
 
 	return appName, rawAppName, slices.DeleteFunc(env, func(kv string) bool {
 		return strings.HasPrefix(kv, prefix)

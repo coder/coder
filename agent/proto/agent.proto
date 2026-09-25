@@ -389,11 +389,15 @@ message Connection {
 
 	bytes id = 1;
 	Action action = 2;
-	Type type = 3;
+	// Superseded by app_name. Agents still send the app's family for coderd
+	// that predates app_name.
+	Type type = 3 [deprecated = true];
 	google.protobuf.Timestamp timestamp = 4;
 	string ip = 5;
 	int32 status_code = 6;
 	optional string reason = 7;
+	// The app that connected, such as "cursor".
+	string app_name = 8;
 }
 
 message ReportConnectionRequest {

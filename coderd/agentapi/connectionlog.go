@@ -41,7 +41,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	if err != nil {
 		return nil, err
 	}
-	appName := sdk2db.ConnectionLogAppName(req.GetConnection().GetType())
+	appName := sdk2db.ConnectionLogAppName(req.GetConnection())
 
 	var code sql.NullInt32
 	if action == database.ConnectionStatusDisconnected {
