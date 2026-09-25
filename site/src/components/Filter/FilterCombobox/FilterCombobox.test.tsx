@@ -1893,26 +1893,31 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it("drops a second Owner chip under the key a typed prefix picks", async () => {
-		const { user, onChange, input } = setup([scopedOwnerCategory], {
-			initialValue: "user:me owner:carol",
-		});
+	it.each([
+		["user:me owner:carol", "owner:", "user:me owner:alice"],
+		["owner:bob user:carol", "user:", "owner:bob user:alice"],
+		["owner:bob", "user:", "user:alice"],
+	])(
+		"replaces the Owner chip under the typed key when picking from %s after %s",
+		async (initialValue, typed, expected) => {
+			const { user, onChange, input } = setup([scopedOwnerCategory], {
+				initialValue,
+			});
 
-		await user.click(input);
-		await user.type(input, "owner:");
-		await user.click(await screen.findByRole("option", { name: "alice" }));
+			await user.click(input);
+			await user.type(input, typed);
+			await user.click(await screen.findByRole("option", { name: "alice" }));
 
-		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
-		);
-	});
+			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expected));
+		},
+	);
 
 	it.each([
-		["user:me owner:carol", "me", "owner:me owner:carol"],
-		["owner:bob user:carol", "bob", "user:bob user:carol"],
+		["user:me owner:carol", "me"],
+		["owner:bob user:carol", "bob"],
 	])(
-		"disables the scope switch when toggling %s would repeat a key",
-		async (initialValue, owner, repeatedKeyQuery) => {
+		"keeps both Owner filters of %s when the scope switch is clicked",
+		async (initialValue, owner) => {
 			const { user, onChange, input, filtersButton } = setup(
 				[scopedOwnerCategory],
 				{ initialValue },
@@ -1924,15 +1929,84 @@ describe("FilterCombobox", () => {
 					name: `Include workspaces shared with ${owner}`,
 				}),
 			);
+			for (const [query] of onChange.mock.calls) {
+				expect(query).toBe(initialValue);
+			}
 
 			await user.click(input);
 			await user.keyboard("{Escape}{Backspace}");
 			await waitFor(() =>
 				expect(onChange).toHaveBeenLastCalledWith(initialValue.split(" ")[0]),
 			);
-			expect(onChange).not.toHaveBeenCalledWith(repeatedKeyQuery);
 		},
 	);
+
+	it("lists the Owner category for its widened key typed without a colon", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory]);
+
+		await user.click(input);
+		await user.type(input, "use");
+		await screen.findByRole("option", { name: "Owner" });
+		await user.keyboard("{Tab}");
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+	});
+
+	it("keeps a narrowed Owner scope for a typed alias", async () => {
+		const { user, onChange, input } = setup(
+			[{ ...scopedOwnerCategory, aliases: ["creator"] }],
+			{ initialValue: "owner:bob" },
+		);
+
+		await user.click(input);
+		await user.type(input, "creator:");
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
+	it.each([
+		["user:alice shared", "switch", "owner:alice shared"],
+		["shared", "option", "user:alice shared"],
+	])(
+		"keeps applied search text %s after using the scope flyout's %s",
+		async (initialValue, control, expected) => {
+			const { user, onChange, input } = setup([scopedOwnerCategory], {
+				initialValue,
+				skipHover: true,
+			});
+
+			await user.click(input);
+			await screen.findByRole("option", { name: "Owner" });
+			await user.keyboard("{ArrowDown}");
+			await user.click(
+				control === "switch"
+					? await screen.findByRole("switch", {
+							name: "Include workspaces shared with alice",
+						})
+					: await screen.findByRole("button", { name: "alice" }),
+			);
+
+			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expected));
+		},
+	);
+
+	it("shows the switch label in the scope pill tooltip", async () => {
+		const { user } = setup([scopedOwnerCategory], {
+			initialValue: "user:alice",
+		});
+
+		await user.hover(screen.getByText(/^\+ shared with/));
+
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			"Include workspaces shared with alice",
+		);
+	});
 
 	it("keeps the scope pill of the applied chip while owner: is typed", async () => {
 		const { user, onChange, input } = setup([scopedOwnerCategory], {
@@ -1997,6 +2071,11 @@ describe("FilterCombobox", () => {
 			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
 		);
 		expect(input).toHaveValue("");
+		expect(
+			await screen.findByRole("switch", {
+				name: "Include workspaces shared with alice",
+			}),
+		).toBeChecked();
 	});
 
 	it("returns from the scope switch to the owner options with the arrow keys", async () => {

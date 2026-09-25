@@ -55,11 +55,13 @@ export type FilterCategory = {
 	 * Switch shown below the category's options. While it is on, options
 	 * commit under `widenedKey` instead of the category key, e.g. Owner
 	 * committing `user:alice` (owned by or shared with alice) instead of
-	 * `owner:alice`. It acts on the category's first chip, and is disabled until
-	 * there is one or while another chip uses the key it would write. The first
-	 * pick, made with no chip, turns it on; later picks keep the applied chip's
-	 * key. While it is on, a pill after the chip reads `pillPrefix` and the
-	 * chip's value, and removing the pill turns the switch off. Applies only to
+	 * `owner:alice`. With no chip it is on and disabled, so the first pick
+	 * commits under `widenedKey`. Once a chip is applied, the switch follows
+	 * that chip's key and later picks keep it; with a chip under each key it is
+	 * disabled and both chips show their own query keys. A typed prefix naming
+	 * the category key or `widenedKey` sets the key for that entry's pick.
+	 * While it is on, a pill after the chip reads `pillPrefix` and the chip's
+	 * value, and removing the pill turns the switch off. Applies only to
 	 * submenu categories, not inline ones.
 	 */
 	scopeToggle?: {

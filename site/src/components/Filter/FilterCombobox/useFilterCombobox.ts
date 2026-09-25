@@ -232,8 +232,24 @@ type UseFilterComboboxOptions = {
 export const useFilterCombobox = ({
 	value,
 	onChange,
-	categories,
+	categories: categoriesProp,
 }: UseFilterComboboxOptions) => {
+	// Typed text matches a scope category's widened key too, such as `user`.
+	const categories = useMemo(
+		() =>
+			categoriesProp.map((category) =>
+				category.scopeToggle
+					? {
+							...category,
+							aliases: [
+								...(category.aliases ?? []),
+								category.scopeToggle.widenedKey,
+							],
+						}
+					: category,
+			),
+		[categoriesProp],
+	);
 	const chipKeys = useMemo(
 		() => categories.flatMap(categoryChipKeys),
 		[categories],
@@ -325,53 +341,35 @@ export const useFilterCombobox = ({
 		() => queryToChips(value, chipKeys),
 		[chipKeys, value],
 	);
-	// A category's applied chip key decides its scope toggle; with no chip the
-	// toggle is on. A typed `owner:` or `user:` prefix decides it instead while
-	// its category is open, and reaches the query only with the option picked.
-	const [typedScope, setTypedScope] = useState<{
-		categoryKey: string;
-		key: string;
-	} | null>(null);
+	// A category's first applied chip decides its scope toggle; with no chip
+	// the toggle is on. A typed `owner:` or `user:` prefix decides it instead
+	// while its category is open, and reaches the query only with the option
+	// picked.
+	const [typedScopeWidened, setTypedScopeWidened] = useState<boolean | null>(
+		null,
+	);
 	const chipKeyOf = (token: string) => parseChipToken(token, chipKeys)?.key;
-	// The switch and pill act on a scope category's first chip. A later chip of
-	// the category, such as `owner:alice` in `user:me owner:alice`, stays a
-	// plain chip so both filters keep applying.
-	const scopeChipOf = (category: FilterCategory) =>
+	const scopeChipsOf = (category: FilterCategory) =>
 		category.scopeToggle
-			? chipValues.find((token) => {
+			? chipValues.filter((token) => {
 					const key = chipKeyOf(token);
 					return key !== undefined && categoryChipKeys(category).includes(key);
 				})
-			: undefined;
-	// Toggling rewrites the scope chip to the category's other key, which the
-	// backend rejects when another chip already uses it.
-	const isScopeToggleDisabled = (category: FilterCategory) => {
-		const toggle = category.scopeToggle;
-		const scopeChip = scopeChipOf(category);
-		if (!toggle || scopeChip === undefined) {
-			return true;
-		}
-		const toKey =
-			chipKeyOf(scopeChip) === toggle.widenedKey
-				? category.key
-				: toggle.widenedKey;
-		return chipValues.some(
-			(token) => token !== scopeChip && chipKeyOf(token) === toKey,
-		);
-	};
+			: [];
+	// The switch and pill act on a scope category's only chip. With a chip
+	// under each key, such as a bookmarked `user:me owner:carol`, rewriting one
+	// would collide with the other, and the query would silently lose a filter.
+	const isScopeToggleDisabled = (category: FilterCategory) =>
+		scopeChipsOf(category).length !== 1;
 	const isScopeWidened = (category: FilterCategory) => {
 		const toggle = category.scopeToggle;
 		if (!toggle) {
 			return false;
 		}
-		if (
-			mode === "category" &&
-			activeCategoryKey === category.key &&
-			typedScope?.categoryKey === category.key
-		) {
-			return typedScope.key === toggle.widenedKey;
+		if (activeCategoryKey === category.key && typedScopeWidened !== null) {
+			return typedScopeWidened;
 		}
-		const scopeChip = scopeChipOf(category);
+		const [scopeChip] = scopeChipsOf(category);
 		return (
 			scopeChip === undefined || chipKeyOf(scopeChip) === toggle.widenedKey
 		);
@@ -380,7 +378,7 @@ export const useFilterCombobox = ({
 	const scopePillCategoryKey = (token: string) => {
 		const category = categoryForChip(token);
 		return category?.scopeToggle &&
-			token === scopeChipOf(category) &&
+			!isScopeToggleDisabled(category) &&
 			chipKeyOf(token) === category.scopeToggle.widenedKey
 			? category.key
 			: undefined;
@@ -753,7 +751,7 @@ export const useFilterCombobox = ({
 			return;
 		}
 		const freeText = browseAll ? typedFreeText : "";
-		setTypedScope(null);
+		setTypedScopeWidened(null);
 		emitQuery(composeFilterQuery(chipValues, chipKeys, freeText));
 		dispatch({
 			type: "enterCategory",
@@ -763,9 +761,12 @@ export const useFilterCombobox = ({
 		});
 	};
 
-	// A category search is dropped after a filter pick or an explicit switch toggle.
+	// A category search is dropped after a filter pick or an explicit switch
+	// toggle; text already applied as a search stays.
 	const hasCategorySearchText =
 		mode === "browsing" && !browseAll && inputValue.trim().length > 0;
+	const appliedFreeText = () =>
+		extractFreeText(lastEmittedRef.current, chipKeys);
 
 	const toggleScope = (
 		categoryKey: string,
@@ -777,11 +778,11 @@ export const useFilterCombobox = ({
 			return;
 		}
 		const widened = isScopeWidened(category);
-		setTypedScope(null);
+		setTypedScopeWidened(null);
 		rewriteScopeKey(
 			widened ? toggle.widenedKey : category.key,
 			widened ? category.key : toggle.widenedKey,
-			clearCategorySearch,
+			{ clearCategorySearch },
 		);
 	};
 
@@ -793,45 +794,41 @@ export const useFilterCombobox = ({
 		if (!category || !toggle || isScopeToggleDisabled(category)) {
 			return;
 		}
-		rewriteScopeKey(toggle.widenedKey, category.key, false);
+		rewriteScopeKey(toggle.widenedKey, category.key);
 	};
 
 	const rewriteScopeKey = (
 		fromKey: string,
 		toKey: string,
-		clearCategorySearch: boolean,
+		{ clearCategorySearch = false }: { clearCategorySearch?: boolean } = {},
 	) => {
 		const rewritten = chipValues.map((token) => {
 			const parsed = parseChipToken(token, chipKeys);
 			return parsed?.key === fromKey ? chipToken(toKey, parsed.value) : token;
 		});
 		if (clearCategorySearch && hasCategorySearchText) {
-			updateFromChips(rewritten, "");
-			dispatch({ type: "typeFreeText", value: "" });
+			const freeText = appliedFreeText();
+			updateFromChips(rewritten, freeText);
+			dispatch({ type: "typeFreeText", value: freeText });
 		} else if (rewritten.some((token, index) => token !== chipValues[index])) {
 			emitQueryKeepingLookup(
-				composeFilterQuery(
-					rewritten,
-					chipKeys,
-					extractFreeText(lastEmittedRef.current, chipKeys),
-				),
+				composeFilterQuery(rewritten, chipKeys, appliedFreeText()),
 			);
 		}
 	};
 
-	// A pick replaces its scope category's chip in place, even under the other
-	// key after a typed `owner:` or `user:` prefix, and drops a later chip under
-	// the picked key so no key repeats.
+	// A pick in a scope category replaces the chip under the picked key, or the
+	// category's first chip when none uses that key, such as after a typed
+	// `owner:` or `user:` prefix.
 	const withCategoryOption = (token: string) => {
 		const category = categoryForChip(token);
-		const scopeChip = category ? scopeChipOf(category) : undefined;
-		if (scopeChip === undefined) {
-			return [...chipValues, token];
-		}
-		const key = chipKeyOf(token);
-		return chipValues
-			.filter((chip) => chip === scopeChip || chipKeyOf(chip) !== key)
-			.map((chip) => (chip === scopeChip ? token : chip));
+		const scopeChips = category ? scopeChipsOf(category) : [];
+		const replaced =
+			scopeChips.find((chip) => chipKeyOf(chip) === chipKeyOf(token)) ??
+			scopeChips[0];
+		return replaced === undefined
+			? [...chipValues, token]
+			: chipValues.map((chip) => (chip === replaced ? token : chip));
 	};
 
 	const toggledChips = (
@@ -878,20 +875,20 @@ export const useFilterCombobox = ({
 		dispatch({ type: "leaveCategory" });
 	};
 
-	const commitCategoryOption = (token: string) => {
-		const nextChips = withCategoryOption(token);
-		updateFromChips(nextChips, hasCategorySearchText ? "" : typedFreeText);
+	const applyCategoryChips = (nextChips: string[]) => {
+		updateFromChips(
+			nextChips,
+			hasCategorySearchText ? appliedFreeText() : typedFreeText,
+		);
 		returnToCategories(nextChips);
 	};
 
+	const commitCategoryOption = (token: string) => {
+		applyCategoryChips(withCategoryOption(token));
+	};
+
 	const toggleCategoryOption = (token: string) => {
-		if (!chipValues.includes(token)) {
-			commitCategoryOption(token);
-			return;
-		}
-		const nextChips = chipValues.filter((chip) => chip !== token);
-		updateFromChips(nextChips, hasCategorySearchText ? "" : typedFreeText);
-		returnToCategories(nextChips);
+		applyCategoryChips(toggledChips(token, () => withCategoryOption(token)));
 	};
 
 	// Typed filter text is dropped once an option is picked. Free-text search
@@ -1083,27 +1080,14 @@ export const useFilterCombobox = ({
 		cancelTypedTextLookup();
 		const typedCategory = parseTypedCategoryPrefix(
 			nextValue,
-			allSubmenuCategories.map((category) => ({
-				...category,
-				aliases: category.scopeToggle
-					? [...(category.aliases ?? []), category.scopeToggle.widenedKey]
-					: category.aliases,
-			})),
+			allSubmenuCategories,
 		);
 		if (typedCategory) {
 			const scopeToggle = allSubmenuCategories.find(
 				(entry) => entry.key === typedCategory.categoryKey,
 			)?.scopeToggle;
-			setTypedScope(
-				scopeToggle
-					? {
-							categoryKey: typedCategory.categoryKey,
-							key:
-								typedCategory.typedKey === typedCategory.categoryKey
-									? typedCategory.categoryKey
-									: scopeToggle.widenedKey,
-						}
-					: null,
+			setTypedScopeWidened(
+				scopeToggle ? typedCategory.typedKey === scopeToggle.widenedKey : null,
 			);
 			dispatch({
 				type: "enterCategory",
@@ -1223,12 +1207,11 @@ export const useFilterCombobox = ({
 		) {
 			event.preventDefault();
 			// A widened chip is followed by its scope pill, so the pill goes first.
-			const lastChip = chipValues[chipValues.length - 1];
-			const widenedCategory = categories.find(
-				(category) => scopePillCategoryKey(lastChip) === category.key,
+			const pillCategoryKey = scopePillCategoryKey(
+				chipValues[chipValues.length - 1],
 			);
-			if (widenedCategory) {
-				removeScopePill(widenedCategory.key);
+			if (pillCategoryKey) {
+				removeScopePill(pillCategoryKey);
 				return;
 			}
 			updateFromChips(chipValues.slice(0, -1), "");
@@ -1378,33 +1361,32 @@ export const useFilterCombobox = ({
 		inlineOptionRows,
 		chipValues,
 		highlightRef,
-		// Whether the scope toggle is on.
-		scopeWidened: (categoryKey: string) => {
+		// Switch state for a scope category, undefined for other categories.
+		scopeState: (categoryKey: string) => {
 			const category = categories.find((entry) => entry.key === categoryKey);
-			return category ? isScopeWidened(category) : false;
-		},
-		// Value of the category's scope chip.
-		scopeValue: (categoryKey: string) => {
-			const category = categories.find((entry) => entry.key === categoryKey);
-			const scopeChip = category ? scopeChipOf(category) : undefined;
-			return scopeChip === undefined
-				? undefined
-				: parseChipToken(scopeChip, chipKeys)?.value;
-		},
-		scopeToggleDisabled: (categoryKey: string) => {
-			const category = categories.find((entry) => entry.key === categoryKey);
-			return category ? isScopeToggleDisabled(category) : true;
+			const toggle = category?.scopeToggle;
+			if (!category || !toggle) {
+				return undefined;
+			}
+			const [scopeChip] = scopeChipsOf(category);
+			return {
+				widened: isScopeWidened(category),
+				label: toggle.label(
+					scopeChip === undefined
+						? undefined
+						: parseChipToken(scopeChip, chipKeys)?.value,
+				),
+				disabled: isScopeToggleDisabled(category),
+			};
 		},
 		// Key of the category whose scope pill follows this chip.
 		scopePillCategoryKey,
-		// A scope category's chip after its first, shown under its own query key.
-		isPlainScopeChip: (token: string) => {
+		// While a scope category has a chip under each key, its chips show their
+		// own query keys instead of the category key.
+		showsOwnQueryKey: (token: string) => {
 			const category = categoryForChip(token);
-			return (
-				category?.scopeToggle !== undefined && token !== scopeChipOf(category)
-			);
+			return category !== undefined && scopeChipsOf(category).length > 1;
 		},
-		// Query key used by this category's option tokens.
 		optionChipKey: (categoryKey: string) => {
 			const category = categories.find((entry) => entry.key === categoryKey);
 			return category ? optionChipKey(category) : categoryKey;

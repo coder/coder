@@ -680,8 +680,8 @@ export const ScopePillFullLabel: Story = {
 	),
 };
 
-// A second Owner token stays a plain chip under its own key. Toggling would
-// repeat `owner`, so the pill has no remove button and the switch is disabled.
+// With a chip under each Owner key, both chips show their own query keys, no
+// pill shows, and the switch is disabled because toggling would drop a filter.
 export const ScopeToggleWithSecondOwner: Story = {
 	render: () => (
 		<FilterComboboxHarness
@@ -702,7 +702,7 @@ export const ScopePillTruncatesWhenNarrow: Story = {
 	},
 };
 
-// Hovering the pill shows the full toggle message.
+// Hovering the pill shows the full switch label.
 export const ScopePillTooltip: Story = {
 	...ScopeToggle,
 	play: async ({ canvasElement }) => {

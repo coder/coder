@@ -136,11 +136,9 @@ export function FilterCombobox({
 		inlineOptionRows,
 		chipValues,
 		highlightRef,
-		scopeWidened,
-		scopeValue,
-		scopeToggleDisabled,
+		scopeState,
 		scopePillCategoryKey,
-		isPlainScopeChip,
+		showsOwnQueryKey,
 		optionChipKey,
 		typeaheadError,
 		actions,
@@ -273,18 +271,6 @@ export function FilterCombobox({
 		actions.selectCategory(categoryKey);
 	};
 
-	const scopeFor = (categoryKey: string): ScopeState | undefined => {
-		const toggle = categories.find(
-			(category) => category.key === categoryKey,
-		)?.scopeToggle;
-		return toggle
-			? {
-					widened: scopeWidened(categoryKey),
-					label: toggle.label(scopeValue(categoryKey)),
-					disabled: scopeToggleDisabled(categoryKey),
-				}
-			: undefined;
-	};
 	const mainPanelEmpty =
 		listedCategories.length === 0 &&
 		categoryPlaceholderCount === 0 &&
@@ -318,7 +304,7 @@ export function FilterCombobox({
 				}
 				selectedTokens={chipValues}
 				chipKey={optionChipKey(activeCategoryKey)}
-				scope={scopeFor(activeCategoryKey)}
+				scope={scopeState(activeCategoryKey)}
 				onToggleScope={actions.toggleScope}
 				searchValue={inputValue}
 				onSearchChange={actions.onInputValueChange}
@@ -397,7 +383,7 @@ export function FilterCombobox({
 						{chipValues.map((token) => {
 							const display = chipDisplay(
 								token,
-								isPlainScopeChip(token) ? [] : categories,
+								showsOwnQueryKey(token) ? [] : categories,
 							);
 							const category = categories.find(
 								(entry) => entry.key === display.key,
@@ -439,7 +425,6 @@ export function FilterCombobox({
 									{/* Joined to its chip, since it widens that chip's filter. */}
 									{category && pillToggle && (
 										<FilterComboboxChip
-											showRemove={!scopeToggleDisabled(category.key)}
 											removeLabel={pillToggle.pillRemoveLabel(value)}
 											onRemove={(event) => {
 												// The pill unmounts, so keyboard removal keeps focus
@@ -462,7 +447,7 @@ export function FilterCombobox({
 													</span>
 												</TooltipTrigger>
 												<TooltipContent className="max-w-64 text-balance">
-													{scopeFor(category.key)?.label ?? ""}
+													{scopeState(category.key)?.label ?? ""}
 												</TooltipContent>
 											</Tooltip>
 										</FilterComboboxChip>
@@ -594,7 +579,7 @@ export function FilterCombobox({
 										)}
 										selectedTokens={chipValues}
 										chipKey={optionChipKey(flyoutCategory.key)}
-										scope={scopeFor(flyoutCategory.key)}
+										scope={scopeState(flyoutCategory.key)}
 										onToggleScope={toggleFlyoutScope}
 										onMouseEnter={cancelHoverSwitch}
 										onRetry={() =>
