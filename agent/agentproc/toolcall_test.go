@@ -280,6 +280,22 @@ func TestCancelProcess(t *testing.T) {
 		assert.Equal(t, resp.ExitCode, out.ExitCode)
 	})
 
+	// An interrupt task retry sends the cancel again after the process
+	// exited from the first one.
+	t.Run("RepeatedCancel", func(t *testing.T) {
+		t.Parallel()
+
+		handler, _ := newToolCallTestAPI(t, longRunning)
+		chatID := uuid.New()
+		startAndGetID(t, handler, workspacesdk.StartProcessRequest{Command: "echo before; sleep 300"}, toolCallHeaders(chatID, 1, "call", 0))
+
+		first := requireCancel(t, handler, chatID, 1, "call", 0)
+		second := requireCancel(t, handler, chatID, 1, "call", 0)
+		assert.True(t, first.Canceled)
+		assert.True(t, second.Canceled, "a repeated cancel must still report that the user canceled the process")
+		assert.Equal(t, first, second)
+	})
+
 	t.Run("Exited", func(t *testing.T) {
 		t.Parallel()
 
@@ -309,6 +325,9 @@ func TestCancelProcess(t *testing.T) {
 		postCancelContext(aborted, handler, id, headers)
 		out := waitForExit(t, handler, id)
 		assert.NotNil(t, out.ExitCode)
+		// The retried cancel reports the kill the aborted one sent.
+		resp := requireCancel(t, handler, chatID, 1, "call", 0)
+		assert.True(t, resp.Canceled)
 	})
 
 	t.Run("NeverReceived", func(t *testing.T) {

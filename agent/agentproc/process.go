@@ -53,6 +53,10 @@ type process struct {
 	// toolCall is the tool call that started the process, nil for a
 	// start without tool call headers.
 	toolCall *agenttoolcall.Key
+	// cancelKilled is set, under mu, when a cancel sent SIGKILL to the
+	// running process. It stays set so that a repeated cancel, including
+	// one after an aborted request, still reports the kill.
+	cancelKilled bool
 }
 
 // info returns a snapshot of the process state.
@@ -343,17 +347,16 @@ func (m *manager) age(p *process) time.Duration {
 }
 
 // killAndWait sends SIGKILL to p's process group if p is running, then
-// waits for p to exit or for ctx to end. killed reports whether that
-// SIGKILL ended the process, so a natural exit racing the signal does not
-// count.
+// waits for p to exit or for ctx to end. killed reports whether a
+// cancel's SIGKILL, from this call or an earlier one, ended the process,
+// so a natural exit racing the signal does not count.
 func (p *process) killAndWait(ctx context.Context) (killed bool, err error) {
-	signaled := false
 	p.mu.Lock()
 	if p.running {
 		err := signalProcess(p.cmd.Process, syscall.SIGKILL)
 		switch {
 		case err == nil:
-			signaled = true
+			p.cancelKilled = true
 		case errors.Is(err, syscall.ESRCH), errors.Is(err, os.ErrProcessDone):
 			// The process exited before the exit goroutine marked
 			// it as not running.
@@ -366,8 +369,10 @@ func (p *process) killAndWait(ctx context.Context) (killed bool, err error) {
 
 	select {
 	case <-p.done:
+		p.mu.Lock()
+		defer p.mu.Unlock()
 		// cmd.Wait set ProcessState before done was closed.
-		return signaled && terminatedByKill(p.cmd.ProcessState), nil
+		return p.cancelKilled && terminatedByKill(p.cmd.ProcessState), nil
 	case <-ctx.Done():
 		return false, xerrors.Errorf("wait for process exit: %w", ctx.Err())
 	}
