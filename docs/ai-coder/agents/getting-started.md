@@ -238,7 +238,7 @@ narrowly scoped.
 ### Link to a new chat with a prompt
 
 To send users to a new chat with a message already written, link to `/agents` with a `prompt` query parameter.
-URL-encode the message, for example with `encodeURIComponent` in JavaScript:
+URL-encode the message (for example, with `encodeURIComponent` in JavaScript):
 
 ```txt
 https://coder.example.com/agents?prompt=Fix%20the%20failing%20tests%20in%20the%20auth%20service
@@ -248,7 +248,7 @@ The link fills in the message box only.
 Coder doesn't send the message: the user reviews it, can edit it, and selects **Send**.
 A notice above the message box asks the user to review the text, because any website can create such a link.
 
-If the user isn't signed in, Coder keeps the prompt through sign-in.
+If the user isn't signed in, Coder keeps the message through sign-in.
 
 Don't put secrets in these links.
 URLs end up in browser history and server logs.
