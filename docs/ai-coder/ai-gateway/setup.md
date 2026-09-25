@@ -146,8 +146,76 @@ stderr) or [`--log-json`](../../reference/cli/server.md#--log-json). For machine
 ingestion, set `--log-json` to a file path or `/dev/stderr` so that records are
 emitted as JSON.
 
-This setting belongs to `coderd`.
-A [standalone gateway](./standalone.md) does not consume it.
+### Choose which process emits the records
+
+By default `coderd` emits these records as they arrive from the gateway.
+Set `--ai-gateway-structured-logging-source` to change that:
+
+| Value     | Emitted by             | Use it when                                                                                   |
+|-----------|------------------------|-----------------------------------------------------------------------------------------------|
+| `coderd`  | `coderd` (default)     | You want today's behavior.                                                                    |
+| `gateway` | The AI Gateway process | You need records that the gateway never persists, such as when content recording is disabled. |
+| `both`    | Both processes         | You are moving from one to the other and want to compare the two streams.                     |
+
+```sh
+coder server --ai-gateway-structured-logging=true \
+  --ai-gateway-structured-logging-source=gateway
+```
+
+Gateway-emitted records carry the same message, the same `record_type` values and the same fields, with one exception: they omit `thread_parent_id` and `thread_root_id`.
+Those are resolved from recorded tool usage by a database lookup that only `coderd` can perform.
+
+> [!IMPORTANT]
+> With `both`, every record that reaches `coderd` is logged twice.
+> Deduplicate on `interception_id`, `record_type` and `msg_id` if your pipeline counts records.
+
+When the gateway emits the records, they are written to the gateway's log output rather than `coderd`'s, and under a different logger name.
+Match on the `"interception log"` message rather than the logger name so that your pipeline works with either source.
+
+On a [standalone gateway](./standalone.md), set `CODER_AI_GATEWAY_STRUCTURED_LOGGING` and `CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE` on **both** processes, and ship the gateway's logs.
+
+## Disable content recording
+
+Three of the record types store conversation content verbatim: `aibridge_user_prompts.prompt`, `aibridge_tool_usages.input` and `aibridge_model_thoughts.content`.
+Deployments that want AI Governance cost controls without retaining conversation content can stop recording them:
+
+```sh
+coder server --ai-gateway-disable-content-recording=true
+```
+
+Or in YAML:
+
+```yaml
+ai_gateway:
+  disable_content_recording: true
+```
+
+Interceptions and token usage are still recorded, so [cost controls](./cost-controls.md) are unaffected.
+
+This option only stops the records being written to the database.
+To keep exporting them to your SIEM, combine it with gateway-emitted structured logs:
+
+```sh
+coder server --ai-gateway-disable-content-recording=true \
+  --ai-gateway-structured-logging=true \
+  --ai-gateway-structured-logging-source=gateway
+```
+
+Without `--ai-gateway-structured-logging-source=gateway`, the dropped records reach neither the database nor your SIEM, because `coderd` never receives them.
+The gateway logs a warning at startup in that configuration.
+
+### What you lose
+
+Disabling content recording is a governance trade-off, not only a storage saving:
+
+- **Session grouping degrades** for clients that don't send their own session ID.
+  Coder groups those interceptions into threads by correlating recorded tool calls, so without tool usage records each interception becomes its own session.
+  The grouping is stored when the row is written, so it can't be recovered later by re-enabling the option.
+- **Sessions pages are largely empty**, since there is no prompt, tool call or reasoning content to show.
+- **Prompt and tool call telemetry report zero**.
+- **The audit trail of what was asked is gone**, including for incident review.
+
+Token counts, spend, model and provider attribution, and request volume are all unaffected, as are the [Prometheus metrics](./monitoring.md) for prompt and tool call counts.
 
 Filter for AI Gateway records in your logging pipeline by matching on the
 `"interception log"` message. Each log line includes a `record_type` field that

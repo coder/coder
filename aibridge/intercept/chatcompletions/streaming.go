@@ -264,6 +264,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			// Builtin tools are not intercepted.
 			if i.getInjectedToolByName(toolCall.Name) == nil {
 				_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
+					CreatedAt:      time.Now().UTC(),
 					InterceptionID: i.ID().String(),
 					MsgID:          processor.getMsgID(),
 					ToolCallID:     toolCall.ID,
@@ -286,6 +287,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 
 		if prompt != nil {
 			_ = i.recorder.RecordPromptUsage(streamCtx, &recorder.PromptUsageRecord{
+				CreatedAt:      time.Now().UTC(),
 				InterceptionID: i.ID().String(),
 				MsgID:          processor.getMsgID(),
 				Prompt:         *prompt,
@@ -374,6 +376,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		args := i.unmarshalArgs(toolCall.Arguments)
 		toolRes, toolErr := tool.Call(streamCtx, args, i.tracer)
 		_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
+			CreatedAt:       time.Now().UTC(),
 			InterceptionID:  i.ID().String(),
 			MsgID:           processor.getMsgID(),
 			ToolCallID:      id,
