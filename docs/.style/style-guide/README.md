@@ -31,14 +31,15 @@ The linters catch a narrow band of mechanical errors; they can't tell you that a
 
 ### Checks that run today
 
-| Check                              | Tool               | Severity  | Scope                                                       | What it catches                                                       |
-|------------------------------------|--------------------|-----------|-------------------------------------------------------------|-----------------------------------------------------------------------|
-| `Coder.BrandNames`                 | Vale               | `error`   | `docs/**` except `docs/.style/style-guide/**`               | `Hashicorp` casing only, not the other brands in the word-choice list |
-| `Coder.GerundHeading`              | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`               | Headings that lead with a gerund                                      |
-| `Coder.SelectClick`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`               | `click` and its inflections                                           |
-| `Coder.OneSentencePerLine`         | Vale               | `warning` | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only | Sentence boundaries mid-line, on contributor docs only                |
-| `MD001`, `MD025`, `MD040`, `MD045` | markdownlint       | `error`   | All Markdown                                                | Heading increments, single H1, fence language, missing alt text       |
-| `scripts/check_emdash.sh`          | `make lint/emdash` | `error`   | Repository                                                  | Em-dash, en-dash, and ` -- ` as punctuation                           |
+| Check                              | Tool               | Severity  | Scope                                                                                                                                                                           | What it catches                                                       |
+|------------------------------------|--------------------|-----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
+| `Coder.BrandNames`                 | Vale               | `error`   | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `Hashicorp` casing only, not the other brands in the word-choice list |
+| `Coder.GerundHeading`              | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Headings that lead with a gerund                                      |
+| `Coder.SelectClick`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `click` and its inflections                                           |
+| `Coder.OneSentencePerLine`         | Vale               | `warning` | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only                                                                                                                     | Sentence boundaries mid-line, on contributor docs only                |
+| `Coder.UnitSpacing`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | A regular space, or no space, between a number and its unit           |
+| `MD001`, `MD025`, `MD040`, `MD045` | markdownlint       | `error`   | All Markdown                                                                                                                                                                    | Heading increments, single H1, fence language, missing alt text       |
+| `scripts/check_emdash.sh`          | `make lint/emdash` | `error`   | Repository                                                                                                                                                                      | Em-dash, en-dash, and ` -- ` as punctuation                           |
 
 The markdownlint row lists only the rules that map to a rule in this guide.
 markdownlint runs its full default set minus the rules `.markdownlint.jsonc` disables, so it catches more than these 4.
@@ -59,8 +60,8 @@ The markdownlint and emdash checks do fail the build.
 | [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 13    | 2            | 3       | 8                  |
 | [Capitalization and punctuation](./capitalization-and-punctuation.md) | 11    | 2            | 6       | 3                  |
 | [Formatting](./formatting.md)                                         | 13    | 2            | 0       | 11                 |
-| [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 0            | 5       | 0                  |
-| **Total**                                                             | 79    | 8            | 25      | 46                 |
+| [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 1            | 4       | 0                  |
+| **Total**                                                             | 79    | 9            | 24      | 46                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.

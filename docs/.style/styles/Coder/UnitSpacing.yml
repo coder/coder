@@ -1,0 +1,27 @@
+# Coder.UnitSpacing - require a non-breaking space between a number and its
+# unit in prose, so the pair never wraps across a line.
+#
+# The rule flags a number followed by a unit with a regular space (`30 seconds`)
+# or no space (`150ms`). Vale renders Markdown before matching, so `&nbsp;` and
+# a literal U+00A0 both reach the rule as U+00A0 and never match the plain
+# space in the token below. Code spans and fenced code blocks are skipped, so
+# literal values such as `30s` stay untouched when they sit in code font.
+#
+# Hyphenated compound modifiers (`12-hour clock`, `4-core node`) don't match
+# because the token allows only a space or nothing between number and unit.
+#
+# Level: warning. The unit list is curated, and a count followed by a unit-like
+# word can still be a judgment call.
+extends: existence
+message: "Use a non-breaking space (&nbsp;) between the number and unit in '%s'. Refer to numbers-units-and-dates.md#non-breaking-space-between-number-and-unit."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/numbers-units-and-dates.md#non-breaking-space-between-number-and-unit
+level: warning
+ignorecase: false
+nonword: true
+tokens:
+  - '\b\d+(?:\.\d+)? ?(?:ns|µs|ms|s|secs?|seconds?|mins?|minutes?|h|hrs?|hours?|days?|weeks?|months?|years?|B|KB|KiB|MB|MiB|GB|GiB|TB|TiB|Kbps|Mbps|Gbps|MHz|GHz|vCPUs?|CPUs?|cores?)\b'
+exceptions:
+  # HTTP status code plurals, such as "413s".
+  - '\b[1-5]\d{2}s\b'
+  # Decades, such as "1990s".
+  - '\b\d{4}s\b'
