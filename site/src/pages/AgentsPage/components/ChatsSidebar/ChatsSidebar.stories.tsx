@@ -250,7 +250,8 @@ export const SharedUnreadChat: Story = {
  * The active row normally swaps its timestamp for the actions trigger, but
  * another user's shared chat has no owner actions, so the timestamp stays.
  */
-export const ActiveSharedChatViewerHasNoActions: Story = {
+/** Viewers get a kebab on shared chats, persistent on the active row. */
+export const ActiveSharedChatViewerShowsKebab: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -274,8 +275,8 @@ export const ActiveSharedChatViewerHasNoActions: Story = {
 	},
 };
 
-/** Viewers keep the subagents toggle, the touch path for expanding a row. */
-export const SharedChatViewerMenuOnlyTogglesSubagents: Story = {
+/** Viewers get pin, the subagents toggle and PR links, nothing that edits the chat. */
+export const SharedChatViewerMenu: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -285,6 +286,15 @@ export const SharedChatViewerMenuOnlyTogglesSubagents: Story = {
 				owner_name: "Sharing User",
 				owner_username: "sharing-user",
 				shared: true,
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "shared-parent",
+						pr_number: 4847,
+						url: "https://github.com/coder/coder/pull/4847",
+						pull_request_title: "Split the worker health check",
+					},
+				],
 				children: [
 					buildChat({
 						id: "shared-child",

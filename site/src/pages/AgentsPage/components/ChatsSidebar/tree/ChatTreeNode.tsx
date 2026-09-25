@@ -193,6 +193,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		canManage,
 		hasSubagentsToggle: hasChildren,
 		hasPullRequests: linkedPullRequests.length > 0,
+		// Sidebar rows offer pin on shared chats too (see onPinAgent).
+		allowsViewerPin: true,
 	});
 	const canShare =
 		canManage &&
@@ -224,8 +226,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
 		onToggleSubagents: () => toggleExpanded(chatID),
-		onPinAgent: () => onPinAgent(chat.id),
-		onUnpinAgent: () => onUnpinAgent(chat.id),
+		// Pin writes the owner's chat record, so on a shared chat the item
+		// is a placeholder until viewers get their own pins.
+		onPinAgent: canManage ? () => onPinAgent(chat.id) : () => {},
+		onUnpinAgent: canManage ? () => onUnpinAgent(chat.id) : () => {},
 		onArchiveAgent: () => onArchiveAgent(chat.id),
 		onUnarchiveAgent: () => onUnarchiveAgent(chat.id),
 		onArchiveAndDeleteWorkspace: () => {

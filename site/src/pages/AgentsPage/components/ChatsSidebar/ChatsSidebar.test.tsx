@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, ReactNode } from "react";
 import { QueryClientProvider } from "react-query";
@@ -905,6 +905,48 @@ describe("ChatsSidebar row actions", () => {
 		expect(items.map((item) => item.getAttribute("href"))).toEqual([
 			"https://github.com/coder/coder/pull/1234",
 			"https://github.com/coder/coder/pull/6789",
+		]);
+	});
+
+	it("offers viewers pin, subagents and pull requests on a shared chat", async () => {
+		const user = userEvent.setup();
+		mockShareAuthorization(false);
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "pr-chat",
+							title: "Shared PR chat",
+							owner_id: "sharing-user",
+							shared: true,
+							diff_statuses: [pullRequest(4847, "open", "feat: add login")],
+							children: [
+								buildChat({
+									id: "shared-child",
+									title: "Shared child",
+									owner_id: "sharing-user",
+									parent_chat_id: "pr-chat",
+									root_chat_id: "pr-chat",
+								}),
+							],
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Open actions for Shared PR chat" }),
+		);
+		const menu = await screen.findByRole("menu");
+		const items = within(menu).getAllByRole("menuitem");
+		expect(items.map((item) => item.textContent)).toEqual([
+			"Pin agent",
+			"Show subagents (1)",
+			"Pull request open:PR #4847feat: add login",
 		]);
 	});
 

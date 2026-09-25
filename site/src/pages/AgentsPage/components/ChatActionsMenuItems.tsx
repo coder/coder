@@ -87,14 +87,16 @@ type ChatMenuActionsOptions = {
 	readonly hasSubagentsToggle?: boolean;
 	/** Whether the menu links to pull requests, a viewer action. */
 	readonly hasPullRequests?: boolean;
+	/** Whether viewers of a shared root chat get the pin action. */
+	readonly allowsViewerPin?: boolean;
 };
 
 /**
  * Archive state is root-only on the backend and cascades to children, so
  * child chats expose no archive or unarchive actions. An archived child chat
- * and a non-owner therefore only have the viewer actions (subagents toggle
- * and pull request links); call sites use this to hide the menu trigger
- * instead of rendering an empty menu.
+ * and a non-owner therefore only have the viewer actions (pin on a live
+ * root chat when allowed, subagents toggle and pull request links); call
+ * sites use this to hide the menu trigger instead of rendering an empty menu.
  */
 export const chatHasMenuActions = (
 	chat: TypesGen.Chat,
@@ -102,19 +104,26 @@ export const chatHasMenuActions = (
 		canManage,
 		hasSubagentsToggle = false,
 		hasPullRequests = false,
+		allowsViewerPin = false,
 	}: ChatMenuActionsOptions,
 ): boolean => {
-	const hasViewerActions = hasSubagentsToggle || hasPullRequests;
+	const isChildChat = getParentChatID(chat) !== undefined;
+	const viewerCanPin = allowsViewerPin && !chat.archived && !isChildChat;
+	const hasViewerActions =
+		hasSubagentsToggle || hasPullRequests || viewerCanPin;
 	if (!canManage) {
 		return hasViewerActions;
 	}
-	const isArchivedChild = chat.archived && getParentChatID(chat) !== undefined;
+	const isArchivedChild = chat.archived && isChildChat;
 	return !isArchivedChild || hasViewerActions;
 };
 
 type ChatActionsMenuItemsProps = {
 	readonly chat: TypesGen.Chat;
-	/** See {@link canManageChat}. When false, only viewer actions render. */
+	/**
+	 * See {@link canManageChat}. When false, only viewer actions render: pin
+	 * (when pin handlers are passed), the subagents toggle and PR links.
+	 */
 	readonly canManage: boolean;
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;
@@ -194,11 +203,34 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 		pullRequests.length === 1 ||
 		(pullRequests.length > 1 && submenu !== undefined);
 
+	const pinItem = showPinAction ? (
+		<Item onSelect={isPinned ? onUnpinAgent : onPinAgent}>
+			{isPinned ? (
+				<>
+					<PinOffIcon className="size-3.5" />
+					Unpin agent
+				</>
+			) : (
+				<>
+					<PinIcon className="size-3.5" />
+					Pin agent
+				</>
+			)}
+		</Item>
+	) : null;
+
 	// Each section is separated from the next one that renders.
 	const sections: ReactNode[] = [];
 
 	if (!canManage) {
-		if (subagentToggle) sections.push(subagentToggle);
+		if (pinItem || subagentToggle) {
+			sections.push(
+				<>
+					{pinItem}
+					{subagentToggle}
+				</>,
+			);
+		}
 		if (hasPullRequestItems) sections.push(pullRequestItems);
 		return <MenuSections sections={sections} Separator={Separator} />;
 	}
@@ -228,21 +260,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	) {
 		sections.push(
 			<>
-				{showPinAction && (
-					<Item onSelect={isPinned ? onUnpinAgent : onPinAgent}>
-						{isPinned ? (
-							<>
-								<PinOffIcon className="size-3.5" />
-								Unpin agent
-							</>
-						) : (
-							<>
-								<PinIcon className="size-3.5" />
-								Pin agent
-							</>
-						)}
-					</Item>
-				)}
+				{pinItem}
 				{onOpenRenameDialog && (
 					<Item onSelect={onOpenRenameDialog}>
 						<SquarePenIcon className="size-3.5" />
