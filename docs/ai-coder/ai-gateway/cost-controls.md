@@ -314,11 +314,15 @@ Visibility follows the viewer's role:
 | Every user                                           | Their own spend and budget, or unlimited state, in their avatar menu |
 | Members of a group                                   | The group's spend and budget, and their own member row               |
 | Owners, User Admins, and organization administrators | Spend and budgets for every group and every member                   |
+
+<!-- TODO(AIGOV-685): Restore once the User spend page moves out of experimental.
 | Readers of an organization's group members           | Organization totals and per-user spend on the **User spend** page    |
 
 - The **User spend** page under **Admin settings** > **AI** shows total and per-user AI Gateway spend for the selected organization and reporting period.
   You can open it if you can read the organization's group members, as Owners, Auditors, Template Admins, User Admins, and their organization-scoped equivalents can.
   If you can also view AI sessions, you can filter it by provider, model, and client.
+-->
+
 - The **Groups** page compares each group's spend with the combined limits of
   the members it covers.
 - The **Members** tab of a group reports each member's spend, their budget, and
@@ -352,7 +356,9 @@ curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
 - Spend is attributed through each request's effective budget group, which falls back to the organization's `Everyone` group when no budget applies, so only usage recorded without any effective group is excluded.
 - Each CSV row breaks spend down by user, group, model, and provider, with the underlying token counts.
 
+<!-- TODO(AIGOV-685): Restore once the per-user spend endpoint moves out of /api/experimental.
 For programmatic per-user reporting, refer to the [List organization AI spend by user API reference](../../reference/api/enterprise.md#list-organization-ai-spend-by-user).
+-->
 
 ### Prometheus Metrics
 
