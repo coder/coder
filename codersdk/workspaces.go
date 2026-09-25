@@ -650,11 +650,7 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (Worksp
 
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
 func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string, params WorkspaceOptions) (Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s", owner, name), nil, func(r *http.Request) {
-		q := r.URL.Query()
-		q.Set("include_deleted", fmt.Sprintf("%t", params.IncludeDeleted))
-		r.URL.RawQuery = q.Encode()
-	})
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s", owner, name), nil, params.asRequestOption())
 	if err != nil {
 		return Workspace{}, err
 	}
