@@ -2,6 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { render } from "#/testHelpers/renderHelpers";
+import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { FilterCombobox } from "./FilterCombobox";
 import type { FilterCategory } from "./types";
 
@@ -28,8 +29,19 @@ const statusCategory: FilterCategory = {
 	key: "status",
 	label: "Status",
 	inlineOptions: true,
-	getOptions: async () => [{ label: "Running", value: "running" }],
+	getOptions: async (query) =>
+		[{ label: "Running", value: "running" }].filter((option) =>
+			option.value.includes(query),
+		),
 };
+
+const emptyTemplateCategory: FilterCategory = {
+	key: "template",
+	label: "Template",
+	getOptions: async () => [],
+};
+
+const neverResolves = () => new Promise<never>(() => {});
 
 const attributesCategory: FilterCategory = {
 	key: "attribute",
@@ -37,7 +49,7 @@ const attributesCategory: FilterCategory = {
 	chipKeys: ["outdated", "dormant"],
 	inlineOptions: true,
 	inlineOptionsExclusive: true,
-	inlineOptionsLabelOnly: true,
+	chipLabelOnly: true,
 	inlineOptionsLabel: "Workspace is…",
 	getOptions: async () => [
 		{ label: "Outdated", value: "outdated", token: "outdated:true" },
@@ -92,7 +104,7 @@ const setup = (
 		user,
 		onChange,
 		input: screen.getByRole("combobox", { name: "Search and filter" }),
-		filtersButton: screen.getByRole("button", { name: "Toggle filters" }),
+		filtersButton: screen.getByRole("button", { name: "Filters" }),
 	};
 };
 
@@ -228,12 +240,135 @@ describe("FilterCombobox", () => {
 
 		await user.click(input);
 		await user.type(input, "status:starting");
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent("No filters found"),
+		);
+		await user.keyboard("{Enter}");
 
-		// Enter waits for the debounced suggestions, so retry until it commits.
-		await waitFor(async () => {
-			await user.keyboard("{Enter}");
-			expect(onChange).toHaveBeenLastCalledWith("status:starting");
+		expect(onChange).toHaveBeenLastCalledWith("status:starting");
+	});
+
+	it("commits a typed inline value with Enter before suggestions load", async () => {
+		const { user, onChange, input } = setup([ownerCategory, statusCategory]);
+
+		await user.click(input);
+		await user.type(input, "status:starting{Enter}");
+
+		expect(onChange).toHaveBeenLastCalledWith("status:starting");
+	});
+
+	it("selects the first matching inline option with Enter before suggestions load", async () => {
+		const { user, onChange, input, filtersButton } = setup([
+			ownerCategory,
+			statusCategory,
+		]);
+
+		// Load the unfiltered Status options first.
+		await user.click(filtersButton);
+		await screen.findByRole("option", { name: "Running" });
+		await user.click(input);
+		await user.type(input, "status:run{Enter}");
+
+		expect(onChange).toHaveBeenLastCalledWith("status:running");
+	});
+
+	it("keeps search text typed before an inline prefix when completing with Tab", async () => {
+		const { user, onChange, input } = setup([ownerCategory, statusCategory]);
+
+		await user.click(input);
+		await user.type(input, "foo status:ru");
+		await screen.findByRole("option", { name: "Running" });
+		await user.keyboard("{ArrowDown}{Tab}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("status:running foo"),
+		);
+	});
+
+	it("emits typed text that matches an applied option as a search", async () => {
+		const { user, onChange, input } = setup([ownerCategory, statusCategory], {
+			initialValue: "status:running",
 		});
+
+		await user.click(input);
+		await user.type(input, "run");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("status:running run"),
+		);
+	});
+
+	it("keeps every applied Workspace attribute when another filter changes", async () => {
+		const { user, onChange, filtersButton } = setup(
+			[statusCategory, attributesCategory],
+			{ initialValue: "outdated:true dormant:true" },
+		);
+
+		await user.click(filtersButton);
+		await user.click(await screen.findByRole("option", { name: "Running" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith(
+				"outdated:true dormant:true status:running",
+			),
+		);
+	});
+
+	it("does not commit a chip token until it is finished", async () => {
+		const { user, onChange, input } = setup([attributesCategory]);
+
+		await user.click(input);
+		await user.type(input, "outdated:t");
+		expect(
+			onChange.mock.calls.some(([query]) => query.includes("outdated:t")),
+		).toBe(false);
+		await user.type(input, "rue ");
+
+		expect(onChange).toHaveBeenLastCalledWith("outdated:true");
+		expect(input).toHaveValue("");
+	});
+
+	it("announces loading suggestions while typing", async () => {
+		const { user, input } = setup([
+			{ ...ownerCategory, getOptions: neverResolves },
+		]);
+
+		await user.click(input);
+		await user.type(input, "ali");
+
+		expect(screen.getByRole("status")).toHaveTextContent("Loading suggestions");
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Loading suggestions",
+			),
+		);
+	});
+
+	it("announces no filters only after suggestions load", async () => {
+		const { user, input } = setup([emptyTemplateCategory]);
+
+		await user.click(input);
+		await user.type(input, "zzz");
+
+		expect(screen.getByRole("status")).not.toHaveTextContent(
+			"No filters found",
+		);
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent("No filters found"),
+		);
+	});
+
+	it("announces an empty category", async () => {
+		const { user, input } = setup([emptyTemplateCategory]);
+
+		await user.click(input);
+		await user.type(input, "template:");
+
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"No Template matches",
+			),
+		);
 	});
 
 	it("opens a category narrowed by typed text when clicked", async () => {
@@ -276,7 +411,7 @@ describe("FilterCombobox", () => {
 			}
 			return manyOwnersCategory.getOptions(query);
 		});
-		const { user, filtersButton } = setup(
+		const { user, onChange, filtersButton } = setup(
 			[{ ...manyOwnersCategory, getOptions }],
 			{ skipHover: true },
 		);
@@ -286,12 +421,47 @@ describe("FilterCombobox", () => {
 		const search = await screen.findByRole("textbox", { name: "Search Owner" });
 		await user.type(search, "zed");
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		await user.click(await screen.findByRole("button", { name: "zed" }));
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:zed"));
+	});
+
+	it("retries a hover flyout whose options failed to load", async () => {
+		let failed = false;
+		const getOptions = vi.fn(async (query: string) => {
+			if (!failed) {
+				failed = true;
+				throw new Error("boom");
+			}
+			return ownerCategory.getOptions(query);
+		});
+		const { user, onChange, filtersButton } = setup(
+			[{ ...ownerCategory, getOptions }],
+			{ skipHover: true },
+		);
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		await screen.findByText("Couldn’t load Owner options.");
+		await user.click(screen.getByRole("button", { name: "Retry" }));
+		await user.click(await screen.findByRole("button", { name: "alice" }));
 
 		await waitFor(() =>
-			expect(
-				getOptions.mock.calls.filter(([query]) => query === "zed"),
-			).toHaveLength(2),
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
 		);
+	});
+
+	it("removes a checked hover flyout option when clicked", async () => {
+		const { user, onChange, filtersButton } = setup([ownerCategory], {
+			initialValue: "owner:alice",
+			skipHover: true,
+		});
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		await user.click(await screen.findByRole("button", { name: "alice" }));
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
 	});
 
 	it("keeps the category search field while results shrink", async () => {
@@ -309,5 +479,37 @@ describe("FilterCombobox", () => {
 		await getOptions.mock.results.at(-1)?.value;
 
 		await waitFor(() => expect(search).toHaveFocus());
+	});
+
+	describe("on a mobile viewport", () => {
+		const originalMatchMedia = window.matchMedia;
+
+		beforeEach(() => {
+			vi.stubGlobal("matchMedia", (query: string) => {
+				const result = originalMatchMedia(query);
+				return query === mobileViewportMediaQuery
+					? { ...result, matches: true }
+					: result;
+			});
+		});
+
+		afterEach(() => {
+			vi.unstubAllGlobals();
+		});
+
+		it("drills into a category and selects an option", async () => {
+			const { user, onChange, filtersButton } = setup([
+				ownerCategory,
+				statusCategory,
+			]);
+
+			await user.click(filtersButton);
+			await user.click(await screen.findByRole("option", { name: "Owner" }));
+			await user.click(await screen.findByRole("option", { name: "alice" }));
+
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+			);
+		});
 	});
 });

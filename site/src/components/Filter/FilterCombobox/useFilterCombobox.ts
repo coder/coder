@@ -32,6 +32,11 @@ type Mode = "closed" | "browsing" | "category";
 
 type State = {
 	mode: Mode;
+	/**
+	 * True when the menu was opened from the filter button or by stepping back
+	 * out of a category. The full category list is shown and typed text stays a
+	 * workspace search instead of narrowing filters.
+	 */
 	browseAll: boolean;
 	activeCategoryKey: string | null;
 	inputValue: string;
@@ -140,6 +145,9 @@ type StatusMessageInput = {
 	typeaheadEmpty: boolean;
 };
 
+/** Shown and announced when the typeahead suggestion queries fail. */
+export const SUGGESTIONS_ERROR_MESSAGE = "Couldn’t load suggestions.";
+
 // Live-region text for each state so screen readers hear loading, failures,
 // and empty results rather than silence. Typeahead loading shows no spinner,
 // so this is its only announcement.
@@ -168,7 +176,7 @@ const deriveStatusMessage = ({
 		return "Loading suggestions";
 	}
 	if (typeaheadError) {
-		return "Couldn't load suggestions.";
+		return SUGGESTIONS_ERROR_MESSAGE;
 	}
 	if (typeaheadEmpty) {
 		return "No filters found";
@@ -282,35 +290,38 @@ export const useFilterCombobox = ({
 			? parseTypedCategoryPrefix(inputValue, inlineCategories)
 			: null;
 
-	// Category rows preview their options while the menu is open with an empty
-	// input. The empty-query key is shared with the category view, so entering a
-	// category reuses the cached result. Inline options always load because
-	// applied chips take their labels from them.
-	const previewsEnabled = isBrowsing && activeCategoryKey === null;
-	const previewOptions = useQueries({
+	// Each category's unfiltered options, fetched while browsing for the pointer
+	// flyouts and always for inline categories, whose chips take their labels
+	// from them. Shares its cache key with the category view.
+	const unfilteredOptionsEnabled = isBrowsing && activeCategoryKey === null;
+	const unfilteredOptions = useQueries({
 		queries: categories.map((category) =>
 			filterComboboxOptions(
 				category.key,
 				category.getOptions,
 				"",
-				previewsEnabled || Boolean(category.inlineOptions),
+				unfilteredOptionsEnabled || Boolean(category.inlineOptions),
 			),
 		),
 		combine: (results) => {
 			const optionsByKey = new Map<string, readonly FilterOption[]>();
+			const erroredKeys = new Set<string>();
 			results.forEach((result, index) => {
 				if (result.data) {
 					optionsByKey.set(categories[index].key, result.data);
+				} else if (result.isError) {
+					erroredKeys.add(categories[index].key);
 				}
 			});
 			return {
 				optionsByKey,
-				isPending: results.some(
-					(result, index) =>
-						categories[index].inlineOptions &&
-						!result.isError &&
-						result.data === undefined,
-				),
+				erroredKeys,
+				refetch: (categoryKey: string) => {
+					const index = categories.findIndex(
+						(category) => category.key === categoryKey,
+					);
+					void results[index]?.refetch();
+				},
 			};
 		},
 	});
@@ -392,10 +403,14 @@ export const useFilterCombobox = ({
 				optionsByKey,
 				isError: results.some((result) => result.isError),
 				// A not-yet-loaded (but not errored) query counts as fetching so the
-				// popup keeps a spinner rather than flashing an empty section.
+				// status does not announce an empty result early. Disabled queries
+				// stay idle and never load, so they are skipped.
 				isFetching: results.some(
 					(result) =>
-						result.isFetching || (!result.isError && result.data === undefined),
+						result.isFetching ||
+						(result.fetchStatus !== "idle" &&
+							!result.isError &&
+							result.data === undefined),
 				),
 				refetch: () => {
 					for (const result of results) {
@@ -408,7 +423,7 @@ export const useFilterCombobox = ({
 
 	const inlineOptionsSource =
 		typeaheadQuerySource.length === 0
-			? previewOptions.optionsByKey
+			? unfilteredOptions.optionsByKey
 			: typeaheadQueryPending
 				? new Map<string, readonly FilterOption[]>()
 				: suggestionOptions.optionsByKey;
@@ -425,7 +440,7 @@ export const useFilterCombobox = ({
 					categoryKey: category.key,
 					categoryLabel: category.inlineOptionsLabel ?? `${category.label} is…`,
 					selected: chipValues.includes(token),
-					showIcon: category.inlineOptionIcons ?? false,
+					showIcon: category.inlineOptionsIcons ?? false,
 					option,
 				};
 			});
@@ -437,7 +452,7 @@ export const useFilterCombobox = ({
 					option.categoryKey === typedInlinePrefix.categoryKey,
 			)
 		: [];
-	const mainInlineOptions = inlineOptionsFor(previewOptions.optionsByKey);
+	const allInlineOptions = inlineOptionsFor(unfilteredOptions.optionsByKey);
 
 	const valueSuggestions =
 		!typeaheadActive || typeaheadQueryPending || typedInlinePrefix !== null
@@ -450,15 +465,19 @@ export const useFilterCombobox = ({
 				);
 
 	// A rejected suggestion query must not leave the popup spinning forever;
-	// treat an error as "done loading" and surface it instead.
+	// treat an error as "done loading" and surface it instead. The empty query
+	// shares its cache key with the unfiltered options, whose failures belong to
+	// their category panels.
 	const suggestionsError =
-		activeCategoryKey === null && isBrowsing && suggestionOptions.isError;
+		typeaheadActive &&
+		debouncedTypeaheadQuery.length > 0 &&
+		suggestionOptions.isError;
+	// Includes the debounce window so the live region does not announce an
+	// empty result before the request starts. The dropdown shows no spinner.
 	const valueSuggestionsLoading =
-		activeCategoryKey === null &&
-		isBrowsing &&
-		inputValue.trim().length > 0 &&
+		typeaheadQuerySource.length > 0 &&
 		!suggestionsError &&
-		suggestionOptions.isFetching;
+		(typeaheadQueryPending || suggestionOptions.isFetching);
 
 	const typeaheadError = suggestionsError;
 
@@ -500,32 +519,30 @@ export const useFilterCombobox = ({
 	};
 
 	const updateFromChips = (tokens: string[], freeText?: string) => {
-		const exclusiveCategoryFor = (token: string) => {
-			const key = parseChipToken(token, chipKeys)?.key;
-			return categories.find(
-				(category) =>
-					category.inlineOptionsExclusive &&
-					key !== undefined &&
-					(category.chipKeys ?? [category.key]).includes(key),
-			);
-		};
-		const normalizedTokens = tokens.filter((token, index) => {
-			const category = exclusiveCategoryFor(token);
-			return (
-				category === undefined ||
-				!tokens
-					.slice(index + 1)
-					.some((next) => exclusiveCategoryFor(next) === category)
-			);
-		});
 		const nextFreeText = freeText ?? committedFreeText;
 		if (freeText !== undefined) {
 			dispatch({ type: "setCommittedFreeText", value: freeText });
 		}
-		emitQuery(
-			composeFilterQuery(normalizedTokens, chipKeys, nextFreeText),
-			true,
-		);
+		emitQuery(composeFilterQuery(tokens, chipKeys, nextFreeText), true);
+	};
+
+	// Adding an option from an exclusive category replaces that category's
+	// other applied options. Queries that already combine several of them, such
+	// as a bookmarked URL, are left alone until one is picked.
+	const withInlineOption = (token: string) => {
+		const categoryFor = (chip: string) => {
+			const key = parseChipToken(chip, chipKeys)?.key;
+			return key === undefined
+				? undefined
+				: categories.find((category) =>
+						(category.chipKeys ?? [category.key]).includes(key),
+					);
+		};
+		const category = categoryFor(token);
+		const kept = category?.inlineOptionsExclusive
+			? chipValues.filter((chip) => categoryFor(chip) !== category)
+			: chipValues;
+		return [...kept, token];
 	};
 
 	const selectCategory = (categoryKey: string) => {
@@ -543,15 +560,15 @@ export const useFilterCombobox = ({
 		});
 	};
 
+	// The typed text only located the suggestion, so it is dropped either way.
 	const selectValueSuggestion = (token: string) => {
-		const selected = chipValues.includes(token);
 		updateFromChips(
-			selected
+			chipValues.includes(token)
 				? chipValues.filter((chip) => chip !== token)
 				: [...chipValues, token],
-			selected ? committedFreeText : "",
+			"",
 		);
-		dispatch({ type: "close", input: selected ? "restore" : "clear" });
+		dispatch({ type: "close", input: "clear" });
 	};
 
 	// Returning to the category list highlights the row that was open, so the
@@ -561,8 +578,17 @@ export const useFilterCombobox = ({
 		dispatch({ type: "leaveCategory" });
 	};
 
-	const selectCategoryOption = (token: string) => {
+	const commitCategoryOption = (token: string) => {
 		updateFromChips([...chipValues, token]);
+		returnToCategories();
+	};
+
+	const selectCategoryOption = (token: string) => {
+		updateFromChips(
+			chipValues.includes(token)
+				? chipValues.filter((chip) => chip !== token)
+				: [...chipValues, token],
+		);
 		returnToCategories();
 	};
 
@@ -581,7 +607,7 @@ export const useFilterCombobox = ({
 		applyInlineChips(
 			chipValues.includes(token)
 				? chipValues.filter((chip) => chip !== token)
-				: [...chipValues, token],
+				: withInlineOption(token),
 		);
 	};
 
@@ -590,8 +616,6 @@ export const useFilterCombobox = ({
 		returnToCategories();
 	};
 
-	// From inside a category the toggle steps back to the category list rather
-	// than closing, so an accidental click can be corrected without reopening the menu.
 	const showFilterMenu = () => {
 		inputRef.current?.focus();
 		if (mode === "category") {
@@ -601,6 +625,8 @@ export const useFilterCombobox = ({
 		dispatch({ type: "showAllFilters" });
 	};
 
+	// From inside a category the toggle steps back to the category list rather
+	// than closing, so an accidental click can be corrected without reopening the menu.
 	const toggleFilterMenu = () => {
 		if (mode === "category") {
 			leaveCategory();
@@ -664,25 +690,6 @@ export const useFilterCombobox = ({
 				type: "setCommittedFreeText",
 				value: commitTextBeforePrefix(typedInline.freeText),
 			});
-			dispatch({ type: "typeFilterSearch", value: nextValue });
-			return;
-		}
-
-		const normalized = nextValue.trim().toLowerCase();
-		const matchesSelectedOption =
-			normalized.length > 0 &&
-			categories.some((category) =>
-				(previewOptions.optionsByKey.get(category.key) ?? []).some((option) => {
-					const token = optionToken(category.key, option);
-					return (
-						chipValues.includes(token) &&
-						(option.label.toLowerCase().includes(normalized) ||
-							option.value.toLowerCase().includes(normalized))
-					);
-				}),
-			);
-		if (matchesSelectedOption) {
-			cancelDebounce();
 			dispatch({ type: "typeFilterSearch", value: nextValue });
 			return;
 		}
@@ -779,37 +786,46 @@ export const useFilterCombobox = ({
 				parseChipToken(candidate, chipKeys)
 			) {
 				event.preventDefault();
-				selectCategoryOption(candidate);
+				commitCategoryOption(candidate);
 				return;
 			}
 		}
 
 		// Same for a typed inline prefix such as `status:starting`, whose value
-		// may not be one of the suggested options.
+		// may not be one of the suggested options. Before the debounced options
+		// arrive nothing is highlighted, so the first locally matching option is
+		// taken, as it would be once the list renders.
 		if (
 			event.key === "Enter" &&
 			mode === "browsing" &&
 			typedInlinePrefix !== null &&
 			typedInlinePrefix.query.trim().length > 0
 		) {
-			const candidate = chipToken(
-				typedInlinePrefix.categoryKey,
-				typedInlinePrefix.query.trim(),
-			);
+			const { categoryKey } = typedInlinePrefix;
+			const query = typedInlinePrefix.query.trim();
 			const hasHighlightedOption = inlineOptions.some(
-				({ categoryKey, option }) =>
-					optionToken(categoryKey, option) === highlightedItem,
+				(entry) =>
+					optionToken(entry.categoryKey, entry.option) === highlightedItem,
 			);
-			if (
-				!typeaheadQueryPending &&
-				!hasHighlightedOption &&
-				parseChipToken(candidate, chipKeys)
-			) {
+			const normalized = query.toLowerCase();
+			const localMatch = typeaheadQueryPending
+				? unfilteredOptions.optionsByKey
+						.get(categoryKey)
+						?.find(
+							(option) =>
+								option.label.toLowerCase().includes(normalized) ||
+								option.value.toLowerCase().includes(normalized),
+						)
+				: undefined;
+			const candidate = localMatch
+				? optionToken(categoryKey, localMatch)
+				: chipToken(categoryKey, query);
+			if (!hasHighlightedOption && parseChipToken(candidate, chipKeys)) {
 				event.preventDefault();
 				applyInlineChips(
 					chipValues.includes(candidate)
 						? chipValues
-						: [...chipValues, candidate],
+						: withInlineOption(candidate),
 				);
 				return;
 			}
@@ -849,6 +865,16 @@ export const useFilterCombobox = ({
 			return;
 		}
 
+		const isInlineOption = inlineOptions.some(
+			({ categoryKey, option }) =>
+				optionToken(categoryKey, option) === highlighted,
+		);
+		if (isInlineOption) {
+			event.preventDefault();
+			toggleInlineOption(highlighted);
+			return;
+		}
+
 		if (parseChipToken(highlighted, chipKeys)) {
 			event.preventDefault();
 			selectValueSuggestion(highlighted);
@@ -867,10 +893,11 @@ export const useFilterCombobox = ({
 		listedCategories,
 		// Typed text is narrowing the category rows.
 		filteringCategories: categoryQuery.length > 0,
-		browseCategoryOptions: previewOptions.optionsByKey,
+		unfilteredOptionsByKey: unfilteredOptions.optionsByKey,
+		unfilteredOptionsErroredKeys: unfilteredOptions.erroredKeys,
 		valueSuggestions,
 		inlineOptions,
-		mainInlineOptions,
+		allInlineOptions,
 		chipValues,
 		highlightedItem,
 		typeaheadError,
@@ -885,6 +912,7 @@ export const useFilterCombobox = ({
 			removeChip: handleRemoveChip,
 			retryActiveOptions,
 			retryTypeahead,
+			retryUnfilteredOptions: unfilteredOptions.refetch,
 			selectCategory,
 			selectCategoryOption,
 			toggleInlineOption,
