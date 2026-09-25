@@ -90,6 +90,7 @@ func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) dat
 		OwnerID:        takeFirst(seed.OwnerID, uuid.New()),
 		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
 		Description:    seed.Description,
+		Icon:           seed.Icon,
 	})
 	require.NoError(t, err, "insert chat project")
 	return project

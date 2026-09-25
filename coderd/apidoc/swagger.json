@@ -19398,6 +19398,10 @@
 				"description": {
 					"type": "string"
 				},
+				"icon": {
+					"description": "Icon is a URL, typically an emoji image under /emojis, or empty for the\ndefault folder glyph.",
+					"type": "string"
+				},
 				"id": {
 					"type": "string",
 					"format": "uuid"
@@ -20096,6 +20100,9 @@
 			"required": ["name", "organization_id"],
 			"properties": {
 				"description": {
+					"type": "string"
+				},
+				"icon": {
 					"type": "string"
 				},
 				"name": {
@@ -27580,6 +27587,9 @@
 			"type": "object",
 			"properties": {
 				"description": {
+					"type": "string"
+				},
+				"icon": {
 					"type": "string"
 				},
 				"name": {

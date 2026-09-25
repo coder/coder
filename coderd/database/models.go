@@ -5269,8 +5269,10 @@ type ChatProject struct {
 	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
 	Name           string    `db:"name" json:"name"`
 	Description    string    `db:"description" json:"description"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	// Optional icon URL shown next to the project name.
+	Icon      string    `db:"icon" json:"icon"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type ChatQueuedMessage struct {

@@ -29,6 +29,7 @@ const (
 	CheckChatModelConfigsUserAclIsObject                     CheckConstraint = "chat_model_configs_user_acl_is_object"                     // chat_model_configs
 	CheckChatOrganizationModelOverridesContextCheck          CheckConstraint = "chat_organization_model_overrides_context_check"           // chat_organization_model_overrides
 	CheckChatProjectsDescriptionLength                       CheckConstraint = "chat_projects_description_length"                          // chat_projects
+	CheckChatProjectsIconLength                              CheckConstraint = "chat_projects_icon_length"                                 // chat_projects
 	CheckChatProjectsNameLength                              CheckConstraint = "chat_projects_name_length"                                 // chat_projects
 	CheckChatProjectsNameNotBlank                            CheckConstraint = "chat_projects_name_not_blank"                              // chat_projects
 	CheckChatUsageLimitConfigDefaultLimitMicrosCheck         CheckConstraint = "chat_usage_limit_config_default_limit_micros_check"        // chat_usage_limit_config

@@ -4609,6 +4609,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
+  "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -4619,15 +4620,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description |
-|-------------------|--------|----------|--------------|-------------|
-| `created_at`      | string | false    |              |             |
-| `description`     | string | false    |              |             |
-| `id`              | string | false    |              |             |
-| `name`            | string | false    |              |             |
-| `organization_id` | string | false    |              |             |
-| `owner_id`        | string | false    |              |             |
-| `updated_at`      | string | false    |              |             |
+| Name              | Type   | Required | Restrictions | Description                                                                                   |
+|-------------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------|
+| `created_at`      | string | false    |              |                                                                                               |
+| `description`     | string | false    |              |                                                                                               |
+| `icon`            | string | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
+| `id`              | string | false    |              |                                                                                               |
+| `name`            | string | false    |              |                                                                                               |
+| `organization_id` | string | false    |              |                                                                                               |
+| `owner_id`        | string | false    |              |                                                                                               |
+| `updated_at`      | string | false    |              |                                                                                               |
 
 ## codersdk.ChatPrompt
 
@@ -6204,6 +6206,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "description": "string",
+  "icon": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6"
 }
@@ -6214,6 +6217,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name              | Type   | Required | Restrictions | Description |
 |-------------------|--------|----------|--------------|-------------|
 | `description`     | string | false    |              |             |
+| `icon`            | string | false    |              |             |
 | `name`            | string | true     |              |             |
 | `organization_id` | string | true     |              |             |
 
@@ -15765,6 +15769,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "description": "string",
+  "icon": "string",
   "name": "string"
 }
 ```
@@ -15774,6 +15779,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name          | Type   | Required | Restrictions | Description |
 |---------------|--------|----------|--------------|-------------|
 | `description` | string | false    |              |             |
+| `icon`        | string | false    |              |             |
 | `name`        | string | false    |              |             |
 
 ## codersdk.UpdateChatRequest
