@@ -167,8 +167,18 @@ func TestExecuteLocalTools_ExecuteTaskRetry(t *testing.T) {
 		conn.EXPECT().ProcessOutput(gomock.Any(), processID, &workspacesdk.ProcessOutputOptions{Wait: true}).
 			Return(workspacesdk.ProcessOutputResponse{ExitCode: &exitCode, Output: "PASS"}, nil),
 	)
+	// Each attempt reads the database clock again, so the mock clock
+	// advances after the second attempt's read, when its execute call
+	// resolves the connection, to make the age increase deterministic.
+	connCalls := 0
 	tools := []fantasy.AgentTool{chattool.Execute(chattool.ExecuteOptions{
-		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) { return conn, nil },
+		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+			connCalls++
+			if connCalls == 2 {
+				batch.clock.Advance(7 * time.Second)
+			}
+			return conn, nil
+		},
 	})}
 
 	err = executeLocalToolBatch(firstAttemptCtx, t, f, batch, tools)
@@ -180,7 +190,7 @@ func TestExecuteLocalTools_ExecuteTaskRetry(t *testing.T) {
 	assert.Equal(t, callID, toolCalls[0].ID)
 	assert.Equal(t, toolCalls[0].MessageID, toolCalls[1].MessageID)
 	assert.Equal(t, toolCalls[0].ID, toolCalls[1].ID)
-	assert.Greater(t, toolCalls[1].Age, toolCalls[0].Age)
+	assert.GreaterOrEqual(t, toolCalls[1].Age-toolCalls[0].Age, 7*time.Second)
 
 	messages, err = f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: batch.chat.ID})
 	require.NoError(t, err)

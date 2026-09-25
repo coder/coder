@@ -61,9 +61,10 @@ func (id ToolCallIdentity) AgentToolCall() workspacesdk.ToolCall {
 	}
 }
 
-// ProcessID returns the ID the workspace agent gives a process started
-// for this tool call. An agent without tool call support picks another.
-func (id ToolCallIdentity) ProcessID() string {
+// UUID returns the tool call UUID. The workspace agent uses it as the ID
+// of a process started for this tool call; an agent without tool call
+// support picks another.
+func (id ToolCallIdentity) UUID() string {
 	return workspacesdk.ToolCallUUID(id.ChatID, id.MessageID, id.ToolCallID).String()
 }
 

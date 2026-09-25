@@ -3,6 +3,7 @@ package chattool_test
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"testing"
 	"time"
 
@@ -36,6 +37,10 @@ func TestExecuteToolCall(t *testing.T) {
 			Code:     code,
 		}
 	}
+	agentErrorResponse := codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
+		Message: "Failed to start process.",
+		Detail:  "no such directory",
+	})
 
 	// outputCall is one expected ProcessOutput call, in order. remaining
 	// is the wait deadline the call must see; zero skips the check.
@@ -112,6 +117,20 @@ func TestExecuteToolCall(t *testing.T) {
 			check: func(t *testing.T, result chattool.ExecuteResult, _ string) {
 				assert.True(t, result.Success)
 				assert.Equal(t, "done", result.Output)
+			},
+		},
+		{
+			// A negative age from a faulty agent cannot extend the wait
+			// past the timeout.
+			name:  "AttachNegativeAgeWaitsTimeout",
+			input: `{"command":"make test","timeout":"10m"}`,
+			start: func(processID string) (workspacesdk.StartProcessResponse, error) {
+				return workspacesdk.StartProcessResponse{ID: processID, Started: true, AgeMs: -time.Minute.Milliseconds()}, nil
+			},
+			outputs: []outputCall{{wait: true, remaining: 10 * time.Minute, resp: workspacesdk.ProcessOutputResponse{ExitCode: exitCode(0), Output: "ok"}}},
+			check: func(t *testing.T, result chattool.ExecuteResult, _ string) {
+				assert.True(t, result.Success)
+				assert.GreaterOrEqual(t, result.WallDurationMs, int64(0))
 			},
 		},
 		{
@@ -210,6 +229,48 @@ func TestExecuteToolCall(t *testing.T) {
 				assert.False(t, result.Success)
 				assert.Contains(t, result.Error, "different input")
 				assert.Contains(t, result.Error, "no process was started")
+			},
+		},
+		{
+			// The request may have reached the agent, so the command may
+			// have started.
+			name:  "TransportError",
+			input: `{"command":"make test"}`,
+			start: func(string) (workspacesdk.StartProcessResponse, error) {
+				return workspacesdk.StartProcessResponse{}, xerrors.New("connection reset by peer")
+			},
+			check: func(t *testing.T, result chattool.ExecuteResult, processID string) {
+				assert.False(t, result.Success)
+				assert.Contains(t, result.Error, "outcome unknown")
+				assert.Contains(t, result.Error, "may have started")
+				assert.Contains(t, result.Error, "connection reset by peer")
+				assert.Contains(t, result.Error, "process_output")
+				assert.Contains(t, result.Error, processID)
+			},
+		},
+		{
+			name:  "TransportErrorBackground",
+			input: `{"command":"make dev","run_in_background":true}`,
+			start: func(string) (workspacesdk.StartProcessResponse, error) {
+				return workspacesdk.StartProcessResponse{}, xerrors.New("connection reset by peer")
+			},
+			check: func(t *testing.T, result chattool.ExecuteResult, processID string) {
+				assert.False(t, result.Success)
+				assert.Contains(t, result.Error, "outcome unknown")
+				assert.Contains(t, result.Error, processID)
+				assert.False(t, result.Backgrounded)
+			},
+		},
+		{
+			// The agent answered, so the error text is today's.
+			name:  "AgentErrorResponse",
+			input: `{"command":"make test"}`,
+			start: func(string) (workspacesdk.StartProcessResponse, error) {
+				return workspacesdk.StartProcessResponse{}, agentErrorResponse
+			},
+			check: func(t *testing.T, result chattool.ExecuteResult, _ string) {
+				assert.False(t, result.Success)
+				assert.Equal(t, "start process: "+agentErrorResponse.Error(), result.Error)
 			},
 		},
 		{

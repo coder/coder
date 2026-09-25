@@ -11,6 +11,7 @@ import (
 
 	"charm.land/fantasy"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -202,7 +203,7 @@ func executeBackground(
 		Background: true,
 	})
 	if err != nil {
-		return startErrorResult("start background process", err)
+		return startErrorResult(ctx, "start background process", err)
 	}
 
 	result := ExecuteResult{
@@ -258,11 +259,11 @@ func executeForeground(
 		Background: false,
 	})
 	if err != nil {
-		return startErrorResult("start process", err)
+		return startErrorResult(ctx, "start process", err)
 	}
 
 	var result ExecuteResult
-	if hasID && resp.ID == id.ProcessID() {
+	if hasID && resp.ID == id.UUID() {
 		result = waitForToolCallProcess(ctx, conn, resp, timeout)
 	} else {
 		result = waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
@@ -281,12 +282,21 @@ func executeForeground(
 	return fantasy.NewTextResponse(string(data))
 }
 
-// startErrorResult converts a StartProcess error into a result. A
-// *workspacesdk.ToolCallError is the agent's answer for the tool call
-// in the request context.
-func startErrorResult(action string, err error) fantasy.ToolResponse {
+// startErrorResult converts a StartProcess error into a result. ctx is
+// the tool call's context. A *workspacesdk.ToolCallError is the agent's
+// answer for the tool call in ctx.
+func startErrorResult(ctx context.Context, action string, err error) fantasy.ToolResponse {
 	var tcErr *workspacesdk.ToolCallError
 	if !errors.As(err, &tcErr) {
+		var sdkErr *codersdk.Error
+		id, ok := ToolCallIdentityFromContext(ctx)
+		// Without an agent response the request may have reached the
+		// agent. A canceled ctx means the result will not be committed.
+		if ok && !errors.As(err, &sdkErr) && ctx.Err() == nil {
+			return errorResult(fmt.Sprintf("outcome unknown: the workspace agent could not be reached "+
+				"after the start request was sent, so the command may have started: %v. On agents that "+
+				"support tool calls, check it with process_output using process ID %s.", err, id.UUID()))
+		}
 		return errorResult(enrichStartError(fmt.Sprintf("%s: %v", action, err)))
 	}
 	switch tcErr.Code {
@@ -313,16 +323,17 @@ func waitForToolCallProcess(
 	timeout time.Duration,
 ) ExecuteResult {
 	waitStart := time.Now()
+	ageMs := max(resp.AgeMs, 0)
 	var result ExecuteResult
-	if remaining := timeout - time.Duration(resp.AgeMs)*time.Millisecond; remaining > 0 {
+	if remaining := timeout - time.Duration(ageMs)*time.Millisecond; remaining > 0 {
 		waitCtx, cancel := context.WithTimeout(ctx, remaining)
 		defer cancel()
 		result = waitForProcess(waitCtx, ctx, conn, resp.ID, timeout)
 	} else {
 		result = processSnapshotResult(ctx, conn, resp.ID, timeout)
 	}
-	// The process ran for AgeMs before this attempt, plus this attempt's wait.
-	result.WallDurationMs = resp.AgeMs + time.Since(waitStart).Milliseconds()
+	// Time since the process started, as reported by the agent, plus this attempt's wait.
+	result.WallDurationMs = ageMs + time.Since(waitStart).Milliseconds()
 	return result
 }
 

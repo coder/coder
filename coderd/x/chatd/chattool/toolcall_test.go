@@ -82,7 +82,7 @@ func TestToolCallIdentityAgentRequests(t *testing.T) {
 		Age:        chattool.NewToolCallAge(clock, dbNow, dbNow.Add(-time.Minute)),
 	}
 
-	assert.Equal(t, workspacesdk.ToolCallUUID(id.ChatID, 42, id.ToolCallID).String(), id.ProcessID())
+	assert.Equal(t, workspacesdk.ToolCallUUID(id.ChatID, 42, id.ToolCallID).String(), id.UUID())
 	assert.Equal(t, workspacesdk.ToolCall{MessageID: 42, ID: id.ToolCallID, Age: time.Minute}, id.AgentToolCall())
 	// Each request measures the age when it is built.
 	clock.Advance(3 * time.Second)

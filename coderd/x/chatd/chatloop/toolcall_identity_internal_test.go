@@ -30,8 +30,9 @@ func TestExecuteLocalToolsToolCallIdentity(t *testing.T) {
 	}
 	// runBatch runs two parallel calls and one serial call. The parallel
 	// calls wait for each other, so each reads its identity while its
-	// sibling is running.
-	runBatch := func(t *testing.T, opts ExecuteLocalToolsOptions) map[string]seen {
+	// sibling is running. clock advances 5s after both parallel calls
+	// read their identity and before the serial call starts.
+	runBatch := func(t *testing.T, opts ExecuteLocalToolsOptions, clock *quartz.Mock) map[string]seen {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		var (
 			mu     sync.Mutex
@@ -50,26 +51,43 @@ func TestExecuteLocalToolsToolCallIdentity(t *testing.T) {
 			}
 			arrived    = make(chan struct{}, 2)
 			allArrived = make(chan struct{})
+			recorded   = make(chan struct{}, 2)
+			advanced   = make(chan struct{})
 		)
+		await := func(ctx context.Context, ch chan struct{}) error {
+			select {
+			case <-ch:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
 		go func() {
 			for range 2 {
-				select {
-				case <-arrived:
-				case <-ctx.Done():
+				if await(ctx, arrived) != nil {
 					return
 				}
 			}
 			close(allArrived)
+			for range 2 {
+				if await(ctx, recorded) != nil {
+					return
+				}
+			}
+			clock.Advance(5 * time.Second)
+			close(advanced)
 		}()
 		parallel := fantasy.NewAgentTool("parallel_probe", "records its identity",
 			func(ctx context.Context, _ struct{}, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				arrived <- struct{}{}
-				select {
-				case <-allArrived:
-				case <-ctx.Done():
-					return fantasy.ToolResponse{}, ctx.Err()
+				if err := await(ctx, allArrived); err != nil {
+					return fantasy.ToolResponse{}, err
 				}
 				record(ctx, call)
+				recorded <- struct{}{}
+				if err := await(ctx, advanced); err != nil {
+					return fantasy.ToolResponse{}, err
+				}
 				return fantasy.NewTextResponse("ok"), nil
 			})
 		serial := serialMarkerTool{fantasy.NewAgentTool("serial_probe", "records its identity",
@@ -100,23 +118,26 @@ func TestExecuteLocalToolsToolCallIdentity(t *testing.T) {
 
 		chatID := uuid.New()
 		dbNow := time.Now()
+		clock := quartz.NewMock(t)
 		got := runBatch(t, ExecuteLocalToolsOptions{
 			ChatID:            chatID,
 			ToolCallMessageID: 42,
-			ToolCallAge:       chattool.NewToolCallAge(quartz.NewMock(t), dbNow, dbNow.Add(-time.Minute)),
-		})
+			ToolCallAge:       chattool.NewToolCallAge(clock, dbNow, dbNow.Add(-time.Minute)),
+		}, clock)
 
-		want := map[string]seen{}
-		for _, id := range []string{"call-1", "call-2", "call-3"} {
-			want[id] = seen{chatID: chatID, messageID: 42, toolCallID: id, age: time.Minute, ok: true}
-		}
-		assert.Equal(t, want, got)
+		// The serial call starts after the clock advanced, and its age
+		// is measured when it reads it.
+		assert.Equal(t, map[string]seen{
+			"call-1": {chatID: chatID, messageID: 42, toolCallID: "call-1", age: time.Minute, ok: true},
+			"call-2": {chatID: chatID, messageID: 42, toolCallID: "call-2", age: time.Minute, ok: true},
+			"call-3": {chatID: chatID, messageID: 42, toolCallID: "call-3", age: time.Minute + 5*time.Second, ok: true},
+		}, got)
 	})
 
 	t.Run("NoChatIDNoIdentity", func(t *testing.T) {
 		t.Parallel()
 
-		got := runBatch(t, ExecuteLocalToolsOptions{})
+		got := runBatch(t, ExecuteLocalToolsOptions{}, quartz.NewMock(t))
 		assert.Equal(t, map[string]seen{"call-1": {}, "call-2": {}, "call-3": {}}, got)
 	})
 }
