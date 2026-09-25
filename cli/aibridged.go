@@ -155,7 +155,7 @@ func BuildProvidersFromProto(ctx context.Context, protoProviders []*proto.AIProv
 		if spec.Enabled {
 			enabledCount++
 		}
-		prov, err := buildProvider(ctx, spec, cfg, metrics)
+		prov, err := buildProvider(ctx, spec, cfg, logger, metrics)
 		if err != nil {
 			outcome.Status = aibridged.ProviderStatusError
 			outcome.Err = err
@@ -231,7 +231,7 @@ type aiProviderSpec struct {
 
 // buildProvider constructs the appropriate [aibridge.Provider] for a
 // single provider spec, independent of where the spec was sourced from.
-func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBridgeConfig, metrics *aibridge.Metrics) (aibridge.Provider, error) {
+func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBridgeConfig, logger slog.Logger, metrics *aibridge.Metrics) (aibridge.Provider, error) {
 	if !spec.Enabled {
 		return aibridge.NewDisabledProviderStub(spec.Name, string(spec.Type)), nil
 	}
@@ -287,13 +287,14 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			}
 		}
 		return aibridge.NewAnthropicProvider(ctx, aibridge.AnthropicConfig{
+			Logger:           logger.With(slog.F("provider", spec.Name)),
 			Name:             spec.Name,
 			BaseURL:          spec.BaseURL,
 			KeyPool:          pool,
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
 			SendActorHeaders: sendActorHeaders,
-		}, nil)
+		}, nil, nil)
 
 	case database.AIProviderTypeBedrock:
 		// A spec typed 'bedrock' authenticates exclusively via settings;

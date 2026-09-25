@@ -37,18 +37,22 @@ type (
 	Metadata                = recorder.Metadata
 	ErrorType               = recorder.ErrorType
 
-	AnthropicConfig  = config.Anthropic
-	AWSBedrockConfig = config.AWSBedrock
-	OpenAIConfig     = config.OpenAI
-	CopilotConfig    = config.Copilot
+	AnthropicConfig         = config.Anthropic
+	AWSBedrockConfig        = config.AWSBedrock
+	AWSClaudePlatformConfig = config.AWSClaudePlatform
+	OpenAIConfig            = config.OpenAI
+	CopilotConfig           = config.Copilot
 )
 
 func AsActor(ctx context.Context, actorID string, metadata recorder.Metadata) context.Context {
 	return aibcontext.AsActor(ctx, actorID, metadata)
 }
 
-func NewAnthropicProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (provider.Provider, error) {
-	return provider.NewAnthropic(ctx, cfg, bedrockCfg)
+// NewAnthropicProvider constructs the Anthropic provider. At most one of
+// bedrockCfg and claudePlatformCfg may be non-nil; both nil means direct
+// Anthropic API access.
+func NewAnthropicProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock, claudePlatformCfg *config.AWSClaudePlatform) (provider.Provider, error) {
+	return provider.NewAnthropic(ctx, cfg, bedrockCfg, claudePlatformCfg)
 }
 
 func NewBedrockProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg config.AWSBedrock) (provider.Provider, error) {

@@ -1,6 +1,7 @@
 package aibridge
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"maps"
@@ -19,6 +20,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -308,28 +310,24 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 	providers := []struct {
 		name        string
 		byokOnly    bool
-		setBYOK     func(*http.Request, string)
+		authHeader  string
 		newProvider func(baseURL string, pool *keypool.Pool) provider.Provider
 	}{
 		{
-			name: "anthropic",
-			setBYOK: func(r *http.Request, key string) {
-				r.Header.Set("X-Api-Key", key)
-			},
+			name:       "anthropic",
+			authHeader: "X-Api-Key",
 			newProvider: func(baseURL string, pool *keypool.Pool) provider.Provider {
 				p, err := provider.NewAnthropic(context.Background(), config.Anthropic{
 					BaseURL: baseURL,
 					KeyPool: pool,
-				}, nil)
+				}, nil, nil)
 				require.NoError(t, err)
 				return p
 			},
 		},
 		{
-			name: "openai",
-			setBYOK: func(r *http.Request, key string) {
-				r.Header.Set("Authorization", "Bearer "+key)
-			},
+			name:       "openai",
+			authHeader: "Authorization",
 			newProvider: func(baseURL string, pool *keypool.Pool) provider.Provider {
 				cfg := config.OpenAI{BaseURL: baseURL}
 				if pool != nil {
@@ -341,13 +339,43 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 		// Copilot is BYOK-only: its KeyFailoverConfig is zero-value
 		// so the failover transport short-circuits.
 		{
-			name:     "copilot",
-			byokOnly: true,
-			setBYOK: func(r *http.Request, key string) {
-				r.Header.Set("Authorization", "Bearer "+key)
-			},
+			name:       "copilot",
+			authHeader: "Authorization",
+			byokOnly:   true,
 			newProvider: func(baseURL string, _ *keypool.Pool) provider.Provider {
 				return provider.NewCopilot(config.Copilot{BaseURL: baseURL})
+			},
+		},
+		{
+			name:       "claude_platform_iam",
+			authHeader: "X-Api-Key",
+			newProvider: func(baseURL string, pool *keypool.Pool) provider.Provider {
+				p, err := provider.NewAnthropic(context.Background(), config.Anthropic{
+					BaseURL: baseURL,
+					KeyPool: pool,
+				}, nil, &config.AWSClaudePlatform{
+					Region:      "us-west-2",
+					BaseURL:     baseURL,
+					WorkspaceID: "wrkspc_config",
+				})
+				require.NoError(t, err)
+				return p
+			},
+		},
+		{
+			name:       "claude_platform_api_key",
+			authHeader: "X-Api-Key",
+			newProvider: func(baseURL string, pool *keypool.Pool) provider.Provider {
+				p, err := provider.NewAnthropic(context.Background(), config.Anthropic{
+					BaseURL: baseURL,
+					KeyPool: pool,
+				}, nil, &config.AWSClaudePlatform{
+					Region:      "us-west-2",
+					BaseURL:     baseURL,
+					WorkspaceID: "wrkspc_config",
+				})
+				require.NoError(t, err)
+				return p
 			},
 		},
 	}
@@ -357,7 +385,8 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 		// Centralized pool keys. Empty when byokKey is set.
 		keys []string
 		// BYOK key. Empty when keys is set.
-		byokKey string
+		byokKey    string
+		byokHeader string
 		// Sequential upstream responses replayed by MockUpstream
 		// in call order. MockUpstream's strict mode asserts the
 		// upstream call count matches len(upstreamResponses).
@@ -503,82 +532,144 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 			expectedStatusCode: http.StatusTooManyRequests,
 			expectedRetryAfter: "5",
 		},
+		{
+			name:       "byok_bearer_no_failover",
+			byokKey:    "user-bearer",
+			byokHeader: "Authorization",
+			upstreamResponses: []testutil.UpstreamResponse{
+				testutil.NewErrorResponse(http.StatusTooManyRequests, "5"),
+			},
+			expectedSeenKeys:   []string{"user-bearer"},
+			expectedStatusCode: http.StatusTooManyRequests,
+			expectedRetryAfter: "5",
+		},
+	}
+
+	routes := []struct {
+		name   string
+		method string
+		path   string
+		body   []byte
+	}{
+		{name: "models", method: http.MethodGet, path: "/v1/models"},
+		{name: "count_tokens", method: http.MethodPost, path: "/v1/messages/count_tokens", body: []byte(`{"model":"claude-sonnet-4-5","max_tokens":1024,"messages":[{"role":"user","content":"hello"}]}`)},
 	}
 
 	for _, prov := range providers {
-		for _, tc := range tests {
-			// BYOK-only providers don't use the pool, so pool-based
-			// cases don't apply.
-			if prov.byokOnly && tc.byokKey == "" {
-				continue
+		for _, route := range routes {
+			for _, tc := range tests {
+				// BYOK-only providers don't use the pool, so pool-based
+				// cases don't apply.
+				if prov.byokOnly && tc.byokKey == "" {
+					continue
+				}
+				t.Run(prov.name+"/"+route.name+"/"+tc.name, func(t *testing.T) {
+					t.Parallel()
+
+					upstream := testutil.NewMockUpstream(t.Context(), t, tc.upstreamResponses...)
+
+					reg := prometheus.NewRegistry()
+					m := NewMetrics(reg)
+
+					var pool *keypool.Pool
+					if len(tc.keys) > 0 {
+						var err error
+						pool, err = keypool.New("test", tc.keys, quartz.NewMock(t), m)
+						require.NoError(t, err)
+					}
+
+					p := prov.newProvider(upstream.URL, pool)
+					logger := slogtest.Make(t, nil)
+					handler := newPassthroughRouter(p, logger, nil, testTracer)
+
+					req := httptest.NewRequest(route.method, route.path, bytes.NewReader(route.body))
+					if prov.name == "claude_platform_iam" || prov.name == "claude_platform_api_key" {
+						req.Header.Set(intercept.HeaderAnthropicWorkspaceID, "wrkspc_from_client")
+					}
+					if tc.byokKey != "" {
+						header := tc.byokHeader
+						if header == "" {
+							header = prov.authHeader
+						}
+						if header == "Authorization" {
+							req.Header.Set("Authorization", "Bearer "+tc.byokKey)
+						} else {
+							req.Header.Set(header, tc.byokKey)
+						}
+					}
+					w := httptest.NewRecorder()
+					handler.ServeHTTP(w, req)
+
+					assert.Equal(t, tc.expectedStatusCode, w.Code, "response status code")
+					assert.Equal(t, tc.expectedRetryAfter, w.Header().Get("Retry-After"), "Retry-After header")
+
+					var seenKeys []string
+					for _, r := range upstream.ReceivedRequests() {
+						key := testutil.KeyFromHeader(p.AuthHeader(), r.Header)
+						if key == "" {
+							key = testutil.KeyFromHeader("Authorization", r.Header)
+						}
+						seenKeys = append(seenKeys, key)
+						assert.Equal(t, route.path, r.Path)
+						assert.Equal(t, route.method, r.Method)
+						if route.body != nil {
+							require.JSONEq(t, string(route.body), string(r.Body))
+						} else {
+							assert.Empty(t, r.Body)
+						}
+						if prov.name == "claude_platform_iam" || prov.name == "claude_platform_api_key" {
+							assert.Equal(t, "wrkspc_config", r.Header.Get(intercept.HeaderAnthropicWorkspaceID))
+						}
+						if tc.byokKey != "" {
+							assert.Equal(t, tc.byokKey, key)
+							header := tc.byokHeader
+							if header == "" {
+								header = prov.authHeader
+							}
+							if header == "Authorization" {
+								assert.Equal(t, "Bearer "+tc.byokKey, r.Header.Get("Authorization"))
+							} else {
+								assert.Equal(t, tc.byokKey, r.Header.Get(header))
+								if header == intercept.AuthHeaderXAPIKey {
+									assert.Empty(t, r.Header.Get(intercept.AuthHeaderAuthorization))
+								}
+							}
+						} else if prov.name == "claude_platform_iam" || prov.name == "claude_platform_api_key" {
+							assert.Empty(t, r.Header.Get("Authorization"), "centralized Claude Platform requests must remain unsigned")
+							assert.NotEmpty(t, r.Header.Get(prov.authHeader), "centralized key must use provider auth header")
+						}
+					}
+					assert.Equal(t, tc.expectedSeenKeys, seenKeys, "seen keys")
+
+					if pool != nil {
+						assert.Equal(t, tc.expectedKeyStates, pool.PoolState(), "key states")
+
+						gathered, err := reg.Gather()
+						require.NoError(t, err)
+						// One transition per marked key, by reason.
+						for _, reason := range []string{"rate_limited", "unauthorized"} {
+							if want := tc.expectedTransitions[reason]; want > 0 {
+								assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_state_transitions_total", "test", reason))
+							} else {
+								assert.False(t, codertestutil.PromCounterGathered(t, gathered, "key_pool_state_transitions_total", "test", reason))
+							}
+						}
+						// Exhaustion outcome when no usable key remains.
+						for _, outcome := range []string{"rate_limited", "auth_failed"} {
+							if want := tc.expectedExhaustions[outcome]; want > 0 {
+								assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_exhaustions_total", outcome, "test"))
+							} else {
+								assert.False(t, codertestutil.PromCounterGathered(t, gathered, "key_pool_exhaustions_total", outcome, "test"))
+							}
+						}
+						// One observation per request, summing the keys tried.
+						hist := promhelp.HistogramValue(t, reg, "key_pool_failover_attempts", prometheus.Labels{"provider": "test"})
+						require.NotNil(t, hist)
+						assert.Equal(t, uint64(1), hist.GetSampleCount())
+						assert.Equal(t, float64(len(tc.upstreamResponses)), hist.GetSampleSum())
+					}
+				})
 			}
-			t.Run(prov.name+"/"+tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				// MockUpstream replays the scripted responses in
-				// call order. Strict mode fails the test if the
-				// upstream sees a different number of requests
-				// than tc.upstreamResponses describes.
-				upstream := testutil.NewMockUpstream(t.Context(), t, tc.upstreamResponses...)
-
-				reg := prometheus.NewRegistry()
-				m := NewMetrics(reg)
-
-				var pool *keypool.Pool
-				if len(tc.keys) > 0 {
-					var err error
-					pool, err = keypool.New("test", tc.keys, quartz.NewMock(t), m)
-					require.NoError(t, err)
-				}
-
-				p := prov.newProvider(upstream.URL, pool)
-				logger := slogtest.Make(t, nil)
-				handler := newPassthroughRouter(p, logger, nil, testTracer)
-
-				req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
-				if tc.byokKey != "" {
-					prov.setBYOK(req, tc.byokKey)
-				}
-				w := httptest.NewRecorder()
-				handler.ServeHTTP(w, req)
-
-				assert.Equal(t, tc.expectedStatusCode, w.Code, "response status code")
-				assert.Equal(t, tc.expectedRetryAfter, w.Header().Get("Retry-After"), "Retry-After header")
-
-				var seenKeys []string
-				for _, r := range upstream.ReceivedRequests() {
-					seenKeys = append(seenKeys, testutil.KeyFromHeader(p.AuthHeader(), r.Header))
-				}
-				assert.Equal(t, tc.expectedSeenKeys, seenKeys, "seen keys")
-
-				if pool != nil {
-					assert.Equal(t, tc.expectedKeyStates, pool.PoolState(), "key states")
-
-					gathered, err := reg.Gather()
-					require.NoError(t, err)
-					// One transition per marked key, by reason.
-					for _, reason := range []string{"rate_limited", "unauthorized"} {
-						if want := tc.expectedTransitions[reason]; want > 0 {
-							assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_state_transitions_total", "test", reason))
-						} else {
-							assert.False(t, codertestutil.PromCounterGathered(t, gathered, "key_pool_state_transitions_total", "test", reason))
-						}
-					}
-					// Exhaustion outcome when no usable key remains.
-					for _, outcome := range []string{"rate_limited", "auth_failed"} {
-						if want := tc.expectedExhaustions[outcome]; want > 0 {
-							assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_exhaustions_total", outcome, "test"))
-						} else {
-							assert.False(t, codertestutil.PromCounterGathered(t, gathered, "key_pool_exhaustions_total", outcome, "test"))
-						}
-					}
-					// One observation per request, summing the keys tried.
-					hist := promhelp.HistogramValue(t, reg, "key_pool_failover_attempts", prometheus.Labels{"provider": "test"})
-					require.NotNil(t, hist)
-					assert.Equal(t, uint64(1), hist.GetSampleCount())
-					assert.Equal(t, float64(len(tc.upstreamResponses)), hist.GetSampleSum())
-				}
-			})
 		}
 	}
 }
