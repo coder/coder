@@ -72,6 +72,10 @@ OPTIONS:
           based on the 'owner' role is also allowed unless disabled via
           --disable-owner-workspace-access.
 
+  -n, --dry-run bool
+          Validate the effective server configuration and exit without starting
+          services.
+
       --swagger-enable bool, $CODER_SWAGGER_ENABLE
           Expose the swagger endpoint via /swagger.
 
