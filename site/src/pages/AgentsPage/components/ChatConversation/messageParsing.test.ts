@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor";
 import {
 	buildSubagentMaps,
@@ -651,6 +652,143 @@ describe("pending durable tool parsing", () => {
 
 		expect(parsed[1]?.parsed.tools[0]?.status).toBe("completed");
 		expect(parsed[3]?.parsed.tools[0]?.status).toBe("running");
+	});
+});
+
+describe("live tool result overlay", () => {
+	const mockAdvisorArgs = {
+		question: "on or off by default?",
+		model_intent: "Checking the default",
+	};
+	const mockAdvisorCall: ChatMessagePart = {
+		type: "tool-call",
+		tool_call_id: "call-advisor",
+		tool_name: "advisor",
+		args: mockAdvisorArgs,
+	};
+	const messages: ChatMessage[] = [
+		{
+			...MockChatMessage,
+			id: 24,
+			role: "user",
+			content: [{ type: "text", text: "Should this be on by default?" }],
+		},
+		{
+			...MockChatMessage,
+			id: 25,
+			role: "assistant",
+			content: [mockAdvisorCall],
+		},
+	];
+	const pendingToolCallIDs = getPendingToolCallIDs(messages, "running");
+
+	it("streams a live result into the durable call that owns it", () => {
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs,
+			liveToolResults: {
+				"call-advisor": {
+					id: "call-advisor",
+					name: "advisor",
+					result: "Turn it on",
+					reasoning: "Weighing the default",
+					isError: false,
+					isStreaming: true,
+				},
+			},
+		});
+
+		expect(parsed[1]?.parsed.tools).toEqual([
+			expect.objectContaining({
+				id: "call-advisor",
+				status: "running",
+				args: mockAdvisorArgs,
+				modelIntent: "Checking the default",
+				result: "Turn it on",
+				reasoning: "Weighing the default",
+			}),
+		]);
+	});
+
+	it("completes the durable call from a final live result before the durable result lands", () => {
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs,
+			liveToolResults: {
+				"call-advisor": {
+					id: "call-advisor",
+					name: "advisor",
+					result: { type: "advice", advice: "Turn it on" },
+					isError: false,
+				},
+			},
+		});
+
+		expect(parsed[1]?.parsed.tools[0]).toMatchObject({
+			status: "completed",
+			result: { type: "advice", advice: "Turn it on" },
+		});
+		expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
+	});
+
+	it.each([null, { type: "advice", advice: "Durable advice" }])(
+		"prefers the durable result over a stale live result: %j",
+		(durableResult) => {
+			const resolvedMessages: ChatMessage[] = [
+				...messages,
+				{
+					...MockChatMessage,
+					id: 26,
+					role: "tool",
+					content: [
+						{
+							type: "tool-result",
+							tool_call_id: "call-advisor",
+							tool_name: "advisor",
+							result: durableResult,
+						},
+					],
+				},
+			];
+
+			const parsed = parseMessagesWithMergedTools(resolvedMessages, {
+				pendingToolCallIDs: getPendingToolCallIDs(resolvedMessages, "running"),
+				liveToolResults: {
+					"call-advisor": {
+						id: "call-advisor",
+						name: "advisor",
+						result: "Stale partial advice",
+						reasoning: "Stale thinking",
+						isError: false,
+						isStreaming: true,
+					},
+				},
+			});
+
+			expect(parsed[1]?.parsed.tools[0]).toMatchObject({
+				status: "completed",
+				result: durableResult,
+			});
+			expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
+		},
+	);
+
+	it("ignores live results for other tool calls", () => {
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs,
+			liveToolResults: {
+				"call-other": {
+					id: "call-other",
+					name: "advisor",
+					result: "Unrelated",
+					reasoning: "Unrelated thinking",
+					isError: false,
+					isStreaming: true,
+				},
+			},
+		});
+
+		expect(parsed[1]?.parsed.tools[0]).toMatchObject({ status: "running" });
+		expect(parsed[1]?.parsed.tools[0]?.result).toBeUndefined();
+		expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
 	});
 });
 

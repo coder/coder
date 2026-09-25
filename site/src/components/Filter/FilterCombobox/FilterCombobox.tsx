@@ -52,6 +52,7 @@ import {
 	FilterComboboxList,
 	FilterComboboxRoot,
 	FilterComboboxStatus,
+	menuMaxHeightClassName,
 } from "./primitives";
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
@@ -67,10 +68,6 @@ import {
 const CATEGORY_HOVER_DELAY_MS = 300;
 
 const CLEAR_ALL_MIN_CHIPS = 3;
-
-// The popup lets flyouts overflow, so the menu caps its own height and scrolls.
-const menuMaxHeightClassName =
-	"max-h-[min(24rem,var(--radix-popper-available-height))]";
 
 const labelOnlyChipClassName =
 	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
@@ -128,7 +125,6 @@ export function FilterCombobox({
 		unfilteredOptionsErroredKeys,
 		valueSuggestions,
 		inlineOptionRows,
-		allInlineOptionRows,
 		chipValues,
 		highlightRef,
 		scopeWidened,
@@ -408,18 +404,20 @@ export function FilterCombobox({
 									? category.scopeToggle.pillLabel.toLowerCase()
 									: undefined;
 							const labelOnly = category?.chipLabelOnly === true;
-							const inlineOption = labelOnly
-								? allInlineOptionRows.find(
-										({ categoryKey, option }) =>
-											optionToken(categoryKey, option) === token,
-									)
-								: undefined;
+							const labelOption =
+								labelOnly && category
+									? unfilteredOptionsByKey
+											.get(category.key)
+											?.find(
+												(option) => optionToken(category.key, option) === token,
+											)
+									: undefined;
 							// Applied tokens read as query syntax, so they are always
 							// lowercase even when the menu shows a display label.
 							const prefix = (labelOnly ? "" : display.key).toLowerCase();
 							const value = (
-								inlineOption?.option.appliedLabel ??
-								inlineOption?.option.label ??
+								labelOption?.appliedLabel ??
+								labelOption?.label ??
 								display.value
 							).toLowerCase();
 							const displayText = prefix ? chipToken(prefix, value) : value;
@@ -691,6 +689,7 @@ function ChipLabel({
 
 type InlineOptionRow = {
 	categoryKey: string;
+	token: string;
 	categoryLabel: string;
 	selected: boolean;
 	showIcon: boolean;
@@ -794,26 +793,23 @@ function MainPanel({
 					<FilterComboboxLabel className="pt-0 opacity-80">
 						{label}
 					</FilterComboboxLabel>
-					{rows.map(({ categoryKey, option, selected, showIcon }) => {
-						const token = optionToken(categoryKey, option);
-						return (
-							<FilterComboboxItem
-								className={cn(
-									OPTION_ITEM_CLASS,
-									(!showIcon || selected) && "text-content-primary",
-								)}
-								key={token}
-								value={token}
-								onSelect={() => onToggleInlineOption(token)}
-							>
-								<OptionRowContent
-									icon={showIcon ? option.startIcon : undefined}
-									label={option.label}
-									selected={selected}
-								/>
-							</FilterComboboxItem>
-						);
-					})}
+					{rows.map(({ token, option, selected, showIcon }) => (
+						<FilterComboboxItem
+							className={cn(
+								OPTION_ITEM_CLASS,
+								(!showIcon || selected) && "text-content-primary",
+							)}
+							key={token}
+							value={token}
+							onSelect={() => onToggleInlineOption(token)}
+						>
+							<OptionRowContent
+								icon={showIcon ? option.startIcon : undefined}
+								label={option.label}
+								selected={selected}
+							/>
+						</FilterComboboxItem>
+					))}
 				</FilterComboboxGroup>
 			))}
 			{groupByCategoryLabel(valueSuggestions).map(
@@ -1201,19 +1197,18 @@ function CategoryOptionsList({
 }: CategoryOptionsListProps) {
 	if (optionsError) {
 		return (
-			<div
-				className={cn(
-					flyoutPanelClassName,
-					"items-center gap-2 px-3 py-6 text-center text-sm text-content-secondary",
-					embedded && "w-full rounded-none border-0 bg-transparent shadow-none",
-				)}
-				style={embedded ? undefined : { top: offset }}
+			<OptionsPanel
+				category={category}
+				embedded={embedded}
+				offset={offset}
+				scope={undefined}
+				onToggleScope={onToggleScope}
 			>
-				<span>{optionsLoadErrorMessage(category)}</span>
-				<Button size="sm" variant="outline" onClick={onRetry}>
-					Retry
-				</Button>
-			</div>
+				<LoadError
+					message={optionsLoadErrorMessage(category)}
+					onRetry={onRetry}
+				/>
+			</OptionsPanel>
 		);
 	}
 
@@ -1247,17 +1242,17 @@ function CategoryOptionsList({
 			{options === undefined && <LoadingOptions />}
 			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
 				{options?.map((option) => {
-					const item = optionToken(chipKey, option);
-					const selected = selectedTokens.includes(item);
+					const token = optionToken(chipKey, option);
+					const selected = selectedTokens.includes(token);
 					return (
 						<FilterComboboxItem
 							className={cn(
 								OPTION_ITEM_CLASS,
 								selected && "text-content-primary",
 							)}
-							key={item}
-							value={item}
-							onSelect={() => onSelectOption(item)}
+							key={token}
+							value={token}
+							onSelect={() => onSelectOption(token)}
 						>
 							<OptionRowContent
 								icon={option.startIcon}
