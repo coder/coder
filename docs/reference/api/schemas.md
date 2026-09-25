@@ -3101,6 +3101,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_name": "string",
       "source_id": "string",
       "start_line": 0,
+      "structured_output_data": [
+        0
+      ],
       "text": "string",
       "title": "string",
       "tool_call_id": "string",
@@ -3191,6 +3194,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "skill_name": "string",
   "source_id": "string",
   "start_line": 0,
+  "structured_output_data": [
+    0
+  ],
   "text": "string",
   "title": "string",
   "tool_call_id": "string",
@@ -3238,6 +3244,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
 | `source_id`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `start_line`                   | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `structured_output_data`       | array of integer                                             | false    |              | Structured output data is the JSON payload of a structured output request, control or outcome part. Internal only: cleared by StripInternal, and db2sdk drops those parts entirely.                                                                                                                                                                                                                        |
 | `text`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `title`                        | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `tool_call_id`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3255,9 +3262,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                    |
-|---------------------------------------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
+| Value(s)                                                                                                                                                                                                                           |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `structured-output-control`, `structured-output-outcome`, `structured-output-request`, `text`, `tool-call`, `tool-result` |
 
 ## codersdk.ChatMessageRole
 
@@ -3355,6 +3362,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",
@@ -3431,6 +3441,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",
@@ -4747,6 +4760,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_name": "string",
       "source_id": "string",
       "start_line": 0,
+      "structured_output_data": [
+        0
+      ],
       "text": "string",
       "title": "string",
       "tool_call_id": "string",
@@ -4905,6 +4921,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_name": "string",
         "source_id": "string",
         "start_line": 0,
+        "structured_output_data": [
+          0
+        ],
         "text": "string",
         "title": "string",
         "tool_call_id": "string",
@@ -4979,6 +4998,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_name": "string",
       "source_id": "string",
       "start_line": 0,
+      "structured_output_data": [
+        0
+      ],
       "text": "string",
       "title": "string",
       "tool_call_id": "string",
@@ -5040,6 +5062,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",
@@ -5150,6 +5175,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "skill_name": "string",
     "source_id": "string",
     "start_line": 0,
+    "structured_output_data": [
+      0
+    ],
     "text": "string",
     "title": "string",
     "tool_call_id": "string",
@@ -5915,6 +5943,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_name": "string",
         "source_id": "string",
         "start_line": 0,
+        "structured_output_data": [
+          0
+        ],
         "text": "string",
         "title": "string",
         "tool_call_id": "string",
@@ -5990,6 +6021,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",
@@ -6066,6 +6100,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_name": "string",
         "source_id": "string",
         "start_line": 0,
+        "structured_output_data": [
+          0
+        ],
         "text": "string",
         "title": "string",
         "tool_call_id": "string",
@@ -8898,6 +8935,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "skill_name": "string",
         "source_id": "string",
         "start_line": 0,
+        "structured_output_data": [
+          0
+        ],
         "text": "string",
         "title": "string",
         "tool_call_id": "string",
@@ -8973,6 +9013,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",

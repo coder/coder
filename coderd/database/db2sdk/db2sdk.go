@@ -1749,11 +1749,14 @@ func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error
 	if err != nil {
 		return nil, err
 	}
-	// Strip internal-only fields before API responses. Hook context
-	// parts are model-only and must never reach clients.
+	// Strip internal-only fields before API responses. Hook context and
+	// structured output metadata parts are internal and must never reach
+	// clients.
 	filtered := parts[:0]
 	for i := range parts {
-		if parts[i].Type == codersdk.ChatMessagePartTypeHookContext {
+		switch parts[i].Type {
+		case codersdk.ChatMessagePartTypeHookContext, codersdk.ChatMessagePartTypeStructuredOutputRequest,
+			codersdk.ChatMessagePartTypeStructuredOutputControl, codersdk.ChatMessagePartTypeStructuredOutputOutcome:
 			continue
 		}
 		parts[i].StripInternal()

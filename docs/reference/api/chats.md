@@ -2543,6 +2543,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",
@@ -2619,6 +2622,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",
@@ -2763,6 +2769,9 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "skill_name": "string",
         "source_id": "string",
         "start_line": 0,
+        "structured_output_data": [
+          0
+        ],
         "text": "string",
         "title": "string",
         "tool_call_id": "string",
@@ -2838,6 +2847,9 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",
@@ -2914,6 +2926,9 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "skill_name": "string",
         "source_id": "string",
         "start_line": 0,
+        "structured_output_data": [
+          0
+        ],
         "text": "string",
         "title": "string",
         "tool_call_id": "string",
@@ -3044,6 +3059,9 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "skill_name": "string",
         "source_id": "string",
         "start_line": 0,
+        "structured_output_data": [
+          0
+        ],
         "text": "string",
         "title": "string",
         "tool_call_id": "string",
@@ -3119,6 +3137,9 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",
@@ -3645,6 +3666,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "skill_name": "string",
           "source_id": "string",
           "start_line": 0,
+          "structured_output_data": [
+            0
+          ],
           "text": "string",
           "title": "string",
           "tool_call_id": "string",
@@ -3719,6 +3743,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "skill_name": "string",
         "source_id": "string",
         "start_line": 0,
+        "structured_output_data": [
+          0
+        ],
         "text": "string",
         "title": "string",
         "tool_call_id": "string",
@@ -3780,6 +3807,9 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "skill_name": "string",
             "source_id": "string",
             "start_line": 0,
+            "structured_output_data": [
+              0
+            ],
             "text": "string",
             "title": "string",
             "tool_call_id": "string",
@@ -3873,6 +3903,7 @@ Status Code **200**
 | `»»» skill_name`                   | string                                                                           | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
 | `»»» source_id`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» start_line`                   | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» structured_output_data`       | array                                                                            | false    |              | Structured output data is the JSON payload of a structured output request, control or outcome part. Internal only: cleared by StripInternal, and db2sdk drops those parts entirely.                                                                                                                                                                                                                        |
 | `»»» text`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» title`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» tool_call_id`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3919,12 +3950,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value(s)                                                                                                                                                                                                                                                                |
-|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                |
-| `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result` |
-| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                   |
-| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                        |
+| Property | Value(s)                                                                                                                                                                                                                                                                                                                                                       |
+|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                                                                                       |
+| `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `structured-output-control`, `structured-output-outcome`, `structured-output-request`, `text`, `tool-call`, `tool-result` |
+| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                                                                          |
+| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                                                                               |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
