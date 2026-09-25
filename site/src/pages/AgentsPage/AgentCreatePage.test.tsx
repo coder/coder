@@ -223,9 +223,10 @@ describe("AgentCreatePage prompt link", () => {
 		const { router } = renderPage(`${deepLink}&prompt=hi`);
 
 		const sendButton = await findEnabledSendButton();
-		expect(router.state.location).toMatchObject({
-			search: "?archived=archived",
-			state: { debugWorkspaceBuildId: failedBuild.id },
+		expect(router.state.location.search).toBe("?archived=archived");
+		// Exact match: a prompt left in state would show the link alert.
+		expect(router.state.location.state).toEqual({
+			debugWorkspaceBuildId: failedBuild.id,
 		});
 		await user.click(sendButton);
 
