@@ -33,8 +33,8 @@ import {
  * the popup `overflow-visible` so flyouts can extend past it, as
  * `FilterCombobox` does.
  */
-export const menuMaxHeightClassName =
-	"max-h-[min(24rem,var(--radix-popper-available-height))]";
+// Bounded only by the viewport, so the menu scrolls only when it cannot fit.
+export const menuMaxHeightClassName = "max-h-(--radix-popper-available-height)";
 
 const FilterComboboxAnchorContext =
 	createContext<RefObject<HTMLDivElement | null> | null>(null);
