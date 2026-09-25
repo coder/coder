@@ -2,7 +2,7 @@ import { RotateCcwIcon } from "lucide-react";
 import type { FC } from "react";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
-import { ChatTopBar } from "./components/ChatTopBar";
+import { ChatTopBarFrame } from "./components/ChatTopBar";
 
 type AgentChatPageErrorViewProps = {
 	error: unknown;
@@ -17,7 +17,7 @@ export const AgentChatPageErrorView: FC<AgentChatPageErrorViewProps> = ({
 
 	return (
 		<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-			<ChatTopBar
+			<ChatTopBarFrame
 				panel={{
 					showSidebarPanel: false,
 					onToggleSidebar: () => {},

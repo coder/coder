@@ -9,7 +9,7 @@ import {
 	Share2Icon,
 	UsersIcon,
 } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
 import { checkAuthorization } from "#/api/queries/authCheck";
@@ -49,7 +49,7 @@ type ChatSharingTopBarButtonProps = {
 };
 
 type ChatTopBarProps = {
-	chat?: TypesGen.Chat;
+	chat: TypesGen.Chat;
 	liveChatStatus?: TypesGen.ChatStatus | null;
 	panel: SidebarPanelState;
 };
@@ -91,87 +91,28 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 	);
 };
 
-export const ChatTopBar: FC<ChatTopBarProps> = ({
-	chat,
-	liveChatStatus,
+type ChatTopBarFrameProps = {
+	panel: SidebarPanelState;
+	/** Title area content, such as the chat title and actions menu. */
+	children?: ReactNode;
+	pullRequestLink?: ReactNode;
+	shareButton?: ReactNode;
+};
+
+/**
+ * The top bar layout without chat-specific content. Rendered on its own by
+ * the loading, error, and not-found views, which have no chat.
+ */
+export const ChatTopBarFrame: FC<ChatTopBarFrameProps> = ({
 	panel,
+	children,
+	pullRequestLink,
+	shareButton,
 }) => {
 	const { isEmbedded } = useEmbedContext();
-	const { user: currentUser } = useAuthenticated();
 	const location = useLocation();
-	const parentChatID = getParentChatID(chat);
-	const parentChatQuery = useQuery({
-		...chatById(parentChatID ?? ""),
-		enabled: Boolean(parentChatID),
-	});
-	const parentChat = parentChatQuery.data;
-	const isRootChat = chat !== undefined && parentChatID === undefined;
-	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
-	if (chat !== undefined && isRootChat) {
-		chatAuthorizationChecks.canShareChat = {
-			object: {
-				resource_type: "chat",
-				owner_id: chat.owner_id,
-				organization_id: chat.organization_id,
-			},
-			action: "share",
-		};
-	}
-	const chatAuthorizationQuery = useQuery({
-		...checkAuthorization({ checks: chatAuthorizationChecks }),
-		enabled: Object.keys(chatAuthorizationChecks).length > 0,
-	});
-	const canShareChat =
-		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
-	const {
-		isSidebarCollapsed,
-		onToggleSidebarCollapsed,
-		requestArchiveAgent,
-		requestUnarchiveAgent,
-		requestArchiveAndDeleteWorkspace,
-		requestPinAgent,
-		requestUnpinAgent,
-		onOpenRenameDialog,
-		isArchiving = false,
-		archivingChatId,
-		activeChatChildren,
-	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
-
-	const chatTitle = chat?.title;
-	const isArchived = chat?.archived ?? false;
-	const isSharedChat = chat?.shared;
-	const canManage = chat !== undefined && canManageChat(chat, currentUser.id);
-	const hasWorkspace = Boolean(chat?.workspace_id);
-	const isArchivingThisChat = Boolean(
-		isArchiving &&
-			chat &&
-			(archivingChatId === undefined || archivingChatId === chat.id),
-	);
-	// The per-chat stream updates this before the global chat record catches up.
-	const isArchiveBlocked = chat
-		? !chatFamilyAllowsArchive(
-				liveChatStatus ?? chat.status,
-				activeChatChildren,
-			)
-		: false;
-	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
-	// Suppressed when there is no chat to act on (loading and not-found views)
-	// and when the chat has no menu actions (archived child chats and chats
-	// shared by another user).
-	const showActionsMenu =
-		!isEmbedded &&
-		chat !== undefined &&
-		Boolean(chatTitle) &&
-		chatHasMenuActions(chat, { canManage });
-	const diffStatus = chat?.diff_status;
-
-	const prUrl = diffStatus?.url;
-	const prState = diffStatus?.pull_request_state;
-	const prDraft = diffStatus?.pull_request_draft;
-	const prTitle = diffStatus?.pull_request_title;
-	const parsedPr = parsePullRequestUrl(prUrl);
-	const prNumberMatch = diffStatus?.pr_number?.toString() ?? parsedPr?.number;
-	const hasPR = Boolean(prState || prNumberMatch || parsedPr);
+	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
+		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 
 	return (
 		<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
@@ -204,146 +145,11 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 				</Button>
 			)}
 			{/* Title area */}
-			<div className="flex min-w-0 flex-1 items-center gap-1.5">
-				{chatTitle && (
-					<div
-						role="status"
-						aria-live="polite"
-						className="flex min-w-0 items-center gap-1.5"
-					>
-						{parentChat && (
-							<>
-								<Button
-									asChild
-									size="sm"
-									variant="subtle"
-									className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-sm text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
-								>
-									<Link
-										to={{
-											pathname: `/agents/${parentChat.id}`,
-											search: location.search,
-										}}
-									>
-										<span className="truncate">{parentChat.title}</span>
-									</Link>
-								</Button>
-								<ChevronRightIcon className="size-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
-							</>
-						)}
-						<span className="truncate text-sm text-content-primary">
-							{chatTitle}
-						</span>
-						{isSharedChat && (
-							<UsersIcon
-								className="size-3.5 shrink-0 text-content-secondary"
-								aria-label="Shared chat"
-							/>
-						)}
-					</div>
-				)}
-				{/* Actions menu sits inline with the title so it tracks the title's right edge. */}
-				{chat && showActionsMenu && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon"
-								variant="subtle"
-								className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
-								aria-label="Open agent actions"
-							>
-								<EllipsisVerticalIcon className="size-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent
-							align="start"
-							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
-						>
-							<ChatActionsMenuItems
-								chat={chat}
-								canManage={canManage}
-								hasWorkspace={hasWorkspace}
-								isArchiving={isArchivingThisChat}
-								isArchiveBlocked={isArchiveBlocked}
-								onPinAgent={
-									showPinAction && !isArchived
-										? () => {
-												requestPinAgent?.(chat.id);
-											}
-										: undefined
-								}
-								onUnpinAgent={
-									showPinAction && !isArchived
-										? () => {
-												requestUnpinAgent?.(chat.id);
-											}
-										: undefined
-								}
-								onArchiveAgent={() => {
-									if (isArchived) {
-										return;
-									}
-									requestArchiveAgent?.(chat.id);
-								}}
-								onUnarchiveAgent={() => {
-									if (!isArchived) {
-										return;
-									}
-									requestUnarchiveAgent?.(chat.id);
-								}}
-								onArchiveAndDeleteWorkspace={() => {
-									const workspaceId = chat.workspace_id;
-									if (isArchived || !workspaceId) {
-										return;
-									}
-									requestArchiveAndDeleteWorkspace?.(chat.id, workspaceId);
-								}}
-								onOpenRenameDialog={
-									!isArchived && onOpenRenameDialog
-										? () => onOpenRenameDialog(chat)
-										: undefined
-								}
-								Item={DropdownMenuItem}
-								Separator={DropdownMenuSeparator}
-							/>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				)}
-			</div>
-			{/* PR link. On mobile: icon + number; on desktop: icon + title.
-			   Hidden on desktop when the sidebar panel is open
-			   (which already shows PR info). */}
-			{prUrl && hasPR && (
-				<a
-					href={prUrl}
-					target="_blank"
-					rel="noreferrer"
-					className={cn(
-						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
-						panel.showSidebarPanel && "lg:hidden",
-					)}
-				>
-					<PrStateIcon
-						state={prState}
-						draft={prDraft}
-						className="size-3.5! shrink-0"
-					/>
-					<span className="truncate max-w-[120px] hidden sm:inline">
-						{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}
-					</span>
-					<span className="sm:hidden">
-						{prNumberMatch ? prNumberMatch : "PR"}
-					</span>
-				</a>
-			)}
+			<div className="flex min-w-0 flex-1 items-center gap-1.5">{children}</div>
+			{pullRequestLink}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
-				{!isEmbedded && canShareChat && chat && (
-					<ChatSharingTopBarButton
-						chatId={chat.id}
-						organizationId={chat.organization_id}
-					/>
-				)}
+				{shareButton}
 				{!isEmbedded && (
 					<Button
 						variant="subtle"
@@ -361,5 +167,228 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 				)}
 			</div>
 		</div>
+	);
+};
+
+export const ChatTopBar: FC<ChatTopBarProps> = ({
+	chat,
+	liveChatStatus,
+	panel,
+}) => {
+	const { isEmbedded } = useEmbedContext();
+	const { user: currentUser } = useAuthenticated();
+	const location = useLocation();
+	const parentChatID = getParentChatID(chat);
+	const parentChatQuery = useQuery({
+		...chatById(parentChatID ?? ""),
+		enabled: Boolean(parentChatID),
+	});
+	const parentChat = parentChatQuery.data;
+	const isRootChat = parentChatID === undefined;
+	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
+	if (isRootChat) {
+		chatAuthorizationChecks.canShareChat = {
+			object: {
+				resource_type: "chat",
+				owner_id: chat.owner_id,
+				organization_id: chat.organization_id,
+			},
+			action: "share",
+		};
+	}
+	const chatAuthorizationQuery = useQuery({
+		...checkAuthorization({ checks: chatAuthorizationChecks }),
+		enabled: Object.keys(chatAuthorizationChecks).length > 0,
+	});
+	const canShareChat =
+		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
+	const {
+		requestArchiveAgent,
+		requestUnarchiveAgent,
+		requestArchiveAndDeleteWorkspace,
+		requestPinAgent,
+		requestUnpinAgent,
+		onOpenRenameDialog,
+		isArchiving = false,
+		archivingChatId,
+		activeChatChildren,
+	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
+
+	const chatTitle = chat.title;
+	const isArchived = chat.archived;
+	const canManage = canManageChat(chat, currentUser.id);
+	const hasWorkspace = Boolean(chat.workspace_id);
+	const isArchivingThisChat =
+		isArchiving &&
+		(archivingChatId === undefined || archivingChatId === chat.id);
+	// The per-chat stream updates this before the global chat record catches up.
+	const isArchiveBlocked = !chatFamilyAllowsArchive(
+		liveChatStatus ?? chat.status,
+		activeChatChildren,
+	);
+	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
+	// Suppressed when the chat has no menu actions (archived child chats and
+	// chats shared by another user).
+	const showActionsMenu =
+		!isEmbedded &&
+		Boolean(chatTitle) &&
+		chatHasMenuActions(chat, { canManage });
+	const diffStatus = chat.diff_status;
+
+	const prUrl = diffStatus?.url;
+	const prState = diffStatus?.pull_request_state;
+	const prDraft = diffStatus?.pull_request_draft;
+	const prTitle = diffStatus?.pull_request_title;
+	const parsedPr = parsePullRequestUrl(prUrl);
+	const prNumberMatch = diffStatus?.pr_number?.toString() ?? parsedPr?.number;
+	const hasPR = Boolean(prState || prNumberMatch || parsedPr);
+
+	return (
+		<ChatTopBarFrame
+			panel={panel}
+			pullRequestLink={
+				/* PR link. On mobile: icon + number; on desktop: icon + title.
+				   Hidden on desktop when the sidebar panel is open
+				   (which already shows PR info). */
+				prUrl &&
+				hasPR && (
+					<a
+						href={prUrl}
+						target="_blank"
+						rel="noreferrer"
+						className={cn(
+							"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+							panel.showSidebarPanel && "lg:hidden",
+						)}
+					>
+						<PrStateIcon
+							state={prState}
+							draft={prDraft}
+							className="size-3.5! shrink-0"
+						/>
+						<span className="truncate max-w-[120px] hidden sm:inline">
+							{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}
+						</span>
+						<span className="sm:hidden">
+							{prNumberMatch ? prNumberMatch : "PR"}
+						</span>
+					</a>
+				)
+			}
+			shareButton={
+				!isEmbedded &&
+				canShareChat && (
+					<ChatSharingTopBarButton
+						chatId={chat.id}
+						organizationId={chat.organization_id}
+					/>
+				)
+			}
+		>
+			{chatTitle && (
+				<div
+					role="status"
+					aria-live="polite"
+					className="flex min-w-0 items-center gap-1.5"
+				>
+					{parentChat && (
+						<>
+							<Button
+								asChild
+								size="sm"
+								variant="subtle"
+								className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-sm text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
+							>
+								<Link
+									to={{
+										pathname: `/agents/${parentChat.id}`,
+										search: location.search,
+									}}
+								>
+									<span className="truncate">{parentChat.title}</span>
+								</Link>
+							</Button>
+							<ChevronRightIcon className="size-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
+						</>
+					)}
+					<span className="truncate text-sm text-content-primary">
+						{chatTitle}
+					</span>
+					{chat.shared && (
+						<UsersIcon
+							className="size-3.5 shrink-0 text-content-secondary"
+							aria-label="Shared chat"
+						/>
+					)}
+				</div>
+			)}
+			{/* Actions menu sits inline with the title so it tracks the title's right edge. */}
+			{showActionsMenu && (
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							size="icon"
+							variant="subtle"
+							className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
+							aria-label="Open agent actions"
+						>
+							<EllipsisVerticalIcon className="size-4" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent
+						align="start"
+						className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+					>
+						<ChatActionsMenuItems
+							chat={chat}
+							canManage={canManage}
+							hasWorkspace={hasWorkspace}
+							isArchiving={isArchivingThisChat}
+							isArchiveBlocked={isArchiveBlocked}
+							onPinAgent={
+								showPinAction && !isArchived
+									? () => {
+											requestPinAgent?.(chat.id);
+										}
+									: undefined
+							}
+							onUnpinAgent={
+								showPinAction && !isArchived
+									? () => {
+											requestUnpinAgent?.(chat.id);
+										}
+									: undefined
+							}
+							onArchiveAgent={() => {
+								if (isArchived) {
+									return;
+								}
+								requestArchiveAgent?.(chat.id);
+							}}
+							onUnarchiveAgent={() => {
+								if (!isArchived) {
+									return;
+								}
+								requestUnarchiveAgent?.(chat.id);
+							}}
+							onArchiveAndDeleteWorkspace={() => {
+								const workspaceId = chat.workspace_id;
+								if (isArchived || !workspaceId) {
+									return;
+								}
+								requestArchiveAndDeleteWorkspace?.(chat.id, workspaceId);
+							}}
+							onOpenRenameDialog={
+								!isArchived && onOpenRenameDialog
+									? () => onOpenRenameDialog(chat)
+									: undefined
+							}
+							Item={DropdownMenuItem}
+							Separator={DropdownMenuSeparator}
+						/>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			)}
+		</ChatTopBarFrame>
 	);
 };

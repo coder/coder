@@ -240,10 +240,6 @@ describe("getLatestContextUsage", () => {
 // ---------------------------------------------------------------------------
 
 describe("getParentChatID", () => {
-	it("returns undefined for undefined chat", () => {
-		expect(getParentChatID(undefined)).toBeUndefined();
-	});
-
 	it("returns undefined when parent_chat_id is not present", () => {
 		const chat = { id: "c1", title: "test" } as TypesGen.Chat;
 		expect(getParentChatID(chat)).toBeUndefined();
