@@ -579,12 +579,20 @@ func apiKeyFromRequestValidate(ctx context.Context, db database.Store, logger sl
 	// OAuth2 provider. Coder session tokens still work in the query string
 	// because browsers cannot set headers on WebSocket connections.
 	if key.LoginType == database.LoginTypeOAuth2ProviderApp && tokenOnlyInQuery(r, token) {
-		logger.Warn(ctx, "oauth2 access token refused: sent in the URL query string",
+		fields := []slog.Field{
 			slog.F("api_key_id", key.ID),
+			slog.F("user_id", key.UserID),
 			slog.F("path", r.URL.Path),
 			slog.F("remote_addr", r.RemoteAddr),
 			slog.F("user_agent", r.UserAgent()),
-		)
+		}
+		// The app ID is what the admin pages list, so include it when the
+		// token row can be found.
+		//nolint:gocritic // OAuth2 system context, only used to name the app in the log.
+		if appToken, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemOAuth2(ctx), key.ID); err == nil {
+			fields = append(fields, slog.F("app_id", appToken.AppID))
+		}
+		logger.Warn(ctx, "oauth2 access token refused: sent in the URL query string", fields...)
 		return nil, &ValidateAPIKeyError{
 			Code: http.StatusUnauthorized,
 			Response: codersdk.Response{

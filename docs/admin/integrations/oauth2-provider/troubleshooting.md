@@ -168,7 +168,8 @@ A dashboard page embedded in another application and authenticated with an OAuth
 
 A token that also appears in the `Authorization` header, the `Coder-Session-Token` header, or the session cookie is accepted, and the query copy is ignored.
 
-Each refusal writes a log line containing `oauth2 access token refused: sent in the URL query string` with the `api_key_id`, `path`, `remote_addr`, and `user_agent` of the request.
+Each refusal writes a log line containing `oauth2 access token refused: sent in the URL query string` with the `api_key_id`, `user_id`, `app_id`, `path`, `remote_addr`, and `user_agent` of the request.
+The `app_id` matches the application in the **OAuth2 Applications** admin page, and the `user_id` names the user whose authorization the integration is using.
 Search the Coder logs for that string to find the integration that sends the token in the URL.
 The refused token stays valid and is not marked as used.
 
