@@ -173,7 +173,9 @@ func TestResolveModelCallResolvedEffort(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.wantEffort, resolved.resolvedEffort)
-			wantStageModel := chatloop.StageModel{ProviderType: string(tt.providerType), Model: "gpt-5", Effort: tt.wantEffort}
+			// The wire provider is the one the built client reports.
+			require.NotEmpty(t, resolved.model.Provider())
+			wantStageModel := chatloop.StageModel{Provider: resolved.model.Provider(), ProviderType: string(tt.providerType), Model: "gpt-5", Effort: tt.wantEffort}
 			require.Equal(t, wantStageModel, resolved.stageModel())
 			if tt.providerType == database.AIProviderTypeOpenai && tt.wantEffort != "" {
 				requireOpenAIReasoningEffort(t, resolved.providerOptions, tt.wantEffort)
@@ -186,6 +188,7 @@ func TestResolveModelCallResolvedEffort(t *testing.T) {
 			ended := recorder.Ended()
 			require.Len(t, ended, 1)
 			require.Equal(t, string(chatloop.StageProviderAttempt), ended[0].Name())
+			require.Contains(t, ended[0].Attributes(), attribute.String(chatloop.AttrProvider, wantStageModel.Provider))
 			require.Contains(t, ended[0].Attributes(), attribute.String(chatloop.AttrProviderType, wantStageModel.ProviderType))
 			require.Contains(t, ended[0].Attributes(), attribute.String(chatloop.AttrModel, wantStageModel.Model))
 			if wantStageModel.Effort != "" {

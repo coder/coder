@@ -18,7 +18,6 @@ import (
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -333,9 +332,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		opts.OnModelStreamStart()
 	}
 	stepCtx := chatdebug.ReuseStep(ctx)
-	streamCtx, streamSpan := opts.Stages.Start(stepCtx, StageStream,
-		attribute.String(AttrProvider, provider),
-	)
+	streamCtx, streamSpan := opts.Stages.Start(stepCtx, StageStream)
 	streamSpan.SetModel(opts.StageModel)
 	attempt, streamErr := guardedStream(
 		streamCtx,
@@ -815,15 +812,16 @@ func guardedStream(
 	}
 	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
 	kick(timeout)
-	streamStart := clock.Now()
-	_, ttftSpan := stages.Start(parent, StageTimeToFirstToken,
-		attribute.String(AttrProvider, provider),
-	)
+	// A nil tracer still times the window TTFTSeconds observes.
+	if stages == nil {
+		stages = NewStageTracer(nil, nil, WithClock(clock))
+	}
+	_, ttftSpan := stages.Start(parent, StageTimeToFirstToken)
 	ttftSpan.SetModel(stageModel)
 	var ttftOnce sync.Once
-	// ttftSpan.End(nil) observes the stage histograms as well as the
-	// span. A silence timeout replaces err, which is then only the
-	// cancellation it caused.
+	// ttftSpan.End(nil) observes the stage histogram and returns the
+	// window TTFTSeconds observes. A silence timeout replaces err, which
+	// is then only the cancellation it caused.
 	finishTTFT := func(err error) {
 		ttftOnce.Do(func() {
 			if err != nil {
@@ -833,10 +831,8 @@ func guardedStream(
 				ttftSpan.EndWithoutObservation(err)
 				return
 			}
-			metrics.TTFTSeconds.WithLabelValues(provider, model).Observe(
-				clock.Since(streamStart).Seconds(),
-			)
-			ttftSpan.End(nil)
+			elapsed := ttftSpan.End(nil)
+			metrics.TTFTSeconds.WithLabelValues(provider, model).Observe(elapsed.Seconds())
 		})
 	}
 	var releaseOnce sync.Once

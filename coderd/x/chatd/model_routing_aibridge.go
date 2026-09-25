@@ -268,7 +268,7 @@ func (p *Server) newModel(
 	if opts.RecordHTTP {
 		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
-	baseRT = &stageSpanRoundTripper{base: baseRT, stages: p.stages, stageModel: opts.StageModel}
+	stageRT := &stageSpanRoundTripper{base: baseRT, stages: p.stages, stageModel: opts.StageModel}
 
 	config := fantasyConfigForAIBridge(route.Provider.Type, req.ModelName)
 	openAIConfig := req.CallConfig.OpenAIConfig
@@ -285,15 +285,22 @@ func (p *Server) newModel(
 	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)
 	callConfig := req.CallConfig
 	callConfig.OpenAIConfig = openAIConfig
-	return newLanguageModel(
+	model, err := newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
 		config.Keys,
 		req.UserAgent,
 		extraHeaders,
-		&http.Client{Transport: baseRT},
+		&http.Client{Transport: stageRT},
 		&callConfig,
 	)
+	if err != nil {
+		return chatprovider.Model{}, err
+	}
+	// The model has sent no request yet, so the transport's identity
+	// can still take the wire provider the client reports.
+	stageRT.stageModel.Provider = model.Provider()
+	return model, nil
 }
 
 func coerceBedrockReasoningSummary(providerType database.AIProviderType, model string, callConfig codersdk.ChatModelCallConfig) codersdk.ChatModelCallConfig {
