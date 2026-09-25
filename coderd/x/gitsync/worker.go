@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
@@ -206,7 +207,7 @@ func (w *Worker) tick(ctx context.Context) {
 
 	for _, res := range results {
 		if errors.Is(res.Error, ErrStalePullRequest) {
-			if err := w.clearStalePR(ctx, res.Request.Row.ChatID); err != nil {
+			if err := w.clearStalePR(ctx, res.Request.Row); err != nil {
 				w.logger.Warn(ctx, "clear stale chat diff status PR",
 					slog.F("chat_id", res.Request.Row.ChatID),
 					slog.Error(err))
@@ -227,8 +228,10 @@ func (w *Worker) tick(ctx context.Context) {
 			// Back off so the row isn't retried immediately.
 			if err := w.store.BackoffChatDiffStatus(ctx,
 				database.BackoffChatDiffStatusParams{
-					ChatID:  res.Request.Row.ChatID,
-					StaleAt: w.clock.Now().UTC().Add(backoff),
+					ChatID:          res.Request.Row.ChatID,
+					GitRemoteOrigin: res.Request.Row.GitRemoteOrigin,
+					GitBranch:       res.Request.Row.GitBranch,
+					StaleAt:         w.clock.Now().UTC().Add(backoff),
 				},
 			); err != nil {
 				w.logger.Warn(ctx, "backoff failed chat diff status",
@@ -249,8 +252,10 @@ func (w *Worker) tick(ctx context.Context) {
 			if age < NoPRRetryWindow {
 				if err := w.store.BackoffChatDiffStatus(ctx,
 					database.BackoffChatDiffStatusParams{
-						ChatID:  res.Request.Row.ChatID,
-						StaleAt: w.clock.Now().UTC().Add(NoPRBackoff),
+						ChatID:          res.Request.Row.ChatID,
+						GitRemoteOrigin: res.Request.Row.GitRemoteOrigin,
+						GitBranch:       res.Request.Row.GitBranch,
+						StaleAt:         w.clock.Now().UTC().Add(NoPRBackoff),
 					},
 				); err != nil {
 					w.logger.Warn(ctx, "backoff no-pr chat diff status",
@@ -296,6 +301,8 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 		return
 	}
 
+	p.Origin = originCredentials.ReplaceAllString(p.Origin, "$1")
+
 	// When a specific chat is identified, target it directly
 	// instead of broadcasting to every chat on the workspace.
 	// Note: this path does not verify that the chat belongs to
@@ -324,8 +331,14 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 	}
 }
 
-// markStaleSingle upserts the git ref for a single chat and
-// publishes a diff-status change event.
+// originCredentials matches the user and password in an HTTP(S) remote
+// such as "https://<token>@github.com/o/r.git". SSH remotes keep their
+// user: it is not a secret, and GitHub needs "git@" to parse them.
+// Migration 000602 strips existing rows with the same pattern.
+var originCredentials = regexp.MustCompile(`^(https?://)[^/]*@`)
+
+// markStaleSingle upserts the git ref for a single chat and publishes
+// a diff-status change event.
 func (w *Worker) markStaleSingle(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -346,6 +359,7 @@ func (w *Worker) markStaleSingle(
 			slog.Error(err))
 		return
 	}
+
 	// Notify the frontend immediately so the UI shows the
 	// branch info even before the worker refreshes PR data.
 	if w.publishDiffStatusChangeFn != nil {
@@ -358,17 +372,19 @@ func (w *Worker) markStaleSingle(
 
 // clearStalePR drops a chat's stored PR when its branch no longer
 // has one.
-func (w *Worker) clearStalePR(ctx context.Context, chatID uuid.UUID) error {
+func (w *Worker) clearStalePR(ctx context.Context, row database.ChatDiffStatus) error {
 	if err := w.store.ClearChatDiffStatusPR(ctx, database.ClearChatDiffStatusPRParams{
-		ChatID:  chatID,
-		StaleAt: w.clock.Now().UTC().Add(NoPRBackoff),
+		ChatID:          row.ChatID,
+		GitRemoteOrigin: row.GitRemoteOrigin,
+		GitBranch:       row.GitBranch,
+		StaleAt:         w.clock.Now().UTC().Add(NoPRBackoff),
 	}); err != nil {
 		return xerrors.Errorf("clear stale chat diff status PR: %w", err)
 	}
 	if w.publishDiffStatusChangeFn != nil {
-		if err := w.publishDiffStatusChangeFn(ctx, chatID); err != nil {
+		if err := w.publishDiffStatusChangeFn(ctx, row.ChatID); err != nil {
 			w.logger.Debug(ctx, "publish diff status change",
-				slog.F("chat_id", chatID), slog.Error(err))
+				slog.F("chat_id", row.ChatID), slog.Error(err))
 		}
 	}
 	return nil
@@ -398,7 +414,7 @@ func (w *Worker) RefreshChat(
 	}
 	res := results[0]
 	if errors.Is(res.Error, ErrStalePullRequest) {
-		if err := w.clearStalePR(ctx, row.ChatID); err != nil {
+		if err := w.clearStalePR(ctx, row); err != nil {
 			return nil, err
 		}
 		return nil, nil

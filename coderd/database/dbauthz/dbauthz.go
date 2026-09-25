@@ -3308,21 +3308,21 @@ func (q *querier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 	return q.db.GetChatDesktopEnabled(ctx)
 }
 
-func (q *querier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (database.ChatDiffStatus, error) {
-	// Authorize read on the parent chat.
-	_, err := q.GetChatByID(ctx, chatID)
-	if err != nil {
-		return database.ChatDiffStatus{}, err
-	}
-	return q.db.GetChatDiffStatusByChatID(ctx, chatID)
-}
-
 func (q *querier) GetChatDiffStatusSummary(ctx context.Context) (database.GetChatDiffStatusSummaryRow, error) {
 	// Telemetry queries are called from system contexts only.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.GetChatDiffStatusSummaryRow{}, err
 	}
 	return q.db.GetChatDiffStatusSummary(ctx)
+}
+
+func (q *querier) GetChatDiffStatusesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatDiffStatus, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatDiffStatusesByChatID(ctx, chatID)
 }
 
 func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uuid.UUID) ([]database.ChatDiffStatus, error) {
@@ -7539,6 +7539,17 @@ func (q *querier) UpdateChatDebugStep(ctx context.Context, arg database.UpdateCh
 	return q.db.UpdateChatDebugStep(ctx, arg)
 }
 
+func (q *querier) UpdateChatDiffStatusReferenceURL(ctx context.Context, arg database.UpdateChatDiffStatusReferenceURLParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UpdateChatDiffStatusReferenceURL(ctx, arg)
+}
+
 func (q *querier) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {
@@ -9085,7 +9096,6 @@ func (q *querier) UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bo
 }
 
 func (q *querier) UpsertChatDiffStatus(ctx context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
-	// Authorize update on the parent chat.
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return database.ChatDiffStatus{}, err
@@ -9097,7 +9107,6 @@ func (q *querier) UpsertChatDiffStatus(ctx context.Context, arg database.UpsertC
 }
 
 func (q *querier) UpsertChatDiffStatusReference(ctx context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
-	// Authorize update on the parent chat.
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return database.ChatDiffStatus{}, err
