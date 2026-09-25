@@ -23,6 +23,16 @@ const MessageScrollerContext =
   React.createContext<MessageScrollerContextValue | null>(null)
 const MessageScrollerItemContext =
   React.createContext<MessageScrollerRegisterMessage | null>(null)
+// LOCAL CHANGE: layout-intent context, scoped to the Viewport so only content
+// inside the scrollable region can signal a user layout change. Defaults to a
+// no-op outside a Viewport, so shared components (tool disclosures) render
+// standalone in stories and tests without a provider.
+const MessageScrollerLayoutIntentContext =
+  React.createContext<() => void>(() => {})
+
+function useMessageScrollerLayoutIntent() {
+  return React.useContext(MessageScrollerLayoutIntentContext)
+}
 
 function useMessageScrollerContext() {
   const context = React.useContext(MessageScrollerContext)
@@ -143,6 +153,8 @@ function MessageScrollerViewport({
     preserveScrollOnPrependRef,
     setViewportElement,
     syncAfterScroll,
+    // LOCAL CHANGE
+    userLayoutIntent,
     userScrollIntent,
     viewportRef,
   } = useMessageScrollerContext()
@@ -205,20 +217,25 @@ function MessageScrollerViewport({
     }
   }, [handleResize, viewportRef])
 
+  // LOCAL CHANGE: expose the controller's userLayoutIntent through the
+  // viewport-scoped context (declared above) instead of a DOM event.
+
   return (
-    <div
-      ref={setViewportRef}
-      role={role ?? "region"}
-      aria-label={ariaLabel ?? "Messages"}
-      tabIndex={tabIndex ?? 0}
-      onKeyDown={handleKeyDown}
-      onScroll={handleScroll}
-      onTouchMove={handleTouchMove}
-      onWheel={handleWheel}
-      {...props}
-    >
-      {children}
-    </div>
+    <MessageScrollerLayoutIntentContext.Provider value={userLayoutIntent}>
+      <div
+        ref={setViewportRef}
+        role={role ?? "region"}
+        aria-label={ariaLabel ?? "Messages"}
+        tabIndex={tabIndex ?? 0}
+        onKeyDown={handleKeyDown}
+        onScroll={handleScroll}
+        onTouchMove={handleTouchMove}
+        onWheel={handleWheel}
+        {...props}
+      >
+        {children}
+      </div>
+    </MessageScrollerLayoutIntentContext.Provider>
   )
 }
 
@@ -428,6 +445,8 @@ export {
   MessageScrollerProvider,
   MessageScrollerViewport,
   useMessageScroller,
+  // LOCAL CHANGE
+  useMessageScrollerLayoutIntent,
   useMessageScrollerScrollable,
   useMessageScrollerVisibility,
 }

@@ -11,6 +11,7 @@ import {
   getFirstVisibleMessageItem,
   getFlexGap,
   getLastScrollAnchor,
+  getMaxScrollTop,
   getMessageScrollerItems,
   getMessageScrollerScrollable,
   getMessageScrollerVisibilityState,
@@ -99,9 +100,15 @@ function useMessageScrollerController({
     visibilityStore,
     visibleMessageIdsRef,
     handledScrollAnchorsRef,
+    // LOCAL CHANGE
+    followLatchRef,
   } = refs
 
   const previousDefaultScrollPositionRef = React.useRef(defaultScrollPosition)
+  // LOCAL CHANGE: the MutationObserver that reanchors after a disclosure
+  // toggle's layout change, created lazily by userLayoutIntent.
+  const userLayoutIntentObserverRef =
+    React.useRef<MutationObserver | null>(null)
 
   if (previousDefaultScrollPositionRef.current !== defaultScrollPosition) {
     previousDefaultScrollPositionRef.current = defaultScrollPosition
@@ -155,6 +162,7 @@ function useMessageScrollerController({
 
       if (
         autoScrollRef.current &&
+        !followLatchRef.current &&
         !scrollable.end &&
         modeRef.current !== "settling-jump" &&
         modeRef.current !== "anchored-to-message"
@@ -458,10 +466,12 @@ function useMessageScrollerController({
       }
 
       if (items.length === previousItemCount) {
-        const anchor = getUnanchoredScrollAnchor(
-          items,
-          handledScrollAnchorsRef.current
-        )
+        // LOCAL CHANGE: while a layout-intent latch is held, a same-count swap
+        // is the disclosure toggle's own DOM churn, not a turn to bring to the
+        // reading line.
+        const anchor = followLatchRef.current
+          ? null
+          : getUnanchoredScrollAnchor(items, handledScrollAnchorsRef.current)
 
         if (anchor) {
           scrollToElement(
@@ -506,7 +516,14 @@ function useMessageScrollerController({
     // Hold the anchored turn in place as content below it resizes (a reply
     // streaming in, or a transient marker collapsing) — otherwise the shrinking
     // content lets the browser clamp scrollTop and the turn drops.
-    const previousSpacerHeight = spacerHeightRef.current
+    //
+    // LOCAL CHANGE: the handoff below is bounded to the live edge. Upstream
+    // fires it on any resize that collapses the spacer, which cannot
+    // distinguish a user expanding a tall tool call from token-by-token
+    // streaming: the expand yanked the reader to the transcript bottom.
+    // Bounding by max(scrollEdgeThreshold, scrollMargin + peek), the anchor
+    // row's own resting offset, keeps a handoff from ever scrolling the
+    // anchored row off screen while incremental streaming still hands off.
 
     if (reanchorToAnchoredMessage()) {
       // The reply streaming below the anchor consumes the tail spacer as it
@@ -515,10 +532,17 @@ function useMessageScrollerController({
       // from the anchor hold to following the bottom. Requiring the >0 → 0
       // transition keeps a turn taller than the viewport (placed with no
       // spacer) held instead of yanked to the end.
+      const viewport = viewportRef.current
+
       if (
         autoScrollRef.current &&
-        previousSpacerHeight > 0 &&
-        spacerHeightRef.current === 0
+        spacerHeightRef.current === 0 &&
+        viewport !== null &&
+        getMaxScrollTop(viewport) - viewport.scrollTop <=
+          Math.max(
+            scrollEdgeThresholdRef.current,
+            scrollMarginRef.current + scrollPreviousItemPeekRef.current
+          )
       ) {
         scrollToEnd({ behavior: "auto" })
       }
@@ -626,6 +650,9 @@ function useMessageScrollerController({
   )
 
   const userScrollIntent = React.useCallback(() => {
+    // LOCAL CHANGE: a deliberate gesture also releases the disclosure latch.
+    followLatchRef.current = false
+
     if (
       modeRef.current === "following-bottom" ||
       modeRef.current === "anchored-to-message" ||
@@ -637,6 +664,42 @@ function useMessageScrollerController({
       modeRef.current = "free-scrolling"
     }
   }, [])
+
+  // LOCAL CHANGE: user layout intent. A disclosure toggle inside the
+  // transcript signals that the reader is reorganizing the view, not
+  // following the live edge. Latch on (blocking every implicit follow
+  // re-engagement, including the collapse clamp's scroll event), demote
+  // following-bottom so resizes stop repinning the bottom, and schedule a
+  // reanchor that runs after React commits the layout change but before
+  // paint, so the anchored position shows no clamped frame. The latch
+  // clears on the next user scroll or programmatic scroll command.
+  const userLayoutIntent = React.useCallback(() => {
+    followLatchRef.current = true
+
+    if (modeRef.current === "following-bottom") {
+      modeRef.current = "free-scrolling"
+    }
+
+    const content = contentRef.current
+
+    if (
+      content !== null &&
+      typeof MutationObserver !== "undefined" &&
+      userLayoutIntentObserverRef.current === null
+    ) {
+      userLayoutIntentObserverRef.current = new MutationObserver(() => {
+        if (followLatchRef.current) {
+          handleResize()
+        }
+      })
+      userLayoutIntentObserverRef.current.observe(content, {
+        childList: true,
+        subtree: true,
+      })
+    }
+
+    scheduleStateCommit()
+  }, [handleResize, scheduleStateCommit])
 
   const mirrorStateAttributes = React.useCallback(
     () => writeStateAttributes(stateStore.getSnapshot()),
@@ -683,6 +746,8 @@ function useMessageScrollerController({
       stateStore,
       syncAfterScroll,
       unobserveVisibility,
+      // LOCAL CHANGE
+      userLayoutIntent,
       userScrollIntent,
       viewportRef,
       visibilityStore,
@@ -701,6 +766,7 @@ function useMessageScrollerController({
       stateStore,
       syncAfterScroll,
       unobserveVisibility,
+      userLayoutIntent,
       userScrollIntent,
       visibilityStore,
     ]
@@ -737,6 +803,10 @@ function useMessageScrollerController({
 
       visibilityObserverRef.current?.disconnect()
       visibilityObserverRef.current = null
+
+      // LOCAL CHANGE
+      userLayoutIntentObserverRef.current?.disconnect()
+      userLayoutIntentObserverRef.current = null
     }
   }, [])
 

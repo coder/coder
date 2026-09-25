@@ -46,6 +46,8 @@ function useMessageScrollerCommands({
     spacerHeightRef,
     spacerRef,
     viewportRef,
+    // LOCAL CHANGE
+    followLatchRef,
   } = refs
 
   const setAutoScrolling = React.useCallback(
@@ -101,6 +103,10 @@ function useMessageScrollerCommands({
         autoscrolling?: boolean
       } = {}
     ) => {
+      // LOCAL CHANGE: every programmatic scroll is an explicit command, so
+      // it releases the disclosure latch and lets follow re-engage.
+      followLatchRef.current = false
+
       const viewport = viewportRef.current
 
       if (!viewport) {
