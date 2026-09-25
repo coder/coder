@@ -67,15 +67,15 @@ type Action =
 	| { type: "typeFreeText"; value: string }
 	| { type: "setTypedFreeText"; value: string }
 	| { type: "leaveCategory" }
-	| { type: "close"; input: "restore" | "clear" }
+	| { type: "close" }
 	| { type: "reconcile"; freeText: string };
 
-const closeState = (state: State, input: "restore" | "clear"): State => ({
+const closeState = (state: State): State => ({
 	mode: "closed",
 	browseAll: false,
 	activeCategoryKey: null,
 	typedFreeText: state.typedFreeText,
-	inputValue: input === "restore" ? state.typedFreeText : "",
+	inputValue: state.typedFreeText,
 });
 
 const reducer = (state: State, action: Action): State => {
@@ -131,7 +131,7 @@ const reducer = (state: State, action: Action): State => {
 				inputValue: state.typedFreeText,
 			};
 		case "close":
-			return closeState(state, action.input);
+			return closeState(state);
 		case "reconcile":
 			return {
 				...state,
@@ -620,7 +620,7 @@ export const useFilterCombobox = ({
 	// The typed text only located the suggestion, so it is dropped either way.
 	const toggleValueSuggestion = (token: string) => {
 		updateFromChips(toggledChips(token), "");
-		dispatch({ type: "close", input: "clear" });
+		dispatch({ type: "close" });
 	};
 
 	// Returning to the category list highlights the row that was open, so the
@@ -679,7 +679,7 @@ export const useFilterCombobox = ({
 			}
 		} else if (keepApplied) {
 			updateFromChips(chipValues, "");
-			dispatch({ type: "close", input: "clear" });
+			dispatch({ type: "close" });
 		} else {
 			toggleValueSuggestion(token);
 		}
@@ -785,7 +785,7 @@ export const useFilterCombobox = ({
 				showAllFilters();
 				return;
 			}
-			dispatch({ type: "close", input: "restore" });
+			dispatch({ type: "close" });
 			return;
 		}
 		showAllFilters();
@@ -882,7 +882,7 @@ export const useFilterCombobox = ({
 		if (mode !== "category") {
 			applyTypedSearch();
 		}
-		dispatch({ type: "close", input: "restore" });
+		dispatch({ type: "close" });
 	};
 
 	// Chip removal leaves the popup, the input, and a pending typed-text lookup
