@@ -257,7 +257,7 @@ func ConnectInline(
 	servers []Server,
 	coderHeaders map[string]string,
 	httpClient *http.Client,
-	internal *InternalServers,
+	internal InternalServers,
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	return connectAllWithHooks(
 		ctx, logger, servers, nil, uuid.Nil, nil, coderHeaders,
