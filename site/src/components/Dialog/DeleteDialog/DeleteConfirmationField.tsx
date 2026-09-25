@@ -47,7 +47,8 @@ export const useDeleteConfirmation = (name: string, isOpen: boolean) => {
 			onFocus: () => setIsFocused(true),
 			onBlur: () => setIsFocused(false),
 			onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => {
-				// The form never submits while its submit button is disabled.
+				// DeleteDialog disables its submit button for a wrong name, so its form
+				// never submits and onSubmit cannot set this.
 				if (event.key === "Enter" && !confirmed) {
 					setHasSubmittedInvalid(true);
 				}

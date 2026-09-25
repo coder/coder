@@ -33,8 +33,8 @@ export type UseClickableResult<
 }>;
 
 /**
- * React bubbles events from portaled content (dialogs, menus) through the
- * component tree, even though the target is outside the element in the DOM.
+ * True when the event's target is outside `currentTarget` in the DOM, as with
+ * events React bubbles from portaled dialogs and menus.
  */
 export const isFromPortal = (event: SyntheticEvent<unknown>): boolean =>
 	event.currentTarget instanceof Node &&

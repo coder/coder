@@ -35,7 +35,8 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 	const [isOpen, setIsOpen] = useState(false);
 
 	// Keep trigger clicks from triggering a parent clickable row's navigation.
-	// Radix composes its own click handler, so the popover still opens.
+	// Radix composes its own click handler, so the popover still opens. The
+	// span's key handlers only satisfy Biome's lint/a11y/useKeyWithClickEvents.
 	const stopPropagation = (event: React.SyntheticEvent) => {
 		event.stopPropagation();
 	};
