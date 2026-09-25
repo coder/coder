@@ -137,9 +137,7 @@ describe("FilterCombobox", () => {
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("outdated:true"),
 		);
-		await user.click(
-			await screen.findByRole("option", { name: "Dormant" }),
-		);
+		await user.click(await screen.findByRole("option", { name: "Dormant" }));
 
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("dormant:true"),
