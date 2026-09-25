@@ -20,6 +20,8 @@ const (
 	syntheticAPIKeyRenewMargin = 24 * time.Hour
 )
 
+// RBAC authorizes only the intersection of these scopes and the owner's current
+// permissions. Including unrestricted use here does not grant that privilege.
 var syntheticAPIKeyScopes = database.APIKeyScopes{
 	database.ApiKeyScopeApiKeyRead,
 	database.ApiKeyScopeChatModelConfigUse,

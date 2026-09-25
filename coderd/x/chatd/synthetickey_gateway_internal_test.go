@@ -109,7 +109,17 @@ func TestSyntheticAPIKeyGatewayContinuity(t *testing.T) {
 				keyID, err := server.ensureSyntheticAPIKeyID(t.Context(), owner.ID)
 				require.NoError(t, err)
 				require.Equal(t, legacy.ID, keyID)
+				repaired, err := db.GetAPIKeyByID(t.Context(), keyID)
+				require.NoError(t, err)
+				require.Contains(t, repaired.Scopes, database.ApiKeyScopeAIGatewayUnrestrictedUse)
 				require.NoError(t, request(), "the original transport's next request must authorize after a scope upgrade")
+				if grant == "configured" {
+					modelName = uuid.NewString()
+					err = request()
+					require.Error(t, err, "the unrestricted-use scope must not grant the owner unrestricted access")
+					require.Equal(t, proto.AuthorizationErrorPolicy, drpcerr.Code(err))
+					modelName = model.Model
+				}
 
 				require.NoError(t, db.UpdateAPIKeyByID(t.Context(), database.UpdateAPIKeyByIDParams{
 					ID: legacy.ID, LastUsed: legacy.LastUsed, IPAddress: legacy.IPAddress,
@@ -132,6 +142,9 @@ func TestSyntheticAPIKeyGatewayContinuity(t *testing.T) {
 				err = request()
 				require.Error(t, err)
 				require.Equal(t, proto.AuthorizationErrorPolicy, drpcerr.Code(err))
+				afterRevocation, err := db.GetAPIKeyByID(t.Context(), keyID)
+				require.NoError(t, err)
+				require.Equal(t, repaired.Scopes, afterRevocation.Scopes, "revocation is enforced by current RBAC permissions, not scope removal")
 			})
 		}
 	}
