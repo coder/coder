@@ -718,3 +718,43 @@ func TestParseChatWorkspaceTTL(t *testing.T) {
 		})
 	}
 }
+
+func TestChatMessage_StructuredOutputJSON(t *testing.T) {
+	t.Parallel()
+	chatID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	requestID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	createdAt := time.Date(2026, 9, 25, 0, 0, 0, 0, time.UTC)
+	for _, tt := range []struct {
+		name string
+		msg  codersdk.ChatMessage
+		want string
+	}{
+		{
+			name: "Ordinary",
+			msg:  codersdk.ChatMessage{ID: 1, ChatID: chatID, CreatedAt: createdAt, Role: codersdk.ChatMessageRoleUser},
+			want: `{"id":1,"chat_id":"11111111-1111-1111-1111-111111111111","created_at":"2026-09-25T00:00:00Z","role":"user"}`,
+		},
+		{
+			name: "Request",
+			msg:  codersdk.ChatMessage{ID: 1, ChatID: chatID, CreatedAt: createdAt, Role: codersdk.ChatMessageRoleUser, StructuredOutputRequestID: &requestID},
+			want: `{"id":1,"chat_id":"11111111-1111-1111-1111-111111111111","created_at":"2026-09-25T00:00:00Z","role":"user","structured_output_request_id":"22222222-2222-2222-2222-222222222222"}`,
+		},
+		{
+			name: "NullValue",
+			msg: codersdk.ChatMessage{ID: 1, ChatID: chatID, CreatedAt: createdAt, Role: codersdk.ChatMessageRoleAssistant, StructuredOutput: &codersdk.ChatStructuredOutput{
+				RequestID: requestID, Status: codersdk.ChatStructuredOutputStatusSucceeded, Value: json.RawMessage(`null`),
+			}},
+			want: `{"id":1,"chat_id":"11111111-1111-1111-1111-111111111111","created_at":"2026-09-25T00:00:00Z","role":"assistant","structured_output":{"request_id":"22222222-2222-2222-2222-222222222222","status":"succeeded","value":null}}`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := json.Marshal(tt.msg)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, string(got))
+		})
+	}
+	queued, err := json.Marshal(codersdk.ChatQueuedMessage{ID: 1, ChatID: chatID, CreatedAt: createdAt, StructuredOutputRequestID: &requestID})
+	require.NoError(t, err)
+	require.Equal(t, `{"id":1,"chat_id":"11111111-1111-1111-1111-111111111111","content":null,"created_at":"2026-09-25T00:00:00Z","structured_output_request_id":"22222222-2222-2222-2222-222222222222"}`, string(queued))
+}

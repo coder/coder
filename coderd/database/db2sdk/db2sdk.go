@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
@@ -1664,9 +1665,13 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		Role:          codersdk.ChatMessageRole(m.Role),
 	}
 	if m.Content.Valid {
-		parts, err := chatMessageParts(m)
+		parts, err := chatprompt.ParseContent(m)
 		if err == nil {
-			msg.Content = parts
+			if m.Role == database.ChatMessageRoleUser {
+				msg.StructuredOutputRequestID = structuredOutputRequestID(parts)
+			}
+			msg.StructuredOutput = structuredOutputReceipt(m, parts)
+			msg.Content = publicChatMessageParts(parts)
 		}
 	}
 	usage := chatMessageUsage(m)
@@ -1708,7 +1713,7 @@ func chatMessageUsage(m database.ChatMessage) *codersdk.ChatMessageUsage {
 func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
 	// Queued messages are always written by current code via
 	// MarshalParts, so they are always current content version.
-	parts, err := chatMessageParts(database.ChatMessage{
+	parts, err := chatprompt.ParseContent(database.ChatMessage{
 		Role: database.ChatMessageRoleUser,
 		Content: pqtype.NullRawMessage{
 			RawMessage: message.Content,
@@ -1720,13 +1725,15 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 		parts = nil
 	}
 
-	return codersdk.ChatQueuedMessage{
+	queued := codersdk.ChatQueuedMessage{
 		ID:            message.ID,
 		ChatID:        message.ChatID,
 		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
-		Content:       parts,
+		Content:       publicChatMessageParts(parts),
 		CreatedAt:     message.CreatedAt,
 	}
+	queued.StructuredOutputRequestID = structuredOutputRequestID(parts)
+	return queued
 }
 
 // ChatQueuedMessages converts a slice of database queued messages
@@ -1739,15 +1746,47 @@ func ChatQueuedMessages(messages []database.ChatQueuedMessage) []codersdk.ChatQu
 	return out
 }
 
-func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error) {
-	parts, err := chatprompt.ParseContent(m)
-	if err != nil {
-		return nil, err
+// structuredOutputRequestID returns the request ID of the one valid
+// structured output request part in parts, or nil when there is none or
+// the metadata is malformed or ambiguous.
+func structuredOutputRequestID(parts []codersdk.ChatMessagePart) *uuid.UUID {
+	var id *uuid.UUID
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeStructuredOutputRequest {
+			continue
+		}
+		request, err := chatstructured.DecodeRequestPart(part)
+		if err != nil || id != nil {
+			return nil
+		}
+		id = &request.RequestID
 	}
-	// Strip internal-only fields before API responses. Hook context and
-	// structured output metadata parts are internal and must never reach
-	// clients.
-	filtered := parts[:0]
+	return id
+}
+
+// structuredOutputReceipt returns the outcome of a structured output
+// receipt row: an assistant row visible only to users whose content is a
+// text fallback and exactly one valid outcome part. Any other row gets nil.
+func structuredOutputReceipt(m database.ChatMessage, parts []codersdk.ChatMessagePart) *codersdk.ChatStructuredOutput {
+	if m.Role != database.ChatMessageRoleAssistant || m.Visibility != database.ChatMessageVisibilityUser || m.ContentVersion != chatprompt.ContentVersionV1 {
+		return nil
+	}
+	out, err := chatstructured.ReceiptOutcome(parts)
+	if err != nil {
+		return nil
+	}
+	return &out
+}
+
+// publicChatMessageParts strips internal-only parts and fields before API
+// responses. Hook context and structured output metadata parts are internal
+// and must never reach clients. It returns a new slice and leaves the
+// structured output parts of parts untouched.
+func publicChatMessageParts(parts []codersdk.ChatMessagePart) []codersdk.ChatMessagePart {
+	if parts == nil {
+		return nil
+	}
+	filtered := make([]codersdk.ChatMessagePart, 0, len(parts))
 	for i := range parts {
 		switch parts[i].Type {
 		case codersdk.ChatMessagePartTypeHookContext, codersdk.ChatMessagePartTypeStructuredOutputRequest,
@@ -1757,7 +1796,7 @@ func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error
 		parts[i].StripInternal()
 		filtered = append(filtered, parts[i])
 	}
-	return filtered, nil
+	return filtered
 }
 
 func AIModelPrices(dbPrices []database.AIModelPrice) []codersdk.AIModelPrice {

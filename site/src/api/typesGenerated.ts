@@ -2672,6 +2672,16 @@ export interface ChatMessage {
 	readonly role: ChatMessageRole;
 	readonly content?: readonly ChatMessagePart[];
 	readonly usage?: ChatMessageUsage;
+	/**
+	 * StructuredOutputRequestID is set on a user message that asked for a
+	 * structured output: the ID its result reports in StructuredOutput.
+	 */
+	readonly structured_output_request_id?: string;
+	/**
+	 * StructuredOutput is set on the assistant message that closed a
+	 * structured output request, whose content holds a text fallback of it.
+	 */
+	readonly structured_output?: ChatStructuredOutput;
 }
 
 // From codersdk/chats.go
@@ -3294,6 +3304,11 @@ export interface ChatQueuedMessage {
 	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
 	readonly created_at: string;
+	/**
+	 * StructuredOutputRequestID is set when the queued message asks for a
+	 * structured output; it keeps the ID once the message is sent.
+	 */
+	readonly structured_output_request_id?: string;
 }
 
 // From codersdk/chats.go

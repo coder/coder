@@ -3065,6 +3065,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "id": 0,
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "role": "system",
+  "structured_output": {
+    "error": {
+      "code": "not_produced",
+      "message": "string"
+    },
+    "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+    "status": "succeeded",
+    "value": [
+      0
+    ]
+  },
+  "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
   "usage": {
     "cache_creation_tokens": 0,
     "cache_read_tokens": 0,
@@ -3079,16 +3091,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                          | Required | Restrictions | Description |
-|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `chat_id`         | string                                                        | false    |              |             |
-| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `created_at`      | string                                                        | false    |              |             |
-| `created_by`      | string                                                        | false    |              |             |
-| `id`              | integer                                                       | false    |              |             |
-| `model_config_id` | string                                                        | false    |              |             |
-| `role`            | [codersdk.ChatMessageRole](#codersdkchatmessagerole)          | false    |              |             |
-| `usage`           | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)        | false    |              |             |
+| Name                           | Type                                                           | Required | Restrictions | Description                                                                                                                              |
+|--------------------------------|----------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id`                      | string                                                         | false    |              |                                                                                                                                          |
+| `content`                      | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart)  | false    |              |                                                                                                                                          |
+| `created_at`                   | string                                                         | false    |              |                                                                                                                                          |
+| `created_by`                   | string                                                         | false    |              |                                                                                                                                          |
+| `id`                           | integer                                                        | false    |              |                                                                                                                                          |
+| `model_config_id`              | string                                                         | false    |              |                                                                                                                                          |
+| `role`                         | [codersdk.ChatMessageRole](#codersdkchatmessagerole)           | false    |              |                                                                                                                                          |
+| `structured_output`            | [codersdk.ChatStructuredOutput](#codersdkchatstructuredoutput) | false    |              | Structured output is set on the assistant message that closed a structured output request, whose content holds a text fallback of it.    |
+| `structured_output_request_id` | string                                                         | false    |              | Structured output request ID is set on a user message that asked for a structured output: the ID its result reports in StructuredOutput. |
+| `usage`                        | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)         | false    |              |                                                                                                                                          |
 
 ## codersdk.ChatMessagePart
 
@@ -3321,6 +3335,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "role": "system",
+      "structured_output": {
+        "error": {
+          "code": "not_produced",
+          "message": "string"
+        },
+        "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+        "status": "succeeded",
+        "value": [
+          0
+        ]
+      },
+      "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
       "usage": {
         "cache_creation_tokens": 0,
         "cache_read_tokens": 0,
@@ -3395,7 +3421,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "id": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c"
     }
   ]
 }
@@ -4713,19 +4740,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "created_at": "2019-08-24T14:15:22Z",
   "id": 0,
-  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                          | Required | Restrictions | Description |
-|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `chat_id`         | string                                                        | false    |              |             |
-| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `created_at`      | string                                                        | false    |              |             |
-| `id`              | integer                                                       | false    |              |             |
-| `model_config_id` | string                                                        | false    |              |             |
+| Name                           | Type                                                          | Required | Restrictions | Description                                                                                                                         |
+|--------------------------------|---------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id`                      | string                                                        | false    |              |                                                                                                                                     |
+| `content`                      | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                     |
+| `created_at`                   | string                                                        | false    |              |                                                                                                                                     |
+| `id`                           | integer                                                       | false    |              |                                                                                                                                     |
+| `model_config_id`              | string                                                        | false    |              |                                                                                                                                     |
+| `structured_output_request_id` | string                                                        | false    |              | Structured output request ID is set when the queued message asks for a structured output; it keeps the ID once the message is sent. |
 
 ## codersdk.ChatRetentionDaysResponse
 
@@ -4876,6 +4905,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "role": "system",
+    "structured_output": {
+      "error": {
+        "code": "not_produced",
+        "message": "string"
+      },
+      "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+      "status": "succeeded",
+      "value": [
+        0
+      ]
+    },
+    "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
     "usage": {
       "cache_creation_tokens": 0,
       "cache_read_tokens": 0,
@@ -5011,7 +5052,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "id": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c"
     }
   ],
   "retry": {
@@ -5192,6 +5234,75 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `args`         | string | false    |              |             |
 | `tool_call_id` | string | false    |              |             |
 | `tool_name`    | string | false    |              |             |
+
+## codersdk.ChatStructuredOutput
+
+```json
+{
+  "error": {
+    "code": "not_produced",
+    "message": "string"
+  },
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+  "status": "succeeded",
+  "value": [
+    0
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                       | Required | Restrictions | Description                                                                                                                       |
+|--------------|----------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `error`      | [codersdk.ChatStructuredOutputError](#codersdkchatstructuredoutputerror)   | false    |              |                                                                                                                                   |
+| `request_id` | string                                                                     | false    |              |                                                                                                                                   |
+| `status`     | [codersdk.ChatStructuredOutputStatus](#codersdkchatstructuredoutputstatus) | false    |              |                                                                                                                                   |
+| `value`      | array of integer                                                           | false    |              | Value is the validated output of a succeeded request. The JSON null value is a valid output and is distinct from an absent value. |
+
+## codersdk.ChatStructuredOutputError
+
+```json
+{
+  "code": "not_produced",
+  "message": "string"
+}
+```
+
+### Properties
+
+| Name      | Type                                                                             | Required | Restrictions | Description |
+|-----------|----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `code`    | [codersdk.ChatStructuredOutputErrorCode](#codersdkchatstructuredoutputerrorcode) | false    |              |             |
+| `message` | string                                                                           | false    |              |             |
+
+## codersdk.ChatStructuredOutputErrorCode
+
+```json
+"not_produced"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                         |
+|----------------------------------------------------------------------------------------------------------------------------------|
+| `configuration_error`, `generation_failed`, `interrupted`, `not_produced`, `queue_deleted`, `superseded`, `validation_exhausted` |
+
+## codersdk.ChatStructuredOutputStatus
+
+```json
+"succeeded"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                          |
+|-----------------------------------|
+| `canceled`, `failed`, `succeeded` |
 
 ## codersdk.ChatSystemPromptResponse
 
@@ -5856,6 +5967,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "role": "system",
+    "structured_output": {
+      "error": {
+        "code": "not_produced",
+        "message": "string"
+      },
+      "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+      "status": "succeeded",
+      "value": [
+        0
+      ]
+    },
+    "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
     "usage": {
       "cache_creation_tokens": 0,
       "cache_read_tokens": 0,
@@ -5932,6 +6055,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "role": "system",
+      "structured_output": {
+        "error": {
+          "code": "not_produced",
+          "message": "string"
+        },
+        "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+        "status": "succeeded",
+        "value": [
+          0
+        ]
+      },
+      "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
       "usage": {
         "cache_creation_tokens": 0,
         "cache_read_tokens": 0,
@@ -6006,7 +6141,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "created_at": "2019-08-24T14:15:22Z",
     "id": 0,
-    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c"
   },
   "warnings": [
     "string"
@@ -8807,6 +8943,18 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "role": "system",
+    "structured_output": {
+      "error": {
+        "code": "not_produced",
+        "message": "string"
+      },
+      "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+      "status": "succeeded",
+      "value": [
+        0
+      ]
+    },
+    "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
     "usage": {
       "cache_creation_tokens": 0,
       "cache_read_tokens": 0,
@@ -8883,6 +9031,18 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "role": "system",
+      "structured_output": {
+        "error": {
+          "code": "not_produced",
+          "message": "string"
+        },
+        "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+        "status": "succeeded",
+        "value": [
+          0
+        ]
+      },
+      "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
       "usage": {
         "cache_creation_tokens": 0,
         "cache_read_tokens": 0,

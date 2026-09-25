@@ -20335,6 +20335,19 @@ const docTemplate = `{
                 "role": {
                     "$ref": "#/definitions/codersdk.ChatMessageRole"
                 },
+                "structured_output": {
+                    "description": "StructuredOutput is set on the assistant message that closed a\nstructured output request, whose content holds a text fallback of it.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatStructuredOutput"
+                        }
+                    ]
+                },
+                "structured_output_request_id": {
+                    "description": "StructuredOutputRequestID is set on a user message that asked for a\nstructured output: the ID its result reports in StructuredOutput.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "usage": {
                     "$ref": "#/definitions/codersdk.ChatMessageUsage"
                 }
@@ -21298,6 +21311,11 @@ const docTemplate = `{
                 "model_config_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "structured_output_request_id": {
+                    "description": "StructuredOutputRequestID is set when the queued message asks for a\nstructured output; it keeps the ID once the message is sent.",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -21488,6 +21506,73 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.ChatStructuredOutput": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/codersdk.ChatStructuredOutputError"
+                },
+                "request_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatStructuredOutputStatus"
+                },
+                "value": {
+                    "description": "Value is the validated output of a succeeded request. The JSON null\nvalue is a valid output and is distinct from an absent value.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatStructuredOutputError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "$ref": "#/definitions/codersdk.ChatStructuredOutputErrorCode"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatStructuredOutputErrorCode": {
+            "type": "string",
+            "enum": [
+                "not_produced",
+                "validation_exhausted",
+                "generation_failed",
+                "configuration_error",
+                "interrupted",
+                "superseded",
+                "queue_deleted"
+            ],
+            "x-enum-varnames": [
+                "ChatStructuredOutputErrorCodeNotProduced",
+                "ChatStructuredOutputErrorCodeValidationExhausted",
+                "ChatStructuredOutputErrorCodeGenerationFailed",
+                "ChatStructuredOutputErrorCodeConfigurationError",
+                "ChatStructuredOutputErrorCodeInterrupted",
+                "ChatStructuredOutputErrorCodeSuperseded",
+                "ChatStructuredOutputErrorCodeQueueDeleted"
+            ]
+        },
+        "codersdk.ChatStructuredOutputStatus": {
+            "type": "string",
+            "enum": [
+                "succeeded",
+                "failed",
+                "canceled"
+            ],
+            "x-enum-varnames": [
+                "ChatStructuredOutputStatusSucceeded",
+                "ChatStructuredOutputStatusFailed",
+                "ChatStructuredOutputStatusCanceled"
+            ]
         },
         "codersdk.ChatSystemPromptResponse": {
             "type": "object",
