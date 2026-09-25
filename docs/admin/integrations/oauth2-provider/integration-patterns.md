@@ -111,6 +111,10 @@ Coder enforces PKCE in compliance with the OAuth 2.1 specification, for both pub
      "$CODER_URL/api/v2/users/me"
    ```
 
+   Send the access token in the `Authorization` header.
+   Coder ignores an OAuth2 access token in the URL query string, as OAuth 2.1 section 5.1 requires, and answers HTTP 401.
+   Refer to [HTTP 401 for an access token in the query string](./troubleshooting.md#http-401-for-an-access-token-in-the-query-string).
+
 ## Discovery endpoints
 
 Coder provides OAuth2 discovery endpoints for programmatic integration:
