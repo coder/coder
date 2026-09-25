@@ -2,6 +2,7 @@ import {
 	type KeyboardEventHandler,
 	type MouseEventHandler,
 	type RefObject,
+	type SyntheticEvent,
 	useRef,
 } from "react";
 
@@ -32,6 +33,15 @@ export type UseClickableResult<
 }>;
 
 /**
+ * True when the event's target is outside `currentTarget` in the DOM, as with
+ * events React bubbles from portaled dialogs and menus.
+ */
+export const isFromPortal = (event: SyntheticEvent<unknown>): boolean =>
+	event.currentTarget instanceof Node &&
+	event.target instanceof Node &&
+	!event.currentTarget.contains(event.target);
+
+/**
  * Exposes props that let you turn traditionally non-interactive elements into
  * buttons.
  */
@@ -46,25 +56,32 @@ export const useClickable = <
 
 	return {
 		ref,
-		onClick,
+		onClick: (event) => {
+			if (!isFromPortal(event)) {
+				onClick(event);
+			}
+		},
 		tabIndex: 0,
 		role: (role ?? "button") as TRole,
 
 		/*
-		 * Native buttons are programmed to handle both space and enter, but they're
-		 * each handled via different event handlers.
-		 *
-		 * 99% of the time, you shouldn't be able to tell the difference, but one
-		 * edge case behavior is that holding down Enter will continually fire
-		 * events, while holding down Space won't fire anything until you let go.
+		 * Mirrors native buttons: Enter activates on keydown (repeats while held),
+		 * Space on keyup. Keys typed into descendants, including portaled dialogs,
+		 * must not activate it.
 		 */
 		onKeyDown: (event) => {
+			if (event.target !== event.currentTarget) {
+				return;
+			}
 			if (event.key === "Enter") {
 				ref.current?.click();
 				event.stopPropagation();
 			}
 		},
 		onKeyUp: (event) => {
+			if (event.target !== event.currentTarget) {
+				return;
+			}
 			if (event.key === " ") {
 				ref.current?.click();
 				event.stopPropagation();
