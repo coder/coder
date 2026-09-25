@@ -107,9 +107,6 @@ func NewStageTracer(provider trace.TracerProvider, metrics *Metrics, opts ...Sta
 	if provider == nil {
 		provider = noop.NewTracerProvider()
 	}
-	if metrics == nil {
-		metrics = NopMetrics()
-	}
 	t := &StageTracer{
 		tracer:  provider.Tracer(tracerName),
 		metrics: metrics,
@@ -358,12 +355,16 @@ func (s *StageSpan) SpanContext() trace.SpanContext {
 }
 
 // End closes the stage span, records its duration, and marks the span
-// as errored when err is non-nil. Calls after the first are ignored so
-// a deferred End cannot double-count a stage.
-func (s *StageSpan) End(err error) {
-	if elapsed, ok := s.closeSpan(err); ok {
-		s.tracer.observe(s.stage, s.scope, s.chatKind, s.model, elapsed)
+// as errored when err is non-nil. It returns the recorded duration.
+// Calls after the first are ignored and return zero, so a deferred End
+// cannot double-count a stage.
+func (s *StageSpan) End(err error) time.Duration {
+	elapsed, ok := s.closeSpan(err)
+	if !ok {
+		return 0
 	}
+	s.tracer.observe(s.stage, s.scope, s.chatKind, s.model, elapsed)
+	return elapsed
 }
 
 // EndWithoutObservation closes the span like End but records no

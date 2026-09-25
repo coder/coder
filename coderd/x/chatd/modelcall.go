@@ -79,13 +79,17 @@ type resolvedModelCall struct {
 // provider's type. resolvedProvider is not used because, for types
 // outside the fantasy provider names such as copilot, it is inferred
 // from the model name, so a copilot provider serving gpt-5 would be
-// labeled openai.
+// labeled openai. The wire provider is empty until the model is built.
 func (r resolvedModelCall) stageModel() chatloop.StageModel {
-	return chatloop.StageModel{
+	model := chatloop.StageModel{
 		ProviderType: string(r.route.Provider.Type),
 		Model:        r.resolvedModel,
 		Effort:       r.resolvedEffort,
 	}
+	if r.model.Valid() {
+		model.Provider = r.model.Provider()
+	}
+	return model
 }
 
 // resolveModelCall is the single pipeline from a spec to a ready model
