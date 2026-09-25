@@ -835,6 +835,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		OwnerId:  key.UserID.String(),
 		ApiKeyId: key.ID,
 		Username: user.Username,
+		Email:    user.Email,
 	}
 	if !delegated {
 		workspaceID, ok, err := workspaceAttribution(key)

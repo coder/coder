@@ -32,12 +32,14 @@ func headersFromActor(actor *context.Actor, names map[string]string) map[string]
 	if name := names["id"]; name != "" {
 		headers[name] = actor.ID
 	}
-	name := names["username"]
-	if name == "" {
-		return headers
-	}
-	if username, ok := actor.Metadata["Username"].(string); ok && username != "" {
-		headers[name] = username
+	for _, key := range []string{"Username", "Email"} {
+		name := names[strings.ToLower(key)]
+		if name == "" {
+			continue
+		}
+		if value, ok := actor.Metadata[key].(string); ok && value != "" {
+			headers[name] = value
+		}
 	}
 	return headers
 }

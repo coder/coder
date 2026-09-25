@@ -577,17 +577,17 @@ func must[T any](value T, err error) T {
 func TestAIGatewayActorHeaderNames(t *testing.T) {
 	t.Parallel()
 
-	defaults := [2]string{"X-AI-Bridge-Actor-ID", "X-AI-Bridge-Actor-Metadata-Username"}
-	keys := [2]string{"actor_header_id", "actor_header_meta_username"}
-	flags := [2]string{"ai-gateway-actor-header-id", "ai-gateway-actor-header-meta-username"}
-	envs := [2]string{"CODER_AI_GATEWAY_ACTOR_HEADER_ID", "CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME"}
+	defaults := [3]string{"X-AI-Bridge-Actor-ID", "X-AI-Bridge-Actor-Metadata-Username", ""}
+	keys := [3]string{"actor_header_id", "actor_header_meta_username", "actor_header_meta_email"}
+	flags := [3]string{"ai-gateway-actor-header-id", "ai-gateway-actor-header-meta-username", "ai-gateway-actor-header-meta-email"}
+	envs := [3]string{"CODER_AI_GATEWAY_ACTOR_HEADER_ID", "CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME", "CODER_AI_GATEWAY_ACTOR_HEADER_META_EMAIL"}
 
 	type testCase struct {
 		name    string
 		args    []string
 		environ serpent.Environ
 		config  string
-		want    [2]string
+		want    [3]string
 		wantErr string
 	}
 	cases := []testCase{{name: "default", want: defaults}}
@@ -617,44 +617,68 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 			name:    "flag clears environment username",
 			args:    []string{"--" + flags[1], ""},
 			environ: serpent.Environ{{Name: envs[1], Value: "X-Env-Username"}},
-			want:    [2]string{defaults[0], ""},
+			want:    [3]string{defaults[0], "", defaults[2]},
 		},
 		testCase{
 			name:    "environment clears YAML username",
 			environ: serpent.Environ{{Name: envs[1], Value: ""}},
 			config:  "ai_gateway:\n  actor_header_meta_username: X-Yaml-Username\n",
-			want:    [2]string{defaults[0], ""},
-		},
-		testCase{
-			name:    "precedence is per attribute",
-			args:    []string{"--" + flags[1], "X-Flag-Username"},
-			environ: serpent.Environ{{Name: envs[1], Value: "X-Env-Username"}},
-			config:  "ai_gateway:\n  actor_header_id: X-Yaml-ID\n  actor_header_meta_username: X-Yaml-Username\n",
-			want:    [2]string{"X-Yaml-ID", "X-Flag-Username"},
+			want:    [3]string{defaults[0], "", defaults[2]},
 		},
 		testCase{
 			name: "last flag clears username",
 			args: []string{"--" + flags[1], "X-Username", "--" + flags[1], ""},
-			want: [2]string{defaults[0], ""},
+			want: [3]string{defaults[0], "", defaults[2]},
 		},
 		testCase{
 			name: "last flag enables username",
 			args: []string{"--" + flags[1], "", "--" + flags[1], "X-Username"},
-			want: [2]string{defaults[0], "X-Username"},
-		},
-		testCase{
-			name: "all disabled",
-			args: []string{"--" + flags[0], "", "--" + flags[1], ""},
+			want: [3]string{defaults[0], "X-Username", defaults[2]},
 		},
 		testCase{
 			name: "explicit standard username",
 			args: []string{"--" + flags[1], "x-ai-bridge-actor-metadata-username"},
-			want: [2]string{defaults[0], "x-ai-bridge-actor-metadata-username"},
+			want: [3]string{defaults[0], "x-ai-bridge-actor-metadata-username", defaults[2]},
 		},
-		testCase{name: "invalid", args: []string{"--" + flags[1], "Bad: Header"}, wantErr: "invalid"},
+
+		testCase{
+			name:    "environment clears YAML email",
+			environ: serpent.Environ{{Name: envs[2], Value: ""}},
+			config:  "ai_gateway:\n  actor_header_meta_email: X-Yaml-Email\n",
+			want:    defaults,
+		},
+		testCase{
+			name:    "precedence is per attribute",
+			args:    []string{"--" + flags[1], "X-Flag-Username"},
+			environ: serpent.Environ{{Name: envs[1], Value: "X-Env-Username"}, {Name: envs[2], Value: "X-Env-Email"}},
+			config:  "ai_gateway:\n  actor_header_id: X-Yaml-ID\n  actor_header_meta_username: X-Yaml-Username\n  actor_header_meta_email: X-Yaml-Email\n",
+			want:    [3]string{"X-Yaml-ID", "X-Flag-Username", "X-Env-Email"},
+		},
+		testCase{
+			name: "last flag clears email",
+			args: []string{"--" + flags[2], "X-Email", "--" + flags[2], ""},
+			want: defaults,
+		},
+		testCase{
+			name: "last flag enables email",
+			args: []string{"--" + flags[2], "", "--" + flags[2], "X-Email"},
+			want: [3]string{defaults[0], defaults[1], "X-Email"},
+		},
+		testCase{
+			name: "all disabled",
+			args: []string{"--" + flags[0], "", "--" + flags[1], "", "--" + flags[2], ""},
+		},
+		testCase{
+			name: "explicit standard email",
+			args: []string{"--" + flags[2], "x-ai-bridge-actor-metadata-email"},
+			want: [3]string{defaults[0], defaults[1], "x-ai-bridge-actor-metadata-email"},
+		},
+		testCase{name: "invalid", args: []string{"--" + flags[2], "Bad: Header"}, wantErr: "invalid"},
 		testCase{name: "duplicate", args: []string{"--" + flags[0], "X-User", "--" + flags[1], "x-user"}, wantErr: "duplicate"},
+		testCase{name: "duplicate email", args: []string{"--" + flags[1], "X-User", "--" + flags[2], "x-user"}, wantErr: "duplicate"},
 		testCase{name: "auth", args: []string{"--" + flags[0], "authorization"}, wantErr: "reserved"},
 		testCase{name: "transport", args: []string{"--" + flags[0], "Content-Type"}, wantErr: "reserved"},
+		testCase{name: "transport generated", args: []string{"--" + flags[2], "User-Agent"}, wantErr: "reserved"},
 		testCase{name: "internal", args: []string{"--" + flags[0], "X-Coder-AI-Governance-Token"}, wantErr: "reserved"},
 		testCase{name: "legacy metadata", args: []string{"--" + flags[0], "X-AI-Bridge-Actor-Metadata-Other"}, wantErr: "reserved"},
 	)
@@ -679,6 +703,8 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 					require.NoError(t, json.Unmarshal(encoded, &config))
 					require.NotContains(t, config, "actor_header_names")
 					for i, key := range keys {
+						_, present := config[key]
+						require.True(t, present, "missing configuration field %s", key)
 						var value string
 						require.NoError(t, json.Unmarshal(config[key], &value))
 						require.Equal(t, tc.want[i], value, key)

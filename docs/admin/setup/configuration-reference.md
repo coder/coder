@@ -262,6 +262,14 @@ Header name for the authenticated user's ID. Empty disables this header. Require
 - YAML key: `ai_gateway.actor_header_id`
 - Default value: `X-AI-Bridge-Actor-ID`
 
+### Actor header metadata email
+
+Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Email is personal information; opt in only for trusted upstream providers.
+
+- Environment variable: `CODER_AI_GATEWAY_ACTOR_HEADER_META_EMAIL`
+- CLI flag: [`--ai-gateway-actor-header-meta-email`](../../reference/cli/server.md#--ai-gateway-actor-header-meta-email)
+- YAML key: `ai_gateway.actor_header_meta_email`
+
 ### Actor header metadata username
 
 Header name for the authenticated user's username. Empty disables this header. Requires AI Gateway actor headers to be enabled.
@@ -327,7 +335,7 @@ Maximum number of AI Gateway requests per second per replica. Set to 0 to disabl
 
 ### Send actor headers
 
-Add the authenticated user's ID and username to intercepted upstream requests. Requires AI Gateway actor headers to be enabled.
+Add configured actor identity headers to intercepted upstream requests. ID and username use their standard defaults; email requires an explicit header name. Requires AI Gateway actor headers to be enabled.
 
 - Environment variable: `CODER_AI_GATEWAY_SEND_ACTOR_HEADERS`
 - CLI flag: [`--ai-gateway-send-actor-headers`](../../reference/cli/server.md#--ai-gateway-send-actor-headers)

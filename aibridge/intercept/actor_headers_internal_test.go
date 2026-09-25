@@ -31,28 +31,43 @@ func TestHeadersFromActor(t *testing.T) {
 				ID: "user-123",
 				Metadata: recorder.Metadata{
 					"Username": "alice",
+					"Email":    "alice@example.com",
 					"Count":    42,
 				},
 			},
 			names: map[string]string{
 				"id":       "X-Downstream-User-Id",
 				"username": "X-Downstream-Username",
+				"email":    "X-Downstream-Email",
 			},
 			want: map[string]string{
 				"X-Downstream-User-Id":  "user-123",
 				"X-Downstream-Username": "alice",
+				"X-Downstream-Email":    "alice@example.com",
 			},
 		},
 		{
 			name:  "id omitted",
-			actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}},
-			names: map[string]string{"username": "X-Downstream-Username"},
-			want:  map[string]string{"X-Downstream-Username": "alice"},
+			actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice", "Email": "alice@example.com"}},
+			names: map[string]string{"username": "X-Downstream-Username", "email": "X-Downstream-Email"},
+			want:  map[string]string{"X-Downstream-Username": "alice", "X-Downstream-Email": "alice@example.com"},
 		},
 		{
 			name:  "username omitted",
-			actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}},
-			names: map[string]string{"id": "X-Downstream-User-Id"},
+			actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice", "Email": "alice@example.com"}},
+			names: map[string]string{"id": "X-Downstream-User-Id", "email": "X-Downstream-Email"},
+			want:  map[string]string{"X-Downstream-User-Id": "user-123", "X-Downstream-Email": "alice@example.com"},
+		},
+		{
+			name:  "email omitted",
+			actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice", "Email": "alice@example.com"}},
+			names: map[string]string{"id": "X-Downstream-User-Id", "username": "X-Downstream-Username"},
+			want:  map[string]string{"X-Downstream-User-Id": "user-123", "X-Downstream-Username": "alice"},
+		},
+		{
+			name:  "empty email omitted",
+			actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice", "Email": ""}},
+			names: map[string]string{"id": "X-Downstream-User-Id", "email": "X-Downstream-Email"},
 			want:  map[string]string{"X-Downstream-User-Id": "user-123"},
 		},
 		{
@@ -74,21 +89,21 @@ func TestHeadersFromActor(t *testing.T) {
 			want:  map[string]string{},
 		},
 		{
-			name: "empty map forwards no actor headers",
-			actor: &context.Actor{
-				ID: "user-123",
-				Metadata: recorder.Metadata{
-					"Username": "alice",
-				},
-			},
-			names: map[string]string{},
+			name:  "non-string email",
+			actor: &context.Actor{Metadata: recorder.Metadata{"Email": 42}},
+			names: map[string]string{"email": "X-Email"},
 			want:  map[string]string{},
 		},
 		{
-			name:  "nil map forwards no actor headers",
-			actor: &context.Actor{ID: "user-123"},
+			name: "empty map forwards no actor headers",
+			actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{
+				"Username": "alice",
+				"Email":    "alice@example.com",
+			}},
+			names: map[string]string{},
 			want:  map[string]string{},
 		},
+		{name: "nil map forwards no actor headers", actor: &context.Actor{ID: "user-123"}, want: map[string]string{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

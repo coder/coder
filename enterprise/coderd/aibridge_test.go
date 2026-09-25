@@ -1708,6 +1708,8 @@ func TestAIBridgeActorHeaderNames(t *testing.T) {
 	const (
 		actorIDHeader       = "X-Downstream-User-Id"
 		actorUsernameHeader = "X-Downstream-Username"
+		actorEmailHeader    = "X-Downstream-Email"
+		defaultEmailHeader  = "X-AI-Bridge-Actor-Metadata-Email"
 	)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -1770,6 +1772,7 @@ func TestAIBridgeActorHeaderNames(t *testing.T) {
 	dv.AI.BridgeConfig.SendActorHeaders = serpent.Bool(true)
 	dv.AI.BridgeConfig.ActorHeaderID = serpent.String(actorIDHeader)
 	dv.AI.BridgeConfig.ActorHeaderMetaUsername = serpent.String(actorUsernameHeader)
+	dv.AI.BridgeConfig.ActorHeaderMetaEmail = serpent.String(actorEmailHeader)
 
 	firstClient, _, api, firstUserResponse := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},
@@ -1803,6 +1806,8 @@ func TestAIBridgeActorHeaderNames(t *testing.T) {
 		req.Header.Set("X-Client-Arbitrary", "preserve-me")
 		req.Header.Set(actorIDHeader, "spoofed-id")
 		req.Header.Set(actorUsernameHeader, "spoofed-username")
+		req.Header.Set(actorEmailHeader, "spoofed-email")
+		req.Header.Set(defaultEmailHeader, "spoofed-default-email")
 
 		resp, err := client.HTTPClient.Do(req)
 		require.NoError(t, err)
@@ -1828,6 +1833,8 @@ func TestAIBridgeActorHeaderNames(t *testing.T) {
 		require.Equal(t, "preserve-me", request.header.Get("X-Client-Arbitrary"))
 		require.Equal(t, expectedUsers[i].ID.String(), request.header.Get(actorIDHeader))
 		require.Equal(t, expectedUsers[i].Username, request.header.Get(actorUsernameHeader))
+		require.Equal(t, expectedUsers[i].Email, request.header.Get(actorEmailHeader))
+		require.Empty(t, request.header.Get(defaultEmailHeader))
 		require.Empty(t, request.header.Get("X-AI-Bridge-Actor-ID"))
 		require.Empty(t, request.header.Get("X-AI-Bridge-Actor-Metadata-Username"))
 	}

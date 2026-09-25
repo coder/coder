@@ -137,6 +137,11 @@ AI GATEWAY OPTIONS:
           Header name for the authenticated user's ID. Empty disables this
           header. Requires AI Gateway actor headers to be enabled.
 
+      --ai-gateway-actor-header-meta-email string, $CODER_AI_GATEWAY_ACTOR_HEADER_META_EMAIL
+          Header name for the authenticated user's email address. Empty disables
+          this header. Requires AI Gateway actor headers to be enabled. Email is
+          personal information; opt in only for trusted upstream providers.
+
       --ai-gateway-actor-header-meta-username string, $CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME (default: X-AI-Bridge-Actor-Metadata-Username)
           Header name for the authenticated user's username. Empty disables this
           header. Requires AI Gateway actor headers to be enabled.
@@ -165,8 +170,10 @@ AI GATEWAY OPTIONS:
           to disable (unlimited).
 
       --ai-gateway-send-actor-headers bool, $CODER_AI_GATEWAY_SEND_ACTOR_HEADERS (default: false)
-          Add the authenticated user's ID and username to intercepted upstream
-          requests. Requires AI Gateway actor headers to be enabled.
+          Add configured actor identity headers to intercepted upstream
+          requests. ID and username use their standard defaults; email requires
+          an explicit header name. Requires AI Gateway actor headers to be
+          enabled.
 
       --ai-gateway-structured-logging bool, $CODER_AI_GATEWAY_STRUCTURED_LOGGING (default: false)
           Emit structured logs for AI Gateway interception records. Use this for

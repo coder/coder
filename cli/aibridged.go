@@ -246,6 +246,9 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 	if name := cfg.ActorHeaderMetaUsername.Value(); name != "" {
 		actorHeaderNames["username"] = name
 	}
+	if name := cfg.ActorHeaderMetaEmail.Value(); name != "" {
+		actorHeaderNames["email"] = name
+	}
 
 	// aibridge currently has native support for OpenAI and Anthropic
 	// only. The other ai_provider_type values (azure, google,

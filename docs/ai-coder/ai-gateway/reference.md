@@ -48,6 +48,7 @@ AI Gateway Proxy remains part of `coderd` and can forward its intercepted traffi
 
 The control connection between a standalone replica and `coderd` uses a versioned AI Gateway API.
 The current AI Gateway API version is defined in [`coderd/aibridged/proto/version.go`](../../../coderd/aibridged/proto/version.go).
+The unreleased v1.3 protocol adds workspace attribution and the authenticated user's email to the control connection.
 
 `coderd` validates the AI Gateway API version that a standalone replica advertises before it accepts the control connection.
 AI Gateway API compatibility follows these rules:
@@ -66,20 +67,25 @@ For upgrade and rollback ordering, refer to [Version compatibility](./standalone
 Enable `--ai-gateway-send-actor-headers`, `CODER_AI_GATEWAY_SEND_ACTOR_HEADERS`, or `ai_gateway.send_actor_headers` to add actor identity to intercepted upstream requests.
 The setting is disabled by default.
 
-When enabled, AI Gateway emits these headers by default:
+When actor forwarding is enabled, AI Gateway uses these default header settings:
 
 | Actor attribute | Default header                        | Value                                              |
 |-----------------|---------------------------------------|----------------------------------------------------|
 | `id`            | `X-AI-Bridge-Actor-ID`                | The authenticated Coder user ID.                   |
 | `username`      | `X-AI-Bridge-Actor-Metadata-Username` | The username from the authenticated Coder account. |
+| `email`         | *(empty)*                             | The authenticated Coder account email address.     |
 
 Configure the ID header with `--ai-gateway-actor-header-id`, `CODER_AI_GATEWAY_ACTOR_HEADER_ID`, or `ai_gateway.actor_header_id`.
 Configure the username header with `--ai-gateway-actor-header-meta-username`, `CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME`, or `ai_gateway.actor_header_meta_username`.
+Configure the email header with `--ai-gateway-actor-header-meta-email`, `CODER_AI_GATEWAY_ACTOR_HEADER_META_EMAIL`, or `ai_gateway.actor_header_meta_email`.
 
 Each option uses its own precedence: the CLI flag overrides the environment variable, the environment variable overrides the YAML value, and the default applies when none is set.
-Set an option to an empty value to disable that actor attribute without disabling the other attribute.
+Set an option to an empty value to disable that actor attribute without disabling the other attributes.
+The global `send_actor_headers` setting alone never sends the email header because the email option defaults to empty.
 
 AI Gateway uses values from the authenticated Coder account, not client-supplied headers.
+AI Gateway omits the email header when the authenticated account has no email address.
+Email is personal information, so enable the email option only for upstream providers you trust with that information.
 Gateway does not inject actor headers on passthrough routes.
 
 ## Supported APIs
