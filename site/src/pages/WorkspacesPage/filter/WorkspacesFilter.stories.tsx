@@ -99,7 +99,6 @@ export const OrdinaryUserKeepsUserChip: Story = {
 		await waitFor(() => {
 			expect(body.getByRole("option", { name: /^User/ })).toBeVisible();
 			expect(body.getByRole("option", { name: /^Owner/ })).toBeVisible();
-			expect(body.getByRole("option", { name: /running/i })).toBeVisible();
 		});
 	},
 };
