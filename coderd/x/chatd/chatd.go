@@ -197,6 +197,7 @@ type Server struct {
 	providerCacheUnsubscribe       func()
 
 	usageTracker         *workspacestats.UsageTracker
+	instructionProbes    instructionProbeCache
 	clock                quartz.Clock
 	metrics              *chatloop.Metrics
 	chatWorker           *chatWorker
