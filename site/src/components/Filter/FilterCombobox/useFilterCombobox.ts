@@ -254,10 +254,8 @@ export const useFilterCombobox = ({
 	const inputRef = useRef<HTMLInputElement | null>(null);
 
 	const queryClient = useQueryClient();
-	// Bumped when the input changes, when emitQuery sends a query, when an
-	// external value arrives, and on unmount, so a typed-text lookup that
-	// resolves after any of these is dropped. emitQueryKeepingLookup does not
-	// bump it.
+	// cancelTypedTextLookup bumps this, so a typed-text lookup that resolves
+	// after any cancel is dropped. emitQueryKeepingLookup does not cancel.
 	const typedTextLookupGenerationRef = useRef(0);
 	const {
 		debounced: scheduleTypedTextLookup,
@@ -639,12 +637,9 @@ export const useFilterCombobox = ({
 		suggestionOptions.refetch();
 	};
 
-	const updateFromChips = (tokens: string[], freeText?: string) => {
-		const nextFreeText = freeText ?? appliedFreeText();
-		if (freeText !== undefined) {
-			dispatch({ type: "setTypedFreeText", value: freeText });
-		}
-		emitQuery(composeFilterQuery(tokens, chipKeys, nextFreeText, categories));
+	const updateFromChips = (tokens: string[], freeText: string) => {
+		dispatch({ type: "setTypedFreeText", value: freeText });
+		emitQuery(composeFilterQuery(tokens, chipKeys, freeText, categories));
 	};
 
 	// Adding an option from an exclusive category replaces that category's
@@ -763,7 +758,7 @@ export const useFilterCombobox = ({
 	const commitCategoryOption = (token: string) => {
 		updateFromChips(
 			withOptionToken(token),
-			hasCategorySearchText ? "" : undefined,
+			hasCategorySearchText ? "" : typedFreeText,
 		);
 		returnToCategories();
 	};
@@ -775,7 +770,7 @@ export const useFilterCombobox = ({
 		}
 		updateFromChips(
 			chipValues.filter((chip) => chip !== token),
-			hasCategorySearchText ? "" : undefined,
+			hasCategorySearchText ? "" : typedFreeText,
 		);
 		returnToCategories();
 	};
@@ -831,11 +826,10 @@ export const useFilterCombobox = ({
 		returnToCategories();
 	};
 
-	// True when text starts a category key or label, matches a loaded option,
-	// or matches an option that a category's getOptions returns for it within
-	// TYPED_TEXT_LOOKUP_TIMEOUT_MS. A failed lookup, or one still pending at the
-	// timeout, counts as no match. Callers hold such text back so results do
-	// not empty out mid-word.
+	// True when matchCategories matches text, text matches a loaded option, or
+	// a category's getOptions returns a matching option within
+	// TYPED_TEXT_LOOKUP_TIMEOUT_MS; a failed lookup counts as no match. Callers
+	// hold such text back so results do not empty out mid-word.
 	const couldBeFilterSearch = (text: string): Promise<boolean> => {
 		if (text.length === 0) {
 			return Promise.resolve(false);
@@ -939,10 +933,10 @@ export const useFilterCombobox = ({
 	// Text typed ahead of a `key:` prefix is committed on the spot. Chip tokens
 	// in it (e.g. a pasted `owner:me template:docker`) become chips rather than
 	// free text that would duplicate the token on the next commit.
-	const commitTextBeforePrefix = (text: string) => {
+	const commitTextBeforePrefix = (text: string, baseChips = chipValues) => {
 		const priorChips = queryToChips(text, chipKeys, categories);
 		const mergedChips = dedupeChips(
-			[...chipValues, ...priorChips],
+			[...baseChips, ...priorChips],
 			chipKeys,
 			categories,
 		);
@@ -963,6 +957,7 @@ export const useFilterCombobox = ({
 			})),
 		);
 		if (typedCategory) {
+			let baseChips = chipValues;
 			const category = submenuCategories.find(
 				(entry) => entry.key === typedCategory.categoryKey,
 			);
@@ -974,15 +969,12 @@ export const useFilterCombobox = ({
 						: scopeToggle.widenedKey;
 				const fromKey =
 					toKey === category.key ? scopeToggle.widenedKey : category.key;
-				const rewritten = chipValues.map((token) => {
+				baseChips = chipValues.map((token) => {
 					const parsed = parseChipToken(token, chipKeys);
 					return parsed?.key === fromKey
 						? chipToken(toKey, parsed.value)
 						: token;
 				});
-				if (rewritten.some((token, index) => token !== chipValues[index])) {
-					updateFromChips(rewritten);
-				}
 				setNarrowedScopes((previous) => {
 					const next = new Set(previous);
 					if (toKey === category.key) {
@@ -997,7 +989,10 @@ export const useFilterCombobox = ({
 				type: "enterCategory",
 				categoryKey: typedCategory.categoryKey,
 				query: typedCategory.query,
-				typedFreeText: commitTextBeforePrefix(typedCategory.freeText),
+				typedFreeText: commitTextBeforePrefix(
+					typedCategory.freeText,
+					baseChips,
+				),
 			});
 			return;
 		}
