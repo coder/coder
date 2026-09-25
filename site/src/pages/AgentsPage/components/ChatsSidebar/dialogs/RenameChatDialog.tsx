@@ -23,7 +23,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 type RenameChatDialogProps = {
 	readonly chat: Chat | null;
 	readonly onRename: (chatId: string, title: string) => Promise<void>;
-	readonly onPropose?: (chatId: string) => Promise<string>;
+	readonly onPropose: (chatId: string) => Promise<string>;
 	readonly onOpenChange: (open: boolean) => void;
 };
 
@@ -185,7 +185,7 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 	}, [isTypingGeneratedTitle, renameTitle]);
 
 	const handleGenerate = async () => {
-		if (!chat || !onPropose) return;
+		if (!chat) return;
 		const requestedSession = sessionRef.current;
 		cancelGeneratedTitleTyping();
 		setIsGeneratingTitle(true);
@@ -257,27 +257,25 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 			>
 				<DialogHeader className="flex-row items-center justify-between space-y-0 sm:flex-row">
 					<DialogTitle className="text-lg">Rename chat</DialogTitle>
-					{onPropose && (
-						<Button
-							type="button"
-							variant="subtle"
-							size="sm"
-							className="h-auto min-w-0 gap-1 px-2 py-1.5 text-xs font-normal"
-							onClick={() => {
-								void handleGenerate();
-							}}
-							disabled={
-								isRenamingChat || isGeneratingTitle || isTypingGeneratedTitle
-							}
-						>
-							{isGeneratingTitle ? (
-								<Spinner className="h-[18px] w-[18px]" loading />
-							) : (
-								<SparklesIcon className="size-[18px]" />
-							)}
-							Generate
-						</Button>
-					)}
+					<Button
+						type="button"
+						variant="subtle"
+						size="sm"
+						className="h-auto min-w-0 gap-1 px-2 py-1.5 text-xs font-normal"
+						onClick={() => {
+							void handleGenerate();
+						}}
+						disabled={
+							isRenamingChat || isGeneratingTitle || isTypingGeneratedTitle
+						}
+					>
+						{isGeneratingTitle ? (
+							<Spinner className="h-[18px] w-[18px]" loading />
+						) : (
+							<SparklesIcon className="size-[18px]" />
+						)}
+						Generate
+					</Button>
 				</DialogHeader>
 				<form
 					className="flex flex-col gap-6"

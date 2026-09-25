@@ -43,6 +43,8 @@ const meta: Meta<typeof SidebarTabView> = {
 		onActiveTabChange: fn(),
 		isExpanded: false,
 		onToggleExpanded: fn(),
+		chatTitle: "Fix authentication bug",
+		onClose: fn(),
 	},
 	decorators: [
 		(Story) => (
@@ -152,6 +154,8 @@ export const CloseableTabs: Story = {
 				onActiveTabChange={setActiveTabId}
 				isExpanded={false}
 				onToggleExpanded={() => {}}
+				chatTitle="Fix authentication bug"
+				onClose={() => {}}
 				addTabControl={
 					<Button
 						variant="outline"

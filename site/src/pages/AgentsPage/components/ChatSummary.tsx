@@ -12,13 +12,13 @@ type ChatSummaryProps = {
 	updatedAt: string;
 	/** Cost of the whole chat tree in microdollars (1 USD = 1,000,000). */
 	costMicros?: number | null;
-	isCostLoading?: boolean;
-	costError?: boolean;
+	isCostLoading: boolean;
+	costError: boolean;
 	/** Requests with usage the gateway could not price, so the reported cost is partial. */
 	unpricedRequestCount?: number;
 	showCost: boolean;
 	/** Subagent summaries are the agent's final report, persisted when it completes, so the empty state reads as pending rather than absent. */
-	isSubagent?: boolean;
+	isSubagent: boolean;
 };
 
 export const ChatSummary: FC<ChatSummaryProps> = ({

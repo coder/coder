@@ -22,7 +22,7 @@ type SettingsPanelProps = {
 	readonly isPersonalModelOverridesEnabled: boolean;
 	readonly canManageAgentSettings: boolean;
 	readonly location: Location;
-	readonly onCollapse?: () => void;
+	readonly onCollapse: () => void;
 };
 
 export const SettingsPanel: FC<SettingsPanelProps> = ({
@@ -60,17 +60,15 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 						</Link>
 					</Button>
 					<div className="flex-1" />
-					{onCollapse && (
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={onCollapse}
-							aria-label="Collapse sidebar"
-							className="relative z-10 hidden size-7 min-w-0 text-content-secondary hover:text-content-primary sm:inline-flex"
-						>
-							<PanelLeftCloseIcon />
-						</Button>
-					)}
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={onCollapse}
+						aria-label="Collapse sidebar"
+						className="relative z-10 hidden size-7 min-w-0 text-content-secondary hover:text-content-primary sm:inline-flex"
+					>
+						<PanelLeftCloseIcon />
+					</Button>
 				</div>
 			</div>
 			<nav className="flex flex-col gap-0.5 px-2 py-2">
