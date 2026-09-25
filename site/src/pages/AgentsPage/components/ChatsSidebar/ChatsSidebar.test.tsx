@@ -159,7 +159,7 @@ describe("ChatsSidebar section switcher", () => {
 });
 
 describe("ChatsSidebar sections", () => {
-	it("renders unpinned shared chats in Shared with you before date sections", () => {
+	it("renders another user's shared chats in Shared with you regardless of pin order", () => {
 		render(
 			<Wrapper>
 				<ChatsSidebar
@@ -176,6 +176,13 @@ describe("ChatsSidebar sections", () => {
 							title: "Shared chat",
 							owner_id: "sharing-user-id",
 							shared: true,
+						}),
+						buildChat({
+							id: "shared-chat-pinned-by-owner",
+							title: "Shared chat pinned by its owner",
+							owner_id: "sharing-user-id",
+							shared: true,
+							pin_order: 1,
 						}),
 						buildChat({
 							id: "owned-shared-chat",
@@ -205,7 +212,7 @@ describe("ChatsSidebar sections", () => {
 		const ownedNode = screen.getByTestId("agents-tree-node-owned-chat");
 
 		expect(pinnedSection).toHaveTextContent("Pinned (1)");
-		expect(sharedSection).toHaveTextContent("Shared with you (1)");
+		expect(sharedSection).toHaveTextContent("Shared with you (2)");
 		expect(todaySection).toHaveTextContent("Today (2)");
 		expect(
 			pinnedSection.compareDocumentPosition(pinnedSharedNode) &
@@ -227,6 +234,79 @@ describe("ChatsSidebar sections", () => {
 			todaySection.compareDocumentPosition(ownedNode) &
 				Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
+	});
+});
+
+describe("ChatsSidebar pinned reordering", () => {
+	const SORTABLE_INSTRUCTIONS = /pick up a draggable item/i;
+	const ROW_HEIGHT = 40;
+
+	// dnd-kit's keyboard sensor picks the drop target from measured
+	// rects, which jsdom reports as all zeros. Lay the sortable rows out
+	// vertically in document order so ArrowDown resolves to the next row.
+	const layoutSortableRows = () => {
+		const rows = screen.getAllByRole("button", {
+			description: SORTABLE_INSTRUCTIONS,
+		});
+		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+			function (this: Element) {
+				const index = rows.findIndex((row) => row.contains(this));
+				const top = index === -1 ? 0 : index * ROW_HEIGHT;
+				const height = index === -1 ? 0 : ROW_HEIGHT;
+				return DOMRect.fromRect({ x: 0, y: top, width: 300, height });
+			},
+		);
+		return rows;
+	};
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("reorders only the viewer's own pinned chats", async () => {
+		const user = userEvent.setup();
+		const onReorderPinnedAgent = vi.fn();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					onReorderPinnedAgent={onReorderPinnedAgent}
+					chats={[
+						buildChat({
+							id: "shared-chat-pinned-by-owner",
+							title: "Shared chat pinned by its owner",
+							owner_id: "sharing-user-id",
+							shared: true,
+							pin_order: 1,
+						}),
+						buildChat({
+							id: "own-first",
+							title: "Own first pinned chat",
+							pin_order: 1,
+						}),
+						buildChat({
+							id: "own-second",
+							title: "Own second pinned chat",
+							pin_order: 2,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		const sortableRows = layoutSortableRows();
+		expect(sortableRows.map((row) => row.textContent)).toEqual([
+			expect.stringContaining("Own first pinned chat"),
+			expect.stringContaining("Own second pinned chat"),
+		]);
+
+		sortableRows[0].focus();
+		await user.keyboard("[Space]");
+		await user.keyboard("[ArrowDown]");
+		await user.keyboard("[Space]");
+
+		expect(onReorderPinnedAgent).toHaveBeenCalledTimes(1);
+		expect(onReorderPinnedAgent).toHaveBeenCalledWith("own-first", 2);
 	});
 });
 
