@@ -1,8 +1,9 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { appendTextBlock } from "./blockUtils";
+import { appendTextBlock, placeCitationsAfterText } from "./blockUtils";
 import {
 	ensureToolBlock,
 	getToolResultStatus,
+	isHiddenProviderExecutedPart,
 	parseToolResultIsError,
 } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
@@ -33,7 +34,9 @@ export const applyMessagePartToStreamState = (
 			}
 			return {
 				...nextState,
-				blocks: appendTextBlock(nextState.blocks, "response", part.text),
+				blocks: placeCitationsAfterText(
+					appendTextBlock(nextState.blocks, "response", part.text),
+				),
 			};
 		}
 		case "reasoning": {
@@ -46,10 +49,7 @@ export const applyMessagePartToStreamState = (
 			};
 		}
 		case "tool-call": {
-			// Provider-executed tool calls (e.g. web_search) are
-			// handled natively by the provider — skip rendering them
-			// as tool cards.
-			if (part.provider_executed) {
+			if (isHiddenProviderExecutedPart(part)) {
 				return prev;
 			}
 			const existingByName = Object.values(nextState.toolCalls).find(
@@ -89,13 +89,15 @@ export const applyMessagePartToStreamState = (
 						modelIntent,
 						parsedCommands: part.parsed_commands ?? existing?.parsedCommands,
 						startedAt: part.created_at ?? existing?.startedAt,
+						providerExecuted:
+							part.provider_executed ?? existing?.providerExecuted,
+						foundPages: existing?.foundPages,
 					},
 				},
 			};
 		}
 		case "tool-result": {
-			// Skip synthetic results for provider-executed tools.
-			if (part.provider_executed) {
+			if (isHiddenProviderExecutedPart(part)) {
 				return prev;
 			}
 			const existingByName = Object.values(nextState.toolResults).find(
@@ -180,6 +182,30 @@ export const applyMessagePartToStreamState = (
 			if (!part.url) {
 				return prev;
 			}
+			// A tagged page whose call has not streamed falls through to
+			// the source row instead of being dropped.
+			const call = part.tool_call_id
+				? nextState.toolCalls[part.tool_call_id]
+				: undefined;
+			if (call) {
+				const foundPages = call.foundPages ?? [];
+				if (foundPages.some(({ url }) => url === part.url)) {
+					return prev;
+				}
+				return {
+					...nextState,
+					toolCalls: {
+						...nextState.toolCalls,
+						[call.id]: {
+							...call,
+							foundPages: [
+								...foundPages,
+								{ url: part.url, title: part.title ?? "" },
+							],
+						},
+					},
+				};
+			}
 			const source = { url: part.url, title: part.title || part.url };
 			// Still populate the flat list for backward compat.
 			if (nextState.sources.some((s) => s.url === part.url)) {
@@ -262,6 +288,8 @@ export const buildStreamTools = (
 			modelIntent: call.modelIntent,
 			parsedCommands: call.parsedCommands,
 			startedAt: call.startedAt,
+			providerExecuted: call.providerExecuted,
+			foundPages: call.foundPages,
 		});
 	}
 

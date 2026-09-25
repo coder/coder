@@ -758,13 +758,13 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 		{
 			type: "tool-call",
 			tool_call_id: "every-generic",
-			tool_name: "web_search",
+			tool_name: "search_docs",
 			args: { query: "OAuth2 token rotation strategies" },
 		},
 		{
 			type: "tool-result",
 			tool_call_id: "every-generic",
-			tool_name: "web_search",
+			tool_name: "search_docs",
 			result: {
 				results: [
 					{

@@ -10071,6 +10071,226 @@ func TestStreamChat(t *testing.T) {
 	})
 }
 
+// TestChatOpenAIResponsesWebSearch runs provider-executed OpenAI web
+// searches through the chat API and the AI Gateway daemon, then checks the
+// streamed parts and the reloaded messages the chat UI renders.
+func TestChatOpenAIResponsesWebSearch(t *testing.T) {
+	t.Parallel()
+
+	const answer = "Tokyo has about 14 million residents."
+	found := []string{"https://www.metro.tokyo.lg.jp/", "https://example.com/tokyo"}
+	// Live OpenAI streams add pages the answer cited to the search's
+	// sources only in response.completed; they are not found pages.
+	cited := []string{"https://example.com/cited"}
+
+	tests := []struct {
+		name       string
+		webSearch  chattest.OpenAIWebSearchCall
+		wantArgs   string
+		wantResult string
+		wantError  bool
+		wantFound  []string
+	}{
+		{
+			name: "QueriesAndSources",
+			webSearch: chattest.OpenAIWebSearchCall{
+				Queries: []string{"tokyo population", "tokyo census 2025"},
+				Query:   "tokyo population",
+			},
+			wantArgs:   `{"type":"search","queries":["tokyo population","tokyo census 2025"]}`,
+			wantResult: `{}`,
+			wantFound:  found,
+		},
+		{
+			name:       "DeprecatedQuery",
+			webSearch:  chattest.OpenAIWebSearchCall{Query: "tokyo population"},
+			wantArgs:   `{"type":"search","queries":["tokyo population"]}`,
+			wantResult: `{}`,
+			wantFound:  found,
+		},
+		{
+			name:       "NoQueries",
+			wantArgs:   `{"type":"search"}`,
+			wantResult: `{}`,
+			wantFound:  found,
+		},
+		{
+			name: "Failed",
+			webSearch: chattest.OpenAIWebSearchCall{
+				Queries: []string{"tokyo population"},
+				Status:  "failed",
+			},
+			wantArgs:   `{"type":"search","queries":["tokyo population"]}`,
+			wantResult: `{"error":"web search failed"}`,
+			wantError:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			webSearchID := "ws_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+
+			// The model turn waits until the test subscribes to the chat
+			// stream so the streamed parts cannot be missed.
+			streamReady := make(chan struct{})
+			var requestIncludes atomic.Pointer[[]string]
+			baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse(`{"title": "Tokyo population"}`)
+				}
+				var body struct {
+					Include []string `json:"include"`
+				}
+				if err := json.Unmarshal(req.RawBody, &body); err == nil {
+					requestIncludes.Store(&body.Include)
+				}
+				select {
+				case <-streamReady:
+				case <-req.Context().Done():
+				}
+				resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks(answer)...)
+				webSearch := tt.webSearch
+				webSearch.ID = webSearchID
+				webSearch.Sources = tt.wantFound
+				webSearch.SummaryOnlySources = cited
+				resp.WebSearch = &webSearch
+				return resp
+			})
+
+			client, _, api := newChatClientWithoutAIBridge(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+				Type:    codersdk.AIProviderTypeOpenAI,
+				Name:    "test-openai-" + uuid.NewString(),
+				BaseURL: baseURL,
+				Enabled: true,
+				APIKeys: []string{coderdtest.TestChatProviderAPIKey},
+			})
+			require.NoError(t, err)
+			_, err = client.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
+				AIProviderID: &provider.ID,
+				Model:        "gpt-4o",
+				ContextLimit: ptr.Ref(int64(128000)),
+				IsDefault:    ptr.Ref(true),
+				ModelConfig: &codersdk.ChatModelCallConfig{
+					OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: ptr.Ref(true)},
+					ProviderOptions: &codersdk.ChatModelProviderOptions{
+						OpenAI: &codersdk.ChatModelOpenAIProviderOptions{WebSearchEnabled: ptr.Ref(true)},
+					},
+				},
+			})
+			require.NoError(t, err)
+			aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+
+			chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
+				Content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "How many people live in Tokyo?",
+				}},
+			})
+			require.NoError(t, err)
+
+			events, closer, err := client.StreamChat(ctx, chat.ID, nil)
+			require.NoError(t, err)
+			defer closer.Close()
+			close(streamReady)
+
+			// requireWebSearchParts checks what the UI renders for the
+			// search: the call with its action, the result that finishes
+			// it, and its found pages as sources tagged with the search.
+			requireWebSearchParts := func(t *testing.T, call, result *codersdk.ChatMessagePart, foundURLs []string) {
+				t.Helper()
+				require.NotNil(t, call, "missing web_search tool-call part")
+				require.True(t, call.ProviderExecuted)
+				require.JSONEq(t, tt.wantArgs, string(call.Args))
+				require.NotNil(t, result, "missing web_search tool-result part")
+				require.True(t, result.ProviderExecuted)
+				require.Equal(t, tt.wantError, result.IsError)
+				require.JSONEq(t, tt.wantResult, string(result.Result))
+				require.Equal(t, tt.wantFound, foundURLs)
+			}
+			isWebSearchPart := func(part codersdk.ChatMessagePart, partType codersdk.ChatMessagePartType) bool {
+				return part.Type == partType && part.ToolName == "web_search" && part.ToolCallID == webSearchID
+			}
+			foundURL := func(t *testing.T, part codersdk.ChatMessagePart) (string, bool) {
+				t.Helper()
+				if part.Type != codersdk.ChatMessagePartTypeSource {
+					return "", false
+				}
+				require.Equal(t, webSearchID, part.ToolCallID, "source %q should be tagged with the search", part.URL)
+				require.NotContains(t, cited, part.URL, "a cited page must not become a found page")
+				return part.URL, true
+			}
+
+			var streamedCall, streamedResult *codersdk.ChatMessagePart
+			var streamedFound []string
+			for streamedResult == nil {
+				select {
+				case <-ctx.Done():
+					require.FailNow(t, "timed out waiting for the streamed web_search result")
+				case event, ok := <-events:
+					require.True(t, ok, "stream closed before the web_search result")
+					require.NotEqual(t, codersdk.ChatStreamEventTypeError, event.Type)
+					if event.Type != codersdk.ChatStreamEventTypeMessagePart || event.MessagePart == nil {
+						continue
+					}
+					part := event.MessagePart.Part
+					if url, ok := foundURL(t, part); ok {
+						streamedFound = append(streamedFound, url)
+					}
+					switch {
+					case isWebSearchPart(part, codersdk.ChatMessagePartTypeToolCall):
+						streamedCall = &part
+					case isWebSearchPart(part, codersdk.ChatMessagePartTypeToolResult):
+						streamedResult = &part
+					}
+				}
+			}
+			// The search's found pages arrive before its result.
+			requireWebSearchParts(t, streamedCall, streamedResult, streamedFound)
+
+			settled := coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+			require.Equal(t, database.ChatStatusWaiting, settled.Status)
+
+			includes := requestIncludes.Load()
+			require.NotNil(t, includes, "the provider did not receive the streaming request")
+			require.Contains(t, *includes, "web_search_call.action.sources")
+
+			// Reloading the conversation reads the persisted rows.
+			messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+			require.NoError(t, err)
+			var reloadedCall, reloadedResult *codersdk.ChatMessagePart
+			var reloadedFound []string
+			var reloadedText string
+			for _, message := range messages.Messages {
+				if message.Role != codersdk.ChatMessageRoleAssistant {
+					continue
+				}
+				for _, part := range message.Content {
+					require.Empty(t, part.ProviderMetadata, "API responses must strip provider metadata")
+					if url, ok := foundURL(t, part); ok {
+						reloadedFound = append(reloadedFound, url)
+					}
+					switch {
+					case isWebSearchPart(part, codersdk.ChatMessagePartTypeToolCall):
+						reloadedCall = &part
+					case isWebSearchPart(part, codersdk.ChatMessagePartTypeToolResult):
+						reloadedResult = &part
+					case part.Type == codersdk.ChatMessagePartTypeText:
+						reloadedText += part.Text
+					}
+				}
+			}
+			requireWebSearchParts(t, reloadedCall, reloadedResult, reloadedFound)
+			require.Equal(t, answer, reloadedText)
+		})
+	}
+}
+
 func TestInterruptChat(t *testing.T) {
 	t.Parallel()
 

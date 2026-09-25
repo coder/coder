@@ -371,7 +371,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 type ChatMessagePart struct {
 	Type              ChatMessagePartType `json:"type"`
 	Text              string              `json:"text" variants:"text,reasoning,hook-notice"`
-	ToolCallID        string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
+	ToolCallID        string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?,source?"`
 	ToolName          string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
 	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
 	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`

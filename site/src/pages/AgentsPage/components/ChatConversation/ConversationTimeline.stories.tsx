@@ -1869,8 +1869,152 @@ export const SourcesOnlyAssistantSpacing: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /^2 sources$/ }));
+	},
+};
+
+/**
+ * A provider-executed OpenAI web search lists its found pages, tagged with
+ * the call ID, in its own row. The untagged citation goes to the answer's
+ * source row.
+ */
+export const ProviderWebSearchWithCitations: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "What is new in Coder?" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "ws_1",
+						tool_name: "web_search",
+						args: {
+							type: "search",
+							queries: JSON.stringify(["coder release notes"]),
+						},
+						provider_executed: true,
+					},
+					{
+						type: "source",
+						tool_call_id: "ws_1",
+						url: "https://coder.com/changelog",
+					},
+					{
+						type: "source",
+						tool_call_id: "ws_1",
+						url: "https://github.com/coder/coder/releases",
+					},
+					{
+						type: "source",
+						tool_call_id: "ws_1",
+						url: "https://coder.com/blog",
+					},
+					{
+						type: "tool-result",
+						tool_call_id: "ws_1",
+						tool_name: "web_search",
+						provider_executed: true,
+						result: {},
+					},
+					{ type: "text", text: "The latest release adds Coder Agents." },
+					{
+						type: "source",
+						url: "https://coder.com/changelog",
+						title: "Coder changelog",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: /searched 2 results/i }),
+			canvas.getByRole("button", { name: /searched for coder release notes/i }),
+		);
+		await userEvent.click(canvas.getByRole("button", { name: /^1 source$/ }));
+	},
+};
+
+/**
+ * Anthropic runs several searches in one answer; each row lists only the
+ * found pages tagged with its call ID.
+ */
+export const ProviderWebSearchAnthropicTwoSearches: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Compare Coder and Gitpod." }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "srvtoolu_1",
+						tool_name: "web_search",
+						args: { query: "coder cde" },
+						provider_executed: true,
+					},
+					{
+						type: "source",
+						tool_call_id: "srvtoolu_1",
+						url: "https://coder.com/cde",
+						title: "Coder CDE",
+					},
+					{
+						type: "tool-result",
+						tool_call_id: "srvtoolu_1",
+						tool_name: "web_search",
+						provider_executed: true,
+						result: {},
+					},
+					{
+						type: "tool-call",
+						tool_call_id: "srvtoolu_2",
+						tool_name: "web_search",
+						args: { query: "gitpod flex" },
+						provider_executed: true,
+					},
+					{
+						type: "source",
+						tool_call_id: "srvtoolu_2",
+						url: "https://www.gitpod.io/flex",
+						title: "Gitpod Flex",
+					},
+					{
+						type: "tool-result",
+						tool_call_id: "srvtoolu_2",
+						tool_name: "web_search",
+						provider_executed: true,
+						result: {},
+					},
+					{ type: "text", text: "Both offer cloud development environments." },
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /searched for coder cde/i }),
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /searched for gitpod flex/i }),
 		);
 	},
 };
