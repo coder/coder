@@ -1328,6 +1328,16 @@ class ApiMethods {
 		return response.data;
 	};
 
+	reportWorkspaceBuildDebugClick = async (
+		buildId: string,
+		req: TypesGen.WorkspaceBuildDebugEventRequest,
+	): Promise<void> => {
+		await this.axios.post(
+			`/api/v2/workspacebuilds/${buildId}/debug-events`,
+			req,
+		);
+	};
+
 	waitForBuild = (build: TypesGen.WorkspaceBuild) => {
 		return new Promise<TypesGen.ProvisionerJob | undefined>((res, reject) => {
 			void (async () => {

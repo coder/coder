@@ -15100,6 +15100,49 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/workspacebuilds/{workspacebuild}/debug-events": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Report a workspace build debug click",
+                "operationId": "report-a-workspace-build-debug-click",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace build ID",
+                        "name": "workspacebuild",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Debug event",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildDebugEventRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/workspacebuilds/{workspacebuild}/logs": {
             "get": {
                 "produces": [
@@ -32473,6 +32516,19 @@ const docTemplate = `{
                 "workspace_owner_name": {
                     "description": "WorkspaceOwnerName is the username of the owner of the workspace.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceBuildDebugEventRequest": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "id": {
+                    "description": "ID identifies this click so a later step of the funnel can be\nattributed to it.",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
