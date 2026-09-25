@@ -1,7 +1,22 @@
-DROP TRIGGER IF EXISTS trigger_user_skills_per_user_limit_update ON user_skills;
+-- Weaken the users-row lock taken by the per-user cap triggers on
+-- user_secrets and user_skills from FOR UPDATE to FOR NO KEY UPDATE, and
+-- recheck users.deleted after the lock wait.
+--
+-- FOR UPDATE also blocked the FOR KEY SHARE locks that foreign-key checks
+-- take on the users row, so a cap write stalled inserts into every table
+-- that references users for that user. FOR NO KEY UPDATE still serializes
+-- cap writers for one user and still conflicts with the soft-delete UPDATE
+-- of the users row.
+--
+-- Soft-delete ordering: if a cap write locks the users row first, the
+-- soft-delete waits for it, and delete_deleted_user_resources then deletes
+-- the committed row. If the soft-delete locks first, the cap write waits,
+-- and the recheck rejects it. Before this migration the second order let
+-- the write commit a row for a deleted user, because the deleted check ran
+-- in an earlier trigger, before the wait.
+--
+-- CREATE OR REPLACE FUNCTION takes no lock on either table.
 
--- Restore the users-row-locking bodies from migrations 000509 (user_secrets)
--- and 000502 (user_skills).
 CREATE OR REPLACE FUNCTION enforce_user_secrets_per_user_limits() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -18,9 +33,19 @@ DECLARE
     total_bytes_limit constant bigint := 204800;   -- 200 KiB
     env_bytes_limit   constant bigint := 24576;    -- 24 KiB
 BEGIN
-    -- Serialize cap checks per user so concurrent inserts cannot all
-    -- observe the same pre-insert aggregates and exceed the cap.
-    PERFORM 1 FROM users WHERE id = NEW.user_id FOR UPDATE;
+    -- Serialize cap checks per user so concurrent inserts or updates cannot
+    -- all observe the same pre-statement aggregates and exceed the caps.
+    -- FOR NO KEY UPDATE conflicts with itself and with the soft-delete
+    -- UPDATE of the users row, but not with the FOR KEY SHARE locks that
+    -- foreign-key checks take on the users row.
+    PERFORM 1 FROM users WHERE id = NEW.user_id FOR NO KEY UPDATE;
+
+    -- trigger_upsert_user_secrets checked users.deleted before this
+    -- trigger could wait for the lock. Recheck now: at READ COMMITTED this
+    -- statement sees a soft-delete that committed during the wait.
+    IF (SELECT deleted FROM users WHERE id = NEW.user_id) THEN
+        RAISE EXCEPTION 'Cannot create user_secret for deleted user';
+    END IF;
 
     -- Sum existing rows excluding the row being updated (so UPDATE statements
     -- don't double-count NEW). On INSERT, no row matches NEW.id, so
@@ -71,11 +96,21 @@ DECLARE
     skill_limit constant int := 100;
 BEGIN
     -- Serialize skill-cap checks per user so concurrent inserts cannot all
-    -- observe the same pre-insert count and exceed the hard limit.
+    -- observe the same pre-insert count and exceed the hard limit. See
+    -- enforce_user_secrets_per_user_limits for the lock strength.
     PERFORM 1
     FROM users
     WHERE id = NEW.user_id
-    FOR UPDATE;
+    FOR NO KEY UPDATE;
+
+    -- trigger_upsert_user_skills checked users.deleted before this trigger
+    -- could wait for the lock. Recheck now: at READ COMMITTED this
+    -- statement sees a soft-delete that committed during the wait.
+    IF (SELECT deleted FROM users WHERE id = NEW.user_id) THEN
+        RAISE EXCEPTION 'Cannot create user_skill for deleted user'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_skill_user_deleted';
+    END IF;
 
     SELECT count(*) INTO skill_count
     FROM user_skills

@@ -1053,12 +1053,17 @@ DECLARE
 BEGIN
     -- Serialize cap checks per user so concurrent inserts or updates cannot
     -- all observe the same pre-statement aggregates and exceed the caps.
-    -- The advisory lock takes no users row lock, so writers of other tables
-    -- referencing users are not blocked by it; see the lock-order note at
-    -- the top of this migration. The key derivation is registered for
-    -- discoverability in coderd/database/lock.go and pinned by
-    -- TestUserCapAdvisoryLocks.
-    PERFORM pg_advisory_xact_lock(hashtextextended('user_secrets_cap:' || NEW.user_id::text, 0));
+    -- FOR NO KEY UPDATE conflicts with itself and with the soft-delete
+    -- UPDATE of the users row, but not with the FOR KEY SHARE locks that
+    -- foreign-key checks take on the users row.
+    PERFORM 1 FROM users WHERE id = NEW.user_id FOR NO KEY UPDATE;
+
+    -- trigger_upsert_user_secrets checked users.deleted before this
+    -- trigger could wait for the lock. Recheck now: at READ COMMITTED this
+    -- statement sees a soft-delete that committed during the wait.
+    IF (SELECT deleted FROM users WHERE id = NEW.user_id) THEN
+        RAISE EXCEPTION 'Cannot create user_secret for deleted user';
+    END IF;
 
     -- Sum existing rows excluding the row being updated (so UPDATE statements
     -- don't double-count NEW). On INSERT, no row matches NEW.id, so
@@ -1108,15 +1113,23 @@ DECLARE
     skill_count int;
     skill_limit constant int := 100;
 BEGIN
-    -- Serialize skill-cap checks per user so concurrent inserts (or owner
-    -- reassignments targeting the same user) cannot all observe the same
-    -- pre-statement count and exceed the hard limit. See
-    -- enforce_user_secrets_per_user_limits for why this is an advisory
-    -- lock; the key registry is coderd/database/lock.go.
-    PERFORM pg_advisory_xact_lock(hashtextextended('user_skills_cap:' || NEW.user_id::text, 0));
+    -- Serialize skill-cap checks per user so concurrent inserts cannot all
+    -- observe the same pre-insert count and exceed the hard limit. See
+    -- enforce_user_secrets_per_user_limits for the lock strength.
+    PERFORM 1
+    FROM users
+    WHERE id = NEW.user_id
+    FOR NO KEY UPDATE;
 
-    -- On an owner reassignment the moving row still belongs to
-    -- OLD.user_id, so counting NEW.user_id's rows excludes it naturally.
+    -- trigger_upsert_user_skills checked users.deleted before this trigger
+    -- could wait for the lock. Recheck now: at READ COMMITTED this
+    -- statement sees a soft-delete that committed during the wait.
+    IF (SELECT deleted FROM users WHERE id = NEW.user_id) THEN
+        RAISE EXCEPTION 'Cannot create user_skill for deleted user'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_skill_user_deleted';
+    END IF;
+
     SELECT count(*) INTO skill_count
     FROM user_skills
     WHERE user_id = NEW.user_id;
@@ -5129,8 +5142,6 @@ CREATE TRIGGER trigger_upsert_user_skills BEFORE INSERT OR UPDATE ON user_skills
 CREATE TRIGGER trigger_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
 
 CREATE TRIGGER trigger_user_skills_per_user_limit BEFORE INSERT ON user_skills FOR EACH ROW EXECUTE FUNCTION enforce_user_skills_per_user_limit();
-
-CREATE TRIGGER trigger_user_skills_per_user_limit_update BEFORE UPDATE ON user_skills FOR EACH ROW WHEN ((new.user_id IS DISTINCT FROM old.user_id)) EXECUTE FUNCTION enforce_user_skills_per_user_limit();
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
