@@ -47,7 +47,7 @@ export const ModelRow: FC<ModelRowProps> = ({
 			? "The provider connected to this model is disabled."
 			: null;
 
-	// Keep tooltip activation from triggering the clickable row's navigation.
+	// Keep tooltip clicks from triggering the clickable row's navigation.
 	const stopPropagation = (event: React.SyntheticEvent) => {
 		event.stopPropagation();
 	};
@@ -97,8 +97,6 @@ export const ModelRow: FC<ModelRowProps> = ({
 										variant="warning"
 										className="shrink-0"
 										onClick={stopPropagation}
-										onKeyDown={stopPropagation}
-										onKeyUp={stopPropagation}
 									>
 										<button type="button">Unavailable</button>
 									</Badge>

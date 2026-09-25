@@ -1,6 +1,6 @@
 import { File as FileViewer } from "@pierre/diffs/react";
 import { cn } from "cn";
-import { type ComponentPropsWithRef, type FC, memo } from "react";
+import { type ComponentProps, type FC, memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
@@ -25,7 +25,6 @@ import { ProposePlanTool } from "./ProposePlanTool";
 import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
 import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
-import { StartWorkspaceTool } from "./StartWorkspaceTool";
 import { SubagentTool } from "./SubagentTool";
 import {
 	getProvidedSubagentTitle,
@@ -61,15 +60,18 @@ import {
 	parseServerEditResults,
 	type ToolStatus,
 } from "./utils";
+import { WorkspaceLifecycleTool } from "./WorkspaceLifecycleTool";
 
 import { WriteFileTool } from "./WriteFileTool";
 
-interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
+type ToolProps = Omit<ComponentProps<"div">, "children"> & {
 	organizationId?: string;
 	name: string;
 	status?: ToolStatus;
 	args?: unknown;
 	result?: unknown;
+	/** Streamed advisor reasoning, present only while the advisor runs. */
+	reasoning?: string;
 	isError?: boolean;
 	/** Set when the server persisted the result as {data, mime_type, text}. */
 	isMedia?: boolean;
@@ -100,7 +102,7 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	hookRewritten?: boolean;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
-}
+};
 
 // Props passed to each tool-specific renderer function. Each renderer
 // only computes the expensive values it needs from the raw args/result.
@@ -110,6 +112,8 @@ type ToolRendererProps = {
 	status: ToolStatus;
 	args: unknown;
 	result: unknown;
+	/** Streamed advisor reasoning, present only while the advisor runs. */
+	reasoning?: string;
 	isError: boolean;
 	isMedia?: boolean;
 	killedBySignal?: "kill" | "terminate";
@@ -756,6 +760,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 	args,
 	status,
 	result,
+	reasoning,
 	isError,
 	modelIntent,
 }) => {
@@ -791,6 +796,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 			isError={hasError}
 			resultType={resolvedResultType}
 			advice={advice}
+			reasoning={reasoning}
 			errorMessage={errorMessage || undefined}
 			modelIntent={modelIntent}
 		/>
@@ -861,8 +867,8 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 
 type ToolFileViewerProps = {
 	label?: string;
-	file: ComponentPropsWithRef<typeof FileViewer>["file"];
-	options: ComponentPropsWithRef<typeof FileViewer>["options"];
+	file: ComponentProps<typeof FileViewer>["file"];
+	options: ComponentProps<typeof FileViewer>["options"];
 };
 
 const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
@@ -898,7 +904,7 @@ const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
 type GenericToolContentProps = {
 	toolInput: string | null;
 	fileContent: ReturnType<typeof getFileContentForViewer>;
-	fileContentOptions: ComponentPropsWithRef<typeof FileViewer>["options"];
+	fileContentOptions: ComponentProps<typeof FileViewer>["options"];
 	isDark: boolean;
 	resultOutput: string | null;
 };
@@ -1143,7 +1149,8 @@ const ProcessSignalRenderer: FC<ToolRendererProps> = (props) => {
 	);
 };
 
-const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
+const WorkspaceLifecycleRenderer: FC<ToolRendererProps> = ({
+	name,
 	status,
 	result,
 	isError,
@@ -1156,7 +1163,8 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 	const quotaTitle = getWorkspaceQuotaTitle(rec);
 
 	return (
-		<StartWorkspaceTool
+		<WorkspaceLifecycleTool
+			action={name === "stop_workspace" ? "stop" : "start"}
 			status={status}
 			buildId={buildId}
 			workspaceName={wsName}
@@ -1181,7 +1189,8 @@ export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	write_file: WriteFileRenderer,
 	edit_files: EditFilesRenderer,
 	create_workspace: CreateWorkspaceRenderer,
-	start_workspace: StartWorkspaceRenderer,
+	start_workspace: WorkspaceLifecycleRenderer,
+	stop_workspace: WorkspaceLifecycleRenderer,
 	list_templates: ListTemplatesRenderer,
 	list_agents: ListAgentsRenderer,
 	list_subagent_models: ListSubagentModelsRenderer,
@@ -1212,6 +1221,7 @@ export const Tool = memo(
 		status = "completed",
 		args,
 		result,
+		reasoning,
 		isError = false,
 		isMedia,
 		killedBySignal,
@@ -1262,6 +1272,7 @@ export const Tool = memo(
 						status={status}
 						args={args}
 						result={result}
+						reasoning={reasoning}
 						isError={isError}
 						isMedia={isMedia}
 						killedBySignal={killedBySignal}

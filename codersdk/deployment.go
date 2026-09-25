@@ -734,6 +734,7 @@ type DeploymentValues struct {
 	DisableOwnerWorkspaceExec               serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
 	DisableChatSharing                      serpent.Bool                         `json:"disable_chat_sharing,omitempty" typescript:",notnull"`
+	DisableChatCallerSuppliedTools          serpent.Bool                         `json:"disable_chat_caller_supplied_tools,omitempty" typescript:",notnull"`
 	DisableWorkspaceAgentContextSync        serpent.Bool                         `json:"disable_workspace_agent_context_sync,omitempty" typescript:",notnull"`
 	DisableUserSecretFilePath               serpent.Bool                         `json:"disable_user_secret_file_path,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval               serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
@@ -1227,7 +1228,7 @@ type ExternalAuthConfig struct {
 	//
 	// Git clone makes use of this by parsing the URL from:
 	// 'Username for "https://github.com":'
-	// And sending it to the Coder server to match against the Regex.
+	// And sending it to the control plane to match against the Regex.
 	Regex string `json:"regex" yaml:"regex"`
 	// APIBaseURL is the base URL for provider REST API calls
 	// (e.g., "https://api.github.com" for GitHub). Derived from
@@ -3749,6 +3750,15 @@ communicating directly.`,
 			YAML:  "disableChatSharing",
 		},
 		{
+			Name:        "Disable Chat Caller-supplied Tools",
+			Description: "Disable caller-supplied tools in chats. Chat requests that include unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing chats run without their dynamic tools and inline MCP servers.",
+			Flag:        "disable-chat-caller-supplied-tools",
+			Env:         "CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS",
+
+			Value: &c.DisableChatCallerSuppliedTools,
+			YAML:  "disableChatCallerSuppliedTools",
+		},
+		{
 			Name:        "Disable Workspace Agent Context Sync",
 			Description: "Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.",
 			Flag:        "disable-workspace-agent-context-sync",
@@ -3839,7 +3849,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "CLI Upgrade Message",
-			Description: "The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.",
+			Description: "The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -fsSL https://coder.com/install.sh | sh'.",
 			Flag:        "cli-upgrade-message",
 			Env:         "CODER_CLI_UPGRADE_MESSAGE",
 			YAML:        "cliUpgradeMessage",
@@ -4394,6 +4404,17 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "aiGatewayRoutingEnabled",
 			Hidden:      true,
 		},
+		{
+			Name:        "Chat: Stream Silence Timeout",
+			Description: "Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Set to 0 to disable. Must be no more than 24h.",
+			Flag:        "chat-stream-silence-timeout",
+			Env:         "CODER_CHAT_STREAM_SILENCE_TIMEOUT",
+			Value:       &c.AI.Chat.StreamSilenceTimeout,
+			Default:     (10 * time.Minute).String(),
+			Group:       &deploymentGroupChat,
+			YAML:        "streamSilenceTimeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
 		// AI Bridge Options (deprecated in favor of AI Gateway options)
 		{
 			Name:        "AI Bridge Enabled",
@@ -4872,13 +4893,14 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
-	HookURL             serpent.URL      `json:"hook_url" typescript:",notnull"`
-	HookSecret          serpent.String   `json:"hook_secret" typescript:",notnull"`
-	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
-	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
-	HookAllowInsecure   serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
+	AcquireBatchSize     serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled  serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
+	HookURL              serpent.URL      `json:"hook_url" typescript:",notnull"`
+	HookSecret           serpent.String   `json:"hook_secret" typescript:",notnull"`
+	HookTimeout          serpent.Duration `json:"hook_timeout" typescript:",notnull"`
+	HookEnabled          serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
+	HookAllowInsecure    serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
+	StreamSilenceTimeout serpent.Duration `json:"stream_silence_timeout" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -4992,6 +5014,10 @@ func (c *DeploymentValues) Validate() error {
 				return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
 			}
 		}
+	}
+
+	if timeout := c.AI.Chat.StreamSilenceTimeout.Value(); timeout < 0 || timeout > 24*time.Hour {
+		return xerrors.Errorf("chat stream silence timeout (%s) must be between 0 and 24h; set --chat-stream-silence-timeout to a valid duration", timeout)
 	}
 
 	// Gated on the builder being enabled and run here rather than as a per-option
@@ -5222,13 +5248,15 @@ const (
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
 	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
-	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
+	ExperimentNoNATSPubsub              Experiment = "no_nats_pubsub"              // Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
 	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
+	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
+	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5245,8 +5273,8 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
-	case ExperimentNATSPubsub:
-		return "NATS Pubsub"
+	case ExperimentNoNATSPubsub:
+		return "No NATS Pubsub"
 	case ExperimentWorkspaceCapableLicensing:
 		return "Workspace-Capable Licensing"
 	case ExperimentAIGatewaySeatExclusion:
@@ -5259,6 +5287,10 @@ func (e Experiment) DisplayName() string {
 		return "Chat Virtual Desktop"
 	case ExperimentAgentLifecycleHooks:
 		return "Agent Lifecycle Hooks"
+	case ExperimentChatInlineMCPServers:
+		return "Chat Inline MCP Servers"
+	case ExperimentEnableAIWorkspaceDebug:
+		return "AI Workspace Debugging"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5275,7 +5307,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceUsage,
 	ExperimentMCPServerHTTP,
 	ExperimentMCPToolSearch,
-	ExperimentNATSPubsub,
+	ExperimentNoNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
@@ -5283,6 +5315,8 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,
+	ExperimentChatInlineMCPServers,
+	ExperimentEnableAIWorkspaceDebug,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -5446,9 +5480,16 @@ type WorkspaceDeploymentStats struct {
 }
 
 type SessionCountDeploymentStats struct {
-	VSCode          int64 `json:"vscode"`
-	SSH             int64 `json:"ssh"`
-	JetBrains       int64 `json:"jetbrains"`
+	// Apps holds one entry per reported app name, each carrying the family it
+	// totals under. The fields below duplicate those totals for one release.
+	Apps map[string]SessionCountApp `json:"apps"`
+	// Deprecated: total Apps by Family instead.
+	VSCode int64 `json:"vscode"`
+	// Deprecated: total Apps by Family instead.
+	SSH int64 `json:"ssh"`
+	// Deprecated: total Apps by Family instead.
+	JetBrains int64 `json:"jetbrains"`
+	// Deprecated: total Apps by Family instead.
 	ReconnectingPTY int64 `json:"reconnecting_pty"`
 }
 

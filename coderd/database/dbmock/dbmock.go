@@ -11,7 +11,6 @@ package dbmock
 
 import (
 	context "context"
-	json "encoding/json"
 	reflect "reflect"
 	time "time"
 
@@ -876,6 +875,20 @@ func (m *MockStore) DeleteChatDebugDataByChatID(ctx context.Context, arg databas
 func (mr *MockStoreMockRecorder) DeleteChatDebugDataByChatID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatDebugDataByChatID", reflect.TypeOf((*MockStore)(nil).DeleteChatDebugDataByChatID), ctx, arg)
+}
+
+// DeleteChatMCPServersByChatIDExcludingSlugs mocks base method.
+func (m *MockStore) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg database.DeleteChatMCPServersByChatIDExcludingSlugsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatMCPServersByChatIDExcludingSlugs", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteChatMCPServersByChatIDExcludingSlugs indicates an expected call of DeleteChatMCPServersByChatIDExcludingSlugs.
+func (mr *MockStoreMockRecorder) DeleteChatMCPServersByChatIDExcludingSlugs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatMCPServersByChatIDExcludingSlugs", reflect.TypeOf((*MockStore)(nil).DeleteChatMCPServersByChatIDExcludingSlugs), ctx, arg)
 }
 
 // DeleteChatModelConfigByID mocks base method.
@@ -3060,6 +3073,36 @@ func (mr *MockStoreMockRecorder) GetChatIncludeDefaultSystemPrompt(ctx any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatIncludeDefaultSystemPrompt", reflect.TypeOf((*MockStore)(nil).GetChatIncludeDefaultSystemPrompt), ctx)
 }
 
+// GetChatMCPServersByChatID mocks base method.
+func (m *MockStore) GetChatMCPServersByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMCPServer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMCPServersByChatID", ctx, chatID)
+	ret0, _ := ret[0].([]database.ChatMCPServer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMCPServersByChatID indicates an expected call of GetChatMCPServersByChatID.
+func (mr *MockStoreMockRecorder) GetChatMCPServersByChatID(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMCPServersByChatID", reflect.TypeOf((*MockStore)(nil).GetChatMCPServersByChatID), ctx, chatID)
+}
+
+// GetChatMCPServersByChatOwnerID mocks base method.
+func (m *MockStore) GetChatMCPServersByChatOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatMCPServer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMCPServersByChatOwnerID", ctx, ownerID)
+	ret0, _ := ret[0].([]database.ChatMCPServer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMCPServersByChatOwnerID indicates an expected call of GetChatMCPServersByChatOwnerID.
+func (mr *MockStoreMockRecorder) GetChatMCPServersByChatOwnerID(ctx, ownerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMCPServersByChatOwnerID", reflect.TypeOf((*MockStore)(nil).GetChatMCPServersByChatOwnerID), ctx, ownerID)
+}
+
 // GetChatMessageByID mocks base method.
 func (m *MockStore) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
 	m.ctrl.T.Helper()
@@ -4723,6 +4766,21 @@ func (m *MockStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) 
 func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppByID", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppByID), ctx, id)
+}
+
+// GetOAuth2ProviderAppByIDForUpdate mocks base method.
+func (m *MockStore) GetOAuth2ProviderAppByIDForUpdate(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2ProviderAppByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.OAuth2ProviderApp)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2ProviderAppByIDForUpdate indicates an expected call of GetOAuth2ProviderAppByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppByIDForUpdate), ctx, id)
 }
 
 // GetOAuth2ProviderAppCodeByID mocks base method.
@@ -10312,6 +10370,20 @@ func (mr *MockStoreMockRecorder) UpdateEncryptedAIProviderSettings(ctx, arg any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedAIProviderSettings", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedAIProviderSettings), ctx, arg)
 }
 
+// UpdateEncryptedChatMCPServerHeaders mocks base method.
+func (m *MockStore) UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg database.UpdateEncryptedChatMCPServerHeadersParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateEncryptedChatMCPServerHeaders", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateEncryptedChatMCPServerHeaders indicates an expected call of UpdateEncryptedChatMCPServerHeaders.
+func (mr *MockStoreMockRecorder) UpdateEncryptedChatMCPServerHeaders(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedChatMCPServerHeaders", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedChatMCPServerHeaders), ctx, arg)
+}
+
 // UpdateEncryptedUserAIProviderKey mocks base method.
 func (m *MockStore) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
@@ -11975,6 +12047,21 @@ func (mr *MockStoreMockRecorder) UpsertChatIncludeDefaultSystemPrompt(ctx, inclu
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatIncludeDefaultSystemPrompt", reflect.TypeOf((*MockStore)(nil).UpsertChatIncludeDefaultSystemPrompt), ctx, includeDefaultSystemPrompt)
 }
 
+// UpsertChatMCPServer mocks base method.
+func (m *MockStore) UpsertChatMCPServer(ctx context.Context, arg database.UpsertChatMCPServerParams) (database.ChatMCPServer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertChatMCPServer", ctx, arg)
+	ret0, _ := ret[0].(database.ChatMCPServer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertChatMCPServer indicates an expected call of UpsertChatMCPServer.
+func (mr *MockStoreMockRecorder) UpsertChatMCPServer(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatMCPServer", reflect.TypeOf((*MockStore)(nil).UpsertChatMCPServer), ctx, arg)
+}
+
 // UpsertChatOrganizationModelOverride mocks base method.
 func (m *MockStore) UpsertChatOrganizationModelOverride(ctx context.Context, arg database.UpsertChatOrganizationModelOverrideParams) error {
 	m.ctrl.T.Helper()
@@ -12332,17 +12419,17 @@ func (mr *MockStoreMockRecorder) UpsertTelemetryItem(ctx, arg any) *gomock.Call 
 }
 
 // UpsertTemplateUsageStats mocks base method.
-func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error {
+func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertTemplateUsageStats", ctx, appFamilies)
+	ret := m.ctrl.Call(m, "UpsertTemplateUsageStats", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpsertTemplateUsageStats indicates an expected call of UpsertTemplateUsageStats.
-func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx, appFamilies any) *gomock.Call {
+func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx, appFamilies)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx)
 }
 
 // UpsertUserAIBudgetOverride mocks base method.

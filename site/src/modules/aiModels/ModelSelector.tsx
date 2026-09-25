@@ -26,7 +26,7 @@ import { formatReasoningEffort } from "#/modules/aiModels/helpers";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
 
-export interface ModelSelectorOption {
+export type ModelSelectorOption = {
 	id: string;
 	provider: string;
 	providerId?: string;
@@ -37,11 +37,11 @@ export interface ModelSelectorOption {
 	contextLimit?: number;
 	reasoningEffortDefault?: string;
 	reasoningEfforts?: readonly string[];
-}
+};
 
-interface ModelSelectorProps {
+type ModelSelectorProps = {
 	options: readonly ModelSelectorOption[];
-	value: string;
+	value: string | undefined;
 	onValueChange: (value: string) => void;
 	/**
 	 * When set, the trigger's accessible name is this contextual label followed
@@ -66,7 +66,7 @@ interface ModelSelectorProps {
 	enableMobileFullWidthDropdown?: boolean;
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
-}
+};
 
 export const formatContextLimit = (tokens: number): string => {
 	if (tokens >= 1_000_000) {
@@ -318,11 +318,11 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	);
 };
 
-interface ReasoningEffortRowProps {
+type ReasoningEffortRowProps = {
 	option: ModelSelectorOption;
 	value: string;
 	onChange: (value: string) => void;
-}
+};
 
 // Effort row pinned below the model list. Lives outside the Command
 // so it stays visible while the list scrolls and cmdk's arrow-key
@@ -381,11 +381,11 @@ const ReasoningEffortRow: FC<ReasoningEffortRowProps> = ({
 	);
 };
 
-interface ModelOptionItemProps {
+type ModelOptionItemProps = {
 	option: ModelSelectorOption;
 	isSelected: boolean;
 	onSelect: () => void;
-}
+};
 
 const ModelOptionItem: FC<ModelOptionItemProps> = ({
 	option,

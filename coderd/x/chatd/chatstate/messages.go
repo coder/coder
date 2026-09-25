@@ -34,6 +34,10 @@ type Message struct {
 	CacheReadTokens     sql.NullInt64
 	ContextLimit        sql.NullInt64
 	RuntimeMs           sql.NullInt64
+	ProviderResponseID  sql.NullString
+	// QueuedMessageID is the chat_queued_messages row this message was
+	// promoted from. Only messageFromQueuedRow sets it.
+	QueuedMessageID sql.NullInt64
 }
 
 // toInsertParams converts a batch of Messages into the parallel-array
@@ -62,6 +66,8 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		ContextLimit:        make([]int64, n),
 		Compressed:          make([]bool, n),
 		RuntimeMs:           make([]int64, n),
+		ProviderResponseID:  make([]string, n),
+		QueuedMessageID:     make([]int64, n),
 	}
 	for i, m := range messages {
 		params.CreatedBy[i] = nullUUIDOrNil(m.CreatedBy)
@@ -88,6 +94,8 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		params.ContextLimit[i] = nullInt64Or(m.ContextLimit, 0)
 		params.Compressed[i] = m.Compressed
 		params.RuntimeMs[i] = nullInt64Or(m.RuntimeMs, 0)
+		params.ProviderResponseID[i] = m.ProviderResponseID.String
+		params.QueuedMessageID[i] = nullInt64Or(m.QueuedMessageID, 0)
 	}
 	return params
 }

@@ -150,7 +150,7 @@ Visit the Coder UI to confirm these changes:
 > Use server flags only with Coder deployments with a single organization.
 > You can use the dashboard to configure group sync instead.
 
-1. Configure the Coder server to read groups from the claim name with the
+1. Configure the control plane to read groups from the claim name with the
    [OIDC group field](../../reference/cli/server.md#--oidc-group-field) server
    flag:
 
@@ -297,11 +297,11 @@ Visit the Coder UI to confirm these changes:
 > Use server flags only with Coder deployments with a single organization.
 > You can use the dashboard to configure role sync instead.
 
-1. Configure the Coder server to read groups from the claim name with the
+1. Configure the control plane to read groups from the claim name with the
    [OIDC role field](../../reference/cli/server.md#--oidc-user-role-field)
    server flag:
 
-1. Set the following in your Coder server [configuration](../setup/index.md).
+1. Set the following in your control plane [configuration](../setup/index.md).
 
    ```dotenv
     # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
@@ -415,7 +415,7 @@ Some common issues when enabling group, role, or organization sync.
 
 If you are running into issues with a sync:
 
-1. View your Coder server logs and enable
+1. View your `coderd` logs and enable
    [verbose mode](../../reference/cli/index.md#-v---verbose).
 
 1. To reduce noise, you can filter for only logs related to group/role sync:
@@ -424,7 +424,7 @@ If you are running into issues with a sync:
    CODER_LOG_FILTER=".*userauth.*|.*groups returned.*"
    ```
 
-1. Restart the server after changing these configuration values.
+1. Restart the control plane after changing these configuration values.
 
 1. Attempt to log in, preferably with a user who has the `Owner` role.
 

@@ -478,12 +478,19 @@ func TemplateVersionParameterOptionFromPreview(option *previewtypes.ParameterOpt
 }
 
 func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
+	uris := dbApp.RegisteredRedirectURIs()
 	return codersdk.OAuth2ProviderApp{
-		ID:          dbApp.ID,
-		Name:        dbApp.Name,
-		CallbackURL: dbApp.CallbackURL,
-		Icon:        dbApp.Icon,
-		ClientType:  codersdk.OAuth2ClientType(dbApp.ClientType),
+		ID:           dbApp.ID,
+		Name:         dbApp.Name,
+		RedirectURIs: uris,
+		CallbackURL:  uris[0],
+		Icon:         dbApp.Icon,
+		Scope:        rbac.CanonicalScopeList(dbApp.Scope.String),
+		ClientType:   codersdk.OAuth2ClientType(dbApp.ClientType),
+		// The column allows NULL, although every write path sets a value. A
+		// NULL reads as false, which keeps the client update guards closed but
+		// hides the scope narrowing warning for that app.
+		DynamicallyRegistered: dbApp.DynamicallyRegistered.Bool,
 		Endpoints: codersdk.OAuth2AppEndpoints{
 			Authorization: accessURL.ResolveReference(&url.URL{
 				Path: "/oauth2/authorize",
@@ -1381,13 +1388,13 @@ func buildAIBridgeThread(
 		}
 	}
 
-	// Build agentic actions grouped by interception. Each interception that
-	// has tool calls produces one action with all its tool calls, thinking
-	// blocks, and token usage.
+	// Build one action per interception. Child interceptions always produce
+	// an action, including when they have no tool calls. The root action is
+	// emitted only when the actual thread-root interception has tool calls.
 	var actions []codersdk.AIBridgeAgenticAction
 	for _, intc := range interceptions {
 		tools := toolsByInterception[intc.ID]
-		if len(tools) == 0 {
+		if intc.ID == threadID && len(tools) == 0 {
 			continue
 		}
 
@@ -1420,10 +1427,12 @@ func buildAIBridgeThread(
 		}
 
 		actions = append(actions, codersdk.AIBridgeAgenticAction{
-			Model:      intc.Model,
-			TokenUsage: actionTokenUsage,
-			Thinking:   thinking,
-			ToolCalls:  toolCalls,
+			InterceptionID: intc.ID,
+			Model:          intc.Model,
+			Attribution:    aiBridgeInterceptionAttribution(intc),
+			TokenUsage:     actionTokenUsage,
+			Thinking:       thinking,
+			ToolCalls:      toolCalls,
 		})
 	}
 
@@ -1433,6 +1442,10 @@ func buildAIBridgeThread(
 	}
 
 	thread.AgenticActions = actions
+
+	if rootIntc != nil && rootIntc.ID == threadID {
+		thread.Attribution = aiBridgeInterceptionAttribution(*rootIntc)
+	}
 
 	// Aggregate thread-level token usage.
 	var threadTokens []database.AIBridgeTokenUsage
@@ -1593,6 +1606,17 @@ func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidat
 	return presets
 }
 
+// aiBridgeInterceptionAttribution builds attribution from the dedicated
+// interception columns. It returns nil when no workspace context is recorded.
+func aiBridgeInterceptionAttribution(intc database.AIBridgeInterception) codersdk.AIBridgeAttribution {
+	if !intc.WorkspaceID.Valid {
+		return nil
+	}
+	return codersdk.AIBridgeAttribution{
+		"workspace_id": intc.WorkspaceID.UUID.String(),
+	}
+}
+
 // sanitizeCredentialHint ensures the hint looks masked before exposing
 // it in the API. The aibridge library uses "..." as the masking
 // delimiter (e.g. "sk-a...efgh"), so we check for its presence. If
@@ -1636,12 +1660,13 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		createdBy = nil
 	}
 	msg := codersdk.ChatMessage{
-		ID:            m.ID,
-		ChatID:        m.ChatID,
-		CreatedBy:     createdBy,
-		ModelConfigID: modelConfigID,
-		CreatedAt:     m.CreatedAt,
-		Role:          codersdk.ChatMessageRole(m.Role),
+		ID:              m.ID,
+		ChatID:          m.ChatID,
+		CreatedBy:       createdBy,
+		ModelConfigID:   modelConfigID,
+		CreatedAt:       m.CreatedAt,
+		Role:            codersdk.ChatMessageRole(m.Role),
+		QueuedMessageID: nullInt64Ptr(m.QueuedMessageID),
 	}
 	if m.Content.Valid {
 		parts, err := chatMessageParts(m)
@@ -1990,6 +2015,35 @@ func nullRawJSONObject(raw pqtype.NullRawMessage) map[string]any {
 		return nil
 	}
 	return rawJSONObject(raw.RawMessage)
+}
+
+// InlineMCPServer converts a database.ChatMCPServer to its redacted
+// codersdk.InlineMCPServer view, which reports only whether headers are
+// set.
+func InlineMCPServer(row database.ChatMCPServer) (codersdk.InlineMCPServer, error) {
+	var headers map[string]string
+	if err := json.Unmarshal([]byte(row.Headers), &headers); err != nil {
+		return codersdk.InlineMCPServer{}, xerrors.Errorf("parse headers for chat MCP server %q: %w", row.Slug, err)
+	}
+	return codersdk.InlineMCPServer{
+		ID:                  row.ID,
+		Slug:                row.Slug,
+		URL:                 row.Url,
+		HasCustomHeaders:    len(headers) > 0,
+		ToolAllowList:       nonNilStrings(row.ToolAllowList),
+		ToolDenyList:        nonNilStrings(row.ToolDenyList),
+		AllowInSubagents:    row.AllowInSubagents,
+		ForwardCoderHeaders: row.ForwardCoderHeaders,
+		CreatedAt:           row.CreatedAt,
+		UpdatedAt:           row.UpdatedAt,
+	}, nil
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }
 
 // ChatDebugRunSummary converts a database.ChatDebugRun to a

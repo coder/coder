@@ -1,7 +1,7 @@
 import { cn } from "cn";
-import type { ComponentPropsWithRef } from "react";
+import type { ComponentProps } from "react";
 
-type MessageProps = ComponentPropsWithRef<"div">;
+type MessageProps = ComponentProps<"div">;
 
 export const Message = ({ className, ref, ...props }: MessageProps) => {
 	return (
@@ -9,7 +9,7 @@ export const Message = ({ className, ref, ...props }: MessageProps) => {
 	);
 };
 
-type MessageContentProps = ComponentPropsWithRef<"div">;
+type MessageContentProps = ComponentProps<"div">;
 
 export const MessageContent = ({
 	className,

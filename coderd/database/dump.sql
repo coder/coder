@@ -1674,7 +1674,8 @@ CREATE TABLE aibridge_interceptions (
     agent_firewall_session_id uuid,
     agent_firewall_sequence_number integer,
     error_type aibridge_interception_error_type,
-    error_message character varying(1024)
+    error_message character varying(1024),
+    workspace_id uuid
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1702,6 +1703,8 @@ COMMENT ON COLUMN aibridge_interceptions.agent_firewall_sequence_number IS 'The 
 COMMENT ON COLUMN aibridge_interceptions.error_type IS 'Categorised terminal upstream error for a failed interception; NULL when the interception succeeded.';
 
 COMMENT ON COLUMN aibridge_interceptions.error_message IS 'Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.';
+
+COMMENT ON COLUMN aibridge_interceptions.workspace_id IS 'The workspace in which the agent ran. NULL when no workspace context is available.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
@@ -2018,6 +2021,27 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
 
+CREATE TABLE chat_mcp_servers (
+    id uuid NOT NULL,
+    chat_id uuid NOT NULL,
+    slug text NOT NULL,
+    url text NOT NULL,
+    headers text DEFAULT '{}'::text NOT NULL,
+    headers_key_id text,
+    tool_allow_list text[] DEFAULT '{}'::text[] NOT NULL,
+    tool_deny_list text[] DEFAULT '{}'::text[] NOT NULL,
+    allow_in_subagents boolean DEFAULT false NOT NULL,
+    forward_coder_headers boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_mcp_servers IS 'MCP servers that a chat owner attached to a root chat. Experimental. chatd connects to every row on each turn of the chat.';
+
+COMMENT ON COLUMN chat_mcp_servers.headers IS 'JSON object of HTTP header name to value sent on every request to the server. Encrypted at rest via dbcrypt when headers_key_id is set.';
+
+COMMENT ON COLUMN chat_mcp_servers.headers_key_id IS 'The ID of the key used to encrypt headers. If this is NULL, headers are not encrypted.';
+
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
@@ -2043,7 +2067,8 @@ CREATE TABLE chat_messages (
     revision bigint NOT NULL,
     reasoning_effort chat_reasoning_effort,
     search_tsv tsvector,
-    search_tsv_config chat_message_search_tsv_config
+    search_tsv_config chat_message_search_tsv_config,
+    queued_message_id bigint
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
@@ -2051,6 +2076,8 @@ COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort 
 COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
 
 COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.';
+
+COMMENT ON COLUMN chat_messages.queued_message_id IS 'ID of the chat_queued_messages row this message was promoted from. NULL when the message was not promoted from the queue, or when a version that did not record the link wrote it. Not a foreign key: promotion deletes the queued row in the same transaction.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
@@ -2593,6 +2620,8 @@ CREATE TABLE mcp_server_configs (
     organization_id uuid NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    signing_secret text DEFAULT ''::text NOT NULL,
+    signing_secret_key_id text,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
@@ -2767,7 +2796,9 @@ CREATE TABLE oauth2_provider_apps (
 
 COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
 
-COMMENT ON COLUMN oauth2_provider_apps.redirect_uris IS 'List of valid redirect URIs for the application';
+COMMENT ON COLUMN oauth2_provider_apps.callback_url IS 'Deprecated: the primary redirect URI is the first entry of redirect_uris. Every writer keeps this column equal to it until the column is dropped.';
+
+COMMENT ON COLUMN oauth2_provider_apps.redirect_uris IS 'Redirect URIs the authorize and token endpoints accept. The first entry is the primary, used when a request omits redirect_uri.';
 
 COMMENT ON COLUMN oauth2_provider_apps.client_type IS 'OAuth2 client type: confidential or public';
 
@@ -3051,11 +3082,6 @@ CREATE TABLE template_usage_stats (
     user_id uuid NOT NULL,
     median_latency_ms real,
     usage_mins smallint NOT NULL,
-    ssh_mins smallint NOT NULL,
-    sftp_mins smallint NOT NULL,
-    reconnecting_pty_mins smallint NOT NULL,
-    vscode_mins smallint NOT NULL,
-    jetbrains_mins smallint NOT NULL,
     app_usage_mins jsonb
 );
 
@@ -3073,17 +3099,21 @@ COMMENT ON COLUMN template_usage_stats.median_latency_ms IS 'Median latency the 
 
 COMMENT ON COLUMN template_usage_stats.usage_mins IS 'Total minutes the user has been using the template.';
 
-COMMENT ON COLUMN template_usage_stats.ssh_mins IS 'Total minutes the user has been using SSH.';
-
-COMMENT ON COLUMN template_usage_stats.sftp_mins IS 'Total minutes the user has been using SFTP.';
-
-COMMENT ON COLUMN template_usage_stats.reconnecting_pty_mins IS 'Total minutes the user has been using the reconnecting PTY.';
-
-COMMENT ON COLUMN template_usage_stats.vscode_mins IS 'Total minutes the user has been using VSCode.';
-
-COMMENT ON COLUMN template_usage_stats.jetbrains_mins IS 'Total minutes the user has been using JetBrains.';
-
 COMMENT ON COLUMN template_usage_stats.app_usage_mins IS 'Object with app names as keys and total minutes used as values. Null means no app usage was recorded.';
+
+CREATE TABLE template_usage_stats_session_apps (
+    start_time timestamp with time zone NOT NULL,
+    template_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    app_name text NOT NULL,
+    usage_mins smallint NOT NULL
+);
+
+COMMENT ON TABLE template_usage_stats_session_apps IS 'Session usage of each template_usage_stats bucket, split by app name. No row means the bucket recorded no session usage. Reads group app names into families through the codersdk registry.';
+
+COMMENT ON COLUMN template_usage_stats_session_apps.app_name IS 'App name as the agent reported it, so a source label rather than a curated identity. Rows converted from the fixed session columns carry a family name here instead.';
+
+COMMENT ON COLUMN template_usage_stats_session_apps.usage_mins IS 'Total minutes the user has been using the app. A minute counts once however many sessions were open.';
 
 CREATE TABLE template_version_parameters (
     template_version_id uuid NOT NULL,
@@ -4295,6 +4325,12 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_chat_id_slug_key UNIQUE (chat_id, slug);
+
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
@@ -4480,6 +4516,9 @@ ALTER TABLE ONLY telemetry_locks
 
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
+
+ALTER TABLE ONLY template_usage_stats_session_apps
+    ADD CONSTRAINT template_usage_stats_session_apps_pkey PRIMARY KEY (start_time, user_id, template_id, app_name);
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
@@ -5148,6 +5187,12 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_headers_key_id_fkey FOREIGN KEY (headers_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -5278,6 +5323,9 @@ ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_signing_secret_key_id_fkey FOREIGN KEY (signing_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY mcp_server_user_tokens
@@ -5354,6 +5402,9 @@ ALTER TABLE ONLY tailnet_peers
 
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_usage_stats_session_apps
+    ADD CONSTRAINT template_usage_stats_session__start_time_template_id_user__fkey FOREIGN KEY (start_time, template_id, user_id) REFERENCES template_usage_stats(start_time, template_id, user_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

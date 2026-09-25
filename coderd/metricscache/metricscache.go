@@ -150,12 +150,11 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 		}
 	}
 
-	// The query sums sessions per app name, so a session reported under a name
-	// this version does not know about is counted here rather than dropped.
-	sessionCounts, err := codersdk.SessionCountsByFamilyJSON(agentStats.SessionCounts)
+	appCounts, err := codersdk.DecodeAppMap[int64](agentStats.SessionCounts)
 	if err != nil {
-		return xerrors.Errorf("group deployment session counts by app family: %w", err)
+		return xerrors.Errorf("decode deployment session counts: %w", err)
 	}
+	familyCounts := codersdk.SumByFamily(appCounts)
 
 	workspaceStats, err := c.database.GetDeploymentWorkspaceStats(ctx)
 	if err != nil {
@@ -179,10 +178,11 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 			TxBytes: agentStats.WorkspaceTxBytes,
 		},
 		SessionCount: codersdk.SessionCountDeploymentStats{
-			VSCode:          sessionCounts[codersdk.AppFamilyVSCode],
-			SSH:             sessionCounts[codersdk.AppFamilySSH],
-			JetBrains:       sessionCounts[codersdk.AppFamilyJetBrains],
-			ReconnectingPTY: sessionCounts[codersdk.AppFamilyReconnectingPTY],
+			Apps:            codersdk.SessionCountApps(appCounts),
+			VSCode:          familyCounts[codersdk.AppFamilyVSCode],
+			SSH:             familyCounts[codersdk.AppFamilySSH],
+			JetBrains:       familyCounts[codersdk.AppFamilyJetBrains],
+			ReconnectingPTY: familyCounts[codersdk.AppFamilyReconnectingPTY],
 		},
 	})
 	return nil
@@ -282,6 +282,7 @@ func (c *Cache) TemplateWorkspaceOwners(id uuid.UUID) (int, bool) {
 	return resp, true
 }
 
+// DeploymentStats shares its maps with the cache; callers must not mutate them.
 func (c *Cache) DeploymentStats() (codersdk.DeploymentStats, bool) {
 	deploymentStats := c.deploymentStatsResponse.Load()
 	if deploymentStats == nil {

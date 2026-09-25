@@ -138,6 +138,29 @@ func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBui
 	return workspaceBuild, ReadBodyAsJSON(res, &workspaceBuild)
 }
 
+// WorkspaceBuildDebugEventRequest is the request body for
+// POST /api/v2/workspacebuilds/{workspacebuild}/debug-events.
+type WorkspaceBuildDebugEventRequest struct {
+	// ID identifies this click so a later step of the funnel can be
+	// attributed to it.
+	ID uuid.UUID `json:"id" format:"uuid" validate:"required"`
+}
+
+// ReportWorkspaceBuildDebugClick reports a click on the "Debug with Coder
+// Agents" action of a failed workspace build for telemetry purposes. It is a
+// no-op on deployments with telemetry disabled.
+func (c *Client) ReportWorkspaceBuildDebugClick(ctx context.Context, buildID uuid.UUID, req WorkspaceBuildDebugEventRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspacebuilds/%s/debug-events", buildID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 type CancelWorkspaceBuildStatus string
 
 const (

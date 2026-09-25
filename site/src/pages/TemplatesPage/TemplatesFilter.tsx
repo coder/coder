@@ -64,12 +64,12 @@ export const useTemplatesFilter = ({
 	};
 };
 
-interface TemplatesFilterProps {
+type TemplatesFilterProps = {
 	filter: UseFilterResult;
 	error?: unknown;
 
 	userMenu?: UserFilterMenu;
-}
+};
 
 export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 	filter,

@@ -10,7 +10,7 @@ import type { TemplateVersionFiles } from "#/utils/templateVersion";
 import { getTemplateFileIcon } from "./TemplateFileIcon";
 import { TemplateFileTree } from "./TemplateFileTree";
 
-interface TemplateFilesProps {
+type TemplateFilesProps = {
 	organizationName: string;
 	templateName: string;
 	versionName: string;
@@ -19,7 +19,7 @@ interface TemplateFilesProps {
 	 * Files used to compare with current files
 	 */
 	baseFiles?: TemplateVersionFiles;
-}
+};
 
 export const TemplateFiles: FC<TemplateFilesProps> = ({
 	organizationName,
