@@ -36,6 +36,19 @@ const MaxChatFileIDs = 50
 // attachments.
 const MaxChatFileSizeBytes = 10 * 1024 * 1024
 
+// Inline MCP server declaration caps. Clients can validate before sending.
+const (
+	MaxInlineMCPServers                = 5
+	MaxInlineMCPServersBytes           = 24 * 1024
+	MaxInlineMCPServerSlugBytes        = 32
+	MaxInlineMCPServerURLBytes         = 2048
+	MaxInlineMCPServerHeaders          = 16
+	MaxInlineMCPServerHeaderNameBytes  = 128
+	MaxInlineMCPServerHeaderValueBytes = 8 * 1024
+	MaxInlineMCPServerToolFilters      = 64
+	MaxInlineMCPServerToolNameBytes    = 128
+)
+
 // AnthropicInlineImageCapBytes is Anthropic's documented per-image
 // wire limit; the same cap applies to Bedrock-hosted Claude. Other
 // providers have no documented per-image cap.
@@ -148,6 +161,10 @@ type Chat struct {
 	QueuedForCapacity bool           `json:"queued_for_capacity,omitempty"`
 	Warnings          []string       `json:"warnings,omitempty"`
 	ClientType        ChatClientType `json:"client_type"`
+	// InlineMCPServers lists the inline MCP servers declared on the chat,
+	// without headers. Only the single-chat GET sets it.
+	// Experimental.
+	InlineMCPServers []InlineMCPServer `json:"inline_mcp_servers,omitempty"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
@@ -588,9 +605,40 @@ type CreateChatRequest struct {
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.
-	UnsafeDynamicTools []DynamicTool  `json:"unsafe_dynamic_tools,omitempty"`
-	PlanMode           ChatPlanMode   `json:"plan_mode,omitempty"`
-	ClientType         ChatClientType `json:"client_type,omitempty"`
+	UnsafeDynamicTools []DynamicTool `json:"unsafe_dynamic_tools,omitempty"`
+	// InlineMCPServers declares MCP servers by value on this chat, next
+	// to the org-configured servers selected by MCPServerIDs. Experimental.
+	InlineMCPServers []InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
+	PlanMode         ChatPlanMode             `json:"plan_mode,omitempty"`
+	ClientType       ChatClientType           `json:"client_type,omitempty"`
+}
+
+// InlineMCPServerRequest declares a streamable HTTP MCP server by value on
+// one chat. Headers are never returned. Header values are encrypted at
+// rest when database encryption is configured.
+type InlineMCPServerRequest struct {
+	Slug                string            `json:"slug"`
+	URL                 string            `json:"url"`
+	Headers             map[string]string `json:"headers,omitempty"`
+	ToolAllowList       []string          `json:"tool_allow_list,omitempty"`
+	ToolDenyList        []string          `json:"tool_deny_list,omitempty"`
+	AllowInSubagents    bool              `json:"allow_in_subagents,omitempty"`
+	ForwardCoderHeaders bool              `json:"forward_coder_headers,omitempty"`
+}
+
+// InlineMCPServer is the redacted view of an inline MCP server.
+type InlineMCPServer struct {
+	ID   uuid.UUID `json:"id" format:"uuid"`
+	Slug string    `json:"slug"`
+	// URL is empty unless the chat owner makes the request.
+	URL                 string    `json:"url"`
+	HasCustomHeaders    bool      `json:"has_custom_headers"`
+	ToolAllowList       []string  `json:"tool_allow_list"`
+	ToolDenyList        []string  `json:"tool_deny_list"`
+	AllowInSubagents    bool      `json:"allow_in_subagents"`
+	ForwardCoderHeaders bool      `json:"forward_coder_headers"`
+	CreatedAt           time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt           time.Time `json:"updated_at" format:"date-time"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -639,10 +687,13 @@ const (
 
 // CreateChatMessageRequest is the request to add a message to a chat.
 type CreateChatMessageRequest struct {
-	Content       []ChatInputPart  `json:"content"`
-	ModelConfigID *uuid.UUID       `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs  *[]uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
-	BusyBehavior  ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	Content       []ChatInputPart `json:"content"`
+	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  *[]uuid.UUID    `json:"mcp_server_ids,omitempty" format:"uuid"`
+	// InlineMCPServers replaces the inline MCP servers.
+	// nil: no change, empty: remove all.
+	InlineMCPServers *[]InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
+	BusyBehavior     ChatBusyBehavior          `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`

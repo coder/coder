@@ -32,6 +32,7 @@ type CreateChatInput struct {
 	Mode              database.NullChatMode
 	PlanMode          database.NullChatPlanMode
 	MCPServerIDs      []uuid.UUID
+	InlineMCPServers  []codersdk.InlineMCPServerRequest
 	Labels            pqtype.NullRawMessage
 	DynamicTools      pqtype.NullRawMessage
 	ClientType        database.ChatClientType
@@ -136,6 +137,11 @@ func insertChat(
 		}
 		if err := LinkFiles(ctx, store, chat.ID, input.FileIDs); err != nil {
 			return err
+		}
+		if len(input.InlineMCPServers) > 0 {
+			if err := ReplaceInlineMCPServers(ctx, store, chat.ID, input.InlineMCPServers); err != nil {
+				return err
+			}
 		}
 		refreshed, err := store.GetChatByID(ctx, chat.ID)
 		if err != nil {

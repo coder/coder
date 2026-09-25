@@ -2017,6 +2017,35 @@ func nullRawJSONObject(raw pqtype.NullRawMessage) map[string]any {
 	return rawJSONObject(raw.RawMessage)
 }
 
+// InlineMCPServer converts a database.ChatMCPServer to its redacted
+// codersdk.InlineMCPServer view, which reports only whether headers are
+// set.
+func InlineMCPServer(row database.ChatMCPServer) (codersdk.InlineMCPServer, error) {
+	var headers map[string]string
+	if err := json.Unmarshal([]byte(row.Headers), &headers); err != nil {
+		return codersdk.InlineMCPServer{}, xerrors.Errorf("parse headers for chat MCP server %q: %w", row.Slug, err)
+	}
+	return codersdk.InlineMCPServer{
+		ID:                  row.ID,
+		Slug:                row.Slug,
+		URL:                 row.Url,
+		HasCustomHeaders:    len(headers) > 0,
+		ToolAllowList:       nonNilStrings(row.ToolAllowList),
+		ToolDenyList:        nonNilStrings(row.ToolDenyList),
+		AllowInSubagents:    row.AllowInSubagents,
+		ForwardCoderHeaders: row.ForwardCoderHeaders,
+		CreatedAt:           row.CreatedAt,
+		UpdatedAt:           row.UpdatedAt,
+	}, nil
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}
+
 // ChatDebugRunSummary converts a database.ChatDebugRun to a
 // codersdk.ChatDebugRunSummary.
 func ChatDebugRunSummary(r database.ChatDebugRun) codersdk.ChatDebugRunSummary {

@@ -33,9 +33,9 @@ OPTIONS:
           authenticating the CLI or an IDE plugin.
 
       --disable-chat-caller-supplied-tools bool, $CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS
-          Disable caller-supplied tools in chats. Chat creation requests that
-          include unsafe_dynamic_tools are rejected, and existing chats run
-          without their dynamic tools.
+          Disable caller-supplied tools in chats. Chat requests that include
+          unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing
+          chats run without their dynamic tools and inline MCP servers.
 
       --disable-chat-sharing bool, $CODER_DISABLE_CHAT_SHARING
           Disable chat sharing. Chat ACL checking is disabled and only owners
