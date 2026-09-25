@@ -2669,10 +2669,10 @@ func (t *generatedChatTitle) Load() (string, bool) {
 // title is still written when its source is not yet user.
 func (p *Server) RenameChatTitle(
 	ctx context.Context,
-	chat database.Chat,
+	chatID uuid.UUID,
 	newTitle string,
 ) (updated database.Chat, wrote bool, err error) {
-	currentChat, err := p.db.GetChatByID(ctx, chat.ID)
+	currentChat, err := p.db.GetChatByID(ctx, chatID)
 	if err != nil {
 		return database.Chat{}, false, xerrors.Errorf("get chat for rename: %w", err)
 	}
@@ -2681,7 +2681,7 @@ func (p *Server) RenameChatTitle(
 	}
 
 	updatedChat, err := p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-		ID:          chat.ID,
+		ID:          chatID,
 		Title:       newTitle,
 		TitleSource: database.ChatTitleSourceUser,
 	})
