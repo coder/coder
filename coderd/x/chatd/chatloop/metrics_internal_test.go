@@ -97,6 +97,6 @@ func TestStageSetsConsistent(t *testing.T) {
 	metrics.RecordTurnCategory(TurnCategoryStreaming, ChatKindRoot, TurnOutcomeCompleted, time.Second)
 	turnHelp := metricHelp(t, registry, "coderd_chatd_turn_time_seconds_total")
 	for _, category := range turnTimeCategories {
-		requireNamesWord(t, turnHelp, string(category))
+		require.True(t, namesWord(turnHelp, string(category)), "turn help does not name %q", category)
 	}
 }
