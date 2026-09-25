@@ -180,11 +180,6 @@ export const ChatOperationalSettingsFilter = resourceTypeFilterStory(
 	"chat_operational_settings",
 );
 
-export const ExperimentRuleFilter = resourceTypeFilterStory(
-	"Experiment Rule",
-	"experiment_rule",
-);
-
 export const MultiOrg: Story = {
 	parameters: { pixel: { matrix: pixelWithTablet } },
 	args: {
