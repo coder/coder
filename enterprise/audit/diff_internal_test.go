@@ -392,6 +392,32 @@ func Test_diff(t *testing.T) {
 
 	runDiffTests(t, []diffTest{
 		{
+			// Experiment rule conditions can name users, so audit diffs
+			// record that the condition changed without its text.
+			name: "ConditionMasked",
+			left: database.ExperimentRule{
+				ID:         uuid.UUID{1},
+				Experiment: "example",
+				Mode:       "on",
+				Revision:   1,
+			},
+			right: database.ExperimentRule{
+				ID:         uuid.UUID{1},
+				Experiment: "example",
+				Mode:       "condition",
+				Condition:  `user.email == "alice@example.com"`,
+				Revision:   2,
+			},
+			exp: audit.Map{
+				"mode":      audit.OldNew{Old: "on", New: "condition"},
+				"condition": audit.OldNew{Old: "", New: "", Secret: true},
+				"revision":  audit.OldNew{Old: int64(1), New: int64(2)},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
 			// User skill content is user-authored instruction text, not secret
 			// material, so audit diffs can include the content change.
 			name: "UserSkillContentTracked",
