@@ -297,6 +297,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		interceptor.Setup(logger, asyncRecorder, mcpProxy)
 
 		if err := rec.RecordInterception(ctx, &recorder.InterceptionRecord{
+			StartedAt:                   time.Now().UTC(),
 			ID:                          interceptor.ID().String(),
 			InitiatorID:                 actor.ID,
 			Metadata:                    actor.Metadata,
@@ -359,6 +360,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		}
 
 		_ = asyncRecorder.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{
+			EndedAt:        time.Now().UTC(),
 			ID:             interceptor.ID().String(),
 			CredentialHint: cred.Hint(),
 			ErrorType:      errType,
