@@ -49,7 +49,7 @@
 	"pnpm": {
 		"overrides": {
 			"@babel/runtime": "7.26.10",
-			"brace-expansion": "1.1.16",
+			"brace-expansion": "1.1.18",
 			"minimatch": "5.1.8",
 			"glob@>=10": "10.5.0",
 			"postcss": "8.5.23",

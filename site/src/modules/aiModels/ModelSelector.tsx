@@ -41,7 +41,7 @@ export type ModelSelectorOption = {
 
 type ModelSelectorProps = {
 	options: readonly ModelSelectorOption[];
-	value: string;
+	value: string | undefined;
 	onValueChange: (value: string) => void;
 	/**
 	 * When set, the trigger's accessible name is this contextual label followed
