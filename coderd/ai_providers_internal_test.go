@@ -87,3 +87,84 @@ func TestMergeAIProviderSettingsExternalID(t *testing.T) {
 	require.Equal(t, roleARN, merged.Bedrock.RoleARN)
 	require.Equal(t, "stored-value", merged.Bedrock.ExternalID)
 }
+
+// TestMergeAIProviderSettingsClaudePlatform verifies replacement and clearing
+// across settings variants.
+func TestMergeAIProviderSettingsClaudePlatform(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RegularFieldsReplace", func(t *testing.T) {
+		t.Parallel()
+		existing := codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "us-east-1",
+			WorkspaceID: "stored-workspace",
+		}}
+		patch := codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "us-west-2",
+			WorkspaceID: "patched-workspace",
+		}}
+		merged := mergeAIProviderSettings(existing, patch)
+		require.NotNil(t, merged.ClaudePlatformAWS)
+		require.Equal(t, patch.ClaudePlatformAWS, merged.ClaudePlatformAWS)
+	})
+
+	t.Run("SwitchingVariantsReplaces", func(t *testing.T) {
+		t.Parallel()
+		existing := codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "us-east-1",
+			WorkspaceID: "stored-workspace",
+		}}
+		patch := codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{
+			Region:         "us-east-1",
+			Model:          "anthropic.claude-sonnet-4-5",
+			SmallFastModel: "anthropic.claude-haiku-4-5",
+		}}
+		merged := mergeAIProviderSettings(existing, patch)
+		require.Nil(t, merged.ClaudePlatformAWS)
+		require.Equal(t, patch.Bedrock, merged.Bedrock)
+	})
+
+	t.Run("EmptyPatchClears", func(t *testing.T) {
+		t.Parallel()
+		existing := codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "us-east-1",
+			WorkspaceID: "stored-workspace",
+		}}
+		require.True(t, mergeAIProviderSettings(existing, codersdk.AIProviderSettings{}).IsZero())
+	})
+}
+
+// TestAIProviderUsesAmbientCredentials pins which settings variants can
+// authenticate without a stored key, which drives has_effective_api_key and
+// the chat model picker.
+func TestAIProviderUsesAmbientCredentials(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		settings codersdk.AIProviderSettings
+		want     bool
+	}{
+		{
+			name: "NoSettings",
+			want: false,
+		},
+		{
+			name:     "Bedrock",
+			settings: codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
+			want:     true,
+		},
+		{
+			name:     "ClaudePlatform",
+			settings: codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{}},
+			want:     true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, aiProviderUsesAmbientCredentials(tc.settings))
+		})
+	}
+}

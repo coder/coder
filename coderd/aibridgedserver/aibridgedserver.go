@@ -1262,6 +1262,12 @@ func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey) (
 			ResolvedSmallFastModel: settings.Bedrock.ResolvedSmallFastModel,
 		}
 	}
+	if settings.ClaudePlatformAWS != nil {
+		p.ClaudePlatformAws = &proto.AIProviderKindClaudePlatformAWS{
+			Region:      settings.ClaudePlatformAWS.Region,
+			WorkspaceId: settings.ClaudePlatformAWS.WorkspaceID,
+		}
+	}
 
 	return p, nil
 }

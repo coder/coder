@@ -3895,8 +3895,13 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 		}
 	}
 	region := ""
+	ambient := false
 	if settings.Bedrock != nil {
 		region = strings.TrimSpace(settings.Bedrock.Region)
+	}
+	if cp := settings.ClaudePlatformAWS; cp != nil {
+		region = strings.TrimSpace(cp.Region)
+		ambient = true
 	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
@@ -3907,6 +3912,7 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 		CentralAPIKeyEnabled:       true,
 		AllowUserAPIKey:            p.allowBYOK,
 		AllowCentralAPIKeyFallback: true,
+		AmbientCredentials:         ambient,
 	}, nil
 }
 
