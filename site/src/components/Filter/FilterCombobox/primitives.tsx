@@ -66,6 +66,11 @@ export type FilterComboboxHighlight = {
 
 type FilterComboboxRootProps = {
 	open?: boolean;
+	/**
+	 * Whether cmdk highlights the first row on its own. When false, a row is
+	 * highlighted only by arrow keys, the pointer, or `highlightRef`.
+	 */
+	autoHighlight?: boolean;
 	/** Fired when Radix requests a close (escape / outside press). */
 	onDismiss?: () => void;
 	onRemoveValue?: (value: string) => void;
@@ -96,6 +101,7 @@ type FilterComboboxRootProps = {
  */
 export function FilterComboboxRoot({
 	open = false,
+	autoHighlight = true,
 	onDismiss,
 	onRemoveValue,
 	inputValue = "",
@@ -110,6 +116,9 @@ export function FilterComboboxRoot({
 	// cmdk only reports highlight changes when its value is controlled.
 	const [highlightedValue, setHighlightedValue] = useState("");
 	const highlightedValueRef = useRef("");
+	// Set by arrow keys and pointer moves just before cmdk handles them, so
+	// only those highlight a row while `autoHighlight` is off.
+	const userNavigatingRef = useRef(false);
 	useImperativeHandle(
 		highlightRef,
 		() => ({
@@ -137,7 +146,27 @@ export function FilterComboboxRoot({
 					label={label}
 					className={cn("flex w-full flex-col", className)}
 					value={highlightedValue}
+					onKeyDownCapture={(event) => {
+						userNavigatingRef.current = [
+							"ArrowUp",
+							"ArrowDown",
+							"Home",
+							"End",
+						].includes(event.key);
+					}}
+					onPointerMoveCapture={() => {
+						userNavigatingRef.current = true;
+					}}
 					onValueChange={(value) => {
+						const navigating = userNavigatingRef.current;
+						userNavigatingRef.current = false;
+						if (!autoHighlight && !navigating) {
+							// cmdk has already stored the row it picked and only re-reads
+							// a controlled value when it changes. It trims the value, so
+							// switching between "" and " " resets it to nothing.
+							setHighlightedValue((previous) => (previous === "" ? " " : ""));
+							return;
+						}
 						highlightedValueRef.current = value;
 						setHighlightedValue(value);
 						onHighlightedValueChange?.(value);
