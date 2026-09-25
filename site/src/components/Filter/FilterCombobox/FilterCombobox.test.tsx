@@ -394,6 +394,48 @@ describe("FilterCombobox", () => {
 		expect(onChange).toHaveBeenLastCalledWith("template:docker");
 	});
 
+	it.each([
+		["searches", "without its chip", "", "dock", true],
+		[
+			"holds back",
+			"with its chip",
+			"template:docker",
+			"template:docker dock",
+			false,
+		],
+	])(
+		"%s text matching a hideable category whose first load settles at one option %s",
+		async (_, __, initialValue, search, searched) => {
+			const firstLoad = Promise.withResolvers<FilterOption[]>();
+			const { user, input, onChange } = setup(
+				[
+					{
+						key: "template",
+						label: "Template",
+						hideWhenSingleOption: true,
+						getOptions: (query) =>
+							query === ""
+								? firstLoad.promise
+								: Promise.resolve([{ label: "Docker", value: "docker" }]),
+					},
+				],
+				{ initialValue, fakeTimers: true },
+			);
+			await user.click(input);
+			await user.type(input, "dock");
+			await settleTypedText();
+			await act(async () =>
+				firstLoad.resolve([{ label: "Docker", value: "docker" }]),
+			);
+
+			if (searched) {
+				expect(onChange).toHaveBeenLastCalledWith(search);
+			} else {
+				expect(onChange).not.toHaveBeenCalledWith(search);
+			}
+		},
+	);
+
 	it("opens from the Filters button with keyboard focus and navigates categories", async () => {
 		const { user, onChange, input, filtersButton } = setup([ownerCategory]);
 
