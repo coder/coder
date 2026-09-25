@@ -28,7 +28,7 @@ import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
-	MockFailedWorkspaceBuildWithUUID,
+	MockFailedWorkspaceBuild,
 	MockNoPermissions,
 	MockOrganization2,
 	MockPermissions,
@@ -1098,7 +1098,7 @@ const debugWorkspaceBuildRouter = (buildId: string) =>
 export const DebugWorkspaceBuildLoading: Story = {
 	parameters: {
 		experiments: ["enable-ai-workspace-debug"],
-		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuildWithUUID.id),
+		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuild().id),
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaceBuild").mockReturnValue(new Promise(() => {}));
@@ -1108,7 +1108,7 @@ export const DebugWorkspaceBuildLoading: Story = {
 export const DebugWorkspaceBuildLoadError: Story = {
 	parameters: {
 		experiments: ["enable-ai-workspace-debug"],
-		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuildWithUUID.id),
+		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuild().id),
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaceBuild").mockRejectedValue(

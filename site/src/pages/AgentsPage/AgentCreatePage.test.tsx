@@ -11,7 +11,7 @@ import {
 	MockUnsetUserChatPersonalModelOverrides,
 } from "#/testHelpers/chatModels";
 import {
-	MockFailedWorkspaceBuildWithUUID,
+	MockFailedWorkspaceBuild,
 	MockUserPreferenceSettings,
 	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
@@ -30,7 +30,7 @@ vi.mock("./components/AgentPageHeader", () => ({
 	AgentPageHeader: () => null,
 }));
 
-const failedBuild = MockFailedWorkspaceBuildWithUUID;
+const failedBuild = MockFailedWorkspaceBuild();
 
 const deepLink = `${buildDebugWorkspaceBuildPath(failedBuild.id)}&archived=archived`;
 

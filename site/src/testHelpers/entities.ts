@@ -1567,7 +1567,7 @@ export const MockFailedWorkspaceBuild = (
 ): TypesGen.WorkspaceBuild => ({
 	build_number: 1,
 	created_at: "2022-05-17T17:39:01.382927298Z",
-	id: "1",
+	id: "9f0e7d0e-4b2b-4ac9-8f1a-1a7a1f0c9d11",
 	initiator_id: MockUserOwner.id,
 	initiator_name: MockUserOwner.username,
 	job: MockFailedProvisionerJob,
@@ -1587,12 +1587,6 @@ export const MockFailedWorkspaceBuild = (
 	daily_cost: 20,
 	template_version_preset_id: null,
 });
-
-// The agents create page only accepts a UUID build ID.
-export const MockFailedWorkspaceBuildWithUUID: TypesGen.WorkspaceBuild = {
-	...MockFailedWorkspaceBuild("start"),
-	id: "9f0e7d0e-4b2b-4ac9-8f1a-1a7a1f0c9d11",
-};
 
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
 	...MockWorkspaceBuild,
