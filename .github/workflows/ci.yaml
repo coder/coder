@@ -1275,7 +1275,7 @@ jobs:
           set -euxo pipefail
           ./.github/scripts/retry.sh -- go mod download
           make gen/mark-fresh
-          make build
+          make -j build
 
   build:
     # This builds and publishes ghcr.io/coder/coder-preview:main for each commit

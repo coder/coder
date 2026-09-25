@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -403,6 +403,37 @@ describe("ChatsSidebar projects", () => {
 		expect(screen.getByRole("link", { name: "New chat" })).not.toHaveAttribute(
 			"aria-current",
 		);
+	});
+});
+
+describe("ChatsSidebar section switcher", () => {
+	const LocationProbe: FC = () => {
+		const location = useLocation();
+		return <div data-testid="location-pathname">{location.pathname}</div>;
+	};
+
+	it.each([
+		["Workspaces", "/workspaces"],
+		["Templates", "/templates"],
+		["Agents", "/agents"],
+	])("navigates to %s", async (label, pathname) => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper initialEntry="/agents/chat-1">
+				<ChatsSidebar {...defaultProps} />
+				<LocationProbe />
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Agents" }));
+		await user.click(await screen.findByRole("menuitem", { name: label }));
+
+		await waitFor(() => {
+			expect(screen.getByTestId("location-pathname").textContent).toBe(
+				pathname,
+			);
+		});
 	});
 });
 

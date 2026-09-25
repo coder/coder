@@ -1,13 +1,24 @@
 import { PencilIcon } from "lucide-react";
-import { type FC, useRef, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Navigate, useLocation, useNavigate, useParams } from "react-router";
+import {
+	Navigate,
+	useLocation,
+	useNavigate,
+	useParams,
+	useSearchParams,
+} from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import { chatProject, updateChatProject } from "#/api/queries/chatProjects";
 import { createChat } from "#/api/queries/chats";
+import {
+	workspaceBuildById,
+	workspaceBuildLogs,
+} from "#/api/queries/workspaceBuilds";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
@@ -15,8 +26,11 @@ import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBuildDebugLink";
+import { isUUID } from "#/utils/uuid";
 import {
 	AgentCreateForm,
+	type AgentCreatePrefill,
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
@@ -26,8 +40,55 @@ import { ProjectComposerHeader } from "./components/ProjectComposerHeader";
 import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
+import {
+	debugWorkspaceBuildLogsFileName,
+	debugWorkspaceBuildPrompt,
+	formatWorkspaceBuildLogsForDebug,
+} from "./utils/workspaceBuildDebug";
 
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+// The deep link's build ID moves from the URL into this entry's history state
+// on arrival, because the layout's links forward location.search and the
+// next composer must be a plain one.
+type DebugLinkState = { debugWorkspaceBuildId: string };
+
+const readDebugLinkState = (state: unknown): string | null =>
+	typeof state === "object" &&
+	state !== null &&
+	"debugWorkspaceBuildId" in state &&
+	typeof state.debugWorkspaceBuildId === "string"
+		? state.debugWorkspaceBuildId
+		: null;
+
+type DebugWorkspaceBuildAlertProps = {
+	error: unknown;
+	build: TypesGen.WorkspaceBuild | undefined;
+};
+
+const DebugWorkspaceBuildAlert: FC<DebugWorkspaceBuildAlertProps> = ({
+	error,
+	build,
+}) => {
+	const alert =
+		error != null ? (
+			<Alert severity="error" prominent>
+				<AlertTitle>Could not load the workspace build or its logs</AlertTitle>
+				<AlertDescription>
+					{getErrorMessage(error, "The request failed.")}
+				</AlertDescription>
+			</Alert>
+		) : build && build.job.status !== "failed" ? (
+			<Alert severity="info">
+				<AlertTitle>Nothing to debug</AlertTitle>
+				<AlertDescription>
+					Build #{build.build_number} of workspace {build.workspace_owner_name}/
+					{build.workspace_name} has not failed (status: {build.job.status}).
+				</AlertDescription>
+			</Alert>
+		) : null;
+	return alert ? (
+		<div className="mx-auto w-full max-w-3xl px-4 pt-4">{alert}</div>
+	) : null;
+};
 
 /**
  * New-chat page. Serves both `/agents` and `/agents/projects/:projectId`; in
@@ -39,6 +100,7 @@ const AgentCreatePage: FC = () => {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const { projectId } = useParams<{ projectId?: string }>();
+	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
 	const { experiments } = useDashboard();
 	const chatProjectsEnabled = experiments.includes("chat-projects");
@@ -71,6 +133,65 @@ const AgentCreatePage: FC = () => {
 		attemptedProjectId === selectedProjectId ? createMutation.error : undefined;
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
+
+	const debugLinkParam = searchParams.get(debugWorkspaceBuildSearchParam);
+	const debugLinkValue = debugLinkParam ?? readDebugLinkState(location.state);
+	const debugBuildId =
+		debugLinkValue !== null &&
+		isUUID(debugLinkValue) &&
+		experiments.includes("enable-ai-workspace-debug")
+			? debugLinkValue
+			: null;
+	useEffect(() => {
+		if (debugLinkParam === null) {
+			return;
+		}
+		const search = new URLSearchParams(searchParams);
+		search.delete(debugWorkspaceBuildSearchParam);
+		const state: DebugLinkState | undefined =
+			debugBuildId !== null
+				? { debugWorkspaceBuildId: debugBuildId }
+				: undefined;
+		navigate(
+			{ pathname: location.pathname, search: search.toString() },
+			{ replace: true, state },
+		);
+	}, [debugLinkParam, debugBuildId, location.pathname, navigate, searchParams]);
+	const debugBuildQuery = useQuery({
+		...workspaceBuildById(debugBuildId ?? ""),
+		enabled: debugBuildId !== null,
+		// A reconnect refetch after a load error would replace the composer the
+		// user may already be using with the prefilled form.
+		refetchOnReconnect: false,
+	});
+	const debugBuild = debugBuildQuery.data;
+	const debugBuildFailed = debugBuild?.job.status === "failed";
+	const debugBuildLogsQuery = useQuery({
+		...workspaceBuildLogs(debugBuildId ?? ""),
+		// The logs query never refetches, so fetch only once the build has failed.
+		enabled: debugBuildFailed,
+	});
+	const prefillError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
+	const prefill: AgentCreatePrefill | undefined =
+		debugBuild && debugBuildFailed && debugBuildLogsQuery.data
+			? {
+					message: debugWorkspaceBuildPrompt(debugBuild),
+					attachment: {
+						name: debugWorkspaceBuildLogsFileName(debugBuild),
+						text: formatWorkspaceBuildLogsForDebug(
+							debugBuild,
+							debugBuildLogsQuery.data,
+						),
+					},
+				}
+			: undefined;
+	// Hold the form until the prefill is ready: AgentCreateForm reads message
+	// and attachment only on mount.
+	const isPrefillLoading =
+		debugBuildId !== null &&
+		prefillError == null &&
+		(debugBuild === undefined ||
+			(debugBuildFailed && debugBuildLogsQuery.data === undefined));
 
 	if (projectId !== undefined && (!chatProjectsEnabled || isProjectMissing)) {
 		return <Navigate to="/agents" replace />;
@@ -109,9 +230,6 @@ const AgentCreatePage: FC = () => {
 		};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
-		if (model) {
-			localStorage.setItem(lastModelConfigIDStorageKey, model);
-		}
 		navigate({
 			pathname: buildAgentChatPath({ chatId: createdChat.id }),
 			search: location.search,
@@ -148,6 +266,7 @@ const AgentCreatePage: FC = () => {
 				<ChimeButton enabled={chimeEnabled} onToggle={handleChimeToggle} />
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
+			<DebugWorkspaceBuildAlert error={prefillError} build={debugBuild} />
 			{projectLookupError ? (
 				<ErrorAlert
 					error={projectLookupError}
@@ -166,8 +285,11 @@ const AgentCreatePage: FC = () => {
 				// The form must not mount until its organization is known because its
 				// attachments and remembered choices are organization-scoped.
 				<Loader label="Loading project" />
+			) : isPrefillLoading ? (
+				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : (
 				<AgentCreateForm
+					key={prefill ? debugBuildId : "draft"}
 					lockedOrganizationId={selectedProject?.organization_id}
 					header={
 						selectedProject && (
@@ -192,6 +314,7 @@ const AgentCreatePage: FC = () => {
 					workspaceOptions={workspacesQuery.data?.workspaces ?? []}
 					workspacesError={workspacesQuery.error}
 					isWorkspacesLoading={workspacesQuery.isLoading}
+					prefill={prefill}
 				/>
 			)}
 		</>

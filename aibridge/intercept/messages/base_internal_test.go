@@ -939,6 +939,20 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectRemovedFields: []string{"output_config.format"},
 		},
 		{
+			name:               "opus_5_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "anthropic.claude-opus-5-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:               "global_opus_5_5_model_keeps_adaptive_thinking_and_output_config_effort",
+			bedrockModel:       "global.anthropic.claude-opus-5-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"low"}}`,
+			expectThinkingType: "adaptive",
+			expectEffort:       "low",
+			expectKeptFields:   []string{"output_config"},
+		},
+		{
 			// Opus 4.7 on Bedrock rejects output_config.format (structured
 			// outputs) with a 400 even though it accepts output_config.effort.
 			name:                "opus_4_7_model_strips_output_config_format_but_keeps_effort",
@@ -947,6 +961,25 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectEffort:        "high",
 			expectKeptFields:    []string{"output_config", "output_config.effort"},
 			expectRemovedFields: []string{"output_config.format"},
+		},
+		{
+			name:                "unknown_model_keeps_thinking_block_binding_with_beta_flag",
+			bedrockModel:        "us.anthropic.claude-fable-6",
+			requestBody:         `{"max_tokens":10000,"thinking":{"type":"adaptive","block_binding":{"prefix_mismatch_behavior":"drop_block"}}}`,
+			clientBetaFlags:     "interleaved-thinking-2025-05-14,thinking-binding-controls-2026-08-01",
+			expectThinkingType:  "enabled",
+			expectBudgetTokens:  8000,
+			expectKeptFields:    []string{"thinking.block_binding.mismatch_behavior"},
+			expectRemovedFields: []string{"thinking.block_binding.prefix_mismatch_behavior"},
+			expectBetaValues:    []string{"interleaved-thinking-2025-05-14", "thinking-binding-controls-2026-08-01"},
+		},
+		{
+			name:                "opus_5_5_strips_thinking_block_binding_without_beta_flag",
+			bedrockModel:        "anthropic.claude-opus-5-5",
+			requestBody:         `{"max_tokens":10000,"thinking":{"type":"adaptive","block_binding":{"prefix_mismatch_behavior":"drop_block"}}}`,
+			expectThinkingType:  "adaptive",
+			expectKeptFields:    []string{"thinking"},
+			expectRemovedFields: []string{"thinking.block_binding"},
 		},
 	}
 

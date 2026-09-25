@@ -186,6 +186,7 @@ type Server struct {
 	hooks                          *chathooks.Trigger
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
+	disableCallerSuppliedTools     bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
 	debugSvc                       *chatdebug.Service
@@ -207,6 +208,10 @@ type Server struct {
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
+
+	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
+	// model that accepted Anthropic's thinking drop_block control.
+	thinkingDropBlock sync.Map
 
 	// Configuration
 	inFlightChatStaleAfter time.Duration
@@ -248,11 +253,6 @@ func isAdvisorGuidanceMessage(msg fantasy.Message) bool {
 	return strings.TrimSpace(text.Text) == strings.TrimSpace(chatadvisor.ParentGuidanceBlock)
 }
 
-const advisorOverrideContext = "advisor"
-
-// resolveAdvisorModelOverride resolves the advisor model override for the
-// chat's organization. Missing or unusable overrides fall back to the chat
-// model. Linked-provider route and client failures remain hard failures.
 func (p *Server) resolveAdvisorModelOverride(
 	ctx context.Context,
 	chat database.Chat,
@@ -260,78 +260,37 @@ func (p *Server) resolveAdvisorModelOverride(
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (resolvedModelCall, bool, error) {
-	//nolint:gocritic // Chatd reads organization-scoped runtime configuration.
-	override, err := p.db.GetChatOrganizationModelOverride(
-		dbauthz.AsChatd(ctx),
-		database.GetChatOrganizationModelOverrideParams{
-			OrganizationID: chat.OrganizationID,
-			Context:        advisorOverrideContext,
-		},
-	)
+	override, err := p.resolveModelOverride(ctx, modelOverrideSpec{
+		context:         advisorOverrideContext,
+		ownerID:         chat.OwnerID,
+		organizationID:  chat.OrganizationID,
+		queryFailure:    modelOverrideFailureModeSoft,
+		configFailure:   modelOverrideFailureModeSoft,
+		providerFailure: modelOverrideFailureModeHard,
+	})
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return resolvedModelCall{}, false, nil
-		}
-		logger.Warn(
-			ctx,
-			"failed to load advisor model override, continuing with chat model",
-			slog.F("organization_id", chat.OrganizationID),
-			slog.Error(err),
-		)
-		return resolvedModelCall{}, false, nil
+		return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
 	}
-
-	modelCtx, modelCtxErr := p.callerModelConfigContext(ctx, chat.OwnerID)
-	if modelCtxErr != nil {
-		logger.Warn(
-			ctx,
-			"failed to load advisor model authorization, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
-			slog.Error(modelCtxErr),
-		)
-		return resolvedModelCall{}, false, nil
-	}
-	// Re-read the model row for every runtime so disabled models or providers
-	// stop routing advisor prompts immediately.
-	overrideConfig, err := p.db.GetEnabledChatModelConfigByID(modelCtx, override.ModelConfigID)
-	if err == nil && overrideConfig.OrganizationID != chat.OrganizationID {
-		err = sql.ErrNoRows
-	}
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			logger.Warn(
-				ctx,
-				"advisor model config is disabled or unavailable, continuing with chat model",
-				slog.F("model_config_id", override.ModelConfigID),
-			)
-			return resolvedModelCall{}, false, nil
-		}
-		logger.Warn(
-			ctx,
-			"failed to resolve advisor model config, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
-			slog.Error(err),
-		)
+	if !override.Set {
 		return resolvedModelCall{}, false, nil
 	}
 
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:         "advisor",
 		chat:            chat,
-		explicitConfig:  &overrideConfig,
-		requestedEffort: ptr.FromNullString(override.ReasoningEffort),
+		explicitConfig:  &override.Config,
+		requestedEffort: override.ReasoningEffort,
 		maxOutputTokens: ptr.Ref(maxOutputTokens),
 		buildOptions:    modelOpts,
 	})
 	if err != nil {
 		var parseErr modelCallConfigParseError
-		if overrideConfig.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
+		if override.Config.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
 			return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
 		}
-		logger.Warn(
-			ctx,
+		logger.Warn(ctx,
 			"failed to resolve advisor override model, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
+			slog.F("model_config_id", override.Config.ID),
 			slog.Error(err),
 		)
 		return resolvedModelCall{}, false, nil
@@ -1149,6 +1108,7 @@ type CreateOptions struct {
 	SystemPrompt            string
 	InitialUserContent      []codersdk.ChatMessagePart
 	MCPServerIDs            []uuid.UUID
+	InlineMCPServers        []codersdk.InlineMCPServerRequest
 	Labels                  database.StringMap
 	DynamicTools            json.RawMessage
 }
@@ -1176,6 +1136,8 @@ type SendMessageOptions struct {
 	BusyBehavior    SendMessageBusyBehavior
 	PlanMode        *database.NullChatPlanMode
 	MCPServerIDs    *[]uuid.UUID
+	// InlineMCPServers replaces the inline MCP servers. nil: no change.
+	InlineMCPServers *[]codersdk.InlineMCPServerRequest
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1441,6 +1403,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		Mode:              opts.ChatMode,
 		PlanMode:          opts.PlanMode,
 		MCPServerIDs:      opts.MCPServerIDs,
+		InlineMCPServers:  opts.InlineMCPServers,
 		Labels: pqtype.NullRawMessage{
 			RawMessage: labelsJSON,
 			Valid:      true,
@@ -1579,6 +1542,12 @@ func (p *Server) SendMessage(
 		lockedChat, err = p.applyRequestedMCPServerIDs(ctx, store, lockedChat, requestedMCPServerIDs)
 		if err != nil {
 			return err
+		}
+
+		if opts.InlineMCPServers != nil {
+			if err := chatstate.ReplaceInlineMCPServers(ctx, store, lockedChat.ID, *opts.InlineMCPServers); err != nil {
+				return xerrors.Errorf("replace inline MCP servers: %w", err)
+			}
 		}
 
 		messageCreatedBy := opts.CreatedBy
@@ -2897,6 +2866,7 @@ type Config struct {
 	AllowBYOK                      bool
 	AllowBYOKSet                   bool
 	AlwaysEnableDebugLogs          bool
+	DisableCallerSuppliedTools     bool
 	WebpushDispatcher              webpush.Dispatcher
 	HookDispatcher                 *dispatch.Dispatcher
 	UsageTracker                   *workspacestats.UsageTracker
@@ -2999,6 +2969,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		hooks:                          chathooks.NewTrigger(hookDispatcher),
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
+		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
 		debugSvcFactory: func() *chatdebug.Service {
@@ -3356,6 +3327,36 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
 
+// filterMCPServersForTurn returns the external MCP servers visible on the
+// current turn and the set of their IDs. Outside plan mode every server is
+// visible and the set is nil. Plan-mode subagents see none: their trust
+// boundary is narrower than the root chat's. Root plan-mode chats see the
+// servers whose policy allows plan mode.
+func filterMCPServersForTurn[T any](
+	servers []T,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+	policy func(T) (id uuid.UUID, allowInPlanMode bool),
+) ([]T, map[uuid.UUID]struct{}) {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return servers, nil
+	}
+	approved := map[uuid.UUID]struct{}{}
+	if parentChatID.Valid {
+		return nil, approved
+	}
+	filtered := make([]T, 0, len(servers))
+	for _, srv := range servers {
+		id, allowInPlanMode := policy(srv)
+		if !allowInPlanMode {
+			continue
+		}
+		filtered = append(filtered, srv)
+		approved[id] = struct{}{}
+	}
+	return filtered, approved
+}
+
 // filterExternalMCPConfigsForTurn returns the external MCP server configs
 // visible on the current turn. Explore children snapshot this filtered set at
 // spawn time so later model overrides cannot widen the external-tool boundary.
@@ -3364,25 +3365,9 @@ func filterExternalMCPConfigsForTurn(
 	mode database.NullChatPlanMode,
 	parentChatID uuid.NullUUID,
 ) ([]database.MCPServerConfig, map[uuid.UUID]struct{}) {
-	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
-		return configs, nil
-	}
-	if parentChatID.Valid {
-		// Plan-mode subagents do not receive external MCP tools because
-		// their trust boundary is narrower than the root chat's.
-		return nil, map[uuid.UUID]struct{}{}
-	}
-
-	filtered := make([]database.MCPServerConfig, 0, len(configs))
-	approvedIDs := make(map[uuid.UUID]struct{})
-	for _, cfg := range configs {
-		if !cfg.AllowInPlanMode {
-			continue
-		}
-		filtered = append(filtered, cfg)
-		approvedIDs[cfg.ID] = struct{}{}
-	}
-	return filtered, approvedIDs
+	return filterMCPServersForTurn(configs, mode, parentChatID, func(cfg database.MCPServerConfig) (uuid.UUID, bool) {
+		return cfg.ID, cfg.AllowInPlanMode
+	})
 }
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {
@@ -3493,11 +3478,12 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 			toolNames = append(toolNames, name)
 			continue
 		}
-		// External MCP tools pass through here. They were snapshot-filtered
-		// at spawn time on chat.MCPServerIDs. WorkspaceMCPTool does not
-		// implement MCPToolIdentifier, so workspace tools are excluded
-		// here too, in addition to the structural exclusion in runChat
-		// tool assembly.
+		// External MCP tools pass through here. Org tools were
+		// snapshot-filtered at spawn time on chat.MCPServerIDs, and inline
+		// tools come only from root chat servers with allow_in_subagents.
+		// WorkspaceMCPTool does not implement MCPToolIdentifier, so
+		// workspace tools are excluded here too, in addition to the
+		// structural exclusion in runChat tool assembly.
 		if _, ok := tool.(mcpclient.MCPToolIdentifier); ok {
 			toolNames = append(toolNames, name)
 		}
@@ -4106,6 +4092,8 @@ func (p *Server) resolveUserProviderAPIKeys(
 	chatprovider.PruneDisabledProviderKeys(&keys, enabledProviders)
 	return keys, nil
 }
+
+var errModelConfigOutsideOrganization = xerrors.Errorf("%w: model config belongs to another organization", sql.ErrNoRows)
 
 func (p *Server) resolveModelConfigForOrganization(
 	ctx context.Context,

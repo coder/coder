@@ -4,6 +4,7 @@
  */
 
 import { cn } from "cn";
+import dayjs from "dayjs";
 import { CalendarIcon, CheckIcon } from "lucide-react";
 import { type FC, type KeyboardEvent, useEffect, useId, useState } from "react";
 import type { DateRange as DayPickerDateRange } from "react-day-picker";
@@ -41,10 +42,51 @@ type DateTimeRangePickerProps = {
 	now?: Date;
 	presets?: QuickPreset[];
 	size?: ButtonProps["size"];
+	/**
+	 * Earliest allowed start. Earlier days cannot be picked, an earlier start
+	 * time cannot be applied, and presets that would start before it are
+	 * hidden.
+	 */
+	minDate?: Date;
+	/**
+	 * Longest range that can be applied, in days. Presets that would exceed
+	 * it are hidden.
+	 */
+	maxDays?: number;
 };
 
 const INVALID_TIME_MESSAGE = "Enter a valid time, e.g. 09:30:00";
 const RANGE_ORDER_MESSAGE = "End must be after start";
+const rangeLengthMessage = (maxDays: number) =>
+	`Range must not exceed ${maxDays} days`;
+const rangeStartMessage = (minDate: Date) =>
+	`Start must be on or after ${dayjs(minDate).format("MMM D, YYYY h:mm A")}`;
+
+// maxDays bounds the exact duration, since that is what APIs enforce, rather
+// than a count of calendar days.
+const exceedsMaxDays = (start: Date, end: Date, maxDays: number): boolean =>
+	dayjs(end).diff(start, "hour", true) > maxDays * 24;
+
+const validateRange = (
+	start: Date | null,
+	end: Date | null,
+	minDate: Date | undefined,
+	maxDays: number | undefined,
+): string | null => {
+	if (!start || !end) {
+		return null;
+	}
+	if (end.getTime() <= start.getTime()) {
+		return RANGE_ORDER_MESSAGE;
+	}
+	if (minDate !== undefined && start < minDate) {
+		return rangeStartMessage(minDate);
+	}
+	if (maxDays !== undefined && exceedsMaxDays(start, end, maxDays)) {
+		return rangeLengthMessage(maxDays);
+	}
+	return null;
+};
 // How long the floating error stays visible before fading, mirroring
 // toast behavior. The invalid field styling and disabled Apply remain
 // until the input is corrected.
@@ -76,9 +118,21 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	now,
 	presets,
 	size = "sm",
+	minDate,
+	maxDays,
 }) => {
 	const currentTime = now ?? new Date();
-	const quickPresets = presets ?? DEFAULT_QUICK_PRESETS;
+	const quickPresets = (presets ?? DEFAULT_QUICK_PRESETS).filter((preset) => {
+		const { start, end } = preset.range(currentTime);
+		return (
+			(minDate === undefined || start >= minDate) &&
+			(maxDays === undefined || !exceedsMaxDays(start, end, maxDays))
+		);
+	});
+	// The cutoff's own day stays selectable so times after the cutoff can be
+	// picked; validateRange rejects a start before the cutoff itself.
+	const firstSelectableDay =
+		minDate === undefined ? undefined : dayjs(minDate).startOf("day").toDate();
 	const [open, setOpen] = useState(false);
 	const [customExpanded, setCustomExpanded] = useState(false);
 	const [selection, setSelection] = useState<DayPickerDateRange | undefined>();
@@ -159,10 +213,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 					timeFields.toMeridiem,
 				)
 			: null;
-	const rangeError =
-		draftStart && draftEnd && draftEnd.getTime() <= draftStart.getTime()
-			? RANGE_ORDER_MESSAGE
-			: null;
+	const rangeError = validateRange(draftStart, draftEnd, minDate, maxDays);
 	const canApply =
 		draftStart !== null && draftEnd !== null && rangeError === null;
 
@@ -263,7 +314,11 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 									defaultMonth={
 										value.preset === undefined ? value.start : currentTime
 									}
-									disabled={{ after: currentTime }}
+									disabled={
+										firstSelectableDay === undefined
+											? { after: currentTime }
+											: [{ before: firstSelectableDay }, { after: currentTime }]
+									}
 									endMonth={currentTime}
 									today={currentTime}
 								/>

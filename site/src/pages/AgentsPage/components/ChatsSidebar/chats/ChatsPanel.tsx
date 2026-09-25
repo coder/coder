@@ -59,6 +59,7 @@ import {
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
 import { type ProjectDialogMode, ProjectFolders } from "./ProjectFolders";
 import { groupChatsByProject } from "./projectGrouping";
+import { SectionSwitcher } from "./SectionSwitcher";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const UNREAD_SECTION_KEY = "Unread";
@@ -354,6 +355,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		isLoadingModelConfigs,
 		chatErrorReasons,
 		activeChatId,
+		currentUserId,
 		isArchiving,
 		archivingChatId,
 		toggleExpanded,
@@ -422,6 +424,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						<NavLink to="/workspaces" className="inline-flex">
 							<ProductLogo className="size-6" />
 						</NavLink>
+						<SectionSwitcher />
 					</div>
 					<div className="flex items-center gap-0.5 -mr-1.5">
 						<Button

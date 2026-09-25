@@ -101,7 +101,7 @@ const WorkspacesPage: FC = () => {
 	}, [templatesQuery.data, workspacePermissionsQuery.data]);
 
 	const filter = useFilter({
-		fallbackFilter: "owner:me",
+		fallbackFilter: "user:me",
 		searchParams,
 		onSearchParamsChange: setSearchParams,
 		onUpdate: () => {

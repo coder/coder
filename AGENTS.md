@@ -35,7 +35,7 @@ Load only the guidance relevant to the task:
 | New, moved, or restructured docs                    | [write-docs skill](.claude/skills/write-docs/SKILL.md)  |
 | Frontend                                            | [site/AGENTS.md](site/AGENTS.md)                        |
 
-For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRONTEND_PATTERNS.md). For chatd work, read [coderd/x/chatd/ARCHITECTURE.md](coderd/x/chatd/ARCHITECTURE.md). When the docs style guide and the content guidelines conflict, the content guidelines govern scope and routing.
+For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRONTEND_PATTERNS.md). For chatd work, read [coderd/x/chatd/ARCHITECTURE.md](coderd/x/chatd/ARCHITECTURE.md). When the docs style guide and the content guidelines conflict, the content guidelines govern scope and routing. Automated tooling checks a small subset of the style guide and Vale runs advisory, so read the guide and apply it; a clean `make lint/prose` is not conformance. [What the tooling checks, and what it doesn't](docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt) has the current numbers.
 
 ## Workflow
 
@@ -46,6 +46,7 @@ For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRO
 - Prefer targeted tests and checks while iterating. Run the broader checks required by the affected area before handoff.
 - Do not force-push unless explicitly requested.
 - Commit and PR titles use `type(scope): message`. A scope must be a real path containing every changed file. Use a broader scope or no scope for cross-cutting changes.
+- Name branches so they do not collide with issue-tracker IDs. When a branch references a GitHub issue number, write it as `issue-<number>` (for example, `issue-1234-fix-flake`), not as a bare `<word>-<number>` such as `docs-1234` or a leading number. Connected trackers like Linear auto-link any branch containing a `<key>-<number>` token to the same-numbered issue on the team that owns `<key>`, silently attaching the PR to an unrelated ticket and moving it through that ticket's workflow.
 
 ## Essential commands
 
@@ -71,6 +72,7 @@ Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live
 - **New resources:** scope every new resource to an organization (`organization_id` column, organization-scoped RBAC and routes), never deployment-wide.
 - **OAuth2:** return RFC-compliant errors such as `writeOAuth2Error(...)`. Public endpoints that need system access use `dbauthz.AsSystemRestricted`.
 - **Chatd:** when a change affects the documented architecture, do not edit the architecture document yourself. Leave TODO items in the affected sections; the human PR author writes the actual updates.
+  - When you review a PR, treat changes to that document as the owner's work. TODOs are notes for the author, so flag any that the PR adds to the architecture document.
 - **Public API:** add the required Swagger annotations for new public HTTP endpoints.
 - **Transactions:** keep `InTx` work on the transaction handle. Prefer explicit database-to-SDK converters.
 - **Concurrent tests:** call `t.Parallel()`, use unique identifiers, and do not use `time.Sleep` to mask timing problems.

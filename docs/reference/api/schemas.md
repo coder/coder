@@ -1584,6 +1584,20 @@ None
 |-------------------------------------|
 | `envbox`, `envbuilder`, `exectrace` |
 
+## codersdk.AppFamilyName
+
+```json
+"vscode"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                            |
+|---------------------------------------------------------------------|
+| `jetbrains`, `reconnecting_pty`, `sftp`, `ssh`, `unknown`, `vscode` |
+
 ## codersdk.AppHostResponse
 
 ```json
@@ -2265,6 +2279,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "inline_mcp_servers": [
+        {
+          "allow_in_subagents": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "forward_coder_headers": true,
+          "has_custom_headers": true,
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "slug": "string",
+          "tool_allow_list": [
+            "string"
+          ],
+          "tool_deny_list": [
+            "string"
+          ],
+          "updated_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "labels": {
         "property1": "string",
         "property2": "string"
@@ -2362,6 +2394,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "forward_coder_headers": true,
+      "has_custom_headers": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "updated_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -2417,6 +2467,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
 | `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
 | `id`                    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `inline_mcp_servers`    | array of [codersdk.InlineMCPServer](#codersdkinlinemcpserver)   | false    |              | Inline mcp servers lists the inline MCP servers declared on the chat, without headers. Only the single-chat GET sets it. Experimental.                                                                                                                                     |
 | `labels`                | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | » `[any property]`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `last_error`            | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
@@ -3042,6 +3093,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "reasoning_delta": "string",
       "result": [
         0
       ],
@@ -3064,6 +3116,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
   "id": 0,
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "queued_message_id": 0,
   "role": "system",
   "usage": {
     "cache_creation_tokens": 0,
@@ -3079,16 +3132,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                          | Required | Restrictions | Description |
-|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `chat_id`         | string                                                        | false    |              |             |
-| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `created_at`      | string                                                        | false    |              |             |
-| `created_by`      | string                                                        | false    |              |             |
-| `id`              | integer                                                       | false    |              |             |
-| `model_config_id` | string                                                        | false    |              |             |
-| `role`            | [codersdk.ChatMessageRole](#codersdkchatmessagerole)          | false    |              |             |
-| `usage`           | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)        | false    |              |             |
+| Name                | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                     |
+|---------------------|---------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id`           | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `content`           | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `created_at`        | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `created_by`        | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `id`                | integer                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `model_config_id`   | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `queued_message_id` | integer                                                       | false    |              | Queued message ID is the ID of the queued message this message was promoted from. It matches ChatQueuedMessage.ID in the response that queued the message. It is nil when the message was not promoted from the queue (edits create a new message without it) or when a server version that did not record the link created it. |
+| `role`              | [codersdk.ChatMessageRole](#codersdkchatmessagerole)          | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `usage`             | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
 
 ## codersdk.ChatMessagePart
 
@@ -3129,6 +3183,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "provider_metadata": [
     0
   ],
+  "reasoning_delta": "string",
   "result": [
     0
   ],
@@ -3177,6 +3232,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
 | `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
+| `reasoning_delta`              | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3291,6 +3347,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -3313,6 +3370,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -3365,6 +3423,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -4742,6 +4801,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "reasoning_delta": "string",
       "result": [
         0
       ],
@@ -4899,6 +4959,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -4921,6 +4982,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "queued_message_id": 0,
     "role": "system",
     "usage": {
       "cache_creation_tokens": 0,
@@ -4971,6 +5033,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "reasoning_delta": "string",
       "result": [
         0
       ],
@@ -5031,6 +5094,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -5140,6 +5204,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "provider_metadata": [
       0
     ],
+    "reasoning_delta": "string",
     "result": [
       0
     ],
@@ -5361,6 +5426,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "has_unread": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "inline_mcp_servers": [
+      {
+        "allow_in_subagents": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "forward_coder_headers": true,
+        "has_custom_headers": true,
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "slug": "string",
+        "tool_allow_list": [
+          "string"
+        ],
+        "tool_deny_list": [
+          "string"
+        ],
+        "updated_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      }
+    ],
     "labels": {
       "property1": "string",
       "property2": "string"
@@ -5799,6 +5882,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "type": "text"
     }
   ],
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "forward_coder_headers": true,
+      "headers": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "url": "string"
+    }
+  ],
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
@@ -5810,14 +5911,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name               | Type                                                      | Required | Restrictions | Description                                                                                                  |
-|--------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
-| `busy_behavior`    | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)    | false    |              |                                                                                                              |
-| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                              |
-| `mcp_server_ids`   | array of string                                           | false    |              |                                                                                                              |
-| `model_config_id`  | string                                                    | false    |              |                                                                                                              |
-| `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
-| `reasoning_effort` | string                                                    | false    |              |                                                                                                              |
+| Name                 | Type                                                                        | Required | Restrictions | Description                                                                                                  |
+|----------------------|-----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`      | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)                      | false    |              |                                                                                                              |
+| `content`            | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                              |
+| `inline_mcp_servers` | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers replaces the inline MCP servers. nil: no change, empty: remove all.                       |
+| `mcp_server_ids`     | array of string                                                             | false    |              |                                                                                                              |
+| `model_config_id`    | string                                                                      | false    |              |                                                                                                              |
+| `plan_mode`          | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
+| `reasoning_effort`   | string                                                                      | false    |              |                                                                                                              |
 
 #### Enumerated Values
 
@@ -5868,6 +5970,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -5890,6 +5993,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "queued_message_id": 0,
     "role": "system",
     "usage": {
       "cache_creation_tokens": 0,
@@ -5941,6 +6045,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -5963,6 +6068,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -6015,6 +6121,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -6289,6 +6396,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "type": "text"
     }
   ],
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "forward_coder_headers": true,
+      "headers": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "url": "string"
+    }
+  ],
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -6318,22 +6443,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                                                   |
-|------------------------|-----------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                                                               |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                               |
-| `labels`               | object                                                    | false    |              |                                                                                                                                                                               |
-| » `[any property]`     | string                                                    | false    |              |                                                                                                                                                                               |
-| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                                                               |
-| `model_config_id`      | string                                                    | false    |              |                                                                                                                                                                               |
-| `organization_id`      | string                                                    | false    |              |                                                                                                                                                                               |
-| `owner_id`             | string                                                    | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user. |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                                                               |
-| `project_id`           | string                                                    | false    |              |                                                                                                                                                                               |
-| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                                                               |
-| `system_prompt`        | string                                                    | false    |              |                                                                                                                                                                               |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                    |
-| `workspace_id`         | string                                                    | false    |              |                                                                                                                                                                               |
+| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                   |
+|------------------------|-----------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)                          | false    |              |                                                                                                                                                                               |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                                                                                               |
+| `inline_mcp_servers`   | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers declares MCP servers by value on this chat, next to the org-configured servers selected by MCPServerIDs. Experimental.                                     |
+| `labels`               | object                                                                      | false    |              |                                                                                                                                                                               |
+| » `[any property]`     | string                                                                      | false    |              |                                                                                                                                                                               |
+| `mcp_server_ids`       | array of string                                                             | false    |              |                                                                                                                                                                               |
+| `model_config_id`      | string                                                                      | false    |              |                                                                                                                                                                               |
+| `organization_id`      | string                                                                      | false    |              |                                                                                                                                                                               |
+| `owner_id`             | string                                                                      | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user. |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              |                                                                                                                                                                               |
+| `project_id`           | string                                                                      | false    |              |                                                                                                                                                                               |
+| `reasoning_effort`     | string                                                                      | false    |              |                                                                                                                                                                               |
+| `system_prompt`        | string                                                                      | false    |              |                                                                                                                                                                               |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                    |
+| `workspace_id`         | string                                                                      | false    |              |                                                                                                                                                                               |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -7525,6 +7651,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ]
       }
     },
+    "disable_chat_caller_supplied_tools": true,
     "disable_chat_sharing": true,
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
@@ -7958,6 +8085,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "collected_at": "2019-08-24T14:15:22Z",
   "next_update_at": "2019-08-24T14:15:22Z",
   "session_count": {
+    "apps": {
+      "property1": {
+        "count": 0,
+        "display_name": "string",
+        "family": "vscode",
+        "icon": "string"
+      },
+      "property2": {
+        "count": 0,
+        "display_name": "string",
+        "family": "vscode",
+        "icon": "string"
+      }
+    },
     "jetbrains": 0,
     "reconnecting_pty": 0,
     "ssh": 0,
@@ -8137,6 +8278,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ]
     }
   },
+  "disable_chat_caller_supplied_tools": true,
   "disable_chat_sharing": true,
   "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
@@ -8541,6 +8683,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `config_ssh`                                   | [codersdk.SSHConfig](#codersdksshconfig)                                                             | false    |              |                                                                           |
 | `dangerous`                                    | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                 | false    |              |                                                                           |
 | `derp`                                         | [codersdk.DERP](#codersdkderp)                                                                       | false    |              |                                                                           |
+| `disable_chat_caller_supplied_tools`           | boolean                                                                                              | false    |              |                                                                           |
 | `disable_chat_sharing`                         | boolean                                                                                              | false    |              |                                                                           |
 | `disable_owner_workspace_exec`                 | boolean                                                                                              | false    |              |                                                                           |
 | `disable_password_auth`                        | boolean                                                                                              | false    |              |                                                                           |
@@ -8850,6 +8993,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -8872,6 +9016,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "queued_message_id": 0,
     "role": "system",
     "usage": {
       "cache_creation_tokens": 0,
@@ -8923,6 +9068,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -8945,6 +9091,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -9056,9 +9203,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                           |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-projects`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                   |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -9216,7 +9363,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `no_refresh`                       | boolean         | false    |              |                                                                                                                                                                                               |
 | `redirect_url`                     | string          | false    |              | Redirect URL is optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where the OAuth callback domain is different from the ACCESS_URL domain. The path component is ignored. |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
-Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
+Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the control plane to match against the Regex.|
 |`revoke_url`|string|false|||
 |`scopes`|array of string|false|||
 |`token_url`|string|false|||
@@ -9855,6 +10002,76 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |---------|--------|----------|--------------|-------------|
 | `label` | string | false    |              |             |
 | `url`   | string | false    |              |             |
+
+## codersdk.InlineMCPServer
+
+```json
+{
+  "allow_in_subagents": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "forward_coder_headers": true,
+  "has_custom_headers": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "slug": "string",
+  "tool_allow_list": [
+    "string"
+  ],
+  "tool_deny_list": [
+    "string"
+  ],
+  "updated_at": "2019-08-24T14:15:22Z",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type            | Required | Restrictions | Description                                           |
+|-------------------------|-----------------|----------|--------------|-------------------------------------------------------|
+| `allow_in_subagents`    | boolean         | false    |              |                                                       |
+| `created_at`            | string          | false    |              |                                                       |
+| `forward_coder_headers` | boolean         | false    |              |                                                       |
+| `has_custom_headers`    | boolean         | false    |              |                                                       |
+| `id`                    | string          | false    |              |                                                       |
+| `slug`                  | string          | false    |              |                                                       |
+| `tool_allow_list`       | array of string | false    |              |                                                       |
+| `tool_deny_list`        | array of string | false    |              |                                                       |
+| `updated_at`            | string          | false    |              |                                                       |
+| `url`                   | string          | false    |              | URL is empty unless the chat owner makes the request. |
+
+## codersdk.InlineMCPServerRequest
+
+```json
+{
+  "allow_in_subagents": true,
+  "forward_coder_headers": true,
+  "headers": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "slug": "string",
+  "tool_allow_list": [
+    "string"
+  ],
+  "tool_deny_list": [
+    "string"
+  ],
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type            | Required | Restrictions | Description |
+|-------------------------|-----------------|----------|--------------|-------------|
+| `allow_in_subagents`    | boolean         | false    |              |             |
+| `forward_coder_headers` | boolean         | false    |              |             |
+| `headers`               | object          | false    |              |             |
+| » `[any property]`      | string          | false    |              |             |
+| `slug`                  | string          | false    |              |             |
+| `tool_allow_list`       | array of string | false    |              |             |
+| `tool_deny_list`        | array of string | false    |              |             |
+| `url`                   | string          | false    |              |             |
 
 ## codersdk.InsightsReportInterval
 
@@ -11111,6 +11328,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "callback_url": "string",
   "client_type": "confidential",
+  "dynamically_registered": true,
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -11120,21 +11338,26 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
+  "redirect_uris": [
+    "string"
+  ],
   "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
-|----------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `callback_url` | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `client_type`  | [codersdk.OAuth2ClientType](#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
-| `endpoints`    | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
-| `icon`         | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `id`           | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `name`         | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `scope`        | string                                                     | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
+| Name                     | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
+|--------------------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`           | string                                                     | false    |              | Deprecated: equal to the first entry of redirect_uris. Read redirect_uris instead.                                                                                                                      |
+| `client_type`            | [codersdk.OAuth2ClientType](#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
+| `dynamically_registered` | boolean                                                    | false    |              | Dynamically registered is true when the app registered itself through Dynamic Client Registration rather than being created by an admin.                                                                |
+| `endpoints`              | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
+| `icon`                   | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `id`                     | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `name`                   | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `redirect_uris`          | array of string                                            | false    |              | Redirect uris are the app's registered redirect URIs, primary first.                                                                                                                                    |
+| `scope`                  | string                                                     | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
 
 ## codersdk.OAuth2ProviderAppSecret
 
@@ -12311,18 +12534,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "callback_url": "string",
   "icon": "string",
   "name": "string",
+  "redirect_uris": [
+    "string"
+  ],
   "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description                                                                                                           |
-|----------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
-| `callback_url` | string | true     |              |                                                                                                                       |
-| `icon`         | string | false    |              |                                                                                                                       |
-| `name`         | string | true     |              |                                                                                                                       |
-| `scope`        | string | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Leave empty, or omit, for unrestricted. |
+| Name            | Type            | Required | Restrictions | Description                                                                                                                                                      |
+|-----------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`  | string          | false    |              | Deprecated: send redirect_uris instead. If both are sent, callback_url must equal the first entry of redirect_uris.                                              |
+| `icon`          | string          | false    |              |                                                                                                                                                                  |
+| `name`          | string          | true     |              |                                                                                                                                                                  |
+| `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry is the primary. Required, unless the deprecated callback_url is sent instead. |
+| `scope`         | string          | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Leave empty, or omit, for unrestricted.                                            |
 
 ## codersdk.PostWorkspaceUsageRequest
 
@@ -13200,18 +13427,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "callback_url": "string",
   "icon": "string",
   "name": "string",
+  "redirect_uris": [
+    "string"
+  ],
   "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description                                                                                                                                                  |
-|----------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `callback_url` | string | true     |              |                                                                                                                                                              |
-| `icon`         | string | false    |              |                                                                                                                                                              |
-| `name`         | string | true     |              |                                                                                                                                                              |
-| `scope`        | string | false    |              | Scope replaces the app's current allowlist. Omit to leave the existing allowlist untouched. Set to an empty string to clear it, making the app unrestricted. |
+| Name            | Type            | Required | Restrictions | Description                                                                                                                                                                                                                                                           |
+|-----------------|-----------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`  | string          | false    |              | Deprecated: send redirect_uris instead. If both are sent, callback_url must equal the first entry of redirect_uris.                                                                                                                                                   |
+| `icon`          | string          | false    |              | Icon replaces the app's stored icon. Omitting it clears the stored icon rather than leaving it unchanged.                                                                                                                                                             |
+| `name`          | string          | true     |              |                                                                                                                                                                                                                                                                       |
+| `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry is the primary. Omit both this and callback_url to keep the stored redirect URIs. Other fields are replaced. Sending an empty list is an error, not a way to keep the stored list. |
+| `scope`         | string          | false    |              | Scope replaces the app's current allowlist. Omit to leave the existing allowlist untouched. Set to an empty string to clear it, making the app unrestricted.                                                                                                          |
 
 ## codersdk.RBACAction
 
@@ -13662,10 +13893,44 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-------------------------|
 | `data`, `error`, `ping` |
 
+## codersdk.SessionCountApp
+
+```json
+{
+  "count": 0,
+  "display_name": "string",
+  "family": "vscode",
+  "icon": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                                             | Required | Restrictions | Description                                                                                      |
+|----------------|--------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------|
+| `count`        | integer                                          | false    |              |                                                                                                  |
+| `display_name` | string                                           | false    |              | Display name is the registry's name for a known app, otherwise the normalized identifier itself. |
+| `family`       | [codersdk.AppFamilyName](#codersdkappfamilyname) | false    |              | Family is the group this app totals under.                                                       |
+| `icon`         | string                                           | false    |              | Icon is a bundled path under /icon/, empty if the app has none.                                  |
+
 ## codersdk.SessionCountDeploymentStats
 
 ```json
 {
+  "apps": {
+    "property1": {
+      "count": 0,
+      "display_name": "string",
+      "family": "vscode",
+      "icon": "string"
+    },
+    "property2": {
+      "count": 0,
+      "display_name": "string",
+      "family": "vscode",
+      "icon": "string"
+    }
+  },
   "jetbrains": 0,
   "reconnecting_pty": 0,
   "ssh": 0,
@@ -13675,12 +13940,14 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-|--------------------|---------|----------|--------------|-------------|
-| `jetbrains`        | integer | false    |              |             |
-| `reconnecting_pty` | integer | false    |              |             |
-| `ssh`              | integer | false    |              |             |
-| `vscode`           | integer | false    |              |             |
+| Name               | Type                                                 | Required | Restrictions | Description                                                                                                                                    |
+|--------------------|------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `apps`             | object                                               | false    |              | Apps holds one entry per reported app name, each carrying the family it totals under. The fields below duplicate those totals for one release. |
+| » `[any property]` | [codersdk.SessionCountApp](#codersdksessioncountapp) | false    |              |                                                                                                                                                |
+| `jetbrains`        | integer                                              | false    |              | Deprecated: total Apps by Family instead.                                                                                                      |
+| `reconnecting_pty` | integer                                              | false    |              | Deprecated: total Apps by Family instead.                                                                                                      |
+| `ssh`              | integer                                              | false    |              | Deprecated: total Apps by Family instead.                                                                                                      |
+| `vscode`           | integer                                              | false    |              | Deprecated: total Apps by Family instead.                                                                                                      |
 
 ## codersdk.SessionLifetime
 
@@ -19048,6 +19315,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `reason`     | `autostart`, `autostop`, `initiator`                                                                              |
 | `status`     | `canceled`, `canceling`, `deleted`, `deleting`, `failed`, `pending`, `running`, `starting`, `stopped`, `stopping` |
 | `transition` | `delete`, `start`, `stop`                                                                                         |
+
+## codersdk.WorkspaceBuildDebugEventRequest
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+```
+
+### Properties
+
+| Name | Type   | Required | Restrictions | Description                                                                     |
+|------|--------|----------|--------------|---------------------------------------------------------------------------------|
+| `id` | string | true     |              | ID identifies this click so a later step of the funnel can be attributed to it. |
 
 ## codersdk.WorkspaceBuildParameter
 
