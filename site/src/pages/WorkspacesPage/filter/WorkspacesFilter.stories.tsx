@@ -72,9 +72,7 @@ export const SelectStatusOption: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
 		await userEvent.click(
 			await body.findByRole("option", { name: /running/i }),
 		);
@@ -95,9 +93,7 @@ export const OrdinaryUserKeepsUserChip: Story = {
 			canvas.getByRole("button", { name: "Remove owner:me" }),
 		).toBeVisible();
 
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
 		// Categories browse normally (Owner included) rather than being masked by
 		// free-text search.
 		await waitFor(() => {

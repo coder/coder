@@ -19,48 +19,6 @@ type ChipDisplaySource = Pick<
 	"key" | "chipKeys" | "scopeToggle"
 >;
 
-const PREVIEW_OPTION_LIMIT = 4;
-
-type CategoryPreview = {
-	/** Labels of the chips currently applied for this category. */
-	selected: string[];
-	/** Comma-separated sample of available options, or the category hint. */
-	hint: string;
-};
-
-/**
- * Right-hand text for a category row: the applied chip labels when the
- * category has a chip, otherwise its fixed hint or a short sample of options.
- */
-export const categoryPreview = (
-	category: Pick<FilterCategory, "key" | "chipKeys" | "hint">,
-	chips: readonly string[],
-	options: readonly FilterOption[] | undefined,
-): CategoryPreview => {
-	const ownedKeys = category.chipKeys ?? [category.key];
-	const selected = chips.flatMap((chip) => {
-		const parsed = parseChipToken(chip, ownedKeys);
-		if (!parsed) {
-			return [];
-		}
-		const option = options?.find(
-			(entry) => optionToken(category.key, entry) === chip,
-		);
-		return [
-			option?.appliedLabel ??
-				option?.label ??
-				chipDisplay(chip, [category]).value,
-		];
-	});
-	const hint =
-		category.hint ??
-		(options ?? [])
-			.slice(0, PREVIEW_OPTION_LIMIT)
-			.map((option) => option.label)
-			.join(", ");
-	return { selected, hint };
-};
-
 /**
  * Key and value to display for a chip token. Tokens owned by a multi-key
  * category (`outdated:true` under Attributes) display under the category key

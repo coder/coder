@@ -50,7 +50,10 @@ import {
 } from "./primitives";
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
-import { useFilterCombobox } from "./useFilterCombobox";
+import {
+	SUGGESTIONS_ERROR_MESSAGE,
+	useFilterCombobox,
+} from "./useFilterCombobox";
 
 const CATEGORY_HOVER_DELAY_MS = 300;
 
@@ -64,6 +67,7 @@ const flyoutPanelClassName =
 
 // While the menu is open on mobile the field leaves the page flow and pins
 // below the navbar, so the software keyboard cannot squeeze the dropdown.
+// `top-20` is the 72px navbar plus an 8px gap.
 const mobileOverlayClassName =
 	"fixed inset-x-6 top-20 z-30 w-auto bg-surface-primary";
 
@@ -105,10 +109,11 @@ export function FilterCombobox({
 		listedCategories,
 		filteringCategories,
 		scopeMatchKey,
-		browseCategoryOptions,
+		unfilteredOptionsByKey,
+		unfilteredOptionsErroredKeys,
 		valueSuggestions,
 		inlineOptions,
-		mainInlineOptions,
+		allInlineOptions,
 		chipValues,
 		highlightedItem,
 		scopeWidened,
@@ -128,7 +133,7 @@ export function FilterCombobox({
 	const isCoarsePointer = useMediaQuery(coarsePointerMediaQuery);
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const mobileOverlay = isMobile && open;
-	// Category previewed in the pointer flyout. Distinct from `activeCategoryKey`,
+	// Category shown in the pointer flyout. Distinct from `activeCategoryKey`,
 	// which is the committed drill-in state shared with keyboard navigation.
 	// Reset whenever the menu opens or closes so a dismissed flyout does not
 	// reappear next time.
@@ -139,8 +144,7 @@ export function FilterCombobox({
 	if (flyout.menuOpen !== open) {
 		setFlyout({ categoryKey: null, menuOpen: open });
 	}
-	const flyoutCategoryKey =
-		flyout.menuOpen === open ? flyout.categoryKey : null;
+	const flyoutCategoryKey = flyout.categoryKey;
 	const setFlyoutCategoryKey = (categoryKey: string | null) =>
 		setFlyout({ categoryKey, menuOpen: open });
 	// Typing a scope toggle label (e.g. `shared`) opens that category's flyout
@@ -183,11 +187,13 @@ export function FilterCombobox({
 		}, CATEGORY_HOVER_DELAY_MS);
 	};
 	const registerCategoryRow = (key: string, element: HTMLDivElement | null) => {
-		if (element) {
-			categoryRows.current.set(key, element);
-		} else {
-			categoryRows.current.delete(key);
+		if (!element) {
+			return;
 		}
+		categoryRows.current.set(key, element);
+		return () => {
+			categoryRows.current.delete(key);
+		};
 	};
 	// Side panels align with the row that opened them. Measured after commit so
 	// keyboard-entered categories line up too, not only pointer-hovered ones.
@@ -211,18 +217,14 @@ export function FilterCombobox({
 		const isCategoryRow = listedCategories.some(
 			(category) => category.key === highlighted,
 		);
-		updateFlyoutCategory(isCategoryRow ? highlighted : null, !isCategoryRow);
+		updateFlyoutCategory(isCategoryRow ? highlighted : null);
 	};
-	const flyoutCategory = categories.find(
-		(category) => category.key === shownFlyoutKey,
-	);
 	// Typed text narrows the category rows, so a click enters the category like
 	// Enter does and only a scope match gets a flyout.
-	const flyoutOptions =
+	const flyoutCategory =
 		activeCategoryKey === null &&
-		shownFlyoutKey !== null &&
 		(!filteringCategories || shownFlyoutKey === scopeMatchKey)
-			? browseCategoryOptions.get(shownFlyoutKey)
+			? categories.find((category) => category.key === shownFlyoutKey)
 			: undefined;
 	// Toggling clears text typed to find the category, so the flyout is pinned
 	// open explicitly rather than through the scope match.
@@ -232,11 +234,11 @@ export function FilterCombobox({
 	};
 	const selectFlyoutOption = (token: string) => {
 		actions.selectCategoryOption(token);
-		updateFlyoutCategory(null, true);
+		updateFlyoutCategory(null);
 		actions.focusInput();
 	};
 	const selectCategory = (categoryKey: string) => {
-		updateFlyoutCategory(null, true);
+		updateFlyoutCategory(null);
 		actions.selectCategory(categoryKey);
 	};
 
@@ -251,6 +253,16 @@ export function FilterCombobox({
 				}
 			: undefined;
 	};
+	const mainPanelEmpty =
+		listedCategories.length === 0 &&
+		valueSuggestions.length === 0 &&
+		inlineOptions.length === 0 &&
+		!typeaheadError;
+	// Mirrors the embedded `CategoryOptionsList`, which renders nothing for an
+	// empty result.
+	const mobileCategoryOptionsEmpty =
+		!activeOptionsError && activeOptions?.length === 0;
+
 	const mainPanelProps = {
 		listedCategories,
 		valueSuggestions,
@@ -258,7 +270,7 @@ export function FilterCombobox({
 		typeaheadError,
 		registerCategoryRow,
 		onSelectCategory: selectCategory,
-		onHoverCategory: updateFlyoutCategory,
+		onOpenFlyout: updateFlyoutCategory,
 		onToggleInlineOption: actions.toggleInlineOption,
 		onSelectSuggestion: actions.selectValueSuggestion,
 		onRetry: actions.retryTypeahead,
@@ -271,7 +283,9 @@ export function FilterCombobox({
 				category={activeCategory}
 				options={activeOptions}
 				optionsError={activeOptionsError}
-				previewCount={browseCategoryOptions.get(activeCategoryKey)?.length}
+				unfilteredOptionCount={
+					unfilteredOptionsByKey.get(activeCategoryKey)?.length
+				}
 				selectedTokens={chipValues}
 				chipKey={optionChipKey(activeCategoryKey)}
 				scope={scopeFor(activeCategoryKey)}
@@ -282,6 +296,9 @@ export function FilterCombobox({
 				onSelectOption={actions.selectCategoryOption}
 			/>
 		);
+	const mobilePanelEmpty = categoryOptionsList
+		? mobileCategoryOptionsEmpty
+		: mainPanelEmpty;
 
 	return (
 		<>
@@ -303,7 +320,7 @@ export function FilterCombobox({
 						<InputGroupButton
 							type="button"
 							variant="subtle"
-							aria-label="Toggle filters"
+							aria-label="Filters"
 							aria-expanded={open}
 							aria-haspopup="listbox"
 							className={cn(
@@ -325,6 +342,8 @@ export function FilterCombobox({
 								actions.showMenu();
 							}}
 							onClick={(event) => {
+								// Keyboard and assistive-technology activation (detail 0)
+								// only opens the menu; pointer clicks toggle it.
 								if (event.detail === 0) {
 									actions.showMenu();
 									return;
@@ -366,9 +385,9 @@ export function FilterCombobox({
 									)
 									? category.scopeToggle.pillLabel.toLowerCase()
 									: undefined;
-							const labelOnly = category?.inlineOptionsLabelOnly === true;
+							const labelOnly = category?.chipLabelOnly === true;
 							const inlineOption = labelOnly
-								? mainInlineOptions.find(
+								? allInlineOptions.find(
 										({ categoryKey, option }) =>
 											optionToken(categoryKey, option) === token,
 									)
@@ -493,43 +512,53 @@ export function FilterCombobox({
 					{/* Keep mounted so polite status announcements stay consistent. */}
 					<FilterComboboxStatus>{statusMessage}</FilterComboboxStatus>
 					{isMobile ? (
-						<div
-							data-slot="filter-mobile-panel"
-							data-testid="filter-mobile-panel"
-							className="flex max-h-[min(24rem,var(--radix-popper-available-height))] w-(--radix-popover-trigger-width) max-w-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-surface-primary p-2 shadow-md"
-						>
-							{categoryOptionsList ?? (
-								<MainPanel embedded drillIn {...mainPanelProps} />
-							)}
-						</div>
+						!mobilePanelEmpty && (
+							<div
+								data-slot="filter-mobile-panel"
+								data-testid="filter-mobile-panel"
+								className="flex max-h-[min(24rem,var(--radix-popper-available-height))] w-(--radix-popover-trigger-width) max-w-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-surface-primary p-2 shadow-md"
+							>
+								{categoryOptionsList ?? (
+									<MainPanel embedded drillIn {...mainPanelProps} />
+								)}
+							</div>
+						)
 					) : (
 						<div
 							className="relative flex items-start gap-1 overflow-visible"
 							onMouseLeave={() => {
-								updateFlyoutCategory(null, true);
+								updateFlyoutCategory(null);
 								actions.setHighlightedItem("");
 							}}
 						>
-							<MainPanel
-								drillIn={
-									isCoarsePointer ||
-									activeCategoryKey !== null ||
-									filteringCategories
-								}
-								{...mainPanelProps}
-							/>
+							{!mainPanelEmpty && (
+								<MainPanel
+									drillIn={
+										isCoarsePointer ||
+										activeCategoryKey !== null ||
+										filteringCategories
+									}
+									{...mainPanelProps}
+								/>
+							)}
 							{categoryOptionsList ??
-								(flyoutCategory && flyoutOptions && (
+								(flyoutCategory && (
 									<HoverCategoryPanel
 										key={flyoutCategory.key}
 										category={flyoutCategory}
 										offset={panelOffset}
-										options={flyoutOptions}
+										options={unfilteredOptionsByKey.get(flyoutCategory.key)}
+										optionsError={unfilteredOptionsErroredKeys.has(
+											flyoutCategory.key,
+										)}
 										selectedTokens={chipValues}
 										chipKey={optionChipKey(flyoutCategory.key)}
 										scope={scopeFor(flyoutCategory.key)}
 										onToggleScope={toggleFlyoutScope}
 										onMouseEnter={cancelHoverSwitch}
+										onRetry={() =>
+											actions.retryUnfilteredOptions(flyoutCategory.key)
+										}
 										onSelectOption={selectFlyoutOption}
 									/>
 								))}
@@ -555,6 +584,9 @@ const OPTION_ITEM_CLASS = "min-h-8.5 gap-2 px-2 py-1.25";
 // Categories with more options than this get a search field in their panel.
 const SEARCHABLE_OPTION_COUNT = 10;
 
+const optionsLoadErrorMessage = (category: FilterCategory | undefined) =>
+	`Couldn’t load ${category ? category.label : "filter"} options.`;
+
 type LoadErrorProps = Readonly<{ message: string; onRetry: () => void }>;
 
 function LoadError({ message, onRetry }: LoadErrorProps) {
@@ -568,10 +600,16 @@ function LoadError({ message, onRetry }: LoadErrorProps) {
 	);
 }
 
-function NoMatchingOptions() {
+function EmptyOptions({ message }: { message: string }) {
 	return (
-		<div className="px-2 py-1.5 text-sm text-content-secondary">
-			No matching options
+		<div className="px-2 py-1.5 text-sm text-content-secondary">{message}</div>
+	);
+}
+
+function LoadingOptions() {
+	return (
+		<div className="flex justify-center px-2 py-2.5">
+			<Spinner loading size="sm" />
 		</div>
 	);
 }
@@ -662,15 +700,15 @@ type MainPanelProps = Readonly<{
 	inlineOptions: readonly InlineOption[];
 	typeaheadError: boolean;
 	embedded?: boolean;
-	/**
-	 * Clicking a category commits it as the active category (touch and mobile
-	 * drill-in, or switching while one is already active) instead of only
-	 * previewing it in the pointer flyout.
-	 */
+	/** Clicking a category enters it instead of opening its pointer flyout. */
 	drillIn: boolean;
-	registerCategoryRow: (key: string, element: HTMLDivElement | null) => void;
+	registerCategoryRow: (
+		key: string,
+		element: HTMLDivElement | null,
+	) => (() => void) | undefined;
 	onSelectCategory: (categoryKey: string) => void;
-	onHoverCategory: (categoryKey: string | null, immediate?: boolean) => void;
+	/** Opens a category's flyout, after a delay unless `immediate`. */
+	onOpenFlyout: (categoryKey: string, immediate?: boolean) => void;
 	onToggleInlineOption: (token: string) => void;
 	onSelectSuggestion: (token: string) => void;
 	onRetry: () => void;
@@ -685,21 +723,11 @@ function MainPanel({
 	drillIn,
 	registerCategoryRow,
 	onSelectCategory,
-	onHoverCategory,
+	onOpenFlyout,
 	onToggleInlineOption,
 	onSelectSuggestion,
 	onRetry,
 }: MainPanelProps) {
-	const isEmpty =
-		listedCategories.length === 0 &&
-		valueSuggestions.length === 0 &&
-		inlineOptions.length === 0 &&
-		!typeaheadError;
-
-	if (isEmpty) {
-		return null;
-	}
-
 	return (
 		<FilterComboboxList
 			data-slot="filter-main-panel"
@@ -715,13 +743,13 @@ function MainPanel({
 					className={OPTION_ITEM_CLASS}
 					key={category.key}
 					value={category.key}
-					onMouseEnter={() => onHoverCategory(category.key)}
+					onMouseEnter={() => onOpenFlyout(category.key)}
 					onSelect={() => {
 						if (drillIn) {
 							onSelectCategory(category.key);
 							return;
 						}
-						onHoverCategory(category.key, true);
+						onOpenFlyout(category.key, true);
 					}}
 				>
 					{category.icon && <OptionIcon>{category.icon}</OptionIcon>}
@@ -784,7 +812,7 @@ function MainPanel({
 				),
 			)}
 			{typeaheadError && (
-				<LoadError message="Couldn’t load suggestions." onRetry={onRetry} />
+				<LoadError message={SUGGESTIONS_ERROR_MESSAGE} onRetry={onRetry} />
 			)}
 		</FilterComboboxList>
 	);
@@ -884,21 +912,19 @@ type OptionsPanelProps = Readonly<{
 	offset: number;
 	/** Shown above the options when the category is searchable. */
 	search?: { value: string; onChange: (value: string) => void };
-	empty: boolean;
+	emptyMessage?: string;
 	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
 	onMouseEnter?: () => void;
 	children: ReactNode;
 }>;
 
-// Shared shell for a category's options: search header, scrolling list, empty
-// state, and scope toggle footer.
 function OptionsPanel({
 	category,
 	embedded = false,
 	offset,
 	search,
-	empty,
+	emptyMessage,
 	scope,
 	onToggleScope,
 	onMouseEnter,
@@ -933,7 +959,7 @@ function OptionsPanel({
 				/>
 			)}
 			{children}
-			{empty && <NoMatchingOptions />}
+			{emptyMessage && <EmptyOptions message={emptyMessage} />}
 			{category && scope && (
 				<FlyoutScopeToggle
 					categoryKey={category.key}
@@ -949,12 +975,15 @@ function OptionsPanel({
 type HoverCategoryPanelProps = Readonly<{
 	category: FilterCategory;
 	offset: number;
-	options: readonly FilterOption[];
+	/** The category's unfiltered options, or `undefined` while loading. */
+	options: readonly FilterOption[] | undefined;
+	optionsError: boolean;
 	selectedTokens: readonly string[];
 	chipKey: string;
 	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
 	onMouseEnter: () => void;
+	onRetry: () => void;
 	onSelectOption: (token: string) => void;
 }>;
 
@@ -962,17 +991,19 @@ function HoverCategoryPanel({
 	category,
 	offset,
 	options,
+	optionsError,
 	selectedTokens,
 	chipKey,
 	scope,
 	onToggleScope,
 	onMouseEnter,
+	onRetry,
 	onSelectOption,
 }: HoverCategoryPanelProps) {
 	const [query, setQuery] = useState("");
 	const trimmedQuery = query.trim();
-	// `options` is the preview page, which may be truncated, so searches go
-	// through the category's loader. The preview is filtered locally meanwhile.
+	// The unfiltered list may be truncated by the loader, so searches go through
+	// it. The unfiltered list is filtered locally meanwhile.
 	const debouncedQuery = useDebouncedValue(trimmedQuery, SEARCH_DEBOUNCE_MS);
 	const searchResults = useQuery(
 		filterComboboxOptions(
@@ -988,38 +1019,46 @@ function HoverCategoryPanel({
 		debouncedQuery === trimmedQuery &&
 		searchResults.isError;
 	const filteredOptions =
-		normalized.length === 0
-			? options
-			: debouncedQuery === trimmedQuery && searchResults.data
-				? searchResults.data
-				: options.filter(
-						(option) =>
-							option.label.toLowerCase().includes(normalized) ||
-							option.value.toLowerCase().includes(normalized),
-					);
-	const searchable = options.length > SEARCHABLE_OPTION_COUNT;
-	if (filteredOptions.length === 0 && !searchable && !searchFailed) {
-		return null;
-	}
+		options === undefined
+			? []
+			: normalized.length === 0
+				? options
+				: debouncedQuery === trimmedQuery && searchResults.data
+					? searchResults.data
+					: options.filter(
+							(option) =>
+								option.label.toLowerCase().includes(normalized) ||
+								option.value.toLowerCase().includes(normalized),
+						);
+	const searchable = (options?.length ?? 0) > SEARCHABLE_OPTION_COUNT;
+	const loading = options === undefined && !optionsError;
+	const failed = optionsError || searchFailed;
+	const emptyMessage =
+		loading || failed || filteredOptions.length > 0
+			? undefined
+			: normalized.length > 0
+				? "No matching options"
+				: "No options";
 
 	return (
 		<OptionsPanel
 			category={category}
 			offset={offset}
 			search={searchable ? { value: query, onChange: setQuery } : undefined}
-			empty={!searchFailed && filteredOptions.length === 0}
+			emptyMessage={emptyMessage}
 			scope={scope}
 			onToggleScope={onToggleScope}
 			onMouseEnter={onMouseEnter}
 		>
-			{searchFailed && (
+			{loading && <LoadingOptions />}
+			{failed && (
 				<LoadError
-					message={`Couldn’t load ${category.label} options.`}
-					onRetry={() => searchResults.refetch()}
+					message={optionsLoadErrorMessage(category)}
+					onRetry={optionsError ? onRetry : () => searchResults.refetch()}
 				/>
 			)}
 			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
-				{(searchFailed ? [] : filteredOptions).map((option) => {
+				{(failed ? [] : filteredOptions).map((option) => {
 					const token = optionToken(chipKey, option);
 					const selected = selectedTokens.includes(token);
 					return (
@@ -1055,7 +1094,7 @@ type CategoryOptionsListProps = Readonly<{
 	options: readonly FilterOption[] | undefined;
 	optionsError: boolean;
 	/** Size of the category's unfiltered option list, when cached. */
-	previewCount: number | undefined;
+	unfilteredOptionCount: number | undefined;
 	selectedTokens: readonly string[];
 	chipKey: string;
 	scope: ScopeState | undefined;
@@ -1072,7 +1111,7 @@ function CategoryOptionsList({
 	category,
 	options,
 	optionsError,
-	previewCount,
+	unfilteredOptionCount,
 	selectedTokens,
 	chipKey,
 	scope,
@@ -1092,9 +1131,7 @@ function CategoryOptionsList({
 				)}
 				style={embedded ? undefined : { top: offset }}
 			>
-				<span>
-					Couldn&rsquo;t load {category ? category.label : "filter"} options.
-				</span>
+				<span>{optionsLoadErrorMessage(category)}</span>
 				<Button size="sm" variant="outline" onClick={onRetry}>
 					Retry
 				</Button>
@@ -1106,7 +1143,7 @@ function CategoryOptionsList({
 	// results load or shrink.
 	const searchable =
 		!embedded &&
-		(previewCount ?? options?.length ?? 0) > SEARCHABLE_OPTION_COUNT;
+		(unfilteredOptionCount ?? options?.length ?? 0) > SEARCHABLE_OPTION_COUNT;
 	if (options?.length === 0 && !searchable) {
 		return null;
 	}
@@ -1121,15 +1158,11 @@ function CategoryOptionsList({
 					? { value: searchValue, onChange: onSearchChange }
 					: undefined
 			}
-			empty={options?.length === 0}
+			emptyMessage={options?.length === 0 ? "No matching options" : undefined}
 			scope={scope}
 			onToggleScope={onToggleScope}
 		>
-			{options === undefined && (
-				<div className="flex justify-center px-2 py-2.5">
-					<Spinner loading size="sm" />
-				</div>
-			)}
+			{options === undefined && <LoadingOptions />}
 			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
 				{options?.map((option) => {
 					const item = optionToken(chipKey, option);
