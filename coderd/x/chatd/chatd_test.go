@@ -3791,6 +3791,61 @@ func TestActiveServer_DynamicToolsAndStopAfterToolBehavior(t *testing.T) {
 	})
 }
 
+func TestCallerSuppliedToolsDisabledSkipsDynamicTools(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var offeredDynamicTool atomic.Bool
+	var streamedCallCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		for _, tool := range req.Tools {
+			if tool.Function.Name == "my_dynamic_tool" {
+				offeredDynamicTool.Store(true)
+			}
+		}
+		switch streamedCallCount.Add(1) {
+		case 1:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("my_dynamic_tool", `{"query":"test"}`),
+			)
+		default:
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		}
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		cfg.DisableCallerSuppliedTools = true
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "dynamic-tools-disabled",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("call the dynamic tool"),
+		},
+		DynamicTools: dynamicToolJSON(t, "my_dynamic_tool"),
+	})
+	require.NoError(t, err)
+
+	chatResult := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	require.False(t, chatResult.RequiresActionDeadlineAt.Valid)
+	require.Equal(t, int32(2), streamedCallCount.Load(),
+		"unresolved call to a disabled dynamic tool should get a local error result and continue")
+	require.False(t, offeredDynamicTool.Load())
+
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
+	require.True(t, result.IsError)
+	require.JSONEq(t, `{"error":"Tool not active in this turn: my_dynamic_tool"}`, string(result.Result))
+}
+
 func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 	t.Parallel()
 
@@ -14011,6 +14066,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	const advisorReply = "break the problem into smaller pieces first"
+	const advisorReasoning = "advisor-only reasoning: compare the refactoring risks"
 	advisorDeltas := []string{"break the problem ", "into smaller pieces first"}
 
 	var (
@@ -14025,13 +14081,16 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	// gate its completion on the live collector below having observed the
 	// streamed deltas.
 	var (
-		livePartsMu       sync.Mutex
-		liveAdvisorDeltas []string
+		livePartsMu            sync.Mutex
+		liveAdvisorDeltas      []string
+		liveAdvisorReasoning   []string
+		liveAssistantReasoning []string
 	)
 	liveDeltasCaptured := func() bool {
 		livePartsMu.Lock()
 		defer livePartsMu.Unlock()
-		return slices.Equal(advisorDeltas, liveAdvisorDeltas)
+		return slices.Equal(advisorDeltas, liveAdvisorDeltas) &&
+			slices.Equal([]string{advisorReasoning}, liveAdvisorReasoning)
 	}
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -14069,6 +14128,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 			chunks := make(chan chattest.OpenAIChunk)
 			go func() {
 				defer close(chunks)
+				chunks <- chattest.OpenAIChunk{Choices: []chattest.OpenAIChunkChoice{{ReasoningDelta: advisorReasoning}}}
 				for _, chunk := range chattest.OpenAITextChunks(advisorDeltas...) {
 					chunks <- chunk
 				}
@@ -14139,15 +14199,24 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 					continue
 				}
 				part := event.MessagePart.Part
+				livePartsMu.Lock()
+				if event.MessagePart.Role == codersdk.ChatMessageRoleAssistant && part.Type == codersdk.ChatMessagePartTypeReasoning {
+					liveAssistantReasoning = append(liveAssistantReasoning, part.Text)
+				}
+				livePartsMu.Unlock()
 				if event.MessagePart.Role != codersdk.ChatMessageRoleTool ||
 					part.Type != codersdk.ChatMessagePartTypeToolResult ||
 					part.ToolName != chatadvisor.ToolName ||
-					part.ToolCallID != "advisor-happy-path-call" ||
-					part.ResultDelta == "" {
+					part.ToolCallID != "advisor-happy-path-call" {
 					continue
 				}
 				livePartsMu.Lock()
-				liveAdvisorDeltas = append(liveAdvisorDeltas, part.ResultDelta)
+				if part.ResultDelta != "" {
+					liveAdvisorDeltas = append(liveAdvisorDeltas, part.ResultDelta)
+				}
+				if part.ReasoningDelta != "" {
+					liveAdvisorReasoning = append(liveAdvisorReasoning, part.ReasoningDelta)
+				}
 				livePartsMu.Unlock()
 			}
 		}
@@ -14201,9 +14270,9 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 
 	var parentSawAdvisorResult bool
 	for _, msg := range gotFinalMessages {
+		require.NotContains(t, msg.Content, advisorReasoning)
 		if msg.Role == "tool" && strings.Contains(msg.Content, advisorReply) {
 			parentSawAdvisorResult = true
-			break
 		}
 	}
 	require.True(t, parentSawAdvisorResult,
@@ -14219,16 +14288,22 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	<-liveCollectorDone
 	livePartsMu.Lock()
 	collectedAdvisorDeltas := append([]string(nil), liveAdvisorDeltas...)
+	collectedAdvisorReasoning := append([]string(nil), liveAdvisorReasoning...)
+	collectedAssistantReasoning := append([]string(nil), liveAssistantReasoning...)
 	livePartsMu.Unlock()
 	require.Equal(t, advisorDeltas, collectedAdvisorDeltas,
 		"advisor nested text deltas must stream into the parent tool card")
 
+	require.Equal(t, []string{advisorReasoning}, collectedAdvisorReasoning)
+	require.Empty(t, collectedAssistantReasoning, "advisor reasoning must not become parent assistant reasoning")
 	persisted, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
 		AfterID: 0,
 	})
 	require.NoError(t, err)
 	for _, msg := range persisted {
+		require.NotContains(t, string(msg.Content.RawMessage), "reasoning_delta")
+		require.NotContains(t, string(msg.Content.RawMessage), advisorReasoning)
 		require.NotContains(t, string(msg.Content.RawMessage), "result_delta",
 			"advisor deltas are stream-only and must not be persisted")
 	}

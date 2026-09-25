@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
-import { expect, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	type Workspace,
 	type WorkspaceStatus,
@@ -181,6 +181,66 @@ const meta: Meta<typeof WorkspacesPageView> = {
 export default meta;
 type Story = StoryObj<typeof WorkspacesPageView>;
 
+export const FilteredPaginationSummary: Story = {
+	args: {
+		workspaces: allWorkspaces,
+		count: allWorkspaces.length,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(/^Filtered: Showing/);
+	},
+};
+
+export const FilteredEmptySummary: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		filter: { ...defaultFilter, query: "status:running", used: true },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const matches = await canvas.findAllByText(
+			/no workspaces match your search\./i,
+		);
+		expect(matches).toHaveLength(2);
+		expect(canvas.queryByText(/no records available/i)).toBeNull();
+	},
+};
+
+export const FilteredEmptyClearsFilter: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		filter: {
+			...defaultFilter,
+			query: "status:running",
+			used: true,
+			update: fn(),
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /clear all/i }),
+		);
+		await expect(args.filter.update).toHaveBeenCalledWith("");
+	},
+};
+
+export const UnfilteredPaginationSummary: Story = {
+	args: {
+		workspaces: allWorkspaces,
+		count: allWorkspaces.length,
+		filter: { ...defaultFilter, query: "", used: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(/^Showing/);
+		expect(canvas.queryByText(/Filtered:/)).toBeNull();
+	},
+};
+
 export const CannotCreateWorkspace: Story = {
 	args: {
 		workspaces: [],
@@ -219,7 +279,9 @@ export const CannotCreateWorkspaceWithFilter: Story = {
 	// user may own workspaces the filter excluded.
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByText(/no results matched your search/i);
+		await canvas.findByRole("heading", {
+			name: /no workspaces match your search\./i,
+		});
 		expect(
 			canvas.queryByText(/don't have permission to create workspaces/i),
 		).toBeNull();

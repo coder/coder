@@ -4,7 +4,7 @@ This guide documents the PR description style used in the Coder repository, base
 
 ## PR Title Format
 
-Format: `type(scope): description`. See [CONTRIBUTING.md](docs/about/contributing/CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
+Format: `type(scope): description`. See [CONTRIBUTING.md](CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
 
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
 - Scopes must be a real path (directory or file stem) containing all changed files

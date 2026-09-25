@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"database/sql"
 	"encoding/json"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -133,6 +135,106 @@ func TestStreamLoopMessageSyncAfterIDAndEdits(t *testing.T) {
 		codersdk.ChatStreamEventTypePreviewReset,
 	)
 	require.Equal(t, int64(1), events[0].Message.ID)
+}
+
+// TestStreamLoopQueuedMessageLink verifies that every message event
+// carries the queued message link, so clients can tell apart promoted
+// messages with identical content, whether they arrive in one live
+// sync, an after_id replay, or a history_reset replay.
+func TestStreamLoopQueuedMessageLink(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	promoted := func(id, queuedID int64) database.ChatMessage {
+		msg := streamMessage(t, chatID, id, 1, database.ChatMessageRoleUser, "twin", false)
+		msg.QueuedMessageID = sql.NullInt64{Int64: queuedID, Valid: true}
+		return msg
+	}
+	seen := streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "direct", false)
+	twins := []database.ChatMessage{promoted(2, 11), promoted(3, 12)}
+	requireTwinEvents := func(t *testing.T, events []codersdk.ChatStreamEvent) {
+		t.Helper()
+		var messages []codersdk.ChatMessage
+		for _, event := range events {
+			if event.Type == codersdk.ChatStreamEventTypeMessage {
+				require.NotNil(t, event.Message)
+				messages = append(messages, *event.Message)
+			}
+		}
+		require.Len(t, messages, 2)
+		require.Equal(t, messages[0].Content, messages[1].Content)
+		require.Equal(t, int64(2), messages[0].ID)
+		require.Equal(t, ptr.Ref(int64(11)), messages[0].QueuedMessageID)
+		require.Equal(t, int64(3), messages[1].ID)
+		require.Equal(t, ptr.Ref(int64(12)), messages[1].QueuedMessageID)
+	}
+
+	t.Run("live sync with two promotions", func(t *testing.T) {
+		t.Parallel()
+		loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+		events := loop.applyDBSnapshot(streamDBSnapshot{
+			chat: database.Chat{
+				ID:              chatID,
+				Status:          database.ChatStatusRunning,
+				SnapshotVersion: 1,
+				HistoryVersion:  1,
+			},
+			changedMessages: []database.ChatMessage{seen},
+		})
+		require.Nil(t, events[0].Message.QueuedMessageID,
+			"direct sends carry no queued message link")
+
+		events = loop.applyDBSnapshot(streamDBSnapshot{
+			chat: database.Chat{
+				ID:              chatID,
+				Status:          database.ChatStatusRunning,
+				SnapshotVersion: 2,
+				HistoryVersion:  2,
+			},
+			changedMessages: twins,
+		})
+		requireTwinEvents(t, events)
+	})
+
+	t.Run("after_id replay", func(t *testing.T) {
+		t.Parallel()
+		loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), seen.ID)
+		events := loop.applyDBSnapshot(streamDBSnapshot{
+			chat: database.Chat{
+				ID:              chatID,
+				Status:          database.ChatStatusRunning,
+				SnapshotVersion: 2,
+				HistoryVersion:  2,
+			},
+			changedMessages: append([]database.ChatMessage{seen}, twins...),
+		})
+		requireTwinEvents(t, events)
+	})
+
+	t.Run("history_reset replay", func(t *testing.T) {
+		t.Parallel()
+		loop := newStreamLoop(database.Chat{ID: chatID}, nil, slogtest.Make(t, nil), 0)
+		loop.state.snapshotVersion = 1
+		loop.state.historyVersion = 1
+		loop.state.status = database.ChatStatusRunning
+		loop.state.initialMessageSyncDone = true
+		loop.state.knownMessages[1] = 1
+		events := loop.applyDBSnapshot(streamDBSnapshot{
+			chat: database.Chat{
+				ID:              chatID,
+				Status:          database.ChatStatusRunning,
+				SnapshotVersion: 2,
+				HistoryVersion:  2,
+			},
+			changedMessages: []database.ChatMessage{
+				streamMessage(t, chatID, 1, 2, database.ChatMessageRoleUser, "direct", true),
+			},
+			historyReset: true,
+			fullHistory:  twins,
+		})
+		require.Equal(t, codersdk.ChatStreamEventTypeHistoryReset, events[0].Type)
+		requireTwinEvents(t, events)
+	})
 }
 
 func TestStreamLoopHistoryReset(t *testing.T) {

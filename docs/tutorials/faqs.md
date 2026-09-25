@@ -66,7 +66,7 @@ Visit <https://coder.com/trial> or contact
 
 </details>
 
-Visit the [licensing documentation](../admin/licensing/index.md) for more
+Visit the [licensing documentation](../install/prepare/licensing.md) for more
 information about licenses.
 
 ## I'm experiencing networking issues, so want to disable Tailscale, STUN, Direct connections and force use of websocket
@@ -334,7 +334,7 @@ References:
 ## Can I run Coder in an air-gapped or offline mode? (no Internet)?
 
 Yes, Coder can be deployed in
-[air-gapped or offline mode](../install/airgap.md).
+[air-gapped or offline mode](../install/prepare/airgap.md).
 
 Our product bundles with the Terraform binary so assume access to terraform.io
 during installation. The docs outline rebuilding the Coder container with
@@ -558,6 +558,10 @@ it can help prevent automated file transfers using the specified tools, users
 can still SSH into the workspace and manually initiate file transfers. The
 primary purpose of this feature is to warn and discourage users from downloading
 confidential resources to their local machines.
+
+Agent API capabilities, such as file operations performed by AI agents in
+Coder Agents chat (including chat file uploads into the workspace), are not
+affected by this setting because they do not go through the SSH transfer path.
 
 For more advanced security needs, consider adopting an endpoint security
 solution.

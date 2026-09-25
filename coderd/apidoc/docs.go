@@ -19743,6 +19743,13 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "inline_mcp_servers": {
+                    "description": "InlineMCPServers lists the inline MCP servers declared on the chat,\nwithout headers. Only the single-chat GET sets it.\nExperimental.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.InlineMCPServer"
+                    }
+                },
                 "labels": {
                     "type": "object",
                     "additionalProperties": {
@@ -20391,6 +20398,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "queued_message_id": {
+                    "description": "QueuedMessageID is the ID of the queued message this message was\npromoted from. It matches ChatQueuedMessage.ID in the response that\nqueued the message. It is nil when the message was not promoted from\nthe queue (edits create a new message without it) or when a server\nversion that did not record the link created it.",
+                    "type": "integer"
+                },
                 "role": {
                     "$ref": "#/definitions/codersdk.ChatMessageRole"
                 },
@@ -20510,6 +20521,9 @@ const docTemplate = `{
                     "items": {
                         "type": "integer"
                     }
+                },
+                "reasoning_delta": {
+                    "type": "string"
                 },
                 "result": {
                     "type": "array",
@@ -21909,6 +21923,13 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
                 },
+                "inline_mcp_servers": {
+                    "description": "InlineMCPServers replaces the inline MCP servers.\nnil: no change, empty: remove all.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.InlineMCPServerRequest"
+                    }
+                },
                 "mcp_server_ids": {
                     "type": "array",
                     "items": {
@@ -22000,6 +22021,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatInputPart"
+                    }
+                },
+                "inline_mcp_servers": {
+                    "description": "InlineMCPServers declares MCP servers by value on this chat, next\nto the org-configured servers selected by MCPServerIDs. Experimental.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.InlineMCPServerRequest"
                     }
                 },
                 "labels": {
@@ -23282,6 +23310,9 @@ const docTemplate = `{
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"
                 },
+                "disable_chat_caller_supplied_tools": {
+                    "type": "boolean"
+                },
                 "disable_chat_sharing": {
                     "type": "boolean"
                 },
@@ -23704,6 +23735,7 @@ const docTemplate = `{
                 "chat-advisor",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks",
+                "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug"
             ],
             "x-enum-comments": {
@@ -23712,6 +23744,7 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
@@ -23738,6 +23771,7 @@ const docTemplate = `{
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats.",
+                "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents."
             ],
             "x-enum-varnames": [
@@ -23755,6 +23789,7 @@ const docTemplate = `{
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks",
+                "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug"
             ]
         },
@@ -24448,6 +24483,86 @@ const docTemplate = `{
             "properties": {
                 "label": {
                     "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.InlineMCPServer": {
+            "type": "object",
+            "properties": {
+                "allow_in_subagents": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "forward_coder_headers": {
+                    "type": "boolean"
+                },
+                "has_custom_headers": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "tool_allow_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tool_deny_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "url": {
+                    "description": "URL is empty unless the chat owner makes the request.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.InlineMCPServerRequest": {
+            "type": "object",
+            "properties": {
+                "allow_in_subagents": {
+                    "type": "boolean"
+                },
+                "forward_coder_headers": {
+                    "type": "boolean"
+                },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "tool_allow_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tool_deny_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "url": {
                     "type": "string"
@@ -25682,6 +25797,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.OAuth2ClientType"
                         }
                     ]
+                },
+                "dynamically_registered": {
+                    "description": "DynamicallyRegistered is true when the app registered itself through\nDynamic Client Registration rather than being created by an admin.",
+                    "type": "boolean"
                 },
                 "endpoints": {
                     "description": "Endpoints are included in the app response for easier discovery. The OAuth2\nspec does not have a defined place to find these (for comparison, OIDC has\na '/.well-known/openid-configuration' endpoint).",

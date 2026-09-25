@@ -734,6 +734,7 @@ type DeploymentValues struct {
 	DisableOwnerWorkspaceExec               serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
 	DisableChatSharing                      serpent.Bool                         `json:"disable_chat_sharing,omitempty" typescript:",notnull"`
+	DisableChatCallerSuppliedTools          serpent.Bool                         `json:"disable_chat_caller_supplied_tools,omitempty" typescript:",notnull"`
 	DisableWorkspaceAgentContextSync        serpent.Bool                         `json:"disable_workspace_agent_context_sync,omitempty" typescript:",notnull"`
 	DisableUserSecretFilePath               serpent.Bool                         `json:"disable_user_secret_file_path,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval               serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
@@ -3749,6 +3750,15 @@ communicating directly.`,
 			YAML:  "disableChatSharing",
 		},
 		{
+			Name:        "Disable Chat Caller-supplied Tools",
+			Description: "Disable caller-supplied tools in chats. Chat requests that include unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing chats run without their dynamic tools and inline MCP servers.",
+			Flag:        "disable-chat-caller-supplied-tools",
+			Env:         "CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS",
+
+			Value: &c.DisableChatCallerSuppliedTools,
+			YAML:  "disableChatCallerSuppliedTools",
+		},
+		{
 			Name:        "Disable Workspace Agent Context Sync",
 			Description: "Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.",
 			Flag:        "disable-workspace-agent-context-sync",
@@ -3839,7 +3849,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "CLI Upgrade Message",
-			Description: "The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.",
+			Description: "The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -fsSL https://coder.com/install.sh | sh'.",
 			Flag:        "cli-upgrade-message",
 			Env:         "CODER_CLI_UPGRADE_MESSAGE",
 			YAML:        "cliUpgradeMessage",
@@ -5245,6 +5255,7 @@ const (
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
+	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 )
 
@@ -5276,6 +5287,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Virtual Desktop"
 	case ExperimentAgentLifecycleHooks:
 		return "Agent Lifecycle Hooks"
+	case ExperimentChatInlineMCPServers:
+		return "Chat Inline MCP Servers"
 	case ExperimentEnableAIWorkspaceDebug:
 		return "AI Workspace Debugging"
 	default:
@@ -5302,6 +5315,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,
+	ExperimentChatInlineMCPServers,
 	ExperimentEnableAIWorkspaceDebug,
 }
 
