@@ -89,36 +89,6 @@ const LifecycleHookNotice: FC<{
 	</TimelineNotice>
 );
 
-const useAttachmentPreviews = () => {
-	const [previewImage, setPreviewImage] = useState<string | null>(null);
-	const [previewText, setPreviewText] = useState<PreviewTextAttachment | null>(
-		null,
-	);
-	const dialogs = (
-		<>
-			{previewImage && (
-				<ImageLightbox
-					src={previewImage}
-					onClose={() => setPreviewImage(null)}
-				/>
-			)}
-			{previewText !== null && (
-				<TextPreviewDialog
-					content={previewText.content}
-					fileName={previewText.fileName}
-					mediaType={previewText.mediaType}
-					onClose={() => setPreviewText(null)}
-				/>
-			)}
-		</>
-	);
-	return {
-		onImageClick: setPreviewImage,
-		onTextFileClick: setPreviewText,
-		dialogs,
-	};
-};
-
 // Wrapper shared by live and persisted rows so both render the same row DOM.
 const MessageRowFrame: FC<{
 	renderKey: string;
@@ -150,6 +120,8 @@ const LiveAssistantRow = memo<{
 	subagentVariants: Map<string, SubagentVariant>;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	onImageClick: (src: string) => void;
+	onTextFileClick: (attachment: PreviewTextAttachment) => void;
 }>(
 	({
 		organizationId,
@@ -162,8 +134,9 @@ const LiveAssistantRow = memo<{
 		subagentVariants,
 		urlTransform,
 		mcpServers,
+		onImageClick,
+		onTextFileClick,
 	}) => {
-		const previews = useAttachmentPreviews();
 		const conversationItemProps: { role: "assistant" } = { role: "assistant" };
 		return (
 			<MessageRowFrame renderKey={renderKey} isAfterEditingMessage={false}>
@@ -181,15 +154,14 @@ const LiveAssistantRow = memo<{
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
 								hasUserResponseAfterAskQuestion={false}
-								onImageClick={previews.onImageClick}
-								onTextFileClick={previews.onTextFileClick}
+								onImageClick={onImageClick}
+								onTextFileClick={onTextFileClick}
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}
 							/>
 						</MessageContent>
 					</Message>
 				</ConversationItem>
-				{previews.dialogs}
 			</MessageRowFrame>
 		);
 	},
@@ -232,6 +204,8 @@ const PersistedMessageRow = memo<{
 	prevUserMessageKey?: string;
 	nextUserMessageKey?: string;
 	onJumpToUserMessage: ((messageKey: string) => void) | undefined;
+	onImageClick: (src: string) => void;
+	onTextFileClick: (attachment: PreviewTextAttachment) => void;
 }>(
 	({
 		organizationId,
@@ -260,10 +234,11 @@ const PersistedMessageRow = memo<{
 		subagentTitles,
 		subagentVariants,
 		showDesktopPreviews,
+		onImageClick,
+		onTextFileClick,
 	}) => {
 		const isUser = message.role === "user";
 		const messageId = message.id;
-		const previews = useAttachmentPreviews();
 		const displayState = deriveMessageDisplayState({
 			message,
 			parsed,
@@ -317,8 +292,8 @@ const PersistedMessageRow = memo<{
 							displayState={displayState}
 							markdown={parsed.markdown}
 							isEditing={editingMessageId === messageId}
-							onImageClick={previews.onImageClick}
-							onTextFileClick={previews.onTextFileClick}
+							onImageClick={onImageClick}
+							onTextFileClick={onTextFileClick}
 						/>
 					) : (
 						<Message className="w-full">
@@ -342,8 +317,8 @@ const PersistedMessageRow = memo<{
 									hasUserResponseAfterAskQuestion={
 										hasUserResponseAfterAskQuestion
 									}
-									onImageClick={previews.onImageClick}
-									onTextFileClick={previews.onTextFileClick}
+									onImageClick={onImageClick}
+									onTextFileClick={onTextFileClick}
 									urlTransform={urlTransform}
 									mcpServers={mcpServers}
 								/>
@@ -458,7 +433,6 @@ const PersistedMessageRow = memo<{
 				{displayState.needsAssistantBottomSpacer && !isLastMessage && (
 					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
 				)}
-				{previews.dialogs}
 			</MessageRowFrame>
 		);
 	},
@@ -515,6 +489,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		isAwaitingFirstStreamChunk,
 	}) => {
 		const { scrollToMessage } = useMessageScroller();
+		// One preview dialog serves the whole timeline, so rows stay stateless
+		// and an open preview survives its row re-rendering or unmounting.
+		const [previewImage, setPreviewImage] = useState<string | null>(null);
+		const [previewText, setPreviewText] =
+			useState<PreviewTextAttachment | null>(null);
 		const jumpToUserMessage = (messageKey: string) => {
 			scrollToMessage(messageKey, { align: "start", behavior: "smooth" });
 		};
@@ -637,6 +616,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									subagentVariants={subagentVariants}
 									urlTransform={urlTransform}
 									mcpServers={mcpServers}
+									onImageClick={setPreviewImage}
+									onTextFileClick={setPreviewText}
 								/>
 							</MessageScroller.Item>
 						);
@@ -686,10 +667,26 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								prevUserMessageKey={neighbors?.prevKey}
 								nextUserMessageKey={neighbors?.nextKey}
 								onJumpToUserMessage={isUser ? jumpToUserMessage : undefined}
+								onImageClick={setPreviewImage}
+								onTextFileClick={setPreviewText}
 							/>
 						</MessageScroller.Item>
 					);
 				})}
+				{previewImage && (
+					<ImageLightbox
+						src={previewImage}
+						onClose={() => setPreviewImage(null)}
+					/>
+				)}
+				{previewText !== null && (
+					<TextPreviewDialog
+						content={previewText.content}
+						fileName={previewText.fileName}
+						mediaType={previewText.mediaType}
+						onClose={() => setPreviewText(null)}
+					/>
+				)}
 			</FileProbeProvider>
 		);
 	},

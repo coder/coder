@@ -823,6 +823,18 @@ export const UserMessageWithSingleImage: Story = {
 	},
 };
 
+export const UserMessageImageOpensLightbox: Story = {
+	args: UserMessageWithSingleImage.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const imageButton = await canvas.findByRole("button", {
+			name: /^View /,
+		});
+		await userEvent.click(imageButton);
+		await screen.findByRole("dialog", { name: "Image preview" });
+	},
+};
+
 /** Ensures N images in yields exactly N thumbnails with no duplication. */
 export const UserMessageWithMultipleImages: Story = {
 	args: {
