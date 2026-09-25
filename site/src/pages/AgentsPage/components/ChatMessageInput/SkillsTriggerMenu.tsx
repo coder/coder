@@ -61,13 +61,13 @@ type SkillsTriggerMenuProps = {
 	// The composer box the menu is pinned above and sized to match.
 	anchor: HTMLElement | null;
 	query: string;
-	commands?: readonly SkillMenuItem[];
+	commands: readonly SkillMenuItem[];
 	personalSkills: readonly SkillMenuItem[];
 	workspaceSkills: readonly SkillMenuItem[];
-	workspaceSkillsEnabled?: boolean;
-	isPersonalLoading?: boolean;
-	isPersonalError?: boolean;
-	isWorkspaceLoading?: boolean;
+	workspaceSkillsEnabled: boolean;
+	isPersonalLoading: boolean;
+	isPersonalError: boolean;
+	isWorkspaceLoading: boolean;
 	selectedIndex: number;
 	onSelectedIndexChange: (index: number) => void;
 	onSelect: (skill: SkillMenuItem) => void;
@@ -75,7 +75,7 @@ type SkillsTriggerMenuProps = {
 	// Radix dismisses on Escape from a document capture-phase listener.
 	// Call `event.preventDefault()` to keep the menu open so the editor's
 	// own Escape handling can close it instead.
-	onEscapeKeyDown?: (event: KeyboardEvent) => void;
+	onEscapeKeyDown: (event: KeyboardEvent) => void;
 };
 
 const getEmptyMessage = (query: string, workspaceSkillsEnabled: boolean) => {
@@ -158,7 +158,7 @@ export const SkillsTriggerMenu = ({
 	open,
 	anchor,
 	query,
-	commands = [],
+	commands,
 	personalSkills,
 	workspaceSkills,
 	workspaceSkillsEnabled,
@@ -275,7 +275,7 @@ export const SkillsTriggerMenu = ({
 						))}
 						{shouldShowEmpty && (
 							<CommandEmpty>
-								{getEmptyMessage(query, Boolean(workspaceSkillsEnabled))}
+								{getEmptyMessage(query, workspaceSkillsEnabled)}
 							</CommandEmpty>
 						)}
 					</CommandList>

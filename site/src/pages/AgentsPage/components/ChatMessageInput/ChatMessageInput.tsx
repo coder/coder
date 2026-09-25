@@ -35,10 +35,7 @@ import {
 import { useQuery } from "react-query";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
-	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
-} from "../../utils/agentChatSendShortcut";
+import { MODIFIER_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import {
 	filterSkillsByQuery,
 	isPersonalSkillTriggerToken,
@@ -365,7 +362,7 @@ const EnterKeyPlugin: React.FC<{
 // Fires the onChange callback with the editor's plain-text content
 // on every update.
 const ContentChangePlugin: React.FC<{
-	onChange?: (
+	onChange: (
 		content: string,
 		serializedEditorState: string,
 		hasFileReferences: boolean,
@@ -374,8 +371,6 @@ const ContentChangePlugin: React.FC<{
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
-		if (!onChange) return;
-
 		return editor.registerUpdateListener(({ editorState }) => {
 			editorState.read(() => {
 				const root = $getRoot();
@@ -408,7 +403,7 @@ const ContentChangePlugin: React.FC<{
 // it restores the full editor state including file-reference chips.
 // Falls back to plain-text seeding via initialValue.
 const ValueSyncPlugin: React.FC<{
-	initialValue?: string;
+	initialValue: string;
 	initialEditorState?: string;
 }> = function ValueSyncPlugin({ initialValue, initialEditorState }) {
 	const [editor] = useLexicalComposerContext();
@@ -432,7 +427,7 @@ const ValueSyncPlugin: React.FC<{
 			}
 		}
 
-		if (initialValue === undefined || initialValue === "") {
+		if (initialValue === "") {
 			return;
 		}
 
@@ -517,15 +512,15 @@ type ChatMessageInputProps = Omit<
 	React.ComponentProps<"div">,
 	"onChange" | "role" | "ref"
 > & {
-	placeholder?: string;
-	initialValue?: string;
+	placeholder: string;
+	initialValue: string;
 	/**
 	 * Serialized Lexical editor state JSON. When provided, the editor
 	 * restores the full state (including file-reference chips) instead
 	 * of using initialValue as plain text.
 	 */
 	initialEditorState?: string;
-	onChange?: (
+	onChange: (
 		content: string,
 		serializedEditorState: string,
 		hasFileReferences: boolean,
@@ -533,8 +528,8 @@ type ChatMessageInputProps = Omit<
 	/** Monotonic counter to force editor remount. */
 	remountKey?: number;
 	rows?: number;
-	onEnter?: () => void;
-	sendShortcut?: TypesGen.AgentChatSendShortcut;
+	onEnter: () => void;
+	sendShortcut: TypesGen.AgentChatSendShortcut;
 	// Returns whether the file was routed anywhere (attachment or
 	// workspace upload). Refused files let the paste fall back to
 	// the clipboard's text payload.
@@ -543,13 +538,12 @@ type ChatMessageInputProps = Omit<
 	// Keeps routing pasted files through onFilePaste while disabled, so
 	// the parent can refuse them visibly instead of losing them.
 	acceptFilePasteWhileDisabled?: boolean;
-	disabled?: boolean;
-	autoFocus?: boolean;
+	disabled: boolean;
 	/**
 	 * True when the chat has a bound workspace, so workspace skills may
 	 * exist even while workspaceSkills is still undefined.
 	 */
-	hasWorkspace?: boolean;
+	hasWorkspace: boolean;
 	/**
 	 * Story and test seam for deterministic personal skill menu data.
 	 */
@@ -595,11 +589,11 @@ type SkillsTriggerLocation = Pick<
 >;
 
 const isSameSkillsTriggerLocation = (
-	a: SkillsTriggerLocation | null,
+	a: SkillsTriggerLocation,
 	b: SkillsTriggerLocation | null,
 ): boolean => {
 	return Boolean(
-		a && b && a.nodeKey === b.nodeKey && a.slashOffset === b.slashOffset,
+		b && a.nodeKey === b.nodeKey && a.slashOffset === b.slashOffset,
 	);
 };
 
@@ -629,12 +623,11 @@ const ChatMessageInput = ({
 	remountKey,
 	rows,
 	onEnter,
-	sendShortcut = DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+	sendShortcut,
 	onFilePaste,
 	allowTextAttachmentPaste,
 	acceptFilePasteWhileDisabled,
 	disabled,
-	autoFocus,
 	hasWorkspace,
 	personalSkillsOverride,
 	workspaceSkills,
@@ -661,7 +654,7 @@ const ChatMessageInput = ({
 	const editorRef = useRef<LexicalEditor | null>(null);
 	// Tracks the last known text content so getValue() can return
 	// a useful value before the Lexical editor hydrates.
-	const lastKnownValueRef = useRef(initialValue ?? "");
+	const lastKnownValueRef = useRef(initialValue);
 	// Queues a setValue call made before the editor ref is ready.
 	const pendingReplacementRef = useRef<string | null>(null);
 	const [skillsTrigger, setSkillsTrigger] =
@@ -1039,11 +1032,11 @@ const ChatMessageInput = ({
 					onTriggerChange={handleSkillsTriggerChange}
 					onSkillSelect={replaceActiveSkillsTrigger}
 				/>
-				<EditableStatePlugin disabled={Boolean(disabled)} />
+				<EditableStatePlugin disabled={disabled} />
 				{onFilePaste && acceptFilePasteWhileDisabled && (
 					<LockedFilePastePlugin onFilePaste={onFilePaste} />
 				)}
-				{autoFocus && <AutoFocusPlugin />}
+				<AutoFocusPlugin />
 				<SkillsTriggerMenu
 					open={skillsMenuOpen}
 					anchor={skillsMenuAnchor ?? containerElement}
@@ -1051,7 +1044,7 @@ const ChatMessageInput = ({
 					commands={commandMenuItems}
 					personalSkills={personalSkillItems}
 					workspaceSkills={workspaceSkillItems}
-					workspaceSkillsEnabled={Boolean(hasWorkspace)}
+					workspaceSkillsEnabled={hasWorkspace}
 					isPersonalLoading={
 						personalSkillsQueryEnabled &&
 						skillsQuery.isFetching &&
