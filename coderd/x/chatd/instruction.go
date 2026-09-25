@@ -6,11 +6,18 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// workspaceContextScopeLine tells the model how the listed Source paths
+// relate to each other. The user's ~/.coder files are global by contract,
+// whatever the working directory is, so the exception is unconditional.
+const workspaceContextScopeLine = "Instruction files under ~/.coder apply to the whole conversation; every other Source path applies to its own directory tree, and a nested file refines the ones above it for paths beneath it."
+
 // formatSystemInstructions builds the <workspace-context> block from
 // agent metadata and zero or more context-file parts. Non-context-file
-// parts in the slice are silently skipped.
+// parts in the slice are silently skipped. note, when set, is printed after
+// the header lines: it explains an empty file list, or names pinned files
+// that could not be rendered next to the ones that were.
 func formatSystemInstructions(
-	operatingSystem, directory string,
+	operatingSystem, directory, note string,
 	parts []codersdk.ChatMessagePart,
 ) string {
 	hasContent := false
@@ -20,7 +27,7 @@ func formatSystemInstructions(
 			break
 		}
 	}
-	if !hasContent && operatingSystem == "" && directory == "" {
+	if !hasContent && note == "" && operatingSystem == "" && directory == "" {
 		return ""
 	}
 
@@ -36,6 +43,16 @@ func formatSystemInstructions(
 		_, _ = b.WriteString(directory)
 		_, _ = b.WriteString("\n")
 	}
+	if note != "" {
+		_, _ = b.WriteString(note)
+		_, _ = b.WriteString("\n")
+	}
+	if !hasContent {
+		_, _ = b.WriteString("</workspace-context>")
+		return b.String()
+	}
+	_, _ = b.WriteString(workspaceContextScopeLine)
+	_, _ = b.WriteString("\n")
 	for _, part := range parts {
 		if part.Type != codersdk.ChatMessagePartTypeContextFile || part.ContextFileContent == "" {
 			continue
