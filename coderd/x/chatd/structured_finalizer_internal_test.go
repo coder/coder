@@ -256,7 +256,7 @@ func TestFinalizerBatchControls(t *testing.T) {
 		step     []codersdk.ChatMessagePart
 		content  []fantasy.Content
 		want     *chatstructured.Control
-		override bool
+		override string
 	}{
 		{
 			name: "Valid", step: []codersdk.ChatMessagePart{call("f", fin, valid, false)}, content: []fantasy.Content{result("f", false)},
@@ -264,9 +264,12 @@ func TestFinalizerBatchControls(t *testing.T) {
 		},
 		{name: "SchemaMismatch", step: []codersdk.ChatMessagePart{call("f", fin, `{"output":{"a":1}}`, false)}, content: []fantasy.Content{result("f", true)}, want: rejection},
 		{name: "TwoFinalizers", step: []codersdk.ChatMessagePart{call("f", fin, valid, false), call("g", fin, valid, false)}, content: []fantasy.Content{result("f", true), result("g", true)}, want: rejection},
-		{name: "ProviderExecutedSibling", step: []codersdk.ChatMessagePart{call("f", fin, valid, false), call("w", "web_search", `{}`, true)}, content: []fantasy.Content{result("f", false)}, want: rejection, override: true},
+		{name: "ProviderExecutedSibling", step: []codersdk.ChatMessagePart{call("f", fin, valid, false), call("w", "web_search", `{}`, true)}, content: []fantasy.Content{result("f", false)}, want: rejection, override: finalizerSeparateStepFeedback},
 		// A step already rejected by screening never gets a second rejection.
-		{name: "ScreenedSibling", step: []codersdk.ChatMessagePart{call("f", fin, valid, false), call("g", fin, `{}`, false), earlier}, content: []fantasy.Content{result("f", false)}, override: true},
+		{name: "ScreenedSibling", step: []codersdk.ChatMessagePart{call("f", fin, valid, false), call("g", fin, `{}`, false), earlier}, content: []fantasy.Content{result("f", false)}, override: finalizerSeparateStepFeedback},
+		// A valid output whose candidate would not decode once stored is
+		// rejected with fixed feedback instead of failing the step.
+		{name: "Unstorable", step: []codersdk.ChatMessagePart{call("f", fin, `{"output":{"a":"x","b":1e200}}`, false)}, content: []fantasy.Content{result("f", false)}, want: rejection, override: finalizerUnstorableFeedback},
 		{name: "NoFinalizer", step: []codersdk.ChatMessagePart{call("x", "execute", `{}`, false)}, content: []fantasy.Content{fantasy.ToolResultContent{ToolCallID: "x", ToolName: "execute"}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -281,12 +284,12 @@ func TestFinalizerBatchControls(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, *tt.want, got)
 			}
-			if tt.override {
+			if tt.override != "" {
 				first, ok := fantasy.AsContentType[fantasy.ToolResultContent](tt.content[0])
 				require.True(t, ok)
 				output, ok := first.Result.(fantasy.ToolResultOutputContentError)
 				require.True(t, ok)
-				require.Equal(t, finalizerSeparateStepFeedback, output.Error.Error())
+				require.Equal(t, tt.override, output.Error.Error())
 			}
 		})
 	}

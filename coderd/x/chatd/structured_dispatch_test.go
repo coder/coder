@@ -159,9 +159,12 @@ func TestFinalizerDispatch(t *testing.T) {
 
 	for name, calls := range map[string][]chattest.OpenAIToolCall{
 		"SchemaMismatch": {finalizerToolCall(chatstructured.FinalizerToolName, `{"output":{"a":1}}`)},
-		"TwoFinalizers":  {valid, valid},
-		"LocalSibling":   {valid, finalizerToolCall("read_file", `{"path":"/tmp/a"}`)},
-		"DynamicSibling": {valid, finalizerToolCall("dyn", `{}`)},
+		// Stored arguments render 1e200 as a 201 digit decimal, which the
+		// executor rejects as too long: feedback and a rejection, not an error.
+		"UnstorableNumber": {finalizerToolCall(chatstructured.FinalizerToolName, `{"output":{"a":"x","b":1e200}}`)},
+		"TwoFinalizers":    {valid, valid},
+		"LocalSibling":     {valid, finalizerToolCall("read_file", `{"path":"/tmp/a"}`)},
+		"DynamicSibling":   {valid, finalizerToolCall("dyn", `{}`)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

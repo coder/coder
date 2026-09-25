@@ -153,6 +153,10 @@ func (g *finalizerGate) forward(part codersdk.ChatMessagePart) (codersdk.ChatMes
 // step with another tool call the exclusive policy does not cover.
 const finalizerSeparateStepFeedback = chatstructured.FinalizerToolName + " must be called alone in its own step, without other tool calls. Call it again by itself."
 
+// finalizerUnstorableFeedback answers a valid output whose candidate would
+// not decode once stored, for example because of a huge number.
+const finalizerUnstorableFeedback = "structured output is too large to store. Call " + chatstructured.FinalizerToolName + " again with a smaller output."
+
 // structuredTurnFor returns the open structured output request of history's
 // latest user turn, or uuid.Nil, and its compiled schema when the finalizer
 // can be offered. A schema that fails to compile offers no finalizer.
@@ -217,7 +221,12 @@ func finalizerBatchControls(schema *chatstructured.Schema, requestID uuid.UUID, 
 			_, err = schema.Validate(output)
 		}
 		if err == nil {
-			control = chatstructured.Control{RequestID: requestID, Kind: chatstructured.ControlCandidate, Value: output}
+			part, err := chatstructured.EncodeControlPart(chatstructured.Control{RequestID: requestID, Kind: chatstructured.ControlCandidate, Value: output})
+			if err == nil {
+				return map[string][]codersdk.ChatMessagePart{firstID: {part}}, nil
+			}
+			// The runner acknowledged the output, so replace that result.
+			replaceFinalizerResult(content, firstID, finalizerUnstorableFeedback)
 		}
 	}
 	part, err := chatstructured.EncodeControlPart(control)
@@ -225,4 +234,13 @@ func finalizerBatchControls(schema *chatstructured.Schema, requestID uuid.UUID, 
 		return nil, xerrors.Errorf("encode structured output control: %w", err)
 	}
 	return map[string][]codersdk.ChatMessagePart{firstID: {part}}, nil
+}
+
+func replaceFinalizerResult(content []fantasy.Content, id, feedback string) {
+	for i, block := range content {
+		if result, ok := fantasy.AsContentType[fantasy.ToolResultContent](block); ok && result.ToolCallID == id {
+			result.Result = fantasy.ToolResultOutputContentError{Error: xerrors.New(feedback)}
+			content[i] = result
+		}
+	}
 }
