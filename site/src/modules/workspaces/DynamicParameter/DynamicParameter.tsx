@@ -235,6 +235,8 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 	);
 };
 
+const EMPTY_DROPDOWN_VALUE = "__EMPTY_STRING__";
+
 type ParameterFieldProps = {
 	parameter: PreviewParameter;
 	value?: string;
@@ -333,10 +335,22 @@ const ParameterField: FC<ParameterFieldProps> = ({
 		}
 
 		case "dropdown": {
+			// Radix Select reserves the empty string for clearing the selection,
+			// so an option whose value is "" is mapped to a sentinel value.
+			const hasEmptyOption = parameter.options.some(
+				(option) => option.value.value === "",
+			);
+
 			return (
 				<Select
-					value={value}
-					onValueChange={(newValue) => onChange(newValue ?? "")}
+					value={hasEmptyOption && value === "" ? EMPTY_DROPDOWN_VALUE : value}
+					onValueChange={(newValue) =>
+						onChange(
+							hasEmptyOption && newValue === EMPTY_DROPDOWN_VALUE
+								? ""
+								: newValue,
+						)
+					}
 					disabled={disabled}
 				>
 					<SelectTrigger>
@@ -346,7 +360,10 @@ const ParameterField: FC<ParameterFieldProps> = ({
 					</SelectTrigger>
 					<SelectContent>
 						{parameter.options.map((option) => (
-							<SelectItem key={option.value.value} value={option.value.value}>
+							<SelectItem
+								key={option.value.value}
+								value={option.value.value || EMPTY_DROPDOWN_VALUE}
+							>
 								{option.name}
 							</SelectItem>
 						))}
