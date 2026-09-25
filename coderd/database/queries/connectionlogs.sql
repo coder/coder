@@ -59,34 +59,29 @@ WHERE
 			)
 		ELSE true
 	END
-	-- Filter by kind
+	-- Filter by source
 	AND CASE
-		WHEN @kind :: text != '' THEN
-			kind = @kind :: connection_kind
+		WHEN @source :: text != '' THEN
+			source = @source :: text
 		ELSE true
 	END
-	-- Filter agent connections by app name. Older rows have no app name,
-	-- and their kind names the app. Plain column comparisons keep the
-	-- planner's estimates accurate.
+	-- Filter by app name
 	AND CASE
 		WHEN cardinality(@app_names :: text[]) > 0 THEN
-			(kind IN ('ssh', 'reconnecting_pty') AND app_name_or_port = ANY(@app_names :: text[])) OR
-			(app_name_or_port IS NULL AND kind = ANY(@app_kinds :: connection_kind[]))
+			source = 'agent' AND app_name_or_port = ANY(@app_names :: text[])
 		ELSE true
 	END
-	-- Filter agent connections by excluded app name. Older rows name a known
-	-- app, so they never match.
+	-- Filter by excluded app name
 	AND CASE
 		WHEN cardinality(@excluded_app_names :: text[]) > 0 THEN
-			kind IN ('ssh', 'reconnecting_pty') AND app_name_or_port != ALL(@excluded_app_names :: text[])
+			source = 'agent' AND app_name_or_port != ALL(@excluded_app_names :: text[])
 		ELSE true
 	END
 	-- Filter by agent app name or workspace app slug
 	AND CASE
 		WHEN @app_name :: text != '' THEN
-			(kind IN ('ssh', 'reconnecting_pty') AND app_name_or_port = @app_name) OR
-			(app_name_or_port IS NULL AND kind = NULLIF(@app_kind :: text, '') :: connection_kind) OR
-			(kind = 'workspace_app' AND app_name_or_port = @app_slug :: text)
+			(source = 'agent' AND app_name_or_port = @app_name) OR
+			(source = 'workspace_app' AND app_name_or_port = @app_slug :: text)
 		ELSE true
 	END
 	-- Filter by user_id
@@ -141,7 +136,7 @@ WHERE
 			(@status = 'completed' AND disconnect_time IS NOT NULL)) AND
 			-- Exclude point-in-time events reported by coderd, since we
 			-- don't know their close time.
-			kind NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
+			source = 'agent'
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
@@ -199,34 +194,29 @@ SELECT COUNT(*) AS count FROM (
 				)
 			ELSE true
 		END
-		-- Filter by kind
+		-- Filter by source
 		AND CASE
-			WHEN @kind :: text != '' THEN
-				kind = @kind :: connection_kind
+			WHEN @source :: text != '' THEN
+				source = @source :: text
 			ELSE true
 		END
-		-- Filter agent connections by app name. Older rows have no app name,
-		-- and their kind names the app. Plain column comparisons keep the
-		-- planner's estimates accurate.
+		-- Filter by app name
 		AND CASE
 			WHEN cardinality(@app_names :: text[]) > 0 THEN
-				(kind IN ('ssh', 'reconnecting_pty') AND app_name_or_port = ANY(@app_names :: text[])) OR
-				(app_name_or_port IS NULL AND kind = ANY(@app_kinds :: connection_kind[]))
+				source = 'agent' AND app_name_or_port = ANY(@app_names :: text[])
 			ELSE true
 		END
-		-- Filter agent connections by excluded app name. Older rows name a known
-		-- app, so they never match.
+		-- Filter by excluded app name
 		AND CASE
 			WHEN cardinality(@excluded_app_names :: text[]) > 0 THEN
-				kind IN ('ssh', 'reconnecting_pty') AND app_name_or_port != ALL(@excluded_app_names :: text[])
+				source = 'agent' AND app_name_or_port != ALL(@excluded_app_names :: text[])
 			ELSE true
 		END
 		-- Filter by agent app name or workspace app slug
 		AND CASE
 			WHEN @app_name :: text != '' THEN
-				(kind IN ('ssh', 'reconnecting_pty') AND app_name_or_port = @app_name) OR
-				(app_name_or_port IS NULL AND kind = NULLIF(@app_kind :: text, '') :: connection_kind) OR
-				(kind = 'workspace_app' AND app_name_or_port = @app_slug :: text)
+				(source = 'agent' AND app_name_or_port = @app_name) OR
+				(source = 'workspace_app' AND app_name_or_port = @app_slug :: text)
 			ELSE true
 		END
 		-- Filter by user_id
@@ -281,7 +271,7 @@ SELECT COUNT(*) AS count FROM (
 				(@status = 'completed' AND disconnect_time IS NOT NULL)) AND
 				-- Exclude point-in-time events reported by coderd, since we
 				-- don't know their close time.
-				kind NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
+				source = 'agent'
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in
@@ -306,7 +296,7 @@ WHERE connection_logs.id = old_logs.id;
 -- name: BatchUpsertConnectionLogs :exec
 INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
-    workspace_name, agent_name, kind, code, ip, user_agent, user_id,
+    workspace_name, agent_name, source, code, ip, user_agent, user_id,
     app_name_or_port, connection_id, disconnect_reason, disconnect_time
 )
 SELECT
@@ -317,7 +307,7 @@ SELECT
     u.workspace_id,
     u.workspace_name,
     u.agent_name,
-    u.kind,
+    u.source,
     -- Use the validity flag to distinguish "no code" (NULL) from a
     -- legitimate zero exit code.
     CASE WHEN u.code_valid THEN u.code ELSE NULL END,
@@ -337,7 +327,7 @@ FROM (
         unnest(sqlc.arg('workspace_id')::uuid[]) AS workspace_id,
         unnest(sqlc.arg('workspace_name')::text[]) AS workspace_name,
         unnest(sqlc.arg('agent_name')::text[]) AS agent_name,
-        unnest(sqlc.arg('kind')::connection_kind[]) AS kind,
+        unnest(sqlc.arg('source')::text[]) AS source,
         unnest(sqlc.arg('code')::int4[]) AS code,
         unnest(sqlc.arg('code_valid')::bool[]) AS code_valid,
         unnest(sqlc.arg('ip')::inet[]) AS ip,

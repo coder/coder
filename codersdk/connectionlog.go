@@ -64,7 +64,7 @@ var webConnectionTypeNames = map[ConnectionType]string{
 	ConnectionTypeTunnel:         "Tunnel",
 }
 
-// ConnectionTypeOfApp returns the type of an agent-reported app.
+// Returns the type of an agent-reported app.
 func ConnectionTypeOfApp(appName string) ConnectionType {
 	family := AppNameFamily(appName)
 	// Only usage tracking records sftp.
@@ -74,7 +74,7 @@ func ConnectionTypeOfApp(appName string) ConnectionType {
 	return ConnectionType(family)
 }
 
-// FilterableConnectionTypes lists the values the `type` filter accepts.
+// Lists the values the `type` filter accepts.
 func FilterableConnectionTypes() []ConnectionType {
 	types := []ConnectionType{ConnectionTypeUnknown}
 	for t := range webConnectionTypeNames {
@@ -87,33 +87,40 @@ func FilterableConnectionTypes() []ConnectionType {
 	return slices.Compact(types)
 }
 
-// IsWeb reports whether coderd, not an agent, logs connections of type t.
+func (t ConnectionType) Valid() bool {
+	return slices.Contains(FilterableConnectionTypes(), t)
+}
+
+// Reports whether coderd, not an agent, logs connections of type t.
 func (t ConnectionType) IsWeb() bool {
 	_, ok := webConnectionTypeNames[t]
 	return ok
 }
 
-// DisplayName returns the human-readable name of t.
+// Returns the human-readable name of t.
 func (t ConnectionType) DisplayName() string {
 	switch {
 	case t == ConnectionTypeUnknown:
 		return "Unknown"
 	case t.IsWeb():
 		return webConnectionTypeNames[t]
-	// The family covers every fork, so it gets the full name.
+	// Names the family apart from the VS Code app.
 	case t == ConnectionTypeVSCode:
-		return TemplateBuiltinAppDisplayNameVSCode
+		return "VS Code Family"
 	default:
 		return AppDisplayName(string(t))
 	}
 }
 
-// AppNames lists the registered apps of type t, sorted. It is empty for
+// Lists the registered apps of type t, sorted. It is empty for
 // ConnectionTypeUnknown, which matches unregistered apps.
 func (t ConnectionType) AppNames() []string {
+	if t == ConnectionTypeUnknown {
+		return nil
+	}
 	var names []string
 	for appName := range sessionApps {
-		if t != ConnectionTypeUnknown && ConnectionTypeOfApp(appName) == t {
+		if ConnectionTypeOfApp(appName) == t {
 			names = append(names, appName)
 		}
 	}
@@ -121,13 +128,15 @@ func (t ConnectionType) AppNames() []string {
 	return names
 }
 
-// KnownConnectionAppNames lists the registered apps that `type:unknown`
-// excludes.
+// Lists the registered apps that `type:unknown` excludes.
 func KnownConnectionAppNames() []string {
 	var names []string
-	for _, t := range FilterableConnectionTypes() {
-		names = append(names, t.AppNames()...)
+	for appName := range sessionApps {
+		if ConnectionTypeOfApp(appName) != ConnectionTypeUnknown {
+			names = append(names, appName)
+		}
 	}
+	slices.Sort(names)
 	return names
 }
 

@@ -1501,7 +1501,7 @@ func (api *API) logTunnelConnection(agentID uuid.UUID, statusCode int32, userID 
 		WorkspaceID:      waws.WorkspaceTable.ID,
 		WorkspaceName:    waws.WorkspaceTable.Name,
 		AgentName:        waws.WorkspaceAgent.Name,
-		Kind:             database.ConnectionKindTunnel,
+		Source:           database.ConnectionSourceTunnel,
 		IP:               database.ParseIP(ip),
 		Code:             sql.NullInt32{Int32: statusCode, Valid: true},
 		UserAgent:        sql.NullString{String: userAgent, Valid: userAgent != ""},

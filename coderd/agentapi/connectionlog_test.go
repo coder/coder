@@ -45,7 +45,6 @@ func TestConnectionLog(t *testing.T) {
 		id      uuid.UUID
 		action  *agentproto.Connection_Action
 		typ     *agentproto.Connection_Type
-		kind    database.ConnectionKind
 		appName string
 		time    time.Time
 		ip      string
@@ -57,7 +56,6 @@ func TestConnectionLog(t *testing.T) {
 			id:      uuid.New(),
 			action:  agentproto.Connection_CONNECT.Enum(),
 			typ:     agentproto.Connection_SSH.Enum(),
-			kind:    database.ConnectionKindSSH,
 			appName: "ssh",
 			time:    dbtime.Now(),
 			ip:      "127.0.0.1",
@@ -68,7 +66,6 @@ func TestConnectionLog(t *testing.T) {
 			id:      uuid.New(),
 			action:  agentproto.Connection_CONNECT.Enum(),
 			typ:     agentproto.Connection_VSCODE.Enum(),
-			kind:    database.ConnectionKindSSH,
 			appName: "vscode",
 			time:    dbtime.Now(),
 			ip:      "8.8.8.8",
@@ -78,7 +75,6 @@ func TestConnectionLog(t *testing.T) {
 			id:      uuid.New(),
 			action:  agentproto.Connection_CONNECT.Enum(),
 			typ:     agentproto.Connection_JETBRAINS.Enum(),
-			kind:    database.ConnectionKindSSH,
 			appName: "jetbrains",
 			time:    dbtime.Now(),
 			// Sometimes, JetBrains clients report as localhost, see
@@ -90,8 +86,15 @@ func TestConnectionLog(t *testing.T) {
 			id:      uuid.New(),
 			action:  agentproto.Connection_CONNECT.Enum(),
 			typ:     agentproto.Connection_RECONNECTING_PTY.Enum(),
-			kind:    database.ConnectionKindReconnectingPTY,
 			appName: "reconnecting_pty",
+			time:    dbtime.Now(),
+		},
+		{
+			name:    "Unspecified Connect",
+			id:      uuid.New(),
+			action:  agentproto.Connection_CONNECT.Enum(),
+			typ:     agentproto.Connection_TYPE_UNSPECIFIED.Enum(),
+			appName: "unknown",
 			time:    dbtime.Now(),
 		},
 		{
@@ -99,7 +102,6 @@ func TestConnectionLog(t *testing.T) {
 			id:      uuid.New(),
 			action:  agentproto.Connection_DISCONNECT.Enum(),
 			typ:     agentproto.Connection_SSH.Enum(),
-			kind:    database.ConnectionKindSSH,
 			appName: "ssh",
 			time:    dbtime.Now(),
 		},
@@ -108,7 +110,6 @@ func TestConnectionLog(t *testing.T) {
 			id:      uuid.New(),
 			action:  agentproto.Connection_DISCONNECT.Enum(),
 			typ:     agentproto.Connection_SSH.Enum(),
-			kind:    database.ConnectionKindSSH,
 			appName: "ssh",
 			time:    dbtime.Now(),
 			status:  500,
@@ -167,7 +168,7 @@ func TestConnectionLog(t *testing.T) {
 					Valid: *tt.action == agentproto.Connection_DISCONNECT,
 				},
 				IP:            expectedIP,
-				Kind:          tt.kind,
+				Source:        database.ConnectionSourceAgent,
 				AppNameOrPort: sql.NullString{String: tt.appName, Valid: true},
 				DisconnectReason: sql.NullString{
 					String: tt.reason,

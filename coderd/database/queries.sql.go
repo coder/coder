@@ -14378,7 +14378,7 @@ func (q *sqlQuerier) UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHear
 const batchUpsertConnectionLogs = `-- name: BatchUpsertConnectionLogs :exec
 INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
-    workspace_name, agent_name, kind, code, ip, user_agent, user_id,
+    workspace_name, agent_name, source, code, ip, user_agent, user_id,
     app_name_or_port, connection_id, disconnect_reason, disconnect_time
 )
 SELECT
@@ -14389,7 +14389,7 @@ SELECT
     u.workspace_id,
     u.workspace_name,
     u.agent_name,
-    u.kind,
+    u.source,
     -- Use the validity flag to distinguish "no code" (NULL) from a
     -- legitimate zero exit code.
     CASE WHEN u.code_valid THEN u.code ELSE NULL END,
@@ -14409,7 +14409,7 @@ FROM (
         unnest($5::uuid[]) AS workspace_id,
         unnest($6::text[]) AS workspace_name,
         unnest($7::text[]) AS agent_name,
-        unnest($8::connection_kind[]) AS kind,
+        unnest($8::text[]) AS source,
         unnest($9::int4[]) AS code,
         unnest($10::bool[]) AS code_valid,
         unnest($11::inet[]) AS ip,
@@ -14450,23 +14450,23 @@ DO UPDATE SET
 `
 
 type BatchUpsertConnectionLogsParams struct {
-	ID               []uuid.UUID      `db:"id" json:"id"`
-	ConnectTime      []time.Time      `db:"connect_time" json:"connect_time"`
-	OrganizationID   []uuid.UUID      `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID []uuid.UUID      `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceID      []uuid.UUID      `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName    []string         `db:"workspace_name" json:"workspace_name"`
-	AgentName        []string         `db:"agent_name" json:"agent_name"`
-	Kind             []ConnectionKind `db:"kind" json:"kind"`
-	Code             []int32          `db:"code" json:"code"`
-	CodeValid        []bool           `db:"code_valid" json:"code_valid"`
-	Ip               []pqtype.Inet    `db:"ip" json:"ip"`
-	UserAgent        []string         `db:"user_agent" json:"user_agent"`
-	UserID           []uuid.UUID      `db:"user_id" json:"user_id"`
-	AppNameOrPort    []string         `db:"app_name_or_port" json:"app_name_or_port"`
-	ConnectionID     []uuid.UUID      `db:"connection_id" json:"connection_id"`
-	DisconnectReason []string         `db:"disconnect_reason" json:"disconnect_reason"`
-	DisconnectTime   []time.Time      `db:"disconnect_time" json:"disconnect_time"`
+	ID               []uuid.UUID   `db:"id" json:"id"`
+	ConnectTime      []time.Time   `db:"connect_time" json:"connect_time"`
+	OrganizationID   []uuid.UUID   `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID []uuid.UUID   `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      []uuid.UUID   `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    []string      `db:"workspace_name" json:"workspace_name"`
+	AgentName        []string      `db:"agent_name" json:"agent_name"`
+	Source           []string      `db:"source" json:"source"`
+	Code             []int32       `db:"code" json:"code"`
+	CodeValid        []bool        `db:"code_valid" json:"code_valid"`
+	Ip               []pqtype.Inet `db:"ip" json:"ip"`
+	UserAgent        []string      `db:"user_agent" json:"user_agent"`
+	UserID           []uuid.UUID   `db:"user_id" json:"user_id"`
+	AppNameOrPort    []string      `db:"app_name_or_port" json:"app_name_or_port"`
+	ConnectionID     []uuid.UUID   `db:"connection_id" json:"connection_id"`
+	DisconnectReason []string      `db:"disconnect_reason" json:"disconnect_reason"`
+	DisconnectTime   []time.Time   `db:"disconnect_time" json:"disconnect_time"`
 }
 
 func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
@@ -14478,7 +14478,7 @@ func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUps
 		pq.Array(arg.WorkspaceID),
 		pq.Array(arg.WorkspaceName),
 		pq.Array(arg.AgentName),
-		pq.Array(arg.Kind),
+		pq.Array(arg.Source),
 		pq.Array(arg.Code),
 		pq.Array(arg.CodeValid),
 		pq.Array(arg.Ip),
@@ -14534,120 +14534,113 @@ SELECT COUNT(*) AS count FROM (
 				)
 			ELSE true
 		END
-		-- Filter by kind
+		-- Filter by source
 		AND CASE
 			WHEN $5 :: text != '' THEN
-				kind = $5 :: connection_kind
+				source = $5 :: text
 			ELSE true
 		END
-		-- Filter agent connections by app name. Older rows have no app name,
-		-- and their kind names the app. Plain column comparisons keep the
-		-- planner's estimates accurate.
+		-- Filter by app name
 		AND CASE
 			WHEN cardinality($6 :: text[]) > 0 THEN
-				(kind IN ('ssh', 'reconnecting_pty') AND app_name_or_port = ANY($6 :: text[])) OR
-				(app_name_or_port IS NULL AND kind = ANY($7 :: connection_kind[]))
+				source = 'agent' AND app_name_or_port = ANY($6 :: text[])
 			ELSE true
 		END
-		-- Filter agent connections by excluded app name. Older rows name a known
-		-- app, so they never match.
+		-- Filter by excluded app name
 		AND CASE
-			WHEN cardinality($8 :: text[]) > 0 THEN
-				kind IN ('ssh', 'reconnecting_pty') AND app_name_or_port != ALL($8 :: text[])
+			WHEN cardinality($7 :: text[]) > 0 THEN
+				source = 'agent' AND app_name_or_port != ALL($7 :: text[])
 			ELSE true
 		END
 		-- Filter by agent app name or workspace app slug
 		AND CASE
-			WHEN $9 :: text != '' THEN
-				(kind IN ('ssh', 'reconnecting_pty') AND app_name_or_port = $9) OR
-				(app_name_or_port IS NULL AND kind = NULLIF($10 :: text, '') :: connection_kind) OR
-				(kind = 'workspace_app' AND app_name_or_port = $11 :: text)
+			WHEN $8 :: text != '' THEN
+				(source = 'agent' AND app_name_or_port = $8) OR
+				(source = 'workspace_app' AND app_name_or_port = $9 :: text)
 			ELSE true
 		END
 		-- Filter by user_id
 		AND CASE
-			WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-				user_id = $12
+			WHEN $10 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				user_id = $10
 			ELSE true
 		END
 		-- Filter by username
 		AND CASE
-			WHEN $13 :: text != '' THEN
+			WHEN $11 :: text != '' THEN
 				user_id = (
 					SELECT id FROM users
-					WHERE lower(username) = lower($13) AND deleted = false
+					WHERE lower(username) = lower($11) AND deleted = false
 				)
 			ELSE true
 		END
 		-- Filter by user_email
 		AND CASE
-			WHEN $14 :: text != '' THEN
-				users.email = $14
+			WHEN $12 :: text != '' THEN
+				users.email = $12
 			ELSE true
 		END
 		-- Filter by connected_after
 		AND CASE
-			WHEN $15 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-				connect_time >= $15
+			WHEN $13 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+				connect_time >= $13
 			ELSE true
 		END
 		-- Filter by connected_before
 		AND CASE
-			WHEN $16 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-				connect_time <= $16
+			WHEN $14 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+				connect_time <= $14
 			ELSE true
 		END
 		-- Filter by workspace_id
 		AND CASE
-			WHEN $17 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-				connection_logs.workspace_id = $17
+			WHEN $15 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				connection_logs.workspace_id = $15
 			ELSE true
 		END
 		-- Filter by connection_id
 		AND CASE
-			WHEN $18 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-				connection_logs.connection_id = $18
+			WHEN $16 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				connection_logs.connection_id = $16
 			ELSE true
 		END
 		-- Filter by whether the session has a disconnect_time
 		AND CASE
-			WHEN $19 :: text != '' THEN
-				(($19 = 'ongoing' AND disconnect_time IS NULL) OR
-				($19 = 'completed' AND disconnect_time IS NOT NULL)) AND
+			WHEN $17 :: text != '' THEN
+				(($17 = 'ongoing' AND disconnect_time IS NULL) OR
+				($17 = 'completed' AND disconnect_time IS NOT NULL)) AND
 				-- Exclude point-in-time events reported by coderd, since we
 				-- don't know their close time.
-				kind NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
+				source = 'agent'
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in
 		-- CountAuthorizedConnectionLogs
 		-- @authorize_filter
 	-- NOTE: See the CountAuditLogs LIMIT note.
-	LIMIT NULLIF($20::int, 0) + 1
+	LIMIT NULLIF($18::int, 0) + 1
 ) AS limited_count
 `
 
 type CountConnectionLogsParams struct {
-	OrganizationID      uuid.UUID        `db:"organization_id" json:"organization_id"`
-	WorkspaceOwner      string           `db:"workspace_owner" json:"workspace_owner"`
-	WorkspaceOwnerID    uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceOwnerEmail string           `db:"workspace_owner_email" json:"workspace_owner_email"`
-	Kind                string           `db:"kind" json:"kind"`
-	AppNames            []string         `db:"app_names" json:"app_names"`
-	AppKinds            []ConnectionKind `db:"app_kinds" json:"app_kinds"`
-	ExcludedAppNames    []string         `db:"excluded_app_names" json:"excluded_app_names"`
-	AppName             string           `db:"app_name" json:"app_name"`
-	AppKind             string           `db:"app_kind" json:"app_kind"`
-	AppSlug             string           `db:"app_slug" json:"app_slug"`
-	UserID              uuid.UUID        `db:"user_id" json:"user_id"`
-	Username            string           `db:"username" json:"username"`
-	UserEmail           string           `db:"user_email" json:"user_email"`
-	ConnectedAfter      time.Time        `db:"connected_after" json:"connected_after"`
-	ConnectedBefore     time.Time        `db:"connected_before" json:"connected_before"`
-	WorkspaceID         uuid.UUID        `db:"workspace_id" json:"workspace_id"`
-	ConnectionID        uuid.UUID        `db:"connection_id" json:"connection_id"`
-	Status              string           `db:"status" json:"status"`
-	CountCap            int32            `db:"count_cap" json:"count_cap"`
+	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceOwner      string    `db:"workspace_owner" json:"workspace_owner"`
+	WorkspaceOwnerID    uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceOwnerEmail string    `db:"workspace_owner_email" json:"workspace_owner_email"`
+	Source              string    `db:"source" json:"source"`
+	AppNames            []string  `db:"app_names" json:"app_names"`
+	ExcludedAppNames    []string  `db:"excluded_app_names" json:"excluded_app_names"`
+	AppName             string    `db:"app_name" json:"app_name"`
+	AppSlug             string    `db:"app_slug" json:"app_slug"`
+	UserID              uuid.UUID `db:"user_id" json:"user_id"`
+	Username            string    `db:"username" json:"username"`
+	UserEmail           string    `db:"user_email" json:"user_email"`
+	ConnectedAfter      time.Time `db:"connected_after" json:"connected_after"`
+	ConnectedBefore     time.Time `db:"connected_before" json:"connected_before"`
+	WorkspaceID         uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	ConnectionID        uuid.UUID `db:"connection_id" json:"connection_id"`
+	Status              string    `db:"status" json:"status"`
+	CountCap            int32     `db:"count_cap" json:"count_cap"`
 }
 
 func (q *sqlQuerier) CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error) {
@@ -14656,12 +14649,10 @@ func (q *sqlQuerier) CountConnectionLogs(ctx context.Context, arg CountConnectio
 		arg.WorkspaceOwner,
 		arg.WorkspaceOwnerID,
 		arg.WorkspaceOwnerEmail,
-		arg.Kind,
+		arg.Source,
 		pq.Array(arg.AppNames),
-		pq.Array(arg.AppKinds),
 		pq.Array(arg.ExcludedAppNames),
 		arg.AppName,
-		arg.AppKind,
 		arg.AppSlug,
 		arg.UserID,
 		arg.Username,
@@ -14706,7 +14697,7 @@ func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldC
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.kind, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.app_name_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason,
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.source, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.app_name_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
 	-- left joins. This user metadata is necessary for parity with the audit logs
 	-- API.
@@ -14765,89 +14756,84 @@ WHERE
 			)
 		ELSE true
 	END
-	-- Filter by kind
+	-- Filter by source
 	AND CASE
 		WHEN $5 :: text != '' THEN
-			kind = $5 :: connection_kind
+			source = $5 :: text
 		ELSE true
 	END
-	-- Filter agent connections by app name. Older rows have no app name,
-	-- and their kind names the app. Plain column comparisons keep the
-	-- planner's estimates accurate.
+	-- Filter by app name
 	AND CASE
 		WHEN cardinality($6 :: text[]) > 0 THEN
-			(kind IN ('ssh', 'reconnecting_pty') AND app_name_or_port = ANY($6 :: text[])) OR
-			(app_name_or_port IS NULL AND kind = ANY($7 :: connection_kind[]))
+			source = 'agent' AND app_name_or_port = ANY($6 :: text[])
 		ELSE true
 	END
-	-- Filter agent connections by excluded app name. Older rows name a known
-	-- app, so they never match.
+	-- Filter by excluded app name
 	AND CASE
-		WHEN cardinality($8 :: text[]) > 0 THEN
-			kind IN ('ssh', 'reconnecting_pty') AND app_name_or_port != ALL($8 :: text[])
+		WHEN cardinality($7 :: text[]) > 0 THEN
+			source = 'agent' AND app_name_or_port != ALL($7 :: text[])
 		ELSE true
 	END
 	-- Filter by agent app name or workspace app slug
 	AND CASE
-		WHEN $9 :: text != '' THEN
-			(kind IN ('ssh', 'reconnecting_pty') AND app_name_or_port = $9) OR
-			(app_name_or_port IS NULL AND kind = NULLIF($10 :: text, '') :: connection_kind) OR
-			(kind = 'workspace_app' AND app_name_or_port = $11 :: text)
+		WHEN $8 :: text != '' THEN
+			(source = 'agent' AND app_name_or_port = $8) OR
+			(source = 'workspace_app' AND app_name_or_port = $9 :: text)
 		ELSE true
 	END
 	-- Filter by user_id
 	AND CASE
-		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			user_id = $12
+		WHEN $10 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $10
 		ELSE true
 	END
 	-- Filter by username
 	AND CASE
-		WHEN $13 :: text != '' THEN
+		WHEN $11 :: text != '' THEN
 			user_id = (
 				SELECT id FROM users
-				WHERE lower(username) = lower($13) AND deleted = false
+				WHERE lower(username) = lower($11) AND deleted = false
 			)
 		ELSE true
 	END
 	-- Filter by user_email
 	AND CASE
-		WHEN $14 :: text != '' THEN
-			users.email = $14
+		WHEN $12 :: text != '' THEN
+			users.email = $12
 		ELSE true
 	END
 	-- Filter by connected_after
 	AND CASE
-		WHEN $15 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			connect_time >= $15
+		WHEN $13 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			connect_time >= $13
 		ELSE true
 	END
 	-- Filter by connected_before
 	AND CASE
-		WHEN $16 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			connect_time <= $16
+		WHEN $14 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			connect_time <= $14
 		ELSE true
 	END
 	-- Filter by workspace_id
 	AND CASE
-		WHEN $17 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			connection_logs.workspace_id = $17
+		WHEN $15 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.workspace_id = $15
 		ELSE true
 	END
 	-- Filter by connection_id
 	AND CASE
-		WHEN $18 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			connection_logs.connection_id = $18
+		WHEN $16 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.connection_id = $16
 		ELSE true
 	END
 	-- Filter by whether the session has a disconnect_time
 	AND CASE
-		WHEN $19 :: text != '' THEN
-			(($19 = 'ongoing' AND disconnect_time IS NULL) OR
-			($19 = 'completed' AND disconnect_time IS NOT NULL)) AND
+		WHEN $17 :: text != '' THEN
+			(($17 = 'ongoing' AND disconnect_time IS NULL) OR
+			($17 = 'completed' AND disconnect_time IS NOT NULL)) AND
 			-- Exclude point-in-time events reported by coderd, since we
 			-- don't know their close time.
-			kind NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
+			source = 'agent'
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
@@ -14859,33 +14845,31 @@ LIMIT
 	-- a limit of 0 means "no limit". The connection log table is unbounded
 	-- in size, and is expected to be quite large. Implement a default
 	-- limit of 100 to prevent accidental excessively large queries.
-	COALESCE(NULLIF($21 :: int, 0), 100)
+	COALESCE(NULLIF($19 :: int, 0), 100)
 OFFSET
-	$20
+	$18
 `
 
 type GetConnectionLogsOffsetParams struct {
-	OrganizationID      uuid.UUID        `db:"organization_id" json:"organization_id"`
-	WorkspaceOwner      string           `db:"workspace_owner" json:"workspace_owner"`
-	WorkspaceOwnerID    uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceOwnerEmail string           `db:"workspace_owner_email" json:"workspace_owner_email"`
-	Kind                string           `db:"kind" json:"kind"`
-	AppNames            []string         `db:"app_names" json:"app_names"`
-	AppKinds            []ConnectionKind `db:"app_kinds" json:"app_kinds"`
-	ExcludedAppNames    []string         `db:"excluded_app_names" json:"excluded_app_names"`
-	AppName             string           `db:"app_name" json:"app_name"`
-	AppKind             string           `db:"app_kind" json:"app_kind"`
-	AppSlug             string           `db:"app_slug" json:"app_slug"`
-	UserID              uuid.UUID        `db:"user_id" json:"user_id"`
-	Username            string           `db:"username" json:"username"`
-	UserEmail           string           `db:"user_email" json:"user_email"`
-	ConnectedAfter      time.Time        `db:"connected_after" json:"connected_after"`
-	ConnectedBefore     time.Time        `db:"connected_before" json:"connected_before"`
-	WorkspaceID         uuid.UUID        `db:"workspace_id" json:"workspace_id"`
-	ConnectionID        uuid.UUID        `db:"connection_id" json:"connection_id"`
-	Status              string           `db:"status" json:"status"`
-	OffsetOpt           int32            `db:"offset_opt" json:"offset_opt"`
-	LimitOpt            int32            `db:"limit_opt" json:"limit_opt"`
+	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceOwner      string    `db:"workspace_owner" json:"workspace_owner"`
+	WorkspaceOwnerID    uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceOwnerEmail string    `db:"workspace_owner_email" json:"workspace_owner_email"`
+	Source              string    `db:"source" json:"source"`
+	AppNames            []string  `db:"app_names" json:"app_names"`
+	ExcludedAppNames    []string  `db:"excluded_app_names" json:"excluded_app_names"`
+	AppName             string    `db:"app_name" json:"app_name"`
+	AppSlug             string    `db:"app_slug" json:"app_slug"`
+	UserID              uuid.UUID `db:"user_id" json:"user_id"`
+	Username            string    `db:"username" json:"username"`
+	UserEmail           string    `db:"user_email" json:"user_email"`
+	ConnectedAfter      time.Time `db:"connected_after" json:"connected_after"`
+	ConnectedBefore     time.Time `db:"connected_before" json:"connected_before"`
+	WorkspaceID         uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	ConnectionID        uuid.UUID `db:"connection_id" json:"connection_id"`
+	Status              string    `db:"status" json:"status"`
+	OffsetOpt           int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt            int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetConnectionLogsOffsetRow struct {
@@ -14914,12 +14898,10 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 		arg.WorkspaceOwner,
 		arg.WorkspaceOwnerID,
 		arg.WorkspaceOwnerEmail,
-		arg.Kind,
+		arg.Source,
 		pq.Array(arg.AppNames),
-		pq.Array(arg.AppKinds),
 		pq.Array(arg.ExcludedAppNames),
 		arg.AppName,
-		arg.AppKind,
 		arg.AppSlug,
 		arg.UserID,
 		arg.Username,
@@ -14947,7 +14929,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 			&i.ConnectionLog.WorkspaceID,
 			&i.ConnectionLog.WorkspaceName,
 			&i.ConnectionLog.AgentName,
-			&i.ConnectionLog.Kind,
+			&i.ConnectionLog.Source,
 			&i.ConnectionLog.Ip,
 			&i.ConnectionLog.Code,
 			&i.ConnectionLog.UserAgent,

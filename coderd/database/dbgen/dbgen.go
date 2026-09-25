@@ -456,7 +456,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		WorkspaceID:      takeFirst(seed.WorkspaceID, uuid.New()),
 		WorkspaceName:    takeFirst(seed.WorkspaceName, testutil.GetRandomName(t)),
 		AgentName:        takeFirst(seed.AgentName, testutil.GetRandomName(t)),
-		Kind:             takeFirst(seed.Kind, database.ConnectionKindSSH),
+		Source:           takeFirst(seed.Source, database.ConnectionSourceAgent),
 		Code: sql.NullInt32{
 			Int32: takeFirst(seed.Code.Int32, 0),
 			Valid: takeFirst(seed.Code.Valid, false),
@@ -490,6 +490,10 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		},
 		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
 	}
+	// Agents always report an app.
+	if arg.Source == database.ConnectionSourceAgent && !arg.AppNameOrPort.Valid {
+		arg.AppNameOrPort = sql.NullString{String: string(codersdk.AppFamilySSH), Valid: true}
+	}
 
 	var disconnectTime sql.NullTime
 	if arg.ConnectionStatus == database.ConnectionStatusDisconnected {
@@ -504,7 +508,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		WorkspaceID:      []uuid.UUID{arg.WorkspaceID},
 		WorkspaceName:    []string{arg.WorkspaceName},
 		AgentName:        []string{arg.AgentName},
-		Kind:             []database.ConnectionKind{arg.Kind},
+		Source:           []string{string(arg.Source)},
 		Code:             []int32{arg.Code.Int32},
 		CodeValid:        []bool{arg.Code.Valid},
 		Ip:               []pqtype.Inet{arg.IP},

@@ -135,7 +135,7 @@ func generateCountries() ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// generateConnectionTypes renders the `type` filter labels.
+// Renders the `type` filter labels.
 func generateConnectionTypes() ([]byte, error) {
 	tmpl, err := template.New("connectiontypes.tstmpl").Parse(connectionTypesTemplate)
 	if err != nil {

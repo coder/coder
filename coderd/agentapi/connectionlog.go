@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/sdk2db"
 )
 
 type ConnLogAPI struct {
@@ -40,10 +41,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	if err != nil {
 		return nil, err
 	}
-	kind, appName, err := db2sdk.ConnectionLogKindFromAgentProtoConnectionType(req.GetConnection().GetType())
-	if err != nil {
-		return nil, err
-	}
+	appName := sdk2db.ConnectionLogAppName(req.GetConnection().GetType())
 
 	var code sql.NullInt32
 	if action == database.ConnectionStatusDisconnected {
@@ -83,7 +81,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		WorkspaceID:      ws.ID,
 		WorkspaceName:    ws.Name,
 		AgentName:        a.AgentName,
-		Kind:             kind,
+		Source:           database.ConnectionSourceAgent,
 		AppNameOrPort:    sql.NullString{String: appName, Valid: true},
 		Code:             code,
 		IP:               logIP,

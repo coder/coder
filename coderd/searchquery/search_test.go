@@ -669,7 +669,7 @@ func TestSearchConnectionLogs(t *testing.T) {
 			OrganizationID:      orgID,
 			WorkspaceOwner:      "testowner",
 			WorkspaceOwnerEmail: "owner@example.com",
-			Kind:                string(database.ConnectionKindPortForwarding),
+			Source:              string(database.ConnectionSourcePortForwarding),
 			Username:            "testuser",
 			UserEmail:           "test@example.com",
 			ConnectedAfter:      time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -690,12 +690,10 @@ func TestSearchConnectionLogs(t *testing.T) {
 
 		values, _, errs := searchquery.ConnectionLogs(context.Background(), db, "type:vscode", database.APIKey{})
 		require.Len(t, errs, 0)
-		require.Empty(t, values.Kind)
+		require.Empty(t, values.Source)
 		require.Contains(t, values.AppNames, "vscode")
 		require.Contains(t, values.AppNames, "cursor")
 		require.NotContains(t, values.AppNames, "jetbrains")
-		// Older rows name the app by kind.
-		require.Equal(t, []database.ConnectionKind{database.ConnectionKindVSCode}, values.AppKinds)
 
 		values, _, errs = searchquery.ConnectionLogs(context.Background(), db, "type:unknown", database.APIKey{})
 		require.Len(t, errs, 0)
@@ -703,10 +701,10 @@ func TestSearchConnectionLogs(t *testing.T) {
 		require.Contains(t, values.ExcludedAppNames, "cursor")
 		require.NotContains(t, values.ExcludedAppNames, "tunnel")
 
-		// A web type matches its kind, not an app.
+		// A web type matches its source, not an app.
 		values, _, errs = searchquery.ConnectionLogs(context.Background(), db, "type:tunnel", database.APIKey{})
 		require.Len(t, errs, 0)
-		require.Equal(t, string(database.ConnectionKindTunnel), values.Kind)
+		require.Equal(t, string(database.ConnectionSourceTunnel), values.Source)
 		require.Empty(t, values.AppNames)
 
 		// An app name is not a family, so it is not a type.
@@ -726,11 +724,6 @@ func TestSearchConnectionLogs(t *testing.T) {
 		require.Equal(t, "code-server", values.AppSlug)
 		require.Equal(t, values.AppName, count.AppName)
 		require.Equal(t, values.AppSlug, count.AppSlug)
-		require.Empty(t, values.AppKind)
-
-		values, _, errs = searchquery.ConnectionLogs(context.Background(), db, "app:vscode", database.APIKey{})
-		require.Len(t, errs, 0)
-		require.Equal(t, "vscode", values.AppKind)
 	})
 
 	t.Run("Me", func(t *testing.T) {

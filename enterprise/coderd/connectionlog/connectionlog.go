@@ -383,7 +383,7 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		workspaceID      = make([]uuid.UUID, 0, count)
 		workspaceName    = make([]string, 0, count)
 		agentName        = make([]string, 0, count)
-		connKind         = make([]database.ConnectionKind, 0, count)
+		source           = make([]string, 0, count)
 		code             = make([]int32, 0, count)
 		codeValid        = make([]bool, 0, count)
 		ip               = make([]pqtype.Inet, 0, count)
@@ -403,7 +403,7 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		workspaceID = append(workspaceID, e.WorkspaceID)
 		workspaceName = append(workspaceName, e.WorkspaceName)
 		agentName = append(agentName, e.AgentName)
-		connKind = append(connKind, e.Kind)
+		source = append(source, string(e.Source))
 		code = append(code, e.Code.Int32)
 		codeValid = append(codeValid, e.Code.Valid)
 		ip = append(ip, e.IP)
@@ -430,7 +430,7 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		WorkspaceID:      workspaceID,
 		WorkspaceName:    workspaceName,
 		AgentName:        agentName,
-		Kind:             connKind,
+		Source:           source,
 		Code:             code,
 		CodeValid:        codeValid,
 		Ip:               ip,
