@@ -603,6 +603,45 @@ describe("FilterCombobox", () => {
 		expect(input).toHaveValue("");
 	});
 
+	it("returns from the scope switch to the owner options with the arrow keys", async () => {
+		const { user, onChange, input, filtersButton } = setup(
+			[scopedOwnerCategory],
+			{ initialValue: "owner:alice" },
+		);
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowDown}{ArrowRight}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.tab();
+		expect(
+			screen.getByRole("switch", {
+				name: "Include workspaces shared with alice",
+			}),
+		).toHaveFocus();
+		await user.keyboard("{ArrowDown}");
+		expect(input).toHaveFocus();
+		await user.keyboard("{Enter}");
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+	});
+
+	it("toggles the scope switch with Enter instead of picking an option", async () => {
+		const { user, onChange, filtersButton } = setup([scopedOwnerCategory], {
+			initialValue: "owner:alice",
+		});
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowDown}{ArrowRight}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{ArrowDown}");
+		await user.tab();
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+	});
+
 	it("clears the typed text when picking an owner from the scope flyout", async () => {
 		const { user, onChange, input } = setup([scopedOwnerCategory], {
 			skipHover: true,

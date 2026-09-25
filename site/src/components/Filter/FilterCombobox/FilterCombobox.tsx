@@ -906,6 +906,7 @@ type FlyoutScopeToggleProps = Readonly<{
 	categoryKey: string;
 	label: string;
 	checked: boolean;
+	navigatesList: boolean;
 	onToggle: (categoryKey: string) => void;
 }>;
 
@@ -913,6 +914,7 @@ function FlyoutScopeToggle({
 	categoryKey,
 	label,
 	checked,
+	navigatesList,
 	onToggle,
 }: FlyoutScopeToggleProps) {
 	const id = useId();
@@ -926,6 +928,23 @@ function FlyoutScopeToggle({
 				onCheckedChange={() => onToggle(categoryKey)}
 				// Keep focus in the combobox input so keyboard navigation continues.
 				onMouseDown={(event) => event.preventDefault()}
+				onKeyDown={(event) => {
+					if (
+						navigatesList &&
+						(event.key === "ArrowUp" || event.key === "ArrowDown")
+					) {
+						// Return focus to the combobox input; the key still reaches
+						// cmdk, which moves the highlight into the options.
+						event.currentTarget
+							.closest("[cmdk-root]")
+							?.querySelector<HTMLInputElement>("[cmdk-input]")
+							?.focus();
+						return;
+					}
+					// cmdk would otherwise take Enter to pick the highlighted
+					// option instead of toggling the switch.
+					event.stopPropagation();
+				}}
 			/>
 			{/* Zero basis so the label wraps to the panel width set by the list. */}
 			<label
@@ -1005,6 +1024,7 @@ function OptionsPanel({
 					categoryKey={category.key}
 					label={scope.label}
 					checked={scope.widened}
+					navigatesList={navigatesList}
 					onToggle={onToggleScope}
 				/>
 			)}
