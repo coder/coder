@@ -244,7 +244,7 @@ describe("AgentCreatePage prompt link", () => {
 
 		const { router } = renderPage("/agents?archived=archived&prompt=hi");
 
-		await findEnabledSendButton();
+		const promptSendButton = await findEnabledSendButton();
 		expect(router.state.location).toMatchObject({
 			search: "?archived=archived",
 			state: { prompt: "hi" },
@@ -254,10 +254,11 @@ describe("AgentCreatePage prompt link", () => {
 			pathname: "/agents",
 			search: router.state.location.search,
 		});
+		// Wait for the form to remount before sending from it.
 		await waitFor(() =>
-			expect(
-				screen.getByRole("textbox", { name: "Chat message" }),
-			).toHaveTextContent("draft the user typed earlier"),
+			expect(screen.getByRole("button", { name: "Send" })).not.toBe(
+				promptSendButton,
+			),
 		);
 
 		await user.click(await findEnabledSendButton());
