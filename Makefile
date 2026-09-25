@@ -79,6 +79,7 @@ endif
 	docs/admin/integrations/prometheus.md \
 	docs/admin/security/audit-logs.md \
 	docs/admin/setup/configuration-reference.md \
+	docs/reference/api-key-scopes.md \
 	docs/reference/cli/index.md \
 	coderd/apidoc/swagger.json \
 	coderd/rbac/object_gen.go \
@@ -180,6 +181,12 @@ _gen/bin/gensite: $(wildcard scripts/gensite/*.go) | _gen
 _gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) $(RBAC_GO_FILES) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/apikeyscopesgen
+
+# scopesdocgen reads the RBAC scope catalog to produce the API key scopes
+# reference page.
+_gen/bin/scopesdocgen: $(wildcard scripts/scopesdocgen/*.go) $(wildcard scripts/docgenenv/*.go) $(RBAC_GO_FILES) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/scopesdocgen
 
 _gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) scripts/aibridgepricesgen/curation.json | _gen
 	@mkdir -p _gen/bin
@@ -1034,6 +1041,7 @@ GEN_FILES := \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
 	docs/admin/setup/configuration-reference.md \
+	docs/reference/api-key-scopes.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
 	provisioner/terraform/testdata/generation.sha1 \
@@ -1132,6 +1140,7 @@ gen/mark-fresh:
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
 		docs/admin/setup/configuration-reference.md \
+		docs/reference/api-key-scopes.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
 		site/e2e/provisionerGenerated.ts \
@@ -1370,6 +1379,13 @@ docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/queri
 docs/admin/setup/configuration-reference.md: node_modules/.installed $(wildcard scripts/configdocgen/*.go) $(wildcard codersdk/*.go) _gen/bin/configdocgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
 		_gen/bin/configdocgen --out="$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+
+docs/reference/api-key-scopes.md: node_modules/.installed $(wildcard scripts/scopesdocgen/*.go) $(RBAC_GO_FILES) docs/manifest.json _gen/bin/scopesdocgen | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
+		_gen/bin/scopesdocgen --out="$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
