@@ -166,7 +166,7 @@ describe("FilterCombobox", () => {
 		expect(other).not.toHaveBeenCalled();
 	});
 
-	it("shows placeholder rows until hideable categories load", async () => {
+	it("announces loading until hideable categories load, then offers them", async () => {
 		const templates = heldSearch(
 			{
 				key: "template",
@@ -176,28 +176,61 @@ describe("FilterCombobox", () => {
 			},
 			"",
 		);
-		const { user, filtersButton } = setup([ownerCategory, templates.category]);
+		const { user, onChange, filtersButton } = setup([
+			templates.category,
+			ownerCategory,
+		]);
 
 		await user.click(filtersButton);
-		expect(
-			screen.queryByRole("option", { name: "Owner" }),
-		).not.toBeInTheDocument();
+		expect(screen.getByRole("status")).toHaveTextContent("Loading filters");
 		await act(async () =>
 			templates.resolve([
 				{ label: "docker", value: "docker" },
 				{ label: "k8s", value: "k8s" },
 			]),
 		);
+		await screen.findByRole("option", { name: "Template" });
+		await user.keyboard("{Home}{ArrowRight}");
+		await user.click(await screen.findByRole("option", { name: "k8s" }));
 
-		expect(
-			await screen.findByRole("option", { name: "Template" }),
-		).toBeInTheDocument();
-		expect(screen.getByRole("option", { name: "Owner" })).toBeInTheDocument();
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("template:k8s"),
+		);
 	});
 
-	it("lists a hideable category whose options failed to load", async () => {
-		const { user, filtersButton } = setup([
+	it("matches typed text to a hideable category while its options load", async () => {
+		const templates = heldSearch(
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => [],
+			},
+			"",
+		);
+		const { user, onChange, input } = setup([
 			ownerCategory,
+			templates.category,
+		]);
+
+		await user.click(input);
+		await user.type(input, "tem");
+		await user.keyboard("{ArrowDown}{Enter}");
+		await act(async () =>
+			templates.resolve([
+				{ label: "docker", value: "docker" },
+				{ label: "k8s", value: "k8s" },
+			]),
+		);
+		await user.click(await screen.findByRole("option", { name: "k8s" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("template:k8s"),
+		);
+	});
+
+	it("announces the error of a hideable category whose options failed to load", async () => {
+		const { user, filtersButton } = setup([
 			{
 				key: "template",
 				label: "Template",
@@ -206,13 +239,18 @@ describe("FilterCombobox", () => {
 					throw new Error("failed");
 				},
 			},
+			ownerCategory,
 		]);
 
 		await user.click(filtersButton);
+		await screen.findByRole("option", { name: "Template" });
+		await user.keyboard("{Home}{ArrowRight}");
 
-		expect(
-			await screen.findByRole("option", { name: "Template" }),
-		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Couldn't load Template options",
+			),
+		);
 	});
 
 	it("ignores hidden options for suggestions but keeps hidden keys prefix-searchable", async () => {
