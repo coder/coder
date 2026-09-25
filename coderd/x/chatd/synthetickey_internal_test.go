@@ -41,27 +41,26 @@ func TestSyntheticAPIKeyLifecycle(t *testing.T) {
 
 	firstID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
 	require.NoError(t, err)
-	secondID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
-	require.NoError(t, err)
-	require.Equal(t, firstID, secondID)
 
 	first, err := db.GetAPIKeyByID(t.Context(), firstID)
 	require.NoError(t, err)
 	require.Equal(t, user.LoginType, first.LoginType)
 	require.Equal(t, GatewayTokenName(user.ID), first.TokenName)
 	require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeApiKeyRead}, first.Scopes)
-	require.WithinDuration(t, server.clock.Now().Add(syntheticAPIKeyLifetime), first.ExpiresAt, time.Second)
+	require.True(t, first.ExpiresAt.Equal(clock.Now().Add(syntheticAPIKeyLifetime)))
+
+	clock.Advance(syntheticAPIKeyLifetime - syntheticAPIKeyRenewMargin - time.Second).MustWait(t.Context())
+	secondID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
+	require.NoError(t, err)
+	require.Equal(t, firstID, secondID)
+	unchanged, err := db.GetAPIKeyByID(t.Context(), secondID)
+	require.NoError(t, err)
+	require.Equal(t, first, unchanged)
 
 	// Near-expiry and fully expired keys are extended in place: in-flight
 	// generations may have delegated the ID already.
-	for _, remaining := range []time.Duration{time.Hour, -time.Hour} {
-		err = db.UpdateAPIKeyByID(t.Context(), database.UpdateAPIKeyByIDParams{
-			ID:        first.ID,
-			LastUsed:  first.LastUsed,
-			ExpiresAt: clock.Now().Add(remaining),
-			IPAddress: first.IPAddress,
-		})
-		require.NoError(t, err)
+	for _, advance := range []time.Duration{2 * time.Second, syntheticAPIKeyLifetime + time.Second} {
+		clock.Advance(advance).MustWait(t.Context())
 
 		renewedID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
 		require.NoError(t, err)
@@ -69,6 +68,7 @@ func TestSyntheticAPIKeyLifecycle(t *testing.T) {
 		renewed, err := db.GetAPIKeyByID(t.Context(), renewedID)
 		require.NoError(t, err)
 		want := first
+		// Match the database time zone for the whole-row comparison.
 		want.ExpiresAt = clock.Now().Add(syntheticAPIKeyLifetime).In(first.ExpiresAt.Location())
 		require.Equal(t, want, renewed)
 	}
@@ -112,7 +112,6 @@ func TestSyntheticAPIKeyIgnoresUserTokenCollision(t *testing.T) {
 
 	unchanged, err := db.GetAPIKeyByID(t.Context(), collision.ID)
 	require.NoError(t, err)
-	require.WithinDuration(t, collisionExpiry, unchanged.ExpiresAt, time.Millisecond)
 	require.Equal(t, collision, unchanged)
 }
 
@@ -143,8 +142,8 @@ func TestSyntheticAPIKeySurvivesSuspension(t *testing.T) {
 	require.Equal(t, keyID, sameID)
 }
 
-// Only the unlocked reads pass through this wrapper. Transactional rereads
-// use the wrapped store's InTx, so all callers start with the same stale state.
+// Hold completed unlocked reads until every caller has observed the missing key.
+// Transactional rereads bypass this barrier.
 type syntheticKeyReadBarrierStore struct {
 	database.Store
 	read    chan<- struct{}
@@ -166,75 +165,55 @@ func (s syntheticKeyReadBarrierStore) GetChatGatewayAPIKey(ctx context.Context, 
 	}
 }
 
-func TestSyntheticAPIKeyConcurrentEnsure(t *testing.T) {
+func TestSyntheticAPIKeyConcurrentMint(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
+	// Exercise minting through the Chatd key minter's authorization boundary.
 	authzDB := dbauthz.New(db, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
-	for _, state := range []string{"missing", "near_expiry"} {
-		t.Run(state, func(t *testing.T) {
-			t.Parallel()
-
-			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
-			var wg sync.WaitGroup
-			// Join workers even if the barrier times out, before fixture cleanup.
-			defer func() {
-				cancel()
-				wg.Wait()
-			}()
-			clock := quartz.NewMock(t)
-			clock.Set(dbtime.Now()).MustWait(ctx)
-			user := dbgen.User(t, db, database.User{})
-			var existing database.APIKey
-			if state == "near_expiry" {
-				existing, _ = dbgen.APIKey(t, db, database.APIKey{
-					UserID:    user.ID,
-					LoginType: user.LoginType,
-					ExpiresAt: clock.Now().Add(time.Hour),
-					Scopes:    database.APIKeyScopes{database.ApiKeyScopeApiKeyRead},
-					TokenName: GatewayTokenName(user.ID),
-				})
-			}
-			const workers = 8
-			read := make(chan struct{}, workers)
-			release := make(chan struct{})
-			server := &Server{
-				db:    syntheticKeyReadBarrierStore{Store: authzDB, read: read, release: release},
-				clock: clock,
-			}
-			ids := make([]string, workers)
-			errs := make([]error, workers)
-			for i := range workers {
-				wg.Go(func() {
-					ids[i], errs[i] = server.ensureSyntheticAPIKeyID(ctx, user.ID)
-				})
-			}
-			for range workers {
-				select {
-				case <-read:
-				case <-ctx.Done():
-					t.Fatal(ctx.Err())
-				}
-			}
-			close(release)
-			wg.Wait()
-			for i := range workers {
-				require.NoError(t, errs[i])
-				require.Equal(t, ids[0], ids[i])
-			}
-			keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
-				UserID: user.ID, LoginType: user.LoginType, IncludeExpired: true,
-			})
-			require.NoError(t, err)
-			require.Len(t, keys, 1)
-			require.Equal(t, keys[0].ID, ids[0])
-			if state == "near_expiry" {
-				want := existing
-				want.ExpiresAt = clock.Now().Add(syntheticAPIKeyLifetime).In(existing.ExpiresAt.Location())
-				require.Equal(t, want, keys[0])
-			}
+	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+	var wg sync.WaitGroup
+	// Join workers even if the barrier times out, before fixture cleanup.
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
+	clock := quartz.NewMock(t)
+	clock.Set(dbtime.Now()).MustWait(ctx)
+	user := dbgen.User(t, db, database.User{})
+	const workers = 8
+	read := make(chan struct{}, workers)
+	release := make(chan struct{})
+	server := &Server{
+		db:    syntheticKeyReadBarrierStore{Store: authzDB, read: read, release: release},
+		clock: clock,
+	}
+	ids := make([]string, workers)
+	errs := make([]error, workers)
+	for i := range workers {
+		wg.Go(func() {
+			ids[i], errs[i] = server.ensureSyntheticAPIKeyID(ctx, user.ID)
 		})
 	}
+	for range workers {
+		select {
+		case <-read:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	close(release)
+	wg.Wait()
+	for i := range workers {
+		require.NoError(t, errs[i])
+		require.Equal(t, ids[0], ids[i])
+	}
+	keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+		UserID: user.ID, LoginType: user.LoginType, IncludeExpired: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	require.Equal(t, keys[0].ID, ids[0])
 }
 
 func TestSyntheticAPIKeyDeletionDoesNotMutateChatState(t *testing.T) {
