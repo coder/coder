@@ -2341,51 +2341,66 @@ describe("FilterCombobox", () => {
 		},
 	);
 
-	it("highlights a category row after the caller clears the chip that listed the highlighted row", async () => {
-		const user = userEvent.setup();
-		const onChange = vi.fn();
-		const Harness = () => {
-			const [value, setValue] = useState("template:docker");
-			return (
-				<>
-					<FilterCombobox
-						value={value}
-						onChange={(next) => {
-							onChange(next);
-							setValue(next);
-						}}
-						categories={[
-							ownerCategory,
-							{
-								key: "template",
-								label: "Template",
-								hideWhenSingleOption: true,
-								getOptions: async () => [{ label: "docker", value: "docker" }],
-							},
-						]}
-						placeholder="Search and filter"
-					/>
-					<button type="button" onClick={() => setValue("")}>
-						Reset
-					</button>
-				</>
+	it.each(["input", "Filters"])(
+		"highlights a category row after the caller clears the chip that listed the highlighted row and the %s reopens the menu",
+		async (opener) => {
+			const user = userEvent.setup();
+			const onChange = vi.fn();
+			const Harness = () => {
+				const [value, setValue] = useState("template:docker");
+				return (
+					<>
+						<FilterCombobox
+							value={value}
+							onChange={(next) => {
+								onChange(next);
+								setValue(next);
+							}}
+							categories={[
+								ownerCategory,
+								{
+									key: "template",
+									label: "Template",
+									hideWhenSingleOption: true,
+									getOptions: async () => [
+										{ label: "docker", value: "docker" },
+									],
+								},
+							]}
+							placeholder="Search and filter"
+						/>
+						{/* Keeps focus where it is, like a caller update from elsewhere. */}
+						<button
+							type="button"
+							onMouseDown={(event) => event.preventDefault()}
+							onClick={() => setValue("")}
+						>
+							Reset
+						</button>
+					</>
+				);
+			};
+			render(<Harness />);
+			const input = screen.getByRole("combobox", { name: "Search and filter" });
+
+			await user.click(input);
+			await screen.findByRole("option", { name: "Template" });
+			await user.keyboard("{ArrowDown}{Escape}");
+			await user.click(screen.getByRole("button", { name: "Reset" }));
+			if (opener === "input") {
+				act(() => input.blur());
+				await user.click(input);
+			} else {
+				await user.click(screen.getByRole("button", { name: "Filters" }));
+			}
+			await user.keyboard("{Enter}");
+			await user.click(await screen.findByRole("option", { name: "alice" }));
+
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
 			);
-		};
-		render(<Harness />);
-		const input = screen.getByRole("combobox", { name: "Search and filter" });
-
-		await user.click(input);
-		await screen.findByRole("option", { name: "Template" });
-		await user.keyboard("{ArrowDown}{Escape}");
-		await user.click(screen.getByRole("button", { name: "Reset" }));
-		await user.click(input);
-		await user.keyboard("{Enter}");
-		await user.click(await screen.findByRole("option", { name: "alice" }));
-
-		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
-		);
-	});
+		},
+	);
 
 	it("moves focus to the input when a focused Clear all is clicked", async () => {
 		const { user, input } = setup(
