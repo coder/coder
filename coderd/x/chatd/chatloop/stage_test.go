@@ -232,14 +232,13 @@ func TestStageTracerStart(t *testing.T) {
 	})
 }
 
-func TestStageTracerStartRoot(t *testing.T) {
+func TestStageTracerStartRootAtIgnoresParent(t *testing.T) {
 	t.Parallel()
 	fixture := newStageFixture(t)
 
 	outerCtx, outer := fixture.tracer.Start(t.Context(), chatloop.StageGenerationStep)
-	_, root := fixture.tracer.StartRoot(outerCtx, chatloop.StageChatTurn,
-		[]trace.Link{{SpanContext: trace.SpanContextFromContext(outerCtx)}},
-	)
+	_, root := fixture.tracer.StartRootAt(outerCtx, chatloop.StageChatTurn, time.Time{})
+	fixture.clock.Advance(time.Second)
 	root.End(nil)
 	outer.End(nil)
 
@@ -249,8 +248,8 @@ func TestStageTracerStartRoot(t *testing.T) {
 	require.Equal(t, string(chatloop.StageChatTurn), turn.Name())
 	require.False(t, turn.Parent().IsValid())
 	require.NotEqual(t, step.SpanContext().TraceID(), turn.SpanContext().TraceID())
-	require.Len(t, turn.Links(), 1)
-	require.Equal(t, step.SpanContext().SpanID(), turn.Links()[0].SpanContext.SpanID())
+	// A zero start opens the span now.
+	require.Equal(t, time.Second, fixture.spanDuration(t, chatloop.StageChatTurn))
 }
 
 func TestStageTracerStartRootAt(t *testing.T) {
@@ -258,7 +257,7 @@ func TestStageTracerStartRootAt(t *testing.T) {
 	fixture := newStageFixture(t)
 
 	start := fixture.clock.Now().Add(-45 * time.Second)
-	turnCtx, turn := fixture.tracer.StartRootAt(t.Context(), chatloop.StageChatTurn, start, nil)
+	turnCtx, turn := fixture.tracer.StartRootAt(t.Context(), chatloop.StageChatTurn, start)
 	fixture.tracer.Record(turnCtx, chatloop.StageAcquisition, chatloop.StageModel{}, start, start.Add(time.Second), nil)
 	turn.End(nil)
 
@@ -302,7 +301,7 @@ func TestStageTracerStartRootAtFutureStart(t *testing.T) {
 
 		// A start stamped ahead of this replica's clock begins now and
 		// is counted, so cross-host skew stays visible.
-		_, turn := fixture.tracer.StartRootAt(t.Context(), chatloop.StageChatTurn, fixture.clock.Now().Add(time.Minute), nil)
+		_, turn := fixture.tracer.StartRootAt(t.Context(), chatloop.StageChatTurn, fixture.clock.Now().Add(time.Minute))
 		fixture.clock.Advance(2 * time.Second)
 		turn.End(nil)
 
@@ -317,7 +316,7 @@ func TestStageTracerStartRootAtFutureStart(t *testing.T) {
 
 		// A span-only stage has no observation to adjust, so it adds no
 		// anomaly.
-		_, step := fixture.tracer.StartRootAt(t.Context(), chatloop.StageGenerationStep, fixture.clock.Now().Add(time.Minute), nil)
+		_, step := fixture.tracer.StartRootAt(t.Context(), chatloop.StageGenerationStep, fixture.clock.Now().Add(time.Minute))
 		fixture.clock.Advance(2 * time.Second)
 		step.End(nil)
 
@@ -331,7 +330,7 @@ func TestStageTracerDetachedScope(t *testing.T) {
 	t.Parallel()
 	fixture := newStageFixture(t)
 
-	turnCtx, turn := fixture.tracer.StartRoot(t.Context(), chatloop.StageChatTurn, nil)
+	turnCtx, turn := fixture.tracer.StartRootAt(t.Context(), chatloop.StageChatTurn, time.Time{})
 	// Background work detaches from the turn by stripping the span
 	// and marking the context background scoped.
 	detachedCtx := chatloop.ContextWithScope(
@@ -366,7 +365,7 @@ func TestStageTracerChatKind(t *testing.T) {
 
 		ctx := chatloop.ContextWithChatKind(t.Context(), chatloop.ChatKindSubagent)
 		ctx = chatloop.ContextWithOrganization(ctx, "acme")
-		turnCtx, turn := fixture.tracer.StartRoot(ctx, chatloop.StageChatTurn, nil)
+		turnCtx, turn := fixture.tracer.StartRootAt(ctx, chatloop.StageChatTurn, time.Time{})
 		stepCtx, step := fixture.tracer.Start(turnCtx, chatloop.StageGenerationStep)
 		start := fixture.clock.Now().Add(-time.Second)
 		fixture.tracer.Record(stepCtx, chatloop.StageToolCall, chatloop.StageModel{}, start, fixture.clock.Now(), nil)
@@ -397,11 +396,11 @@ func TestStageTracerChatKind(t *testing.T) {
 
 		// RecordAs sets the turn scope on a context that carries none.
 		start := fixture.clock.Now().Add(-time.Second)
-		fixture.tracer.RecordAs(t.Context(), chatloop.StageCapacityWait, chatloop.ScopeTurn,
+		fixture.tracer.RecordAs(t.Context(), chatloop.StageQueueWait, chatloop.ScopeTurn,
 			chatloop.StageModel{}, start, fixture.clock.Now(), nil)
 
 		require.Equal(t, map[stageKey]uint64{
-			{stage: chatloop.StageCapacityWait, scope: chatloop.ScopeTurn}: 1,
+			{stage: chatloop.StageQueueWait, scope: chatloop.ScopeTurn}: 1,
 		}, fixture.stageObservations(t))
 
 		ended := fixture.spans.Ended()
@@ -411,6 +410,7 @@ func TestStageTracerChatKind(t *testing.T) {
 		for _, attr := range ended[0].Attributes() {
 			require.NotEqual(t, chatloop.AttrChatKind, string(attr.Key))
 			require.NotEqual(t, chatloop.AttrOrganizationName, string(attr.Key))
+			require.NotEqual(t, chatloop.AttrProvider, string(attr.Key))
 			require.NotEqual(t, chatloop.AttrModel, string(attr.Key))
 			require.NotEqual(t, chatloop.AttrReasoningEffort, string(attr.Key))
 		}
@@ -420,14 +420,14 @@ func TestStageTracerChatKind(t *testing.T) {
 func TestStageTracerModelLabels(t *testing.T) {
 	t.Parallel()
 
-	model := chatloop.StageModel{ProviderType: "bedrock", Model: "claude-sonnet-4-5", Effort: "high"}
+	model := chatloop.StageModel{Provider: "anthropic", ProviderType: "bedrock", Model: "claude-sonnet-4-5", Effort: "high"}
 
 	t.Run("SetModelLabelsSpanAndModelDuration", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageFixture(t)
 
 		ctx := chatloop.ContextWithChatKind(t.Context(), chatloop.ChatKindRoot)
-		turnCtx, turn := fixture.tracer.StartRoot(ctx, chatloop.StageChatTurn, nil)
+		turnCtx, turn := fixture.tracer.StartRootAt(ctx, chatloop.StageChatTurn, time.Time{})
 		stepCtx, step := fixture.tracer.Start(turnCtx, chatloop.StageGenerationStep)
 		step.SetModel(model)
 		_, stream := fixture.tracer.Start(stepCtx, chatloop.StageStream)
@@ -457,6 +457,8 @@ func TestStageTracerModelLabels(t *testing.T) {
 			}
 			sawStep = true
 			require.Contains(t, span.Attributes(),
+				attribute.String(chatloop.AttrProvider, model.Provider))
+			require.Contains(t, span.Attributes(),
 				attribute.String(chatloop.AttrProviderType, model.ProviderType))
 			require.Contains(t, span.Attributes(),
 				attribute.String(chatloop.AttrModel, model.Model))
@@ -485,6 +487,8 @@ func TestStageTracerModelLabels(t *testing.T) {
 
 		ended := fixture.spans.Ended()
 		require.Len(t, ended, 1)
+		require.Contains(t, ended[0].Attributes(),
+			attribute.String(chatloop.AttrProvider, model.Provider))
 		require.Contains(t, ended[0].Attributes(),
 			attribute.String(chatloop.AttrProviderType, model.ProviderType))
 		require.Contains(t, ended[0].Attributes(),
@@ -660,14 +664,14 @@ func TestStageMembership(t *testing.T) {
 	}{
 		{stage: chatloop.StageChatTurn, observed: true},
 		{stage: chatloop.StageQueueWait, observed: true},
-		{stage: chatloop.StageCapacityWait, observed: true},
 		{stage: chatloop.StageAcquisition, observed: true},
 		{stage: chatloop.StageGenerationStep},
 		{stage: chatloop.StagePrepare},
 		{stage: chatloop.StageMCPConnect, observed: true},
 		{stage: chatloop.StageProviderAttempt, observed: true, model: true},
 		{stage: chatloop.StageStream, observed: true, model: true},
-		{stage: chatloop.StageTimeToFirstToken, observed: true, model: true},
+		// Per-model time to first token is ttft_seconds.
+		{stage: chatloop.StageTimeToFirstToken, observed: true},
 		{stage: chatloop.StageThinking},
 		{stage: chatloop.StageToolCall, observed: true},
 		{stage: chatloop.StageCommit, observed: true},
@@ -702,7 +706,7 @@ func TestStageMetricsEnabled(t *testing.T) {
 	t.Parallel()
 
 	record := func(m *chatloop.Metrics) {
-		m.RecordStageDuration(chatloop.StageTimeToFirstToken, chatloop.ScopeTurn, chatloop.ChatKindRoot,
+		m.RecordStageDuration(chatloop.StageStream, chatloop.ScopeTurn, chatloop.ChatKindRoot,
 			chatloop.StageModel{ProviderType: "p", Model: "m"}, time.Second)
 		m.RecordStageDuration(chatloop.StageCommit, chatloop.ScopeTurn, chatloop.ChatKindRoot, chatloop.StageModel{}, -time.Second)
 		// Span-only stages are filtered before the elapsed check, so this
@@ -749,7 +753,7 @@ func TestStageTracerWithoutProvider(t *testing.T) {
 	clock := quartz.NewMock(t)
 	tracer := chatloop.NewStageTracer(nil, newStageMetrics(registry), chatloop.WithClock(clock))
 
-	turnCtx, turn := tracer.StartRoot(t.Context(), chatloop.StageChatTurn, nil)
+	turnCtx, turn := tracer.StartRootAt(t.Context(), chatloop.StageChatTurn, time.Time{})
 	require.False(t, turn.SpanContext().IsValid())
 	stepCtx, step := tracer.Start(turnCtx, chatloop.StageGenerationStep)
 	tracer.Record(stepCtx, chatloop.StageToolCall, chatloop.StageModel{}, clock.Now().Add(-time.Second), clock.Now(), nil)

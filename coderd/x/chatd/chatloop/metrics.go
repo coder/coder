@@ -53,7 +53,6 @@ const (
 var observedStages = map[Stage]struct{}{
 	StageChatTurn:         {},
 	StageQueueWait:        {},
-	StageCapacityWait:     {},
 	StageAcquisition:      {},
 	StageMCPConnect:       {},
 	StageStream:           {},
@@ -66,11 +65,11 @@ var observedStages = map[Stage]struct{}{
 
 // modelStages is the set of stages observed into
 // ModelStageDurationSeconds: the stages whose duration is the
-// provider's work on a model.
+// provider's work on a model. Per-model time to first token is
+// TTFTSeconds.
 var modelStages = map[Stage]struct{}{
-	StageTimeToFirstToken: {},
-	StageStream:           {},
-	StageProviderAttempt:  {},
+	StageStream:          {},
+	StageProviderAttempt: {},
 }
 
 // stageDurationBuckets are the edges of both stage histograms, dense
@@ -165,21 +164,21 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "ttft_seconds",
-			Help:      "Time-to-first-token: wall time from LLM request to first streamed chunk. The time_to_first_token stage of model_stage_duration_seconds measures the same window with coarser buckets and is registered only with the chat-stage-metrics experiment.",
+			Help:      "Time-to-first-token: wall time from LLM request to first streamed chunk. The time_to_first_token stage of stage_duration_seconds measures the same window without a model label and is registered only with the chat-stage-metrics experiment.",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		}, []string{"provider", "model"}),
 		StageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "stage_duration_seconds",
-			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap, so this is a stage-time profile, not a partition of the turn. scope separates stages inside a chat turn from detached background work; chat_kind is empty without a known chat. Observed: chat_turn, queue_wait, capacity_wait, acquisition, mcp_connect, stream, time_to_first_token, provider_attempt, tool_call, commit, retry_backoff; other stages are span-only. Registered only with the chat-stage-metrics experiment.",
+			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap, so this is a stage-time profile, not a partition of the turn. scope separates latency attributable to a prompt (stages inside a chat turn, and queue_wait before it) from detached background work; chat_kind is empty without a known chat. Observed: chat_turn, queue_wait, acquisition, mcp_connect, stream, time_to_first_token, provider_attempt, tool_call, commit, retry_backoff; other stages are span-only. Registered only with the chat-stage-metrics experiment.",
 			Buckets:   stageDurationBuckets,
 		}, []string{"stage", "scope", "chat_kind"}),
 		ModelStageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "model_stage_duration_seconds",
-			Help:      "Wall time of the stages that are a provider's work on a model: time_to_first_token (request open to first content part, successful windows only), stream (open to close), and provider_attempt (one HTTP round trip, closed on response headers). Observed only for turn-scoped stages, which are also observed on stage_duration_seconds; background-scoped model stages appear on stage_duration_seconds only. time_to_first_token measures the same window as ttft_seconds, which has finer buckets and is always registered. provider_type is the configured AI provider type (for example bedrock), not the wire protocol other chatd metrics report as provider. Registered only with the chat-stage-metrics experiment.",
+			Help:      "Wall time of the stages that are a provider's work on a model: stream (open to close) and provider_attempt (one HTTP round trip, closed on response headers). Time to first token per model is ttft_seconds. Observed only for turn-scoped stages, which are also observed on stage_duration_seconds; background-scoped model stages appear on stage_duration_seconds only. provider_type is the configured AI provider type (for example bedrock), not the wire protocol other chatd metrics report as provider. Registered only with the chat-stage-metrics experiment.",
 			Buckets:   stageDurationBuckets,
 		}, []string{"stage", "provider_type", "chat_kind", "model"}),
 		StageAnomaliesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
