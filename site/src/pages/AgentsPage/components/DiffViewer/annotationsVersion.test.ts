@@ -13,7 +13,6 @@ const annotation = (
 
 describe("annotationsVersion", () => {
 	it("is 0 when there are no annotations", () => {
-		expect(annotationsVersion(undefined)).toBe(0);
 		expect(annotationsVersion([])).toBe(0);
 	});
 

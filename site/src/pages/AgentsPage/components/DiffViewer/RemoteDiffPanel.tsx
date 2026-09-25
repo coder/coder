@@ -59,8 +59,8 @@ const BranchCopyButton: React.FC<{ branch: string }> = ({ branch }) => {
 
 type RemoteDiffPanelProps = {
 	chatId: string;
-	isExpanded?: boolean;
-	chatInputRef?: React.RefObject<ChatMessageInputRef | null>;
+	isExpanded: boolean;
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
 	diffStatus?: TypesGen.ChatDiffStatus;
 };

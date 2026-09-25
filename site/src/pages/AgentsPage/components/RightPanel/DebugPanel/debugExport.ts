@@ -83,11 +83,11 @@ export const buildDebugExportBlob = (payload: ChatDebugExport): Blob => {
 export const debugExportFilename = ({
 	chatId,
 	runId,
-	exportedAt = new Date(),
+	exportedAt,
 }: {
 	chatId: string;
 	runId?: string;
-	exportedAt?: Date;
+	exportedAt: Date;
 }): string => {
 	const timestamp = exportedAt.toISOString().replace(/[:.]/g, "-");
 	const idPrefix = (runId ?? chatId).slice(0, DEBUG_ID_PREFIX_LENGTH);
