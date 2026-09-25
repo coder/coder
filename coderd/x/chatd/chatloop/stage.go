@@ -49,7 +49,6 @@ const (
 	AttrToolName          = "tool_name"
 	AttrHTTPStatusCode    = "http_status_code"
 	AttrHTTPMethod        = "http_method"
-	AttrHTTPHost          = "http_host"
 	AttrCompactionSource  = "compaction_source"
 	AttrScope             = "scope"
 )
@@ -82,8 +81,8 @@ const tracerName = "chatd"
 
 // StageTracer emits a span per chat lifecycle stage and, for stages in
 // observedStages, a duration observation computed from the same start
-// and end. Span timestamps and durations both come from the tracer's
-// clock.
+// and end. Live spans take their timestamps and durations from the
+// tracer's clock; Record uses the caller's timestamps for both.
 //
 // A nil *StageTracer is usable and discards everything.
 type StageTracer struct {
@@ -122,12 +121,6 @@ func NewStageTracer(provider trace.TracerProvider, metrics *Metrics, opts ...Sta
 	return t
 }
 
-// NopStageTracer returns a stage tracer that discards spans and
-// metrics.
-func NopStageTracer() *StageTracer {
-	return NewStageTracer(nil, nil)
-}
-
 func (t *StageTracer) otelTracer() trace.Tracer {
 	if t == nil || t.tracer == nil {
 		return noop.NewTracerProvider().Tracer(tracerName)
@@ -150,8 +143,9 @@ func (t *StageTracer) Now() time.Time {
 // (Model.Provider()). ProviderType is the configured type of the AI
 // provider the model config points at, such as "bedrock"; it differs
 // from Provider for Bedrock and the OpenAI-compatible provider types.
-// Effort is the effective reasoning effort sent to the provider, empty
-// when the model config sets none.
+// Effort is the Coder-scale reasoning effort resolved from the request
+// and the model config's default and max, before provider-specific
+// mapping; it is empty when none resolves.
 type StageModel struct {
 	Provider     string
 	ProviderType string
@@ -299,7 +293,7 @@ func (t *StageTracer) startSpan(
 	case start.After(now):
 		// A start ahead of this replica's clock was stamped by another
 		// host; the span begins now so its window is not negative.
-		t.recordStageAnomaly(stage, StageAnomalyFutureStart)
+		t.recordAnomalyIfObserved(stage, StageAnomalyFutureStart)
 		start = now
 	}
 	opts = append(opts, trace.WithTimestamp(start))
@@ -405,28 +399,15 @@ func (t *StageTracer) Record(
 	err error,
 	attrs ...attribute.KeyValue,
 ) {
-	t.RecordAs(ctx, stage, scopeFromContext(ctx), model, start, end, err, attrs...)
-}
-
-// RecordAs is Record with an explicit scope, for stages recorded on a
-// context that does not carry the scope they belong to.
-func (t *StageTracer) RecordAs(
-	ctx context.Context,
-	stage Stage,
-	scope Scope,
-	model StageModel,
-	start, end time.Time,
-	err error,
-	attrs ...attribute.KeyValue,
-) {
 	if start.IsZero() || end.IsZero() {
-		t.recordStageAnomaly(stage, StageAnomalyMissingTimestamp)
+		t.recordAnomalyIfObserved(stage, StageAnomalyMissingTimestamp)
 		return
 	}
 	if end.Before(start) {
-		t.recordStageAnomaly(stage, StageAnomalyInvertedWindow)
+		t.recordAnomalyIfObserved(stage, StageAnomalyInvertedWindow)
 		return
 	}
+	scope := scopeFromContext(ctx)
 	chatKind := chatKindFromContext(ctx)
 	organization := organizationFromContext(ctx)
 	_, span := t.otelTracer().Start(ctx, string(stage),
@@ -452,9 +433,9 @@ func (t *StageTracer) RecordAnomaly(reason StageAnomaly) {
 	t.metrics.RecordStageAnomaly(reason)
 }
 
-// recordStageAnomaly counts reason only when stage is observed, since
-// span-only stages have no observation to drop or adjust.
-func (t *StageTracer) recordStageAnomaly(stage Stage, reason StageAnomaly) {
+// recordAnomalyIfObserved counts reason only when stage is observed,
+// since span-only stages have no observation to drop or adjust.
+func (t *StageTracer) recordAnomalyIfObserved(stage Stage, reason StageAnomaly) {
 	if _, ok := observedStages[stage]; !ok {
 		return
 	}

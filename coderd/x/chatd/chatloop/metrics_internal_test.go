@@ -2,6 +2,7 @@ package chatloop
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,11 +43,9 @@ func metricHelp(t *testing.T, registry *prometheus.Registry, name string) string
 	return ""
 }
 
-// requireNamesWord fails unless help contains word as a whole word.
-func requireNamesWord(t *testing.T, help, word string) {
-	t.Helper()
-	require.Regexp(t, regexp.MustCompile(`\b`+regexp.QuoteMeta(word)+`\b`), help,
-		"help does not name %q", word)
+// namesWord reports whether help contains word as a whole word.
+func namesWord(help, word string) bool {
+	return regexp.MustCompile(`\b` + regexp.QuoteMeta(word) + `\b`).MatchString(help)
 }
 
 // TestStageSetsConsistent checks that the stage sets agree with each
@@ -63,9 +62,23 @@ func TestStageSetsConsistent(t *testing.T) {
 
 	registry := prometheus.NewRegistry()
 	metrics := NewMetricsWithOptions(registry, MetricsOptions{StageMetrics: true})
-	metrics.RecordStageDuration(StageCommit, ScopeTurn, ChatKindRoot, StageModel{}, time.Second)
+	metrics.RecordStageDuration(StageStream, ScopeTurn, ChatKindRoot, StageModel{ProviderType: "p", Model: "m"}, time.Second)
+
+	// The stage family help lists exactly the observed stages.
 	help := metricHelp(t, registry, "coderd_chatd_stage_duration_seconds")
-	for stage := range observedStages {
-		requireNamesWord(t, help, string(stage))
+	match := regexp.MustCompile(`Observed: ([a-z_, ]+); other stages are span-only`).FindStringSubmatch(help)
+	require.Len(t, match, 2, "stage help has no observed list")
+	listed := map[Stage]struct{}{}
+	for _, name := range strings.Split(match[1], ", ") {
+		listed[Stage(name)] = struct{}{}
+	}
+	require.Equal(t, observedStages, listed)
+
+	// The model family help names the model stages and no other stage.
+	modelHelp := metricHelp(t, registry, "coderd_chatd_model_stage_duration_seconds")
+	for stage := range knownStages {
+		_, want := modelStages[stage]
+		require.Equal(t, want, namesWord(modelHelp, string(stage)),
+			"model help naming %q", stage)
 	}
 }
