@@ -2,6 +2,7 @@ import {
 	type KeyboardEvent as ReactKeyboardEvent,
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useMemo,
 	useReducer,
 	useRef,
@@ -46,11 +47,12 @@ type State = {
 	inputValue: string;
 	/**
 	 * Text typed outside chips and category prefixes; its last token can be a
-	 * chip token still being typed. While it could still be a filter, the
-	 * typed-text lookup withholds it from the emitted query until
-	 * `applyTypedSearch` runs; when it ends with a chip token still being typed,
-	 * the text before that token has already been emitted, and the token waits
-	 * until it is committed as a chip.
+	 * chip token still being typed. Plain typed text is withheld from the
+	 * emitted query while the typed-text lookup says it could be a filter, and
+	 * is emitted when the lookup finds no match or `applyTypedSearch` runs.
+	 * Text typed with a chip token or before a category prefix is emitted at
+	 * once, and a chip token still being typed waits until it is committed as a
+	 * chip.
 	 */
 	typedFreeText: string;
 };
@@ -282,8 +284,9 @@ export const useFilterCombobox = ({
 	// Reconcile local state with the caller-owned `value`. Reparse whenever the
 	// value changes externally or the chip categories change, so renaming or
 	// adding a category recomputes the free text instead of being suppressed by
-	// the self-emit guard.
-	useEffect(() => {
+	// the self-emit guard. It runs during the commit, so a key handled before
+	// passive effects flush already reads the caller's value.
+	useLayoutEffect(() => {
 		const chipKeysChanged = prevChipKeysRef.current !== chipKeys;
 		prevChipKeysRef.current = chipKeys;
 		const isExternal = value !== lastEmittedRef.current;
