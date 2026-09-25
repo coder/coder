@@ -104,7 +104,7 @@ export const Loaded: Story = {
 						{
 							template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
 							type: "builtin",
-							display_name: "Visual Studio Code",
+							display_name: "VS Code Family",
 							slug: "vscode",
 							icon: "/icon/code.svg",
 							seconds: 2513400,

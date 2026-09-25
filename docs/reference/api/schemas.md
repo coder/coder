@@ -14284,7 +14284,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
-  "display_name": "Visual Studio Code",
+  "display_name": "VS Code Family",
   "icon": "string",
   "seconds": 80500,
   "slug": "vscode",
@@ -14961,7 +14961,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "active_users": 22,
   "apps_usage": [
     {
-      "display_name": "Visual Studio Code",
+      "display_name": "VS Code Family",
       "icon": "string",
       "seconds": 80500,
       "slug": "vscode",
@@ -15035,7 +15035,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "active_users": 22,
     "apps_usage": [
       {
-        "display_name": "Visual Studio Code",
+        "display_name": "VS Code Family",
         "icon": "string",
         "seconds": 80500,
         "slug": "vscode",

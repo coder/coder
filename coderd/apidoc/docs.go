@@ -28646,7 +28646,7 @@ const docTemplate = `{
             "properties": {
                 "display_name": {
                     "type": "string",
-                    "example": "Visual Studio Code"
+                    "example": "VS Code Family"
                 },
                 "icon": {
                     "type": "string"

@@ -15,7 +15,7 @@
           "00000000-0000-0000-0000-000000000002"
         ],
         "type": "builtin",
-        "display_name": "Visual Studio Code",
+        "display_name": "VS Code Family",
         "slug": "vscode",
         "icon": "/icon/code.svg",
         "seconds": 7200,

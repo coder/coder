@@ -9662,7 +9662,7 @@ export const TemplateBuiltinAppDisplayNameSSH = "SSH";
 /**
  * Enums define the display name of the builtin app reported.
  */
-export const TemplateBuiltinAppDisplayNameVSCode = "Visual Studio Code";
+export const TemplateBuiltinAppDisplayNameVSCode = "VS Code Family";
 
 // From codersdk/insights.go
 /**
