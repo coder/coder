@@ -88,28 +88,43 @@ func SyntheticPasteFileIDs(parts []codersdk.ChatMessagePart) []uuid.UUID {
 	return ids
 }
 
+// fallbackTitleMaxRunes caps stored fallback titles; clients truncate
+// visually to fit their layout.
+const fallbackTitleMaxRunes = 80
+
 // FallbackTitle derives a deterministic chat title from title text:
-// the first six words, ellipsized when truncated, capped at 80 runes.
-// Empty input yields "New Chat".
+// the whole text with whitespace collapsed, capped at 80 runes and
+// ellipsized only when that cap cuts it. Empty input yields "New Chat".
 func FallbackTitle(message string) string {
+	title := strings.Join(strings.Fields(message), " ")
+	if title == "" {
+		return "New Chat"
+	}
+	if len([]rune(title)) > fallbackTitleMaxRunes {
+		return stringutil.Truncate(title, fallbackTitleMaxRunes-1) + "…"
+	}
+	return title
+}
+
+// IsFallbackTitle reports whether title is the fallback title for
+// message. It also accepts the previous six-word format so chats
+// created by older replicas during a rolling deploy stay eligible for
+// auto-titling.
+func IsFallbackTitle(title, message string) bool {
+	return title == FallbackTitle(message) || title == legacyFallbackTitle(message)
+}
+
+// legacyFallbackTitle is the fallback title format used before titles
+// kept the full message: the first six words, ellipsized when cut.
+func legacyFallbackTitle(message string) string {
 	const maxWords = 6
-	const maxRunes = 80
 
 	words := strings.Fields(message)
 	if len(words) == 0 {
 		return "New Chat"
 	}
-
-	truncated := false
-	if len(words) > maxWords {
-		words = words[:maxWords]
-		truncated = true
+	if len(words) <= maxWords {
+		return stringutil.Truncate(strings.Join(words, " "), fallbackTitleMaxRunes)
 	}
-
-	title := strings.Join(words, " ")
-	if truncated {
-		return stringutil.Truncate(title, maxRunes-1) + "…"
-	}
-
-	return stringutil.Truncate(title, maxRunes)
+	return stringutil.Truncate(strings.Join(words[:maxWords], " "), fallbackTitleMaxRunes-1) + "…"
 }
