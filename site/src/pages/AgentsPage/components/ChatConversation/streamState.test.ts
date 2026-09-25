@@ -891,6 +891,30 @@ describe("applyMessagePartToStreamState", () => {
 		});
 	});
 
+	it("keeps streamed text together and its citations after it", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "text",
+			text: "Go 1.27 ",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			url: "https://go.dev/doc/go1.27",
+			title: "Go 1.27",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "text",
+			text: "is out.",
+		});
+		expect(state!.blocks).toEqual([
+			{ type: "response", text: "Go 1.27 is out." },
+			{
+				type: "sources",
+				sources: [{ url: "https://go.dev/doc/go1.27", title: "Go 1.27" }],
+			},
+		]);
+	});
+
 	it("deduplicates sources with the same URL", () => {
 		let state: StreamState | null = null;
 		state = applyMessagePartToStreamState(state, {

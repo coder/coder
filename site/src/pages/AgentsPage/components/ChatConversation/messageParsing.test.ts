@@ -586,6 +586,50 @@ describe("parseMessageContent", () => {
 		expect(result.sources).toEqual([]);
 	});
 
+	it("places citations after the text they cite", () => {
+		// chatd stores a citation when it arrives, before the text that
+		// was streaming, so the persisted order is citation, then text.
+		const [entry] = parseMessagesWithMergedTools([
+			{
+				id: 1,
+				chat_id: "chat-1",
+				created_at: "2026-04-21T00:00:00.000Z",
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_name: "web_search",
+						tool_call_id: "ws-1",
+						args: { type: "search", queries: JSON.stringify(["go release"]) },
+						provider_executed: true,
+					},
+					{ type: "source", tool_call_id: "ws-1", url: "https://go.dev/dl/" },
+					{
+						type: "tool-result",
+						tool_name: "web_search",
+						tool_call_id: "ws-1",
+						provider_executed: true,
+						result: {},
+					},
+					{
+						type: "source",
+						url: "https://go.dev/doc/go1.27",
+						title: "Go 1.27",
+					},
+					{ type: "text", text: "Go 1.27 is out." },
+				],
+			},
+		]);
+		expect(entry.parsed.blocks).toEqual([
+			{ type: "tool", id: "ws-1" },
+			{ type: "response", text: "Go 1.27 is out." },
+			{
+				type: "sources",
+				sources: [{ url: "https://go.dev/doc/go1.27", title: "Go 1.27" }],
+			},
+		]);
+	});
+
 	it("puts a tagged source without a matching call in the source row", () => {
 		const result = parseMessageContent([
 			{

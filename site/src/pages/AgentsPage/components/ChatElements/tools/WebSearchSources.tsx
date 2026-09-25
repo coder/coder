@@ -110,7 +110,7 @@ export const SourcePill: FC<{ source: SourceLink }> = ({ source }) => {
 		>
 			{hostname && (
 				<img
-					src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=16`}
+					src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=16`}
 					alt=""
 					width={14}
 					height={14}
