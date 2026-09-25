@@ -57,7 +57,7 @@ const attributeOptions: FilterOption[] = [
 		startIcon: <RefreshCwOffIcon />,
 	},
 	{
-		label: "Deletion pending",
+		label: "Dormant",
 		value: "dormant",
 		token: "dormant:true",
 		startIcon: <MoonIcon />,

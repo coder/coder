@@ -51,23 +51,15 @@ type Action =
 	| { type: "typeFreeText"; value: string }
 	| { type: "setCommittedFreeText"; value: string }
 	| { type: "leaveCategory" }
-	| { type: "close"; input: "restore" | "clear" | "keep" }
+	| { type: "close"; input: "restore" | "clear" }
 	| { type: "reconcile"; freeText: string };
 
-const closeState = (
-	state: State,
-	input: "restore" | "clear" | "keep",
-): State => ({
+const closeState = (state: State, input: "restore" | "clear"): State => ({
 	mode: "closed",
 	browseAll: false,
 	activeCategoryKey: null,
 	committedFreeText: state.committedFreeText,
-	inputValue:
-		input === "restore"
-			? state.committedFreeText
-			: input === "clear"
-				? ""
-				: state.inputValue,
+	inputValue: input === "restore" ? state.committedFreeText : "",
 });
 
 const reducer = (state: State, action: Action): State => {
