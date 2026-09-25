@@ -64,19 +64,24 @@ const UNREAD_SECTION_KEY = "Unread";
 const READ_SECTION_KEY = "Read";
 
 /**
- * Keeps the viewer's own chats first and moves chats shared with them to the
- * end of the section, preserving the existing order within each group.
+ * Splits a section into the viewer's own chats and chats shared with them,
+ * preserving the existing order within each group. Shared chats render
+ * after owned chats in their own group.
  */
-const sortSharedWithMeLast = (
+const partitionSharedWithMe = (
 	chats: readonly Chat[],
 	currentUserId: string,
-): Chat[] => {
-	const isSharedWithMe = (chat: Chat) =>
-		chat.shared && chat.owner_id !== currentUserId;
-	return [
-		...chats.filter((chat) => !isSharedWithMe(chat)),
-		...chats.filter(isSharedWithMe),
-	];
+): { owned: Chat[]; sharedWithMe: Chat[] } => {
+	const owned: Chat[] = [];
+	const sharedWithMe: Chat[] = [];
+	for (const chat of chats) {
+		if (chat.shared && chat.owner_id !== currentUserId) {
+			sharedWithMe.push(chat);
+		} else {
+			owned.push(chat);
+		}
+	}
+	return { owned, sharedWithMe };
 };
 
 type ChatsPanelProps = {
@@ -346,7 +351,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		.filter((section) => section.chats.length > 0)
 		.map((section) => ({
 			...section,
-			chats: sortSharedWithMeLast(section.chats, currentUserId),
+			...partitionSharedWithMe(section.chats, currentUserId),
 		}));
 	const isShowingEmptyState = visibleRootIDs.length === 0;
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
@@ -591,9 +596,19 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														/>
 														{isSectionExpanded && (
 															<div className="flex flex-col gap-0.5">
-																{section.chats.map((chat) => (
+																{section.owned.map((chat) => (
 																	<ChatTreeNode key={chat.id} chat={chat} />
 																))}
+																{section.sharedWithMe.length > 0 && (
+																	<div
+																		data-testid={`agents-shared-with-me-group-${section.key}`}
+																		className="flex flex-col gap-0.5 border-l border-dotted border-border-default"
+																	>
+																		{section.sharedWithMe.map((chat) => (
+																			<ChatTreeNode key={chat.id} chat={chat} />
+																		))}
+																	</div>
+																)}
 															</div>
 														)}
 													</div>

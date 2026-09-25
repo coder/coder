@@ -244,6 +244,34 @@ export const SharedUnreadChat: Story = {
 	},
 };
 
+/** Chats shared with the viewer group after owned chats behind a dotted line. */
+export const SharedChatsGroupedAfterOwned: Story = {
+	args: {
+		chats: [
+			buildChat({ id: "owned-1", title: "My first chat" }),
+			buildChat({
+				id: "shared-1",
+				title: "A chat shared with me",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				owner_avatar_url: "/emojis/1f9d1-200d-1f4bb.png",
+				shared: true,
+			}),
+			buildChat({ id: "owned-2", title: "My second chat" }),
+			buildChat({
+				id: "shared-2",
+				title: "Another chat shared with me",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				has_unread: true,
+			}),
+		],
+	},
+};
+
 /** A running chat shared with the viewer shimmers the owner avatar. */
 export const SharedRunningChat: Story = {
 	args: {

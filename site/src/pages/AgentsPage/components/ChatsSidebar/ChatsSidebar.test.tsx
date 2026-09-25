@@ -200,6 +200,9 @@ describe("ChatsSidebar sections", () => {
 			ownedNode.compareDocumentPosition(sharedNode) &
 				Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
+		const sharedGroup = screen.getByTestId("agents-shared-with-me-group-Today");
+		expect(sharedGroup).toContainElement(sharedNode);
+		expect(sharedGroup).not.toContainElement(ownedNode);
 	});
 
 	it("renders chats shared with me as a single line without trailing badges", () => {
