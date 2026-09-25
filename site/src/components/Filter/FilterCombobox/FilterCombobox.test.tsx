@@ -656,6 +656,24 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	it("holds back typing the scope label from the workspace search", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			initialValue: "owner:alice",
+			skipHover: true,
+		});
+
+		await user.click(input);
+		await user.type(input, "shared");
+		await screen.findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+		expect(onChange).not.toHaveBeenCalledWith("owner:alice shared");
+	});
+
 	it("clears the typed text when picking an owner from the scope flyout", async () => {
 		const { user, onChange, input } = setup([scopedOwnerCategory], {
 			skipHover: true,

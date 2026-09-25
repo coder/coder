@@ -380,18 +380,22 @@ export const useFilterCombobox = ({
 		activeCategoryKey !== null || browseAll ? "" : inputValue.trim();
 	// Typing the start of a word in a scope toggle's pill label (e.g. `sha` for
 	// `shared with owner`) finds its category, so the toggle is one step away.
-	const scopeQuery = categoryQuery.toLowerCase();
+	const findScopeMatch = (query: string) => {
+		const scopeQuery = query.trim().toLowerCase();
+		if (scopeQuery.length < 3) {
+			return undefined;
+		}
+		return menuCategories.find((category) => {
+			const pillLabel = category.scopeToggle?.pillLabel.toLowerCase();
+			return (
+				pillLabel !== undefined &&
+				(pillLabel.startsWith(scopeQuery) ||
+					pillLabel.split(" ").some((word) => word.startsWith(scopeQuery)))
+			);
+		});
+	};
 	const scopeMatchedCategory =
-		scopeQuery.length < 3 || typedInlinePrefix !== null
-			? undefined
-			: menuCategories.find((category) => {
-					const pillLabel = category.scopeToggle?.pillLabel.toLowerCase();
-					return (
-						pillLabel !== undefined &&
-						(pillLabel.startsWith(scopeQuery) ||
-							pillLabel.split(" ").some((word) => word.startsWith(scopeQuery)))
-					);
-				});
+		typedInlinePrefix !== null ? undefined : findScopeMatch(categoryQuery);
 	const matchedCategories = matchCategories(categoryQuery, menuCategories);
 	const listedCategories =
 		!open || typedInlinePrefix !== null
@@ -755,7 +759,10 @@ export const useFilterCombobox = ({
 		if (normalized.length === 0) {
 			return false;
 		}
-		if (matchCategories(normalized, menuCategories).length > 0) {
+		if (
+			matchCategories(normalized, menuCategories).length > 0 ||
+			findScopeMatch(normalized)
+		) {
 			return true;
 		}
 		return categories.some((category) =>
