@@ -108,7 +108,7 @@ export function FilterCombobox({
 		inlineOptions,
 		allInlineOptions,
 		chipValues,
-		highlightedItem,
+		highlightRef,
 		typeaheadError,
 		actions,
 	} = useFilterCombobox({
@@ -191,7 +191,6 @@ export function FilterCombobox({
 	// follows it: it closes when the highlight leaves the category rows and
 	// switches when it lands on another category.
 	const handleItemHighlighted = (highlighted: string) => {
-		actions.setHighlightedItem(highlighted);
 		if (flyoutCategoryKey === null || highlighted === flyoutCategoryKey) {
 			return;
 		}
@@ -269,7 +268,7 @@ export function FilterCombobox({
 				onRemoveValue={actions.removeChip}
 				inputValue={inputValue}
 				onInputValueChange={actions.onInputValueChange}
-				highlightedValue={highlightedItem}
+				highlightRef={highlightRef}
 				onHighlightedValueChange={handleItemHighlighted}
 				label={placeholder}
 				className={cn(mobileOverlay && "min-h-10")}
