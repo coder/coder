@@ -229,6 +229,7 @@ describe("ChatsSidebar projects", () => {
 				organization_id: MockDefaultOrganization.id,
 				name: "New project name",
 				description: "Project description",
+				icon: "",
 			});
 		});
 	});

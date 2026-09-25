@@ -11,6 +11,7 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { FormField } from "#/components/FormField/FormField";
+import { IconField } from "#/components/IconField/IconField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { getFormHelpers } from "#/utils/formUtils";
@@ -18,6 +19,7 @@ import { getFormHelpers } from "#/utils/formUtils";
 type ChatProjectFormValues = {
 	name: string;
 	description: string;
+	icon: string;
 };
 
 type ChatProjectDialogProps = {
@@ -79,6 +81,7 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 		initialValues: {
 			name: project?.name ?? "",
 			description: project?.description ?? "",
+			icon: project?.icon ?? "",
 		},
 		validateOnMount: true,
 		validate: (values) =>
@@ -87,12 +90,14 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 			onSubmit({
 				name: values.name.trim(),
 				description: values.description.trim(),
+				icon: values.icon.trim(),
 			});
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form);
 	const nameField = getFieldHelpers("name", { maxLength: 64 });
 	const descriptionField = getFieldHelpers("description", { maxLength: 1024 });
+	const iconField = getFieldHelpers("icon", { maxLength: 256 });
 
 	return (
 		<>
@@ -122,6 +127,12 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 							maxLength={1024}
 						/>
 					)}
+				/>
+				<IconField
+					{...iconField}
+					disabled={isSubmitting}
+					maxLength={256}
+					onPickEmoji={(value) => form.setFieldValue("icon", value)}
 				/>
 				{Boolean(error) && (
 					<p className="m-0 text-sm text-content-destructive">

@@ -356,6 +356,7 @@ describe("AgentCreatePage project frame", () => {
 			expect(requestBody).toEqual({
 				name: projectB.name,
 				description: projectB.description,
+				icon: projectB.icon,
 			});
 		});
 	});

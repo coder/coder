@@ -152,6 +152,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const handleProjectSubmit = (request: {
 		name: string;
 		description: string;
+		icon: string;
 	}) => {
 		if (projectDialog?.mode === "edit") {
 			updateProjectMutation.mutate(
