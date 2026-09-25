@@ -310,12 +310,9 @@ const fileForRecord = (record: ChatDraftAttachmentRecord): File | null => {
 };
 
 export const restoreChatDraftAttachments = (
-	organizationId: string | undefined,
-	chatId: string | undefined,
+	organizationId: string,
+	chatId: string,
 ): RestoredChatDraftAttachment[] => {
-	if (!organizationId || !chatId) {
-		return [];
-	}
 	pruneExpiredChatDraftAttachmentStorageKeys();
 	const restored: RestoredChatDraftAttachment[] = [];
 	const validRecords: ChatDraftAttachmentRecord[] = [];

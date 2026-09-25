@@ -63,12 +63,12 @@ export const chatQueuedMessagesEqualByID = (
 
 const retryStatesEqual = (
 	left: RetryState | null,
-	right: RetryState | null,
+	right: RetryState,
 ): boolean => {
 	if (left === right) {
 		return true;
 	}
-	if (!left || !right) {
+	if (!left) {
 		return false;
 	}
 	return (
@@ -82,12 +82,12 @@ const retryStatesEqual = (
 
 const reconnectStatesEqual = (
 	left: ReconnectState | null,
-	right: ReconnectState | null,
+	right: ReconnectState,
 ): boolean => {
 	if (left === right) {
 		return true;
 	}
-	if (!left || !right) {
+	if (!left) {
 		return false;
 	}
 	return (
@@ -133,9 +133,7 @@ export type ChatStore = {
 	getSnapshot: () => ChatStoreState;
 	subscribe: (listener: () => void) => () => void;
 	batch: (fn: () => void) => void;
-	replaceMessages: (
-		messages: readonly TypesGen.ChatMessage[] | undefined,
-	) => void;
+	replaceMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 	upsertDurableMessage: (message: TypesGen.ChatMessage) => {
 		isDuplicate: boolean;
 		changed: boolean;
@@ -144,7 +142,7 @@ export type ChatStore = {
 	applyMessagePart: (part: TypesGen.ChatMessagePart) => void;
 	applyMessageParts: (parts: readonly TypesGen.ChatMessagePart[]) => void;
 	setQueuedMessages: (
-		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 	) => void;
 	// Server-truthful queue snapshot, filtered through the
 	// suppression set. Use for SSE queue_update and REST hydration;
@@ -161,7 +159,7 @@ export type ChatStore = {
 	applyPromoteRefetchQueuedMessages: (
 		chatID: string,
 		promotedID: number,
-		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 		baselineFence: number,
 	) => readonly TypesGen.ChatQueuedMessage[] | undefined;
 	suppressQueuedMessageID: (id: number) => void;
@@ -174,16 +172,16 @@ export type ChatStore = {
 	// current value, so a caller can tell that the server spoke during a
 	// request even when the status did not change.
 	getServerChatStatusVersion: () => number;
-	applyServerChatStatus: (status: TypesGen.ChatStatus | null) => void;
+	applyServerChatStatus: (status: TypesGen.ChatStatus) => void;
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
 	clearStreamError: () => void;
-	setRetryState: (state: RetryState | null) => void;
+	setRetryState: (state: RetryState) => void;
 	clearRetryState: () => void;
-	setReconnectState: (state: ReconnectState | null) => void;
+	setReconnectState: (state: ReconnectState) => void;
 	clearReconnectState: () => void;
 	clearStreamState: () => void;
 	resetTransportReplayState: () => void;
@@ -258,12 +256,9 @@ export const createChatStore = (): ChatStore => {
 		}
 	};
 
-	const replaceMessages = (
-		messages: readonly TypesGen.ChatMessage[] | undefined,
-	): void => {
-		const safeMessages = messages ?? [];
-		const nextMessagesByID = buildMessageMap(safeMessages);
-		const nextOrderedMessageIDs = buildOrderedMessageIDs(safeMessages);
+	const replaceMessages = (messages: readonly TypesGen.ChatMessage[]): void => {
+		const nextMessagesByID = buildMessageMap(messages);
+		const nextOrderedMessageIDs = buildOrderedMessageIDs(messages);
 
 		// Fast-path: skip setState entirely when nothing changed.
 		if (
@@ -403,17 +398,13 @@ export const createChatStore = (): ChatStore => {
 		applyMessagePart: (part) => applyMessageParts([part]),
 		applyMessageParts,
 		setQueuedMessages: (queuedMessages) => {
-			const nextQueuedMessages = queuedMessages ?? [];
 			setState((current) => {
 				if (
-					chatQueuedMessagesEqualByID(
-						current.queuedMessages,
-						nextQueuedMessages,
-					)
+					chatQueuedMessagesEqualByID(current.queuedMessages, queuedMessages)
 				) {
 					return current;
 				}
-				return { ...current, queuedMessages: nextQueuedMessages };
+				return { ...current, queuedMessages };
 			});
 		},
 		applyAuthoritativeQueuedMessages: (queuedMessages) => {
@@ -491,9 +482,8 @@ export const createChatStore = (): ChatStore => {
 			if (queueConvergenceFence !== baselineFence) {
 				return undefined;
 			}
-			const incoming = queuedMessages ?? [];
 			queueConvergenceFence++;
-			for (const message of incoming) {
+			for (const message of queuedMessages) {
 				observedQueuedMessageIDs.add(message.id);
 			}
 			const suppressed = new Set(state.suppressedQueuedMessageIDs);
@@ -502,8 +492,8 @@ export const createChatStore = (): ChatStore => {
 			promoted.delete(promotedID);
 			const applied =
 				suppressed.size === 0
-					? incoming
-					: incoming.filter((message) => !suppressed.has(message.id));
+					? queuedMessages
+					: queuedMessages.filter((message) => !suppressed.has(message.id));
 			setState((current) => ({
 				...current,
 				queuedMessages: chatQueuedMessagesEqualByID(
