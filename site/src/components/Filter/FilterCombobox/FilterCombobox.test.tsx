@@ -1,11 +1,12 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { render } from "#/testHelpers/renderHelpers";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { FilterCombobox, SEARCHABLE_OPTION_COUNT } from "./FilterCombobox";
 import { SEARCH_DEBOUNCE_MS } from "./queries";
-import type { FilterCategory } from "./types";
+import type { FilterCategory, FilterOption } from "./types";
+import { TYPED_TEXT_LOOKUP_TIMEOUT_MS } from "./useFilterCombobox";
 
 const ownerCategory: FilterCategory = {
 	key: "owner",
@@ -47,6 +48,20 @@ const emptyTemplateCategory: FilterCategory = {
 };
 
 const neverResolves = () => new Promise<never>(() => {});
+
+const heldSearch = (base: FilterCategory, query: string) => {
+	const search = Promise.withResolvers<FilterOption[]>();
+	const category: FilterCategory = {
+		...base,
+		getOptions: (text) =>
+			text === query ? search.promise : base.getOptions(text),
+	};
+	return { category, resolve: search.resolve };
+};
+
+// Fires the debounce and runs callbacks of lookups that have already resolved.
+const settleTypedText = () =>
+	act(() => vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS));
 
 const attributesCategory: FilterCategory = {
 	key: "attribute",
@@ -91,14 +106,22 @@ const setup = (
 	{
 		initialValue = "",
 		skipHover = false,
-	}: { initialValue?: string; skipHover?: boolean } = {},
+		fakeTimers = false,
+	}: { initialValue?: string; skipHover?: boolean; fakeTimers?: boolean } = {},
 ) => {
+	if (fakeTimers) {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+	}
 	// user-event moves the pointer between elements without a related target,
 	// which reads as leaving the whole menu. Tests that click into a hover
 	// flyout skip those synthetic hover events.
-	const user = userEvent.setup({ skipHover });
+	const user = userEvent.setup(
+		fakeTimers
+			? { skipHover, advanceTimers: vi.advanceTimersByTime }
+			: { skipHover },
+	);
 	const onChange = vi.fn();
-	render(
+	const { unmount } = render(
 		<FilterComboboxHarness
 			categories={categories}
 			initialValue={initialValue}
@@ -108,12 +131,17 @@ const setup = (
 	return {
 		user,
 		onChange,
+		unmount,
 		input: screen.getByRole("combobox", { name: "Search and filter" }),
 		filtersButton: screen.getByRole("button", { name: "Filters" }),
 	};
 };
 
 describe("FilterCombobox", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
 	it("opens from the Filters button with keyboard focus and navigates categories", async () => {
 		const { user, onChange, input, filtersButton } = setup([ownerCategory]);
 
@@ -292,12 +320,14 @@ describe("FilterCombobox", () => {
 	});
 
 	it("applies typed text that could be a filter only when the menu is dismissed", async () => {
-		const { user, onChange, input } = setup([ownerCategory, statusCategory]);
+		const { user, onChange, input } = setup([ownerCategory, statusCategory], {
+			fakeTimers: true,
+		});
 
 		await user.click(input);
 		await screen.findByRole("option", { name: "Running" });
 		await user.type(input, "run");
-		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		await settleTypedText();
 		expect(onChange).not.toHaveBeenCalledWith("run");
 
 		await user.keyboard("{Escape}");
@@ -305,14 +335,178 @@ describe("FilterCombobox", () => {
 	});
 
 	it("holds back typed text that matches an option beyond the first page", async () => {
-		const { user, onChange, input } = setup([manyOwnersCategory]);
+		const owners = heldSearch(manyOwnersCategory, "zed");
+		const { user, onChange, input } = setup([owners.category], {
+			fakeTimers: true,
+		});
 
 		await user.click(input);
 		await screen.findByRole("option", { name: "Owner" });
 		await user.type(input, "zed");
+		await settleTypedText();
+		await act(async () => owners.resolve([{ label: "zed", value: "zed" }]));
+		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
 
-		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
 		expect(onChange).not.toHaveBeenCalledWith("zed");
+	});
+
+	it("holds back typed text that starts an inline category name", async () => {
+		const { user, onChange, input } = setup([ownerCategory, statusCategory], {
+			fakeTimers: true,
+		});
+
+		await user.click(input);
+		await screen.findByRole("option", { name: "Running" });
+		await user.type(input, "sta");
+		await settleTypedText();
+
+		expect(onChange).not.toHaveBeenCalledWith("sta");
+	});
+
+	it("applies typed text as a search when its option lookup fails", async () => {
+		const { user, onChange, input } = setup([
+			{
+				...ownerCategory,
+				getOptions: async (query) => {
+					if (query) {
+						throw new Error("failed");
+					}
+					return ownerCategory.getOptions(query);
+				},
+			},
+		]);
+
+		await user.click(input);
+		await user.type(input, "zzz");
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("zzz"));
+	});
+
+	it("applies typed text as a search when its option lookup does not settle", async () => {
+		const { user, onChange, input } = setup(
+			[
+				{
+					...ownerCategory,
+					getOptions: (query) =>
+						query ? neverResolves() : ownerCategory.getOptions(query),
+				},
+			],
+			{ fakeTimers: true },
+		);
+
+		await user.click(input);
+		await user.type(input, "zzz");
+		await settleTypedText();
+		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
+
+		expect(onChange).toHaveBeenLastCalledWith("zzz");
+	});
+
+	it("drops a typed-text lookup that resolves after the text changed", async () => {
+		const owner = heldSearch(ownerCategory, "foo");
+		const { user, onChange, input } = setup([owner.category], {
+			fakeTimers: true,
+		});
+
+		await user.click(input);
+		await user.type(input, "foo");
+		await settleTypedText();
+		await user.clear(input);
+		await user.type(input, "ali");
+		await act(async () => owner.resolve([]));
+		await settleTypedText();
+
+		expect(onChange).not.toHaveBeenCalledWith("foo");
+	});
+
+	it("drops a typed-text lookup that resolves after unmounting", async () => {
+		const owner = heldSearch(ownerCategory, "zzz");
+		const { user, onChange, input, unmount } = setup([owner.category], {
+			fakeTimers: true,
+		});
+
+		await user.click(input);
+		await user.type(input, "zzz");
+		await settleTypedText();
+		unmount();
+		await act(async () => owner.resolve([]));
+
+		expect(onChange).not.toHaveBeenCalledWith("zzz");
+	});
+
+	it("applies unmatched typed text after a chip is removed during the debounce", async () => {
+		const { user, onChange, input } = setup([ownerCategory, statusCategory], {
+			initialValue: "owner:alice",
+			fakeTimers: true,
+		});
+
+		await user.click(input);
+		await user.type(input, "xyz");
+		await user.click(
+			screen.getByRole("button", { name: "Remove owner:alice" }),
+		);
+		await settleTypedText();
+
+		expect(onChange).toHaveBeenLastCalledWith("xyz");
+	});
+
+	it("holds back typed text once one category's search matches while another is pending", async () => {
+		const templateCategory: FilterCategory = {
+			key: "template",
+			label: "Template",
+			getOptions: async (query) =>
+				query === "zed" ? [{ label: "zed", value: "zed" }] : [],
+		};
+		const { user, onChange, input } = setup(
+			[
+				{
+					...ownerCategory,
+					getOptions: (query) =>
+						query ? neverResolves() : ownerCategory.getOptions(query),
+				},
+				templateCategory,
+			],
+			{ fakeTimers: true },
+		);
+
+		await user.click(input);
+		await user.type(input, "zed");
+		await settleTypedText();
+		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
+
+		expect(onChange).not.toHaveBeenCalledWith("zed");
+	});
+
+	it("drops the deleted search when Backspace continues into a chip", async () => {
+		const { user, onChange, input } = setup([ownerCategory], {
+			initialValue: "owner:alice zzz",
+			fakeTimers: true,
+		});
+
+		await user.click(input);
+		await user.keyboard("{End}{Backspace}{Backspace}{Backspace}{Backspace}");
+		await settleTypedText();
+
+		expect(onChange).toHaveBeenLastCalledWith("");
+	});
+
+	it("applies unmatched typed text with the remaining chips after a chip is removed during its lookup", async () => {
+		const owner = heldSearch(ownerCategory, "xyz");
+		const { user, onChange, input } = setup([owner.category, statusCategory], {
+			initialValue: "owner:alice status:running",
+			fakeTimers: true,
+		});
+
+		await user.click(input);
+		await user.type(input, "xyz");
+		await settleTypedText();
+		await user.click(
+			screen.getByRole("button", { name: "Remove owner:alice" }),
+		);
+		await act(async () => owner.resolve([]));
+		await settleTypedText();
+
+		expect(onChange).toHaveBeenLastCalledWith("status:running xyz");
 	});
 
 	it("does not apply held-back typed text when a chip is removed", async () => {
@@ -332,35 +526,19 @@ describe("FilterCombobox", () => {
 	});
 
 	it("cancels a pending typed search when the menu is dismissed", async () => {
-		vi.useFakeTimers({ shouldAdvanceTime: true });
-		try {
-			const onChange = vi.fn();
-			const user = userEvent.setup({
-				advanceTimers: vi.advanceTimersByTime,
-			});
-			render(
-				<FilterComboboxHarness
-					categories={[ownerCategory, statusCategory]}
-					initialValue=""
-					onChange={onChange}
-				/>,
-			);
-			const input = screen.getByRole("combobox", {
-				name: "Search and filter",
-			});
+		const { user, onChange, input } = setup([ownerCategory, statusCategory], {
+			fakeTimers: true,
+		});
 
-			await user.click(input);
-			await screen.findByRole("option", { name: "Running" });
-			await user.type(input, "run");
-			await user.keyboard("{Escape}");
-			await user.type(input, "x{Backspace}");
-			await user.keyboard("{Escape}");
-			await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS * 2);
+		await user.click(input);
+		await screen.findByRole("option", { name: "Running" });
+		await user.type(input, "run");
+		await user.keyboard("{Escape}");
+		await user.type(input, "x{Backspace}");
+		await user.keyboard("{Escape}");
+		await act(() => vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS * 2));
 
-			expect(onChange).toHaveBeenLastCalledWith("run");
-		} finally {
-			vi.useRealTimers();
-		}
+		expect(onChange).toHaveBeenLastCalledWith("run");
 	});
 
 	it("applies typed text that could be a filter when switching to the full filter list", async () => {
@@ -488,6 +666,18 @@ describe("FilterCombobox", () => {
 		await user.keyboard("{Enter}");
 
 		expect(onChange).not.toHaveBeenCalledWith("owner:alice");
+	});
+
+	it("removes an applied inline option with Enter in the full filter list", async () => {
+		const { user, onChange, filtersButton } = setup([statusCategory], {
+			initialValue: "status:running zzz",
+		});
+
+		await user.click(filtersButton);
+		await screen.findByRole("option", { name: "Running" });
+		await user.keyboard("{Enter}");
+
+		expect(onChange).toHaveBeenLastCalledWith("zzz");
 	});
 
 	it("keeps an applied option when Enter completes typed text that located it", async () => {
@@ -660,10 +850,10 @@ describe("FilterCombobox", () => {
 		const search = await screen.findByRole("textbox", { name: "Search Owner" });
 		await screen.findByRole("option", { name: "user-0" });
 		await user.click(search);
-		await user.keyboard("{ArrowDown}{Enter}");
+		await user.keyboard("{ArrowDown}{Control>}n{/Control}{Enter}");
 
 		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith("owner:user-0"),
+			expect(onChange).toHaveBeenLastCalledWith("owner:user-1"),
 		);
 		expect(input).toHaveFocus();
 	});

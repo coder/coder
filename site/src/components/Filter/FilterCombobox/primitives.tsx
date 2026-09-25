@@ -28,6 +28,14 @@ import {
 // with `components/Command`; a future consolidation into a variant-driven
 // `Command*` layer could remove the duplication.
 
+/**
+ * Height cap for the popup, and for each menu inside it when the caller makes
+ * the popup `overflow-visible` so flyouts can extend past it, as
+ * `FilterCombobox` does.
+ */
+export const menuMaxHeightClassName =
+	"max-h-[min(24rem,var(--radix-popper-available-height))]";
+
 const FilterComboboxAnchorContext =
 	createContext<RefObject<HTMLDivElement | null> | null>(null);
 
@@ -178,7 +186,8 @@ export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 				}
 			}}
 			className={cn(
-				"flex w-(--radix-popover-trigger-width) max-h-[min(24rem,var(--radix-popper-available-height))] flex-col overflow-y-hidden p-0",
+				menuMaxHeightClassName,
+				"flex w-(--radix-popover-trigger-width) flex-col overflow-y-hidden p-0",
 				className,
 			)}
 			{...props}
@@ -207,8 +216,7 @@ export const FilterComboboxList: FC<FilterComboboxListProps> = ({
 type FilterComboboxItemProps = ComponentProps<typeof CommandPrimitive.Item>;
 
 /**
- * A dropdown row. Rows are actions, not toggles: pass `onSelect` to run the
- * row's behavior (open a category or add a chip). cmdk calls `onSelect` on
+ * A dropdown row. Rows are actions, not toggles: cmdk calls `onSelect` on
  * click and on Enter for the highlighted row.
  */
 export const FilterComboboxItem: FC<FilterComboboxItemProps> = ({
