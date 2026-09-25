@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import type { FC } from "react";
 import type { Chat } from "#/api/typesGenerated";
+import { useTime } from "#/hooks/useTime";
 import { shortRelativeTime } from "#/utils/time";
 import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
 import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
@@ -11,11 +12,21 @@ type ChatStatusLineProps = {
 	readonly className?: string;
 };
 
+const AGE_REFRESH_MS = 60_000;
+
+/**
+ * The age of `date`, kept current while it stays on screen. useTime keeps
+ * its first value when `date` changes, so render it with `key={date}`.
+ */
+export const RelativeAge: FC<{ readonly date: string | number }> = ({ date }) =>
+	useTime(() => shortRelativeTime(date), { interval: AGE_REFRESH_MS });
+
 /**
  * One line under a chat's title: PR chip, last turn text, then the age at
- * the right edge, since the age is the time of that turn. While the chat
- * works it would read "now" and say nothing, so it is omitted until the
- * chat settles. Shared by single cards and group rows.
+ * the right edge. The age is the chat's last change (`updated_at`), which
+ * board label writes also bump, as in the sidebar. While the chat works it
+ * would read "now" and say nothing, so it is omitted until the chat
+ * settles. Shared by single cards and group rows.
  */
 export const ChatStatusLine: FC<ChatStatusLineProps> = ({
 	chat,
@@ -63,7 +74,7 @@ export const ChatStatusLine: FC<ChatStatusLineProps> = ({
 					dateTime={chat.updated_at}
 					className="ml-auto shrink-0 pr-1.5 text-[11px] tabular-nums text-content-secondary/70"
 				>
-					{shortRelativeTime(chat.updated_at)}
+					<RelativeAge key={chat.updated_at} date={chat.updated_at} />
 				</time>
 			)}
 		</div>

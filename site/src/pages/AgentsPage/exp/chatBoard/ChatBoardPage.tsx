@@ -37,12 +37,12 @@ import {
 	boardAssistantSpec,
 	cardAssistantSpec,
 } from "./assistantSpecs";
-import { assistantIds, openAssistant } from "./assistants";
+import { assistantIds, findOrCreateAssistant } from "./assistants";
 import type { DragData } from "./BoardCard";
 import { BoardColumns } from "./BoardColumns";
 import { BoardHeader } from "./BoardHeader";
 import { BoardWindows } from "./BoardWindows";
-import { effortsOf, type Plan, renameEffort } from "./boardApi";
+import { effortCounts, type Plan, renameEffort } from "./boardApi";
 import {
 	boardChats,
 	boardWriteScope,
@@ -76,10 +76,10 @@ import {
 	changeWindow,
 	closeWindow,
 	dismissTop,
-	draftCreated,
 	draftWindow,
 	dropPreview,
 	raise,
+	replaceDraftWithChat,
 	toFront,
 	windowBeside,
 	windowCentered,
@@ -186,16 +186,19 @@ const ChatBoardPage: FC = () => {
 				: [];
 		}),
 	);
-	// Watch events carry status but not labels, and the board assistant
-	// relabels chats during a turn, so the turn ending refetches the list.
-	const boardAssistantId = assistantByKey.get(BOARD_ASSISTANT_KEY);
-	const boardAssistantActive = isActiveChatStatus(
-		(boardAssistantId ? chatsById.get(boardAssistantId)?.status : null) ?? null,
-	);
+	// Watch payloads carry labels, but mergeWatchedChatSummary drops them, and
+	// label PATCHes publish no event. Every assistant can write labels (the
+	// board one relabels chats, a card one writes notes), so the list is
+	// refetched whenever the set of working assistants changes, which
+	// includes one ending its turn.
+	const activeAssistantIds = [...assistantByKey.values()]
+		.filter((id) => isActiveChatStatus(chatsById.get(id)?.status ?? null))
+		.sort()
+		.join(",");
 	useEffect(() => {
-		if (!boardAssistantActive) return;
+		if (!activeAssistantIds) return;
 		return () => void refetchChatListUntilLanded(queryClient);
-	}, [boardAssistantActive, queryClient]);
+	}, [activeAssistantIds, queryClient]);
 
 	// Updates are functional: a preview timer, a window gesture or the
 	// assistant's request may commit after other windows changed. Defined
@@ -218,15 +221,13 @@ const ChatBoardPage: FC = () => {
 		storage.emptyColumns,
 	);
 	const boardState = { cards: allCards, columns, storage };
-	const efforts = effortsOf(allCards);
-	// A stored filter whose last card lost the effort falls back to All; once
-	// the list is loaded that is known for sure and the filter is cleared.
-	// Render-time saves like this one and the column order below are skipped
-	// while writing: a plan saves storage before its label patch lands, so a
-	// renamed effort or column would read as missing.
+	const efforts = effortCounts(allCards);
 	const effortFilter = efforts.some((e) => e.name === storage.effortFilter)
 		? storage.effortFilter
 		: null;
+	// Skipped while a plan writes, like the column order save below: the plan
+	// saves storage before its label patch returns, so a renamed effort would
+	// read as missing and be cleared.
 	if (
 		storage.effortFilter !== null &&
 		effortFilter === null &&
@@ -264,14 +265,17 @@ const ChatBoardPage: FC = () => {
 	}));
 	const visibleCount = visibleColumns.reduce((n, c) => n + c.cards.length, 0);
 
-	// A draft for a card that was merged away or removed has nowhere to land.
-	// Adjusted in render, not in an effect, so no frame shows an orphan form.
+	// A draft whose card was merged away or removed, or whose column was
+	// renamed or deleted, has nowhere to land; submitting it would recreate
+	// the old column. Adjusted in render, not in an effect, so no frame shows
+	// an orphan form.
 	const draftTarget = windows.find((w) => w.kind === "draft")?.target;
 	if (
 		chatsQuery.data !== undefined &&
 		draftTarget !== undefined &&
-		"cardId" in draftTarget &&
-		!allCards.some((c) => c.id === draftTarget.cardId)
+		("cardId" in draftTarget
+			? !allCards.some((c) => c.id === draftTarget.cardId)
+			: !columns.some((c) => c.name === draftTarget.column))
 	) {
 		setWindows((prev) => prev.filter((w) => w.kind !== "draft"));
 	}
@@ -313,7 +317,7 @@ const ChatBoardPage: FC = () => {
 		key: string,
 		spec: (tools: AssistantTools) => AssistantSpec,
 	) =>
-		openAssistant({
+		findOrCreateAssistant({
 			spec,
 			existingId: assistantByKey.get(key),
 			create: createMutation.mutateAsync,
@@ -391,7 +395,7 @@ const ChatBoardPage: FC = () => {
 					openChatIds={openChatIds}
 					dropTarget={dropTarget}
 					knownEfforts={efforts.map((e) => e.name)}
-					onAssistant={openCardAssistant}
+					onCardAssistant={openCardAssistant}
 					onNewChat={openDraft}
 					onFilterEffort={(effort) => updateStorage({ effortFilter: effort })}
 					onOpen={openChat}
@@ -430,10 +434,10 @@ const ChatBoardPage: FC = () => {
 						.at(-1);
 					void navigate(reading ? `/agents/${reading}` : "/agents");
 				}}
-				onAssistant={openBoardAssistant}
-				efforts={efforts}
+				onBoardAssistant={openBoardAssistant}
+				effortCounts={efforts}
 				effortFilter={effortFilter}
-				onEffortFilter={(effort) => updateStorage({ effortFilter: effort })}
+				onFilterEffort={(effort) => updateStorage({ effortFilter: effort })}
 				onRenameEffort={(from, to) =>
 					void run(renameEffort(boardState, from, to))
 				}
@@ -464,7 +468,7 @@ const ChatBoardPage: FC = () => {
 				onPreviewLeave={endPreview}
 				onDismissTop={() => setWindows(dismissTop)}
 				onDraftCreated={(target, chatId) =>
-					setWindows((prev) => draftCreated(prev, target, chatId))
+					setWindows((prev) => replaceDraftWithChat(prev, target, chatId))
 				}
 				onCardAssistant={openCardAssistant}
 			/>

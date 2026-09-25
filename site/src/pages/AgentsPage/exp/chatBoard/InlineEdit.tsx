@@ -31,9 +31,9 @@ export const InlineEdit: FC<InlineEditProps> = ({
 	saveOnBlur = true,
 }) => {
 	const [draft, setDraft] = useState(value);
-	// Enter commits, and so does blur unless saveOnBlur is false; Escape only
-	// reports done. The parent unmounts the field on done, and React fires no
-	// blur for an unmounted field, so nothing commits after a cancel.
+	// Escape only reports done. The parent unmounts the field on done, and
+	// React fires no blur for an unmounted field, so nothing commits after a
+	// cancel.
 	const commit = () => {
 		const next = draft.trim();
 		onDone();

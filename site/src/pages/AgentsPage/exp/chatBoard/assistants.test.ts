@@ -6,7 +6,7 @@ import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import { MockWorkspace } from "#/testHelpers/entities";
 import { type AssistantTools, cardAssistantSpec } from "./assistantSpecs";
-import { assistantIds, openAssistant } from "./assistants";
+import { assistantIds, findOrCreateAssistant } from "./assistants";
 import { boardChatsKey } from "./boardChats";
 import { buildCards } from "./boardLabels";
 
@@ -44,7 +44,7 @@ const open = (
 	rename = vi.fn().mockResolvedValue(undefined),
 ) => {
 	const create = vi.fn().mockResolvedValue({ ...MockChat, id: "created" });
-	const result = openAssistant({
+	const result = findOrCreateAssistant({
 		spec: (tools) => cardAssistantSpec(cardFor(chats), tools),
 		existingId: existing?.id,
 		create,
@@ -65,7 +65,7 @@ describe("assistantIds", () => {
 	});
 });
 
-describe("openAssistant", () => {
+describe("findOrCreateAssistant", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		localStorage.clear();
@@ -149,7 +149,9 @@ describe("openAssistant", () => {
 		const { result } = open([chat("p")], undefined);
 
 		expect(await result).toBeUndefined();
-		expect(toast.error).toHaveBeenCalledWith("offline");
+		expect(toast.error).toHaveBeenCalledWith("Failed to open the assistant.", {
+			description: "offline",
+		});
 	});
 
 	it("still opens a created chat when only the rename fails", async () => {
@@ -229,6 +231,22 @@ describe("openAssistant", () => {
 		expect(disconnected?.mcp_server_ids).toBeUndefined();
 		expect(disconnected?.system_prompt).not.toContain("coder_");
 
+		const disabled = await createWithServers(() =>
+			Promise.resolve([{ ...coderMcp, enabled: false }]),
+		);
+		expect(disabled?.mcp_server_ids).toBeUndefined();
+
+		// A member sees the slug with the URL redacted; an admin may name it
+		// anything and still see the URL.
+		const bySlug = await createWithServers(() =>
+			Promise.resolve([{ ...coderMcp, url: "" }]),
+		);
+		expect(bySlug?.mcp_server_ids).toEqual(["mcp-coder"]);
+		const byUrl = await createWithServers(() =>
+			Promise.resolve([{ ...coderMcp, slug: "ours" }]),
+		);
+		expect(byUrl?.mcp_server_ids).toEqual(["mcp-coder"]);
+
 		const absent = await createWithServers(() =>
 			Promise.resolve([MockMCPServerConfig]),
 		);
@@ -257,9 +275,9 @@ describe("openAssistant", () => {
 			queryClient,
 		};
 
-		const first = openAssistant(args);
-		const second = openAssistant(args);
-		const elsewhere = openAssistant({
+		const first = findOrCreateAssistant(args);
+		const second = findOrCreateAssistant(args);
+		const elsewhere = findOrCreateAssistant({
 			...args,
 			queryClient: new QueryClient(),
 		});
@@ -296,13 +314,13 @@ describe("openAssistant", () => {
 			queryClient,
 		};
 
-		await openAssistant({ ...args, existingId: undefined });
+		await findOrCreateAssistant({ ...args, existingId: undefined });
 		// What the page computes from the list on its next render.
 		const listed =
 			queryClient.getQueryData<{ pages: Chat[][] }>(boardChatsKey)?.pages[0] ??
 			[];
 		const existingId = assistantIds(listed).get(card.id);
-		const again = await openAssistant({ ...args, existingId });
+		const again = await findOrCreateAssistant({ ...args, existingId });
 
 		expect(existingId).toBe("created");
 		expect(again).toBe("created");

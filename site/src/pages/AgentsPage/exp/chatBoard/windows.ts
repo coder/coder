@@ -66,7 +66,7 @@ export const draftWindow = (
 ): ChatWindow & { kind: "draft" } => ({
 	kind: "draft",
 	target,
-	withContext: false,
+	includeCardContext: false,
 	...centered(),
 	pinned: true,
 });
@@ -114,14 +114,14 @@ export const closeWindow = (list: readonly ChatWindow[], key: string) =>
  * If that draft was replaced or closed while the request ran, the chat
  * still exists, so it opens on its own.
  */
-export const draftCreated = (
+export const replaceDraftWithChat = (
 	list: readonly ChatWindow[],
 	target: DraftTarget,
 	chatId: string,
 ): ChatWindow[] => {
 	const draft = list.find((w) => w.kind === "draft");
 	const sameTarget =
-		draft?.kind === "draft" &&
+		draft !== undefined &&
 		("column" in target
 			? "column" in draft.target && draft.target.column === target.column
 			: "cardId" in draft.target && draft.target.cardId === target.cardId);

@@ -151,7 +151,13 @@ describe("efforts", () => {
 		});
 		expect(setEffortsLabels({ "board/effort.0": "Q3" }, [])).toEqual({});
 		// A key without a numeric index is not shown, and a rewrite clears it.
-		expect(parseEfforts({ "board/effort.x": "Q3" })).toEqual([]);
+		expect(
+			parseEfforts({
+				"board/effort.x": "Q3",
+				"board/effort.": "Q4",
+				"board/effort.-1": "Q5",
+			}),
+		).toEqual([]);
 		expect(setEffortsLabels({ "board/effort.x": "Q3" }, [])).toEqual({});
 		expect(setEffortsLabels({}, ["Q3", " Q3 ", "", "  "])).toEqual({
 			"board/effort.0": "Q3",

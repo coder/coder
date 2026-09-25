@@ -4,7 +4,7 @@ import { AgentChatPageSkeleton } from "../../components/AgentsSkeletons";
 import {
 	type BoardState,
 	cardContext,
-	cardWith,
+	cardOfChat,
 	newChatLabels,
 } from "./boardApi";
 import type { BoardCard, CardColor } from "./boardLabels";
@@ -74,14 +74,14 @@ export const BoardWindows: FC<BoardWindowsProps> = ({
 		};
 		if (win.kind === "chat") {
 			// Assistant chats are on no card, so they get no assistant button.
-			const card = cardWith(board, win.chatId);
+			const card = cardOfChat(board, win.chatId);
 			return (
 				<FloatingChat
 					key={key}
 					{...frame}
 					title={chatsById.get(win.chatId)?.title ?? "Chat"}
 					color={colorByChatId.get(win.chatId)}
-					onAssistant={
+					cardAssistant={
 						card && {
 							cardTitle: card.title,
 							open: () => onCardAssistant(card),
@@ -105,14 +105,18 @@ export const BoardWindows: FC<BoardWindowsProps> = ({
 				: undefined;
 		return (
 			<FloatingChat
-				key={key}
+				// Keyed by target so a new target gets a fresh form, not the pending
+				// request, text or error of the draft it replaced.
+				key={`${key}:${JSON.stringify(target)}`}
 				{...frame}
 				title={`New chat in ${"column" in target ? target.column : (card?.title ?? "card")}`}
 				color={card?.color}
 			>
 				<DraftChat
 					labels={labels}
-					context={card && win.withContext ? cardContext(card) : undefined}
+					context={
+						card && win.includeCardContext ? cardContext(card) : undefined
+					}
 					onCreated={(chatId) => onDraftCreated(target, chatId)}
 				/>
 			</FloatingChat>

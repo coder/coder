@@ -40,7 +40,7 @@ const renderColumn = (name: string) => {
 			onSetCardEfforts={noop}
 			onFilterEffort={noop}
 			onRenameChat={noop}
-			onAssistant={noop}
+			onCardAssistant={noop}
 			onNewChatInCard={noop}
 			onRemoveFromGroup={noop}
 			onOpen={noop}

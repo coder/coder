@@ -22,7 +22,7 @@ const renderCard = (chats: readonly Chat[], assistant?: Chat) => {
 		onSetTitle: vi.fn(),
 		onSetColor: vi.fn(),
 		onRenameChat: vi.fn(),
-		onAssistant: vi.fn(),
+		onCardAssistant: vi.fn(),
 		onNewChat: vi.fn(),
 		onSetEfforts: vi.fn(),
 		onFilterEffort: vi.fn(),
@@ -85,7 +85,7 @@ describe("BoardCard", () => {
 
 	it("opens the assistant from the actions menu", async () => {
 		const user = userEvent.setup();
-		const { onAssistant } = renderCard([chat("p")]);
+		const { onCardAssistant } = renderCard([chat("p")]);
 
 		await user.click(
 			screen.getByRole("button", { name: "Actions for Chat p" }),
@@ -94,7 +94,7 @@ describe("BoardCard", () => {
 			await screen.findByRole("menuitem", { name: "Assistant" }),
 		);
 
-		expect(onAssistant).toHaveBeenCalledTimes(1);
+		expect(onCardAssistant).toHaveBeenCalledTimes(1);
 	});
 
 	it("starts a new chat in the card from the actions menu", async () => {
@@ -129,12 +129,11 @@ describe("BoardCard", () => {
 		);
 		expect(onSetEfforts).toHaveBeenCalledWith(["Q3", "This week"]);
 
-		// The sub menu stayed open: the next toggle needs no reopening.
+		// The sub menu stayed open.
 		await user.click(screen.getByRole("menuitemcheckbox", { name: "Q3" }));
 		expect(onSetEfforts).toHaveBeenLastCalledWith([]);
 
-		// Passing over an item mid-word takes focus from the field; only Enter
-		// coins the effort.
+		// Blur must not save the partial name.
 		const field = screen.getByRole("textbox", { name: "New effort" });
 		await user.type(field, "Lau");
 		await user.hover(screen.getByRole("menuitemcheckbox", { name: "Q3" }));
@@ -142,6 +141,9 @@ describe("BoardCard", () => {
 		await user.type(field, "nch{Enter}");
 		expect(onSetEfforts).toHaveBeenCalledTimes(3);
 		expect(onSetEfforts).toHaveBeenLastCalledWith(["Q3", "Launch"]);
+		expect(field).toHaveValue("");
+		await user.type(field, "Beta{Enter}");
+		expect(onSetEfforts).toHaveBeenLastCalledWith(["Q3", "Beta"]);
 	});
 
 	it("filters the board by an effort from its tag", async () => {

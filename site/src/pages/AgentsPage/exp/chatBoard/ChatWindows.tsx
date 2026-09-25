@@ -64,7 +64,7 @@ type FloatingChatProps = {
 	readonly onPreviewEnter: () => void;
 	readonly onPreviewLeave: () => void;
 	/** Present for chats that belong to a card: opens that card's assistant. */
-	readonly onAssistant?: Readonly<{ cardTitle: string; open: () => void }>;
+	readonly cardAssistant?: Readonly<{ cardTitle: string; open: () => void }>;
 	readonly children: ReactNode;
 };
 
@@ -83,7 +83,7 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 	onInteract,
 	onPreviewEnter,
 	onPreviewLeave,
-	onAssistant,
+	cardAssistant,
 	children,
 }) => {
 	const [gesture, setGesture] = useState<Gesture | null>(null);
@@ -201,23 +201,23 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 						<input
 							type="checkbox"
 							className="size-3 accent-content-link"
-							checked={win.withContext}
+							checked={win.includeCardContext}
 							onChange={(e) =>
-								onChange({ ...win, withContext: e.target.checked })
+								onChange({ ...win, includeCardContext: e.target.checked })
 							}
 						/>
 						Include card context
 					</label>
 				)}
-				{onAssistant && (
+				{cardAssistant && (
 					<Button
 						variant="subtle"
 						size="icon"
-						aria-label={`Assistant for ${onAssistant.cardTitle}`}
+						aria-label={`Assistant for ${cardAssistant.cardTitle}`}
 						title="Assistant"
 						className="size-6 shrink-0 text-content-secondary hover:text-content-primary"
 						onPointerDown={(e) => e.stopPropagation()}
-						onClick={onAssistant.open}
+						onClick={cardAssistant.open}
 					>
 						<BotIcon className="size-3.5" />
 					</Button>

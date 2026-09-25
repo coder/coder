@@ -54,7 +54,7 @@ describe("boardStorage", () => {
 						kind: "draft",
 						chatId: undefined,
 						target: { column: "Done" },
-						withContext: false,
+						includeCardContext: false,
 					},
 					"garbage",
 				],

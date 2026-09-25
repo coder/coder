@@ -29,12 +29,12 @@ type BoardHeaderProps = {
 	readonly onSearchChange: (value: string) => void;
 	readonly onExit: () => void;
 	/** Opens the board's own assistant; an empty board has nothing to organize. */
-	readonly onAssistant: () => void;
+	readonly onBoardAssistant: () => void;
 	/** Every effort on the board; the effort menu is hidden when empty. */
-	readonly efforts: readonly EffortCount[];
+	readonly effortCounts: readonly EffortCount[];
 	/** The selected effort; null shows every card. */
 	readonly effortFilter: string | null;
-	readonly onEffortFilter: (name: string | null) => void;
+	readonly onFilterEffort: (name: string | null) => void;
 	readonly onRenameEffort: (from: string, to: string) => void;
 };
 
@@ -45,10 +45,10 @@ export const BoardHeader: FC<BoardHeaderProps> = ({
 	search,
 	onSearchChange,
 	onExit,
-	onAssistant,
-	efforts,
+	onBoardAssistant,
+	effortCounts,
 	effortFilter,
-	onEffortFilter,
+	onFilterEffort,
 	onRenameEffort,
 }) => (
 	<div className="flex h-12 shrink-0 items-center gap-3 border-b border-border pr-4 pl-3">
@@ -76,16 +76,16 @@ export const BoardHeader: FC<BoardHeaderProps> = ({
 			title="Board assistant"
 			className="ml-auto size-7 text-content-secondary"
 			disabled={!chatCount}
-			onClick={onAssistant}
+			onClick={onBoardAssistant}
 		>
 			<BotIcon className="size-4" />
 		</Button>
-		{efforts.length > 0 && (
+		{effortCounts.length > 0 && (
 			<EffortMenu
-				efforts={efforts}
+				effortCounts={effortCounts}
 				cardCount={cardCount ?? 0}
 				value={effortFilter}
-				onChange={onEffortFilter}
+				onChange={onFilterEffort}
 				onRename={onRenameEffort}
 			/>
 		)}
@@ -108,7 +108,7 @@ export const BoardHeader: FC<BoardHeaderProps> = ({
 );
 
 type EffortMenuProps = {
-	readonly efforts: readonly EffortCount[];
+	readonly effortCounts: readonly EffortCount[];
 	readonly cardCount: number;
 	readonly value: string | null;
 	readonly onChange: (name: string | null) => void;
@@ -120,7 +120,7 @@ type EffortMenuProps = {
 const ALL = "";
 
 const EffortMenu: FC<EffortMenuProps> = ({
-	efforts,
+	effortCounts,
 	cardCount,
 	value,
 	onChange,
@@ -154,7 +154,7 @@ const EffortMenu: FC<EffortMenuProps> = ({
 					value={value ?? ALL}
 					onValueChange={(next) => onChange(next === ALL ? null : next)}
 				>
-					{[{ name: ALL, count: cardCount }, ...efforts].map(
+					{[{ name: ALL, count: cardCount }, ...effortCounts].map(
 						({ name, count }) => (
 							<DropdownMenuRadioItem
 								key={name}

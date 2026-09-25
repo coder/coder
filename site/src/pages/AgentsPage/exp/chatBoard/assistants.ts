@@ -18,10 +18,13 @@ import {
 } from "./assistantSpecs";
 import { ASSISTANT_KEY } from "./boardLabels";
 
-const WORKSPACE_INSTRUCTION = `Workspace: none attached yet. Create "${WORKSPACE_NAME}" as described in your instructions when you first need it; do not ask first.`;
+const WORKSPACE_INSTRUCTION = `Workspace: none attached yet. Create "${WORKSPACE_NAME}" as described in your instructions when you first need it.`;
 
 // The deployment's own MCP server, which gives the assistant chat tools
-// without a workspace. Usable only once the user has connected it.
+// without a workspace. Usable only once the user has connected it. Matched
+// by slug or URL path, an assumption rather than an identity check: members
+// get redacted configs with an empty URL, so the client cannot prove the
+// server is this deployment's.
 const isUsableCoderMcp = (config: MCPServerConfig) =>
 	config.enabled &&
 	config.auth_connected &&
@@ -72,11 +75,11 @@ const openingFor = (queryClient: QueryClient) => {
  * from the spec. A connected Coder MCP is attached and gets the prompt that
  * leans on it; otherwise the chat gets the curl-only prompt and the shared
  * workspace. Undefined after a reported failure; a failed rename is reported
- * by the mutation and the chat still opens. Opens for the same key on one
+ * by the mutation and the chat still opens. Calls for the same key on one
  * client share one request until it settles, so a second click before the
  * list refetch does not create a second assistant.
  */
-export const openAssistant = (
+export const findOrCreateAssistant = (
 	args: OpenAssistant,
 ): Promise<string | undefined> => {
 	const { spec, existingId, queryClient } = args;
@@ -134,7 +137,9 @@ const createAssistant = async ({
 		);
 		return chat.id;
 	} catch (error) {
-		toast.error(getErrorMessage(error, "Failed to open the assistant."));
+		toast.error("Failed to open the assistant.", {
+			description: getErrorMessage(error, "Unknown error."),
+		});
 		return undefined;
 	}
 };

@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import {
+	type InfiniteData,
 	QueryClient,
 	QueryClientProvider,
 	useInfiniteQuery,
@@ -12,41 +13,54 @@ import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import { boardChats, boardChatsKey } from "./boardChats";
 import { refetchChatListUntilLanded } from "./refreshChatList";
 
+// A mounted board list whose first fetch has landed; each later fetch waits
+// in `fetches` until the test resolves it.
+const renderBoardList = async () => {
+	const queryClient = new QueryClient({
+		defaultOptions: { queries: { retry: false } },
+	});
+	const wrapper = ({ children }: PropsWithChildren) => (
+		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+	);
+	const fetches: Deferred<Chat[]>[] = [];
+	renderHook(
+		() =>
+			useInfiniteQuery({
+				...boardChats(),
+				retry: false,
+				queryFn: () => {
+					const fetch = createDeferred<Chat[]>();
+					fetches.push(fetch);
+					return fetch.promise;
+				},
+			}),
+		{ wrapper },
+	);
+	await waitFor(() => expect(fetches).toHaveLength(1));
+	fetches[0]?.resolve([]);
+	await waitFor(() =>
+		expect(queryClient.getQueryState(boardChatsKey)?.fetchStatus).toBe("idle"),
+	);
+	return { queryClient, fetches };
+};
+
+// What AgentsPageLayout does on every chat watch event.
+const watchEvent = (queryClient: QueryClient) =>
+	queryClient.cancelQueries({ queryKey: chatListFamilyKey });
+
 describe("refetchChatListUntilLanded", () => {
 	it("asks again when a watch event cancels the refetch, and stops once data lands", async () => {
-		const queryClient = new QueryClient({
-			defaultOptions: { queries: { retry: false } },
-		});
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
-		const fetches: Deferred<Chat[]>[] = [];
-		renderHook(
-			() =>
-				useInfiniteQuery({
-					...boardChats(),
-					retry: false,
-					queryFn: () => {
-						const fetch = createDeferred<Chat[]>();
-						fetches.push(fetch);
-						return fetch.promise;
-					},
-				}),
-			{ wrapper },
-		);
-		await waitFor(() => expect(fetches).toHaveLength(1));
-		fetches[0]?.resolve([]);
-		await waitFor(() =>
-			expect(queryClient.getQueryState(boardChatsKey)?.fetchStatus).toBe(
-				"idle",
-			),
-		);
+		const { queryClient, fetches } = await renderBoardList();
 
 		const stop = refetchChatListUntilLanded(queryClient);
 		await waitFor(() => expect(fetches).toHaveLength(2));
 
-		// What AgentsPageLayout does on every chat watch event.
-		await queryClient.cancelQueries({ queryKey: chatListFamilyKey });
+		// A cache patch is not the response being waited for.
+		queryClient.setQueryData<InfiniteData<Chat[]>>(
+			boardChatsKey,
+			(old) => old && { ...old },
+		);
+		await watchEvent(queryClient);
 		await waitFor(() => expect(fetches).toHaveLength(3));
 
 		fetches[2]?.resolve([]);
@@ -55,8 +69,20 @@ describe("refetchChatListUntilLanded", () => {
 				"idle",
 			),
 		);
-		await queryClient.cancelQueries({ queryKey: chatListFamilyKey });
+		await watchEvent(queryClient);
 		expect(fetches).toHaveLength(3);
+		stop();
+	});
+
+	it("stops asking after three retries", async () => {
+		const { queryClient, fetches } = await renderBoardList();
+
+		const stop = refetchChatListUntilLanded(queryClient);
+		for (const pending of [2, 3, 4, 5]) {
+			await waitFor(() => expect(fetches).toHaveLength(pending));
+			await watchEvent(queryClient);
+		}
+		expect(fetches).toHaveLength(5);
 		stop();
 	});
 

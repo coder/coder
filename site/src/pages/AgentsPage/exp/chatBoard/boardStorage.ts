@@ -28,7 +28,7 @@ export type ChatWindow = WindowFrame &
 		| Readonly<{
 				kind: "draft";
 				target: DraftTarget;
-				withContext: boolean;
+				includeCardContext: boolean;
 				pinned: true;
 		  }>
 	);

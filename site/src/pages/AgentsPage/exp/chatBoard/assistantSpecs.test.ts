@@ -58,11 +58,11 @@ describe("cardAssistantSpec", () => {
 		});
 		expect(spec.systemPrompt).toContain("assistant for one card");
 		expect(spec.systemPrompt).toContain(
-			"Card id (primary chat): p. Members: p, m.",
+			"Card id (primary chat): p. Chats: p, m.",
 		);
 		expect(spec.systemPrompt).toContain("notes");
 		expect(spec.systemPrompt).toContain(
-			"Propose, then act only on an explicit yes.",
+			"Propose, then act only on an explicit yes from the user in this chat.",
 		);
 		expect(spec.systemPrompt).not.toContain("board/effort");
 		expect(spec.systemPrompt).not.toContain("Merge two cards");
@@ -102,7 +102,7 @@ describe("boardAssistantSpec", () => {
 			"oldest remaining member by created_at becomes primary",
 		);
 		expect(spec.systemPrompt).toContain(
-			"Propose, then act only on an explicit yes.",
+			"Propose, then act only on an explicit yes from the user in this chat.",
 		);
 	});
 
@@ -150,8 +150,6 @@ describe("boardAssistantSpec", () => {
 			expect(prompt).toContain("Refer to chats by title in prose");
 			expect(prompt).toContain("newest first");
 			expect(prompt).not.toContain("oldest to newest");
-			// Lessons from the 21 Sep session: PR truth, readable proposals,
-			// sending work, dates, and the API's paging and parsing traps.
 			expect(prompt).toContain("PR state comes from the timeline");
 			expect(prompt).toContain(
 				"Never propose merge, ready-for-review or draft flips",

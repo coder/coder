@@ -38,7 +38,7 @@ type BoardColumnsProps = {
 	readonly dropTarget: DropTarget | null;
 	/** Every effort on the board, for the card editors. */
 	readonly knownEfforts: readonly string[];
-	readonly onAssistant: (card: BoardCardModel) => void;
+	readonly onCardAssistant: (card: BoardCardModel) => void;
 	/** Opens the create form for a chat born in a column or on a card. */
 	readonly onNewChat: (target: DraftTarget) => void;
 	/** A card's effort tag narrows the board to that effort. */
@@ -64,7 +64,7 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 	openChatIds,
 	dropTarget,
 	knownEfforts,
-	onAssistant,
+	onCardAssistant,
 	onNewChat,
 	onFilterEffort,
 	onOpen,
@@ -99,7 +99,7 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 					onRenameChat={(chat, title) =>
 						void run(renameChat(board, chat.id, title))
 					}
-					onAssistant={onAssistant}
+					onCardAssistant={onCardAssistant}
 					onNewChatInCard={(card) => onNewChat({ cardId: card.id })}
 					onRemoveFromGroup={(chat) =>
 						void run(removeFromGroup(board, chat.id))

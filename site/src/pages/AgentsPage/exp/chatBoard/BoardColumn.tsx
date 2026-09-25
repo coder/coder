@@ -59,7 +59,7 @@ type BoardColumnProps = {
 	) => void;
 	readonly onFilterEffort: (name: string) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
-	readonly onAssistant: (card: BoardCardModel) => void;
+	readonly onCardAssistant: (card: BoardCardModel) => void;
 	readonly onNewChatInCard: (card: BoardCardModel) => void;
 	readonly onRemoveFromGroup: (chat: Chat, card: BoardCardModel) => void;
 	readonly onAddNote: (card: BoardCardModel, text: string) => void;
@@ -85,7 +85,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 	onSetCardEfforts,
 	onFilterEffort,
 	onRenameChat,
-	onAssistant,
+	onCardAssistant,
 	onNewChatInCard,
 	onRemoveFromGroup,
 	onOpen,
@@ -231,7 +231,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 							onSetEfforts={(names) => onSetCardEfforts(card, names)}
 							onFilterEffort={onFilterEffort}
 							onRenameChat={onRenameChat}
-							onAssistant={() => onAssistant(card)}
+							onCardAssistant={() => onCardAssistant(card)}
 							onNewChat={() => onNewChatInCard(card)}
 							onRemoveFromGroup={(chat) => onRemoveFromGroup(chat, card)}
 							onOpen={onOpen}

@@ -13,10 +13,8 @@ type ChatOpeners = {
 };
 
 /**
- * Unread rides an opener's top-right corner as a positioned dot, so it costs
- * no width. While the chat works the dot would flicker on with every token
- * and the spinner already says "look here", so it waits for the chat to
- * settle.
+ * Hidden while the chat works: the spinner already marks the chat, and the
+ * dot would flicker on each token.
  */
 const UnreadBadge: FC<{ readonly chat: Chat }> = ({ chat }) => {
 	if (!chat.has_unread || isActiveChatStatus(chat.status)) return null;
@@ -56,20 +54,22 @@ type AssistantOpenerProps = {
 	readonly assistant: Chat;
 } & ChatOpeners;
 
-/**
- * The card's assistant chat, which the board list hides: this icon is the
- * only sign it exists. Same preview and open gestures as ChatOpener; the
- * glyph pulses while the assistant is on a turn.
- */
+// Covers every status isActiveChatStatus treats as active: all of them
+// pulse, so only the label tells them apart.
+const assistantLabel: Partial<Record<Chat["status"], string>> = {
+	running: "Assistant working",
+	requires_action: "Assistant waiting for you",
+	interrupting: "Assistant stopping",
+};
+
+/** The board list hides assistant chats; this icon is the only sign a card has one. */
 export const AssistantOpener: FC<AssistantOpenerProps> = ({
 	assistant,
 	onOpen,
 	onPreview,
 	onPreviewEnd,
 }) => {
-	let label = "Assistant";
-	if (assistant.status === "running") label = "Assistant working";
-	else if (assistant.status === "interrupting") label = "Assistant stopping";
+	const label = assistantLabel[assistant.status] ?? "Assistant";
 	return (
 		<IconButton
 			aria-label={label}
