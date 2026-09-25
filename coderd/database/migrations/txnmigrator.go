@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/lib/pq"
@@ -25,6 +26,9 @@ type pgTxnDriver struct {
 	ctx context.Context
 	db  *sql.DB
 	tx  *sql.Tx
+	// lockTimeout bounds how long any statement in the migration transaction
+	// waits for a relation lock. Zero disables the bound.
+	lockTimeout time.Duration
 }
 
 func (*pgTxnDriver) Open(string) (database.Driver, error) {
@@ -36,9 +40,7 @@ func (*pgTxnDriver) Close() error {
 }
 
 func (d *pgTxnDriver) Lock() error {
-	var err error
-
-	d.tx, err = d.db.BeginTx(d.ctx, nil)
+	tx, err := d.db.BeginTx(d.ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -46,10 +48,29 @@ func (d *pgTxnDriver) Lock() error {
 SELECT pg_advisory_xact_lock($1)
 `
 
-	_, err = d.tx.ExecContext(d.ctx, q, lockID)
+	_, err = tx.ExecContext(d.ctx, q, lockID)
 	if err != nil {
+		_ = tx.Rollback()
 		return xerrors.Errorf("exec select: %w", err)
 	}
+
+	// Postgres lock_timeout also applies to advisory locks, so it must be set
+	// only after the advisory lock is held. Otherwise a replica waiting for a
+	// concurrent migration to finish would time out instead of queueing behind
+	// it for up to migrate.LockTimeout.
+	//
+	// SET LOCAL scopes the setting to this transaction and does not accept
+	// bind parameters, so the millisecond value is formatted into the query.
+	if d.lockTimeout > 0 {
+		ms := max(d.lockTimeout.Milliseconds(), 1)
+		_, err = tx.ExecContext(d.ctx, fmt.Sprintf("SET LOCAL lock_timeout = %d", ms))
+		if err != nil {
+			_ = tx.Rollback()
+			return xerrors.Errorf("set lock_timeout: %w", err)
+		}
+	}
+
+	d.tx = tx
 	return nil
 }
 
