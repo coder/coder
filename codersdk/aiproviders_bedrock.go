@@ -61,6 +61,12 @@ type AIProviderBedrockSettings struct {
 	// AIProviderBedrockProtocolInvokeModel, so existing rows keep the legacy
 	// behavior.
 	Protocol AIProviderBedrockProtocol `json:"protocol,omitempty"`
+	// ResolvedModel and ResolvedSmallFastModel are the model IDs behind the
+	// configured identifiers, which differ from them only for application
+	// inference profile ARNs. The server resolves those through AWS when the
+	// provider is written and owns the values; a client cannot set them.
+	ResolvedModel          string `json:"resolved_model,omitempty"`
+	ResolvedSmallFastModel string `json:"resolved_small_fast_model,omitempty"`
 }
 
 // ResolvedProtocol returns the configured protocol, mapping the empty value to
@@ -70,6 +76,26 @@ func (b AIProviderBedrockSettings) ResolvedProtocol() AIProviderBedrockProtocol 
 		return AIProviderBedrockProtocolInvokeModel
 	}
 	return b.Protocol
+}
+
+// ValidateCredentials checks that static credentials are paired. Callers must
+// merge omitted credential fields from storage before validating a patch.
+func (b AIProviderBedrockSettings) ValidateCredentials() []ValidationError {
+	hasKey := b.AccessKey != nil && *b.AccessKey != ""
+	hasSecret := b.AccessKeySecret != nil && *b.AccessKeySecret != ""
+	if hasKey == hasSecret {
+		return nil
+	}
+	field := "settings.access_key"
+	detail := "access_key_secret is set, but access_key is missing or empty"
+	if hasKey {
+		field = "settings.access_key_secret"
+		detail = "access_key is set, but access_key_secret is missing or empty"
+	}
+	return []ValidationError{{
+		Field:  field,
+		Detail: detail,
+	}}
 }
 
 // IsConfigured reports whether any load-bearing Bedrock field is set,

@@ -7,14 +7,14 @@ import {
 	getOrganizationLabel,
 	OrganizationAutocomplete,
 } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
-import type { ModelSelectorOption } from "./components/ChatElements/ModelSelector";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import {
 	PersonalModelOverrideRow,
 	type SavePersonalOverride,
 } from "./components/PersonalModelOverrideRow";
 import { SectionHeader } from "./components/SectionHeader";
 
-export interface AgentSettingsUserAgentsPageViewProps {
+export type AgentSettingsUserAgentsPageViewProps = {
 	overridesData?: TypesGen.UserChatPersonalModelOverridesResponse;
 	overridesError: unknown;
 	onRetryOverrides?: () => void;
@@ -38,7 +38,7 @@ export interface AgentSettingsUserAgentsPageViewProps {
 	onSaveExploreModelOverride: SavePersonalOverride;
 	isSavingExploreModelOverride: boolean;
 	isSaveExploreModelOverrideError: boolean;
-}
+};
 
 export const AgentSettingsUserAgentsPageView: FC<
 	AgentSettingsUserAgentsPageViewProps

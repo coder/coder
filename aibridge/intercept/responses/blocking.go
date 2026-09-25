@@ -15,8 +15,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -35,12 +35,37 @@ func NewBlockingInterceptor(
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingResponsesInterceptor {
+	return buildBlockingInterceptor(id, reqPayload, cfg, cred, nil, clientHeaders, tracer)
+}
+
+func NewBedrockBlockingInterceptor(
+	id uuid.UUID,
+	reqPayload RequestPayload,
+	cfg intercept.Config,
+	cred intercept.Credential,
+	bedrockMantle *awssig.MantleConfig,
+	clientHeaders http.Header,
+	tracer trace.Tracer,
+) *BlockingResponsesInterceptor {
+	return buildBlockingInterceptor(id, reqPayload, cfg, cred, bedrockMantle, clientHeaders, tracer)
+}
+
+func buildBlockingInterceptor(
+	id uuid.UUID,
+	reqPayload RequestPayload,
+	cfg intercept.Config,
+	cred intercept.Credential,
+	bedrockMantle *awssig.MantleConfig,
+	clientHeaders http.Header,
+	tracer trace.Tracer,
+) *BlockingResponsesInterceptor {
 	return &BlockingResponsesInterceptor{
 		responsesInterceptionBase: responsesInterceptionBase{
 			id:            id,
 			reqPayload:    reqPayload,
 			cfg:           cfg,
 			cred:          cred,
+			bedrockMantle: bedrockMantle,
 			clientHeaders: clientHeaders,
 			tracer:        tracer,
 		},
@@ -100,12 +125,6 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 
 		opts := i.requestOptions(&respCopy)
 		opts = append(opts, option.WithRequestTimeout(time.Second*600))
-
-		// TODO(ssncferreira): inject actor headers directly in the client-header
-		//   middleware instead of using SDK options.
-		if actor := aibcontext.ActorFromContext(r.Context()); actor != nil && i.cfg.SendActorHeaders {
-			opts = append(opts, intercept.ActorHeadersAsOpenAIOpts(actor)...)
-		}
 
 		var keyAttempts int
 		response, keyAttempts, upstreamErr = i.newResponse(ctx, srv, opts)

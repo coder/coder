@@ -4,14 +4,15 @@ import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DefaultChatDebugRetentionDays } from "#/api/typesGenerated";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
+import { docs } from "#/utils/docs";
 import { DaysField, LifecycleSettingLayout } from "./LifecycleSettingLayout";
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
-interface DebugRetentionSettingsProps {
+type DebugRetentionSettingsProps = {
 	debugRetentionDaysData: TypesGen.ChatDebugRetentionDaysResponse | undefined;
 	isDebugRetentionDaysLoading: boolean;
 	isDebugRetentionDaysLoadError: boolean;
@@ -21,7 +22,7 @@ interface DebugRetentionSettingsProps {
 	) => void;
 	isSavingDebugRetentionDays: boolean;
 	isSaveDebugRetentionDaysError: boolean;
-}
+};
 
 // Keep in sync with chatDebugRetentionDaysMaximum in coderd/exp_chats.go.
 const DAYS_MIN = 1;
@@ -90,6 +91,7 @@ export const DebugRetentionSettings: FC<DebugRetentionSettingsProps> = ({
 		<LifecycleSettingLayout
 			title="Chat debug data retention"
 			description="Chat debug runs and debug steps older than this are automatically deleted. This does not control chat message retention."
+			docsHref={docs("/ai-coder/agents/platform-controls/chat-debug-retention")}
 			checked={form.values.enabled}
 			onCheckedChange={(checked) => void form.setFieldValue("enabled", checked)}
 			switchLabel="Enable chat debug data retention"

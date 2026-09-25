@@ -5,13 +5,13 @@ title: Provider Authentication
 > [!CAUTION]
 > Do not store secrets in templates. Assume every user has cleartext access to every template.
 
-The Coder server's
+The control plane's
 [provisioner](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/provisioner)
 process needs to authenticate with other provider APIs to provision workspaces.
 There are two approaches to do this:
 
 - Pass credentials to the provisioner as parameters.
-- Preferred: Execute the Coder server in an environment that is authenticated
+- Preferred: Run the control plane in an environment that is authenticated
   with the provider.
 
 We encourage the latter approach where supported:
@@ -48,7 +48,7 @@ There are two ways to use a remote Docker host for authentication:
 
 - Configure the Docker provider to use a
   [remote host over SSH or TCP](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#remote-hosts).
-- Run an [external provisioner](../../provisioners/index.md) on the remote docker
+- Run an [external provisioner](../../../install/operate/provisioners/index.md) on the remote docker
   host.
 
 Other providers might also support authenticated environments. Check the

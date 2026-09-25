@@ -1,4 +1,6 @@
-# Speed up your Coder templates and workspaces
+---
+title: Speed up your Coder templates and workspaces
+---
 
 October 31, 2024
 
@@ -44,7 +46,7 @@ We recommend that all administrators deploying on Kubernetes or on an existing
 Prometheus or Grafana stack set the observability bundle up with the control
 plane from the start. For installation instructions, visit the
 [observability repository](https://github.com/coder/observability?tab=readme-ov-file#installation),
-or our [Kubernetes installation guide](../../install/kubernetes.md).
+or our [Kubernetes installation guide](../../install/server/kubernetes/index.md).
 
 ### Enable Prometheus metrics for Coder
 
@@ -74,7 +76,7 @@ becomes available.
 
 ### Increase provisioner daemons
 
-Provisioners are queue-based to reduce unpredictable load to the Coder server.
+Provisioners are queue-based to reduce unpredictable load to the control plane.
 If you require a higher bandwidth of provisioner jobs, you can do so by
 increasing the
 [`CODER_PROVISIONER_DAEMONS`](../../reference/cli/server.md#--provisioner-daemons)
@@ -83,7 +85,7 @@ config option.
 You risk overloading Coder if you use too many built-in provisioners, so we
 recommend a maximum of five built-in provisioners per `coderd` replica. For more
 than five provisioners, we recommend that you move to
-[External Provisioners](../../admin/provisioners/index.md) and also consider
+[External Provisioners](../../install/operate/provisioners/index.md) and also consider
 [High Availability](../../admin/networking/high-availability.md) to run multiple
 `coderd` replicas.
 
@@ -115,7 +117,7 @@ Adjust the CPU and memory values as shown in
 ```
 
 Visit the
-[validated architecture documentation](../../admin/infrastructure/validated-architectures/index.md#workspace-nodes)
+[validated architecture documentation](../../install/plan/sizing/index.md#workspace-nodes)
 for more information.
 
 ## Set up Terraform provider caching
@@ -165,4 +167,4 @@ directory.
 
 Ensure that this directory is set to a location on disk which will persist
 across restarts of Coder or
-[external provisioners](../../admin/provisioners/index.md), if you're using them.
+[external provisioners](../../install/operate/provisioners/index.md), if you're using them.

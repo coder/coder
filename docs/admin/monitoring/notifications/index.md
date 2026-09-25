@@ -16,13 +16,6 @@ user(s) of the event.
 
 Coder supports the following list of events:
 
-### Task Events
-
-These notifications are sent to the owner of the workspace where the task is running:
-
-- Task Idle
-- Task Working
-
 ### Template Events
 
 These notifications are sent to users with **template admin** roles:
@@ -336,7 +329,7 @@ troubleshoot:
     `CODER_LOG_FILTER=".*notifications.*"` to filter for notification-related logs.
 1. If you are on version 2.15.x, notifications must be enabled using the
     `notifications`
-    [experiment](../../../install/releases/feature-stages.md#early-access-features).
+    [experiment](../../../reference/feature-stages.md#early-access-features).
 
     Notifications are enabled by default in Coder v2.16.0 and later.
 

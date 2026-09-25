@@ -482,4 +482,27 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
 			expect(result.current.currentPage).toBe(1);
 		});
 	});
+
+	describe("Refetch errors", () => {
+		it("keeps the pagination info from the retained data when a refetch fails", async () => {
+			const mockQueryFn = vi
+				.fn()
+				.mockResolvedValueOnce({ count: 50 })
+				.mockRejectedValueOnce(new Error("Refetch failed"));
+			const { result } = await render({
+				queryKey: () => ["refetchError"],
+				queryFn: mockQueryFn,
+				recordsPerPage: 10,
+			});
+			await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+			await result.current.refetch();
+			await waitFor(() => expect(result.current.isError).toBe(true));
+
+			expect(result.current.isSuccess).toBe(false);
+			expect(result.current.totalRecords).toBe(50);
+			expect(result.current.totalPages).toBe(5);
+			expect(result.current.hasNextPage).toBe(true);
+		});
+	});
 });

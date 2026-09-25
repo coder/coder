@@ -918,15 +918,17 @@ func requireMCPServerConfigDecrypted(
 	t *testing.T,
 	cfg database.MCPServerConfig,
 	ciphers []Cipher,
-	wantSecret, wantAPIKey, wantHeaders string,
+	wantSecret, wantAPIKey, wantHeaders, wantSigningSecret string,
 ) {
 	t.Helper()
 	require.Equal(t, wantSecret, cfg.OAuth2ClientSecret)
 	require.Equal(t, wantAPIKey, cfg.APIKeyValue)
 	require.Equal(t, wantHeaders, cfg.CustomHeaders)
+	require.Equal(t, wantSigningSecret, cfg.SigningSecret)
 	require.Equal(t, ciphers[0].HexDigest(), cfg.OAuth2ClientSecretKeyID.String)
 	require.Equal(t, ciphers[0].HexDigest(), cfg.APIKeyValueKeyID.String)
 	require.Equal(t, ciphers[0].HexDigest(), cfg.CustomHeadersKeyID.String)
+	require.Equal(t, ciphers[0].HexDigest(), cfg.SigningSecretKeyID.String)
 }
 
 // requireMCPServerConfigRawEncrypted reads the config from the raw
@@ -937,7 +939,7 @@ func requireMCPServerConfigRawEncrypted(
 	rawDB database.Store,
 	cfgID uuid.UUID,
 	ciphers []Cipher,
-	wantSecret, wantAPIKey, wantHeaders string,
+	wantSecret, wantAPIKey, wantHeaders, wantSigningSecret string,
 ) {
 	t.Helper()
 	raw, err := rawDB.GetMCPServerConfigByID(ctx, cfgID)
@@ -945,6 +947,7 @@ func requireMCPServerConfigRawEncrypted(
 	requireEncryptedEquals(t, ciphers[0], raw.OAuth2ClientSecret, wantSecret)
 	requireEncryptedEquals(t, ciphers[0], raw.APIKeyValue, wantAPIKey)
 	requireEncryptedEquals(t, ciphers[0], raw.CustomHeaders, wantHeaders)
+	requireEncryptedEquals(t, ciphers[0], raw.SigningSecret, wantSigningSecret)
 }
 
 type allowAllPreparedAuthorized struct{}
@@ -966,6 +969,8 @@ func TestMCPServerConfigs(t *testing.T) {
 		oauthSecret   = "my-oauth-secret"
 		apiKeyValue   = "my-api-key"
 		customHeaders = `{"X-Custom":"header-value"}`
+		//nolint:gosec // test credential
+		signingSecret = "mcp-signing-secret"
 	)
 	// insertConfig is a small helper that creates an MCP server
 	// config through the encrypted store with secret fields set.
@@ -978,9 +983,10 @@ func TestMCPServerConfigs(t *testing.T) {
 			OAuth2ClientSecret: oauthSecret,
 			APIKeyValue:        apiKeyValue,
 			CustomHeaders:      customHeaders,
+			SigningSecret:      signingSecret,
 			Availability:       "force_on",
 		})
-		requireMCPServerConfigDecrypted(t, cfg, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, cfg, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 		return cfg
 	}
 
@@ -988,7 +994,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("GetMCPServerConfigByID", func(t *testing.T) {
@@ -998,8 +1004,8 @@ func TestMCPServerConfigs(t *testing.T) {
 
 		got, err := crypt.GetMCPServerConfigByID(ctx, cfg.ID)
 		require.NoError(t, err)
-		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("GetMCPServerConfigByIDForUpdate", func(t *testing.T) {
@@ -1009,8 +1015,8 @@ func TestMCPServerConfigs(t *testing.T) {
 
 		got, err := crypt.GetMCPServerConfigByIDForUpdate(ctx, cfg.ID)
 		require.NoError(t, err)
-		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("GetMCPServerConfigByOrganizationAndSlug", func(t *testing.T) {
@@ -1023,8 +1029,8 @@ func TestMCPServerConfigs(t *testing.T) {
 			Slug:           cfg.Slug,
 		})
 		require.NoError(t, err)
-		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 
 		// The slug is only unique per organization: the same slug in
 		// another organization must not resolve.
@@ -1043,8 +1049,8 @@ func TestMCPServerConfigs(t *testing.T) {
 		cfgs, err := crypt.GetMCPServerConfigsByOrganization(ctx, cfg.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
-		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("GetAuthorizedMCPServerConfigs", func(t *testing.T) {
@@ -1056,8 +1062,8 @@ func TestMCPServerConfigs(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		require.Equal(t, cfg.ID, cfgs[0].ID)
-		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("GetEnabledMCPServerConfigsByOrganizationAndIDs", func(t *testing.T) {
@@ -1071,8 +1077,8 @@ func TestMCPServerConfigs(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
-		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("GetEnabledMCPServerConfigsByOrganization", func(t *testing.T) {
@@ -1083,8 +1089,8 @@ func TestMCPServerConfigs(t *testing.T) {
 		cfgs, err := crypt.GetEnabledMCPServerConfigsByOrganization(ctx, cfg.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
-		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("GetForcedMCPServerConfigsByOrganization", func(t *testing.T) {
@@ -1095,8 +1101,8 @@ func TestMCPServerConfigs(t *testing.T) {
 		cfgs, err := crypt.GetForcedMCPServerConfigsByOrganization(ctx, cfg.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
-		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("UpdateMCPServerConfig", func(t *testing.T) {
@@ -1106,9 +1112,10 @@ func TestMCPServerConfigs(t *testing.T) {
 
 		const (
 			//nolint:gosec // test credential
-			newSecret  = "updated-oauth-secret"
-			newAPIKey  = "updated-api-key"
-			newHeaders = `{"X-New":"new-value"}`
+			newSecret        = "updated-oauth-secret"
+			newAPIKey        = "updated-api-key"
+			newHeaders       = `{"X-New":"new-value"}`
+			newSigningSecret = "updated-signing-secret"
 		)
 		updated, err := crypt.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
 			ID:                 cfg.ID,
@@ -1122,6 +1129,7 @@ func TestMCPServerConfigs(t *testing.T) {
 			OAuth2ClientSecret: newSecret,
 			APIKeyValue:        newAPIKey,
 			CustomHeaders:      newHeaders,
+			SigningSecret:      newSigningSecret,
 			ToolAllowList:      cfg.ToolAllowList,
 			ToolDenyList:       cfg.ToolDenyList,
 			Availability:       cfg.Availability,
@@ -1129,8 +1137,193 @@ func TestMCPServerConfigs(t *testing.T) {
 			UpdatedBy:          cfg.CreatedBy.UUID,
 		})
 		require.NoError(t, err)
-		requireMCPServerConfigDecrypted(t, updated, ciphers, newSecret, newAPIKey, newHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, newSecret, newAPIKey, newHeaders)
+		requireMCPServerConfigDecrypted(t, updated, ciphers, newSecret, newAPIKey, newHeaders, newSigningSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, newSecret, newAPIKey, newHeaders, newSigningSecret)
+	})
+}
+
+func TestChatMCPServers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const headers = `{"Authorization":"Bearer chat-secret"}`
+
+	// insertChat creates a chat with a valid owner so the owner-scoped
+	// query has something to resolve.
+	insertChat := func(t *testing.T, store database.Store) database.Chat {
+		t.Helper()
+		defaultOrg, err := store.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+		owner := dbgen.User(t, store, database.User{})
+		model := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{OrganizationID: defaultOrg.ID})
+		return dbgen.Chat(t, store, database.Chat{
+			OrganizationID:    defaultOrg.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: model.ID,
+		})
+	}
+	// insertServer creates a chat MCP server through the encrypted store
+	// and asserts the returned row is plaintext.
+	insertServer := func(t *testing.T, crypt *dbCrypt, ciphers []Cipher, chatID uuid.UUID) database.ChatMCPServer {
+		t.Helper()
+		server := dbgen.ChatMCPServer(t, crypt, database.ChatMCPServer{
+			ChatID:  chatID,
+			Headers: headers,
+		})
+		require.Equal(t, headers, server.Headers)
+		require.Equal(t, ciphers[0].HexDigest(), server.HeadersKeyID.String)
+		return server
+	}
+	requireRawEncrypted := func(t *testing.T, rawDB database.Store, chatID, serverID uuid.UUID, ciphers []Cipher, want string) {
+		t.Helper()
+		raws, err := rawDB.GetChatMCPServersByChatID(ctx, chatID)
+		require.NoError(t, err)
+		var found bool
+		for _, raw := range raws {
+			if raw.ID != serverID {
+				continue
+			}
+			found = true
+			requireEncryptedEquals(t, ciphers[0], raw.Headers, want)
+			require.Equal(t, ciphers[0].HexDigest(), raw.HeadersKeyID.String)
+		}
+		require.True(t, found, "server %s not found", serverID)
+	}
+
+	t.Run("UpsertChatMCPServer", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+		requireRawEncrypted(t, db, chat.ID, server.ID, ciphers, headers)
+	})
+
+	t.Run("GetChatMCPServersByChatID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+
+		got, err := crypt.GetChatMCPServersByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, server.ID, got[0].ID)
+		require.Equal(t, headers, got[0].Headers)
+		require.Equal(t, ciphers[0].HexDigest(), got[0].HeadersKeyID.String)
+		requireRawEncrypted(t, db, chat.ID, server.ID, ciphers, headers)
+	})
+
+	t.Run("GetChatMCPServersByChatOwnerID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+
+		got, err := crypt.GetChatMCPServersByChatOwnerID(ctx, chat.OwnerID)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, server.ID, got[0].ID)
+		require.Equal(t, headers, got[0].Headers)
+		require.Equal(t, ciphers[0].HexDigest(), got[0].HeadersKeyID.String)
+		requireRawEncrypted(t, db, chat.ID, server.ID, ciphers, headers)
+
+		// Another owner sees nothing.
+		got, err = crypt.GetChatMCPServersByChatOwnerID(ctx, uuid.New())
+		require.NoError(t, err)
+		require.Empty(t, got)
+	})
+
+	t.Run("UpdateEncryptedChatMCPServerHeaders", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+
+		const newHeaders = `{"X-Rotated":"new-value"}`
+		err := crypt.UpdateEncryptedChatMCPServerHeaders(ctx, database.UpdateEncryptedChatMCPServerHeadersParams{
+			ID:           server.ID,
+			Headers:      newHeaders,
+			HeadersKeyID: sql.NullString{},
+		})
+		require.NoError(t, err)
+		requireRawEncrypted(t, db, chat.ID, server.ID, ciphers, newHeaders)
+
+		got, err := crypt.GetChatMCPServersByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, newHeaders, got[0].Headers)
+	})
+
+	t.Run("EmptyHeaders", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, _ := setup(t)
+		chat := insertChat(t, crypt)
+
+		for _, empty := range []string{"", "{}"} {
+			server := dbgen.ChatMCPServer(t, crypt, database.ChatMCPServer{
+				ChatID:  chat.ID,
+				Headers: empty,
+			})
+			require.Equal(t, "{}", server.Headers)
+			require.False(t, server.HeadersKeyID.Valid)
+
+			raws, err := db.GetChatMCPServersByChatID(ctx, chat.ID)
+			require.NoError(t, err)
+			for _, raw := range raws {
+				if raw.ID != server.ID {
+					continue
+				}
+				require.Equal(t, "{}", raw.Headers)
+				require.False(t, raw.HeadersKeyID.Valid)
+			}
+		}
+	})
+
+	t.Run("ReupsertKeepsID", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+
+		const newURL = "https://mcp.example.com/v2/mcp"
+		again, err := crypt.UpsertChatMCPServer(ctx, database.UpsertChatMCPServerParams{
+			ID:            uuid.New(),
+			ChatID:        chat.ID,
+			Slug:          server.Slug,
+			Url:           newURL,
+			Headers:       headers,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, server.ID, again.ID)
+		require.Equal(t, newURL, again.Url)
+		require.Equal(t, headers, again.Headers)
+		require.Equal(t, server.CreatedAt, again.CreatedAt)
+		require.True(t, again.UpdatedAt.After(server.UpdatedAt))
+
+		got, err := crypt.GetChatMCPServersByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+	})
+
+	t.Run("NoCiphers", func(t *testing.T) {
+		t.Parallel()
+		db, crypt := setupNoCiphers(t)
+		chat := insertChat(t, crypt)
+
+		server := dbgen.ChatMCPServer(t, crypt, database.ChatMCPServer{
+			ChatID:  chat.ID,
+			Headers: headers,
+		})
+		require.Equal(t, headers, server.Headers)
+		require.False(t, server.HeadersKeyID.Valid)
+
+		raws, err := db.GetChatMCPServersByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, raws, 1)
+		require.Equal(t, headers, raws[0].Headers)
+		require.False(t, raws[0].HeadersKeyID.Valid)
 	})
 }
 

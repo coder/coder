@@ -17,7 +17,7 @@ const DialogPortal = DialogPrimitive.Portal;
 export const DialogClose = DialogPrimitive.Close;
 
 const DialogOverlay: React.FC<
-	React.ComponentPropsWithRef<typeof DialogPrimitive.Overlay>
+	React.ComponentProps<typeof DialogPrimitive.Overlay>
 > = ({ className, ...props }) => {
 	return (
 		<DialogPrimitive.Overlay
@@ -52,9 +52,7 @@ const dialogVariants = cva(
 	},
 );
 
-type DialogContentProps = React.ComponentPropsWithRef<
-	typeof DialogPrimitive.Content
-> &
+type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> &
 	VariantProps<typeof dialogVariants>;
 
 export const DialogContent: React.FC<DialogContentProps> = ({
@@ -76,7 +74,7 @@ export const DialogContent: React.FC<DialogContentProps> = ({
 	);
 };
 
-export const DialogHeader: React.FC<React.ComponentPropsWithRef<"div">> = ({
+export const DialogHeader: React.FC<React.ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {
@@ -91,7 +89,7 @@ export const DialogHeader: React.FC<React.ComponentPropsWithRef<"div">> = ({
 	);
 };
 
-export const DialogFooter: React.FC<React.ComponentPropsWithRef<"div">> = ({
+export const DialogFooter: React.FC<React.ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {
@@ -169,7 +167,7 @@ export const DialogActions: React.FC<DialogActionsProps> = ({
 };
 
 export const DialogTitle: React.FC<
-	React.ComponentPropsWithRef<typeof DialogPrimitive.Title>
+	React.ComponentProps<typeof DialogPrimitive.Title>
 > = ({ className, ...props }) => {
 	return (
 		<DialogPrimitive.Title
@@ -183,7 +181,7 @@ export const DialogTitle: React.FC<
 };
 
 export const DialogDescription: React.FC<
-	React.ComponentPropsWithRef<typeof DialogPrimitive.Description>
+	React.ComponentProps<typeof DialogPrimitive.Description>
 > = ({ className, ...props }) => {
 	return (
 		<DialogPrimitive.Description

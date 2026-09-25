@@ -4,14 +4,15 @@ import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DefaultChatAutoArchiveDays } from "#/api/typesGenerated";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
+import { docs } from "#/utils/docs";
 import { DaysField, LifecycleSettingLayout } from "./LifecycleSettingLayout";
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
-interface AutoArchiveSettingsProps {
+type AutoArchiveSettingsProps = {
 	autoArchiveDaysData: TypesGen.ChatAutoArchiveDaysResponse | undefined;
 	isAutoArchiveDaysLoading: boolean;
 	isAutoArchiveDaysLoadError: boolean;
@@ -21,7 +22,7 @@ interface AutoArchiveSettingsProps {
 	) => void;
 	isSavingAutoArchiveDays: boolean;
 	isSaveAutoArchiveDaysError: boolean;
-}
+};
 
 // Keep in sync with autoArchiveDaysMaximum in coderd/exp_chats.go.
 const DAYS_MIN = 1;
@@ -84,6 +85,7 @@ export const AutoArchiveSettings: FC<AutoArchiveSettingsProps> = ({
 		<LifecycleSettingLayout
 			title="Auto-archive inactive conversations"
 			description="Inactive conversations are automatically archived after this period. Pinned conversations are exempt."
+			docsHref={docs("/ai-coder/agents/platform-controls/chat-auto-archive")}
 			checked={form.values.enabled}
 			onCheckedChange={(checked) => void form.setFieldValue("enabled", checked)}
 			switchLabel="Enable auto-archive"

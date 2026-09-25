@@ -7,6 +7,7 @@
 #   - PR updated (synchronize): Re-review after changes
 #   - Label "doc-check" added: Manual trigger for review
 #   - PR marked ready for review: Review when draft is promoted
+#   - PR merged (closed with merged == true): Delete the review workspace
 #   - Workflow dispatch: Manual run with PR URL
 #
 # Note: This workflow requires access to secrets and will be skipped for:
@@ -22,6 +23,7 @@ on:
       - synchronize
       - labeled
       - ready_for_review
+      - closed
   workflow_dispatch:
     inputs:
       pr_url:
@@ -29,8 +31,7 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   doc-check:
@@ -48,7 +49,12 @@ jobs:
       ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch') &&
       (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
-    timeout-minutes: 30
+    # Runs for one PR share its review workspace. Queue them, so one run
+    # cannot stop or delete the workspace while another run reviews in it.
+    concurrency:
+      group: doc-check-${{ github.event.pull_request.number || inputs.pr_url }}
+      cancel-in-progress: false
+    timeout-minutes: 50
     permissions:
       contents: read
       pull-requests: write
@@ -75,8 +81,115 @@ jobs:
             echo "skip=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Determine PR Context
+      # A review costs the full skill context before it can conclude anything,
+      # so decide here instead of in the model when no changed file can have a
+      # documentation surface. Path classes live in
+      # .claude/skills/doc-check/path-priors.md; keep the two in sync.
+      - name: Classify changed paths
+        if: steps.check-secrets.outputs.skip != 'true' && github.event_name == 'pull_request'
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            all:
+              - "**"
+            nodocs:
+              # Extension patterns use the `**/*` form, not `**`. The globber
+              # treats a `**` glued to a suffix inconsistently: `**.test.ts`
+              # matches at any depth, but `**_test.go` only matches the repo
+              # root. `**/*` behaves the same at every depth, including the
+              # root, so every pattern here uses it.
+              # Tests, stories, and fixtures.
+              - "**/*_test.go"
+              - "**/*.test.ts"
+              - "**/*.test.tsx"
+              - "**/*.stories.tsx"
+              - "**/testdata/**"
+              # Generated output. Changes belong in the generator.
+              - "docs/reference/cli/**"
+              - "site/src/api/typesGenerated.ts"
+              - "**/*.pb.go"
+              - "**/*.golden"
+              - "coderd/apidoc/swagger.json"
+              - "coderd/apidoc/docs.go"
+              # Dependency and toolchain manifests.
+              - "go.mod"
+              - "go.sum"
+              - "package.json"
+              - "pnpm-lock.yaml"
+              - "site/package.json"
+              - "site/pnpm-lock.yaml"
+              - "**/mise.toml"
+              # Build, lint, and CI plumbing. Docs-affecting CI is carved back
+              # out by the ci_docs filter below.
+              - ".github/**"
+              - "Makefile"
+              - ".golangci.yaml"
+              - ".editorconfig"
+              - ".gitattributes"
+              - ".gitignore"
+              - "**/biome.jsonc"
+              - "**/.markdownlint.jsonc"
+              - "**/.markdownlint-cli2.jsonc"
+              # Styling only. A restyle changes no documented behavior.
+              - "**/*.css"
+              - "site/components.json"
+              # Internal environments and vendored trees.
+              - "dogfood/**"
+              - "**/vendor/**"
+            ci_docs:
+              # CI that builds, deploys, previews, or reviews the docs. A change
+              # here can change the docs themselves, so it earns a review even
+              # though it sits under .github.
+              - ".github/workflows/ci.yaml"
+              - ".github/workflows/doc-check.yaml"
+              - ".github/workflows/deploy-docs.yaml"
+              - ".github/workflows/docs-preview.yaml"
+              - ".github/workflows/audit-docs-paths.yaml"
+              - ".github/workflows/weekly-docs.yaml"
+              - ".github/workflows/test-deploy-docs-diff.sh"
+              - ".github/workflows/test-deploy-docs-release.sh"
+              - ".github/workflows/test-docs-preview-mapper.sh"
+
+      - name: Decide whether to review
         if: steps.check-secrets.outputs.skip != 'true'
+        id: check-paths
+        env:
+          # The doc-check label and a manual dispatch always force a review, so
+          # any skip below stays overridable from the pull request.
+          FORCED: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'doc-check' }}
+          ALL_COUNT: ${{ steps.filter.outputs.all_count }}
+          NODOCS_COUNT: ${{ steps.filter.outputs.nodocs_count }}
+          CI_DOCS_COUNT: ${{ steps.filter.outputs.ci_docs_count }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${FORCED}" == "true" ]]; then
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+            echo "Review forced by label or manual dispatch; path classes ignored."
+            exit 0
+          fi
+
+          # Comparing against all_count is what makes this "every changed file".
+          # A pull request that mixes a test file with a CLI flag still gets a
+          # full review, because the counts differ.
+          if [[ -n "${ALL_COUNT}" && "${ALL_COUNT}" != "0" &&
+                "${NODOCS_COUNT}" == "${ALL_COUNT}" && "${CI_DOCS_COUNT}" == "0" ]]; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+            echo "All ${ALL_COUNT} changed file(s) are in path classes with no documentation surface."
+            {
+              echo "### Documentation check skipped"
+              echo ""
+              echo "All ${ALL_COUNT} changed file(s) are in path classes with no documentation surface, so no review ran."
+              echo ""
+              echo "Add the \`doc-check\` label to review anyway."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Determine PR Context
+        if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
         id: determine-context
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
@@ -132,8 +245,95 @@ jobs:
             exit 1
           fi
 
+      - name: Prepare the review workspace
+        if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
+        id: check-workspace
+        env:
+          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+
+          # A review reuses one chat per PR, and that chat owns one workspace.
+          # The workspace stops after about a day and then goes dormant. A chat
+          # cannot repair a dormant workspace: start_workspace and
+          # create_workspace both fail with
+          # "unauthorized: rbac: forbidden". The review then reads
+          # nothing and posts nothing, and this job used to still pass. Fail
+          # here instead, so the check reports what happened.
+          # https://linear.app/codercom/issue/CODAGT-1025
+          WS_NAME="doc-check-pr-${PR_NUMBER}"
+          RESPONSE=$(curl -sS --fail-with-body -G \
+            -H "Coder-Session-Token: ${CODER_TOKEN}" \
+            --data-urlencode "q=owner:me name:${WS_NAME}" \
+            "${CODER_URL%/}/api/v2/workspaces") || {
+              echo "::warning::Could not read the workspace state from Coder. Continuing."
+              exit 0
+            }
+          # The name filter matches substrings, so doc-check-pr-12 also
+          # matches doc-check-pr-123. Keep only the exact name.
+          WORKSPACE=$(echo "${RESPONSE}" | jq -c --arg name "${WS_NAME}" \
+            'first(.workspaces[]? | select(.name == $name)) // empty')
+          if [[ -z "${WORKSPACE}" ]]; then
+            echo "${WS_NAME} does not exist yet. The review creates it."
+            exit 0
+          fi
+
+          DORMANT_AT=$(echo "${WORKSPACE}" | jq -r '.dormant_at // empty')
+          if [[ -n "${DORMANT_AT}" ]]; then
+            echo "::error::${WS_NAME} is dormant since ${DORMANT_AT}. The review cannot run, because a chat cannot start its own dormant workspace: https://linear.app/codercom/issue/CODAGT-1025"
+            {
+              echo "### Documentation check did not run"
+              echo ""
+              echo "The workspace \`${WS_NAME}\` is dormant since ${DORMANT_AT}."
+              echo ""
+              echo "A chat cannot start its own dormant workspace, so the review would read no files and post no comment. See [CODAGT-1025](https://linear.app/codercom/issue/CODAGT-1025)."
+              echo ""
+              echo "To run the review now, start \`${WS_NAME}\` in Coder, then push again or re-run this job."
+            } >> "${GITHUB_STEP_SUMMARY}"
+            exit 1
+          fi
+
+          # The previous run stopped the workspace when its review finished.
+          # Start it here rather than leave the restart to the model.
+          WS_ID=$(echo "${WORKSPACE}" | jq -r '.id')
+          TRANSITION=$(echo "${WORKSPACE}" | jq -r '.latest_build.transition')
+          STATUS=$(echo "${WORKSPACE}" | jq -r '.latest_build.status')
+          if [[ "${TRANSITION}" == "stop" && "${STATUS}" == "stopped" ]]; then
+            echo "Starting ${WS_NAME}."
+            curl -sS --fail-with-body -X POST \
+              -H "Coder-Session-Token: ${CODER_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"transition":"start"}' \
+              "${CODER_URL%/}/api/v2/workspaces/${WS_ID}/builds" > /dev/null || {
+                echo "::warning::Could not start ${WS_NAME}. The review will try to start it."
+                exit 0
+              }
+            for _ in $(seq 36); do
+              STATUS=$(curl -sS --fail-with-body \
+                -H "Coder-Session-Token: ${CODER_TOKEN}" \
+                "${CODER_URL%/}/api/v2/workspaces/${WS_ID}" |
+                jq -r '.latest_build.status') || STATUS="unknown"
+              case "${STATUS}" in
+                running)
+                  echo "${WS_NAME} is running."
+                  exit 0
+                  ;;
+                failed | canceled)
+                  echo "::warning::Starting ${WS_NAME} ended with status ${STATUS}. The review will try to start it."
+                  exit 0
+                  ;;
+              esac
+              sleep 5
+            done
+            echo "::warning::${WS_NAME} did not start within 3 minutes. Continuing."
+            exit 0
+          fi
+          echo "Workspace state is usable."
+
       - name: Build chat prompt
-        if: steps.check-secrets.outputs.skip != 'true'
+        if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
         id: extract-context
         env:
           PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
@@ -163,46 +363,36 @@ jobs:
               ;;
           esac
 
-          # Build chat prompt with sticky comment logic
+          # Build the chat prompt. Durable rules live in the skill
+          # (.claude/skills/doc-check/SKILL.md), so this prompt stays short
+          # and carries only what changes per run.
           CHAT_PROMPT="Use the doc-check skill to review PR #${PR_NUMBER} in coder/coder.
 
           ${CONTEXT}
 
-          When creating a new workspace, use the \"coder-workflow-bot\" template.
+          Use \`gh\` to read the PR details, the diff, and every comment.
 
-          Use \`gh\` to get PR details, diff, and all comments. Look for an existing doc-check comment containing \`<!-- doc-check-sticky -->\` - if one exists, you'll update it instead of creating a new one.
-
+          Follow the skill in full: its evidence discipline, its comment
+          rules, and its comment format. Every item links its page, and the
+          comment ends with \`<!-- doc-check-sticky -->\` on its own line.
           **Do not comment if no documentation changes are needed.**
 
-          If a sticky comment already exists, compare your current findings against it:
-          - Check off \`[x]\` items that are now addressed
-          - Strikethrough items no longer needed (e.g., code was reverted)
-          - Add new unchecked \`[ ]\` items for newly discovered needs
-          - If an item is checked but you can't verify the docs were added, add a warning note below it
-          - If nothing meaningful changed, don't update the comment at all
+          ## When the workspace is broken
 
-          ## Comment format
+          A tool call that fails with \`unauthorized: rbac: forbidden\` is an
+          infrastructure state, not a bad command, so retrying the same
+          command changes nothing.
 
-          Use this structure (only include relevant sections):
+          Call \`start_workspace\` with no arguments. If it answers
+          \`workspace was deleted\` or \`chat has no workspace\`, call
+          \`list_templates\` for the \`coder-workflow-bot\` template ID, then
+          \`create_workspace\` with it, and run the failed call again. If it
+          answers \`load workspace: unauthorized: rbac: forbidden\`, the
+          workspace is dormant and you cannot repair it: stop, say you could
+          not review the PR, and name the error. Post no comment, and do not
+          imply the docs are fine, because you did not read them.
 
-          \`\`\`
-          ## Documentation Check
-
-          ### Updates Needed
-          - [ ] \`docs/path/file.md\` - What needs to change
-          - [x] \`docs/other/file.md\` - This was addressed
-          - ~~\`docs/removed.md\` - No longer needed~~ *(reverted in abc123)*
-
-          ### New Documentation Needed
-          - [ ] \`docs/suggested/path.md\` - What should be documented
-            > ⚠️ *Checked but no corresponding documentation changes found in this PR*
-
-          ---
-          *Automated review via [Coder Agents](https://coder.com/docs/ai-coder/agents)*
-          <!-- doc-check-sticky -->
-          \`\`\`
-
-          The \`<!-- doc-check-sticky -->\` marker must be at the end so future runs can find and update this comment."
+          Create any new workspace from the \"coder-workflow-bot\" template."
 
           # Output the prompt
           {
@@ -212,16 +402,108 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Run doc-check via Coder Agent Chat
-        if: steps.check-secrets.outputs.skip != 'true'
-        uses: coder/agents-chat-action@b3fc81d7dae5006dd124e98ef6fada1a36cdd86e # v0.3.0
+        if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
+        id: doc-check
+        uses: coder/agents-chat-action@9b3ac42d568e9206f9cd51a97789820d6935cc8d # v0.5.1
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          # The bot account belongs to many organizations on this deployment,
+          # where the action's fallback organization choice is not
+          # deterministic. Pin it, because a model configuration ID only
+          # resolves inside its own organization.
+          coder-organization: coder
+          # Grant the organization's Everyone group read access to new reviews.
+          share-with-organization: "true"
+          # Pins the model that reviews the PR. Set this repository variable to
+          # a model configuration ID in the organization above. Unset means the
+          # deployment's default model, so clearing the variable is the
+          # rollback path and needs no code change.
+          model-config-id: ${{ vars.DOC_CHECK_MODEL_CONFIG_ID }}
           chat-prompt: ${{ steps.extract-context.outputs.chat_prompt }}
           github-url: ${{ steps.determine-context.outputs.pr_url }}
           github-token: ${{ github.token }}
           wait: complete
-          wait-timeout-seconds: "600"
+          # The chat keeps running in Coder after this job stops watching, so
+          # a timeout here only turns a finished review red. A review on the
+          # local model takes 5 to 30 minutes; 40 minutes covers every normal
+          # run seen so far and leaves the job cap above room for setup.
+          wait-timeout-seconds: "2400"
           # The doc-check agent posts its own sticky comment when there
           # are findings; failures surface in the workflow run log.
           comment-on-issue: "false"
+
+      # A review workspace left running until autostop holds its share of the
+      # host, and enough of them at once overload it. Stop it once the chat is
+      # done; the next run starts it again. Skip when the wait timed out,
+      # because the chat is still working in the workspace.
+      - name: Stop the review workspace
+        if: |
+          always() &&
+          steps.doc-check.outputs.workspace-id != '' &&
+          contains(fromJSON('["waiting", "completed", "error"]'), steps.doc-check.outputs.chat-status)
+        env:
+          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          WORKSPACE_ID: ${{ steps.doc-check.outputs.workspace-id }}
+        run: |
+          curl -sS --fail-with-body -X POST \
+            -H "Coder-Session-Token: ${CODER_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"transition":"stop"}' \
+            "${CODER_URL%/}/api/v2/workspaces/${WORKSPACE_ID}/builds" > /dev/null || {
+              echo "::warning::Could not stop workspace ${WORKSPACE_ID}. It stops at its autostop deadline instead."
+              exit 0
+            }
+          echo "Stopped workspace ${WORKSPACE_ID}."
+
+  # Delete the review workspace once its PR merges. A PR closed without
+  # merging keeps its workspace, because stale PRs get closed and reopened
+  # and the review needs its context back.
+  delete-workspace:
+    name: Delete the review workspace after merge
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    concurrency:
+      group: doc-check-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    timeout-minutes: 5
+    permissions: {}
+
+    steps:
+      - name: Delete the review workspace
+        env:
+          CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${CODER_URL}" || -z "${CODER_TOKEN}" ]]; then
+            echo "Secrets not available - skipping workspace cleanup."
+            exit 0
+          fi
+
+          WS_NAME="doc-check-pr-${PR_NUMBER}"
+          RESPONSE=$(curl -sS --fail-with-body -G \
+            -H "Coder-Session-Token: ${CODER_TOKEN}" \
+            --data-urlencode "q=owner:me name:${WS_NAME}" \
+            "${CODER_URL%/}/api/v2/workspaces")
+          # The name filter matches substrings; keep only the exact name.
+          WS_ID=$(echo "${RESPONSE}" | jq -r --arg name "${WS_NAME}" \
+            'first(.workspaces[]? | select(.name == $name) | .id) // empty')
+          if [[ -z "${WS_ID}" ]]; then
+            echo "${WS_NAME} does not exist. Nothing to delete."
+            exit 0
+          fi
+
+          curl -sS --fail-with-body -X POST \
+            -H "Coder-Session-Token: ${CODER_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"transition":"delete"}' \
+            "${CODER_URL%/}/api/v2/workspaces/${WS_ID}/builds" > /dev/null
+          echo "Deleted ${WS_NAME}."

@@ -248,6 +248,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	deployment_id: "510d407f-e521-4180-b559-eab4a6d802b8",
 	webpush_public_key: "fake-public-key",
 	telemetry: true,
+	oauth2_provider: true,
 };
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [
@@ -505,6 +506,18 @@ export const MockSiteRoles = [
 	MockWorkspaceCreationBanRole,
 ];
 
+export const MockUserPreferenceSettings: TypesGen.UserPreferenceSettings = {
+	thinking_display_mode: "auto",
+	shell_tool_display_mode: "auto",
+	code_diff_display_mode: "auto",
+	agent_chat_send_shortcut: "enter",
+};
+
+export const MockUserChatCompactionThresholds: TypesGen.UserChatCompactionThresholds =
+	{
+		thresholds: [],
+	};
+
 export const MockUserOwner: TypesGen.User = {
 	id: "test-user",
 	username: "TestUser",
@@ -617,6 +630,18 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
+// Legacy file-only secret: not enableable while a deployment blocks file paths.
+export const MockDisabledFileOnlyUserSecret: TypesGen.UserSecret = {
+	id: "secret-file-only-disabled",
+	name: "legacy-kubeconfig",
+	description: "Written to a workspace file before file paths were disabled.",
+	env_name: "",
+	file_path: "~/.kube/config",
+	enabled: false,
+	created_at: "2026-04-27T16:30:00Z",
+	updated_at: "2026-05-03T20:30:00Z",
+};
+
 export const MockImportedUserSecret: TypesGen.UserSecret = {
 	id: "imported-database-url",
 	name: "DATABASE_URL",
@@ -638,7 +663,7 @@ export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
-export const MockAIGatewayEnabled: boolean = true;
+export const MockAIGatewayEnabled = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
@@ -952,6 +977,7 @@ export const MockTemplate: TypesGen.Template = {
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
 	disable_module_cache: false,
+	module_cache_disabled_by_deployment: false,
 	allow_workspace_renames: false,
 };
 
@@ -1404,10 +1430,11 @@ export const MockWorkspaceResourceMultipleAgents: TypesGen.WorkspaceResource = {
 	],
 };
 
-const _MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
+export const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
 	...MockWorkspaceResource,
 	id: "test-workspace-resource-hidden",
 	name: "workspace-resource-hidden",
+	agents: [],
 	hide: true,
 };
 
@@ -1540,7 +1567,7 @@ export const MockFailedWorkspaceBuild = (
 ): TypesGen.WorkspaceBuild => ({
 	build_number: 1,
 	created_at: "2022-05-17T17:39:01.382927298Z",
-	id: "1",
+	id: "9f0e7d0e-4b2b-4ac9-8f1a-1a7a1f0c9d11",
 	initiator_id: MockUserOwner.id,
 	initiator_name: MockUserOwner.username,
 	job: MockFailedProvisionerJob,
@@ -2714,10 +2741,6 @@ export const MockEntitlements: TypesGen.Entitlements = {
 			enabled: true,
 			entitlement: "entitled",
 		},
-		task_batch_actions: {
-			enabled: true,
-			entitlement: "entitled",
-		},
 	}),
 	require_telemetry: false,
 	trial: false,
@@ -3845,10 +3868,41 @@ export const MockDeploymentStats: TypesGen.DeploymentStats = {
 	collected_at: "2023-03-06T19:12:55.211625Z",
 	next_update_at: "2023-03-06T19:20:55.211625Z",
 	session_count: {
-		vscode: 128,
+		vscode: 152,
 		jetbrains: 5,
 		ssh: 32,
 		reconnecting_pty: 15,
+		apps: {
+			cursor: {
+				count: 24,
+				display_name: "Cursor",
+				icon: "/icon/cursor.svg",
+				family: "vscode",
+			},
+			vscode: {
+				count: 128,
+				display_name: "VS Code",
+				icon: "/icon/code.svg",
+				family: "vscode",
+			},
+			jetbrains: {
+				count: 5,
+				display_name: "JetBrains",
+				icon: "/icon/jetbrains.svg",
+				family: "jetbrains",
+			},
+			ssh: {
+				count: 32,
+				display_name: "SSH",
+				icon: "/icon/terminal.svg",
+				family: "ssh",
+			},
+			reconnecting_pty: {
+				count: 15,
+				display_name: "Web Terminal",
+				family: "reconnecting_pty",
+			},
+		},
 	},
 	workspaces: {
 		building: 15,
@@ -4951,8 +5005,12 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	{
 		id: "1",
 		name: "foo",
+		redirect_uris: ["http://127.0.0.1:3001"],
 		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
+		scope: "",
+		client_type: "confidential",
+		dynamically_registered: false,
 		endpoints: {
 			authorization: "http://127.0.0.1:3001/oauth2/authorize",
 			token: "http://127.0.0.1:3001/oauth2/token",
@@ -4962,8 +5020,44 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	},
 ];
 
+export const MockOAuth2ProviderAppPublic: TypesGen.OAuth2ProviderApp = {
+	id: "2",
+	name: "bar (public)",
+	redirect_uris: ["http://127.0.0.1:3002"],
+	callback_url: "http://127.0.0.1:3002",
+	icon: "/icon/github.svg",
+	scope: "",
+	client_type: "public",
+	dynamically_registered: false,
+	endpoints: {
+		authorization: "http://127.0.0.1:3002/oauth2/authorize",
+		token: "http://127.0.0.1:3002/oauth2/token",
+		device_authorization: "",
+		token_revoke: "http://127.0.0.1:3002/oauth2/revoke",
+	},
+};
+
+export const MockOAuth2ProviderAppDynamic: TypesGen.OAuth2ProviderApp = {
+	...MockOAuth2ProviderApps[0],
+	dynamically_registered: true,
+};
+
 export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
 	dynamic_client_registration_enabled: false,
+};
+
+// Sorted, matching the endpoint's order.
+export const MockExternalAPIKeyScopes: TypesGen.ExternalAPIKeyScopes = {
+	external: [
+		"api_key:read",
+		"coder:all",
+		"coder:application_connect",
+		"coder:workspaces.access",
+		"coder:workspaces.create",
+		"template:read",
+		"workspace:read",
+		"workspace:ssh",
+	],
 };
 
 export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
@@ -5385,9 +5479,16 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 		cache_write_input_tokens: 140,
 		metadata: {},
 	},
+	attribution: {
+		workspace_id: "workspace-1",
+	},
 	agentic_actions: [
 		{
+			interception_id: "interception-1",
 			model: "claude-opus-4-6",
+			attribution: {
+				workspace_id: "workspace-1",
+			},
 			token_usage: {
 				input_tokens: 620,
 				output_tokens: 160,
@@ -5534,6 +5635,41 @@ export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	created_at: "2026-05-14T10:00:00Z",
 	updated_at: "2026-05-14T10:00:00Z",
 };
+
+export const MockOrganizationAISpendUser: TypesGen.OrganizationAISpendUser = {
+	user_id: MockUserOwner.id,
+	username: MockUserOwner.username,
+	name: "Test User",
+	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
+	cost_micros: 2_500_000,
+	unpriced_usage_count: 0,
+	providers: ["anthropic", "openai"],
+	clients: ["Claude Code", "Cursor"],
+	models: ["claude-opus-4-6", "gpt-5.4"],
+};
+
+export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
+	{
+		period_start: "2026-02-10T00:00:00Z",
+		period_end: "2026-03-12T00:00:00Z",
+		retention_start: "2026-01-11T15:30:00Z",
+		count: 2,
+		totals: { cost_micros: 3_500_000, unpriced_usage_count: 0 },
+		users: [
+			MockOrganizationAISpendUser,
+			{
+				...MockOrganizationAISpendUser,
+				user_id: "5e1a2b3c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
+				username: "alice",
+				name: "Alice Liddell",
+				avatar_url: "",
+				cost_micros: 1_000_000,
+				providers: ["anthropic"],
+				clients: ["Unknown"],
+				models: ["claude-opus-4-6"],
+			},
+		],
+	};
 
 export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderOpenAI,

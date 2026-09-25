@@ -18,7 +18,6 @@ Contains metrics that are **not** directly defined in the coder source code:
 - `go_*`: Go runtime metrics
 - `process_*`: Process metrics from prometheus/client_golang
 - `promhttp_*`: Prometheus HTTP handler metrics
-- `coder_ai_gateway_*`: AI Gateway metrics are registered through prefixed registerer that the scanner does not resolve.
 
 > [!Note]
 > This file also contains edge cases where metric metadata cannot be accurately extracted by the scanner (e.g., labels determined by runtime logic).
@@ -36,6 +35,14 @@ Contains metrics extracted from the coder source code by the AST scanner (`scann
 ```bash
 make scripts/metricsdocgen/generated_metrics
 ```
+
+### Configuring the scanner
+
+Configure these options in `scanner/scanner.go`:
+
+- **Scan scope (`scanDirs`):** Directories searched recursively for metric definitions. Add a directory when definitions live outside the existing scan scope. Test files are excluded.
+- **Prefixes (`metricPrefixes`):** Directory mappings for prefixes added by registerer wrappers, which the scanner does not trace. Add a mapping when a directory's metrics share such a prefix, without duplicating names already declared in `Name`, `Namespace`, or `Subsystem`. Mappings include subdirectories, with the most specific path taking priority. Update them when prefixes change or definitions move, and use canonical prefixes rather than deprecated aliases.
+- **Exceptions (`skipPaths`):** Files excluded from scanning. Maintain their metrics in the static file when the scanner cannot extract them correctly, including cases that cannot use a directory-wide prefix mapping.
 
 ## Updating Metrics Documentation
 

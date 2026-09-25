@@ -2,7 +2,7 @@ import { Command as CommandPrimitive, useCommandState } from "cmdk";
 import { cn } from "cn";
 import { XIcon } from "lucide-react";
 import {
-	type ComponentPropsWithRef,
+	type ComponentProps,
 	createContext,
 	type FC,
 	type ReactNode,
@@ -133,7 +133,7 @@ export function FilterComboboxRoot({
 	);
 }
 
-type FilterComboboxContentProps = ComponentPropsWithRef<typeof PopoverContent>;
+type FilterComboboxContentProps = ComponentProps<typeof PopoverContent>;
 
 export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 	className,
@@ -160,7 +160,7 @@ export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 				}
 			}}
 			className={cn(
-				"group/combobox-content w-(--radix-popover-trigger-width) p-0 max-h-[min(24rem,var(--radix-popper-available-height))]",
+				"group/combobox-content flex w-(--radix-popover-trigger-width) max-h-[min(24rem,var(--radix-popper-available-height))] flex-col overflow-y-hidden p-0",
 				className,
 			)}
 			{...props}
@@ -168,9 +168,7 @@ export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 	);
 };
 
-type FilterComboboxListProps = ComponentPropsWithRef<
-	typeof CommandPrimitive.List
->;
+type FilterComboboxListProps = ComponentProps<typeof CommandPrimitive.List>;
 
 export const FilterComboboxList: FC<FilterComboboxListProps> = ({
 	className,
@@ -183,7 +181,7 @@ export const FilterComboboxList: FC<FilterComboboxListProps> = ({
 			data-slot="combobox-list"
 			data-empty={isEmpty ? "" : undefined}
 			className={cn(
-				"max-h-96 scroll-py-1 overflow-y-auto overscroll-contain p-1",
+				"min-h-0 scroll-py-1 overflow-y-auto overscroll-contain p-1",
 				className,
 			)}
 			{...props}
@@ -191,9 +189,7 @@ export const FilterComboboxList: FC<FilterComboboxListProps> = ({
 	);
 };
 
-type FilterComboboxItemProps = ComponentPropsWithRef<
-	typeof CommandPrimitive.Item
->;
+type FilterComboboxItemProps = ComponentProps<typeof CommandPrimitive.Item>;
 
 /**
  * A dropdown row. Rows are actions, not toggles: pass `onSelect` to run the
@@ -208,7 +204,7 @@ export const FilterComboboxItem: FC<FilterComboboxItemProps> = ({
 		<CommandPrimitive.Item
 			data-slot="combobox-item"
 			className={cn(
-				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
+				"relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-normal text-content-secondary outline-hidden data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm",
 				className,
 			)}
 			{...props}
@@ -216,9 +212,7 @@ export const FilterComboboxItem: FC<FilterComboboxItemProps> = ({
 	);
 };
 
-type FilterComboboxGroupProps = ComponentPropsWithRef<
-	typeof CommandPrimitive.Group
->;
+type FilterComboboxGroupProps = ComponentProps<typeof CommandPrimitive.Group>;
 
 export const FilterComboboxGroup: FC<FilterComboboxGroupProps> = ({
 	className,
@@ -227,13 +221,13 @@ export const FilterComboboxGroup: FC<FilterComboboxGroupProps> = ({
 	return (
 		<CommandPrimitive.Group
 			data-slot="combobox-group"
-			className={cn(className)}
+			className={cn("group/combobox-group", className)}
 			{...props}
 		/>
 	);
 };
 
-type FilterComboboxLabelProps = ComponentPropsWithRef<"div">;
+type FilterComboboxLabelProps = ComponentProps<"div">;
 
 export const FilterComboboxLabel: FC<FilterComboboxLabelProps> = ({
 	className,
@@ -242,13 +236,17 @@ export const FilterComboboxLabel: FC<FilterComboboxLabelProps> = ({
 	return (
 		<div
 			data-slot="combobox-label"
-			className={cn("px-2 py-1.5 text-xs text-content-secondary", className)}
+			// The first header relies on the list's own padding for its top space.
+			className={cn(
+				"px-2 pt-4 pb-2 text-xs text-content-secondary group-first/combobox-group:pt-0",
+				className,
+			)}
 			{...props}
 		/>
 	);
 };
 
-type FilterComboboxEmptyProps = ComponentPropsWithRef<"div">;
+type FilterComboboxEmptyProps = ComponentProps<"div">;
 
 export const FilterComboboxEmpty: FC<FilterComboboxEmptyProps> = ({
 	className,
@@ -268,7 +266,7 @@ export const FilterComboboxEmpty: FC<FilterComboboxEmptyProps> = ({
 	);
 };
 
-type FilterComboboxStatusProps = ComponentPropsWithRef<"div">;
+type FilterComboboxStatusProps = ComponentProps<"div">;
 
 export const FilterComboboxStatus: FC<FilterComboboxStatusProps> = ({
 	className,
@@ -285,7 +283,7 @@ export const FilterComboboxStatus: FC<FilterComboboxStatusProps> = ({
 	);
 };
 
-type FilterComboboxInputGroupProps = ComponentPropsWithRef<"div">;
+type FilterComboboxInputGroupProps = ComponentProps<"div">;
 
 export const FilterComboboxInputGroup: FC<FilterComboboxInputGroupProps> = ({
 	className,
@@ -297,14 +295,14 @@ export const FilterComboboxInputGroup: FC<FilterComboboxInputGroupProps> = ({
 		<PopoverAnchor asChild>
 			<InputGroup
 				ref={anchorRef ?? undefined}
-				className={cn("h-auto min-h-10 w-full items-center", className)}
+				className={cn("h-auto min-h-10 w-full items-start", className)}
 				{...props}
 			/>
 		</PopoverAnchor>
 	);
 };
 
-type FilterComboboxChipsProps = ComponentPropsWithRef<"div">;
+type FilterComboboxChipsProps = ComponentProps<"div">;
 
 export const FilterComboboxChips: FC<FilterComboboxChipsProps> = ({
 	className,
@@ -314,7 +312,7 @@ export const FilterComboboxChips: FC<FilterComboboxChipsProps> = ({
 		<div
 			data-slot="combobox-chips"
 			className={cn(
-				"flex min-h-10 min-w-0 flex-1 flex-wrap content-center items-center gap-1 py-1",
+				"flex min-h-9.5 min-w-0 flex-1 flex-wrap content-center items-center gap-1 py-1.25 pr-2",
 				className,
 			)}
 			{...props}
@@ -322,7 +320,7 @@ export const FilterComboboxChips: FC<FilterComboboxChipsProps> = ({
 	);
 };
 
-type FilterComboboxChipProps = ComponentPropsWithRef<typeof Badge> & {
+type FilterComboboxChipProps = ComponentProps<typeof Badge> & {
 	/**
 	 * Token passed to `onRemoveValue` when the chip is removed. Decoupled from
 	 * `children` so the chip can render richer content than a bare string.
@@ -354,7 +352,11 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 	return (
 		<Badge
 			data-slot="combobox-chip"
-			className={cn("font-medium text-content-primary", className)}
+			svgSize="sm"
+			className={cn(
+				"group/chip pl-2 font-medium text-content-secondary hover:text-content-primary",
+				className,
+			)}
 			{...props}
 		>
 			{children}
@@ -364,7 +366,7 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 					data-slot="combobox-chip-remove"
 					aria-label={resolvedRemoveLabel}
 					className={cn(
-						"inline-flex size-4 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-content-secondary hover:text-content-primary",
+						"inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0",
 					)}
 					onMouseDown={(event) => event.preventDefault()}
 					onClick={(event) => {
@@ -374,14 +376,14 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 						}
 					}}
 				>
-					<XIcon aria-hidden className="size-icon-xs" />
+					<XIcon aria-hidden />
 				</button>
 			)}
 		</Badge>
 	);
 };
 
-type FilterComboboxChipsInputProps = ComponentPropsWithRef<
+type FilterComboboxChipsInputProps = ComponentProps<
 	typeof CommandPrimitive.Input
 >;
 
@@ -398,8 +400,13 @@ export const FilterComboboxChipsInput: FC<FilterComboboxChipsInputProps> = ({
 			data-slot="combobox-chip-input"
 			value={inputValue}
 			onValueChange={(next) => onInputValueChange?.(next)}
+			// Content-sized so an empty input fits in the space after the last chip
+			// instead of forcing a new row; `size={1}` is the fallback intrinsic
+			// width. Height matches a chip so the box stays the same height with or
+			// without chips.
+			size={1}
 			className={cn(
-				"h-6 min-w-16 flex-1 border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
+				"h-7 min-w-1 flex-auto field-sizing-content border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
 				className,
 			)}
 			{...props}

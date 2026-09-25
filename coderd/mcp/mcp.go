@@ -166,7 +166,7 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 		if err != nil {
 			var validationErr *toolsdk.ArgumentValidationError
 			if !errors.As(err, &validationErr) {
-				return nil, err
+				return toolErrorResult(err.Error()), nil
 			}
 			content, marshalErr := json.Marshal(struct {
 				Error          string         `json:"error"`
@@ -176,12 +176,9 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 				ExpectedSchema: inputSchema,
 			})
 			if marshalErr != nil {
-				return nil, xerrors.Errorf("marshal MCP tool argument validation response: %w", marshalErr)
+				return toolErrorResult(xerrors.Errorf("marshal MCP tool argument validation response: %w", marshalErr).Error()), nil
 			}
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{&mcp.TextContent{Text: string(content)}},
-				IsError: true,
-			}, nil
+			return toolErrorResult(string(content)), nil
 		}
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -189,6 +186,13 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 			},
 		}, nil
 	})
+}
+
+func toolErrorResult(message string) *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: message}},
+		IsError: true,
+	}
 }
 
 // RegisterSDKPrompt registers a [toolsdk.Prompt] with an MCP server.

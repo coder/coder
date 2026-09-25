@@ -172,7 +172,8 @@ developer opts in via git config or is allowlisted in the hook:
 `git commit` and `git push` will appear to hang while hooks run.
 This is normal. Do not interrupt, retry, or reduce the timeout.
 
-NEVER run `git config core.hooksPath` to change or disable hooks.
+Configure `core.hooksPath` as `scripts/githooks` when installing the
+repository hooks. Never change it to bypass or disable those hooks.
 
 If a hook fails, fix the issue and retry. Do not work around the
 failure by skipping the hook.
@@ -191,7 +192,7 @@ Then make your changes and push normally. Don't use `git push --force` unless th
 
 ## Commit Style
 
-Format: `type(scope): message`. See [CONTRIBUTING.md](docs/about/contributing/CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
+Format: `type(scope): message`. See [CONTRIBUTING.md](CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
 
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
 - Scopes must be a real path (directory or file stem) containing all changed files

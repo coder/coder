@@ -18,7 +18,7 @@ func TestPubSub_DoesntBlockNotify(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := testutil.Logger(t)
 
-	uut := newWithoutListener(logger, nil)
+	uut := newWithoutListener(logger, nil, nil)
 	fListener := newFakePqListener()
 	uut.pgListener = fListener
 	go uut.listen()
@@ -54,7 +54,7 @@ func TestPubSub_DoesntRaceListenUnlisten(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := testutil.Logger(t)
 
-	uut := newWithoutListener(logger, nil)
+	uut := newWithoutListener(logger, nil, nil)
 	fListener := newFakePqListener()
 	uut.pgListener = fListener
 	go uut.listen()

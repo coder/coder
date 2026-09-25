@@ -17,6 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 type WorkspaceStatus string
@@ -166,47 +167,6 @@ func (w ConnectionLog) RBACObject() rbac.Object {
 	obj := rbac.ResourceConnectionLog.WithID(w.ID)
 	if w.OrganizationID != uuid.Nil {
 		obj = obj.InOrg(w.OrganizationID)
-	}
-
-	return obj
-}
-
-// TaskTable converts a Task to it's reduced version.
-// A more generalized solution is to use json marshaling to
-// consistently keep these two structs in sync.
-// That would be a lot of overhead, and a more costly unit test is
-// written to make sure these match up.
-func (t Task) TaskTable() TaskTable {
-	return TaskTable{
-		ID:                 t.ID,
-		OrganizationID:     t.OrganizationID,
-		OwnerID:            t.OwnerID,
-		Name:               t.Name,
-		DisplayName:        t.DisplayName,
-		WorkspaceID:        t.WorkspaceID,
-		TemplateVersionID:  t.TemplateVersionID,
-		TemplateParameters: t.TemplateParameters,
-		Prompt:             t.Prompt,
-		CreatedAt:          t.CreatedAt,
-		DeletedAt:          t.DeletedAt,
-	}
-}
-
-func (t Task) RBACObject() rbac.Object {
-	obj := rbac.ResourceTask.
-		WithID(t.ID).
-		WithOwner(t.OwnerID.String()).
-		InOrg(t.OrganizationID)
-
-	if rbac.WorkspaceACLDisabled() {
-		return obj
-	}
-
-	if t.WorkspaceGroupACL != nil {
-		obj = obj.WithGroupACL(t.WorkspaceGroupACL.RBACACL())
-	}
-	if t.WorkspaceUserACL != nil {
-		obj = obj.WithACLUserList(t.WorkspaceUserACL.RBACACL())
 	}
 
 	return obj
@@ -701,6 +661,16 @@ func (a OAuth2ProviderApp) IsPublic() bool {
 	return a.ClientType == OAuth2ProviderAppClientTypePublic
 }
 
+// RegisteredRedirectURIs returns the redirect URIs the authorize and token
+// endpoints accept, primary first. RedirectUris is the source of truth.
+// The result is never empty: callers index the first entry directly.
+func (a OAuth2ProviderApp) RegisteredRedirectURIs() []string {
+	if len(a.RedirectUris) == 0 {
+		return []string{a.CallbackURL}
+	}
+	return slice.Unique(a.RedirectUris)
+}
+
 func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {
 	return a.OAuth2ProviderApp.RBACObject()
 }
@@ -816,7 +786,6 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) ([]Workspace, error) {
 			TemplateIcon:            r.TemplateIcon,
 			TemplateDescription:     r.TemplateDescription,
 			NextStartAt:             r.NextStartAt,
-			TaskID:                  r.TaskID,
 		}
 
 		var err error

@@ -296,7 +296,6 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		// which will return all workspaces.
 		Valid: values.Has("outdated"),
 	}
-	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
 	// include_agent_metadata expands the response with the named agent
 	// metadata keys; it does not filter the returned workspaces.
@@ -305,6 +304,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
 	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", actorID)
 	filter.SharedWithGroupID = parseGroup(ctx, db, parser, values, "shared_with_group")
+	filter.UserID = parseUser(ctx, db, parser, values, "user", actorID)
 	// Translate healthy filter to has-agent statuses
 	// healthy:true = connected, healthy:false = disconnected or timeout
 	if healthy := parser.NullableBoolean(values, sql.NullBool{}, "healthy"); healthy.Valid {
@@ -367,19 +367,19 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetTemplatesWithFilterParams{
-		Deleted:          parser.Boolean(values, false, "deleted"),
-		OrganizationID:   parseOrganization(ctx, db, parser, values, "organization"),
-		ExactName:        parser.String(values, "", "exact_name"),
-		ExactDisplayName: parser.String(values, "", "exact_display_name"),
-		FuzzyName:        parser.String(values, "", "name"),
-		FuzzyDisplayName: parser.String(values, "", "display_name"),
-		IDs:              parser.UUIDs(values, []uuid.UUID{}, "ids"),
-		Deprecated:       parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
-		HasAITask:        parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
-		AgentsAllowed:    parser.NullableBoolean(values, sql.NullBool{}, "agents-allowed"),
-		AuthorID:         parser.UUID(values, uuid.Nil, "author_id"),
-		AuthorUsername:   parser.String(values, "", "author"),
-		HasExternalAgent: parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent"),
+		Deleted:                 parser.Boolean(values, false, "deleted"),
+		OrganizationID:          parseOrganization(ctx, db, parser, values, "organization"),
+		ExactName:               parser.String(values, "", "exact_name"),
+		ExactDisplayName:        parser.String(values, "", "exact_display_name"),
+		FuzzyName:               parser.String(values, "", "name"),
+		FuzzyDisplayName:        parser.String(values, "", "display_name"),
+		IDs:                     parser.UUIDs(values, []uuid.UUID{}, "ids"),
+		Deprecated:              parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
+		UseClassicParameterFlow: parser.NullableBoolean(values, sql.NullBool{}, "compatibility_mode"),
+		AgentsAllowed:           parser.NullableBoolean(values, sql.NullBool{}, "agents-allowed"),
+		AuthorID:                parser.UUID(values, uuid.Nil, "author_id"),
+		AuthorUsername:          parser.String(values, "", "author"),
+		HasExternalAgent:        parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent"),
 	}
 
 	if filter.AuthorUsername == codersdk.Me {
@@ -416,7 +416,9 @@ func AIBridgeSessions(ctx context.Context, db database.Store, query string, page
 	parser := httpapi.NewQueryParamParser()
 	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
 	filter.Provider = parser.String(values, "", "provider")
-	filter.ProviderName = parseAIProviderName(ctx, db, parser, values)
+	// Match interceptions by name. Do not look up ai_providers: that requires
+	// AIProvider read, which session viewers do not have.
+	filter.ProviderName = parser.String(values, "", "provider_name")
 	filter.Model = parser.String(values, "", "model")
 	filter.Client = parser.String(values, "", "client")
 	filter.SessionID = parser.String(values, "", "session_id")
@@ -487,43 +489,6 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 
 	parser := httpapi.NewQueryParamParser()
 	filter.Client = parser.String(values, "", "client")
-
-	parser.ErrorExcessParams(values)
-	return filter, parser.Errors
-}
-
-// Tasks parses a search query for tasks.
-//
-// Supported query parameters:
-//   - owner: string (username, UUID, or 'me' for current user)
-//   - organization: string (organization UUID or name)
-//   - status: string (pending, initializing, active, paused, error, unknown)
-func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UUID) (database.ListTasksParams, []codersdk.ValidationError) {
-	filter := database.ListTasksParams{
-		OwnerID:        uuid.Nil,
-		OrganizationID: uuid.Nil,
-		Status:         "",
-	}
-
-	if query == "" {
-		return filter, nil
-	}
-
-	// Always lowercase for all searches.
-	query = strings.ToLower(query)
-	values, errors := searchTerms(query, func(term string, values url.Values) error {
-		// Default unqualified terms to owner
-		values.Add("owner", term)
-		return nil
-	})
-	if len(errors) > 0 {
-		return filter, errors
-	}
-
-	parser := httpapi.NewQueryParamParser()
-	filter.OwnerID = parseUser(ctx, db, parser, values, "owner", actorID)
-	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
-	filter.Status = parser.String(values, "", "status")
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
@@ -742,24 +707,6 @@ func parseOrganization(ctx context.Context, db database.Store, parser *httpapi.Q
 		}
 		return organization.ID, nil
 	})
-}
-
-// parseAIProviderName resolves a "provider_name" filter param against
-// ai_providers.name. Unknown names produce a validation error so typos
-// surface immediately rather than returning a silently-empty result set.
-func parseAIProviderName(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values) string {
-	name := parser.String(vals, "", "provider_name")
-	if name == "" {
-		return ""
-	}
-	if _, err := db.GetAIProviderByName(ctx, name); err != nil {
-		parser.Errors = append(parser.Errors, codersdk.ValidationError{
-			Field:  "provider_name",
-			Detail: `Query param "provider_name" has invalid value: provider not found or unauthorized`,
-		})
-		return ""
-	}
-	return name
 }
 
 func parseUser(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values, queryParam string, actorID uuid.UUID) uuid.UUID {

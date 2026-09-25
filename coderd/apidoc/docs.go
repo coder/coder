@@ -246,6 +246,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/users/email": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update user email",
+                "operationId": "update-user-email-experimental",
+                "parameters": [
+                    {
+                        "description": "Update email request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserEmailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/users/{user}/skills": {
             "get": {
                 "produces": [
@@ -734,6 +770,20 @@ const docTemplate = `{
                 ],
                 "summary": "List AI Gateway models",
                 "operationId": "list-ai-gateway-models",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: model. A bare term searches by model prefix.",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Literal model identifier prefix. Cannot be combined with q.",
+                        "name": "model",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -741,6 +791,34 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "type": "string"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/ai-gateway/providers": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "List AI Gateway providers",
+                "operationId": "list-ai-gateway-providers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AIBridgeProvider"
                             }
                         }
                     }
@@ -2191,6 +2269,7 @@ const docTemplate = `{
                     "image/jpeg",
                     "image/gif",
                     "image/webp",
+                    "image/svg+xml",
                     "text/plain",
                     "text/markdown",
                     "text/csv",
@@ -2263,6 +2342,7 @@ const docTemplate = `{
                     "image/jpeg",
                     "image/gif",
                     "image/webp",
+                    "image/svg+xml",
                     "text/plain",
                     "text/markdown",
                     "text/csv",
@@ -2303,6 +2383,7 @@ const docTemplate = `{
                     "image/jpeg",
                     "image/gif",
                     "image/webp",
+                    "image/svg+xml",
                     "text/plain",
                     "text/markdown",
                     "text/csv",
@@ -6097,7 +6178,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/ai/spend/export": {
             "get": {
-                "description": "Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.\nRequires organization-level administrator permissions.",
+                "description": "Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
                 "produces": [
                     "text/csv"
                 ],
@@ -6128,11 +6209,117 @@ const docTemplate = `{
                         "description": "Exclusive upper bound (RFC3339)",
                         "name": "period_end",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User ID",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Effective group ID",
+                        "name": "group_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Configured provider name",
+                        "name": "provider_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Model name",
+                        "name": "model",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/ai/spend/users": {
+            "get": {
+                "description": "Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists the providers and clients they spent through, and the response carries the user count, total spend, and unpriced usage count over every matching user.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead. The response echoes the applied bounds and, when retention is enabled, the start of the retention window.\nThe optional provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "List organization AI spend by user",
+                "operationId": "list-organization-ai-spend-by-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Inclusive lower bound (RFC3339)",
+                        "name": "period_start",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Exclusive upper bound (RFC3339)",
+                        "name": "period_end",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only include usage through this provider configuration name",
+                        "name": "provider_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only include usage of this model",
+                        "name": "model",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only include usage from this client. Unknown matches usage without a recorded client.",
+                        "name": "client",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 10, maximum 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationAISpendReport"
+                        }
                     }
                 },
                 "security": [
@@ -11423,7 +11610,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.CreateUserRequestWithOrgs"
+                            "$ref": "#/definitions/codersdk.CreateUserRequest"
                         }
                     }
                 ],
@@ -15564,7 +15751,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items).",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items).",
                         "name": "q",
                         "in": "query"
                     },
@@ -15619,6 +15806,12 @@ const docTemplate = `{
                         "type": "boolean",
                         "description": "Return data instead of HTTP 404 if the workspace is deleted",
                         "name": "include_deleted",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of related data to include (e.g. ` + "`" + `template,latest_build.resources.agents.*` + "`" + `). Omit to include everything.",
+                        "name": "include_related",
                         "in": "query"
                     }
                 ],
@@ -16616,7 +16809,7 @@ const docTemplate = `{
                         "description": "HTML error page. The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback"
                     },
                     "500": {
-                        "description": "HTML error page. The app's registered callback URL is not usable"
+                        "description": "HTML error page. One of the app's registered redirect URIs is not usable"
                     }
                 },
                 "security": [
@@ -16704,7 +16897,7 @@ const docTemplate = `{
                         }
                     },
                     "500": {
-                        "description": "The app's registered callback URL is not usable",
+                        "description": "One of the app's registered redirect URIs is not usable",
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2Error"
                         }
@@ -16784,6 +16977,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2ClientConfiguration"
                         }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
                     }
                 }
             },
@@ -16839,6 +17038,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2ClientRegistrationResponse"
                         }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
                     }
                 }
             }
@@ -16848,6 +17053,9 @@ const docTemplate = `{
                 "consumes": [
                     "application/x-www-form-urlencoded"
                 ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -16856,10 +17064,22 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID for authentication",
+                        "example": "Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=",
+                        "description": "HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Client ID, required unless sent as the HTTP Basic username",
                         "name": "client_id",
-                        "in": "formData",
-                        "required": true
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Client secret, required for a confidential client unless sent as the HTTP Basic password. Public clients (token_endpoint_auth_method=none) send no secret.",
+                        "name": "client_secret",
+                        "in": "formData"
                     },
                     {
                         "type": "string",
@@ -16877,7 +17097,25 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Token successfully revoked"
+                        "description": "Token successfully revoked. A 200 does not confirm that the token existed or belonged to the client"
+                    },
+                    "400": {
+                        "description": "invalid_request: a missing client_id or token, credentials in both the Authorization header and the body, client_secret in the URL query string, or a malformed token",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
+                    },
+                    "401": {
+                        "description": "invalid_client: the client is unknown, or a confidential client did not present a valid secret",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
                     }
                 }
             }
@@ -16943,6 +17181,18 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2TokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_request: client_secret in the URL query string, or a missing or malformed parameter",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
                         }
                     }
                 }
@@ -17394,6 +17644,18 @@ const docTemplate = `{
         "codersdk.AIBridgeAgenticAction": {
             "type": "object",
             "properties": {
+                "attribution": {
+                    "description": "Attribution contains attribution data from this interception.\nUnknown attribution is serialized as an empty object.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeAttribution"
+                        }
+                    ]
+                },
+                "interception_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "model": {
                     "type": "string"
                 },
@@ -17414,38 +17676,10 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeAnthropicConfig": {
+        "codersdk.AIBridgeAttribution": {
             "type": "object",
-            "properties": {
-                "base_url": {
-                    "type": "string"
-                },
-                "key": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeBedrockConfig": {
-            "type": "object",
-            "properties": {
-                "access_key": {
-                    "type": "string"
-                },
-                "access_key_secret": {
-                    "type": "string"
-                },
-                "base_url": {
-                    "type": "string"
-                },
-                "model": {
-                    "type": "string"
-                },
-                "region": {
-                    "type": "string"
-                },
-                "small_fast_model": {
-                    "type": "string"
-                }
+            "additionalProperties": {
+                "type": "string"
             }
         },
         "codersdk.AIBridgeConfig": {
@@ -17454,25 +17688,9 @@ const docTemplate = `{
                 "allow_byok": {
                     "type": "boolean"
                 },
-                "anthropic": {
-                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
-                        }
-                    ]
-                },
                 "api_dump_dir": {
                     "description": "APIDumpDir is the base directory under which each provider's\nrequest/response dumps are written, in a subdirectory named after\nthe provider. Empty disables dumping.",
                     "type": "string"
-                },
-                "bedrock": {
-                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
-                        }
-                    ]
                 },
                 "budget_period": {
                     "type": "string"
@@ -17506,21 +17724,6 @@ const docTemplate = `{
                 },
                 "max_concurrency": {
                     "type": "integer"
-                },
-                "openai": {
-                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
-                        }
-                    ]
-                },
-                "providers": {
-                    "description": "Providers holds provider instances populated from ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_\u003cKEY\u003e` + "`" + `\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIProviderConfig"
-                    }
                 },
                 "rate_limit": {
                     "type": "integer"
@@ -17558,14 +17761,20 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeOpenAIConfig": {
+        "codersdk.AIBridgeProvider": {
             "type": "object",
             "properties": {
-                "base_url": {
+                "display_name": {
                     "type": "string"
                 },
-                "key": {
+                "icon": {
                     "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.AIProviderType"
                 }
             }
         },
@@ -17833,6 +18042,14 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.AIBridgeAgenticAction"
                     }
                 },
+                "attribution": {
+                    "description": "Attribution contains attribution data from the root interception.\nUnknown attribution is serialized as an empty object.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeAttribution"
+                        }
+                    ]
+                },
                 "credential_hint": {
                     "type": "string"
                 },
@@ -18085,32 +18302,6 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
-                }
-            }
-        },
-        "codersdk.AIProviderConfig": {
-            "type": "object",
-            "properties": {
-                "base_url": {
-                    "description": "BaseURL is the base URL of the upstream provider API.",
-                    "type": "string"
-                },
-                "bedrock_model": {
-                    "type": "string"
-                },
-                "bedrock_region": {
-                    "type": "string"
-                },
-                "bedrock_small_fast_model": {
-                    "type": "string"
-                },
-                "name": {
-                    "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
-                    "type": "string"
-                },
-                "type": {
-                    "description": "Type is the provider type. Valid values are: \"openai\",\n\"anthropic\", \"azure\", \"bedrock\", \"google\", \"openai-compat\",\n\"openrouter\", \"vercel\", \"copilot\".",
-                    "type": "string"
                 }
             }
         },
@@ -18475,11 +18666,6 @@ const docTemplate = `{
                 "tailnet_coordinator:delete",
                 "tailnet_coordinator:read",
                 "tailnet_coordinator:update",
-                "task:*",
-                "task:create",
-                "task:delete",
-                "task:read",
-                "task:update",
                 "template:*",
                 "template:create",
                 "template:delete",
@@ -18727,11 +18913,6 @@ const docTemplate = `{
                 "APIKeyScopeTailnetCoordinatorDelete",
                 "APIKeyScopeTailnetCoordinatorRead",
                 "APIKeyScopeTailnetCoordinatorUpdate",
-                "APIKeyScopeTaskAll",
-                "APIKeyScopeTaskCreate",
-                "APIKeyScopeTaskDelete",
-                "APIKeyScopeTaskRead",
-                "APIKeyScopeTaskUpdate",
                 "APIKeyScopeTemplateAll",
                 "APIKeyScopeTemplateCreate",
                 "APIKeyScopeTemplateDelete",
@@ -18981,6 +19162,25 @@ const docTemplate = `{
                 "AgentSubsystemEnvbox",
                 "AgentSubsystemEnvbuilder",
                 "AgentSubsystemExectrace"
+            ]
+        },
+        "codersdk.AppFamilyName": {
+            "type": "string",
+            "enum": [
+                "vscode",
+                "jetbrains",
+                "ssh",
+                "reconnecting_pty",
+                "sftp",
+                "unknown"
+            ],
+            "x-enum-varnames": [
+                "AppFamilyVSCode",
+                "AppFamilyJetBrains",
+                "AppFamilySSH",
+                "AppFamilyReconnectingPTY",
+                "AppFamilySFTP",
+                "AppFamilyUnknown"
             ]
         },
         "codersdk.AppHostResponse": {
@@ -19365,6 +19565,10 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "oauth2_provider": {
+                    "description": "OAuth2Provider reports whether the OAuth 2.1 authorization server is\nenabled. The dashboard uses it to show or hide OAuth2 navigation.",
+                    "type": "boolean"
+                },
                 "provisioner_api_version": {
                     "description": "ProvisionerAPIVersion is the current version of the Provisioner API",
                     "type": "string"
@@ -19401,10 +19605,7 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection",
-                "task_auto_pause",
-                "task_manual_pause",
-                "task_resume"
+                "jetbrains_connection"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
@@ -19415,10 +19616,7 @@ const docTemplate = `{
                 "BuildReasonCLI",
                 "BuildReasonSSHConnection",
                 "BuildReasonVSCodeConnection",
-                "BuildReasonJetbrainsConnection",
-                "BuildReasonTaskAutoPause",
-                "BuildReasonTaskManualPause",
-                "BuildReasonTaskResume"
+                "BuildReasonJetbrainsConnection"
             ]
         },
         "codersdk.CORSBehavior": {
@@ -19504,6 +19702,13 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "inline_mcp_servers": {
+                    "description": "InlineMCPServers lists the inline MCP servers declared on the chat,\nwithout headers. Only the single-chat GET sets it.\nExperimental.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.InlineMCPServer"
+                    }
                 },
                 "labels": {
                     "type": "object",
@@ -19663,6 +19868,9 @@ const docTemplate = `{
                 },
                 "hook_url": {
                     "$ref": "#/definitions/serpent.URL"
+                },
+                "stream_silence_timeout": {
+                    "type": "integer"
                 }
             }
         },
@@ -20150,6 +20358,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "queued_message_id": {
+                    "description": "QueuedMessageID is the ID of the queued message this message was\npromoted from. It matches ChatQueuedMessage.ID in the response that\nqueued the message. It is nil when the message was not promoted from\nthe queue (edits create a new message without it) or when a server\nversion that did not record the link created it.",
+                    "type": "integer"
+                },
                 "role": {
                     "$ref": "#/definitions/codersdk.ChatMessageRole"
                 },
@@ -20269,6 +20481,9 @@ const docTemplate = `{
                     "items": {
                         "type": "integer"
                     }
+                },
+                "reasoning_delta": {
+                    "type": "string"
                 },
                 "result": {
                     "type": "array",
@@ -20614,6 +20829,9 @@ const docTemplate = `{
         "codersdk.ChatModelOpenAIConfig": {
             "type": "object",
             "properties": {
+                "reasoning_model": {
+                    "type": "boolean"
+                },
                 "use_responses_api": {
                     "type": "boolean"
                 }
@@ -20665,6 +20883,9 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "prompt_cache_key": {
+                    "type": "string"
+                },
+                "reasoning_mode": {
                     "type": "string"
                 },
                 "reasoning_summary": {
@@ -21662,6 +21883,13 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
                 },
+                "inline_mcp_servers": {
+                    "description": "InlineMCPServers replaces the inline MCP servers.\nnil: no change, empty: remove all.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.InlineMCPServerRequest"
+                    }
+                },
                 "mcp_server_ids": {
                     "type": "array",
                     "items": {
@@ -21755,6 +21983,13 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
                 },
+                "inline_mcp_servers": {
+                    "description": "InlineMCPServers declares MCP servers by value on this chat, next\nto the org-configured servers selected by MCPServerIDs. Experimental.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.InlineMCPServerRequest"
+                    }
+                },
                 "labels": {
                     "type": "object",
                     "additionalProperties": {
@@ -21773,6 +22008,11 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner_id": {
+                    "description": "OwnerID makes another user the chat owner. It defaults to the\ncaller. The chat runs with the owner's credentials, so setting it\nrequires site-wide authority over that user.",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -21979,6 +22219,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "oauth2_token_url": {
+                    "type": "string"
+                },
+                "signing_secret": {
+                    "description": "SigningSecret signs forwarded identity headers and request bodies.\nConfigure the same secret on the MCP server. It is never returned.",
                     "type": "string"
                 },
                 "slug": {
@@ -22410,7 +22654,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.CreateUserRequestWithOrgs": {
+        "codersdk.CreateUserRequest": {
             "type": "object",
             "required": [
                 "username"
@@ -22541,18 +22785,14 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection",
-                "task_manual_pause",
-                "task_resume"
+                "jetbrains_connection"
             ],
             "x-enum-varnames": [
                 "CreateWorkspaceBuildReasonDashboard",
                 "CreateWorkspaceBuildReasonCLI",
                 "CreateWorkspaceBuildReasonSSHConnection",
                 "CreateWorkspaceBuildReasonVSCodeConnection",
-                "CreateWorkspaceBuildReasonJetbrainsConnection",
-                "CreateWorkspaceBuildReasonTaskManualPause",
-                "CreateWorkspaceBuildReasonTaskResume"
+                "CreateWorkspaceBuildReasonJetbrainsConnection"
             ]
         },
         "codersdk.CreateWorkspaceBuildRequest": {
@@ -22594,8 +22834,7 @@ const docTemplate = `{
                         "cli",
                         "ssh_connection",
                         "vscode_connection",
-                        "jetbrains_connection",
-                        "task_manual_pause"
+                        "jetbrains_connection"
                     ],
                     "allOf": [
                         {
@@ -23031,6 +23270,9 @@ const docTemplate = `{
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"
                 },
+                "disable_chat_caller_supplied_tools": {
+                    "type": "boolean"
+                },
                 "disable_chat_sharing": {
                     "type": "boolean"
                 },
@@ -23055,7 +23297,7 @@ const docTemplate = `{
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
-                "enable_ai_tasks": {
+                "dynamic_parameters_full_evaluation": {
                     "type": "boolean"
                 },
                 "enable_authz_recording": {
@@ -23443,29 +23685,33 @@ const docTemplate = `{
                 "auto-fill-parameters",
                 "notifications",
                 "workspace-usage",
-                "oauth2",
                 "mcp-server-http",
                 "mcp-tool-search",
                 "workspace-build-updates",
-                "nats_pubsub",
+                "no_nats_pubsub",
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
+                "ai-gateway-reverse-proxy",
                 "chat-advisor",
                 "chat-virtual-desktop",
-                "agent-lifecycle-hooks"
+                "agent-lifecycle-hooks",
+                "chat-inline-mcp-servers",
+                "enable-ai-workspace-debug"
             ],
             "x-enum-comments": {
+                "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
+                "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
-                "ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
+                "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
-                "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
@@ -23475,32 +23721,36 @@ const docTemplate = `{
                 "This should not be taken out of experiments until we have redesigned the feature.",
                 "Sends notifications via SMTP and webhooks following certain events.",
                 "Enables the new workspace usage tracking.",
-                "Enables OAuth2 provider functionality.",
                 "Enables the MCP HTTP server functionality.",
                 "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
-                "Enables embedded NATS pubsub.",
+                "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
+                "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
-                "Enables chat lifecycle hook webhooks for agent chats."
+                "Enables chat lifecycle hook webhooks for agent chats.",
+                "Enables inline MCP servers declared on POST /chats.",
+                "Enables debugging failed workspace builds with Coder Agents."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
-                "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
                 "ExperimentMCPToolSearch",
                 "ExperimentWorkspaceBuildUpdates",
-                "ExperimentNATSPubsub",
+                "ExperimentNoNATSPubsub",
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
+                "ExperimentAIGatewayReverseProxy",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
-                "ExperimentAgentLifecycleHooks"
+                "ExperimentAgentLifecycleHooks",
+                "ExperimentChatInlineMCPServers",
+                "ExperimentEnableAIWorkspaceDebug"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -23643,7 +23893,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "regex": {
-                    "description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for \"https://github.com\":'\nAnd sending it to the Coder server to match against the Regex.",
+                    "description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for \"https://github.com\":'\nAnd sending it to the control plane to match against the Regex.",
                     "type": "string"
                 },
                 "revoke_url": {
@@ -24199,6 +24449,86 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.InlineMCPServer": {
+            "type": "object",
+            "properties": {
+                "allow_in_subagents": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "forward_coder_headers": {
+                    "type": "boolean"
+                },
+                "has_custom_headers": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "tool_allow_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tool_deny_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "url": {
+                    "description": "URL is empty unless the chat owner makes the request.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.InlineMCPServerRequest": {
+            "type": "object",
+            "properties": {
+                "allow_in_subagents": {
+                    "type": "boolean"
+                },
+                "forward_coder_headers": {
+                    "type": "boolean"
+                },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "tool_allow_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tool_deny_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.InsightsReportInterval": {
             "type": "string",
             "enum": [
@@ -24473,6 +24803,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "has_oauth2_secret": {
+                    "type": "boolean"
+                },
+                "has_signing_secret": {
                     "type": "boolean"
                 },
                 "icon_url": {
@@ -25268,11 +25601,25 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OAuth2ClientType": {
+            "type": "string",
+            "enum": [
+                "confidential",
+                "public"
+            ],
+            "x-enum-varnames": [
+                "OAuth2ClientTypeConfidential",
+                "OAuth2ClientTypePublic"
+            ]
+        },
         "codersdk.OAuth2Config": {
             "type": "object",
             "properties": {
                 "github": {
                     "$ref": "#/definitions/codersdk.OAuth2GithubConfig"
+                },
+                "provider": {
+                    "$ref": "#/definitions/codersdk.OAuth2ProviderConfig"
                 }
             }
         },
@@ -25400,7 +25747,20 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "callback_url": {
+                    "description": "Deprecated: equal to the first entry of redirect_uris. Read\nredirect_uris instead.",
                     "type": "string"
+                },
+                "client_type": {
+                    "description": "ClientType is \"confidential\" or \"public\".",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.OAuth2ClientType"
+                        }
+                    ]
+                },
+                "dynamically_registered": {
+                    "description": "DynamicallyRegistered is true when the app registered itself through\nDynamic Client Registration rather than being created by an admin.",
+                    "type": "boolean"
                 },
                 "endpoints": {
                     "description": "Endpoints are included in the app response for easier discovery. The OAuth2\nspec does not have a defined place to find these (for comparison, OIDC has\na '/.well-known/openid-configuration' endpoint).",
@@ -25418,6 +25778,17 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "redirect_uris": {
+                    "description": "RedirectURIs are the app's registered redirect URIs, primary first.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scope": {
+                    "description": "Scope is the space-separated list of scopes this app's tokens may be\ngranted. Empty means unrestricted. A non-empty value with no names is a\nconfigured allowlist that grants nothing.",
                     "type": "string"
                 }
             }
@@ -25446,6 +25817,14 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.OAuth2ProviderConfig": {
+            "type": "object",
+            "properties": {
+                "enable": {
+                    "type": "boolean"
                 }
             }
         },
@@ -25766,6 +26145,100 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendReport": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "Count is the number of users with token usage matching the filter.",
+                    "type": "integer"
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "retention_start": {
+                    "description": "RetentionStart is the oldest instant for which token usage is still\nretained. An explicit period must not start before it. Omitted when the\ndeployment does not purge AI Gateway data.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "totals": {
+                    "$ref": "#/definitions/codersdk.OrganizationAISpendTotals"
+                },
+                "users": {
+                    "description": "Users is the requested page, most expensive first.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendUser"
+                    }
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendTotals": {
+            "type": "object",
+            "properties": {
+                "cost_micros": {
+                    "description": "CostMicros is the priced spend of every matching user.",
+                    "type": "integer"
+                },
+                "unpriced_usage_count": {
+                    "description": "UnpricedUsageCount is the number of token usage records without a cost\nacross every matching user.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendUser": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "clients": {
+                    "description": "Clients are the clients the user spent through, sorted. Usage without a\nrecorded client is reported as Unknown.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "cost_micros": {
+                    "description": "CostMicros is the user's priced spend over the period.",
+                    "type": "integer"
+                },
+                "models": {
+                    "description": "Models are the models the user spent through, sorted.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "providers": {
+                    "description": "Providers are the provider types the user spent through, sorted.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "unpriced_usage_count": {
+                    "description": "UnpricedUsageCount is the number of the user's token usage records that\ncarry no cost because their model had no price when they were recorded.",
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
@@ -26287,17 +26760,28 @@ const docTemplate = `{
         "codersdk.PostOAuth2ProviderAppRequest": {
             "type": "object",
             "required": [
-                "callback_url",
                 "name"
             ],
             "properties": {
                 "callback_url": {
+                    "description": "Deprecated: send redirect_uris instead. If both are sent, callback_url\nmust equal the first entry of redirect_uris.",
                     "type": "string"
                 },
                 "icon": {
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "redirect_uris": {
+                    "description": "RedirectURIs is the ordered list of URIs the app may redirect to. The\nfirst entry is the primary. Required, unless the deprecated\ncallback_url is sent instead.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scope": {
+                    "description": "Scope is the space-separated list of scopes this app's tokens may be\ngranted. Leave empty, or omit, for unrestricted.",
                     "type": "string"
                 }
             }
@@ -26310,7 +26794,8 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "app_name": {
-                    "$ref": "#/definitions/codersdk.UsageAppName"
+                    "description": "AppName is any name for the app reporting usage. The server normalizes\nit at ingestion, so a new app needs no server change. The UsageAppName\nconstants are the well-known names.",
+                    "type": "string"
                 }
             }
         },
@@ -26645,6 +27130,10 @@ const docTemplate = `{
                 "daemons": {
                     "description": "Daemons is the number of built-in terraform provisioners.",
                     "type": "integer"
+                },
+                "disable_module_cache": {
+                    "description": "DisableModuleCache disables the reuse of Terraform modules cached at\ntemplate import for every template in the deployment. Templates cannot\nopt back in.",
+                    "type": "boolean"
                 },
                 "force_cancel_interval": {
                     "type": "integer"
@@ -27124,17 +27613,29 @@ const docTemplate = `{
         "codersdk.PutOAuth2ProviderAppRequest": {
             "type": "object",
             "required": [
-                "callback_url",
                 "name"
             ],
             "properties": {
                 "callback_url": {
+                    "description": "Deprecated: send redirect_uris instead. If both are sent, callback_url\nmust equal the first entry of redirect_uris.",
                     "type": "string"
                 },
                 "icon": {
+                    "description": "Icon replaces the app's stored icon. Omitting it clears the stored\nicon rather than leaving it unchanged.",
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "redirect_uris": {
+                    "description": "RedirectURIs is the ordered list of URIs the app may redirect to. The\nfirst entry is the primary. Omit both this and callback_url to keep the\nstored redirect URIs. Other fields are replaced. Sending an empty list\nis an error, not a way to keep the stored list.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scope": {
+                    "description": "Scope replaces the app's current allowlist. Omit to leave the existing\nallowlist untouched. Set to an empty string to clear it, making the app\nunrestricted.",
                     "type": "string"
                 }
             }
@@ -27225,7 +27726,6 @@ const docTemplate = `{
                 "replicas",
                 "system",
                 "tailnet_coordinator",
-                "task",
                 "template",
                 "usage_event",
                 "user",
@@ -27280,7 +27780,6 @@ const docTemplate = `{
                 "ResourceReplicas",
                 "ResourceSystem",
                 "ResourceTailnetCoordinator",
-                "ResourceTask",
                 "ResourceTemplate",
                 "ResourceUsageEvent",
                 "ResourceUser",
@@ -27736,19 +28235,54 @@ const docTemplate = `{
                 "ServerSentEventTypeError"
             ]
         },
+        "codersdk.SessionCountApp": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "display_name": {
+                    "description": "DisplayName is the registry's name for a known app, otherwise the\nnormalized identifier itself.",
+                    "type": "string"
+                },
+                "family": {
+                    "description": "Family is the group this app totals under.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AppFamilyName"
+                        }
+                    ]
+                },
+                "icon": {
+                    "description": "Icon is a bundled path under /icon/, empty if the app has none.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.SessionCountDeploymentStats": {
             "type": "object",
             "properties": {
+                "apps": {
+                    "description": "Apps holds one entry per reported app name, each carrying the family it\ntotals under. The fields below duplicate those totals for one release.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.SessionCountApp"
+                    }
+                },
                 "jetbrains": {
+                    "description": "Deprecated: total Apps by Family instead.",
                     "type": "integer"
                 },
                 "reconnecting_pty": {
+                    "description": "Deprecated: total Apps by Family instead.",
                     "type": "integer"
                 },
                 "ssh": {
+                    "description": "Deprecated: total Apps by Family instead.",
                     "type": "integer"
                 },
                 "vscode": {
+                    "description": "Deprecated: total Apps by Family instead.",
                     "type": "integer"
                 }
             }
@@ -28024,7 +28558,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "disable_module_cache": {
-                    "description": "DisableModuleCache disables the use of cached Terraform modules during\nprovisioning.",
+                    "description": "DisableModuleCache disables the use of cached Terraform modules during\nprovisioning for this template. It is read-only while\nModuleCacheDisabledByDeployment is true.",
                     "type": "boolean"
                 },
                 "display_name": {
@@ -28043,6 +28577,10 @@ const docTemplate = `{
                 },
                 "max_port_share_level": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                },
+                "module_cache_disabled_by_deployment": {
+                    "description": "ModuleCacheDisabledByDeployment reports that the deployment disables the\nTerraform module cache for every template. Templates cannot opt back in,\nso the effective state is disabled regardless of DisableModuleCache.",
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -28362,6 +28900,11 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "session_id": {
+                    "description": "SessionID is the wizard session this request belongs to, as reported to\nPOST /api/v2/templatebuilder/sessions. It is optional and used only to\nattribute a build failure to the session that produced it.",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -29535,6 +30078,10 @@ const docTemplate = `{
                 "oauth2_token_url": {
                     "type": "string"
                 },
+                "signing_secret": {
+                    "description": "SigningSecret replaces the shared signing key. Omit to preserve it;\nan empty string clears it. It is never returned.",
+                    "type": "string"
+                },
                 "slug": {
                     "type": "string"
                 },
@@ -29677,7 +30224,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "disable_module_cache": {
-                    "description": "DisableModuleCache disables the using of cached Terraform modules during\nprovisioning. It is recommended not to disable this.",
+                    "description": "DisableModuleCache disables the using of cached Terraform modules during\nprovisioning. It is ignored while the deployment disables the module\ncache for all templates. It is recommended not to disable this.",
                     "type": "boolean"
                 },
                 "display_name": {
@@ -29806,6 +30353,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateUserEmailRequest": {
+            "type": "object",
+            "required": [
+                "new_email",
+                "old_email"
+            ],
+            "properties": {
+                "new_email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "old_email": {
+                    "type": "string",
+                    "format": "email"
+                }
+            }
+        },
         "codersdk.UpdateUserNotificationPreferences": {
             "type": "object",
             "properties": {
@@ -29842,9 +30406,6 @@ const docTemplate = `{
                 },
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
-                },
-                "task_notification_alert_dismissed": {
-                    "type": "boolean"
                 },
                 "thinking_display_mode": {
                     "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
@@ -30095,21 +30656,6 @@ const docTemplate = `{
                     ]
                 }
             }
-        },
-        "codersdk.UsageAppName": {
-            "type": "string",
-            "enum": [
-                "vscode",
-                "jetbrains",
-                "reconnecting-pty",
-                "ssh"
-            ],
-            "x-enum-varnames": [
-                "UsageAppNameVscode",
-                "UsageAppNameJetbrains",
-                "UsageAppNameReconnectingPty",
-                "UsageAppNameSSH"
-            ]
         },
         "codersdk.UsagePeriod": {
             "type": "object",
@@ -30532,9 +31078,6 @@ const docTemplate = `{
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
-                "task_notification_alert_dismissed": {
-                    "type": "boolean"
-                },
                 "thinking_display_mode": {
                     "$ref": "#/definitions/codersdk.ThinkingDisplayMode"
                 }
@@ -30867,10 +31410,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.SharedWorkspaceActor"
                     }
-                },
-                "task_id": {
-                    "description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
-                    "type": "string"
                 },
                 "template_active_version_id": {
                     "type": "string",
@@ -31825,10 +32364,6 @@ const docTemplate = `{
                 "deadline": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "has_ai_task": {
-                    "description": "Deprecated: This field has been deprecated in favor of Task WorkspaceID.",
-                    "type": "boolean"
                 },
                 "has_external_agent": {
                     "type": "boolean"

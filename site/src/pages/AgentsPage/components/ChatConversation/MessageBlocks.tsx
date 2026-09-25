@@ -358,8 +358,10 @@ export const BlockList: FC<BlockListProps> = ({
 								name={tool.name}
 								args={tool.args}
 								result={tool.result}
+								reasoning={tool.reasoning}
 								status={tool.status}
 								isError={tool.isError}
+								isMedia={tool.isMedia}
 								killedBySignal={tool.killedBySignal}
 								shellToolDisplayMode={shellToolDisplayMode}
 								codeDiffDisplayMode={codeDiffDisplayMode}
@@ -385,6 +387,7 @@ export const BlockList: FC<BlockListProps> = ({
 								}
 								modelIntent={tool.modelIntent}
 								parsedCommands={tool.parsedCommands}
+								startedAt={tool.startedAt}
 								hookRewritten={tool.hookRewritten}
 							/>
 						);
@@ -420,8 +423,10 @@ export const BlockList: FC<BlockListProps> = ({
 					name={tool.name}
 					args={tool.args}
 					result={tool.result}
+					reasoning={tool.reasoning}
 					status={tool.status}
 					isError={tool.isError}
+					isMedia={tool.isMedia}
 					killedBySignal={tool.killedBySignal}
 					shellToolDisplayMode={shellToolDisplayMode}
 					codeDiffDisplayMode={codeDiffDisplayMode}
@@ -447,6 +452,7 @@ export const BlockList: FC<BlockListProps> = ({
 					}
 					modelIntent={tool.modelIntent}
 					parsedCommands={tool.parsedCommands}
+					startedAt={tool.startedAt}
 					hookRewritten={tool.hookRewritten}
 				/>
 			))}

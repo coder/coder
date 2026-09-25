@@ -1,4 +1,6 @@
-# Conversation Search Syntax
+---
+title: Conversation search syntax
+---
 
 The chat list endpoint accepts a `q` query parameter for filtering
 conversations. All filters use `key:value` syntax. Bare search terms

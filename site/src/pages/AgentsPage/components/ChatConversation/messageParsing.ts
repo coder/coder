@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
 import { asRecord, asString } from "../ChatElements/runtimeTypeUtils";
 import {
 	getProvidedSubagentTitle,
@@ -15,6 +16,7 @@ import type {
 	ParsedToolCall,
 	ParsedToolResult,
 	RenderBlock,
+	StreamState,
 } from "./types";
 
 /** Concatenate text chunks, skipping whitespace-only values. */
@@ -133,6 +135,21 @@ export const getPendingToolCallIDs = (
 
 type MergeToolsOptions = {
 	pendingToolCallIDs?: ReadonlySet<string>;
+	// Live results for calls whose assistant message is already durable. The
+	// server persists that message before its tools run, so a streamed result
+	// has no live call to attach to and renders on the durable call instead.
+	// Absent when no stream is active.
+	liveToolResults?: StreamState["toolResults"];
+};
+
+export const getToolResultStatus = (result: {
+	isError: boolean;
+	isStreaming?: boolean;
+}): MergedTool["status"] => {
+	if (result.isStreaming) {
+		return "running";
+	}
+	return result.isError ? "error" : "completed";
 };
 
 export const mergeTools = (
@@ -146,7 +163,12 @@ export const mergeTools = (
 
 	for (const call of calls) {
 		seen.add(call.id);
-		const result = resultById.get(call.id);
+		const durableResult = resultById.get(call.id);
+		// A durable result is final; live data for the same call is stale.
+		const liveResult = durableResult
+			? undefined
+			: options.liveToolResults?.[call.id];
+		const result = durableResult ?? liveResult;
 		// Extract model_intent from the tool call args if present.
 		const callArgs = call.args as Record<string, unknown> | undefined;
 		const modelIntent =
@@ -154,9 +176,7 @@ export const mergeTools = (
 				? callArgs.model_intent
 				: undefined;
 		const status = result
-			? result.isError
-				? "error"
-				: "completed"
+			? getToolResultStatus(result)
 			: options.pendingToolCallIDs?.has(call.id)
 				? "running"
 				: "completed";
@@ -165,12 +185,15 @@ export const mergeTools = (
 			name: call.name,
 			args: call.args,
 			result: result?.result,
+			reasoning: liveResult?.reasoning,
 			isError: result?.isError ?? false,
+			isMedia: result?.isMedia,
 			status,
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent,
 			parsedCommands: call.parsedCommands,
 			hookRewritten: call.hookRewritten,
+			startedAt: call.startedAt,
 		});
 	}
 
@@ -181,6 +204,7 @@ export const mergeTools = (
 				name: result.name,
 				result: result.result,
 				isError: result.isError,
+				isMedia: result.isMedia,
 				status: result.isError ? "error" : "completed",
 				mcpServerConfigId: result.mcpServerConfigId,
 			});
@@ -226,6 +250,7 @@ export const parseMessageContent = (
 					parsedCommands: part.parsed_commands,
 					mcpServerConfigId: part.mcp_server_config_id,
 					hookRewritten: part.hook_rewritten,
+					startedAt: part.created_at,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
 				break;
@@ -246,6 +271,7 @@ export const parseMessageContent = (
 					name,
 					result: part.result,
 					isError: parseToolResultIsError(name, part, part.result),
+					isMedia: part.is_media,
 					mcpServerConfigId: part.mcp_server_config_id,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
@@ -308,12 +334,7 @@ export const parseMessageContent = (
 };
 
 const isEditableAttachmentMediaType = (mediaType: string): boolean =>
-	mediaType.startsWith("image/") ||
-	mediaType === "text/plain" ||
-	mediaType === "text/markdown" ||
-	mediaType === "text/csv" ||
-	mediaType === "application/json" ||
-	mediaType === "application/pdf";
+	ChatAttachmentMediaTypes.some((allowed) => allowed === mediaType);
 
 const isEditableUserMessageFileBlock = (
 	block: RenderBlock,
@@ -340,13 +361,9 @@ export const getEditableUserMessagePayload = (
 	};
 };
 
-type ParseMessagesWithMergedToolsOptions = {
-	pendingToolCallIDs?: ReadonlySet<string>;
-};
-
 export const parseMessagesWithMergedTools = (
 	messages: readonly TypesGen.ChatMessage[],
-	options: ParseMessagesWithMergedToolsOptions = {},
+	options: MergeToolsOptions = {},
 ): ParsedMessageEntry[] => {
 	const rawParsed = messages.map((message) => ({
 		message,
@@ -376,7 +393,7 @@ export const parseMessagesWithMergedTools = (
 		parsed.tools = mergeTools(
 			parsed.toolCalls,
 			Array.from(resultById.values()),
-			{ pendingToolCallIDs: options.pendingToolCallIDs },
+			options,
 		);
 	}
 

@@ -92,6 +92,7 @@ import {
 	patchChatEntity,
 	patchChatMessages,
 	pinChat,
+	planModeFieldsForCreateMessage,
 	prependToInfiniteChatsCache,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
@@ -346,30 +347,60 @@ describe("chat model query factories", () => {
 
 	it("scopes update variables and invalidation to the organization", async () => {
 		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(organizationChatModelsKey(organizationId), {});
+		const mockPreviousDefaultModel: TypesGen.ChatModel = {
+			...MockChatModel,
+			id: "previous-default",
+			is_default: true,
+		};
+		const mockCatalog: TypesGen.OrganizationChatModelsResponse = {
+			models: [mockPreviousDefaultModel, MockChatModel],
+			providers: [],
+			unsupported_providers: [],
+		};
+		queryClient.setQueryData(
+			organizationChatModelsKey(organizationId),
+			mockCatalog,
+		);
 		queryClient.setQueryData(
 			organizationChatModelsKey(otherOrganizationId),
-			{},
+			mockCatalog,
 		);
+		const mockPromotedModel: TypesGen.ChatModel = {
+			...MockChatModel,
+			is_default: true,
+		};
 		vi.mocked(API.experimental.updateChatModel).mockResolvedValue(
-			MockChatModel,
+			mockPromotedModel,
 		);
 		const variables = {
 			organizationId,
 			modelId,
-			req: { enabled: true },
+			req: { is_default: true },
 		};
 		const mutation = updateChatModel(queryClient);
 
 		await expect(mutation.mutationFn(variables)).resolves.toEqual(
-			MockChatModel,
+			mockPromotedModel,
 		);
 		expect(API.experimental.updateChatModel).toHaveBeenCalledWith(
 			organizationId,
 			modelId,
 			variables.req,
 		);
-		await mutation.onSuccess(MockChatModel, variables);
+		await mutation.onSuccess(mockPromotedModel, variables);
+		expect(
+			queryClient
+				.getQueryData<TypesGen.OrganizationChatModelsResponse>(
+					organizationChatModelsKey(organizationId),
+				)
+				?.models.map((model) => [model.id, model.is_default]),
+		).toEqual([
+			[mockPreviousDefaultModel.id, false],
+			[modelId, true],
+		]);
+		expect(
+			queryClient.getQueryData(organizationChatModelsKey(otherOrganizationId)),
+		).toBe(mockCatalog);
 		expect(
 			queryClient.getQueryState(organizationChatModelsKey(organizationId))
 				?.isInvalidated,
@@ -604,7 +635,30 @@ describe("invalidateChatListQueries", () => {
 	});
 });
 
-describe("updateChatPlanMode optimistic update", () => {
+describe("planModeFieldsForCreateMessage", () => {
+	it("only sends the clear wire value when requested", () => {
+		expect(planModeFieldsForCreateMessage(true)).toEqual({ plan_mode: "" });
+		expect(planModeFieldsForCreateMessage(false)).toEqual({});
+	});
+});
+
+describe("updateChatPlanMode", () => {
+	it("sends plan to enable and an empty string to clear", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(API.experimental.updateChat).mockResolvedValue(undefined);
+		const mutation = updateChatPlanMode(queryClient);
+
+		await mutation.mutationFn({ chatId: "chat-1", planMode: "plan" });
+		await mutation.mutationFn({ chatId: "chat-1", planMode: undefined });
+
+		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(1, "chat-1", {
+			plan_mode: "plan",
+		});
+		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(2, "chat-1", {
+			plan_mode: "",
+		});
+	});
+
 	it("invalidates the chat list on error without a detail cache", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";

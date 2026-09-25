@@ -11,7 +11,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
-import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 
 type ModelRowProps = {
 	model: ChatModel;

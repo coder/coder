@@ -1,11 +1,13 @@
-# Access your workspace
+---
+title: Access your workspace
+---
 
 There are many ways to connect to your workspace, the options are only limited
 by the template configuration.
 
 Deployment operators can learn more about different types of workspace
 connections and performance in our
-[networking docs](../../admin/infrastructure/index.md).
+[networking docs](../../install/plan/index.md).
 
 You can see the primary methods of connecting to your workspace in the workspace
 dashboard.
@@ -29,7 +31,7 @@ customization options, keyboard shortcuts, and troubleshooting guides.
 ### Through the CLI
 
 Coder will use the optimal path for an SSH connection (determined by your
-deployment's [networking configuration](../../admin/infrastructure/index.md))
+deployment's [networking configuration](../../install/plan/index.md))
 when using the CLI:
 
 ```console

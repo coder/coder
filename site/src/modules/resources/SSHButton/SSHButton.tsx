@@ -16,11 +16,11 @@ import {
 } from "#/components/Popover/Popover";
 import { docs } from "#/utils/docs";
 
-interface AgentSSHButtonProps {
+type AgentSSHButtonProps = {
 	workspaceName: string;
 	agentName: string;
 	workspaceOwnerUsername: string;
-}
+};
 
 export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 	workspaceName,
@@ -82,10 +82,10 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 	);
 };
 
-interface SSHStepProps {
+type SSHStepProps = {
 	helpText: string;
 	codeExample: string;
-}
+};
 
 const SSHStep: FC<SSHStepProps> = ({ helpText, codeExample }) => (
 	<li style={{ listStylePosition: "inside" }}>

@@ -3,14 +3,15 @@ import type { FC } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
+import { docs } from "#/utils/docs";
 import { DaysField, LifecycleSettingLayout } from "./LifecycleSettingLayout";
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
-interface RetentionPeriodSettingsProps {
+type RetentionPeriodSettingsProps = {
 	retentionDaysData: TypesGen.ChatRetentionDaysResponse | undefined;
 	isRetentionDaysLoading: boolean;
 	isRetentionDaysLoadError: boolean;
@@ -20,7 +21,7 @@ interface RetentionPeriodSettingsProps {
 	) => void;
 	isSavingRetentionDays: boolean;
 	isSaveRetentionDaysError: boolean;
-}
+};
 
 // Keep in sync with retentionDaysMaximum in coderd/exp_chats.go.
 const DAYS_MIN = 1;
@@ -84,6 +85,7 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 		<LifecycleSettingLayout
 			title="Conversation retention period"
 			description="Archived conversations and orphaned files older than this are automatically deleted."
+			docsHref={docs("/ai-coder/agents/platform-controls/chat-retention")}
 			checked={form.values.enabled}
 			onCheckedChange={(checked) => void form.setFieldValue("enabled", checked)}
 			switchLabel="Enable conversation retention"

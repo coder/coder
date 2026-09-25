@@ -107,7 +107,6 @@ func newTestStandaloneGateway(t *testing.T, opts ...testGatewayOption) (*standal
 		httpAddress: "127.0.0.1:0",
 
 		dialer: blockingStandaloneDaemonDialer,
-		pool:   pool,
 
 		logger: logger,
 		tracer: tracer,
@@ -118,6 +117,7 @@ func newTestStandaloneGateway(t *testing.T, opts ...testGatewayOption) (*standal
 
 	gateway, err := newStandaloneGateway(params)
 	require.NoError(t, err)
+	require.NoError(t, gateway.daemon.SetPoolForTest(testutil.Context(t, testutil.WaitShort), t, pool))
 
 	t.Cleanup(func() {
 		require.NoError(t, shutdownWithTimeout(gateway.daemon.Shutdown, testutil.WaitShort))
@@ -605,23 +605,13 @@ func TestAIGatewayStart_InheritedOptions(t *testing.T) {
 		// Logging
 		"CODER_ENABLE_TERRAFORM_DEBUG_MODE": {},
 
-		// AI Gateway (coderd-only: provider seeding, budgets, retention, etc.)
-		"CODER_AI_BUDGET_PERIOD":                     {},
-		"CODER_AI_BUDGET_POLICY":                     {},
-		"CODER_AI_GATEWAY_ANTHROPIC_BASE_URL":        {},
-		"CODER_AI_GATEWAY_ANTHROPIC_KEY":             {},
-		"CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY":        {},
-		"CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET": {},
-		"CODER_AI_GATEWAY_BEDROCK_BASE_URL":          {},
-		"CODER_AI_GATEWAY_BEDROCK_MODEL":             {},
-		"CODER_AI_GATEWAY_BEDROCK_REGION":            {},
-		"CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL":  {},
-		"CODER_AI_GATEWAY_ENABLED":                   {},
-		"CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS":    {},
-		"CODER_AI_GATEWAY_OPENAI_BASE_URL":           {},
-		"CODER_AI_GATEWAY_OPENAI_KEY":                {},
-		"CODER_AI_GATEWAY_RETENTION":                 {},
-		"CODER_AI_GATEWAY_STRUCTURED_LOGGING":        {},
+		// AI Gateway (coderd-only: budgets, retention, etc.)
+		"CODER_AI_BUDGET_PERIOD":                  {},
+		"CODER_AI_BUDGET_POLICY":                  {},
+		"CODER_AI_GATEWAY_ENABLED":                {},
+		"CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS": {},
+		"CODER_AI_GATEWAY_RETENTION":              {},
+		"CODER_AI_GATEWAY_STRUCTURED_LOGGING":     {},
 
 		// Prometheus (coderd-only: agent/database collectors)
 		"CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY": {},

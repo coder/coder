@@ -1,4 +1,6 @@
-# Connection Logs (Premium)
+---
+title: Connection logs (Premium)
+---
 
 > [!NOTE]
 > Connection logs require a
@@ -21,8 +23,8 @@ performed via the dashboard.
 ## SSH and IDE Sessions
 
 The connection log aims to capture a record of all workspace SSH and IDE sessions.
-These events are reported by workspace agents, and their receipt by the server
-is not guaranteed.
+These events are reported by workspace agents, and their receipt by the control
+plane is not guaranteed.
 
 Agent-reported events do not identify the Coder user who connected. To
 attribute SSH and IDE activity to a user, correlate them with tunnel
@@ -137,4 +139,4 @@ environment variable. For comprehensive configuration options, see
 
 ## How to Enable Connection Logs
 
-This feature is only available with a [Premium license](../licensing/index.md).
+This feature is only available with a [Premium license](../../install/prepare/licensing.md).

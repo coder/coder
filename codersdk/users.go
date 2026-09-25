@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -165,26 +164,7 @@ type CreateFirstUserResponse struct {
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 }
 
-// CreateUserRequest
-// Deprecated: Use CreateUserRequestWithOrgs instead. This will be removed.
-// TODO: When removing, we should rename CreateUserRequestWithOrgs -> CreateUserRequest
-// Then alias CreateUserRequestWithOrgs to CreateUserRequest.
-// @typescript-ignore CreateUserRequest
 type CreateUserRequest struct {
-	Email    string `json:"email" validate:"required,email" format:"email"`
-	Username string `json:"username" validate:"required,username"`
-	Name     string `json:"name" validate:"user_real_name"`
-	Password string `json:"password"`
-	// UserLoginType defaults to LoginTypePassword.
-	UserLoginType LoginType `json:"login_type"`
-	// DisableLogin sets the user's login type to 'none'. This prevents the user
-	// from being able to use a password or any other authentication method to login.
-	// Deprecated: Set UserLoginType=LoginTypeDisabled instead.
-	DisableLogin   bool      `json:"disable_login"`
-	OrganizationID uuid.UUID `json:"organization_id" validate:"" format:"uuid"`
-}
-
-type CreateUserRequestWithOrgs struct {
 	Email    string `json:"email" validate:"required_unless=ServiceAccount true,omitempty,email" format:"email"`
 	Username string `json:"username" validate:"required,username"`
 	Name     string `json:"name" validate:"user_real_name"`
@@ -201,33 +181,10 @@ type CreateUserRequestWithOrgs struct {
 	Roles []string `json:"roles,omitempty"`
 }
 
-// UnmarshalJSON implements the unmarshal for the legacy param "organization_id".
-// To accommodate multiple organizations, the field has been switched to a slice.
-// The previous field will just be appended to the slice.
-// Note in the previous behavior, omitting the field would result in the
-// default org being applied, but that is no longer the case.
-// TODO: Remove this method in it's entirety after some period of time.
-// This will be released in v1.16.0, and is associated with the multiple orgs
-// feature.
-func (r *CreateUserRequestWithOrgs) UnmarshalJSON(data []byte) error {
-	// By using a type alias, we prevent an infinite recursion when unmarshalling.
-	// This allows us to use the default unmarshal behavior of the original type.
-	type AliasedReq CreateUserRequestWithOrgs
-	type DeprecatedCreateUserRequest struct {
-		AliasedReq
-		OrganizationID *uuid.UUID `json:"organization_id" format:"uuid"`
-	}
-	var dep DeprecatedCreateUserRequest
-	err := json.Unmarshal(data, &dep)
-	if err != nil {
-		return err
-	}
-	*r = CreateUserRequestWithOrgs(dep.AliasedReq)
-	if dep.OrganizationID != nil {
-		r.OrganizationIDs = append(r.OrganizationIDs, *dep.OrganizationID)
-	}
-	return nil
-}
+// CreateUserRequestWithOrgs is kept for callers that predate the rename.
+// Deprecated: Use CreateUserRequest instead.
+// @typescript-ignore CreateUserRequestWithOrgs
+type CreateUserRequestWithOrgs = CreateUserRequest
 
 type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
@@ -236,6 +193,13 @@ type UpdateUserProfileRequest struct {
 	// none. For other login types the avatar is synced from the identity
 	// provider on login, so a submitted value is ignored.
 	AvatarURL string `json:"avatar_url" format:"uri"`
+}
+
+// UpdateUserEmailRequest changes a user's email by matching their current
+// email address. This API is experimental and may change without notice.
+type UpdateUserEmailRequest struct {
+	OldEmail string `json:"old_email" validate:"required,email" format:"email"`
+	NewEmail string `json:"new_email" validate:"required,email" format:"email"`
 }
 
 type ValidateUserPasswordRequest struct {
@@ -315,19 +279,17 @@ type UpdateUserAppearanceSettingsRequest struct {
 }
 
 type UserPreferenceSettings struct {
-	TaskNotificationAlertDismissed bool                  `json:"task_notification_alert_dismissed"`
-	ThinkingDisplayMode            ThinkingDisplayMode   `json:"thinking_display_mode"`
-	ShellToolDisplayMode           AgentDisplayMode      `json:"shell_tool_display_mode"`
-	CodeDiffDisplayMode            AgentDisplayMode      `json:"code_diff_display_mode"`
-	AgentChatSendShortcut          AgentChatSendShortcut `json:"agent_chat_send_shortcut"`
+	ThinkingDisplayMode   ThinkingDisplayMode   `json:"thinking_display_mode"`
+	ShellToolDisplayMode  AgentDisplayMode      `json:"shell_tool_display_mode"`
+	CodeDiffDisplayMode   AgentDisplayMode      `json:"code_diff_display_mode"`
+	AgentChatSendShortcut AgentChatSendShortcut `json:"agent_chat_send_shortcut"`
 }
 
 type UpdateUserPreferenceSettingsRequest struct {
-	TaskNotificationAlertDismissed *bool                 `json:"task_notification_alert_dismissed,omitempty"`
-	ThinkingDisplayMode            ThinkingDisplayMode   `json:"thinking_display_mode,omitempty"`
-	ShellToolDisplayMode           AgentDisplayMode      `json:"shell_tool_display_mode,omitempty"`
-	CodeDiffDisplayMode            AgentDisplayMode      `json:"code_diff_display_mode,omitempty"`
-	AgentChatSendShortcut          AgentChatSendShortcut `json:"agent_chat_send_shortcut,omitempty"`
+	ThinkingDisplayMode   ThinkingDisplayMode   `json:"thinking_display_mode,omitempty"`
+	ShellToolDisplayMode  AgentDisplayMode      `json:"shell_tool_display_mode,omitempty"`
+	CodeDiffDisplayMode   AgentDisplayMode      `json:"code_diff_display_mode,omitempty"`
+	AgentChatSendShortcut AgentChatSendShortcut `json:"agent_chat_send_shortcut,omitempty"`
 }
 
 type AgentChatSendShortcut string
@@ -549,26 +511,8 @@ func (c *Client) CreateFirstUser(ctx context.Context, req CreateFirstUserRequest
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
-// CreateUser
-// Deprecated: Use CreateUserWithOrgs instead. This will be removed.
-// TODO: When removing, we should rename CreateUserWithOrgs -> CreateUser
-// with an alias of CreateUserWithOrgs.
+// CreateUser creates a new user.
 func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, error) {
-	if req.DisableLogin {
-		req.UserLoginType = LoginTypeNone
-	}
-	return c.CreateUserWithOrgs(ctx, CreateUserRequestWithOrgs{
-		Email:           req.Email,
-		Username:        req.Username,
-		Name:            req.Name,
-		Password:        req.Password,
-		UserLoginType:   req.UserLoginType,
-		OrganizationIDs: []uuid.UUID{req.OrganizationID},
-	})
-}
-
-// CreateUserWithOrgs creates a new user.
-func (c *Client) CreateUserWithOrgs(ctx context.Context, req CreateUserRequestWithOrgs) (User, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users", req)
 	if err != nil {
 		return User{}, err
@@ -579,6 +523,12 @@ func (c *Client) CreateUserWithOrgs(ctx context.Context, req CreateUserRequestWi
 	}
 	var user User
 	return user, ReadBodyAsJSON(res, &user)
+}
+
+// CreateUserWithOrgs creates a new user.
+// Deprecated: Use CreateUser instead.
+func (c *Client) CreateUserWithOrgs(ctx context.Context, req CreateUserRequest) (User, error) {
+	return c.CreateUser(ctx, req)
 }
 
 // DeleteUser deletes a user.
@@ -608,6 +558,20 @@ func (c *Client) UpdateUserProfile(ctx context.Context, user string, req UpdateU
 	}
 	var resp User
 	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UpdateUserEmail changes a user's email address. This API is experimental and
+// may change without notice.
+func (c *Client) UpdateUserEmail(ctx context.Context, req UpdateUserEmailRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/users/email", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // ValidateUserPassword validates the complexity of a user password and that it is secured enough.

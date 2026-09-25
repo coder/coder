@@ -31,7 +31,7 @@ import { WorkspaceHelpPopover } from "./WorkspaceHelpPopover";
 import { WorkspacesButton } from "./WorkspacesButton";
 
 type TemplateQuery = UseQueryResult<Template[]>;
-interface WorkspacesPageViewProps {
+type WorkspacesPageViewProps = {
 	error: unknown;
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
@@ -54,7 +54,7 @@ interface WorkspacesPageViewProps {
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
 	chatsByWorkspace?: Record<string, string>;
-}
+};
 
 export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	workspaces,
@@ -107,7 +107,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				</PageHeaderTitle>
 			</PageHeader>
 
-			<div className="flex flex-col gap-4">
+			<div className="mb-4 flex flex-col gap-4">
 				{hasError(error) && !isApiValidationError(error) && (
 					<ErrorAlert error={error} />
 				)}
@@ -184,6 +184,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 							limit={limit}
 							totalRecords={count}
 							currentOffsetStart={(page - 1) * limit + 1}
+							isFiltered={filter.query.trim() !== ""}
 						/>
 					)
 				)}
@@ -210,6 +211,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					canCreateWorkspace={canCreateWorkspace}
 					workspaces={workspaces}
 					isUsingFilter={filter.used}
+					onClearFilter={() => filter.update("")}
 					checkedWorkspaces={checkedWorkspaces}
 					onCheckChange={onCheckChange}
 					templates={templates}

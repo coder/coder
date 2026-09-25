@@ -2,7 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { externalScopesKey } from "#/api/queries/oauth2";
 import {
+	MockExternalAPIKeyScopes,
 	MockPermissions,
 	MockUserOwner,
 	mockApiError,
@@ -16,6 +18,7 @@ const meta = {
 	parameters: {
 		user: MockUserOwner,
 		permissions: MockPermissions,
+		queries: [{ key: externalScopesKey, data: MockExternalAPIKeyScopes }],
 		reactRouter: reactRouterParameters({
 			location: { path: "/deployment/oauth2-provider/apps/add" },
 			routing: [
@@ -58,7 +61,7 @@ export const WithValidationError: Story = {
 				message: "Validation failed",
 				validations: [
 					{ field: "name", detail: "name error" },
-					{ field: "callback_url", detail: "url error" },
+					{ field: "redirect_uris", detail: "url error" },
 					{ field: "icon", detail: "icon error" },
 				],
 			}),
@@ -68,7 +71,7 @@ export const WithValidationError: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.type(await canvas.findByLabelText(/^name/i), "test-app");
 		await userEvent.type(
-			canvas.getByLabelText(/callback url/i),
+			canvas.getByLabelText(/default callback/i),
 			"https://example.com/callback",
 		);
 		await userEvent.click(
@@ -80,20 +83,67 @@ export const WithValidationError: Story = {
 	},
 };
 
-export const InvalidName: Story = {
+export const InvalidCallbackURL: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const nameInput = await canvas.findByLabelText(/^name/i);
-		await userEvent.type(nameInput, "Foo@Application");
+		await userEvent.type(await canvas.findByLabelText(/^name/i), "test-app");
+		const callbackInput = canvas.getByLabelText(/default callback/i);
+		// oxlint-disable-next-line eslint/no-script-url -- Deliberately invalid input exercises callback URL rejection.
+		await userEvent.type(callbackInput, "javascript:alert(1)");
 		await userEvent.tab();
-		await expect(
-			await canvas.findByText(
-				/special characters \(e\.g\.: !, @, #\) are not supported/i,
-			),
-		).toBeVisible();
-		await expect(
-			canvas.getByRole("button", { name: /create application/i }),
-		).toBeDisabled();
+	},
+};
+
+export const DynamicallyRegisteredValues: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			await canvas.findByLabelText(/^name/i),
+			"VS Code Coder Extension",
+		);
+		await userEvent.type(
+			canvas.getByLabelText(/default callback/i),
+			"vscode://coder.coder-remote/oauth/callback",
+		);
+		await userEvent.tab();
+	},
+};
+
+export const MultipleRedirectURIs: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			await canvas.findByLabelText(/^name/i),
+			"VS Code Coder Extension",
+		);
+		await userEvent.type(
+			canvas.getByLabelText(/default callback/i),
+			"vscode://coder.coder-remote/oauth/callback",
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /add redirect uri/i }),
+		);
+		await userEvent.type(
+			canvas.getByLabelText(/^redirect uri 2/i),
+			"https://example.com/callback",
+		);
+	},
+};
+
+export const InvalidRowState: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(await canvas.findByLabelText(/^name/i), "test-app");
+		await userEvent.click(
+			canvas.getByRole("button", { name: /add redirect uri/i }),
+		);
+		// oxlint-disable-next-line eslint/no-script-url -- Deliberately invalid input exercises redirect URI rejection.
+		const invalidRedirectURI = "javascript:alert(1)";
+		await userEvent.type(
+			canvas.getByLabelText(/^redirect uri 2/i),
+			invalidRedirectURI,
+		);
+		await userEvent.tab();
 	},
 };
 

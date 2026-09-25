@@ -1063,6 +1063,11 @@ const toChatPlanModePayload = (
 	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
 };
 
+export const planModeFieldsForCreateMessage = (
+	clearPlanMode: boolean,
+): { readonly plan_mode?: ChatPlanModeOrClear } =>
+	clearPlanMode ? { plan_mode: toChatPlanModePayload(undefined) } : {};
+
 export const CHAT_SOURCE_ORDER = [
 	...ChatListSources,
 ] as const satisfies readonly TypesGen.ChatListSource[];
@@ -2159,7 +2164,7 @@ export const updateUserChatPersonalModelOverride = (
 	},
 });
 
-const userCompactionThresholdsKey = [
+export const userCompactionThresholdsKey = [
 	...chatConfigKey,
 	"compaction-thresholds",
 	"me",
@@ -2322,9 +2327,30 @@ export const updateChatModel = (queryClient: QueryClient) => ({
 	mutationFn: ({ organizationId, modelId, req }: UpdateChatModelMutationArgs) =>
 		API.experimental.updateChatModel(organizationId, modelId, req),
 	onSuccess: async (
-		_model: TypesGen.ChatModel,
+		model: TypesGen.ChatModel,
 		variables: UpdateChatModelMutationArgs,
 	) => {
+		// Seed the catalog with the confirmed result so the saved state does not
+		// depend on the refetch that follows succeeding.
+		queryClient.setQueryData<TypesGen.OrganizationChatModelsResponse>(
+			organizationChatModelsKey(variables.organizationId),
+			(current) => {
+				if (!current) {
+					return current;
+				}
+				return {
+					...current,
+					models: current.models.map((existing) => {
+						if (existing.id === model.id) {
+							return model;
+						}
+						return model.is_default && existing.is_default
+							? { ...existing, is_default: false }
+							: existing;
+					}),
+				};
+			},
+		);
 		await invalidateChatConfigurationQueries(
 			queryClient,
 			variables.organizationId,

@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
+import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	getPendingToolCallIDs,
+	parseMessagesWithMergedTools,
+} from "./messageParsing";
 import {
 	applyMessagePartToStreamState,
 	buildStreamTools,
 	createEmptyStreamState,
+	excludeDurableCallResults,
 } from "./streamState";
 import type { StreamState } from "./types";
 
@@ -123,6 +130,24 @@ describe("applyMessagePartToStreamState", () => {
 		]);
 	});
 
+	it("keeps startedAt when a later delta omits created_at", () => {
+		const finalized = applyMessagePartToStreamState(null, {
+			type: "tool-call",
+			tool_name: "execute",
+			tool_call_id: "tc-1",
+			args: { command: "make build" },
+			created_at: "2025-01-01T00:00:00.000Z",
+		});
+		const afterDelta = applyMessagePartToStreamState(finalized, {
+			type: "tool-call",
+			tool_call_id: "tc-1",
+			args_delta: "",
+		});
+		expect(afterDelta!.toolCalls["tc-1"].startedAt).toBe(
+			"2025-01-01T00:00:00.000Z",
+		);
+	});
+
 	it("generates fallback tool call ID when missing", () => {
 		const result = applyMessagePartToStreamState(null, {
 			type: "tool-call",
@@ -211,6 +236,18 @@ describe("applyMessagePartToStreamState", () => {
 			result: { output: "file.txt" },
 			isError: false,
 		});
+	});
+
+	it("keeps the media flag on a streamed tool result", () => {
+		const state = applyMessagePartToStreamState(null, {
+			type: "tool-result",
+			tool_name: "playwright__browser_take_screenshot",
+			tool_call_id: "tc-1",
+			result: { data: "AAAA", mime_type: "image/png", text: "done" },
+			is_media: true,
+		});
+		expect(state?.toolResults["tc-1"].isMedia).toBe(true);
+		expect(buildStreamTools({}, state?.toolResults)[0].isMedia).toBe(true);
 	});
 
 	it("accumulates tool result deltas until a final result arrives", () => {
@@ -340,6 +377,7 @@ describe("applyMessagePartToStreamState", () => {
 			tool_name: "advisor",
 			tool_call_id: "call-advisor-3",
 			result_delta: "partial advice",
+			reasoning_delta: "transient reasoning",
 		});
 
 		expect(state!.toolResults["call-advisor-3"]).toMatchObject({
@@ -361,6 +399,7 @@ describe("applyMessagePartToStreamState", () => {
 		expect(state!.toolResults["call-advisor-3"]).toMatchObject({
 			result: "partial advice",
 			isError: true,
+			reasoning: undefined,
 		});
 		expect(state!.toolResults["call-advisor-3"].isStreaming).toBeUndefined();
 		expect(
@@ -388,6 +427,119 @@ describe("applyMessagePartToStreamState", () => {
 		expect(
 			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
 		).toBe("running");
+	});
+
+	it.each([
+		{ first: "checking ", second: "tradeoffs", expected: "checking tradeoffs" },
+		{
+			first: ' {"thinking":',
+			second: ' "keep whitespace"} ',
+			expected: ' {"thinking": "keep whitespace"} ',
+		},
+		{ first: " ", second: "\n", expected: " \n" },
+	])(
+		"accumulates advisor reasoning as plain text: $expected",
+		({ first, second, expected }) => {
+			let state: StreamState | null = null;
+			state = applyMessagePartToStreamState(state, {
+				type: "tool-call",
+				tool_name: "advisor",
+				tool_call_id: "call-advisor-1",
+				args: { question: "What is the safe path?" },
+			});
+			state = applyMessagePartToStreamState(state, {
+				type: "tool-result",
+				tool_name: "advisor",
+				tool_call_id: "call-advisor-1",
+				result_delta: "",
+				reasoning_delta: first,
+			});
+			state = applyMessagePartToStreamState(state, {
+				type: "tool-result",
+				tool_name: "advisor",
+				tool_call_id: "call-advisor-1",
+				reasoning_delta: second,
+				result_delta: "Use small steps.",
+			});
+
+			expect(state).not.toBeNull();
+			expect(state?.toolResults["call-advisor-1"]).toMatchObject({
+				id: "call-advisor-1",
+				name: "advisor",
+				reasoning: expected,
+				result: "Use small steps.",
+				resultRaw: "Use small steps.",
+				isStreaming: true,
+			});
+			expect(
+				buildStreamTools(state?.toolCalls, state?.toolResults)[0],
+			).toMatchObject({
+				status: "running",
+				reasoning: expected,
+				result: "Use small steps.",
+			});
+		},
+	);
+
+	it("clears streaming advisor reasoning on reset and final result", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			args: { question: "What is the safe path?" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			reasoning_delta: "stale thinking",
+			result_delta: "stale advice",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result_reset: true,
+		});
+
+		expect(state?.toolResults["call-advisor-1"]).toBeUndefined();
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			reasoning_delta: "fresh thinking",
+		});
+		expect(state?.toolResults["call-advisor-1"].reasoning).toBe(
+			"fresh thinking",
+		);
+		expect(
+			buildStreamTools(state?.toolCalls, state?.toolResults)[0].status,
+		).toBe("running");
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result: {
+				type: "advice",
+				advice: "Use small steps.",
+				remaining_uses: "2",
+			},
+		});
+
+		expect(state?.toolResults["call-advisor-1"].reasoning).toBeUndefined();
+		expect(
+			buildStreamTools(state?.toolCalls, state?.toolResults)[0],
+		).toMatchObject({
+			status: "completed",
+			result: {
+				type: "advice",
+				advice: "Use small steps.",
+				remaining_uses: "2",
+			},
+		});
 	});
 
 	it("resets streaming tool result deltas", () => {
@@ -758,6 +910,157 @@ describe("buildStreamTools", () => {
 		const tools = buildStreamTools(state.toolCalls, state.toolResults);
 		expect(tools).toHaveLength(1);
 		expect(tools[0].status).toBe("completed");
+	});
+});
+
+describe("excludeDurableCallResults", () => {
+	const applyParts = (parts: readonly ChatMessagePart[]): StreamState => {
+		const state = parts.reduce<StreamState | null>(
+			applyMessagePartToStreamState,
+			null,
+		);
+		if (!state) {
+			throw new Error("Test parts must produce stream state.");
+		}
+		return state;
+	};
+
+	const mockDurableAdvisorMessage: ChatMessage = {
+		...MockChatMessage,
+		id: 25,
+		role: "assistant",
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "call-advisor",
+				tool_name: "advisor",
+				args: {
+					question: "on or off by default?",
+					model_intent: "Checking the default",
+				},
+			},
+		],
+	};
+	const mockMessagesByID = new Map([
+		[mockDurableAdvisorMessage.id, mockDurableAdvisorMessage],
+	]);
+
+	// The server persists the assistant message before the tool runs, so
+	// these parts arrive with no live tool-call for the same ID.
+	const mockAdvisorResultParts: ChatMessagePart[] = [
+		{
+			type: "tool-result",
+			tool_call_id: "call-advisor",
+			tool_name: "advisor",
+			reasoning_delta: "Weighing the default",
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "call-advisor",
+			tool_name: "advisor",
+			result_delta: "Turn it on",
+		},
+	];
+
+	it("removes a streamed result whose call is durable and leaves no live output", () => {
+		const state = applyParts(mockAdvisorResultParts);
+
+		expect(excludeDurableCallResults(state, mockMessagesByID)).toBeNull();
+	});
+
+	it("keeps live tool calls, unrelated results, and text", () => {
+		const state = applyParts([
+			{
+				type: "tool-call",
+				tool_call_id: "call-live",
+				tool_name: "execute",
+				args: { command: "ls" },
+			},
+			...mockAdvisorResultParts,
+			{
+				type: "tool-result",
+				tool_call_id: "call-orphan",
+				tool_name: "execute",
+				result: "ok",
+			},
+			{ type: "text", text: "Done" },
+		]);
+
+		const live = excludeDurableCallResults(state, mockMessagesByID);
+
+		expect(live?.blocks).toEqual([
+			{ type: "tool", id: "call-live" },
+			{ type: "tool", id: "call-orphan" },
+			{ type: "response", text: "Done" },
+		]);
+		expect(Object.keys(live?.toolCalls ?? {})).toEqual(["call-live"]);
+		expect(Object.keys(live?.toolResults ?? {})).toEqual(["call-orphan"]);
+	});
+
+	it("drops a live call that shares a durable call's ID", () => {
+		const state = applyParts([
+			{
+				type: "tool-call",
+				tool_call_id: "call-advisor",
+				tool_name: "advisor",
+				args: { question: "on or off by default?" },
+			},
+			...mockAdvisorResultParts,
+		]);
+
+		expect(excludeDurableCallResults(state, mockMessagesByID)).toBeNull();
+	});
+
+	it("returns the same stream when nothing belongs to a durable call", () => {
+		const state = applyParts([{ type: "text", text: "Hello" }]);
+
+		expect(excludeDurableCallResults(state, mockMessagesByID)).toBe(state);
+	});
+
+	it("overlays streamed advisor output on the durable call and leaves no live tool", () => {
+		const messages: ChatMessage[] = [
+			{
+				...MockChatMessage,
+				id: 24,
+				role: "user",
+				content: [{ type: "text", text: "Should this be on by default?" }],
+			},
+			mockDurableAdvisorMessage,
+		];
+		const parseWith = (streamState: StreamState) =>
+			parseMessagesWithMergedTools(messages, {
+				pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
+				liveToolResults: streamState.toolResults,
+			});
+		const streamState = applyParts(mockAdvisorResultParts);
+
+		expect(parseWith(streamState)[1]?.parsed.tools).toEqual([
+			expect.objectContaining({
+				id: "call-advisor",
+				status: "running",
+				modelIntent: "Checking the default",
+				reasoning: "Weighing the default",
+				result: "Turn it on",
+			}),
+		]);
+		expect(excludeDurableCallResults(streamState, mockMessagesByID)).toBeNull();
+
+		// A retry resets the transient output but keeps the call running.
+		const resetState = applyParts([
+			...mockAdvisorResultParts,
+			{
+				type: "tool-result",
+				tool_call_id: "call-advisor",
+				tool_name: "advisor",
+				result_reset: true,
+			},
+		]);
+		expect(parseWith(resetState)[1]?.parsed.tools[0]).toMatchObject({
+			status: "running",
+			reasoning: undefined,
+			result: undefined,
+		});
+		expect(excludeDurableCallResults(resetState, mockMessagesByID)).toBeNull();
 	});
 });
 

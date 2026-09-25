@@ -3,7 +3,7 @@ import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { TemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 
-interface AgentSettingLayoutProps {
+type AgentSettingLayoutProps = {
 	title: string;
 	description?: ReactNode;
 	children?: ReactNode;
@@ -13,7 +13,7 @@ interface AgentSettingLayoutProps {
 	isSavedVisible: boolean;
 	saveDisabled: boolean;
 	onSubmit: FormEventHandler<HTMLFormElement>;
-}
+};
 
 export const AgentSettingLayout: FC<AgentSettingLayoutProps> = ({
 	title,
@@ -51,7 +51,7 @@ export const AgentSettingLayout: FC<AgentSettingLayoutProps> = ({
 					{children}
 					<div className="flex min-h-10 items-center">
 						{(showSave || isSavedVisible || isSaving) &&
-							(isSavedVisible ? (
+							(isSavedVisible && !showSave ? (
 								<TemporarySavedState />
 							) : (
 								<Button

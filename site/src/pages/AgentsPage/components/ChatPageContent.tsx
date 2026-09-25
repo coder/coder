@@ -3,14 +3,23 @@ import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
-import { chatPromptsQuery, refreshChatContext } from "#/api/queries/chats";
+import {
+	chatPromptsQuery,
+	refreshChatContext,
+	userCompactionThresholds,
+} from "#/api/queries/chats";
+import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { AgentChatSendShortcut } from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
-import { getProviderForModelOption } from "../utils/modelOptions";
+import {
+	getProviderForModelOption,
+	resolveCompactionThreshold,
+} from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
 	AgentChatInput,
@@ -23,6 +32,7 @@ import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
+	isActiveChatStatus,
 	selectChatStatus,
 	selectHasStreamState,
 	selectIsAwaitingFirstStreamChunk,
@@ -47,11 +57,14 @@ import {
 	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
-import { buildStreamTools } from "./ChatConversation/streamState";
+import {
+	buildStreamTools,
+	excludeDurableCallResults,
+} from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
-import type { ModelSelectorOption } from "./ChatElements/ModelSelector";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
+import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -86,9 +99,10 @@ export const workspaceSkillsFromChat = (
 	return [...skills.values()];
 };
 
-interface ChatPageTimelineProps {
+type ChatPageTimelineProps = {
 	organizationId: string | undefined;
 	store: ChatStoreHandle;
+	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	persistedError: ChatDetailError | undefined;
 	initialActiveTurnMaxMessageId?: number;
 	hasMoreMessages: boolean;
@@ -107,11 +121,12 @@ interface ChatPageTimelineProps {
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	footer?: ReactNode;
-}
+};
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	organizationId,
 	store,
+	chatFiles,
 	persistedError,
 	initialActiveTurnMaxMessageId,
 	hasMoreMessages,
@@ -146,8 +161,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	);
 	const isChatCompleted = !hasStream;
 
+	const liveStreamState =
+		streamState && excludeDurableCallResults(streamState, messagesByID);
 	const liveStatus = deriveLiveStatus({
-		streamState,
+		streamState: liveStreamState,
 		retryState,
 		reconnectState,
 		streamError,
@@ -156,8 +173,8 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		chatStatus,
 	});
 	const streamTools = buildStreamTools(
-		streamState?.toolCalls,
-		streamState?.toolResults,
+		liveStreamState?.toolCalls,
+		liveStreamState?.toolResults,
 	);
 
 	const messages = orderedMessageIDs
@@ -176,6 +193,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const pendingToolCallIDs = getPendingToolCallIDs(messages, chatStatus);
 	const parsedMessages = parseMessagesWithMergedTools(messages, {
 		pendingToolCallIDs,
+		liveToolResults: streamState?.toolResults,
 	});
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
@@ -199,8 +217,9 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 				<ConversationTimeline
 					organizationId={organizationId}
 					parsedMessages={parsedMessages}
+					chatFiles={chatFiles}
 					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-					streamState={streamState}
+					streamState={liveStreamState}
 					streamTools={streamTools}
 					liveStatus={liveStatus}
 					subagentStatusOverrides={subagentStatusOverrides}
@@ -237,20 +256,19 @@ export type PendingAttachment = {
 	mediaType: string;
 };
 
-interface ChatPageInputProps {
-	// Organization that owns this chat. Used to scope file uploads.
-	organizationId: string | undefined;
+type ChatPageInputProps = {
+	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
-	compressionThreshold: number | undefined;
+	models: readonly TypesGen.ChatModel[] | undefined;
 	onSend: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
 	) => Promise<void> | void;
-	sendShortcut: AgentChatSendShortcut;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
+	isReadOnly?: boolean;
 	isSendPending: boolean;
 	isInterruptPending: boolean;
 	hasModelOptions: boolean;
@@ -266,7 +284,6 @@ interface ChatPageInputProps {
 	modelCount?: number;
 	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
-	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
@@ -290,35 +307,25 @@ interface ChatPageInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
-	// Pinned workspace-context state for the chat, surfaced by the
-	// context indicator (dirty marker and pinned resources).
-	chatContext?: TypesGen.ChatContext;
-	// Workspace skill menu data derived from the resolved chat detail;
-	// undefined while the chat is still loading.
-	workspaceSkills?: readonly SkillMetadata[];
-	workspaceOptions: readonly TypesGen.Workspace[];
-	chatOrganizationId?: string;
-	selectedWorkspaceId: string | null;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
-	isWorkspaceLoading: boolean;
+	isWorkspaceLoading?: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
-	chatId?: string;
 	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
-}
+};
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
-	organizationId,
+	chat,
 	store,
-	compressionThreshold,
+	models,
 	onSend,
-	sendShortcut,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	onInterrupt,
 	isInputDisabled,
+	isReadOnly = false,
 	isSendPending,
 	isInterruptPending,
 	hasModelOptions,
@@ -334,7 +341,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	modelCount,
 	unsupportedProviderNames,
 	aiGatewayDisabled,
-	planModeEnabled,
 	onPlanModeToggle,
 	isModelCatalogLoading = false,
 	inputRef,
@@ -349,20 +355,33 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
-	chatContext,
-	workspaceSkills,
-	workspaceOptions,
-	chatOrganizationId,
-	selectedWorkspaceId,
 	onWorkspaceChange,
-	isWorkspaceLoading,
+	isWorkspaceLoading = false,
 	workspace,
 	workspaceAgent,
-	chatId,
 	sshCommand,
 	attachedWorkspace,
 	folder,
 }) => {
+	const { user: currentUser } = useAuthenticated();
+	const organizationId = chat.organization_id;
+	const chatId = chat.id;
+	const chatContext = chat.context;
+	const planModeEnabled = chat.plan_mode === "plan";
+	const selectedWorkspaceId = chat.workspace_id ?? null;
+	const workspaceSkills = workspaceSkillsFromChat(chat);
+	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
+	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
+		workspacesQuery.data?.workspaces ?? [],
+		workspace,
+		currentUser.id,
+	);
+	const thresholdsQuery = useQuery(userCompactionThresholds());
+	const compressionThreshold = resolveCompactionThreshold(
+		chat.last_model_config_id,
+		thresholdsQuery.data?.thresholds,
+		models,
+	);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
@@ -387,7 +406,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const userPromptHistory: readonly string[] =
 		promptsData?.prompts.map((prompt) => prompt.text) ?? [];
 
-	const rawUsage = getLatestContextUsage(messages);
+	const rawUsage = getLatestContextUsage(
+		messages,
+		modelOptions.find((option) => option.id === selectedModel)?.contextLimit,
+	);
 	const latestContextUsage =
 		rawUsage || chatContext
 			? {
@@ -500,8 +522,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		wasEditingRef.current = isEditing;
 	}, [isEditing, resetEditAttachments]);
 
-	const isStreaming =
-		hasStreamState || chatStatus === "running" || chatStatus === "interrupting";
+	const isStreaming = hasStreamState || isActiveChatStatus(chatStatus);
 
 	const inputElement = (
 		<AgentChatInput
@@ -552,7 +573,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					}
 				})();
 			}}
-			sendShortcut={sendShortcut}
 			attachments={attachments}
 			onAttach={handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}
@@ -571,6 +591,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onCancelHistoryEdit={onCancelHistoryEdit}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
+			isReadOnly={isReadOnly}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}
@@ -589,10 +610,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onPlanModeToggle={onPlanModeToggle}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
-			chatOrganizationId={chatOrganizationId}
+			chatOrganizationId={organizationId}
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={onWorkspaceChange}
-			isWorkspaceLoading={isWorkspaceLoading}
+			isWorkspaceLoading={workspacesQuery.isLoading || isWorkspaceLoading}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}

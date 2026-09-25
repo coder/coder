@@ -1,4 +1,6 @@
-# Organizations (Premium)
+---
+title: Organizations (Premium)
+---
 
 > [!NOTE]
 > Organizations requires a
@@ -37,7 +39,7 @@ From there, you can manage the name, icon, description, users, and groups:
 
 Any additional organizations have unique admins, users, templates, provisioners,
 groups, and workspaces. Each organization must have at least one dedicated
-[provisioner](../provisioners/index.md) since the built-in provisioners only apply to
+[provisioner](../../install/operate/provisioners/index.md) since the built-in provisioners only apply to
 the default organization.
 
 You can configure [organization/role/group sync](./idp-sync.md) from your
@@ -71,7 +73,7 @@ Next deploy a provisioner and template for this organization.
 
 ### 2. Deploy a provisioner
 
-[Provisioners](../provisioners/index.md) are organization-scoped and are responsible
+[Provisioners](../../install/operate/provisioners/index.md) are organization-scoped and are responsible
 for executing Terraform/OpenTofu to provision the infrastructure for workspaces
 and testing templates. Before creating templates, we must deploy at least one
 provisioner as the built-in provisioners are scoped to the default organization.
@@ -90,7 +92,7 @@ provisioner as the built-in provisioners are scoped to the default organization.
 
    In this example, start the provisioner using the Coder CLI on a host with
    Docker. For instructions on using other platforms like Kubernetes, see our
-   [provisioner documentation](../provisioners/index.md).
+   [provisioner documentation](../../install/operate/provisioners/index.md).
 
    ```sh
    export CODER_URL=https://<your-coder-url>

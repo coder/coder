@@ -8,11 +8,11 @@ import type { AgentFirewallLog, AIBridgeThread } from "#/api/typesGenerated";
 
 const normalizeQuery = (query: string): string => query.trim().toLowerCase();
 
-interface ThreadSearchClassification {
+type ThreadSearchClassification = {
 	promptMatch: boolean;
 	/** IDs of tool calls whose tool name or input matched. */
 	toolCallIds: Set<string>;
-}
+};
 
 /**
  * Reports which search axis matched and which tool calls matched, in one
@@ -24,23 +24,38 @@ export const classifyThreadSearch = (
 	thread: AIBridgeThread,
 	query: string,
 ): ThreadSearchClassification => {
-	const q = normalizeQuery(query);
+	const normalizedQuery = normalizeQuery(query);
 	const toolCallIds = new Set<string>();
-	if (q !== "") {
-		for (const action of thread.agentic_actions) {
-			for (const call of action.tool_calls) {
-				if (
-					call.tool.toLowerCase().includes(q) ||
-					call.input.toLowerCase().includes(q)
-				) {
-					toolCallIds.add(call.id);
-				}
+
+	if (normalizedQuery === "") {
+		return {
+			promptMatch: true,
+			toolCallIds,
+		};
+	}
+
+	for (const action of thread.agentic_actions) {
+		for (const call of action.tool_calls) {
+			if (
+				call.tool.toLowerCase().includes(normalizedQuery) ||
+				call.input.toLowerCase().includes(normalizedQuery)
+			) {
+				toolCallIds.add(call.id);
 			}
 		}
 	}
+
+	if (!thread.prompt) {
+		return {
+			promptMatch: false,
+			toolCallIds,
+		};
+	}
+
+	const normalizedPrompt = normalizeQuery(thread.prompt);
+
 	return {
-		promptMatch:
-			q === "" ? true : (thread.prompt?.toLowerCase().includes(q) ?? false),
+		promptMatch: normalizedPrompt.includes(normalizedQuery),
 		toolCallIds,
 	};
 };
@@ -86,10 +101,10 @@ export const countSessionSearchMatches = (
 	return count;
 };
 
-interface MatchSegment {
+type MatchSegment = {
 	text: string;
 	match: boolean;
-}
+};
 
 // Splits the text into match and non-match segments for bold rendering.
 // Matches against the original text one window at a time rather than a

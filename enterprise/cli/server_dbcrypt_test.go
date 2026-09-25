@@ -13,9 +13,11 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/testutil"
@@ -193,6 +195,10 @@ func TestServerDBCrypt(t *testing.T) {
 		require.NoError(t, err, "expected gitsshkey row to remain for user %s", usr.ID)
 		require.Empty(t, sshKey.PrivateKey, "expected private_key to be cleared for user %s", usr.ID)
 		require.False(t, sshKey.PrivateKeyKeyID.Valid, "expected private_key_key_id to be cleared for user %s", usr.ID)
+
+		chatMCPServers, err := db.GetChatMCPServersByChatOwnerID(ctx, usr.ID)
+		require.NoError(t, err, "failed to get chat MCP servers for user %s", usr.ID)
+		require.Empty(t, chatMCPServers)
 	}
 
 	// Validate that the key has been revoked in the database.
@@ -240,6 +246,18 @@ func genData(t *testing.T, db database.Store) []database.User {
 					UserID:     usr.ID,
 					PrivateKey: "private-" + usr.ID.String(),
 					PublicKey:  "public-" + usr.ID.String(),
+				})
+				chatModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+					AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+				})
+				chat := dbgen.Chat(t, db, database.Chat{
+					OrganizationID:    chatModel.OrganizationID,
+					OwnerID:           usr.ID,
+					LastModelConfigID: chatModel.ID,
+				})
+				_ = dbgen.ChatMCPServer(t, db, database.ChatMCPServer{
+					ChatID:  chat.ID,
+					Headers: "headers-" + usr.ID.String(),
 				})
 				now := time.Now()
 				_, err := db.UpsertUserAIProviderKey(context.Background(), database.UpsertUserAIProviderKeyParams{
@@ -328,6 +346,12 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 	// Public key is never encrypted.
 	require.Equal(t, "public-"+userID.String(), sshKey.PublicKey)
 
+	chatMCPServers, err := db.GetChatMCPServersByChatOwnerID(ctx, userID)
+	require.NoError(t, err, "failed to get chat MCP servers for user %s", userID)
+	require.Len(t, chatMCPServers, 1)
+	requireEncryptedEquals(t, c, "headers-"+userID.String(), chatMCPServers[0].Headers)
+	require.Equal(t, c.HexDigest(), chatMCPServers[0].HeadersKeyID.String)
+
 	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{
 		IncludeDeleted:  true,
 		IncludeDisabled: true,
@@ -360,8 +384,8 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 }
 
 // TestServerAIProviderKeysEncryptedWithDBCrypt starts a real enterprise server
-// with external token encryption and AI provider config, then verifies that
-// seeded AI provider keys are encrypted at rest.
+// with external token encryption, creates an AI provider through the API,
+// and verifies that its key is encrypted at rest.
 func TestServerAIProviderKeysEncryptedWithDBCrypt(t *testing.T) {
 	t.Parallel()
 
@@ -378,7 +402,7 @@ func TestServerAIProviderKeysEncryptedWithDBCrypt(t *testing.T) {
 
 	const testAPIKey = "sk-test-key-that-must-be-encrypted-at-rest"
 
-	// Given: enterprise server with encryption and a legacy AI provider.
+	// Given: enterprise server with external token encryption.
 	var root cli.RootCmd
 	cmd, err := root.Command(root.EnterpriseSubcommands())
 	require.NoError(t, err)
@@ -389,14 +413,23 @@ func TestServerAIProviderKeysEncryptedWithDBCrypt(t *testing.T) {
 		"--http-address", "127.0.0.1:0",
 		"--access-url", "http://example.com",
 		"--external-token-encryption-keys", b64Key,
-		"--aibridge-enabled",
-		"--aibridge-openai-key", testAPIKey,
 	)
 
-	// When: the server starts up and seeds ai providers from env
+	// When: an authenticated owner creates a provider through the API.
 	ctx := testutil.Context(t, testutil.WaitLong)
 	clitest.Start(t, inv.WithContext(ctx))
-	_ = waitAccessURL(t, cfg)
+	client := codersdk.New(waitAccessURL(t, cfg))
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	//nolint:gocritic // Owner role is required for provider management.
+	_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		Type:    codersdk.AIProviderTypeOpenAI,
+		Name:    "openai",
+		Enabled: true,
+		BaseURL: "https://api.openai.com/v1/",
+		APIKeys: []string{testAPIKey},
+	})
+	require.NoError(t, err)
 
 	// Open a RAW database connection to inspect the actual stored values.
 	sqlDB, err := sql.Open("postgres", dbURL)
@@ -404,7 +437,7 @@ func TestServerAIProviderKeysEncryptedWithDBCrypt(t *testing.T) {
 	t.Cleanup(func() { _ = sqlDB.Close() })
 	rawDB := database.New(sqlDB)
 
-	// Then: we expect a single provider to be seeded in the db.
+	// Then: the API-created provider exists in the database.
 	providers, err := rawDB.GetAIProviders(ctx, database.GetAIProvidersParams{
 		IncludeDeleted:  true,
 		IncludeDisabled: true,
@@ -416,7 +449,7 @@ func TestServerAIProviderKeysEncryptedWithDBCrypt(t *testing.T) {
 
 	// Then: provider must exist.
 	require.NotEmpty(t, provider.ID,
-		"seeded AI provider 'openai' should exist in database")
+		"API-created provider 'openai' should exist in database")
 
 	keys, err := rawDB.GetAIProviderKeysByProviderID(ctx, provider.ID)
 	require.NoError(t, err)
