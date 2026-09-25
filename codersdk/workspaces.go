@@ -684,9 +684,17 @@ func SplitWorkspaceIdentifier(identifier string) (owner, name string, err error)
 // pair. When the identifier parses as a valid UUID but no workspace
 // exists with that ID, the function falls back to a name-based
 // lookup because workspace names can be valid UUID strings.
-func (c *Client) ResolveWorkspace(ctx context.Context, identifier string) (Workspace, error) {
+//
+// An optional WorkspaceOptions is forwarded to the underlying lookup,
+// so callers can request deleted workspaces or narrow the related data
+// loaded. Only the first option is used.
+func (c *Client) ResolveWorkspace(ctx context.Context, identifier string, opts ...WorkspaceOptions) (Workspace, error) {
+	var opt WorkspaceOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
 	if uid, err := uuid.Parse(identifier); err == nil {
-		ws, err := c.Workspace(ctx, uid)
+		ws, err := c.Workspace(ctx, uid, opt)
 		if err == nil {
 			return ws, nil
 		}
@@ -708,7 +716,7 @@ func (c *Client) ResolveWorkspace(ctx context.Context, identifier string) (Works
 	if err != nil {
 		return Workspace{}, err
 	}
-	return c.WorkspaceByOwnerAndName(ctx, owner, name, WorkspaceOptions{})
+	return c.WorkspaceByOwnerAndName(ctx, owner, name, opt)
 }
 
 type WorkspaceQuota struct {
