@@ -1,4 +1,4 @@
-// Package agentssh_test provides tests for basic functinoality of the agentssh
+// Package agentssh_test provides tests for basic functionality of the agentssh
 // package, more test coverage can be found in the `agent` and `cli` package(s).
 package agentssh_test
 
@@ -54,6 +54,75 @@ func TestNewServer_ServeClient(t *testing.T) {
 	go func() {
 		defer close(done)
 		err := s.Serve(ln)
+		assert.Error(t, err) // Server is closed.
+	}()
+
+	c := sshClient(t, ln.Addr().String())
+
+	var b bytes.Buffer
+	sess, err := c.NewSession()
+	require.NoError(t, err)
+	sess.Stdout = &b
+	err = sess.Start("echo hello")
+	require.NoError(t, err)
+
+	err = sess.Wait()
+	require.NoError(t, err)
+
+	require.Equal(t, "hello", strings.TrimSpace(b.String()))
+
+	err = s.Close()
+	require.NoError(t, err)
+	<-done
+}
+
+// wrappedListener wraps a net.Listener to augment all connections with the
+// provided client session ID.
+type wrappedListener struct {
+	net.Listener
+	clientSessionID string
+}
+
+type wrappedConn struct {
+	net.Conn
+	clientSessionID string
+}
+
+func (w wrappedConn) ClientSessionID() string { return w.clientSessionID }
+
+func (ln *wrappedListener) Accept() (net.Conn, error) {
+	conn, err := ln.Listener.Accept()
+	return wrappedConn{
+		Conn:            conn,
+		clientSessionID: ln.clientSessionID,
+	}, err
+}
+
+func TestNewServer_UpgradeClient(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	logger := testutil.Logger(t)
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
+	require.NoError(t, err)
+	defer s.Close()
+	err = s.UpdateHostSigner(42)
+	assert.NoError(t, err)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	clientSessionID := "0123456789abcdef0123456789abcdef"
+	wln := wrappedListener{
+		ln,
+		clientSessionID,
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		err := s.Serve(&wln)
 		assert.Error(t, err) // Server is closed.
 	}()
 

@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/v2/httpmw"
 )
 
-func (a *agent) apiHandler() http.Handler {
+func (a *agent) apiHandler(upgradeListener *httpUpgradeListener) http.Handler {
 	r := chi.NewRouter()
 	r.Use(
 		httpmw.Recover(a.logger),
@@ -66,6 +66,7 @@ func (a *agent) apiHandler() http.Handler {
 
 	r.Get("/api/v0/listening-ports", a.listeningPortsHandler.handler)
 	r.Get("/api/v0/netcheck", a.HandleNetcheck)
+	r.Get("/api/v0/tcp/{port}", upgradeListener.handler)
 	r.Get("/debug/logs", a.HandleHTTPDebugLogs)
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)

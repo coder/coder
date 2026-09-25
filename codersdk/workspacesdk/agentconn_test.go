@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -183,6 +184,57 @@ func TestAgentConnAppHTTPClientRefusesRedirects(t *testing.T) {
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.invalid/", nil)
 	require.NoError(t, err)
 	require.ErrorIs(t, client.CheckRedirect(req, nil), http.ErrUseLastResponse)
+}
+
+func TestAgent_SSHUpgrade_Fallback(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+
+	clientID := uuid.New()
+	agentID := uuid.New()
+	clientConn, _ := newTailnetConn(t, derpMap, clientID, "client")
+	agentConn, agentIP := newTailnetConn(t, derpMap, agentID, "agent")
+	stitchTailnet(t, map[uuid.UUID]*tailnet.Conn{
+		clientID: clientConn,
+		agentID:  agentConn,
+	})
+
+	// Simulate an older agent that does not support the tcp upgrade endpoint.
+	var upgradeHit atomic.Bool
+	upgradeHandler := http.NewServeMux()
+	upgradeHandler.HandleFunc("/api/v0/tcp/", func(rw http.ResponseWriter, r *http.Request) {
+		upgradeHit.Store(true)
+		rw.WriteHeader(http.StatusNotFound)
+	})
+	serveTailnetHTTP(t, agentConn, upgradeHandler)
+
+	ln, err := agentConn.Listen("tcp", fmt.Sprintf(":%d", workspacesdk.AgentStandardSSHPort))
+	require.NoError(t, err)
+	defer ln.Close()
+	go func() {
+		conn, err := ln.Accept()
+		assert.NoError(t, err)
+		defer conn.Close()
+		_, err = conn.Write([]byte("hello world"))
+		assert.NoError(t, err)
+	}()
+
+	conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{
+		AgentID: agentID,
+	})
+	require.True(t, clientConn.AwaitReachable(ctx, agentIP))
+
+	sshConn, err := conn.SSHTCPConn(ctx)
+	require.NoError(t, err)
+	defer sshConn.Close()
+
+	b, err := io.ReadAll(sshConn)
+	require.NoError(t, err)
+
+	require.True(t, upgradeHit.Load(), "should hit upgrade")
+	require.Equal(t, "hello world", string(b))
 }
 
 func newTailnetConn(t *testing.T, derpMap *tailcfg.DERPMap, id uuid.UUID, name string) (*tailnet.Conn, netip.Addr) {

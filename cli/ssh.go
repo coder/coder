@@ -25,11 +25,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/afero"
+	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/propagation"
 	gossh "golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog/v3"
@@ -38,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -464,7 +466,16 @@ func (r *RootCmd) ssh() *serpent.Command {
 						})
 						defer closeUsage()
 					}
-					return runCoderConnectStdio(ctx, fmt.Sprintf("%s:22", coderConnectHost), stdioReader, stdioWriter, stack, logger)
+					return runCoderConnectStdio(ctx, coderConnectOpts{
+						host:            coderConnectHost,
+						httpPort:        workspacesdk.AgentHTTPAPIServerPort,
+						tcpPort:         workspacesdk.AgentStandardSSHPort,
+						stdin:           stdioReader,
+						stdout:          stdioWriter,
+						stack:           stack,
+						logger:          logger,
+						clientSessionID: sessionID,
+					})
 				}
 			}
 
@@ -529,7 +540,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 
 			if stdio {
-				rawSSH, err := conn.SSH(ctx)
+				rawSSH, err := conn.SSHTCPConn(ctx)
 				if err != nil {
 					return xerrors.Errorf("connect SSH: %w", err)
 				}
@@ -1459,7 +1470,7 @@ func (c *closerStack) push(name string, closer io.Closer) error {
 
 // rawSSHCopier handles copying raw SSH data between the conn and the pair (r, w).
 type rawSSHCopier struct {
-	conn   *gonet.TCPConn
+	conn   workspacesdk.TCPConn
 	logger slog.Logger
 	r      io.Reader
 	w      io.Writer
@@ -1467,7 +1478,7 @@ type rawSSHCopier struct {
 	done chan struct{}
 }
 
-func newRawSSHCopier(logger slog.Logger, conn *gonet.TCPConn, r io.Reader, w io.Writer) *rawSSHCopier {
+func newRawSSHCopier(logger slog.Logger, conn workspacesdk.TCPConn, r io.Reader, w io.Writer) *rawSSHCopier {
 	return &rawSSHCopier{conn: conn, logger: logger, r: r, w: w, done: make(chan struct{})}
 }
 
@@ -1704,26 +1715,69 @@ func testOrDefaultDialer(ctx context.Context) coderConnectDialer {
 	return dialer
 }
 
-func runCoderConnectStdio(ctx context.Context, addr string, stdin io.Reader, stdout io.Writer, stack *closerStack, logger slog.Logger) error {
-	dialer := testOrDefaultDialer(ctx)
+type coderConnectOpts struct {
+	host            string
+	httpPort        uint16
+	tcpPort         uint16
+	clientSessionID string
+	stdin           io.Reader
+	stdout          io.Writer
+	stack           *closerStack
+	logger          slog.Logger
+}
+
+func runCoderConnectStdio(ctx context.Context, opts coderConnectOpts) error {
 	var conn net.Conn
-	if err := retryWithInterval(ctx, logger, sshRetryInterval, sshMaxAttempts, func() error {
-		var err error
-		conn, err = dialer.DialContext(ctx, "tcp", addr)
-		if err != nil {
-			return xerrors.Errorf("dial coder connect host %q over tcp: %w", addr, err)
+	if err := retryWithInterval(ctx, opts.logger, sshRetryInterval, sshMaxAttempts, func() error {
+		headers := http.Header{}
+		// Propagate any baggage and add the session ID.
+		if opts.clientSessionID != "" {
+			member, err := baggage.NewMemberRaw(tracing.SessionIDBaggageKey, opts.clientSessionID)
+			if err != nil {
+				return err
+			}
+			bctx := propagation.Baggage{}.Extract(ctx, propagation.HeaderCarrier(headers))
+			bag, err := baggage.FromContext(bctx).SetMember(member)
+			if err != nil {
+				return err
+			}
+			bctx = baggage.ContextWithBaggage(bctx, bag)
+			propagation.Baggage{}.Inject(bctx, propagation.HeaderCarrier(headers))
 		}
-		return nil
+
+		dialer := testOrDefaultDialer(ctx)
+		client := http.Client{
+			// Redirects are blocked to prevent misuse.
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+			Transport: &http.Transport{
+				// Disable keep alives as we're usually only making a single
+				// request, and this triggers goleak in tests
+				DisableKeepAlives: true,
+				DialContext:       dialer.DialContext,
+			},
+		}
+
+		var err error
+		addr := fmt.Sprintf("%s:%d", opts.host, opts.httpPort)
+		conn, err = workspacesdk.DialTCPUpgrade(ctx, addr, &client, headers, workspacesdk.AgentStandardSSHPort)
+		if errors.Is(err, workspacesdk.ErrAgentTCPUpgradeUnsupported) {
+			// Fall back to dialing the port directly.
+			addr = fmt.Sprintf("%s:%d", opts.host, opts.tcpPort)
+			conn, err = dialer.DialContext(ctx, "tcp", addr)
+		}
+		return err
 	}); err != nil {
 		return err
 	}
-	if err := stack.push("tcp conn", conn); err != nil {
+	if err := opts.stack.push("tcp conn", conn); err != nil {
 		return err
 	}
 
 	agentssh.Bicopy(ctx, conn, &StdioRwc{
-		Reader: stdin,
-		Writer: stdout,
+		Reader: opts.stdin,
+		Writer: opts.stdout,
 	})
 
 	return nil

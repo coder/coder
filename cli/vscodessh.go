@@ -182,7 +182,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			})
 			defer closeUsage()
 
-			rawSSH, err := agentConn.SSH(ctx)
+			rawSSH, err := agentConn.SSHTCPConn(ctx)
 			if err != nil {
 				return err
 			}

@@ -124,7 +124,9 @@ type AgentConn interface {
 	UploadChatFile(ctx context.Context, req UploadChatFileRequest) (AgentUploadChatFileResponse, error)
 	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
 	BundleFiles(ctx context.Context, req BundleFilesRequest) ([]byte, error)
+	// Deprecated: Use SSHTCPConn instead.
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
+	SSHTCPConn(ctx context.Context) (TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
 	SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error)
@@ -278,10 +280,36 @@ func (c *agentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 	return conn, nil
 }
 
-// SSH pipes the SSH protocol over the returned net.Conn.
+// SSH pipes the SSH protocol over the returned gonet.TCPConn.
 // This connects to the built-in SSH server in the workspace agent.
 func (c *agentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
 	return c.SSHOnPort(ctx, AgentSSHPort)
+}
+
+// SSHTCPConn makes an HTTP request with the client session ID that then
+// upgrades into an SSH connection.  If the agent does not support the endpoint,
+// falls back to dialing the port directly.
+func (c *agentConn) SSHTCPConn(ctx context.Context) (TCPConn, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	if !c.AwaitReachable(ctx) {
+		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
+	}
+
+	c.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSSH)
+
+	c.headersMu.RLock()
+	extraHeaders := c.extraHeaders.Clone()
+	c.headersMu.RUnlock()
+
+	addr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
+	conn, err := DialTCPUpgrade(ctx, addr.String(), c.apiClient(ctx), extraHeaders, AgentStandardSSHPort)
+	if errors.Is(err, ErrAgentTCPUpgradeUnsupported) {
+		// Fall back to dialing the port directly.
+		return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentStandardSSHPort))
+	}
+	return conn, err
 }
 
 // SSHOnPort pipes the SSH protocol over the returned net.Conn.
@@ -298,9 +326,29 @@ func (c *agentConn) SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn,
 	return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), port))
 }
 
-// SSHClient calls SSH to create a client
+// SSHClient makes an HTTP request with the client session ID that then upgrades
+// into an SSH client connection.  If the agent does not support the endpoint,
+// falls back to dialing the port directly.
 func (c *agentConn) SSHClient(ctx context.Context) (*ssh.Client, error) {
-	return c.SSHClientOnPort(ctx, AgentSSHPort)
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	netConn, err := c.SSHTCPConn(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("ssh: %w", err)
+	}
+
+	sshConn, channels, requests, err := ssh.NewClientConn(netConn, "localhost:22", &ssh.ClientConfig{
+		// SSH host validation isn't helpful, because obtaining a peer
+		// connection already signifies user-intent to dial a workspace.
+		// #nosec
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("ssh conn: %w", err)
+	}
+
+	return ssh.NewClient(sshConn, channels, requests), nil
 }
 
 // SSHClientOnPort calls SSH to create a client on a specific port
@@ -325,6 +373,82 @@ func (c *agentConn) SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Clie
 
 	return ssh.NewClient(sshConn, channels, requests), nil
 }
+
+type TCPConn interface {
+	net.Conn
+	CloseWrite() error
+}
+
+var ErrAgentTCPUpgradeUnsupported = xerrors.New("agent does not support the tcp upgrade endpoint")
+
+// DialTCPUpgrade dials the agent's /tcp HTTP endpoint which allows sending
+// extra data to the agent via headers.  These must include the client session
+// ID or the connection will be refused.  The agent will then upgrade the
+// connection based on the port.  Returns ErrAgentTCPUpgradeUnsupported if the
+// agent does not support the endpoint.
+func DialTCPUpgrade(ctx context.Context, addr string, client *http.Client, headers http.Header, port uint16) (TCPConn, error) {
+	apiURL := fmt.Sprintf("http://%s/api/v0/tcp/%d", addr, port)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, xerrors.Errorf("new http api request to %q: %w", apiURL, err)
+	}
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "tcp")
+
+	// The client session ID baggage is found in the extra headers.
+	for k, v := range headers {
+		req.Header[k] = v
+	}
+
+	//nolint:bodyclose // On success the caller is responsible for closing.
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, xerrors.Errorf("do upgrade request to %q: %w", apiURL, err)
+	}
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		_ = resp.Body.Close()
+		return nil, ErrAgentTCPUpgradeUnsupported
+	}
+
+	respBody := resp.Body
+	conn, ok := respBody.(rawConn)
+	if !ok {
+		_ = respBody.Close()
+		return nil, xerrors.Errorf("response body is not a rawConn: %T", respBody)
+	}
+
+	return &upgradedConn{
+		rawConn:    conn,
+		remoteAddr: upgradeAddr{"tcp", addr},
+		// For now setting a fake local address.
+		localAddr: upgradeAddr{"ssh", "ssh"},
+	}, nil
+}
+
+type rawConn interface {
+	io.ReadWriteCloser
+	CloseWrite() error
+}
+
+type upgradedConn struct {
+	rawConn
+	remoteAddr net.Addr
+	localAddr  net.Addr
+}
+
+func (u *upgradedConn) LocalAddr() net.Addr              { return u.localAddr }
+func (u *upgradedConn) RemoteAddr() net.Addr             { return u.remoteAddr }
+func (*upgradedConn) SetDeadline(_ time.Time) error      { return nil }
+func (*upgradedConn) SetReadDeadline(_ time.Time) error  { return nil }
+func (*upgradedConn) SetWriteDeadline(_ time.Time) error { return nil }
+
+type upgradeAddr struct {
+	network string
+	addr    string
+}
+
+func (u upgradeAddr) Network() string { return u.network }
+func (u upgradeAddr) String() string  { return u.addr }
 
 // Speedtest runs a speedtest against the workspace agent.
 func (c *agentConn) Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
