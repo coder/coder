@@ -378,10 +378,8 @@ const isSameScope = (
 	entry.organizationId === organizationId &&
 	entry.chatId === chatId;
 
-const getDraftScopeKey = (
-	organizationId: string | undefined,
-	chatId: string | undefined,
-) => (organizationId && chatId ? `${organizationId}:${chatId}` : undefined);
+const getDraftScopeKey = (organizationId: string, chatId: string) =>
+	`${organizationId}:${chatId}`;
 
 const removeRegistryEntriesForScope = (
 	organizationId: string,
@@ -394,13 +392,7 @@ const removeRegistryEntriesForScope = (
 	}
 };
 
-const hydrateViews = (
-	organizationId: string | undefined,
-	chatId: string | undefined,
-) => {
-	if (!organizationId || !chatId) {
-		return [];
-	}
+const hydrateViews = (organizationId: string, chatId: string) => {
 	let views = viewsFromRestored(
 		restoreChatDraftAttachments(organizationId, chatId),
 	);
@@ -480,8 +472,8 @@ const queueTextContentReads = (
 };
 
 export function useChatDraftAttachments(
-	organizationId: string | undefined,
-	chatId: string | undefined,
+	organizationId: string,
+	chatId: string,
 	options?: { provider?: string },
 ) {
 	const [views, setViews] = useState(() =>
@@ -489,7 +481,9 @@ export function useChatDraftAttachments(
 	);
 	const viewsRef = useRef(views);
 	const subscriptionsRef = useRef(new Map<string, () => void>());
-	const scopeRef = useRef(getDraftScopeKey(organizationId, chatId));
+	const scopeRef = useRef<string | undefined>(
+		getDraftScopeKey(organizationId, chatId),
+	);
 	// providerRef lets event-driven handlers (paste/drop) see the
 	// latest model selection without rebuilding handleAttach. The
 	// effect-based write keeps React Compiler happy.
@@ -531,10 +525,6 @@ export function useChatDraftAttachments(
 		// their callbacks don't register uploads in the new scope.
 		for (const view of viewsRef.current) {
 			abandonedResizesRef.current.add(view.clientId);
-		}
-		if (!organizationId || !chatId || !scopeKey) {
-			setViews([]);
-			return;
 		}
 		const previousViews = viewsRef.current;
 		const restored = restoreChatDraftAttachments(organizationId, chatId);
@@ -595,11 +585,7 @@ export function useChatDraftAttachments(
 		if (abandonedResizesRef.current.has(clientId)) {
 			return;
 		}
-		if (!organizationId || !chatId) {
-			return;
-		}
-		const scopeKey = getDraftScopeKey(organizationId, chatId);
-		if (!scopeKey || scopeRef.current !== scopeKey) {
+		if (scopeRef.current !== getDraftScopeKey(organizationId, chatId)) {
 			return;
 		}
 
@@ -738,14 +724,6 @@ export function useChatDraftAttachments(
 				});
 				continue;
 			}
-			if (!organizationId || !chatId || !scopeKey) {
-				nextViews.push({
-					...baseView,
-					status: "error",
-					error: "Unable to upload: no chat context.",
-				});
-				continue;
-			}
 			if (needsResize) {
 				// Commit synchronously with "processing" so the
 				// send gate blocks dispatch until resize finishes.
@@ -792,9 +770,7 @@ export function useChatDraftAttachments(
 		// In-flight resize would otherwise swap in a replacement
 		// after the clear below.
 		abandonedResizesRef.current.add(removed.clientId);
-		if (organizationId && chatId) {
-			removeChatDraftAttachmentRecord(organizationId, chatId, removed.clientId);
-		}
+		removeChatDraftAttachmentRecord(organizationId, chatId, removed.clientId);
 		removeRegistryEntry(removed.clientId);
 		setViews((prev) =>
 			prev.filter((view) => {
@@ -814,13 +790,8 @@ export function useChatDraftAttachments(
 		for (const view of viewsRef.current) {
 			abandonedResizesRef.current.add(view.clientId);
 		}
-		if (!organizationId || !chatId) {
-			setViews([]);
-			return;
-		}
 		clearChatDraftAttachmentRecords(organizationId, chatId);
-		const resetScopeKey = getDraftScopeKey(organizationId, chatId);
-		if (scopeRef.current !== resetScopeKey) {
+		if (scopeRef.current !== getDraftScopeKey(organizationId, chatId)) {
 			removeRegistryEntriesForScope(organizationId, chatId);
 			return;
 		}
