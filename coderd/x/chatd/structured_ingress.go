@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
@@ -109,14 +111,18 @@ func jsonObjectMembers(raw json.RawMessage, allowed ...string) (map[string]json.
 // HasPendingStructuredRequest reports whether the chat's latest user turn
 // has an open structured output request or a queued message carries one.
 func (p *Server) HasPendingStructuredRequest(ctx context.Context, chatID uuid.UUID) (bool, error) {
-	history, err := p.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chatID})
+	return hasPendingStructuredRequest(ctx, p.logger, p.db, chatID)
+}
+
+func hasPendingStructuredRequest(ctx context.Context, logger slog.Logger, store database.Store, chatID uuid.UUID) (bool, error) {
+	history, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chatID})
 	if err != nil {
 		return false, xerrors.Errorf("load chat messages: %w", err)
 	}
-	if _, open := openStructuredRequest(ctx, p.logger, chatID, history); open {
+	if _, open := openStructuredRequest(ctx, logger, chatID, history); open {
 		return true, nil
 	}
-	queued, err := p.db.GetChatQueuedMessages(ctx, chatID)
+	queued, err := store.GetChatQueuedMessages(ctx, chatID)
 	if err != nil {
 		return false, xerrors.Errorf("load queued messages: %w", err)
 	}
@@ -137,4 +143,21 @@ func hasStructuredRequestPart(msg database.ChatMessage) bool {
 	return err != nil || slices.ContainsFunc(parts, func(part codersdk.ChatMessagePart) bool {
 		return part.Type == codersdk.ChatMessagePartTypeStructuredOutputRequest
 	})
+}
+
+// UpdatePlanMode sets the chat's plan mode under the chat row lock that
+// SendMessage also takes. Enabling it fails with ErrStructuredOutputPending
+// while a structured output request is open or queued, so it and a formatted
+// send never both succeed.
+func (p *Server) UpdatePlanMode(ctx context.Context, chatID uuid.UUID, mode database.NullChatPlanMode) (database.Chat, error) {
+	var chat database.Chat
+	err := p.newChatMachine(chatID).Lock(ctx, func(store database.Store) error {
+		if pending, err := hasPendingStructuredRequest(ctx, p.logger, store, chatID); err != nil || (pending && mode.Valid) {
+			return cmp.Or(err, ErrStructuredOutputPending)
+		}
+		var err error
+		chat, err = store.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{PlanMode: mode, ID: chatID})
+		return err
+	})
+	return chat, err
 }

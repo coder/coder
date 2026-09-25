@@ -3072,9 +3072,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
     "status": "succeeded",
-    "value": [
-      0
-    ]
+    "value": {}
   },
   "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
   "usage": {
@@ -3342,9 +3340,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         },
         "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
         "status": "succeeded",
-        "value": [
-          0
-        ]
+        "value": {}
       },
       "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
       "usage": {
@@ -4970,9 +4966,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
       "status": "succeeded",
-      "value": [
-        0
-      ]
+      "value": {}
     },
     "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
     "usage": {
@@ -5303,20 +5297,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
   "status": "succeeded",
-  "value": [
-    0
-  ]
+  "value": {}
 }
 ```
 
 ### Properties
 
-| Name         | Type                                                                       | Required | Restrictions | Description                                                                                                                       |
-|--------------|----------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| `error`      | [codersdk.ChatStructuredOutputError](#codersdkchatstructuredoutputerror)   | false    |              |                                                                                                                                   |
-| `request_id` | string                                                                     | false    |              |                                                                                                                                   |
-| `status`     | [codersdk.ChatStructuredOutputStatus](#codersdkchatstructuredoutputstatus) | false    |              |                                                                                                                                   |
-| `value`      | array of integer                                                           | false    |              | Value is the validated output of a succeeded request. The JSON null value is a valid output and is distinct from an absent value. |
+| Name         | Type                                                                       | Required | Restrictions | Description                                                                                                                                                                                                                                                |
+|--------------|----------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `error`      | [codersdk.ChatStructuredOutputError](#codersdkchatstructuredoutputerror)   | false    |              |                                                                                                                                                                                                                                                            |
+| `request_id` | string                                                                     | false    |              |                                                                                                                                                                                                                                                            |
+| `status`     | [codersdk.ChatStructuredOutputStatus](#codersdkchatstructuredoutputstatus) | false    |              |                                                                                                                                                                                                                                                            |
+| `value`      | object                                                                     | false    |              | Value is the validated output of a succeeded request. The JSON null value is a valid output and is distinct from an absent value. It can be any JSON value: object is the closest Swagger type the generator supports, and the TypeScript type is unknown. |
 
 ## codersdk.ChatStructuredOutputError
 
@@ -5935,20 +5927,29 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "plan_mode": "plan",
-  "reasoning_effort": "string"
+  "reasoning_effort": "string",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": {}
+    },
+    "type": "text"
+  }
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                      | Required | Restrictions | Description                                                                                                  |
-|--------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
-| `busy_behavior`    | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)    | false    |              |                                                                                                              |
-| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                              |
-| `mcp_server_ids`   | array of string                                           | false    |              |                                                                                                              |
-| `model_config_id`  | string                                                    | false    |              |                                                                                                              |
-| `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
-| `reasoning_effort` | string                                                    | false    |              |                                                                                                              |
+| Name               | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                                 |
+|--------------------|------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`    | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)     | false    |              |                                                                                                                                                                                                             |
+| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart)  | false    |              |                                                                                                                                                                                                             |
+| `mcp_server_ids`   | array of string                                            | false    |              |                                                                                                                                                                                                             |
+| `model_config_id`  | string                                                     | false    |              |                                                                                                                                                                                                             |
+| `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode)             | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                                |
+| `reasoning_effort` | string                                                     | false    |              |                                                                                                                                                                                                             |
+| `response_format`  | [codersdk.ChatResponseFormat](#codersdkchatresponseformat) | false    |              | Response format asks for a structured final answer to this message. json_schema requires the chat-structured-output experiment, a root chat outside plan mode, and no plan_mode switch in the same request. |
 
 #### Enumerated Values
 
@@ -6032,9 +6033,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
       "status": "succeeded",
-      "value": [
-        0
-      ]
+      "value": {}
     },
     "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
     "usage": {
@@ -6120,9 +6119,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         },
         "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
         "status": "succeeded",
-        "value": [
-          0
-        ]
+        "value": {}
       },
       "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
       "usage": {
@@ -9017,9 +9014,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
       "status": "succeeded",
-      "value": [
-        0
-      ]
+      "value": {}
     },
     "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
     "usage": {
@@ -9105,9 +9100,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         },
         "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
         "status": "succeeded",
-        "value": [
-          0
-        ]
+        "value": {}
       },
       "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
       "usage": {

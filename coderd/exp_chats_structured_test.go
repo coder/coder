@@ -230,3 +230,131 @@ func TestPostChatsResponseFormat(t *testing.T) {
 		requireSDKError(t, err, http.StatusConflict)
 	})
 }
+
+func createChatRequest(org uuid.UUID, format *codersdk.ChatResponseFormat) codersdk.CreateChatRequest {
+	return codersdk.CreateChatRequest{OrganizationID: org, Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "q"}}, ResponseFormat: format}
+}
+
+// Sent messages with a response format are validated before any side
+// effect and run through the idle, queue, interrupt and deletion paths.
+func TestPostChatMessagesResponseFormat(t *testing.T) {
+	t.Parallel()
+	format := &codersdk.ChatResponseFormat{Type: codersdk.ChatResponseFormatTypeJSONSchema, JSONSchema: &codersdk.ChatResponseFormatJSONSchema{
+		Name: "report", Schema: json.RawMessage(`{"type":"object","properties":{"v":{"type":"string"}},"required":["v"]}`),
+	}}
+	message := func(format *codersdk.ChatResponseFormat, plan *codersdk.ChatPlanMode, busy codersdk.ChatBusyBehavior) codersdk.CreateChatMessageRequest {
+		return codersdk.CreateChatMessageRequest{Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "q"}}, ResponseFormat: format, PlanMode: plan, BusyBehavior: busy}
+	}
+	rejected := func(t *testing.T, err error) {
+		t.Helper()
+		require.Equal(t, "response_format", requireSDKError(t, err, http.StatusBadRequest).Validations[0].Field)
+	}
+
+	t.Run("Rejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		off := newChatClient(t, withChatWorkerDisabled)
+		offUser := coderdtest.CreateFirstUser(t, off.Client)
+		_ = createChatModel(t, off)
+		offChat, err := off.CreateChat(ctx, createChatRequest(offUser.OrganizationID, nil))
+		require.NoError(t, err)
+		_, err = off.CreateChatMessage(ctx, offChat.ID, message(format, nil, ""))
+		rejected(t, err)
+
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled, withStructuredOutput)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat, err := client.CreateChat(ctx, createChatRequest(user.OrganizationID, nil))
+		require.NoError(t, err)
+		res, err := client.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/messages", chat.ID), json.RawMessage(`{"content":[{"type":"text","text":"q"}],"response_format":{"type":"text","strict":true}}`))
+		require.NoError(t, err)
+		rejected(t, codersdk.ReadBodyAsError(res))
+		_ = res.Body.Close()
+		plan := codersdk.ChatPlanModePlan
+		_, err = client.CreateChatMessage(ctx, chat.ID, message(format, &plan, ""))
+		rejected(t, err)
+		for _, seed := range []database.Chat{
+			{PlanMode: database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}},
+			{ParentChatID: uuid.NullUUID{UUID: chat.ID, Valid: true}},
+		} {
+			seed.OrganizationID, seed.OwnerID, seed.LastModelConfigID = user.OrganizationID, user.UserID, modelConfig.ID
+			_, err = client.CreateChatMessage(ctx, dbgen.Chat(t, db, seed).ID, message(format, nil, ""))
+			rejected(t, err)
+		}
+		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, messages.Messages, 1)
+		require.Empty(t, messages.QueuedMessages)
+	})
+
+	t.Run("IdleQueueInterruptDelete", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		hold := make(chan struct{})
+		var streamed atomic.Int32
+		baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			if streamed.Add(1) == 1 {
+				<-hold // The first, ordinary turn stays busy until it is interrupted.
+			}
+			if req.Messages[len(req.Messages)-1].Role == "tool" {
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			}
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk(chatstructured.FinalizerToolName, `{"output":{"v":"ok"}}`))
+		})
+		// Registered after the fake provider so it runs first and frees the held handler.
+		t.Cleanup(func() { close(hold) })
+		client := newChatClient(t, withStructuredOutput)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelWithBaseURL(t, client, baseURL)
+		chat, err := client.CreateChat(ctx, createChatRequest(user.OrganizationID, nil))
+		require.NoError(t, err)
+		testutil.Eventually(ctx, t, func(context.Context) bool { return streamed.Load() == 1 }, testutil.IntervalFast)
+
+		queued := func(busy codersdk.ChatBusyBehavior) codersdk.ChatQueuedMessage {
+			resp, err := client.CreateChatMessage(ctx, chat.ID, message(format, nil, busy))
+			require.NoError(t, err)
+			require.True(t, resp.Queued)
+			require.NotNil(t, resp.QueuedMessage.StructuredOutputRequestID)
+			return *resp.QueuedMessage
+		}
+		first, deleted := queued(""), queued("")
+		res, err := client.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/chats/%s/queue/%d", chat.ID, deleted.ID), nil)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusNoContent, res.StatusCode)
+		_ = res.Body.Close()
+		interrupting := queued(codersdk.ChatBusyBehaviorInterrupt)
+
+		outcomes := func() map[uuid.UUID]codersdk.ChatStructuredOutput {
+			messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+			require.NoError(t, err)
+			out := make(map[uuid.UUID]codersdk.ChatStructuredOutput)
+			for _, msg := range messages.Messages {
+				if msg.StructuredOutput != nil {
+					out[msg.StructuredOutput.RequestID] = *msg.StructuredOutput
+				}
+			}
+			return out
+		}
+		testutil.Eventually(ctx, t, func(context.Context) bool { return len(outcomes()) == 3 }, testutil.IntervalFast)
+		got := outcomes()
+		require.Equal(t, codersdk.ChatStructuredOutputStatusSucceeded, got[*first.StructuredOutputRequestID].Status)
+		require.Equal(t, codersdk.ChatStructuredOutputErrorCodeQueueDeleted, got[*deleted.StructuredOutputRequestID].Error.Code)
+		require.Equal(t, codersdk.ChatStructuredOutputStatusSucceeded, got[*interrupting.StructuredOutputRequestID].Status)
+
+		// An idle chat inserts the formatted message directly.
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			current, err := client.GetChat(ctx, chat.ID)
+			return err == nil && current.Status == codersdk.ChatStatusWaiting
+		}, testutil.IntervalFast)
+		resp, err := client.CreateChatMessage(ctx, chat.ID, message(format, nil, ""))
+		require.NoError(t, err)
+		require.False(t, resp.Queued)
+		require.NotNil(t, resp.Message.StructuredOutputRequestID)
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			return outcomes()[*resp.Message.StructuredOutputRequestID].Status == codersdk.ChatStructuredOutputStatusSucceeded
+		}, testutil.IntervalFast)
+	})
+}

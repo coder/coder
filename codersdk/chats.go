@@ -515,8 +515,10 @@ type ChatStructuredOutput struct {
 	RequestID uuid.UUID                  `json:"request_id" format:"uuid"`
 	Status    ChatStructuredOutputStatus `json:"status"`
 	// Value is the validated output of a succeeded request. The JSON null
-	// value is a valid output and is distinct from an absent value.
-	Value json.RawMessage            `json:"value,omitempty"`
+	// value is a valid output and is distinct from an absent value. It can
+	// be any JSON value: object is the closest Swagger type the generator
+	// supports, and the TypeScript type is unknown.
+	Value json.RawMessage            `json:"value,omitempty" swaggertype:"object"`
 	Error *ChatStructuredOutputError `json:"error,omitempty"`
 }
 
@@ -734,6 +736,10 @@ type CreateChatMessageRequest struct {
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`
 	ReasoningEffort *string       `json:"reasoning_effort,omitempty"`
+	// ResponseFormat asks for a structured final answer to this message.
+	// json_schema requires the chat-structured-output experiment, a root
+	// chat outside plan mode, and no plan_mode switch in the same request.
+	ResponseFormat *ChatResponseFormat `json:"response_format,omitempty"`
 }
 
 // EditChatMessageRequest is the request to edit a user message in a chat.

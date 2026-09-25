@@ -1067,6 +1067,12 @@ var (
 	// ErrEditedMessageStructured indicates an edit of a message that asked
 	// for a structured output, which is not supported.
 	ErrEditedMessageStructured = xerrors.New("messages that ask for a structured output cannot be edited")
+	// ErrStructuredOutputPending indicates plan mode cannot be enabled
+	// while a structured output request is open or queued.
+	ErrStructuredOutputPending = xerrors.New("plan mode cannot be enabled while a structured output request is pending")
+	// ErrStructuredOutputMode indicates a structured output request for a
+	// child chat, a chat with a mode, or a chat in plan mode.
+	ErrStructuredOutputMode = xerrors.New("structured output requires a root chat outside plan mode")
 	// ErrChatArchived indicates the chat is archived and cannot
 	// accept modifications (messages, edits, promotions, or
 	// tool-result submissions).
@@ -1135,6 +1141,9 @@ type SendMessageOptions struct {
 	BusyBehavior    SendMessageBusyBehavior
 	PlanMode        *database.NullChatPlanMode
 	MCPServerIDs    *[]uuid.UUID
+	// StructuredOutputRequest is a ParseResponseFormat part, appended after
+	// hooks compose the content. Only root chats outside plan mode accept it.
+	StructuredOutputRequest *codersdk.ChatMessagePart
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1499,6 +1508,9 @@ func (p *Server) SendMessage(
 			return SendMessageResult{}, err
 		}
 	}
+	if opts.StructuredOutputRequest != nil {
+		contentParts = append(slices.Clone(contentParts), *opts.StructuredOutputRequest)
+	}
 
 	content, err := chatprompt.MarshalParts(contentParts)
 	if err != nil {
@@ -1520,6 +1532,16 @@ func (p *Server) SendMessage(
 			return ErrChatArchived
 		}
 
+		// Under the chat lock, a structured request never lands in a plan
+		// mode chat and plan mode never starts under pending structured work.
+		if requestedPlanMode != nil && requestedPlanMode.Valid {
+			if pending, err := hasPendingStructuredRequest(ctx, p.logger, store, opts.ChatID); err != nil || pending {
+				return cmp.Or(err, ErrStructuredOutputPending)
+			}
+		}
+		if opts.StructuredOutputRequest != nil && (lockedChat.PlanMode.Valid || lockedChat.Mode.Valid || lockedChat.ParentChatID.Valid) {
+			return ErrStructuredOutputMode
+		}
 		if requestedPlanMode != nil {
 			lockedChat, err = store.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{
 				PlanMode: *requestedPlanMode,

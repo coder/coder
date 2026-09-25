@@ -2364,9 +2364,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
         },
         "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
         "status": "succeeded",
-        "value": [
-          0
-        ]
+        "value": {}
       },
       "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
       "usage": {
@@ -2493,7 +2491,15 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "plan_mode": "plan",
-  "reasoning_effort": "string"
+  "reasoning_effort": "string",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": {}
+    },
+    "type": "text"
+  }
 }
 ```
 
@@ -2582,9 +2588,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       },
       "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
       "status": "succeeded",
-      "value": [
-        0
-      ]
+      "value": {}
     },
     "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
     "usage": {
@@ -2670,9 +2674,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         },
         "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
         "status": "succeeded",
-        "value": [
-          0
-        ]
+        "value": {}
       },
       "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
       "usage": {
@@ -2892,9 +2894,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
       },
       "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
       "status": "succeeded",
-      "value": [
-        0
-      ]
+      "value": {}
     },
     "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
     "usage": {
@@ -2980,9 +2980,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         },
         "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
         "status": "succeeded",
-        "value": [
-          0
-        ]
+        "value": {}
       },
       "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
       "usage": {
@@ -3483,9 +3481,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         },
         "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
         "status": "succeeded",
-        "value": [
-          0
-        ]
+        "value": {}
       },
       "structured_output_request_id": "56e38791-c83c-4813-9ede-303346de8d2c",
       "usage": {
@@ -3724,7 +3720,7 @@ Status Code **200**
 | `»»»» message`                     | string                                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» request_id`                   | string(uuid)                                                                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» status`                       | [codersdk.ChatStructuredOutputStatus](schemas.md#codersdkchatstructuredoutputstatus)       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» value`                        | array                                                                                      | false    |              | Value is the validated output of a succeeded request. The JSON null value is a valid output and is distinct from an absent value.                                                                                                                                                                                                                                                                          |
+| `»»» value`                        | object                                                                                     | false    |              | Value is the validated output of a succeeded request. The JSON null value is a valid output and is distinct from an absent value. It can be any JSON value: object is the closest Swagger type the generator supports, and the TypeScript type is unknown.                                                                                                                                                 |
 | `»» structured_output_request_id`  | string(uuid)                                                                               | false    |              | Structured output request ID is set on a user message that asked for a structured output: the ID its result reports in StructuredOutput.                                                                                                                                                                                                                                                                   |
 | `»» usage`                         | [codersdk.ChatMessageUsage](schemas.md#codersdkchatmessageusage)                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» cache_creation_tokens`        | integer                                                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |

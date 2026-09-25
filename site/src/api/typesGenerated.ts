@@ -3550,7 +3550,9 @@ export interface ChatStructuredOutput {
 	readonly status: ChatStructuredOutputStatus;
 	/**
 	 * Value is the validated output of a succeeded request. The JSON null
-	 * value is a valid output and is distinct from an absent value.
+	 * value is a valid output and is distinct from an absent value. It can
+	 * be any JSON value: object is the closest Swagger type the generator
+	 * supports, and the TypeScript type is unknown.
 	 */
 	readonly value?: unknown;
 	readonly error?: ChatStructuredOutputError;
@@ -3955,6 +3957,12 @@ export interface CreateChatMessageRequest {
 	 */
 	readonly plan_mode?: ChatPlanMode;
 	readonly reasoning_effort?: string;
+	/**
+	 * ResponseFormat asks for a structured final answer to this message.
+	 * json_schema requires the chat-structured-output experiment, a root
+	 * chat outside plan mode, and no plan_mode switch in the same request.
+	 */
+	readonly response_format?: ChatResponseFormat;
 }
 
 // From codersdk/chats.go
