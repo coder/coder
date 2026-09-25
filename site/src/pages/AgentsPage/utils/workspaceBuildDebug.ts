@@ -10,9 +10,9 @@ export const debugWorkspaceBuildLogsFileName = (
 ): string =>
 	`workspace-build-logs-${build.workspace_owner_name}-${build.workspace_name}-${build.build_number}.txt`;
 
-// Same value as chatprompt.syntheticPasteInlineBudget, in bytes. chatd applies
-// that budget only to pasted-text files, so this trim is the only cap on the
-// attachment, which is replayed on every turn.
+// Same value as chatprompt.syntheticPasteInlineBudget, in bytes. chatd
+// truncates only pasted-text files and sends other attachments uncut on every
+// turn, so this trim bounds the prompt size.
 /** @internal Exported for testing. */
 export const debugWorkspaceBuildLogsMaxBytes = 128 * 1024;
 // job.error has no server-side limit; Terraform puts the summary first.
@@ -27,7 +27,7 @@ const byteLength = (text: string): number => utf8.encode(text).length;
 const truncateUtf8 = (
 	text: string,
 	maxBytes: number,
-	keep: "head" | "tail",
+	{ keep }: { keep: "head" | "tail" },
 ): string => {
 	if (keep === "head") {
 		// encodeInto writes only whole characters.
@@ -48,7 +48,9 @@ const truncateUtf8 = (
 
 /**
  * Formats a build and its provisioner logs as the plain text chat attachment:
- * a header, then the newest log lines that fit within the byte budget.
+ * a header, then as much of the newest log output as fits within the byte
+ * budget. The cut falls on a character boundary, so the first kept line may be
+ * partial.
  */
 export const formatWorkspaceBuildLogsForDebug = (
 	build: WorkspaceBuild,
@@ -64,7 +66,9 @@ export const formatWorkspaceBuildLogsForDebug = (
 		header.push(`Job error code: ${build.job.error_code}`);
 	}
 	if (build.job.error) {
-		const error = truncateUtf8(build.job.error, jobErrorMaxBytes, "head");
+		const error = truncateUtf8(build.job.error, jobErrorMaxBytes, {
+			keep: "head",
+		});
 		header.push(
 			`Job error: ${error}${error === build.job.error ? "" : " (error truncated)"}`,
 		);
@@ -98,6 +102,8 @@ export const formatWorkspaceBuildLogsForDebug = (
 	return (
 		headerText +
 		omittedMarker +
-		truncateUtf8(body, bodyBudget - byteLength(omittedMarker), "tail")
+		truncateUtf8(body, bodyBudget - byteLength(omittedMarker), {
+			keep: "tail",
+		})
 	);
 };

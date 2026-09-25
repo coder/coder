@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { buildDebugWorkspaceBuildPath } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -78,14 +78,19 @@ const renderPage = (route = deepLink) =>
 		extraRoutes: [{ path: "/agents/:agentId", element: null }],
 	});
 
-const findChatMessage = () =>
-	screen.findByRole("textbox", { name: "Chat message" });
-
 const findEnabledSendButton = async () => {
 	const sendButton = await screen.findByRole("button", { name: "Send" });
 	await waitFor(() => expect(sendButton).toBeEnabled());
 	return sendButton;
 };
+
+// Lexical reads selection geometry when text is pasted; jsdom has none.
+beforeAll(() => {
+	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+		configurable: true,
+		value: () => new DOMRect(0, 0, 1, 16),
+	});
+});
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -132,40 +137,56 @@ describe("AgentCreatePage debug deep link", () => {
 		);
 	});
 
-	it("gives New chat a plain composer even though the link's param is forwarded", async () => {
+	it("does not prefill again on a later history entry that carries the param", async () => {
 		enableExperiment();
 		const { uploadChatFile, createChat } = mockPageQueries();
 		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
+		const user = userEvent.setup();
 
 		const { router } = renderPage();
 
 		await findEnabledSendButton();
-		// Stands in for the layout's New chat link, which forwards location.search.
+		// The layout's links forward location.search to a new history entry.
 		await router.navigate({
 			pathname: "/agents",
 			search: router.state.location.search,
 		});
-
 		await waitFor(() =>
 			expect(
 				screen.getByRole("textbox", { name: "Chat message" }),
 			).toHaveTextContent("draft the user typed earlier"),
 		);
+
+		await user.click(await findEnabledSendButton());
+
+		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
+		expect(createChat.mock.calls[0][0].content).toEqual([
+			{ type: "text", text: "draft the user typed earlier" },
+		]);
 		expect(uploadChatFile).toHaveBeenCalledTimes(1);
-		expect(createChat).not.toHaveBeenCalled();
 	});
 
-	it("reports a build that fails to load", async () => {
+	it("leaves a plain composer when the build fails to load", async () => {
 		enableExperiment();
 		const { uploadChatFile, createChat } = mockPageQueries();
 		vi.spyOn(API, "getWorkspaceBuild").mockRejectedValue(new Error("boom"));
+		const getWorkspaceBuildLogs = vi.spyOn(API, "getWorkspaceBuildLogs");
+		const user = userEvent.setup();
 
 		renderPage();
 
 		await screen.findByText("Could not load the workspace build or its logs");
-		await screen.findByText("boom");
-		await findChatMessage();
+		await user.click(
+			await screen.findByRole("textbox", { name: "Chat message" }),
+		);
+		await user.paste("What happened?");
+		await user.click(await findEnabledSendButton());
+
+		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
+		expect(createChat.mock.calls[0][0].content).toEqual([
+			{ type: "text", text: "What happened?" },
+		]);
+		expect(getWorkspaceBuildLogs).not.toHaveBeenCalled();
 		expect(uploadChatFile).not.toHaveBeenCalled();
-		expect(createChat).not.toHaveBeenCalled();
 	});
 });

@@ -183,7 +183,12 @@ type UseFileAttachmentsReturn = {
 
 export function useFileAttachments(
 	organizationId: string | undefined,
-	options?: { persist?: boolean; provider?: string },
+	options?: {
+		// Restore, save, and clear attachments in localStorage. Attachments are
+		// scoped to the organization either way.
+		persist?: boolean;
+		provider?: string;
+	},
 ): UseFileAttachmentsReturn {
 	const persist = options?.persist ?? false;
 
@@ -283,9 +288,7 @@ export function useFileAttachments(
 
 	// Permission refetches can change the org without user action. Replace state
 	// after commit so stale file IDs cannot cross orgs and an abandoned render
-	// cannot prune localStorage through restorePersistedAttachments. Adoption
-	// runs whether or not attachments persist; without persist it starts empty
-	// instead of restoring from localStorage.
+	// cannot prune localStorage through restorePersistedAttachments.
 	const adoptOrganization = useEffectEvent((orgId: string) => {
 		adoptionEpochRef.current += 1;
 		for (const file of attachments) {
