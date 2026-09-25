@@ -17,7 +17,6 @@ const formatJSONValue = (value: unknown, depth: number): ReactNode => {
 		if (value.length === 0) return "[]";
 		return (
 			<>
-				{/* biome-ignore lint/style/useConsistentCurlyBraces: \n requires a JS string literal */}
 				{"[\n"}
 				{value.map((v, i) => (
 					<Fragment key={i}>
@@ -39,7 +38,6 @@ const formatJSONValue = (value: unknown, depth: number): ReactNode => {
 				<Fragment key={k}>
 					{inner}
 					<span className="text-syntax-key">"{k}"</span>
-					{/* biome-ignore lint/style/useConsistentCurlyBraces: keeps spacing explicit */}
 					{": "}
 					{formatJSONValue(v, depth + 1)}
 					{i < entries.length - 1 ? ",\n" : "\n"}

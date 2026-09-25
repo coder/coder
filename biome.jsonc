@@ -41,7 +41,7 @@
 				"useAsConstAssertion": "error",
 				"useEnumInitializers": "error",
 				"useSingleVarDeclarator": "error",
-				"useConsistentCurlyBraces": "error",
+				"useConsistentCurlyBraces": "off", // oxlint owns jsx-curly-brace-presence
 				"noUnusedTemplateLiteral": "error",
 				"useNumberNamespace": "error",
 				"noInferrableTypes": "off", // oxlint owns no-inferrable-types
