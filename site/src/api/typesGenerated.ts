@@ -9990,10 +9990,6 @@ export interface UpdateChatRequest {
 	readonly archived?: boolean;
 	readonly workspace_id?: string;
 	/**
-	 * ProjectID changes the chat project. A UUID value of nil clears the project.
-	 */
-	readonly project_id?: string;
-	/**
 	 * PinOrder controls the chat's pinned state and position.
 	 * - nil: no change to pin state.
 	 * - 0: unpin the chat.
