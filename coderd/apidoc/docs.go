@@ -20471,6 +20471,9 @@ const docTemplate = `{
                         "type": "integer"
                     }
                 },
+                "reasoning_delta": {
+                    "type": "string"
+                },
                 "result": {
                     "type": "array",
                     "items": {
