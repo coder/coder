@@ -463,7 +463,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			} // When onSearch is provided, we don't want to filter the options. You can still override it.
 			filter={commandFilter()}
 		>
-			{/* biome-ignore lint/a11y/useKeyWithClickEvents: onKeyDown is not needed here */}
+			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- Click focuses the keyboard-accessible input. */}
 			<div
 				className={cn(
 					`flex min-h-10 flex-col justify-center rounded-md border border-solid border-border text-sm pr-3
