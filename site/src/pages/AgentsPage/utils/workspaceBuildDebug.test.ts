@@ -7,7 +7,7 @@ import {
 	formatWorkspaceBuildLogsForDebug,
 } from "./workspaceBuildDebug";
 
-const failedBuild: WorkspaceBuild = {
+const mockFailedBuild: WorkspaceBuild = {
 	...MockFailedWorkspace.latest_build,
 	workspace_owner_name: "dfraley",
 	workspace_name: "my-workspace",
@@ -25,7 +25,7 @@ const failedBuild: WorkspaceBuild = {
 	},
 };
 
-const logs: ProvisionerJobLog[] = [
+const mockLogs: ProvisionerJobLog[] = [
 	{
 		id: 1,
 		created_at: "2024-01-01T00:00:00.000Z",
@@ -70,7 +70,7 @@ const byteLength = (text: string) => new TextEncoder().encode(text).length;
 describe("debugWorkspaceBuildPrompt", () => {
 	it("names the workspace and the failed transition", () => {
 		const prompt = debugWorkspaceBuildPrompt({
-			...failedBuild,
+			...mockFailedBuild,
 			transition: "stop",
 		});
 
@@ -84,7 +84,7 @@ describe("debugWorkspaceBuildPrompt", () => {
 
 describe("formatWorkspaceBuildLogsForDebug", () => {
 	it("includes the build summary, job error, and logs grouped by stage", () => {
-		const text = formatWorkspaceBuildLogsForDebug(failedBuild, logs);
+		const text = formatWorkspaceBuildLogsForDebug(mockFailedBuild, mockLogs);
 
 		expect(text).toBe(
 			[
@@ -109,9 +109,10 @@ describe("formatWorkspaceBuildLogsForDebug", () => {
 	});
 
 	it("keeps the newest logs within the byte budget", () => {
+		// Three-byte characters so the cut can land inside one.
 		const text = formatWorkspaceBuildLogsForDebug(
-			failedBuild,
-			logLines(3000, (index) => `${index} ${"x".repeat(96)}`),
+			mockFailedBuild,
+			logLines(3000, (index) => `${index} ${"│".repeat(32)}`),
 		);
 
 		expect(byteLength(text)).toBeLessThanOrEqual(
@@ -121,20 +122,21 @@ describe("formatWorkspaceBuildLogsForDebug", () => {
 		expect(text).toContain(
 			"[earlier output omitted to fit the attachment size limit]",
 		);
-		expect(text).not.toContain("[info] 0 x");
-		expect(text).toContain(`[info] 2999 ${"x".repeat(96)}`);
+		expect(text).not.toContain("\uFFFD");
+		expect(text).not.toContain("[info] 0 │");
+		expect(text).toContain(`[info] 2999 ${"│".repeat(32)}`);
 	});
 
 	it("caps an oversized job error in the header", () => {
 		const text = formatWorkspaceBuildLogsForDebug(
 			{
-				...failedBuild,
+				...mockFailedBuild,
 				job: {
-					...failedBuild.job,
+					...mockFailedBuild.job,
 					error: `summary first ${"│".repeat(debugWorkspaceBuildLogsMaxBytes)}`,
 				},
 			},
-			logs,
+			mockLogs,
 		);
 
 		expect(byteLength(text)).toBeLessThanOrEqual(

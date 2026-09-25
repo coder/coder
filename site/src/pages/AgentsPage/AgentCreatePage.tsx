@@ -34,6 +34,37 @@ import {
 	formatWorkspaceBuildLogsForDebug,
 } from "./utils/workspaceBuildDebug";
 
+type DebugWorkspaceBuildAlertProps = {
+	error: unknown;
+	build: TypesGen.WorkspaceBuild | undefined;
+};
+
+const DebugWorkspaceBuildAlert: FC<DebugWorkspaceBuildAlertProps> = ({
+	error,
+	build,
+}) => {
+	const alert =
+		error != null ? (
+			<Alert severity="error" prominent>
+				<AlertTitle>Could not load the workspace build or its logs</AlertTitle>
+				<AlertDescription>
+					{getErrorMessage(error, "The request failed.")}
+				</AlertDescription>
+			</Alert>
+		) : build && build.job.status !== "failed" ? (
+			<Alert severity="info">
+				<AlertTitle>Nothing to debug</AlertTitle>
+				<AlertDescription>
+					Build #{build.build_number} of workspace {build.workspace_owner_name}/
+					{build.workspace_name} has not failed (status: {build.job.status}).
+				</AlertDescription>
+			</Alert>
+		) : null;
+	return alert ? (
+		<div className="mx-auto w-full max-w-3xl px-4 pt-4">{alert}</div>
+	) : null;
+};
+
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
@@ -68,8 +99,8 @@ const AgentCreatePage: FC = () => {
 	const debugBuildQuery = useQuery({
 		...workspaceBuildById(debugBuildId ?? ""),
 		enabled: debugBuildId !== null,
-		// A refetch after an error would mount the prefilled form after the page
-		// already reported that nothing was sent.
+		// A reconnect refetch after a load error would replace the composer the
+		// user may already be using with the prefilled form.
 		refetchOnReconnect: false,
 	});
 	const debugBuild = debugBuildQuery.data;
@@ -79,7 +110,7 @@ const AgentCreatePage: FC = () => {
 		// The logs query never refetches, so fetch only once the build has failed.
 		enabled: debugBuildFailed,
 	});
-	const debugBuildError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
+	const prefillError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
 	const prefill: AgentCreatePrefill | undefined =
 		debugBuild && debugBuildFailed && debugBuildLogsQuery.data
 			? {
@@ -95,9 +126,9 @@ const AgentCreatePage: FC = () => {
 			: undefined;
 	// Hold the form until the prefill is ready: AgentCreateForm reads message
 	// and attachment only on mount.
-	const isDebugBuildLoading =
+	const isPrefillLoading =
 		debugBuildId !== null &&
-		debugBuildError == null &&
+		prefillError == null &&
 		(debugBuild === undefined ||
 			(debugBuildFailed && debugBuildLogsQuery.data === undefined));
 
@@ -161,34 +192,6 @@ const AgentCreatePage: FC = () => {
 		}
 	};
 
-	const debugAlert = (() => {
-		if (debugBuildError != null) {
-			return (
-				<Alert severity="error" prominent>
-					<AlertTitle>
-						Could not load the workspace build or its logs
-					</AlertTitle>
-					<AlertDescription>
-						{getErrorMessage(debugBuildError, "The request failed.")}
-					</AlertDescription>
-				</Alert>
-			);
-		}
-		if (debugBuild && !debugBuildFailed) {
-			return (
-				<Alert severity="info">
-					<AlertTitle>Nothing to debug</AlertTitle>
-					<AlertDescription>
-						Build #{debugBuild.build_number} of workspace{" "}
-						{debugBuild.workspace_owner_name}/{debugBuild.workspace_name} has
-						not failed (status: {debugBuild.job.status}).
-					</AlertDescription>
-				</Alert>
-			);
-		}
-		return null;
-	})();
-
 	return (
 		<>
 			<AgentPageHeader
@@ -200,10 +203,8 @@ const AgentCreatePage: FC = () => {
 				<ChimeButton enabled={chimeEnabled} onToggle={handleChimeToggle} />
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
-			{debugAlert && (
-				<div className="mx-auto w-full max-w-3xl px-4 pt-4">{debugAlert}</div>
-			)}
-			{isDebugBuildLoading ? (
+			<DebugWorkspaceBuildAlert error={prefillError} build={debugBuild} />
+			{isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : (
 				<AgentCreateForm

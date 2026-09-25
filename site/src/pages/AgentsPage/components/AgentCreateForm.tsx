@@ -64,12 +64,10 @@ export type CreateChatOptions = {
 };
 
 /**
- * Prefilled content for a chat opened from a deep link. `message` and
- * `attachment` are captured on mount; remount with a new `key` to change them.
- * The attachment is uploaded once the organization is adopted, and the user
- * presses Send. The prefilled text and attachment are never saved as the
- * user's draft, and the saved draft and attachments are not restored.
- * Everything else behaves as in any new chat.
+ * Prefilled content for a chat opened from a deep link. The form reads it on
+ * mount (remount with a new `key` to change it), uploads the attachment
+ * without sending, and neither reads nor writes the saved draft or
+ * attachments.
  */
 export type AgentCreatePrefill = {
 	message: string;
@@ -588,8 +586,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			: null,
 	);
 	// Attached once, after adoption, because adoption replaces the attachment
-	// list. An org change after that drops the logs; this MVP does not upload
-	// them again.
+	// list. An org change after that drops the logs, and they are not attached
+	// again.
 	const prefillAttachRequestedRef = useRef(false);
 	const attachPrefillFile = useEffectEvent((file: File) => {
 		handleAttach([file]);
