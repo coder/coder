@@ -1,5 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { appendTextBlock } from "./blockUtils";
+import { appendTextBlock, placeCitationsAfterText } from "./blockUtils";
 import {
 	ensureToolBlock,
 	getToolResultStatus,
@@ -34,7 +34,9 @@ export const applyMessagePartToStreamState = (
 			}
 			return {
 				...nextState,
-				blocks: appendTextBlock(nextState.blocks, "response", part.text),
+				blocks: placeCitationsAfterText(
+					appendTextBlock(nextState.blocks, "response", part.text),
+				),
 			};
 		}
 		case "reasoning": {
