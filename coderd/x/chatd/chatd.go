@@ -1200,6 +1200,12 @@ type PromoteQueuedResult struct {
 func forcedMCPServerConfigsForOwner(ctx context.Context, store database.Store, organizationID, ownerID uuid.UUID) ([]database.MCPServerConfig, error) {
 	owner, _, err := httpmw.UserRBACSubject(ctx, store, ownerID, rbac.ScopeAll)
 	if err != nil {
+		// Reachable for deleted owners; see httpmw.ErrUserDeleted. A
+		// deleted owner can never authorize again, so stop the
+		// generation retry loop instead of burning its attempts.
+		if errors.Is(err, httpmw.ErrUserDeleted) {
+			return nil, terminalGeneration(xerrors.Errorf("chat owner has been deleted: %w", err))
+		}
 		return nil, xerrors.Errorf("load chat owner authorization: %w", err)
 	}
 	forced, err := store.GetForcedMCPServerConfigsByOrganization(dbauthz.As(ctx, owner), organizationID)
@@ -1624,6 +1630,12 @@ func callerModelConfigContext(
 	}
 	actor, _, err := httpmw.UserRBACSubject(ctx, store, ownerID, rbac.ScopeAll)
 	if err != nil {
+		// Reachable for deleted owners; see httpmw.ErrUserDeleted. A
+		// deleted owner can never authorize again, so stop the
+		// generation retry loop instead of burning its attempts.
+		if errors.Is(err, httpmw.ErrUserDeleted) {
+			return nil, terminalGeneration(xerrors.Errorf("chat owner has been deleted: %w", err))
+		}
 		return nil, xerrors.Errorf("load model config authorization: %w", err)
 	}
 	//nolint:gocritic // Background Chatd work must use the chat owner's model ACLs.
@@ -3636,22 +3648,21 @@ func (p *Server) loadPlanModeInstructions(
 	return fetched
 }
 
-func userSkillContext(ctx context.Context, userID uuid.UUID) context.Context {
-	actor := rbac.Subject{
-		Type:  rbac.SubjectTypeUser,
-		ID:    userID.String(),
-		Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
-		Scope: rbac.ScopeAll,
-	}.WithCachedASTValue()
-	// Chat turns run asynchronously after admission, so the original request
-	// actor may no longer be available when a worker loads personal skills.
-	// We synthesize the chat owner as a member instead of reusing that actor.
-	// Hardcoding RoleMember is safe because dbauthz enforces
-	// ResourceUserSkill.WithOwner(userID), so this actor cannot read any other
-	// user's skills regardless of role. Org scoping is not needed because
-	// personal skills are user-scoped, not org-scoped.
-	//nolint:gocritic // The synthetic actor is intentional for the reasons above.
-	return dbauthz.As(ctx, actor)
+// userSkillContext authorizes ctx as the chat owner for reading their
+// personal skills. Chat turns run asynchronously after admission, so
+// the original request actor may no longer be available when a worker
+// loads personal skills; the owner's subject is resolved through
+// UserRBACSubject so the "a deleted user may not act" invariant holds
+// here too (see httpmw.ErrUserDeleted). dbauthz additionally enforces
+// ResourceUserSkill.WithOwner(userID), so the resolved actor cannot
+// read any other user's skills.
+func userSkillContext(ctx context.Context, store database.Store, userID uuid.UUID) (context.Context, error) {
+	actor, _, err := httpmw.UserRBACSubject(ctx, store, userID, rbac.ScopeAll)
+	if err != nil {
+		return ctx, xerrors.Errorf("load user skill authorization: %w", err)
+	}
+	//nolint:gocritic // Background chat work must read skills as the chat owner.
+	return dbauthz.As(ctx, actor), nil
 }
 
 func (p *Server) fetchPersonalSkillMetadata(
@@ -3659,7 +3670,15 @@ func (p *Server) fetchPersonalSkillMetadata(
 	userID uuid.UUID,
 	logger slog.Logger,
 ) []skillspkg.Skill {
-	rows, err := p.db.ListUserSkillMetadataByUserID(userSkillContext(ctx, userID), userID)
+	skillCtx, err := userSkillContext(ctx, p.db, userID)
+	if err != nil {
+		logger.Warn(ctx, "failed to load personal skill authorization",
+			slog.F("owner_id", userID),
+			slog.Error(err),
+		)
+		return nil
+	}
+	rows, err := p.db.ListUserSkillMetadataByUserID(skillCtx, userID)
 	// See package coderd/x/skills (doc.go) for why metadata fetch failures
 	// intentionally degrade to an empty personal-skill list instead of
 	// failing the chat turn.
@@ -3687,8 +3706,12 @@ func (p *Server) loadPersonalSkillBody(
 	userID uuid.UUID,
 	name string,
 ) (skillspkg.ParsedSkill, error) {
+	skillCtx, err := userSkillContext(ctx, p.db, userID)
+	if err != nil {
+		return skillspkg.ParsedSkill{}, xerrors.Errorf("load personal skill body: %w", err)
+	}
 	row, err := p.db.GetUserSkillByUserIDAndName(
-		userSkillContext(ctx, userID),
+		skillCtx,
 		database.GetUserSkillByUserIDAndNameParams{
 			UserID: userID,
 			Name:   name,

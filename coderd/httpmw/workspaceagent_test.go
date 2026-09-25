@@ -96,6 +96,55 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.Contains(t, response.Message, `User is not active (status = "suspended")`)
 	})
 
+	t.Run("DeletedOwner", func(t *testing.T) {
+		t.Parallel()
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		authToken := uuid.New()
+		req, rtr, workspace, _ := setup(t, db, authToken, httpmw.ExtractWorkspaceAgentAndLatestBuild(
+			httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
+				DB:       db,
+				Optional: false,
+			}),
+		)
+
+		// Soft-delete the owner while keeping their rows so the agent's
+		// auth token still resolves; a soft-deleted owner is a client
+		// condition (401), not a server error (500).
+		softDeleteUserKeepRows(t, sqlDB, workspace.OwnerID)
+
+		rw := httptest.NewRecorder()
+		req.Header.Set(codersdk.SessionTokenHeader, authToken.String())
+		rtr.ServeHTTP(rw, req)
+
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		var response codersdk.Response
+		require.NoError(t, json.Unmarshal(body, &response))
+		require.Equal(t, "Workspace owner has been deleted.", response.Message)
+
+		// The failure is soft: an Optional mount degrades to anonymous
+		// instead of hard-failing, like the apikey path (CRF-1).
+		optionalReq := httptest.NewRequest("GET", "/", nil)
+		optionalReq.Header.Set(codersdk.SessionTokenHeader, authToken.String())
+		optionalRtr := chi.NewRouter()
+		optionalRtr.Use(httpmw.ExtractWorkspaceAgentAndLatestBuild(
+			httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
+				DB:       db,
+				Optional: true,
+			}))
+		optionalRtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})
+		optionalRW := httptest.NewRecorder()
+		optionalRtr.ServeHTTP(optionalRW, optionalReq)
+		optionalRes := optionalRW.Result()
+		defer optionalRes.Body.Close()
+		require.Equal(t, http.StatusOK, optionalRes.StatusCode)
+	})
+
 	t.Run("Latest", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)

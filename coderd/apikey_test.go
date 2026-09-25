@@ -596,6 +596,30 @@ func TestAPIKey_Deleted(t *testing.T) {
 	var apiErr *codersdk.Error
 	require.ErrorAs(t, err, &apiErr)
 	require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+
+	// By username the {user} param already filters deleted users, but
+	// by UUID it resolves them (GetUserByID has no deleted filter), so
+	// each handler must reject explicitly, without leaking whether the
+	// user existed.
+	requireNotFound := func(err error) {
+		t.Helper()
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	}
+	_, err = client.CreateAPIKey(ctx, anotherUser.ID.String())
+	requireNotFound(err)
+	// Both token-create shapes: the default no-lifetime path skips
+	// validateAPIKeyLifetime entirely, so it must not be the only guard.
+	_, err = client.CreateToken(ctx, anotherUser.ID.String(), codersdk.CreateTokenRequest{})
+	requireNotFound(err)
+	_, err = client.CreateToken(ctx, anotherUser.ID.String(), codersdk.CreateTokenRequest{
+		Lifetime: time.Hour,
+	})
+	requireNotFound(err)
+	_, err = client.GetTokenConfig(ctx, anotherUser.ID.String())
+	requireNotFound(err)
 }
 
 func TestAPIKey_SetDefault(t *testing.T) {

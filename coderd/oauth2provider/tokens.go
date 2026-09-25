@@ -673,6 +673,11 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 	// deny api_key:create. The issued token is bounded by api_keys.scopes.
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbCode.UserID, rbac.ScopeAll)
 	if err != nil {
+		// A soft-deleted user's authorization code is a revoked grant, not
+		// a server error: RFC 6749 section 5.2 maps it to invalid_grant.
+		if errors.Is(err, httpmw.ErrUserDeleted) {
+			return codersdk.OAuth2TokenResponse{}, errBadCode
+		}
 		return codersdk.OAuth2TokenResponse{}, xerrors.Errorf("fetch user actor: %w", err)
 	}
 
@@ -807,6 +812,11 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 	// ScopeAll for the same reason as in authorizationCodeGrant.
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbToken.UserID, rbac.ScopeAll)
 	if err != nil {
+		// A soft-deleted user's refresh token is a revoked grant, not a
+		// server error: RFC 6749 section 5.2 maps it to invalid_grant.
+		if errors.Is(err, httpmw.ErrUserDeleted) {
+			return codersdk.OAuth2TokenResponse{}, errBadToken
+		}
 		return codersdk.OAuth2TokenResponse{}, xerrors.Errorf("fetch user actor: %w", err)
 	}
 
