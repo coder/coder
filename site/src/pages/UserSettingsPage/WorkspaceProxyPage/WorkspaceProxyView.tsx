@@ -22,7 +22,7 @@ import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ProxyRow } from "./WorkspaceProxyRow";
 
-interface WorkspaceProxyViewProps {
+type WorkspaceProxyViewProps = {
 	proxies?: readonly Region[];
 	proxyLatencies?: Record<string, ProxyLatencyReport>;
 	getWorkspaceProxiesError?: unknown;
@@ -32,7 +32,7 @@ interface WorkspaceProxyViewProps {
 	selectProxyError?: unknown;
 	showPaywall: boolean;
 	permissions: Permissions;
-}
+};
 
 export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 	proxies,
@@ -100,12 +100,12 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 	);
 };
 
-interface ProxiesTableBodyProps {
+type ProxiesTableBodyProps = {
 	proxies?: readonly Region[];
 	proxyLatencies?: Record<string, ProxyLatencyReport>;
 	isLoading: boolean;
 	hasLoaded: boolean;
-}
+};
 
 const ProxiesTableBody: FC<ProxiesTableBodyProps> = ({
 	proxies,
@@ -119,15 +119,11 @@ const ProxiesTableBody: FC<ProxiesTableBodyProps> = ({
 	if (hasLoaded && proxies?.length === 0) {
 		return <TableEmpty message="No workspace proxies found" />;
 	}
-	return (
-		<>
-			{proxies?.map((proxy) => (
-				<ProxyRow
-					latency={proxyLatencies?.[proxy.id]}
-					key={proxy.id}
-					proxy={proxy}
-				/>
-			))}
-		</>
-	);
+	return proxies?.map((proxy) => (
+		<ProxyRow
+			latency={proxyLatencies?.[proxy.id]}
+			key={proxy.id}
+			proxy={proxy}
+		/>
+	));
 };

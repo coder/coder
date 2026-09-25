@@ -63,8 +63,9 @@ override.
 
 ### Group budget
 
-Setting a group budget requires the Owner, User Admin, Organization Admin, or
-Organization User Admin [role](../../admin/users/groups-roles.md).
+Setting a group budget requires the Owner, User Admin, Organization Admin, or Organization User Admin role.
+Refer to [Groups and roles](../../admin/users/groups-roles.md) for the deployment roles.
+The [Organization roles](../../admin/users/groups-roles.md#organization-roles) section covers the organization roles.
 
 A group budget applies to each member individually rather than to the group as a
 whole. For example, if a group has ten members and a budget of $200 USD, each
@@ -179,6 +180,8 @@ affected user:
 - Budgets of `$0 USD` and unpriced usage cross no thresholds.
 - Notifications are informational. Enforcement does not depend on them.
 
+Owners also receive **Missing AI Model Prices** weekly, listing models used in the past week that have no price.
+
 For delivery methods, see
 [Notifications](../../admin/monitoring/notifications/index.md).
 
@@ -235,6 +238,8 @@ Use the `(provider_type, model)` tuple to find the price to set. Any non-zero
 value means spend is under-counted. Because the price book ships with the
 release, a newly launched model is unpriced until you upgrade Coder or set a
 price for it yourself.
+
+Coder also notifies Owners weekly about models used in the past week that have no price.
 
 ### Configure model prices
 
@@ -309,7 +314,11 @@ Visibility follows the viewer's role:
 | Every user                                           | Their own spend and budget, or unlimited state, in their avatar menu |
 | Members of a group                                   | The group's spend and budget, and their own member row               |
 | Owners, User Admins, and organization administrators | Spend and budgets for every group and every member                   |
+| Readers of an organization's group members           | Organization totals and per-user spend on the **User spend** page    |
 
+- The **User spend** page under **Admin settings** > **AI** shows total and per-user AI Gateway spend for the selected organization and reporting period.
+  You can open it if you can read the organization's group members, as Owners, Auditors, Template Admins, User Admins, and their organization-scoped equivalents can.
+  If you can also view AI sessions, you can filter it by provider, model, and client.
 - The **Groups** page compares each group's spend with the combined limits of
   the members it covers.
 - The **Members** tab of a group reports each member's spend, their budget, and
@@ -328,11 +337,9 @@ Administrators can also use the
 [Get user AI spend](../../reference/api/enterprise.md#get-user-ai-spend) API
 endpoint to see a user's current effective group.
 
-### CSV Export
+### Spend export
 
-Users who can read group-member data for the organization can export approximate
-spend for reporting and internal cost allocation. The export is available through
-the API only.
+If you can read the organization's group members, you can export approximate spend for reporting and internal cost allocation.
 
 ```sh
 curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
@@ -342,8 +349,10 @@ curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
 - Without parameters, the export covers the current budget period.
 - To select a range, pass `period_start` and `period_end` together as RFC 3339
   timestamps. A range can span at most 31 days.
-- Each row breaks spend down by user, group, model, and provider, with the
-  underlying token counts.
+- Spend is attributed through each request's effective budget group, which falls back to the organization's `Everyone` group when no budget applies, so only usage recorded without any effective group is excluded.
+- Each CSV row breaks spend down by user, group, model, and provider, with the underlying token counts.
+
+For programmatic per-user reporting, refer to the [List organization AI spend by user API reference](../../reference/api/enterprise.md#list-organization-ai-spend-by-user).
 
 ### Prometheus Metrics
 

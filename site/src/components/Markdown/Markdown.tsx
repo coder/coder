@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import isEqual from "lodash/isEqual";
 import {
 	createElement,
@@ -20,9 +21,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { cn } from "#/utils/cn";
 
-interface MarkdownProps {
+type MarkdownProps = {
 	/**
 	 * The Markdown text to parse and render
 	 */
@@ -34,7 +34,7 @@ interface MarkdownProps {
 	 * Can override the behavior of the generated elements
 	 */
 	components?: Options["components"];
-}
+};
 
 export const Markdown: FC<MarkdownProps> = (props) => {
 	const { children, className, components = {} } = props;
@@ -67,7 +67,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 					// When pre is wrapping a code, the SyntaxHighlighter is already going
 					// to wrap it with a pre so we don't need it
 					if (firstChild.type === "element" && firstChild.tagName === "code") {
-						return <>{children}</>;
+						return children;
 					}
 					return <pre>{children}</pre>;
 				},

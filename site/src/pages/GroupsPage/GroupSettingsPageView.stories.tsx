@@ -8,7 +8,6 @@ const meta: Meta<typeof GroupSettingsPageView> = {
 	title: "pages/OrganizationGroupsPage/GroupSettingsPageView",
 	component: GroupSettingsPageView,
 	args: {
-		onCancel: fn(),
 		onSubmit: fn(),
 		group: MockGroup,
 		showAISettings: false,
@@ -26,6 +25,12 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 		// Without the aibridge feature, the AI budget section is hidden.
 		await expect(canvas.queryByText("AI budget")).not.toBeInTheDocument();
+		await expect(canvas.getByRole("textbox", { name: /^Name/ })).toBeVisible();
+		await expect(canvas.getByText("*")).toBeVisible();
+		await expect(canvas.getByText("Unique identifier.")).toBeVisible();
+		await expect(
+			canvas.getByText("Friendly name. Defaults to the name if blank."),
+		).toBeVisible();
 	},
 };
 
@@ -47,7 +52,7 @@ export const WithAIBudget: Story = {
 		);
 		await expect(
 			canvas.getByRole("link", {
-				name: /learn how budgets apply across groups/i,
+				name: /view docs/i,
 			}),
 		).toBeInTheDocument();
 	},
@@ -71,7 +76,7 @@ export const AIBudgetUncapped: Story = {
 		).toBeInTheDocument();
 		await expect(
 			canvas.getByRole("link", {
-				name: /learn how budgets apply across groups/i,
+				name: /view docs/i,
 			}),
 		).toHaveAttribute(
 			"href",

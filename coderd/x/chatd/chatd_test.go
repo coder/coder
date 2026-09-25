@@ -31,11 +31,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agenttest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -45,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -1739,8 +1743,9 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	capFileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs)
-	for i := range codersdk.MaxChatFileIDs {
+	// A single batch over the cap is rejected.
+	tooMany := []codersdk.ChatMessagePart{codersdk.ChatMessageText("one too many")}
+	for i := range codersdk.MaxChatFileIDs + 1 {
 		row, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
@@ -1749,24 +1754,8 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 			Data:           []byte("png-bytes"),
 		})
 		require.NoError(t, err)
-		capFileIDs = append(capFileIDs, row.ID)
+		tooMany = append(tooMany, codersdk.ChatMessageFile(row.ID, "image/png", row.Name))
 	}
-	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
-		ChatID:       chat.ID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-		FileIds:      capFileIDs,
-	})
-	require.NoError(t, err)
-	require.Zero(t, rejected)
-
-	extra, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
-		OwnerID:        user.ID,
-		OrganizationID: org.ID,
-		Name:           "extra.png",
-		Mimetype:       "image/png",
-		Data:           []byte("png-bytes"),
-	})
-	require.NoError(t, err)
 
 	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:     chat.ID,
@@ -1780,11 +1769,8 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID: chat.ID,
-		Content: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("one too many"),
-			codersdk.ChatMessageFile(extra.ID, "image/png", "extra.png"),
-		},
+		ChatID:  chat.ID,
+		Content: tooMany,
 	})
 	require.ErrorIs(t, err, chatstate.ErrChatFileCapExceeded)
 
@@ -1796,14 +1782,11 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	require.Len(t, messagesAfter, len(messagesBefore), "rejected send must not persist a message")
 	files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, files, codersdk.MaxChatFileIDs)
+	require.Empty(t, files, "rejected send must not link files")
 
 	sendResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID: chat.ID,
-		Content: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("re-reference"),
-			codersdk.ChatMessageFile(capFileIDs[0], "image/png", "cap-0.png"),
-		},
+		ChatID:  chat.ID,
+		Content: tooMany[:2],
 	})
 	require.NoError(t, err)
 	require.False(t, sendResult.Queued)
@@ -1995,7 +1978,7 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 		for _, msg := range messages {
 			if msg.Role == database.ChatMessageRoleSystem {
 				content := string(msg.Content.RawMessage)
-				if strings.Contains(content, "No workspace is attached to this chat yet") {
+				if strings.Contains(content, "This chat started without an attached workspace") {
 					workspaceMsg = &msg
 					break
 				}
@@ -2005,9 +1988,11 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 		require.Equal(t, database.ChatMessageRoleSystem, workspaceMsg.Role)
 		require.Equal(t, database.ChatMessageVisibilityModel, workspaceMsg.Visibility)
 		workspaceContent := string(workspaceMsg.Content.RawMessage)
-		require.Contains(t, workspaceContent, "Do not create or start a workspace by default")
-		require.Contains(t, workspaceContent, "Only call create_workspace or start_workspace")
-		require.NotContains(t, workspaceContent, "Create one using the create_workspace tool before using workspace tools")
+		require.Contains(t, workspaceContent, "missing tools, skills, MCPs, or context prevent progress")
+		require.Contains(t, workspaceContent, "create a suitable workspace with create_workspace")
+		require.NotContains(t, workspaceContent, "start_workspace")
+		require.Contains(t, workspaceContent, "Use the workspace's available context and capabilities to continue the user's request")
+		require.NotContains(t, workspaceContent, "Do not create or start a workspace by default")
 	})
 }
 
@@ -3806,6 +3791,61 @@ func TestActiveServer_DynamicToolsAndStopAfterToolBehavior(t *testing.T) {
 	})
 }
 
+func TestCallerSuppliedToolsDisabledSkipsDynamicTools(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var offeredDynamicTool atomic.Bool
+	var streamedCallCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		for _, tool := range req.Tools {
+			if tool.Function.Name == "my_dynamic_tool" {
+				offeredDynamicTool.Store(true)
+			}
+		}
+		switch streamedCallCount.Add(1) {
+		case 1:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("my_dynamic_tool", `{"query":"test"}`),
+			)
+		default:
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		}
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		cfg.DisableCallerSuppliedTools = true
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "dynamic-tools-disabled",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("call the dynamic tool"),
+		},
+		DynamicTools: dynamicToolJSON(t, "my_dynamic_tool"),
+	})
+	require.NoError(t, err)
+
+	chatResult := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	require.False(t, chatResult.RequiresActionDeadlineAt.Valid)
+	require.Equal(t, int32(2), streamedCallCount.Load(),
+		"unresolved call to a disabled dynamic tool should get a local error result and continue")
+	require.False(t, offeredDynamicTool.Load())
+
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
+	require.True(t, result.IsError)
+	require.JSONEq(t, `{"error":"Tool not active in this turn: my_dynamic_tool"}`, string(result.Result))
+}
+
 func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 	t.Parallel()
 
@@ -3944,7 +3984,6 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 			ToolCallID: toolCallID,
 			Output:     toolResultOutput,
 		}},
-		DynamicTools: dynamicToolsJSON,
 	})
 	require.NoError(t, err)
 
@@ -4234,7 +4273,6 @@ func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 			ToolCallID: toolCallID,
 			Output:     json.RawMessage(`{"result":"dynamic output"}`),
 		}},
-		DynamicTools: dynamicToolsJSON,
 	})
 	require.NoError(t, err)
 
@@ -4384,7 +4422,6 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 					ToolCallID: toolCallID,
 					Output:     json.RawMessage(`{"result":"concurrent output"}`),
 				}},
-				DynamicTools: dynamicToolsJSON,
 			})
 
 			if submitErr == nil {
@@ -4552,9 +4589,19 @@ func filterMessageEvents(events []codersdk.ChatStreamEvent) []codersdk.ChatStrea
 func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
+	const (
+		instruction      = "Run the workspace checks before reporting completion."
+		skillName        = "workspace-checks"
+		skillDescription = "Validate the newly created workspace."
+		mcpToolName      = "workspace__check"
+	)
+
 	ctx := testutil.Context(t, testutil.WaitLong)
+	deploymentValues := coderdtest.DeploymentValues(t)
+	// Keep the seeded published snapshot independent of agent discovery.
+	deploymentValues.DisableWorkspaceAgentContextSync = true
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:         coderdtest.DeploymentValues(t),
+		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
 	})
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
@@ -4580,10 +4627,6 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-	// Start the test workspace agent so create_workspace can wait for
-	// the agent to become reachable before returning.
-	_ = agenttest.New(t, client.URL, agentToken)
-
 	workspaceName := "chat-ws-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
 	createWorkspaceArgs := fmt.Sprintf(
 		`{"template_id":%q,"name":%q}`,
@@ -4593,7 +4636,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 
 	var streamedCallCount atomic.Int32
 	var streamedCallsMu sync.Mutex
-	streamedCalls := make([][]chattest.OpenAIMessage, 0, 2)
+	streamedCalls := make([]recordedOpenAIRequest, 0, 2)
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
@@ -4601,7 +4644,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		}
 
 		streamedCallsMu.Lock()
-		streamedCalls = append(streamedCalls, append([]chattest.OpenAIMessage(nil), req.Messages...))
+		streamedCalls = append(streamedCalls, recordOpenAIRequest(req))
 		streamedCallsMu.Unlock()
 
 		if streamedCallCount.Add(1) == 1 {
@@ -4626,6 +4669,67 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
+	var workspaceAgentID uuid.UUID
+	require.Eventually(t, func() bool {
+		got, getErr := expClient.GetChat(ctx, chat.ID)
+		if getErr != nil || got.WorkspaceID == nil {
+			return false
+		}
+		workspace, getErr := client.Workspace(ctx, *got.WorkspaceID)
+		if getErr != nil || workspace.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
+			return false
+		}
+		for _, resource := range workspace.LatestBuild.Resources {
+			for _, workspaceAgent := range resource.Agents {
+				workspaceAgentID = workspaceAgent.ID
+			}
+		}
+		return workspaceAgentID != uuid.Nil
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.EqualValues(t, 1, streamedCallCount.Load())
+
+	// Publish before the agent connects so the same-turn continuation has
+	// a complete snapshot. This does not test startup discovery readiness.
+	instructionBody, err := protojson.Marshal(&agentproto.InstructionFileBody{Content: []byte(instruction)})
+	require.NoError(t, err)
+	skillBody, err := protojson.Marshal(&agentproto.SkillMetaBody{
+		Name:        skillName,
+		Description: skillDescription,
+		Meta:        []byte("---\nname: " + skillName + "\ndescription: " + skillDescription + "\n---\nRun workspace checks.\n"),
+	})
+	require.NoError(t, err)
+	schema, err := structpb.NewStruct(map[string]any{"type": "object"})
+	require.NoError(t, err)
+	mcpBody, err := protojson.Marshal(&agentproto.MCPServerBody{
+		ServerName: "workspace",
+		Tools:      []*agentproto.MCPTool{{Name: "check", Description: "Check the workspace.", InputSchema: schema}},
+	})
+	require.NoError(t, err)
+
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	now := dbtime.Now()
+	for _, resource := range []database.UpsertWorkspaceAgentContextResourceParams{
+		{Source: "/workspace/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Body: instructionBody},
+		{Source: "/workspace/skills/" + skillName, BodyKind: database.WorkspaceAgentContextBodyKindSkill, Body: skillBody},
+		{Source: "workspace", BodyKind: database.WorkspaceAgentContextBodyKindMcpServer, Body: mcpBody},
+	} {
+		resource.WorkspaceAgentID = workspaceAgentID
+		resource.ContentHash = []byte(resource.Source)
+		resource.SizeBytes = int64(len(resource.Body))
+		resource.Status = database.WorkspaceAgentContextResourceStatusOk
+		resource.Now = now
+		_, err = api.Database.UpsertWorkspaceAgentContextResource(systemCtx, resource)
+		require.NoError(t, err)
+	}
+	_, err = api.Database.UpsertWorkspaceAgentContextSnapshot(systemCtx, database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID: workspaceAgentID,
+		Version:          1,
+		AggregateHash:    []byte("created-workspace-context"),
+		ReceivedAt:       now,
+	})
+	require.NoError(t, err)
+	_ = agenttest.New(t, client.URL, agentToken)
 
 	var chatResult codersdk.Chat
 	require.Eventually(t, func() bool {
@@ -4672,6 +4776,9 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		}
 	}
 	require.True(t, foundCreateWorkspaceResult, "expected create_workspace tool result message")
+	require.Len(t, slice.Filter(chatMsgs.Messages, func(message codersdk.ChatMessage) bool {
+		return message.Role == codersdk.ChatMessageRoleUser
+	}), 1, "workspace context should be available without another user turn")
 
 	// Verify that the tool waited for startup scripts to
 	// complete. The agent should be in "ready" state by the
@@ -4687,14 +4794,34 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	require.Equal(t, codersdk.WorkspaceAgentLifecycleReady, agentLifecycle,
 		"agent should be ready after create_workspace returns; startup scripts were not awaited")
 
-	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
 	streamedCallsMu.Lock()
-	recordedStreamCalls := append([][]chattest.OpenAIMessage(nil), streamedCalls...)
+	recordedStreamCalls := append([]recordedOpenAIRequest(nil), streamedCalls...)
 	streamedCallsMu.Unlock()
-	require.GreaterOrEqual(t, len(recordedStreamCalls), 2)
+	require.Len(t, recordedStreamCalls, 2)
+
+	for i, call := range recordedStreamCalls {
+		var systemContent string
+		for _, message := range call.Messages {
+			if message.Role == "system" {
+				systemContent += message.Content + "\n"
+			}
+		}
+		if i == 0 {
+			require.NotContains(t, systemContent, instruction)
+			require.NotContains(t, systemContent, skillName)
+			require.NotContains(t, call.Tools, mcpToolName)
+			continue
+		}
+		require.Contains(t, systemContent, "<workspace-context>")
+		require.Contains(t, systemContent, instruction)
+		require.Contains(t, systemContent, "<available-skills>")
+		require.Contains(t, systemContent, skillName)
+		require.Contains(t, systemContent, skillDescription)
+		require.Contains(t, call.Tools, mcpToolName)
+	}
 
 	var foundToolResultInSecondCall bool
-	for _, message := range recordedStreamCalls[1] {
+	for _, message := range recordedStreamCalls[1].Messages {
 		if message.Role != "tool" {
 			continue
 		}
@@ -5164,28 +5291,62 @@ func highUsageTextResponse(text string) chattest.AnthropicResponse {
 	}, text)...)
 }
 
-func anthropicCompactionResponse(text string) chattest.AnthropicResponse {
-	return chattest.AnthropicResponse{Response: &chattest.AnthropicMessage{
-		ID:         "msg-compaction",
-		Type:       "message",
-		Role:       "assistant",
-		Content:    text,
-		Model:      "claude-3-opus-20240229",
-		StopReason: "end_turn",
-	}}
+func anthropicCompactionResponse(t testing.TB, req *chattest.AnthropicRequest, text string) chattest.AnthropicResponse {
+	t.Helper()
+	require.True(t, req.Stream)
+	// The summary cap is the configured cap with headroom bounded by
+	// the remaining context window, so it varies per test fixture; exact
+	// values are pinned in the chatloop unit tests and the hook test.
+	require.Positive(t, req.MaxTokens)
+	return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks(text)...)
 }
 
 func highUsageReadFileResponse(path string) chattest.AnthropicResponse {
+	return readFileResponseWithInputTokens(path, 80)
+}
+
+func readFileResponseWithInputTokens(path string, inputTokens int) chattest.AnthropicResponse {
 	chunks := chattest.AnthropicToolCallChunks("read_file", fmt.Sprintf(`{"path":%q}`, path))
 	for i := range chunks {
 		if chunks[i].Type == "message_start" {
-			chunks[i].Message.Usage = map[string]int{"input_tokens": 80}
+			chunks[i].Message.Usage = map[string]int{"input_tokens": inputTokens}
 		}
 		if chunks[i].Type == "message_delta" {
 			chunks[i].UsageMap = map[string]int{"output_tokens": 5}
 		}
 	}
 	return chattest.AnthropicStreamingResponse(chunks...)
+}
+
+func TestActiveServer_PersistsAnthropicMessageID(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		if !req.Stream {
+			return chattest.AnthropicNonStreamingResponse("title")
+		}
+		chunks := chattest.AnthropicTextChunks("answer")
+		chunks[0].Message.ID = "msg_persisted"
+		return chattest.AnthropicStreamingResponse(chunks...)
+	})
+	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+	})
+
+	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	responseIDs := make(map[database.ChatMessageRole]sql.NullString)
+	for _, message := range messages {
+		responseIDs[message.Role] = message.ProviderResponseID
+	}
+	require.Equal(t, sql.NullString{String: "msg_persisted", Valid: true}, responseIDs[database.ChatMessageRoleAssistant])
+	require.False(t, responseIDs[database.ChatMessageRoleUser].Valid)
 }
 
 func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
@@ -5203,10 +5364,10 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 	var streamCount atomic.Int32
 	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 		body := anthropicRequestBody(t, *req)
+		if strings.Contains(body, "You are performing a context compaction") {
+			return anthropicCompactionResponse(t, req, compactionSummary)
+		}
 		if !req.Stream {
-			if strings.Contains(body, "You are performing a context compaction") {
-				return chattest.AnthropicNonStreamingResponse(compactionSummary)
-			}
 			return chattest.AnthropicNonStreamingResponse("AI Gateway Compaction")
 		}
 
@@ -5266,13 +5427,11 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 		ContextFileDirectory: "/home/coder/project",
 	}})
 	require.NoError(t, err)
-	_, err = db.InsertChatMessages(ctx, chatd.BuildSingleChatMessageInsertParams(
+	_, err = db.InsertChatMessages(ctx, singleChatMessageInsertParams(
 		chat.ID,
 		database.ChatMessageRoleUser,
 		contextContent,
-		database.ChatMessageVisibilityBoth,
 		model.ID,
-		chatprompt.CurrentContentVersion,
 		user.ID,
 	))
 	require.NoError(t, err)
@@ -5328,10 +5487,10 @@ func TestActiveServer_CompactionRecordsMetric(t *testing.T) {
 	var streamCount atomic.Int32
 	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 		body := anthropicRequestBody(t, *req)
+		if strings.Contains(body, "You are performing a context compaction") {
+			return anthropicCompactionResponse(t, req, compactionSummary)
+		}
 		if !req.Stream {
-			if strings.Contains(body, "You are performing a context compaction") {
-				return anthropicCompactionResponse(compactionSummary)
-			}
 			return chattest.AnthropicNonStreamingResponse("title")
 		}
 		switch streamCount.Add(1) {
@@ -5420,12 +5579,12 @@ func TestActiveServer_Compaction(t *testing.T) {
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			requests.record(req)
 			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				require.Contains(t, body, "read_file")
+				require.Contains(t, body, "package main")
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
 			if !req.Stream {
-				if strings.Contains(body, "You are performing a context compaction") {
-					require.Contains(t, body, "read_file")
-					require.Contains(t, body, "package main")
-					return anthropicCompactionResponse(compactionSummary)
-				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
 			switch streamCount.Add(1) {
@@ -5497,7 +5656,11 @@ func TestActiveServer_Compaction(t *testing.T) {
 		resultPart := singlePartOfType(t, compressed.results[0], codersdk.ChatMessagePartTypeToolResult)
 		require.Equal(t, callPart.ToolCallID, resultPart.ToolCallID)
 		require.Equal(t, "chat_summarized", resultPart.ToolName)
-		require.JSONEq(t, `{"summary":"summary text for compaction","source":"automatic","threshold_percent":70,"usage_percent":80,"context_tokens":80,"context_limit_tokens":100}`, string(resultPart.Result))
+		require.JSONEq(t, fmt.Sprintf(`{"summary":"summary text for compaction","source":"automatic","threshold_percent":70,"usage_percent":80,"context_tokens":80,"context_limit_tokens":100,"estimated_context_tokens":%d}`, (len(summaryText)+2)/3), string(resultPart.Result))
+		for _, msg := range []database.ChatMessage{compressed.summaries[0], compressed.calls[0], compressed.results[0]} {
+			require.False(t, msg.InputTokens.Valid)
+			require.False(t, msg.OutputTokens.Valid)
+		}
 		requireTextPart(t, messages[len(messages)-1], "continued after compaction")
 	})
 
@@ -5512,7 +5675,7 @@ func TestActiveServer_Compaction(t *testing.T) {
 			body := anthropicRequestBody(t, *req)
 			if strings.Contains(body, "You are performing a context compaction") {
 				compactionRequests.Add(1)
-				return anthropicCompactionResponse(compactionSummary)
+				return anthropicCompactionResponse(t, req, compactionSummary)
 			}
 			if !req.Stream {
 				return chattest.AnthropicNonStreamingResponse("title")
@@ -5551,10 +5714,10 @@ func TestActiveServer_Compaction(t *testing.T) {
 		var streamCount atomic.Int32
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
 			if !req.Stream {
-				if strings.Contains(body, "You are performing a context compaction") {
-					return anthropicCompactionResponse(compactionSummary)
-				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
 			switch streamCount.Add(1) {
@@ -5653,12 +5816,13 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		var compactionRequests atomic.Int32
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				compactionRequests.Add(1)
+				require.Contains(t, body, "hello from the user")
+				require.True(t, anthropicMessageHasEphemeralCacheControl(t, req.Messages[len(req.Messages)-1]))
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
 			if !req.Stream {
-				if strings.Contains(body, "You are performing a context compaction") {
-					compactionRequests.Add(1)
-					require.Contains(t, body, "hello from the user")
-					return anthropicCompactionResponse(compactionSummary)
-				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
 			streamCount.Add(1)
@@ -5744,11 +5908,11 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		var compactionRequests atomic.Int32
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				compactionRequests.Add(1)
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
 			if !req.Stream {
-				if strings.Contains(body, "You are performing a context compaction") {
-					compactionRequests.Add(1)
-					return anthropicCompactionResponse(compactionSummary)
-				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
 			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("assistant answer")...)
@@ -5793,6 +5957,69 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
 		require.Len(t, compressed.summaries, 1,
 			"prompt history contains the compressed summary boundary")
+	})
+
+	t.Run("retries the summary without tools when the prompt exceeds the context window", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var mu sync.Mutex
+		var compactionToolCounts []int
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				mu.Lock()
+				compactionToolCounts = append(compactionToolCounts, len(req.Tools))
+				mu.Unlock()
+				// The tool definitions push the summary request past
+				// the window that the tool-less request still fits.
+				if len(req.Tools) > 0 {
+					return chattest.AnthropicResponse{Error: &chattest.ErrorResponse{
+						StatusCode: http.StatusBadRequest,
+						Type:       "invalid_request_error",
+						Message:    "prompt is too long: 20000 tokens > 16385 maximum",
+					}}
+				}
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		compacted, err := server.CompactChat(ctx, chat)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRunning, compacted.Status)
+
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.False(t, chat.CompactionRequestedAt.Valid)
+
+		mu.Lock()
+		toolCounts := slices.Clone(compactionToolCounts)
+		mu.Unlock()
+		require.Len(t, toolCounts, 2, "one rejected request with tools, one tool-less retry")
+		require.Positive(t, toolCounts[0], "the first summary request carries the turn's tool definitions")
+		require.Zero(t, toolCounts[1], "the retry drops the tool definitions")
+
+		messages := chatMessages(ctx, t, db, chat.ID)
+		promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
+		require.Len(t, compressed.results, 1)
+		resultPart := singlePartOfType(t, compressed.results[0], codersdk.ChatMessagePartTypeToolResult)
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(resultPart.Result, &result))
+		require.Equal(t, compactionSummary, result["summary"])
 	})
 
 	t.Run("busy chat rejects manual compaction", func(t *testing.T) {
@@ -5981,11 +6208,11 @@ func TestActiveServer_ManualClear(t *testing.T) {
 		var compactionRequests atomic.Int32
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				compactionRequests.Add(1)
+				return anthropicCompactionResponse(t, req, "unexpected summary")
+			}
 			if !req.Stream {
-				if strings.Contains(body, "You are performing a context compaction") {
-					compactionRequests.Add(1)
-					return anthropicCompactionResponse("unexpected summary")
-				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
 			// The first turn exceeds the threshold, so stale usage would
@@ -6031,10 +6258,10 @@ func TestActiveServer_ManualClear(t *testing.T) {
 		db, ps := dbtestutil.NewDB(t)
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				return anthropicCompactionResponse(t, req, "compaction summary")
+			}
 			if !req.Stream {
-				if strings.Contains(body, "You are performing a context compaction") {
-					return anthropicCompactionResponse("compaction summary")
-				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
 			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("assistant answer")...)
@@ -6241,6 +6468,7 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 		name                 string
 		overrideModel        string
 		effort               string
+		keepsTools           bool
 		assertSummaryRequest func(t *testing.T, req *chattest.AnthropicRequest)
 	}{
 		{
@@ -6255,14 +6483,17 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			},
 		},
 		{
-			// 3276 is 0.8 (high) of the summary call's default 4096 max_tokens.
+			// High effort maps to 0.8 of the summary call's max_tokens
+			// (the remaining-window clamp; its exact value is pinned in
+			// the chatloop unit tests).
 			name:          "legacy budget-thinking override model",
 			overrideModel: "claude-haiku-4-5",
 			effort:        "high",
 			assertSummaryRequest: func(t *testing.T, req *chattest.AnthropicRequest) {
 				require.Empty(t, string(req.OutputConfig))
 				require.Contains(t, string(req.Thinking), `"type":"enabled"`)
-				require.Contains(t, string(req.Thinking), `"budget_tokens":3276`)
+				wantBudget := int64(float64(req.MaxTokens) * 0.8)
+				require.Contains(t, string(req.Thinking), fmt.Sprintf(`"budget_tokens":%d`, wantBudget))
 			},
 		},
 		{
@@ -6273,6 +6504,15 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				require.Contains(t, string(req.OutputConfig), `"effort":"low"`)
 				require.Contains(t, string(req.Thinking), `"type":"adaptive"`)
 			},
+		},
+		{
+			// Only an override resolving to the chat model itself shares
+			// its prompt cache, so only then do the tool definitions stay.
+			name:                 "override resolves to the chat model",
+			overrideModel:        chatModelName,
+			effort:               "low",
+			keepsTools:           true,
+			assertSummaryRequest: func(*testing.T, *chattest.AnthropicRequest) {},
 		},
 	}
 
@@ -6286,18 +6526,27 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			var streamCount atomic.Int32
 			anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 				body := anthropicRequestBody(t, *req)
-				if !req.Stream {
-					if strings.Contains(body, "You are performing a context compaction") {
-						require.Equal(t, tc.overrideModel, req.Model)
-						tc.assertSummaryRequest(t, req)
-						return anthropicCompactionResponse(compactionSummary)
+				if strings.Contains(body, "You are performing a context compaction") {
+					require.Equal(t, tc.overrideModel, req.Model)
+					if tc.keepsTools {
+						require.NotEmpty(t, req.Tools)
+					} else {
+						require.Empty(t, req.Tools, "a different model shares no prompt cache, so the summary carries no tool definitions")
 					}
+					tc.assertSummaryRequest(t, req)
+					return anthropicCompactionResponse(t, req, compactionSummary)
+				}
+				if !req.Stream {
 					return chattest.AnthropicNonStreamingResponse("title")
 				}
 				require.Equal(t, chatModelName, req.Model)
 				switch streamCount.Add(1) {
 				case 1:
-					return highUsageReadFileResponse("/tmp/a.txt")
+					// A large window keeps the summary cap clamp
+					// (limit minus usage and reserves) above the
+					// minimum legacy thinking budget so the effort
+					// mapping stays observable on the summary request.
+					return readFileResponseWithInputTokens("/tmp/a.txt", 80_000)
 				default:
 					require.Contains(t, body, compactionSummary)
 					require.Empty(t, string(req.OutputConfig),
@@ -6311,7 +6560,7 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				}
 			})
 			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
-			model = updateChatModelCompressionThreshold(t, db, model, 100, thresholdPercent)
+			model = updateChatModelCompressionThreshold(t, db, model, 100_000, thresholdPercent)
 			overrideModel := seedOverrideModel(ctx, t, db, model, tc.overrideModel, tc.effort, 1_000_000)
 			ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
@@ -6395,11 +6644,11 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 		var streamCount atomic.Int32
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			body := anthropicRequestBody(t, *req)
+			if strings.Contains(body, "You are performing a context compaction") {
+				require.Equal(t, overrideModelName, req.Model)
+				return anthropicCompactionResponse(t, req, compactionSummary)
+			}
 			if !req.Stream {
-				if strings.Contains(body, "You are performing a context compaction") {
-					require.Equal(t, overrideModelName, req.Model)
-					return anthropicCompactionResponse(compactionSummary)
-				}
 				return chattest.AnthropicNonStreamingResponse("title")
 			}
 			switch streamCount.Add(1) {
@@ -8712,13 +8961,11 @@ func insertChatMessageParts(
 	t.Helper()
 	content, err := chatprompt.MarshalParts(parts)
 	require.NoError(t, err)
-	params := chatd.BuildSingleChatMessageInsertParams(
+	params := singleChatMessageInsertParams(
 		chatID,
 		role,
 		content,
-		database.ChatMessageVisibilityBoth,
 		modelID,
-		chatprompt.CurrentContentVersion,
 		createdBy,
 	)
 	messages, err := db.InsertChatMessages(ctx, params)
@@ -11624,10 +11871,10 @@ func TestActiveServer_ChatTurnDebugRunRecordsMCPConnectOnDecisionError(t *testin
 	// terminally with the still-over-limit error.
 	var streamCount atomic.Int32
 	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		if strings.Contains(anthropicRequestBody(t, *req), "You are performing a context compaction") {
+			return anthropicCompactionResponse(t, req, "summary text for compaction")
+		}
 		if !req.Stream {
-			if strings.Contains(anthropicRequestBody(t, *req), "You are performing a context compaction") {
-				return anthropicCompactionResponse("summary text for compaction")
-			}
 			return chattest.AnthropicNonStreamingResponse("title")
 		}
 		if streamCount.Add(1) == 1 {
@@ -12975,9 +13222,8 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:              coderdtest.DeploymentValues(t),
-		IncludeProvisionerDaemon:      true,
-		ChatdInstructionLookupTimeout: testutil.WaitLong,
+		DeploymentValues:         coderdtest.DeploymentValues(t),
+		IncludeProvisionerDaemon: true,
 	})
 	db := api.Database
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
@@ -13458,7 +13704,6 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 
 		result, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
-			CreatedBy:       user.ID,
 			QueuedMessageID: queued.ID,
 		})
 		require.NoError(t, err)
@@ -13514,7 +13759,6 @@ func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
 
 		_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chat.ID,
-			CreatedBy:       user.ID,
 			QueuedMessageID: queued.ID,
 		})
 		require.ErrorIs(t, err, chatd.ErrNoDefaultChatModelConfig)
@@ -13581,7 +13825,6 @@ func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 
 	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chat.ID,
-		CreatedBy:       user.ID,
 		QueuedMessageID: queued.ID,
 	})
 	require.NoError(t, err)
@@ -13823,6 +14066,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	const advisorReply = "break the problem into smaller pieces first"
+	const advisorReasoning = "advisor-only reasoning: compare the refactoring risks"
 	advisorDeltas := []string{"break the problem ", "into smaller pieces first"}
 
 	var (
@@ -13837,13 +14081,16 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	// gate its completion on the live collector below having observed the
 	// streamed deltas.
 	var (
-		livePartsMu       sync.Mutex
-		liveAdvisorDeltas []string
+		livePartsMu            sync.Mutex
+		liveAdvisorDeltas      []string
+		liveAdvisorReasoning   []string
+		liveAssistantReasoning []string
 	)
 	liveDeltasCaptured := func() bool {
 		livePartsMu.Lock()
 		defer livePartsMu.Unlock()
-		return slices.Equal(advisorDeltas, liveAdvisorDeltas)
+		return slices.Equal(advisorDeltas, liveAdvisorDeltas) &&
+			slices.Equal([]string{advisorReasoning}, liveAdvisorReasoning)
 	}
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -13881,6 +14128,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 			chunks := make(chan chattest.OpenAIChunk)
 			go func() {
 				defer close(chunks)
+				chunks <- chattest.OpenAIChunk{Choices: []chattest.OpenAIChunkChoice{{ReasoningDelta: advisorReasoning}}}
 				for _, chunk := range chattest.OpenAITextChunks(advisorDeltas...) {
 					chunks <- chunk
 				}
@@ -13951,15 +14199,24 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 					continue
 				}
 				part := event.MessagePart.Part
+				livePartsMu.Lock()
+				if event.MessagePart.Role == codersdk.ChatMessageRoleAssistant && part.Type == codersdk.ChatMessagePartTypeReasoning {
+					liveAssistantReasoning = append(liveAssistantReasoning, part.Text)
+				}
+				livePartsMu.Unlock()
 				if event.MessagePart.Role != codersdk.ChatMessageRoleTool ||
 					part.Type != codersdk.ChatMessagePartTypeToolResult ||
 					part.ToolName != chatadvisor.ToolName ||
-					part.ToolCallID != "advisor-happy-path-call" ||
-					part.ResultDelta == "" {
+					part.ToolCallID != "advisor-happy-path-call" {
 					continue
 				}
 				livePartsMu.Lock()
-				liveAdvisorDeltas = append(liveAdvisorDeltas, part.ResultDelta)
+				if part.ResultDelta != "" {
+					liveAdvisorDeltas = append(liveAdvisorDeltas, part.ResultDelta)
+				}
+				if part.ReasoningDelta != "" {
+					liveAdvisorReasoning = append(liveAdvisorReasoning, part.ReasoningDelta)
+				}
 				livePartsMu.Unlock()
 			}
 		}
@@ -14013,9 +14270,9 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 
 	var parentSawAdvisorResult bool
 	for _, msg := range gotFinalMessages {
+		require.NotContains(t, msg.Content, advisorReasoning)
 		if msg.Role == "tool" && strings.Contains(msg.Content, advisorReply) {
 			parentSawAdvisorResult = true
-			break
 		}
 	}
 	require.True(t, parentSawAdvisorResult,
@@ -14031,16 +14288,22 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	<-liveCollectorDone
 	livePartsMu.Lock()
 	collectedAdvisorDeltas := append([]string(nil), liveAdvisorDeltas...)
+	collectedAdvisorReasoning := append([]string(nil), liveAdvisorReasoning...)
+	collectedAssistantReasoning := append([]string(nil), liveAssistantReasoning...)
 	livePartsMu.Unlock()
 	require.Equal(t, advisorDeltas, collectedAdvisorDeltas,
 		"advisor nested text deltas must stream into the parent tool card")
 
+	require.Equal(t, []string{advisorReasoning}, collectedAdvisorReasoning)
+	require.Empty(t, collectedAssistantReasoning, "advisor reasoning must not become parent assistant reasoning")
 	persisted, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
 		AfterID: 0,
 	})
 	require.NoError(t, err)
 	for _, msg := range persisted {
+		require.NotContains(t, string(msg.Content.RawMessage), "reasoning_delta")
+		require.NotContains(t, string(msg.Content.RawMessage), advisorReasoning)
 		require.NotContains(t, string(msg.Content.RawMessage), "result_delta",
 			"advisor deltas are stream-only and must not be persisted")
 	}

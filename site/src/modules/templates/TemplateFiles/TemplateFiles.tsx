@@ -1,16 +1,16 @@
+import { cn } from "cn";
 import set from "lodash/set";
 import { EditIcon } from "lucide-react";
 import { type FC, useCallback, useMemo } from "react";
 import { Link as RouterLink } from "react-router";
 import { SyntaxHighlighter } from "#/components/SyntaxHighlighter/SyntaxHighlighter";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
-import { cn } from "#/utils/cn";
 import type { FileTree } from "#/utils/filetree";
 import type { TemplateVersionFiles } from "#/utils/templateVersion";
 import { getTemplateFileIcon } from "./TemplateFileIcon";
 import { TemplateFileTree } from "./TemplateFileTree";
 
-interface TemplateFilesProps {
+type TemplateFilesProps = {
 	organizationName: string;
 	templateName: string;
 	versionName: string;
@@ -19,7 +19,7 @@ interface TemplateFilesProps {
 	 * Files used to compare with current files
 	 */
 	baseFiles?: TemplateVersionFiles;
-}
+};
 
 export const TemplateFiles: FC<TemplateFilesProps> = ({
 	organizationName,
@@ -74,7 +74,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 						}}
 						Label={({ path, filename, isFolder }) => {
 							if (isFolder) {
-								return <>{filename}</>;
+								return filename;
 							}
 
 							const hasDiff = fileInfo(path).hasDiff;

@@ -1,4 +1,4 @@
-import { type FC, useId, useRef, useState } from "react";
+import { type FC, useId, useLayoutEffect, useRef, useState } from "react";
 import { API } from "#/api/api";
 import type { DisplayApp } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -8,19 +8,18 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
-import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { getVSCodeHref } from "#/modules/apps/apps";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
-interface VSCodeDesktopButtonProps {
+type VSCodeDesktopButtonProps = {
 	userName: string;
 	workspaceName: string;
 	agentName?: string;
 	folderPath?: string;
 	displayApps: readonly DisplayApp[];
-}
+};
 
 type VSCodeVariant = "vscode" | "vscode-insiders";
 
@@ -38,6 +37,13 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 	});
 	const menuAnchorRef = useRef<HTMLDivElement>(null);
 	const menuContentId = useId();
+	const [menuWidth, setMenuWidth] = useState<number | undefined>(undefined);
+
+	useLayoutEffect(() => {
+		if (isVariantMenuOpen) {
+			setMenuWidth(menuAnchorRef.current?.clientWidth);
+		}
+	}, [isVariantMenuOpen]);
 
 	const selectVariant = (nextVariant: VSCodeVariant) => {
 		localStorage.setItem(VARIANT_KEY, nextVariant);
@@ -73,14 +79,14 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 					id={menuContentId}
 					align="end"
 					collisionPadding={16}
-					style={{ width: menuAnchorRef.current?.clientWidth }}
+					style={{ width: menuWidth }}
 				>
 					<DropdownMenuItem
 						onClick={() => {
 							selectVariant("vscode");
 						}}
 					>
-						<VSCodeIcon className="size-3" />
+						<ExternalImage src="/icon/code.svg" alt="" className="size-3" />
 						{DisplayAppNameMap.vscode}
 					</DropdownMenuItem>
 					<DropdownMenuItem
@@ -88,7 +94,11 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 							selectVariant("vscode-insiders");
 						}}
 					>
-						<VSCodeInsidersIcon className="size-3" />
+						<ExternalImage
+							src="/icon/code-insiders.svg"
+							alt=""
+							className="size-3"
+						/>
 						{DisplayAppNameMap.vscode_insiders}
 					</DropdownMenuItem>
 				</DropdownMenuContent>
@@ -132,7 +142,7 @@ const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
 					});
 			}}
 		>
-			<VSCodeIcon />
+			<ExternalImage src="/icon/code.svg" alt="" />
 			{DisplayAppNameMap.vscode}
 		</AgentButton>
 	);
@@ -169,7 +179,7 @@ const VSCodeInsidersButton: FC<VSCodeDesktopButtonProps> = ({
 					});
 			}}
 		>
-			<VSCodeInsidersIcon />
+			<ExternalImage src="/icon/code-insiders.svg" alt="" />
 			{DisplayAppNameMap.vscode_insiders}
 		</AgentButton>
 	);

@@ -1,7 +1,4 @@
-import {
-	MessageScroller,
-	useMessageScroller,
-} from "@shadcn/react/message-scroller";
+import { cn } from "cn";
 import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
@@ -9,10 +6,8 @@ import {
 	PencilIcon,
 } from "lucide-react";
 import { type FC, memo, type ReactNode, useState } from "react";
-
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-
 import { AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -21,14 +16,11 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
+import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
 
-import {
-	ConversationItem,
-	Message,
-	MessageContent,
-	Response,
-} from "../ChatElements";
+import { ConversationItem } from "../ChatElements/Conversation";
+import { Message, MessageContent } from "../ChatElements/Message";
+import { Response } from "../ChatElements/Response";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
@@ -41,6 +33,7 @@ import {
 } from "./liveStatusModel";
 import {
 	buildDisplayMessages,
+	deriveEvictedFileIds,
 	deriveMessageDisplayState,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
@@ -401,9 +394,10 @@ const ChatMessageItem = memo<{
 	},
 );
 
-interface ConversationTimelineProps {
+type ConversationTimelineProps = {
 	organizationId: string | undefined;
 	parsedMessages: readonly ParsedMessageEntry[];
+	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	initialActiveTurnMaxMessageId?: number;
 	streamState?: StreamState | null;
 	streamTools?: readonly MergedTool[];
@@ -425,12 +419,13 @@ interface ConversationTimelineProps {
 	showDesktopPreviews?: boolean;
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
-}
+};
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
 		organizationId,
 		parsedMessages,
+		chatFiles,
 		initialActiveTurnMaxMessageId,
 		streamState,
 		streamTools = [],
@@ -455,6 +450,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		};
 
 		const displayMessages = buildDisplayMessages(parsedMessages);
+		const evictedFileIds = deriveEvictedFileIds(parsedMessages, chatFiles);
 		const renderRows = assignTimelineRows(
 			displayMessages,
 			Boolean(liveStatus && shouldRenderLiveAssistant(liveStatus)),
@@ -556,7 +552,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				: undefined;
 
 		return (
-			<FileProbeProvider>
+			<FileProbeProvider evictedFileIds={evictedFileIds}>
 				{renderRows.map((row) => {
 					if (row.type === "live") {
 						// This row only exists when liveStatus is set.

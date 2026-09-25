@@ -23,7 +23,7 @@ const lastUsedOrNever = (lastUsed: string) => {
 	return t.valueOf() > 0 ? t.fromNow() : "Never";
 };
 
-interface TokensPageViewProps {
+type TokensPageViewProps = {
 	tokens?: APIKeyWithOwner[];
 	getTokensError?: unknown;
 	isLoading: boolean;
@@ -31,7 +31,7 @@ interface TokensPageViewProps {
 	onDelete: (token: APIKeyWithOwner) => void;
 	deleteTokenError?: unknown;
 	children?: ReactNode;
-}
+};
 
 export const TokensPageView: FC<TokensPageViewProps> = ({
 	tokens,
@@ -70,12 +70,12 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 	);
 };
 
-interface TokensTableBodyProps {
+type TokensTableBodyProps = {
 	tokens?: APIKeyWithOwner[];
 	isLoading: boolean;
 	hasLoaded: boolean;
 	onDelete: (token: APIKeyWithOwner) => void;
-}
+};
 
 const TokensTableBody: FC<TokensTableBodyProps> = ({
 	tokens,
@@ -89,48 +89,44 @@ const TokensTableBody: FC<TokensTableBodyProps> = ({
 	if (hasLoaded && (!tokens || tokens.length === 0)) {
 		return <TableEmpty message="No tokens found" />;
 	}
-	return (
-		<>
-			{tokens?.map((token) => (
-				<TableRow key={token.id} data-testid={`token-${token.id}`} tabIndex={0}>
-					<TableCell>
-						<span className="text-content-secondary">{token.id}</span>
-					</TableCell>
+	return tokens?.map((token) => (
+		<TableRow key={token.id} data-testid={`token-${token.id}`} tabIndex={0}>
+			<TableCell>
+				<span className="text-content-secondary">{token.id}</span>
+			</TableCell>
 
-					<TableCell>
-						<span className="text-content-secondary">{token.token_name}</span>
-					</TableCell>
+			<TableCell>
+				<span className="text-content-secondary">{token.token_name}</span>
+			</TableCell>
 
-					<TableCell>{lastUsedOrNever(token.last_used)}</TableCell>
+			<TableCell>{lastUsedOrNever(token.last_used)}</TableCell>
 
-					<TableCell>
-						<span className="text-content-secondary" data-pixel="ignore">
-							{dayjs(token.expires_at).fromNow()}
-						</span>
-					</TableCell>
+			<TableCell>
+				<span className="text-content-secondary" data-pixel="ignore">
+					{dayjs(token.expires_at).fromNow()}
+				</span>
+			</TableCell>
 
-					<TableCell>
-						<span className="text-content-secondary">
-							{dayjs(token.created_at).fromNow()}
-						</span>
-					</TableCell>
+			<TableCell>
+				<span className="text-content-secondary">
+					{dayjs(token.created_at).fromNow()}
+				</span>
+			</TableCell>
 
-					<TableCell>
-						<span className="text-content-secondary">
-							<Button
-								onClick={() => {
-									onDelete(token);
-								}}
-								size="icon"
-								variant="destructive"
-								aria-label="Delete token"
-							>
-								<TrashIcon className="size-icon-sm" />
-							</Button>
-						</span>
-					</TableCell>
-				</TableRow>
-			))}
-		</>
-	);
+			<TableCell>
+				<span className="text-content-secondary">
+					<Button
+						onClick={() => {
+							onDelete(token);
+						}}
+						size="icon"
+						variant="destructive"
+						aria-label="Delete token"
+					>
+						<TrashIcon className="size-icon-sm" />
+					</Button>
+				</span>
+			</TableCell>
+		</TableRow>
+	));
 };

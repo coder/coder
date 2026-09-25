@@ -13,8 +13,9 @@
  * It might not make sense to test this hook until the underlying design
  * problems are fixed.
  */
-import type { HTMLAttributes, MouseEventHandler } from "react";
-import { cn } from "#/utils/cn";
+
+import { cn } from "cn";
+import type { ComponentProps, MouseEventHandler } from "react";
 import {
 	type ClickableAriaRole,
 	type UseClickableResult,
@@ -22,7 +23,7 @@ import {
 } from "./useClickable";
 
 type TableRowClickHandlers = Pick<
-	HTMLAttributes<HTMLTableRowElement>,
+	ComponentProps<"tr">,
 	"onClick" | "onDoubleClick" | "onAuxClick"
 >;
 

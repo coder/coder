@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import { type FC, useId } from "react";
 import { getErrorMessage } from "#/api/errors";
@@ -8,14 +9,13 @@ import type {
 import { Button } from "#/components/Button/Button";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 import { AgentSettingLayout } from "#/pages/AISettingsPage/CoderAgentsPage/components/AgentSettingLayout";
-import { cn } from "#/utils/cn";
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
-interface AdvisorSettingsProps {
+type AdvisorSettingsProps = {
 	advisorConfigData: AdvisorConfig | undefined;
 	isAdvisorConfigLoading: boolean;
 	isAdvisorConfigFetching: boolean;
@@ -27,7 +27,7 @@ interface AdvisorSettingsProps {
 	isSavingAdvisorConfig: boolean;
 	isSaveAdvisorConfigError: boolean;
 	saveAdvisorConfigError: unknown;
-}
+};
 
 type AdvisorSettingsFormValues = {
 	max_uses_per_run: string;
@@ -177,7 +177,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	);
 };
 
-interface CompactIntegerFieldProps {
+type CompactIntegerFieldProps = {
 	id: string;
 	name: string;
 	label: string;
@@ -188,7 +188,7 @@ interface CompactIntegerFieldProps {
 	error?: boolean;
 	disabled?: boolean;
 	className?: string;
-}
+};
 
 const CompactIntegerField: FC<CompactIntegerFieldProps> = ({
 	id,

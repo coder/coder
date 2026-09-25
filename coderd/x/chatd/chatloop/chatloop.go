@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,7 +17,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	"charm.land/fantasy/schema"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -25,28 +26,24 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
 const (
-	// defaultStreamSilenceTimeout bounds how long an individual
+	// DefaultStreamSilenceTimeout bounds how long an individual
 	// model attempt may go without receiving a stream part before
 	// the attempt is canceled and retried.
-	defaultStreamSilenceTimeout = 10 * time.Minute
-	streamSilenceGuardTimerTag  = "streamSilenceGuard"
+	DefaultStreamSilenceTimeout = 10 * time.Minute
+	// StreamSilenceTimeoutDisabled turns the silence guard off.
+	StreamSilenceTimeoutDisabled time.Duration = -1
+	streamSilenceGuardTimerTag                 = "streamSilenceGuard"
 )
 
 var (
-	ErrInterrupted     = xerrors.New("chat interrupted")
-	ErrDynamicToolCall = xerrors.New("dynamic tool call")
-	// ErrStopAfterTool is returned when a tool listed in
-	// StopAfterTools produces a successful result, indicating
-	// the run should terminate cleanly after persistence.
-	ErrStopAfterTool = xerrors.New("stop after tool")
 	// ErrContentFiltered is returned when the provider's safety
 	// classifiers blocked the response and the model produced no
 	// content, e.g. Anthropic's stop_reason "refusal".
@@ -60,15 +57,6 @@ var (
 	)
 )
 
-// PendingToolCall describes a tool call that targets a dynamic
-// tool. These calls are not executed by the chatloop; instead
-// they are persisted so the caller can fulfill them externally.
-type PendingToolCall struct {
-	ToolCallID string
-	ToolName   string
-	Args       string
-}
-
 // PersistedStep is the unit the persistence layer splits into role-separated
 // database messages. Content mixes assistant blocks (text, reasoning, tool
 // calls) and tool result blocks from one completed or interrupted agent step.
@@ -79,17 +67,16 @@ type PersistedStep struct {
 	// Runtime is the wall-clock duration from opening to consuming the
 	// model stream.
 	Runtime time.Duration
+	// ProviderResponseID is the response ID the model endpoint reported, if
+	// any. Through the AI Gateway, Anthropic Messages responses carry the
+	// gateway's interception ID instead of the upstream message ID.
+	ProviderResponseID string
 	// BatchRuntime is the union of billed local-tool execution intervals.
 	// Parallel calls count once and serial calls count from their own start.
 	BatchRuntime time.Duration
 	// BatchBilledCalls counts the executed calls whose intervals produced
 	// BatchRuntime. Audit metadata for the batch usage record.
 	BatchBilledCalls int
-	// PendingDynamicToolCalls lists tool calls that target
-	// dynamic tools. When non-empty the chatloop exits with
-	// ErrDynamicToolCall so the caller can execute them
-	// externally and resume the loop.
-	PendingDynamicToolCalls []PendingToolCall
 	// ToolCallCreatedAt maps tool-call IDs to the time
 	// the model emitted each tool call. Applied by the
 	// persistence layer to set CreatedAt on persisted
@@ -109,100 +96,6 @@ type PersistedStep struct {
 	// stable ID, so order is the only correlation we have.
 	ReasoningStartedAt   []time.Time
 	ReasoningCompletedAt []time.Time
-}
-
-// RunOptions configures a single streaming chat loop run.
-type RunOptions struct {
-	Model    fantasy.LanguageModel
-	Messages []fantasy.Message
-	Tools    []fantasy.AgentTool
-	MaxSteps int
-	// StreamSilenceTimeout bounds how long each model attempt
-	// may go without receiving a stream part before the
-	// attempt is canceled and retried. Zero uses the
-	// production default.
-	StreamSilenceTimeout time.Duration
-	// Clock creates stream silence guard timers. In production
-	// use a real clock; tests can inject quartz.NewMock(t) to
-	// make timeout behavior deterministic.
-	Clock quartz.Clock
-
-	ActiveTools          []string
-	ContextLimitFallback int64
-
-	// DynamicToolNames lists tool names that are handled
-	// externally. When the model invokes one of these tools
-	// the chatloop persists partial results and exits with
-	// ErrDynamicToolCall instead of executing the tool.
-	DynamicToolNames map[string]bool
-	// StopAfterTools lists tool names that, when they produce a
-	// successful result, cause the run to stop after persisting
-	// the current step. This is used for plan turns where
-	// propose_plan should terminate the run on success.
-	StopAfterTools map[string]struct{}
-	// ExclusiveToolNames lists tool names that must be called
-	// alone in a batch. When any exclusive tool appears
-	// alongside other locally-executed tools, every tool in the
-	// batch receives a policy error and nothing executes.
-	ExclusiveToolNames map[string]bool
-
-	// ModelConfig holds per-call LLM parameters (temperature,
-	// max tokens, etc.) read from the chat model configuration.
-	ModelConfig codersdk.ChatModelCallConfig
-	// ProviderOptions are provider-specific call options
-	// converted from ModelConfig.ProviderOptions. This is a
-	// separate field because the conversion requires knowledge
-	// of the provider, which lives in chatd, not chatloop.
-	ProviderOptions fantasy.ProviderOptions
-
-	// ProviderTools are provider-native tools (like web search
-	// and computer use) whose definitions are passed directly
-	// to the provider API. When a ProviderTool has a non-nil
-	// Runner, tool calls are executed locally; otherwise the
-	// provider handles execution (e.g. web search).
-	ProviderTools []ProviderTool
-
-	PersistStep        func(context.Context, PersistedStep) error
-	PublishMessagePart func(
-		role codersdk.ChatMessageRole,
-		part codersdk.ChatMessagePart,
-	)
-	// Callers should attach correlation fields (chat_id, owner_id, etc.)
-	// using Logger.With before passing the logger in.
-	Logger     slog.Logger
-	Compaction *CompactionOptions
-
-	// PrepareTools is called once before each LLM step with the
-	// current tool list. If it returns non-nil, the returned slice
-	// replaces opts.Tools for this and all subsequent steps, and any
-	// new tool names are appended to opts.ActiveTools so they become
-	// callable immediately. Used to inject tools that become available
-	// mid-turn (e.g. workspace MCP tools discovered after
-	// create_workspace).
-	//
-	// The chatloop tracks whether tools have already been replaced so
-	// PrepareTools is not retried on subsequent steps once it has
-	// returned a non-nil slice. Callbacks may still be invoked on later
-	// steps when they previously returned nil.
-	PrepareTools func([]fantasy.AgentTool) []fantasy.AgentTool
-
-	// OnRetry is called before each retry attempt when the LLM
-	// stream fails with a retryable error. It provides the attempt
-	// number, raw error, normalized classification, and backoff
-	// delay so callers can publish status events to connected
-	// clients. Callers should also clear any buffered stream state
-	// from the failed attempt in this callback to avoid sending
-	// duplicated content.
-	OnRetry chatretry.OnRetryFn
-
-	OnInterruptedPersistError func(error)
-
-	// Metrics records Prometheus metrics for the chatd subsystem.
-	// When nil, no metrics are recorded.
-	Metrics *Metrics
-
-	// BuiltinToolNames lists tool names that are built into chatd.
-	BuiltinToolNames map[string]bool
 }
 
 // GenerateAssistantOptions configures one assistant model call.
@@ -241,7 +134,6 @@ type AssistantOutcome struct {
 	Step         PersistedStep
 	ToolCalls    []fantasy.ToolCallContent
 	FinishReason fantasy.FinishReason
-	ModelStopped bool
 }
 
 // ExecuteLocalToolsOptions configures one local tool execution batch.
@@ -311,7 +203,6 @@ type GenerateCompactionOptions struct {
 	SummaryHint          string
 	SystemSummaryPrefix  string
 	StepUsage            fantasy.Usage
-	StepMetadata         fantasy.ProviderMetadata
 
 	// Force skips the threshold gate (including the threshold=100
 	// disable and the zero-usage early return). Set for manual,
@@ -335,13 +226,20 @@ type GenerateCompactionOptions struct {
 	ModelConfigID    uuid.UUID
 
 	// SummaryCall is copied before GenerateCompaction attaches the summary
-	// prompt.
+	// prompt and prepared tool definitions.
 	SummaryCall fantasy.Call
+	// ToolDefinitions is copied from the parent generation request so the
+	// summary call uses the exact same ordered definitions.
+	ToolDefinitions []fantasy.Tool
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 
 	// Clock measures the summary call duration. Required.
 	Clock quartz.Clock
+
+	// StreamSilenceTimeout bounds how long the summary stream may go
+	// without yielding a part. Defaults to defaultStreamSilenceTimeout.
+	StreamSilenceTimeout time.Duration
 
 	// OnModelStreamStart runs immediately before the summary model call,
 	// at the instant CompactionResult.Runtime starts measuring.
@@ -370,9 +268,9 @@ type stepResult struct {
 	content              []fantasy.Content
 	usage                fantasy.Usage
 	providerMetadata     fantasy.ProviderMetadata
+	providerResponseID   string
 	finishReason         fantasy.FinishReason
 	toolCalls            []fantasy.ToolCallContent
-	shouldContinue       bool
 	toolCallCreatedAt    map[string]time.Time
 	toolResultCreatedAt  map[string]time.Time
 	reasoningStartedAt   []time.Time
@@ -393,8 +291,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	if opts.Model == nil {
 		return AssistantOutcome{}, xerrors.New("chat model is required")
 	}
-	if opts.StreamSilenceTimeout <= 0 {
-		opts.StreamSilenceTimeout = defaultStreamSilenceTimeout
+	if opts.StreamSilenceTimeout == 0 {
+		opts.StreamSilenceTimeout = DefaultStreamSilenceTimeout
 	}
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
@@ -416,11 +314,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	// kept for prompt preparation, Anthropic history sanitization, and the
 	// metric labels below.
 	errorProvider := cmp.Or(opts.ErrorProvider, provider)
-	runOpts := RunOptions{
-		Model:  opts.Model,
-		Logger: opts.Logger,
-	}
-	_, prepared, err := prepareMessagesForRequest(ctx, runOpts, opts.Messages, provider, modelName, 0, 1)
+	prepared, err := prepareMessagesForRequest(ctx, opts.Model, opts.Logger, opts.Messages, provider, modelName, 0, 1)
 	if err != nil {
 		return AssistantOutcome{}, xerrors.Errorf("prepare prompt: %w", err)
 	}
@@ -430,7 +324,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 
 	call := opts.CallTemplate
 	call.Prompt = prepared
-	call.Tools = buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
+	call.Tools = BuildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
 
 	stepStart := opts.Clock.Now()
 	if opts.OnModelStreamStart != nil {
@@ -458,11 +352,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	}
 	defer attempt.release()
 
-	result, processErr := processStepStream(attempt.ctx, attempt.stream, opts.Clock, publishMessagePart)
+	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
 	if err := attempt.finish(processErr); err != nil {
-		if errors.Is(err, ErrInterrupted) {
-			return AssistantOutcome{}, ErrInterrupted
-		}
 		wrappedErr := wrapProviderStreamError(errorProvider, err)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
 		if classified.Retryable {
@@ -495,6 +386,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		Usage:                result.usage,
 		ContextLimit:         contextLimit,
 		Runtime:              opts.Clock.Since(stepStart),
+		ProviderResponseID:   result.providerResponseID,
 		ToolCallCreatedAt:    result.toolCallCreatedAt,
 		ToolResultCreatedAt:  result.toolResultCreatedAt,
 		ReasoningStartedAt:   result.reasoningStartedAt,
@@ -504,7 +396,6 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		Step:         step,
 		ToolCalls:    append([]fantasy.ToolCallContent(nil), result.toolCalls...),
 		FinishReason: result.finishReason,
-		ModelStopped: len(result.content) == 0,
 	}, nil
 }
 
@@ -745,25 +636,25 @@ func BilledIntervalsDuration(intervals []BilledInterval) time.Duration {
 // terminal prompt-preparation failure.
 func prepareMessagesForRequest(
 	ctx context.Context,
-	opts RunOptions,
+	model fantasy.LanguageModel,
+	logger slog.Logger,
 	messages []fantasy.Message,
 	provider string,
 	modelName string,
 	step int,
 	totalSteps int,
-) (canonical []fantasy.Message, prompt []fantasy.Message, err error) {
-	canonical = messages
+) ([]fantasy.Message, error) {
 	// Copy messages so provider-specific caching mutations don't leak
 	// back to the canonical message slice.
-	prompt = slices.Clone(canonical)
+	prompt := slices.Clone(messages)
 	prompt, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(provider, prompt)
 	chatsanitize.LogAnthropicProviderToolSanitization(
-		ctx, opts.Logger, "pre_request", provider, modelName, sanitizeStats,
+		ctx, logger, "pre_request", provider, modelName, sanitizeStats,
 		slog.F("step_index", step),
 		slog.F("total_steps", totalSteps),
 	)
-	prompt, err = chatsanitize.ApplyAnthropicProviderToolGuard(
-		ctx, opts.Logger, provider, modelName, prompt,
+	prompt, err := chatsanitize.ApplyAnthropicProviderToolGuard(
+		ctx, logger, provider, modelName, prompt,
 	)
 	if err != nil {
 		err = chaterror.WithClassification(
@@ -776,12 +667,12 @@ func prepareMessagesForRequest(
 				Retryable: false,
 			},
 		)
-		return canonical, nil, err
+		return nil, err
 	}
-	if shouldApplyAnthropicPromptCaching(opts.Model) {
+	if shouldApplyAnthropicPromptCaching(model) {
 		addAnthropicPromptCaching(prompt)
 	}
-	return canonical, prompt, nil
+	return prompt, nil
 }
 
 // guardedAttempt owns an attempt-scoped context and silence guard
@@ -815,6 +706,9 @@ func newStreamSilenceGuard(
 		cancel:  cancel,
 		timeout: timeout,
 	}
+	if timeout < 0 {
+		return guard
+	}
 	guard.timer = clock.AfterFunc(
 		timeout,
 		guard.onTimeout,
@@ -843,14 +737,14 @@ func (g *streamSilenceGuard) onTimeout() {
 func (g *streamSilenceGuard) Reset() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if g.settled {
+	if g.settled || g.timer == nil {
 		return
 	}
 	g.timer.Reset(g.timeout, streamSilenceGuardTimerTag)
 }
 
 func (g *streamSilenceGuard) Disarm() {
-	if !g.settle() {
+	if !g.settle() || g.timer == nil {
 		return
 	}
 	g.timer.Stop()
@@ -874,6 +768,14 @@ func classifyStreamSilenceTimeout(
 	})
 }
 
+type streamWatchdogKey struct{}
+
+// WithStreamWatchdog returns a context whose guarded streams call kick
+// with the silence timeout whenever the guard arms or resets.
+func WithStreamWatchdog(ctx context.Context, kick func(silence time.Duration)) context.Context {
+	return context.WithValue(ctx, streamWatchdogKey{}, kick)
+}
+
 func guardedStream(
 	parent context.Context,
 	provider, model string,
@@ -883,7 +785,12 @@ func guardedStream(
 	metrics *Metrics,
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
+	kick, _ := parent.Value(streamWatchdogKey{}).(func(time.Duration))
+	if kick == nil {
+		kick = func(time.Duration) {}
+	}
 	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
+	kick(timeout)
 	var releaseOnce sync.Once
 	release := func() {
 		releaseOnce.Do(func() {
@@ -910,6 +817,7 @@ func guardedStream(
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
 				guard.Reset()
+				kick(timeout)
 				recordTTFT()
 				if !yield(part) {
 					return
@@ -933,14 +841,13 @@ func clockNow(clock quartz.Clock) time.Time {
 // accumulates all content into a stepResult. Callbacks fire
 // inline and their errors propagate directly.
 func processStepStream(
-	ctx context.Context,
 	stream fantasy.StreamResponse,
 	clock quartz.Clock,
 	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
 ) (stepResult, error) {
 	var result stepResult
 
-	activeToolCalls := make(map[string]*fantasy.ToolCallContent)
+	providerExecutedCalls := make(map[string]bool)
 	activeTextContent := make(map[string]string)
 	activeReasoningContent := make(map[string]reasoningState)
 	// Track tool names by ID for input delta publishing.
@@ -1003,22 +910,13 @@ func processStepStream(
 				delete(activeReasoningContent, part.ID)
 			}
 		case fantasy.StreamPartTypeToolInputStart:
-			activeToolCalls[part.ID] = &fantasy.ToolCallContent{
-				ToolCallID:       part.ID,
-				ToolName:         part.ToolCallName,
-				Input:            "",
-				ProviderExecuted: part.ProviderExecuted,
-			}
+			providerExecutedCalls[part.ID] = part.ProviderExecuted
 			if strings.TrimSpace(part.ToolCallName) != "" {
 				toolNames[part.ID] = part.ToolCallName
 			}
 
 		case fantasy.StreamPartTypeToolInputDelta:
-			var providerExecuted bool
-			if toolCall, exists := activeToolCalls[part.ID]; exists {
-				toolCall.Input += part.Delta
-				providerExecuted = toolCall.ProviderExecuted
-			}
+			providerExecuted := providerExecutedCalls[part.ID]
 			toolName := toolNames[part.ID]
 			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{
 				Type:             codersdk.ChatMessagePartTypeToolCall,
@@ -1045,7 +943,7 @@ func processStepStream(
 				toolNames[part.ID] = part.ToolCallName
 			}
 			// Clean up active tool call tracking.
-			delete(activeToolCalls, part.ID)
+			delete(providerExecutedCalls, part.ID)
 
 			// Record when the model emitted this tool call
 			// so the persisted part carries an accurate
@@ -1108,59 +1006,30 @@ func processStepStream(
 			result.usage = part.Usage
 			result.finishReason = part.FinishReason
 			result.providerMetadata = part.ProviderMetadata
+			result.providerResponseID = providerResponseID(part)
 
 		case fantasy.StreamPartTypeError:
-			// Detect interruption: the stream may surface the
-			// cancel as context.Canceled or propagate the
-			// ErrInterrupted cause directly, depending on
-			// the provider implementation.
-			if errors.Is(context.Cause(ctx), ErrInterrupted) &&
-				(errors.Is(part.Error, context.Canceled) || errors.Is(part.Error, ErrInterrupted)) {
-				// Flush in-progress content so that
-				// persistInterruptedStep has access to partial
-				// text, reasoning, and tool calls that were
-				// still streaming when the interrupt arrived.
-				flushActiveState(
-					&result,
-					clock,
-					activeTextContent,
-					activeReasoningContent,
-					activeToolCalls,
-					toolNames,
-				)
-				return result, ErrInterrupted
-			}
 			return result, part.Error
 		}
 	}
 
-	// The stream iterator may stop yielding parts without
-	// producing a StreamPartTypeError when the context is
-	// canceled (e.g. some providers close the response body
-	// silently). Detect this case and flush partial content
-	// so that persistInterruptedStep can save it.
-	if ctx.Err() != nil &&
-		errors.Is(context.Cause(ctx), ErrInterrupted) {
-		flushActiveState(
-			&result,
-			clock,
-			activeTextContent,
-			activeReasoningContent,
-			activeToolCalls,
-			toolNames,
-		)
-		return result, ErrInterrupted
+	return result, nil
+}
+
+// providerResponseID returns the response ID from a finish part.
+// Anthropic and Bedrock report the message ID as the part ID, and the OpenAI
+// Responses API reports it in provider metadata. Chat Completions providers
+// report neither.
+func providerResponseID(part fantasy.StreamPart) string {
+	if part.ID != "" {
+		return part.ID
 	}
-	hasLocalToolCalls := false
-	for _, tc := range result.toolCalls {
-		if !tc.ProviderExecuted {
-			hasLocalToolCalls = true
-			break
+	for _, metadata := range part.ProviderMetadata {
+		if responses, ok := metadata.(*fantasyopenai.ResponsesProviderMetadata); ok && responses != nil {
+			return responses.ResponseID
 		}
 	}
-	result.shouldContinue = hasLocalToolCalls &&
-		result.finishReason == fantasy.FinishReasonToolCalls
-	return result, nil
+	return ""
 }
 
 type toolExecutionResult struct {
@@ -1402,7 +1271,7 @@ func exclusiveToolPolicyResults(
 }
 
 func exclusiveToolMustRunAloneErrorMessage(toolName string) string {
-	return toolName + " must be called alone, without other tools in the same batch. Retry with only the " + toolName + " call."
+	return toolName + " must be called alone, without other tools in the same batch. If you need more information to feed into the " + toolName + " call, execute the other tools first, then retry with only the " + toolName + " call."
 }
 
 func exclusiveToolSkippedErrorMessage(toolName string) string {
@@ -1495,10 +1364,8 @@ func executeSingleTool(
 
 	result.ClientMetadata = resp.Metadata
 
-	// Cap tool output so a single oversized result (most often a large
-	// MCP response) cannot overflow the model's context window on the
-	// next request. Only the text payload is bounded; binary media data
-	// is passed through untouched.
+	// Bound text so one tool result cannot overflow the model's context window.
+	// Media limits are applied separately by normalizeToolMedia.
 	content := resp.Content
 	if truncated, didTruncate := truncateToolResultText(content, maxResultBytes); didTruncate {
 		metrics.RecordToolResultTruncated(provider, model, tc.ToolName)
@@ -1522,10 +1389,24 @@ func executeSingleTool(
 			slog.F("tool_error", content),
 		)
 	case resp.Type == "image" || resp.Type == "media":
+		text := strings.ToValidUTF8(content, "\uFFFD")
+		if note, rejected := normalizeToolMedia(&resp); rejected {
+			logger.Warn(ctx, "tool result media rejected, keeping text only",
+				slog.F("tool_name", tc.ToolName),
+				slog.F("tool_call_id", tc.ToolCallID),
+				slog.F("media_type", resp.MediaType),
+				slog.F("media_bytes", len(resp.Data)),
+			)
+			if text != "" {
+				text += "\n"
+			}
+			result.Result = fantasy.ToolResultOutputContentText{Text: text + note}
+			break
+		}
 		result.Result = fantasy.ToolResultOutputContentMedia{
 			Data:      base64.StdEncoding.EncodeToString(resp.Data),
 			MediaType: resp.MediaType,
-			Text:      strings.ToValidUTF8(content, "\uFFFD"),
+			Text:      text,
 		}
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
@@ -1547,67 +1428,27 @@ func executeSingleTool(
 	return result
 }
 
-// flushActiveState moves any in-progress text, reasoning, and
-// tool calls from the active tracking maps into result.content
-// and result.toolCalls. This is called on interruption so that
-// partial content from an incomplete stream is available for
-// persistence.
-func flushActiveState(
-	result *stepResult,
-	clock quartz.Clock,
-	activeText map[string]string,
-	activeReasoning map[string]reasoningState,
-	activeToolCalls map[string]*fantasy.ToolCallContent,
-	toolNames map[string]string,
-) {
-	// Flush partial text content.
-	for _, text := range activeText {
-		if text != "" {
-			result.content = append(result.content, fantasy.TextContent{Text: text})
-		}
+// normalizeToolMedia bounds persisted payloads and corrects image MIME types
+// by signature, not full image decoding. Transport limits apply at prompt build.
+func normalizeToolMedia(resp *fantasy.ToolResponse) (string, bool) {
+	if len(resp.Data) > codersdk.MaxChatFileSizeBytes {
+		return fmt.Sprintf(
+			"[%s content omitted: %d bytes exceeds the %d byte tool media limit]",
+			resp.MediaType, len(resp.Data), codersdk.MaxChatFileSizeBytes,
+		), true
 	}
-
-	// Flush partial reasoning content. The matching
-	// completedAt is filled in here with the interruption
-	// time so partial reasoning shows the time spent before
-	// the interruption.
-	flushedAt := clockNow(clock)
-	for _, rs := range activeReasoning {
-		if rs.text == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(fantasy.ProviderOptions(rs.options)) {
-			continue
-		}
-		result.content = append(result.content, fantasy.ReasoningContent{
-			Text:             rs.text,
-			ProviderMetadata: rs.options,
-		})
-		result.reasoningStartedAt = append(result.reasoningStartedAt, rs.startedAt)
-		result.reasoningCompletedAt = append(result.reasoningCompletedAt, flushedAt)
+	if !strings.HasPrefix(chatfiles.BaseMediaType(resp.MediaType), "image/") {
+		return "", false
 	}
-
-	// Flush in-progress tool calls. These haven't received a
-	// StreamPartTypeToolCall yet, so they only exist in
-	// activeToolCalls. We add them to both content and toolCalls
-	// so persistInterruptedStep can generate synthetic error
-	// results for them.
-	for id, tc := range activeToolCalls {
-		if tc == nil {
-			continue
-		}
-		// Prefer the tool name from the toolNames map since
-		// ToolInputStart may provide a cleaner name.
-		toolName := tc.ToolName
-		if name, ok := toolNames[id]; ok && strings.TrimSpace(name) != "" {
-			toolName = name
-		}
-		flushed := fantasy.ToolCallContent{
-			ToolCallID:       tc.ToolCallID,
-			ToolName:         toolName,
-			Input:            tc.Input,
-			ProviderExecuted: tc.ProviderExecuted,
-		}
-		result.content = append(result.content, flushed)
-		result.toolCalls = append(result.toolCalls, flushed)
+	detected := chatfiles.DetectMediaType(resp.Data)
+	if !strings.HasPrefix(detected, "image/") {
+		return fmt.Sprintf(
+			"[image omitted: payload declared as %s is %s]",
+			resp.MediaType, detected,
+		), true
 	}
+	resp.MediaType = detected
+	return "", false
 }
 
 func isToolActive(name string, activeTools []string) bool {
@@ -1725,49 +1566,6 @@ func isSerialToolCall(toolMap map[string]fantasy.AgentTool, toolNameAliases map[
 	}
 	serial, ok := tool.(serialToolCaller)
 	return ok && serial.SerialToolCalls()
-}
-
-// buildToolDefinitions converts AgentTool definitions into the
-// fantasy.Tool slice expected by fantasy.Call. When activeTools
-// is non-empty, only function tools whose name appears in the
-// list are included. Provider tool definitions are always
-// appended unconditionally.
-func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, providerTools []ProviderTool) []fantasy.Tool {
-	prepared := make([]fantasy.Tool, 0, len(tools)+len(providerTools))
-	for _, tool := range tools {
-		info := tool.Info()
-		if !isToolActive(info.Name, activeTools) {
-			continue
-		}
-
-		// Substitute an empty object for nil properties so that a tool
-		// with no parameters never serializes "properties" to null,
-		// which OpenAI rejects.
-		properties := info.Parameters
-		if properties == nil {
-			properties = map[string]any{}
-		}
-		inputSchema := map[string]any{
-			"type":       "object",
-			"properties": properties,
-		}
-		// Only include "required" when non-empty so that a nil slice
-		// never serializes to null, which OpenAI rejects.
-		if len(info.Required) > 0 {
-			inputSchema["required"] = info.Required
-		}
-		schema.Normalize(inputSchema)
-		prepared = append(prepared, fantasy.FunctionTool{
-			Name:            info.Name,
-			Description:     info.Description,
-			InputSchema:     inputSchema,
-			ProviderOptions: tool.ProviderOptions(),
-		})
-	}
-	for _, pt := range providerTools {
-		prepared = append(prepared, pt.Definition)
-	}
-	return prepared
 }
 
 func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {
@@ -2008,12 +1806,6 @@ func metadataKeyWords(key string) []string {
 
 func numericContextLimitValue(value any) (int64, bool) {
 	switch typed := value.(type) {
-	case int64:
-		return positiveInt64(typed)
-	case int32:
-		return positiveInt64(int64(typed))
-	case int:
-		return positiveInt64(int64(typed))
 	case float64:
 		casted := int64(typed)
 		if typed > 0 && float64(casted) == typed {
@@ -2021,11 +1813,6 @@ func numericContextLimitValue(value any) (int64, bool) {
 		}
 	case string:
 		parsed, err := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
-		if err == nil {
-			return positiveInt64(parsed)
-		}
-	case json.Number:
-		parsed, err := typed.Int64()
 		if err == nil {
 			return positiveInt64(parsed)
 		}

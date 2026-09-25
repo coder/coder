@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	EllipsisIcon,
 	FolderIcon,
@@ -18,7 +19,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { cn } from "#/utils/cn";
 import type { FileTree } from "#/utils/filetree";
 import { getTemplateFileIcon } from "./TemplateFileIcon";
 
@@ -40,7 +40,7 @@ function compareFileTreeEntries(
 	return isFolder(contentA) ? -1 : 1;
 }
 
-interface TemplateFilesTreeProps {
+type TemplateFilesTreeProps = {
 	onSelect: (path: string) => void;
 	onDelete?: (path: string) => void;
 	onRename?: (path: string) => void;
@@ -52,7 +52,7 @@ interface TemplateFilesTreeProps {
 		label: string;
 		isFolder: boolean;
 	}>;
-}
+};
 
 export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 	fileTree,
@@ -149,7 +149,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 	);
 };
 
-interface TreeNodeProps {
+type TreeNodeProps = {
 	label: React.ReactNode;
 	icon: React.ReactNode;
 	isHidden: boolean;
@@ -158,7 +158,7 @@ interface TreeNodeProps {
 	onClick: () => void;
 	onDelete?: () => void;
 	onRename?: () => void;
-}
+};
 
 const nodeClasses =
 	"grow flex h-8 cursor-pointer select-none items-center gap-2 " +
@@ -201,9 +201,9 @@ const FileNode: FC<TreeNodeProps> = ({
 	);
 };
 
-interface FolderNodeProps extends Omit<TreeNodeProps, "icon"> {
+type FolderNodeProps = Omit<TreeNodeProps, "icon"> & {
 	children: React.ReactNode;
-}
+};
 
 const FolderNode: FC<FolderNodeProps> = ({
 	label,
@@ -253,10 +253,10 @@ const FolderNode: FC<FolderNodeProps> = ({
 	);
 };
 
-interface MoreMenuProps {
+type MoreMenuProps = {
 	onRename?: () => void;
 	onDelete?: () => void;
-}
+};
 
 const MoreMenu: FC<MoreMenuProps> = ({ onRename, onDelete }) => {
 	if (!onRename && !onDelete) {

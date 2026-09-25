@@ -1,10 +1,10 @@
-import { type FC, type HTMLAttributes, Suspense } from "react";
+import { cn } from "cn";
+import { type ComponentProps, type FC, Suspense } from "react";
 import { Outlet } from "react-router";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { AnnouncementBanners } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { LicenseBanner } from "#/modules/dashboard/LicenseBanner/LicenseBanner";
-import { cn } from "#/utils/cn";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
 import { Navbar } from "./Navbar/Navbar";
 import { UpdateCheckNotice } from "./UpdateCheckNotice/UpdateCheckNotice";
@@ -63,7 +63,7 @@ export const DashboardLayout: FC = () => {
 	);
 };
 
-export const DashboardFullPage: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const DashboardFullPage: FC<ComponentProps<"div">> = ({
 	children,
 	...attrs
 }) => {

@@ -6,6 +6,7 @@ import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { mergeRegister } from "@lexical/utils";
+import { cn } from "cn";
 import {
 	$createParagraphNode,
 	$createTextNode,
@@ -35,8 +36,6 @@ import {
 import { useQuery } from "react-query";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
-import { cn } from "#/utils/cn";
-import { isMobileViewport } from "#/utils/mobile";
 import {
 	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
@@ -284,12 +283,9 @@ const PasteSanitizationPlugin: FC<{
 	return null;
 };
 
-// Handles Enter key behavior. By default, plain Enter submits via
-// the onEnter callback, and Shift+Enter inserts a newline. When the
-// modifier shortcut is selected, Cmd/Ctrl+Enter submits instead, and
-// plain Enter inserts a newline. On mobile viewports, Enter always
-// inserts a newline; users submit via the send button because
-// Shift+Enter is cumbersome on touch keyboards (CODAGT-210).
+// Touch keyboards need plain Enter for newlines (CODAGT-210). Pointer
+// capability, not viewport width, keeps narrow desktop windows usable.
+// Cmd/Ctrl+Enter submits on either input type; Shift+Enter stays a newline.
 const EnterKeyPlugin: FC<{
 	onEnter?: () => void;
 	sendShortcut: TypesGen.AgentChatSendShortcut;
@@ -302,9 +298,9 @@ const EnterKeyPlugin: FC<{
 			(event: KeyboardEvent | null) => {
 				const shouldInsertLineBreak =
 					event?.shiftKey ||
-					isMobileViewport() ||
-					(sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT &&
-						!(event?.metaKey || event?.ctrlKey));
+					(!(event?.metaKey || event?.ctrlKey) &&
+						(window.matchMedia("(pointer: coarse)").matches ||
+							sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT));
 				if (shouldInsertLineBreak) {
 					event?.preventDefault();
 					editor.update(() => {
@@ -436,12 +432,12 @@ const InsertTextPlugin: FC<{
 /**
  * Structured data for a file reference extracted from the editor.
  */
-interface FileReferenceData {
+type FileReferenceData = {
 	readonly fileName: string;
 	readonly startLine: number;
 	readonly endLine: number;
 	readonly content: string;
-}
+};
 
 /**
  * A content part extracted from the Lexical editor in document order.
@@ -464,7 +460,7 @@ type MutableFileRefPart = {
 };
 type MutableContentPart = MutableTextPart | MutableFileRefPart;
 
-export interface ChatMessageInputRef {
+export type ChatMessageInputRef = {
 	setValue: (text: string) => void;
 	insertText: (text: string) => void;
 	clear: () => void;
@@ -481,10 +477,12 @@ export interface ChatMessageInputRef {
 	 * paragraph are merged, and paragraphs are separated by newlines.
 	 */
 	getContentParts: () => EditorContentPart[];
-}
+};
 
-interface ChatMessageInputProps
-	extends Omit<React.ComponentProps<"div">, "onChange" | "role" | "ref"> {
+type ChatMessageInputProps = Omit<
+	React.ComponentProps<"div">,
+	"onChange" | "role" | "ref"
+> & {
 	placeholder?: string;
 	initialValue?: string;
 	/**
@@ -534,7 +532,7 @@ interface ChatMessageInputProps
 	 */
 	skillsMenuAnchor?: HTMLElement | null;
 	"aria-label"?: string;
-}
+};
 
 // Keeps the Lexical editor's editable state in sync with the
 // disabled prop so that the underlying contentEditable element
@@ -1022,6 +1020,21 @@ const ChatMessageInput = ({
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onSelect={replaceActiveSkillsTrigger}
 					onClose={() => handleSkillsTriggerChange(null)}
+					onEscapeKeyDown={(event) => {
+						// On a real keypress React commits Radix's dismiss before
+						// Lexical sees the same keydown, so the trigger plugin
+						// would find the menu already closed and Lexical's default
+						// Escape would blur the editor. Escape from inside the
+						// editor belongs to the plugin; elsewhere Radix still
+						// dismisses the menu.
+						const rootElement = editorRef.current?.getRootElement();
+						if (
+							event.target instanceof Node &&
+							rootElement?.contains(event.target)
+						) {
+							event.preventDefault();
+						}
+					}}
 				/>
 			</div>
 		</LexicalComposer>

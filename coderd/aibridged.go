@@ -66,17 +66,18 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 
 	mux := drpcmux.New()
 	srv, err := aibridgedserver.NewServer(api.ctx, aibridgedserver.Options{
-		Store:               api.Database,
-		Pubsub:              api.Pubsub,
-		AISeatTracker:       api.AISeatTracker,
-		Enqueuer:            api.NotificationsEnqueuer,
-		AccessURL:           api.AccessURL.String(),
-		GatewayCfg:          api.DeploymentValues.AI.BridgeConfig,
-		ExternalAuthConfigs: api.ExternalAuthConfigs,
-		Experiments:         api.Experiments,
-		Logger:              api.Logger.Named("aibridgedserver"),
-		Clock:               api.Clock,
-		Metrics:             api.AIGatewayServerMetrics,
+		Store:                 api.Database,
+		Pubsub:                api.Pubsub,
+		AISeatTracker:         api.AISeatTracker,
+		Enqueuer:              api.NotificationsEnqueuer,
+		AccessURL:             api.AccessURL.String(),
+		GatewayCfg:            api.DeploymentValues.AI.BridgeConfig,
+		ExternalAuthConfigs:   api.ExternalAuthConfigs,
+		Experiments:           api.Experiments,
+		OAuth2ProviderEnabled: api.DeploymentValues.OAuth2.Provider.Enable.Value(),
+		Logger:                api.Logger.Named("aibridgedserver"),
+		Clock:                 api.Clock,
+		Metrics:               api.AIGatewayServerMetrics,
 	})
 	if err != nil {
 		return nil, err
@@ -84,7 +85,7 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 	if err := aibridgedserver.Register(mux, srv); err != nil {
 		return nil, err
 	}
-	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+	server := drpcsdk.NewServer(api.Logger, &tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
 			Manager: drpcsdk.DefaultDRPCOptions(nil),
 			Log: func(err error) {

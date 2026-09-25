@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { useState } from "react";
@@ -10,15 +11,14 @@ import {
 	TemporarySavedState,
 	useTemporarySavedState,
 } from "#/components/TemporarySavedState/TemporarySavedState";
-import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
-interface PersonalInstructionsSettingsProps {
+type PersonalInstructionsSettingsProps = {
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
 	onSaveUserPrompt: (
 		req: TypesGen.UserChatCustomPrompt,
@@ -27,7 +27,7 @@ interface PersonalInstructionsSettingsProps {
 	isSavingUserPrompt: boolean;
 	isSaveUserPromptError: boolean;
 	isAnyPromptSaving: boolean;
-}
+};
 
 export const PersonalInstructionsSettings: FC<
 	PersonalInstructionsSettingsProps

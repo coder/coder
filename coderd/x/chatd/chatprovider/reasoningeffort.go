@@ -15,6 +15,7 @@ import (
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -104,7 +105,7 @@ func applyReasoningEffort(
 
 	switch NormalizeProvider(model.Provider()) {
 	case fantasyopenai.Name, fantasyazure.Name:
-		providerEffort := fantasyopenai.ReasoningEffort(*effort)
+		providerEffort := fantasyopenai.ReasoningEffort(openAIReasoningEffort(model.ModelID(), *effort))
 		switch opts := options[fantasyopenai.Name].(type) {
 		case *fantasyopenai.ResponsesProviderOptions:
 			opts.ReasoningEffort = &providerEffort
@@ -122,7 +123,7 @@ func applyReasoningEffort(
 			}
 		}
 	case fantasyanthropic.Name, fantasybedrock.Name:
-		providerEffort := fantasyanthropic.Effort(*effort)
+		providerEffort := fantasyanthropic.Effort(anthropicReasoningEffort(model.ModelID(), *effort))
 		providerOptions := ensureProviderOptions[fantasyanthropic.ProviderOptions](options, fantasyanthropic.Name)
 		providerOptions.Effort = &providerEffort
 	case fantasygoogle.Name:
@@ -174,6 +175,32 @@ func applyReasoningEffort(
 		providerOptions.Reasoning.Effort = &providerEffort
 	}
 	return options
+}
+
+// openAIReasoningEffort maps the global reasoning effort scale onto what an
+// OpenAI model accepts. GPT-6 Astra rejects none with HTTP 400 and does not
+// list minimal; OpenAI's migration guidance for both is to start at low.
+func openAIReasoningEffort(modelID, effort string) string {
+	if !chatopenai.IsGPT6Astra(modelID) {
+		return effort
+	}
+	switch effort {
+	case codersdk.ChatModelReasoningEffortNone, codersdk.ChatModelReasoningEffortMinimal:
+		return codersdk.ChatModelReasoningEffortLow
+	}
+	return effort
+}
+
+// anthropicReasoningEffort maps the global reasoning effort scale onto what an
+// Anthropic model accepts. Claude Opus 5.5 always runs adaptive thinking and
+// rejects the thinking: {type: "disabled"} that fantasy sends for none with
+// HTTP 400, so none starts at low.
+func anthropicReasoningEffort(modelID, effort string) string {
+	if effort == codersdk.ChatModelReasoningEffortNone &&
+		strings.Contains(strings.ToLower(modelID), "claude-opus-5-5") {
+		return codersdk.ChatModelReasoningEffortLow
+	}
+	return effort
 }
 
 // googleCompatReasoningEffort maps the global reasoning effort scale onto the

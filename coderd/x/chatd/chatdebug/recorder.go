@@ -14,10 +14,8 @@ import (
 
 // RecorderOptions identifies the chat/model context for debug recording.
 type RecorderOptions struct {
-	ChatID   uuid.UUID
-	OwnerID  uuid.UUID
-	Provider string
-	Model    string
+	ChatID  uuid.UUID
+	OwnerID uuid.UUID
 }
 
 // WrapModel returns model unchanged when debug recording is disabled, or a
@@ -189,12 +187,9 @@ type stepHandle struct {
 	stepCtx  *StepContext
 	sink     *attemptSink
 	svc      *Service
-	opts     RecorderOptions
 	mu       sync.Mutex
 	status   Status
 	response any
-	usage    any
-	err      any
 	metadata any
 	// hadError tracks whether a prior finalization wrote an error
 	// payload. Used to decide whether a successful retry needs to
@@ -203,7 +198,7 @@ type stepHandle struct {
 }
 
 // beginStep validates preconditions, creates a debug step, and returns a
-// handle plus an enriched context carrying StepContext and attemptSink.
+// handle plus an enriched context carrying the attempt sink.
 // Returns (nil, original ctx) when debug recording should be skipped.
 func beginStep(
 	ctx context.Context,
@@ -237,8 +232,7 @@ func beginStep(
 		// A different RunContext means a new logical run, so we must
 		// create a fresh step to avoid cross-run attribution.
 		if holder.handle != nil && holder.handle.stepCtx.RunID == rc.RunID {
-			enriched := ContextWithStep(ctx, holder.handle.stepCtx)
-			enriched = withAttemptSink(enriched, holder.handle.sink)
+			enriched := withAttemptSink(ctx, holder.handle.sink)
 			return holder.handle, enriched
 		}
 	}
@@ -264,22 +258,14 @@ func beginStep(
 	}
 
 	syncStepCounter(rc.RunID, step.StepNumber)
-	actualStepNumber := step.StepNumber
-	if actualStepNumber == 0 {
-		actualStepNumber = stepNum
-	}
 
 	sc := &StepContext{
-		StepID:              step.ID,
-		RunID:               rc.RunID,
-		ChatID:              chatID,
-		StepNumber:          actualStepNumber,
-		Operation:           op,
-		HistoryTipMessageID: rc.HistoryTipMessageID,
+		StepID: step.ID,
+		RunID:  rc.RunID,
+		ChatID: chatID,
 	}
-	handle := &stepHandle{stepCtx: sc, sink: &attemptSink{}, svc: svc, opts: opts}
-	enriched := ContextWithStep(ctx, handle.stepCtx)
-	enriched = withAttemptSink(enriched, handle.sink)
+	handle := &stepHandle{stepCtx: sc, sink: &attemptSink{}, svc: svc}
+	enriched := withAttemptSink(ctx, handle.sink)
 	if reuseStep {
 		holder.handle = handle
 	}
@@ -320,8 +306,6 @@ func (h *stepHandle) finish(
 
 	h.status = status
 	h.response = response
-	h.usage = usage
-	h.err = errPayload
 	h.metadata = metadata
 	if errPayload != nil {
 		h.hadError = true

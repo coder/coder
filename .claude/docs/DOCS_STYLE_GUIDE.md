@@ -9,10 +9,12 @@ This guide documents structure, research, and content patterns for documentation
 > guidelines, the content guidelines govern.
 >
 > **For prose rules**, refer to the canonical Coder documentation style guide at [`docs/.style/style-guide/`](../../docs/.style/style-guide/README.md).
-> Vale rules under `docs/.style/styles/Coder/` enforce those rules incrementally as each rule lands.
+> Vale rules under `docs/.style/styles/Coder/` enforce a small subset of that guide and run advisory; markdownlint and the em-dash check enforce a few more and do fail the build.
+> Read the guide and apply it; a clean lint run is not conformance.
+> Refer to [What the tooling checks, and what it doesn't](../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
 > This file remains authoritative for structure, research, and content patterns.
 
-See [CONTRIBUTING.md](../../docs/about/contributing/CONTRIBUTING.md) for general contribution guidelines.
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for general contribution guidelines.
 
 ## Research Before Writing
 
@@ -248,6 +250,11 @@ Link to specific endpoints:
 
 ## Accuracy Standards
 
+The exact-value instructions in this section are about how to state a value
+once it belongs on the page; whether it belongs there at all is governed by
+[Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+in the content guidelines.
+
 ### Specific Numbers Matter
 
 Document exact values from code:
@@ -362,7 +369,9 @@ When you rename or move a doc page, create a PR in coder/coder.com to add the re
 ## Key Principles
 
 1. **Research first** - Verify against actual code implementation
-2. **Be precise** - Use exact numbers, permission names, API paths
+2. **Be precise** - Use exact numbers, permission names, and API paths for
+   the values that belong on the page per
+   [Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
 3. **Visual structure** - Organize around screenshots when available
 4. **Link everything** - Related docs, API endpoints, CLI references
 5. **Manifest inclusion** - Add to manifest.json for navigation

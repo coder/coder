@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { FilterIcon } from "lucide-react";
 import {
 	type ComponentProps,
@@ -16,7 +17,6 @@ import {
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { SearchField } from "#/components/SearchField/SearchField";
-import { cn } from "#/utils/cn";
 import {
 	AGENT_ARCHIVE_STATUS_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
@@ -85,18 +85,25 @@ const SOURCE_OPTIONS: readonly Readonly<{
 	label: SOURCE_LABELS[source],
 }));
 
-const SectionHeading: FC<ComponentProps<"h2">> = ({ className, ...props }) => (
+const SectionHeading: FC<ComponentProps<"h2">> = ({
+	className,
+	children,
+	...props
+}) => (
 	<h2
 		className={cn(
 			"m-0 text-xs font-semibold leading-[18px] text-content-secondary",
 			className,
 		)}
 		{...props}
-	/>
+	>
+		{children}
+	</h2>
 );
 
 const FilterGroupHeading: FC<ComponentProps<"h3">> = ({
 	className,
+	children,
 	...props
 }) => (
 	<h3
@@ -105,17 +112,19 @@ const FilterGroupHeading: FC<ComponentProps<"h3">> = ({
 			className,
 		)}
 		{...props}
-	/>
+	>
+		{children}
+	</h3>
 );
 
 const OptionRow: FC<{ readonly children: ReactNode }> = ({ children }) => (
 	<div className="flex h-6 items-center gap-2 rounded-sm">{children}</div>
 );
 
-interface FilterPopoverProps {
+type FilterPopoverProps = {
 	readonly filters: AgentSidebarFilters;
 	readonly onFiltersChange: (filters: AgentSidebarFilters) => void;
-}
+};
 
 const haveSameSelections = <T extends string>(
 	left: readonly T[],

@@ -1,11 +1,11 @@
+import { cn } from "cn";
 import { ExternalLinkIcon, GlobeIcon } from "lucide-react";
 import type { FC } from "react";
-import { cn } from "#/utils/cn";
 import { ToolCall } from "./ToolCall";
 
-interface WebSearchSourcesProps {
+type WebSearchSourcesProps = {
 	sources: Array<{ url: string; title: string }>;
-}
+};
 
 /** Collapsible web-search result pills, styled as a ToolCall row. */
 const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {

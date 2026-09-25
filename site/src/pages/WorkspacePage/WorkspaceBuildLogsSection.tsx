@@ -1,12 +1,12 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { cn } from "#/utils/cn";
 
-interface WorkspaceBuildLogsSectionProps {
+type WorkspaceBuildLogsSectionProps = {
 	logs?: ProvisionerJobLog[];
-}
+};
 
 export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 	logs,

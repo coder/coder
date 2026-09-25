@@ -3,7 +3,7 @@ import { type FC, memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import { Link } from "#/components/Link/Link";
 
-interface InlineMarkdownProps {
+type InlineMarkdownProps = {
 	/**
 	 * The Markdown text to parse and render
 	 */
@@ -22,7 +22,7 @@ interface InlineMarkdownProps {
 	 * Can override the behavior of the generated elements
 	 */
 	components?: Options["components"];
-}
+};
 
 /**
  * Supports a strict subset of Markdown that behaves well as inline/confined
@@ -46,7 +46,7 @@ export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
 			]}
 			unwrapDisallowed
 			components={{
-				p: ({ children }) => <>{children}</>,
+				p: ({ children }) => children,
 
 				a: ({ href, children }) => {
 					const isExternal = href?.startsWith("http");

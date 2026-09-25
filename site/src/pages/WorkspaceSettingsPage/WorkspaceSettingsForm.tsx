@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import upperFirst from "lodash/upperFirst";
 import type { FC } from "react";
@@ -24,7 +25,6 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -36,12 +36,12 @@ export type WorkspaceSettingsFormValues = {
 	automatic_updates: AutomaticUpdates;
 };
 
-interface WorkspaceSettingsFormProps {
+type WorkspaceSettingsFormProps = {
 	workspace: Workspace;
 	error: unknown;
 	onCancel: () => void;
 	onSubmit: (values: WorkspaceSettingsFormValues) => Promise<void>;
-}
+};
 
 export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 	onCancel,

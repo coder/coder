@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import type { FC } from "react";
-import { cn } from "#/utils/cn";
 
 /**
  * A decorative layer that paints the Coder brand supergraphic.

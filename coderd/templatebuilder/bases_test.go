@@ -184,3 +184,48 @@ func TestBaseIncludedModules(t *testing.T) {
 	// Unknown IDs derive nothing.
 	require.Nil(t, templatebuilder.BaseIncludedModules("some-unknown-id"))
 }
+
+// TestBaseAgents checks the accessors and that each base's declared agents
+// match the coder_agent resources it renders.
+func TestBaseAgents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Accessors", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t,
+			[]templatebuilder.BaseAgent{{Name: "dev", Default: true}},
+			templatebuilder.BaseAgents("aws-linux"))
+		require.Equal(t, "dev", templatebuilder.BaseDefaultAgentName("aws-linux"))
+		require.Equal(t, "main", templatebuilder.BaseDefaultAgentName("docker"))
+		require.Empty(t, templatebuilder.BaseAgents("some-unknown-id"))
+		require.Equal(t, "", templatebuilder.BaseDefaultAgentName("some-unknown-id"))
+	})
+
+	t.Run("MatchRenderedTemplate", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range templatebuilder.BaseTemplateIDs() {
+			t.Run(id, func(t *testing.T) {
+				t.Parallel()
+				rendered, err := templatebuilder.RenderBaseTemplate(
+					id, "main.tf.tmpl", testRenderContext(id))
+				require.NoError(t, err)
+
+				extracted, err := templatebuilder.ExtractAgentResourceNames(rendered)
+				require.NoError(t, err)
+				renderedNames := make([]string, 0, len(extracted))
+				for _, a := range extracted {
+					renderedNames = append(renderedNames, a.Name)
+				}
+
+				declared := templatebuilder.BaseAgents(id)
+				declaredNames := make([]string, 0, len(declared))
+				for _, a := range declared {
+					declaredNames = append(declaredNames, a.Name)
+				}
+
+				require.ElementsMatch(t, renderedNames, declaredNames,
+					"base %q base.json agents must match its rendered coder_agent resources", id)
+			})
+		}
+	})
+}

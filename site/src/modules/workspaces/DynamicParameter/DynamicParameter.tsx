@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	CircleAlertIcon,
 	EyeIcon,
@@ -45,17 +46,16 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
 
-interface DynamicParameterProps {
+type DynamicParameterProps = {
 	parameter: PreviewParameter;
 	value?: string;
 	onChange: (value: string) => void;
 	disabled?: boolean;
 	isPreset?: boolean;
 	autofill?: boolean;
-}
+};
 
 export const DynamicParameter: FC<DynamicParameterProps> = ({
 	parameter,
@@ -94,12 +94,12 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 	);
 };
 
-interface ParameterLabelProps {
+type ParameterLabelProps = {
 	parameter: PreviewParameter;
 	isPreset?: boolean;
 	autofill: boolean;
 	id: string;
-}
+};
 
 const ParameterLabel: FC<ParameterLabelProps> = ({
 	parameter,
@@ -235,13 +235,13 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 	);
 };
 
-interface ParameterFieldProps {
+type ParameterFieldProps = {
 	parameter: PreviewParameter;
 	value?: string;
 	onChange: (value: string) => void;
 	disabled?: boolean;
 	id: string;
-}
+};
 
 const ParameterField: FC<ParameterFieldProps> = ({
 	parameter,
@@ -614,9 +614,9 @@ const parseStringArrayValue = (value: string): ParsedValues => {
 	return parsedValues;
 };
 
-interface OptionDisplayProps {
+type OptionDisplayProps = {
 	option: PreviewParameterOption;
-}
+};
 
 const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
 	return (
@@ -645,9 +645,9 @@ const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
 	);
 };
 
-interface ParameterDiagnosticsProps {
+type ParameterDiagnosticsProps = {
 	diagnostics: PreviewParameter["diagnostics"];
-}
+};
 
 const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 	diagnostics,
@@ -912,9 +912,9 @@ const parameterError = (
 	);
 };
 
-interface DiagnosticsProps {
+type DiagnosticsProps = {
 	diagnostics: PreviewParameter["diagnostics"];
-}
+};
 
 export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 	return (

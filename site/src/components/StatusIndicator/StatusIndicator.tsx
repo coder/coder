@@ -1,11 +1,11 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { createContext, type FC, useContext } from "react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 
 const statusIndicatorVariants = cva(
 	"font-medium inline-flex items-center gap-2",
@@ -34,7 +34,7 @@ type StatusIndicatorContextValue = VariantProps<typeof statusIndicatorVariants>;
 
 const StatusIndicatorContext = createContext<StatusIndicatorContextValue>({});
 
-export type StatusIndicatorProps = React.ComponentPropsWithRef<"div"> &
+export type StatusIndicatorProps = React.ComponentProps<"div"> &
 	StatusIndicatorContextValue;
 
 export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
@@ -73,9 +73,8 @@ const dotVariants = cva("rounded-full inline-block border-4 border-solid", {
 	},
 });
 
-export interface StatusIndicatorDotProps
-	extends React.HTMLAttributes<HTMLDivElement>,
-		VariantProps<typeof dotVariants> {}
+type StatusIndicatorDotProps = React.ComponentProps<"div"> &
+	VariantProps<typeof dotVariants>;
 
 export const StatusIndicatorDot: FC<StatusIndicatorDotProps> = ({
 	className,
@@ -100,9 +99,9 @@ export const StatusIndicatorDot: FC<StatusIndicatorDotProps> = ({
 	);
 };
 
-interface StatusHealthyIndicatorProps {
+type StatusHealthyIndicatorProps = {
 	derpOnly?: boolean;
-}
+};
 
 export const StatusHealthyIndicator: FC<StatusHealthyIndicatorProps> = ({
 	derpOnly,

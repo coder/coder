@@ -2,9 +2,9 @@ package chattool_test
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"strings"
-	"sync/atomic"
 	"testing"
 
 	"charm.land/fantasy"
@@ -27,18 +27,17 @@ func (f *fakeAgentConn) CallMCPTool(ctx context.Context, req workspacesdk.CallMC
 	return f.callMCPToolFunc(ctx, req)
 }
 
-func TestWorkspaceMCPTool_InvalidateOn404(t *testing.T) {
+func TestWorkspaceMCPTool_Errors(t *testing.T) {
 	t.Parallel()
 
-	t.Run("404ErrorInvalidatesCache", func(t *testing.T) {
+	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 
-		var invalidated atomic.Bool
-		tool := chattool.NewWorkspaceMCPTool(
-			workspacesdk.MCPToolInfo{
+		tool := chattool.NewWorkspaceMCPTools(
+			[]workspacesdk.MCPToolInfo{{
 				Name:        "test__echo",
 				Description: "test tool",
-			},
+			}},
 			func(ctx context.Context) (workspacesdk.AgentConn, error) {
 				return &fakeAgentConn{
 					callMCPToolFunc: func(_ context.Context, _ workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
@@ -52,25 +51,21 @@ func TestWorkspaceMCPTool_InvalidateOn404(t *testing.T) {
 					},
 				}, nil
 			},
-			func() { invalidated.Store(true) },
-		)
+		)[0]
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError, "response should be an error")
-		assert.True(t, invalidated.Load(),
-			"invalidateCache should fire on 404")
 	})
 
-	t.Run("Non404DoesNotInvalidate", func(t *testing.T) {
+	t.Run("BadGateway", func(t *testing.T) {
 		t.Parallel()
 
-		var invalidated atomic.Bool
-		tool := chattool.NewWorkspaceMCPTool(
-			workspacesdk.MCPToolInfo{
+		tool := chattool.NewWorkspaceMCPTools(
+			[]workspacesdk.MCPToolInfo{{
 				Name:        "test__echo",
 				Description: "test tool",
-			},
+			}},
 			func(ctx context.Context) (workspacesdk.AgentConn, error) {
 				return &fakeAgentConn{
 					callMCPToolFunc: func(_ context.Context, _ workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
@@ -83,25 +78,21 @@ func TestWorkspaceMCPTool_InvalidateOn404(t *testing.T) {
 					},
 				}, nil
 			},
-			func() { invalidated.Store(true) },
-		)
+		)[0]
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.False(t, invalidated.Load(),
-			"invalidateCache should NOT fire on non-404 error")
 	})
 
-	t.Run("ToolLevelErrorNoInvalidation", func(t *testing.T) {
+	t.Run("ToolError", func(t *testing.T) {
 		t.Parallel()
 
-		var invalidated atomic.Bool
-		tool := chattool.NewWorkspaceMCPTool(
-			workspacesdk.MCPToolInfo{
+		tool := chattool.NewWorkspaceMCPTools(
+			[]workspacesdk.MCPToolInfo{{
 				Name:        "test__echo",
 				Description: "test tool",
-			},
+			}},
 			func(ctx context.Context) (workspacesdk.AgentConn, error) {
 				return &fakeAgentConn{
 					callMCPToolFunc: func(_ context.Context, _ workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
@@ -114,45 +105,84 @@ func TestWorkspaceMCPTool_InvalidateOn404(t *testing.T) {
 					},
 				}, nil
 			},
-			func() { invalidated.Store(true) },
-		)
+		)[0]
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.False(t, invalidated.Load(),
-			"invalidateCache should NOT fire on tool-level error (HTTP 200)")
 	})
+}
 
-	t.Run("NilInvalidateCallbackSafe", func(t *testing.T) {
-		t.Parallel()
+func TestWorkspaceMCPTool_ConvertsMixedContent(t *testing.T) {
+	t.Parallel()
 
-		tool := chattool.NewWorkspaceMCPTool(
-			workspacesdk.MCPToolInfo{
-				Name:        "test__echo",
-				Description: "test tool",
-			},
-			func(ctx context.Context) (workspacesdk.AgentConn, error) {
-				return &fakeAgentConn{
-					callMCPToolFunc: func(_ context.Context, _ workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
-						return workspacesdk.CallMCPToolResponse{}, codersdk.NewError(
-							http.StatusNotFound,
-							codersdk.Response{
-								Message: "MCP tool call failed.",
-								Detail:  `unknown MCP server: "test"`,
-							},
-						)
-					},
-				}, nil
-			},
-			nil,
-		)
+	image := []byte{0x89, 'P', 'N', 'G', 1, 2, 3}
+	audio := []byte("wav-bytes")
+	encoded := func(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
+	text := func(s string) workspacesdk.MCPToolContent { return workspacesdk.MCPToolContent{Type: "text", Text: s} }
+	png := workspacesdk.MCPToolContent{Type: "image", Data: encoded(image), MediaType: "image/png"}
 
-		// Should not panic.
-		resp, err := tool.Run(context.Background(), fantasy.ToolCall{})
-		require.NoError(t, err)
-		assert.True(t, resp.IsError)
-	})
+	for _, tc := range []struct {
+		name string
+		resp workspacesdk.CallMCPToolResponse
+		want fantasy.ToolResponse
+	}{
+		{
+			name: "TextThenImage",
+			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{text("Ran Playwright code"), png}},
+			want: fantasy.ToolResponse{Type: "image", Data: image, MediaType: "image/png", Content: "Ran Playwright code"},
+		},
+		{
+			name: "FirstImageKeptTextJoined",
+			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
+				png,
+				{Type: "image", Data: encoded(audio), MediaType: "image/jpeg"},
+				text("first"),
+				text("second"),
+			}},
+			want: fantasy.ToolResponse{Type: "image", Data: image, MediaType: "image/png", Content: "first\nsecond"},
+		},
+		{
+			name: "AudioIsMedia",
+			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
+				text("transcript"),
+				{Type: "audio", Data: encoded(audio), MediaType: "audio/wav"},
+			}},
+			want: fantasy.ToolResponse{Type: "media", Data: audio, MediaType: "audio/wav", Content: "transcript"},
+		},
+		{
+			name: "ImageWithoutMediaTypeStaysText",
+			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
+				text("captured"),
+				{Type: "image", Data: encoded(image)},
+			}},
+			want: fantasy.ToolResponse{Type: "text", Content: "captured"},
+		},
+		{
+			name: "ErrorFlagKept",
+			resp: workspacesdk.CallMCPToolResponse{IsError: true, Content: []workspacesdk.MCPToolContent{text("boom"), png}},
+			want: fantasy.ToolResponse{Type: "image", Data: image, MediaType: "image/png", Content: "boom", IsError: true},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tool := chattool.NewWorkspaceMCPTools(
+				[]workspacesdk.MCPToolInfo{{Name: "browser__take_screenshot"}},
+				func(context.Context) (workspacesdk.AgentConn, error) {
+					return &fakeAgentConn{
+						callMCPToolFunc: func(context.Context, workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
+							return tc.resp, nil
+						},
+					}, nil
+				},
+			)[0]
+
+			resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: "{}"})
+			require.NoError(t, err)
+			require.Equal(t, tc.want, resp)
+		})
+	}
 }
 
 func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
@@ -162,13 +192,13 @@ func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
 		t.Parallel()
 
 		var gotToolName string
-		tool := chattool.NewWorkspaceMCPTool(
-			workspacesdk.MCPToolInfo{
+		tool := chattool.NewWorkspaceMCPTools(
+			[]workspacesdk.MCPToolInfo{{
 				// "@" is outside the provider's allowed tool-name set; the
 				// model must never see it or the whole request is rejected.
 				Name:        "weather@home__get_forecast",
 				Description: "test tool",
-			},
+			}},
 			func(_ context.Context) (workspacesdk.AgentConn, error) {
 				return &fakeAgentConn{
 					callMCPToolFunc: func(_ context.Context, req workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
@@ -179,8 +209,7 @@ func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
 					},
 				}, nil
 			},
-			nil,
-		)
+		)[0]
 
 		// The model-facing name is sanitized to the provider-safe set.
 		assert.Equal(t, "weather_home__get_forecast", tool.Info().Name)
@@ -196,11 +225,11 @@ func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
 	t.Run("ValidNameUnchanged", func(t *testing.T) {
 		t.Parallel()
 
-		tool := chattool.NewWorkspaceMCPTool(
-			workspacesdk.MCPToolInfo{
+		tool := chattool.NewWorkspaceMCPTools(
+			[]workspacesdk.MCPToolInfo{{
 				Name:        "github__create_issue",
 				Description: "test tool",
-			},
+			}},
 			func(_ context.Context) (workspacesdk.AgentConn, error) {
 				return &fakeAgentConn{
 					callMCPToolFunc: func(_ context.Context, _ workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
@@ -208,8 +237,7 @@ func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
 					},
 				}, nil
 			},
-			nil,
-		)
+		)[0]
 
 		// A name already within the allowed set is left untouched.
 		assert.Equal(t, "github__create_issue", tool.Info().Name)
@@ -221,11 +249,11 @@ func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
 		// A name longer than the provider limit is truncated. "srv__" plus a
 		// 64-char tool name exceeds the 64-char cap.
 		longName := "srv__" + strings.Repeat("a", 64)
-		tool := chattool.NewWorkspaceMCPTool(
-			workspacesdk.MCPToolInfo{
+		tool := chattool.NewWorkspaceMCPTools(
+			[]workspacesdk.MCPToolInfo{{
 				Name:        longName,
 				Description: "test tool",
-			},
+			}},
 			func(_ context.Context) (workspacesdk.AgentConn, error) {
 				return &fakeAgentConn{
 					callMCPToolFunc: func(_ context.Context, _ workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
@@ -233,8 +261,7 @@ func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
 					},
 				}, nil
 			},
-			nil,
-		)
+		)[0]
 
 		// The model-facing name is capped at the strictest provider limit.
 		assert.LessOrEqual(t, len(tool.Info().Name), 64)
@@ -261,7 +288,7 @@ func TestNewWorkspaceMCPTools_DisambiguatesCollidingNames(t *testing.T) {
 		{Name: "foo_bar__echo"},
 	}
 
-	tools := chattool.NewWorkspaceMCPTools(infos, getConn, nil)
+	tools := chattool.NewWorkspaceMCPTools(infos, getConn)
 	require.Len(t, tools, 2)
 
 	names := []string{tools[0].Info().Name, tools[1].Info().Name}

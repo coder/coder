@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	type FC,
 	type FocusEventHandler,
@@ -9,7 +10,6 @@ import type { TemplateVersionVariable } from "#/api/typesGenerated";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
-import { cn } from "#/utils/cn";
 
 export const SensitiveVariableHelperText: FC = () => {
 	return (
@@ -19,7 +19,7 @@ export const SensitiveVariableHelperText: FC = () => {
 	);
 };
 
-interface TemplateVariableFieldProps {
+type TemplateVariableFieldProps = {
 	templateVersionVariable: TemplateVersionVariable;
 	initialValue: string;
 	disabled: boolean;
@@ -28,7 +28,7 @@ interface TemplateVariableFieldProps {
 	helperText?: ReactNode;
 	name?: string;
 	onBlur?: FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
-}
+};
 
 export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
 	templateVersionVariable,

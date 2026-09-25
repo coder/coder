@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -10,13 +11,12 @@ import {
 } from "#/components/StatusIndicator/StatusIndicator";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
-import { cn } from "#/utils/cn";
 import { getLatencyColor } from "#/utils/latency";
 
-interface ProxyRowProps {
+type ProxyRowProps = {
 	latency?: ProxyLatencyReport;
 	proxy: Region;
-}
+};
 
 export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 	// If we have a more specific proxy status, use that.
@@ -99,10 +99,10 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 	);
 };
 
-interface ProxyMessagesRowProps {
+type ProxyMessagesRowProps = {
 	proxy: WorkspaceProxy;
 	extraWarnings: string[];
-}
+};
 
 const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({
 	proxy,
@@ -124,11 +124,11 @@ const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({
 	);
 };
 
-interface ProxyMessagesListProps {
+type ProxyMessagesListProps = {
 	title: string;
 	titleClassName: string;
 	messages?: readonly string[];
-}
+};
 
 const ProxyMessagesList: FC<ProxyMessagesListProps> = ({
 	title,
@@ -153,9 +153,9 @@ const ProxyMessagesList: FC<ProxyMessagesListProps> = ({
 	);
 };
 
-interface DetailedProxyStatusProps {
+type DetailedProxyStatusProps = {
 	proxy: WorkspaceProxy;
-}
+};
 
 // DetailedProxyStatus allows a more precise status to be displayed.
 const DetailedProxyStatus: FC<DetailedProxyStatusProps> = ({ proxy }) => {
@@ -183,9 +183,9 @@ const DetailedProxyStatus: FC<DetailedProxyStatusProps> = ({ proxy }) => {
 	}
 };
 
-interface ProxyStatusProps {
+type ProxyStatusProps = {
 	proxy: Region;
-}
+};
 
 // ProxyStatus will only show "healthy" or "not healthy" status.
 const ProxyStatus: FC<ProxyStatusProps> = ({ proxy }) => {

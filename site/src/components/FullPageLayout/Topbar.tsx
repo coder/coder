@@ -1,4 +1,6 @@
+import { cn } from "cn";
 import {
+	type ComponentProps,
 	cloneElement,
 	type FC,
 	type HTMLAttributes,
@@ -7,9 +9,8 @@ import {
 } from "react";
 import { Avatar, type AvatarProps } from "#/components/Avatar/Avatar";
 import { Button, type ButtonProps } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
 
-export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
+export const Topbar: FC<ComponentProps<"header">> = ({
 	className,
 	...props
 }) => {
@@ -44,7 +45,7 @@ export const TopbarButton: React.FC<ButtonProps> = ({ ...props }) => {
 	return <Button variant="outline" size="sm" {...props} />;
 };
 
-export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const TopbarData: FC<ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {
@@ -56,9 +57,10 @@ export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-export const TopbarDivider: FC<
-	Omit<HTMLAttributes<HTMLSpanElement>, "children">
-> = ({ className, ...props }) => {
+export const TopbarDivider: FC<Omit<ComponentProps<"span">, "children">> = ({
+	className,
+	...props
+}) => {
 	return (
 		<span {...props} className={cn("text-border", className)}>
 			/
@@ -70,6 +72,7 @@ export const TopbarAvatar: FC<AvatarProps> = (props) => {
 	return <Avatar {...props} variant="icon" size="sm" />;
 };
 
+// oxlint-disable-next-line no-restricted-types
 type TopbarIconProps = HTMLAttributes<HTMLOrSVGElement> & {
 	ref?: Ref<HTMLOrSVGElement>;
 };

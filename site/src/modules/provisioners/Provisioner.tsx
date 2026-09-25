@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { Building2Icon, UserIcon } from "lucide-react";
 import type { FC } from "react";
 import type { HealthMessage, ProvisionerDaemon } from "#/api/typesGenerated";
@@ -7,14 +8,13 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import { ProvisionerTag } from "./ProvisionerTag";
 
-interface ProvisionerProps {
+type ProvisionerProps = {
 	readonly provisioner: ProvisionerDaemon;
 	readonly warnings?: readonly HealthMessage[];
-}
+};
 
 export const Provisioner: FC<ProvisionerProps> = ({
 	provisioner,

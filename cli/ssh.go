@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/tailnet"
@@ -142,7 +143,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		containerUser string
 	)
 	cmd := &serpent.Command{
-		Annotations: workspaceCommand,
+		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, ""),
 		Use:         "ssh <workspace> [command]",
 		Short:       "Start a shell into a workspace or run a command",
 		Long: "This command does not have full parity with the standard SSH command. For users who need the full functionality of SSH, create an ssh configuration with `coder config-ssh`.\n\n" +
@@ -211,6 +212,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 			return completions
 		},
 		Handler: func(inv *serpent.Invocation) (retErr error) {
+			// Get the session ID to additionally propagate it to tailnet telemetry.
+			sessionID := clientSessionIDFromContext(inv.Context())
+
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
@@ -474,6 +478,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 					Logger:          logger,
 					BlockEndpoints:  r.disableDirect,
 					EnableTelemetry: !r.disableNetworkTelemetry,
+					ClientSessionID: sessionID,
 				})
 				return err
 			}); err != nil {
@@ -1167,7 +1172,14 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 			return time.Time{}, nil
 		}
 
-		ws, err := client.Workspace(ctx, workspaceID)
+		// Only TTLMillis (derived from the template) and the latest build's
+		// deadline are read below.
+		ws, err := client.Workspace(ctx, workspaceID, codersdk.WorkspaceOptions{
+			IncludeRelated: &wsrelated.Config{
+				Template:    true,
+				LatestBuild: &wsrelated.LatestBuild{},
+			},
+		})
 		if err != nil {
 			return time.Time{}, nil
 		}
@@ -1528,21 +1540,18 @@ func (r stdioErrLogReader) Read(_ []byte) (int, error) {
 	return 0, io.EOF
 }
 
-func getUsageAppName(usageApp string) codersdk.UsageAppName {
-	if usageApp == disableUsageApp {
+// getUsageAppName returns the app name to report usage under, or the empty
+// string to report none. Any name is valid because the server normalizes it
+// at ingestion.
+func getUsageAppName(usageApp string) string {
+	switch usageApp {
+	case disableUsageApp:
 		return ""
+	case "":
+		return string(codersdk.UsageAppNameSSH)
+	default:
+		return usageApp
 	}
-
-	allowedUsageApps := []string{
-		string(codersdk.UsageAppNameSSH),
-		string(codersdk.UsageAppNameVscode),
-		string(codersdk.UsageAppNameJetbrains),
-	}
-	if slices.Contains(allowedUsageApps, usageApp) {
-		return codersdk.UsageAppName(usageApp)
-	}
-
-	return codersdk.UsageAppNameSSH
 }
 
 func setStatsCallback(

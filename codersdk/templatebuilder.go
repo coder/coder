@@ -59,6 +59,17 @@ type TemplateBuilderBase struct {
 	OS            string                          `json:"os"`
 	Variables     []TemplateBuilderModuleVariable `json:"variables"`
 	Prerequisites string                          `json:"prerequisites"`
+	Agents        []TemplateBuilderBaseAgent      `json:"agents"`
+}
+
+// TemplateBuilderBaseAgent is a coder_agent a base template declares. Modules
+// composed onto the base target one of these by Name.
+type TemplateBuilderBaseAgent struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+	// Default reports whether modules attach to this agent when they do not
+	// name one.
+	Default bool `json:"default"`
 }
 
 // TemplateBuilderBasesResponse is the response body for listing template builder bases.
@@ -112,7 +123,9 @@ type TemplateBuilderComposeRequest struct {
 // TemplateBuilderComposeModule identifies a module and its variable
 // values for the compose request.
 type TemplateBuilderComposeModule struct {
-	ID        string            `json:"id"`
+	ID string `json:"id"`
+	// AgentName targets a base coder_agent by name. Empty uses the base default.
+	AgentName string            `json:"agent_name,omitempty"`
 	Variables map[string]string `json:"variables,omitempty"`
 }
 
@@ -142,6 +155,10 @@ type TemplateBuilderCreateTemplateRequest struct {
 	Description        string                         `json:"description,omitempty" validate:"lt=128"`
 	Icon               string                         `json:"icon,omitempty"`
 	ProvisionerTags    map[string]string              `json:"provisioner_tags,omitempty"`
+	// SessionID is the wizard session this request belongs to, as reported to
+	// POST /api/v2/templatebuilder/sessions. It is optional and used only to
+	// attribute a build failure to the session that produced it.
+	SessionID uuid.UUID `json:"session_id,omitempty" format:"uuid"`
 }
 
 // TemplateBuilderCreateTemplateResponse is the response body for

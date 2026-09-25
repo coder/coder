@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
 import type React from "react";
 import { createContext, useContext, useState } from "react";
@@ -16,7 +17,6 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 
 type ComboboxContextProps = {
 	open: boolean;
@@ -35,10 +35,10 @@ function useCombobox() {
 	return context;
 }
 
-interface ComboboxProps extends React.ComponentProps<typeof Popover> {
+type ComboboxProps = {
 	value?: string;
 	onValueChange?: (value: string | undefined) => void;
-}
+} & React.ComponentProps<typeof Popover>;
 
 export const Combobox = ({
 	children,
@@ -65,11 +65,11 @@ export const Combobox = ({
 
 export const ComboboxTrigger = PopoverTrigger;
 
-interface ComboboxButtonProps extends React.ComponentPropsWithRef<"button"> {
+type ComboboxButtonProps = React.ComponentProps<"button"> & {
 	width?: number;
 	selectedOption?: SelectFilterOption;
 	placeholder?: string;
-}
+};
 
 export const ComboboxButton = ({
 	children,
@@ -97,9 +97,7 @@ export const ComboboxButton = ({
 	);
 };
 
-type ComboboxContentProps = React.ComponentPropsWithRef<
-	typeof PopoverContent
-> & {
+type ComboboxContentProps = React.ComponentProps<typeof PopoverContent> & {
 	shouldFilter?: boolean;
 };
 
@@ -114,12 +112,14 @@ export const ComboboxContent = ({
 		<PopoverContent
 			ref={ref}
 			className={cn(
-				"w-auto border-border-default overflow-y-auto text-sm",
+				"flex w-auto flex-col overflow-y-hidden border-border-default text-sm",
 				className,
 			)}
 			{...props}
 		>
-			<Command shouldFilter={shouldFilter}>{children}</Command>
+			<Command shouldFilter={shouldFilter} className="min-h-0 flex-1">
+				{children}
+			</Command>
 		</PopoverContent>
 	);
 };
@@ -127,9 +127,14 @@ export const ComboboxContent = ({
 export const ComboboxInput = CommandInput;
 
 export const ComboboxList: React.FC<
-	React.ComponentPropsWithRef<typeof CommandList>
+	React.ComponentProps<typeof CommandList>
 > = ({ className, ...props }) => {
-	return <CommandList className={cn("p-2", className)} {...props} />;
+	return (
+		<CommandList
+			className={cn("max-h-none min-h-0 flex-1 p-2", className)}
+			{...props}
+		/>
+	);
 };
 
 export const ComboboxItem = ({
@@ -138,7 +143,7 @@ export const ComboboxItem = ({
 	onSelect,
 	value,
 	...props
-}: React.ComponentPropsWithRef<typeof CommandItem>) => {
+}: React.ComponentProps<typeof CommandItem>) => {
 	const { setOpen, value: selectedValue, onValueChange } = useCombobox();
 	const isSelected = value === selectedValue;
 

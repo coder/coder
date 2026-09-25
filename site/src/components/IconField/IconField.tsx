@@ -1,5 +1,6 @@
+import { cn } from "cn";
 import {
-	type ComponentPropsWithRef,
+	type ComponentProps,
 	type FC,
 	lazy,
 	type ReactNode,
@@ -22,11 +23,10 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 
 const EmojiPicker = lazy(() => import("./EmojiPicker"));
 
-type IconFieldProps = Omit<ComponentPropsWithRef<"input">, "type"> & {
+type IconFieldProps = Omit<ComponentProps<"input">, "type"> & {
 	label?: ReactNode;
 	error?: boolean;
 	helperText?: ReactNode;

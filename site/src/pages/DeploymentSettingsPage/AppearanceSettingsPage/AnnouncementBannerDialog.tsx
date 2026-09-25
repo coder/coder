@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { SliderPicker, TwitterPicker } from "react-color";
@@ -15,14 +16,13 @@ import { Label } from "#/components/Label/Label";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { AnnouncementBannerView } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
 import { useTheme } from "#/theme/context";
-import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
 
-interface AnnouncementBannerDialogProps {
+type AnnouncementBannerDialogProps = {
 	banner: BannerConfig;
 	onCancel: () => void;
 	onUpdate: (banner: Partial<BannerConfig>) => Promise<void>;
-}
+};
 
 export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 	banner,

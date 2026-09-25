@@ -1,9 +1,11 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
-import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
 
-interface AdminChatDebugLoggingSettingsProps {
+type AdminChatDebugLoggingSettingsProps = {
 	adminSettings: TypesGen.ChatDebugLoggingAdminSettings | undefined;
 	isLoadingAdminSetting: boolean;
 	onSaveAdminSetting: (
@@ -11,7 +13,7 @@ interface AdminChatDebugLoggingSettingsProps {
 	) => void;
 	isSavingAdminSetting: boolean;
 	isSaveAdminSettingError: boolean;
-}
+};
 
 export const AdminChatDebugLoggingSettings: FC<
 	AdminChatDebugLoggingSettingsProps
@@ -47,7 +49,11 @@ export const AdminChatDebugLoggingSettings: FC<
 					Let users record chat debug logs
 				</h3>
 				<p className="mt-1 mb-0 text-sm font-normal leading-6 text-content-secondary">
-					{description}
+					{description}{" "}
+					<SettingsHeaderDocsLink
+						href={docs("/ai-coder/agents/platform-controls/chat-debug-logging")}
+						context="about chat debug logging"
+					/>
 				</p>
 				{isSaveAdminSettingError && (
 					<p className="m-0 mt-2 text-xs text-content-destructive">

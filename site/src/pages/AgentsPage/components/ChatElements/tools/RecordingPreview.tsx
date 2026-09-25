@@ -1,11 +1,35 @@
-import { ImageOffIcon, PlayIcon } from "lucide-react";
+import {
+	ImageOffIcon,
+	type LucideIcon,
+	PlayIcon,
+	VideoOffIcon,
+} from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 import { getChatFileURL } from "../../../utils/chatAttachments";
+import { useFileProbes } from "../../ChatConversation/FileProbeContext";
 import { VideoLightbox } from "../../VideoLightbox";
-import { DEFAULT_ASPECT, PREVIEW_HEIGHT } from "./previewConstants";
+import {
+	DEFAULT_ASPECT,
+	PREVIEW_HEIGHT,
+	RECORDING_EXPIRED_TEXT,
+} from "./previewConstants";
 
-interface RecordingPreviewProps {
+const frameClassName =
+	"relative overflow-hidden rounded-lg border border-solid border-border-default";
+const frameStyle = { aspectRatio: DEFAULT_ASPECT, height: PREVIEW_HEIGHT };
+
+const PreviewNotice: React.FC<{ icon: LucideIcon; children: string }> = ({
+	icon: Icon,
+	children,
+}) => (
+	<div className="flex size-full items-center justify-center gap-1.5 bg-surface-secondary text-xs text-content-secondary">
+		<Icon className="size-3" />
+		{children}
+	</div>
+);
+
+type RecordingPreviewProps = {
 	/** The chat file ID for the MP4 recording. */
 	recordingFileId: string;
 	/** File ID for the JPEG thumbnail of a completed recording. */
@@ -16,13 +40,14 @@ interface RecordingPreviewProps {
 	/** Optional thumbnail URL override. When provided, this is used
 	 * directly instead of deriving the URL from thumbnailFileId. */
 	thumbnailSrc?: string;
-}
+};
 
 /**
  * Inline recording thumbnail with a play icon overlay. Clicking the
  * preview opens a full-screen VideoLightbox with native playback
  * controls. If the thumbnail fails to load, a "Thumbnail unavailable"
- * message is shown but the video remains playable.
+ * message is shown but the video remains playable. A recording the chat
+ * has evicted renders as an expired notice with no playback control.
  */
 export const RecordingPreview: React.FC<RecordingPreviewProps> = ({
 	recordingFileId,
@@ -30,24 +55,29 @@ export const RecordingPreview: React.FC<RecordingPreviewProps> = ({
 	src: srcOverride,
 	thumbnailSrc: thumbnailSrcOverride,
 }) => {
+	const { hasExpired } = useFileProbes();
 	const [showLightbox, setShowLightbox] = useState(false);
 	const [thumbnailError, setThumbnailError] = useState(false);
 	// Incremented each time the lightbox opens so the VideoLightbox
 	// component remounts and resets its internal error state.
 	const [lightboxKey, setLightboxKey] = useState(0);
 
+	if (hasExpired(recordingFileId)) {
+		return (
+			<div className={frameClassName} style={frameStyle}>
+				<PreviewNotice icon={VideoOffIcon}>
+					{RECORDING_EXPIRED_TEXT}
+				</PreviewNotice>
+			</div>
+		);
+	}
+
 	const videoSrc = srcOverride ?? getChatFileURL(recordingFileId);
 
 	return (
-		<div
-			className="relative overflow-hidden rounded-lg border border-solid border-border-default"
-			style={{ aspectRatio: DEFAULT_ASPECT, height: PREVIEW_HEIGHT }}
-		>
+		<div className={frameClassName} style={frameStyle}>
 			{thumbnailError ? (
-				<div className="flex size-full items-center justify-center gap-1.5 bg-surface-secondary text-xs text-content-secondary">
-					<ImageOffIcon className="size-3" />
-					Thumbnail unavailable
-				</div>
+				<PreviewNotice icon={ImageOffIcon}>Thumbnail unavailable</PreviewNotice>
 			) : thumbnailFileId ? (
 				<img
 					src={thumbnailSrcOverride ?? getChatFileURL(thumbnailFileId)}

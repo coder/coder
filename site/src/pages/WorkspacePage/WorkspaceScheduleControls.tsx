@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import dayjs, { type Dayjs } from "dayjs";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
 import { type FC, type ReactNode, useRef, useState } from "react";
@@ -20,7 +21,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useTime } from "#/hooks/useTime";
 import { getWorkspaceActivityStatus } from "#/modules/workspaces/activity";
-import { cn } from "#/utils/cn";
 import {
 	autostartDisplay,
 	autostopDisplay,
@@ -31,10 +31,10 @@ import {
 } from "#/utils/schedule";
 import { isWorkspaceOn } from "#/utils/workspace";
 
-interface WorkspaceScheduleContainerProps {
+type WorkspaceScheduleContainerProps = {
 	children?: ReactNode;
 	onClickIcon?: () => void;
-}
+};
 
 const WorkspaceScheduleContainer: FC<WorkspaceScheduleContainerProps> = ({
 	children,
@@ -73,11 +73,11 @@ const WorkspaceScheduleContainer: FC<WorkspaceScheduleContainerProps> = ({
 	);
 };
 
-interface WorkspaceScheduleControlsProps {
+type WorkspaceScheduleControlsProps = {
 	workspace: Workspace;
 	template: Template;
 	canUpdateSchedule: boolean;
-}
+};
 
 export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
 	workspace,
@@ -110,11 +110,11 @@ export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
 	);
 };
 
-interface AutostopDisplayProps {
+type AutostopDisplayProps = {
 	workspace: Workspace;
 	template: Template;
 	canUpdateSchedule: boolean;
-}
+};
 
 const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	workspace,

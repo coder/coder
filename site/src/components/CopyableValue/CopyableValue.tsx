@@ -1,4 +1,5 @@
-import { type FC, type HTMLAttributes, useState } from "react";
+import { cn } from "cn";
+import { type ComponentProps, type FC, useState } from "react";
 import {
 	Tooltip,
 	TooltipContent,
@@ -6,14 +7,13 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useClickable } from "#/hooks/useClickable";
 import { useClipboard } from "#/hooks/useClipboard";
-import { cn } from "#/utils/cn";
 
 type TooltipSide = "top" | "right" | "bottom" | "left";
 
-interface CopyableValueProps extends HTMLAttributes<HTMLSpanElement> {
+type CopyableValueProps = ComponentProps<"span"> & {
 	value: string;
 	side?: TooltipSide;
-}
+};
 
 export const CopyableValue: FC<CopyableValueProps> = ({
 	value,
@@ -30,10 +30,11 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
 	const [tooltipOpen, setTooltipOpen] = useState(false);
 	const [isFocused, setIsFocused] = useState(false);
-	const clickableProps = useClickable<HTMLSpanElement>(() => {
-		copyToClipboard(value);
-		setTooltipOpen(true);
-	});
+	const { ref: clickableRef, ...clickableProps } =
+		useClickable<HTMLSpanElement>(() => {
+			copyToClipboard(value);
+			setTooltipOpen(true);
+		});
 
 	return (
 		<Tooltip
@@ -46,7 +47,7 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 		>
 			<TooltipTrigger asChild>
 				<span
-					ref={clickableProps.ref}
+					ref={clickableRef}
 					{...attrs}
 					className={cn("cursor-pointer", className)}
 					role={role ?? clickableProps.role}

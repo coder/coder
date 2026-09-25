@@ -1,12 +1,15 @@
 package mcpclient
 
 import (
+	"bytes"
 	"cmp"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -14,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"charm.land/fantasy"
@@ -112,6 +116,103 @@ type UserOIDCTokenSource interface {
 	OIDCAccessToken(ctx context.Context, userID uuid.UUID) (string, error)
 }
 
+// Server describes one MCP server to connect to. Org-configured servers
+// and inline servers (declared by value on one chat) both convert into
+// this type at the boundary; mcpclient never reads a database row.
+type Server struct {
+	ID        uuid.UUID
+	Slug      string
+	URL       string
+	Transport Transport
+	// Headers are static request headers. Org api_key and custom_headers
+	// auth and inline server headers all arrive here, already parsed.
+	Headers map[string]string
+	// UserAuth selects per-user token auth. Org-only; inline
+	// servers leave it UserAuthNone.
+	UserAuth            UserAuth
+	ForwardCoderHeaders bool
+	// SigningSecret signs forwarded Coder identity headers. Org-only;
+	// inline servers leave it empty.
+	SigningSecret string
+	ToolAllowList []string
+	ToolDenyList  []string
+	ModelIntent   bool
+}
+
+// Transport selects the MCP HTTP transport used to reach a Server.
+type Transport string
+
+const (
+	TransportStreamableHTTP Transport = "streamable_http"
+	TransportSSE            Transport = "sse"
+)
+
+// UserAuth selects how a per-user credential is attached to requests.
+type UserAuth uint8
+
+const (
+	// UserAuthNone attaches no per-user credential. Static headers on
+	// the Server still apply.
+	UserAuthNone UserAuth = iota
+	// UserAuthOAuth2 sends the calling user's stored OAuth2 token for
+	// this server as an Authorization header.
+	UserAuthOAuth2
+	// UserAuthOIDC forwards the calling user's OIDC access token as an
+	// Authorization bearer header.
+	UserAuthOIDC
+)
+
+// ServerFromConfig converts an org-configured row. It returns an error
+// for an unknown transport or auth type and for custom_headers that
+// are not a JSON object.
+func ServerFromConfig(cfg database.MCPServerConfig) (Server, error) {
+	srv := Server{
+		ID:                  cfg.ID,
+		Slug:                cfg.Slug,
+		URL:                 cfg.Url,
+		ForwardCoderHeaders: cfg.ForwardCoderHeaders,
+		SigningSecret:       cfg.SigningSecret,
+		ToolAllowList:       cfg.ToolAllowList,
+		ToolDenyList:        cfg.ToolDenyList,
+		ModelIntent:         cfg.ModelIntent,
+	}
+
+	switch cfg.Transport {
+	case "", string(TransportStreamableHTTP):
+		// Default to streamable HTTP, the newer transport.
+		srv.Transport = TransportStreamableHTTP
+	case string(TransportSSE):
+		srv.Transport = TransportSSE
+	default:
+		return Server{}, xerrors.Errorf("unsupported transport %q", cfg.Transport)
+	}
+
+	switch cfg.AuthType {
+	case "none", "":
+		srv.UserAuth = UserAuthNone
+	case "oauth2":
+		srv.UserAuth = UserAuthOAuth2
+	case "user_oidc":
+		srv.UserAuth = UserAuthOIDC
+	case "api_key":
+		if cfg.APIKeyHeader != "" && cfg.APIKeyValue != "" {
+			srv.Headers = map[string]string{cfg.APIKeyHeader: cfg.APIKeyValue}
+		}
+	case "custom_headers":
+		if cfg.CustomHeaders != "" {
+			var custom map[string]string
+			if err := json.Unmarshal([]byte(cfg.CustomHeaders), &custom); err != nil {
+				return Server{}, xerrors.Errorf("parse custom headers JSON: %w", err)
+			}
+			srv.Headers = custom
+		}
+	default:
+		return Server{}, xerrors.Errorf("unsupported auth type %q", cfg.AuthType)
+	}
+
+	return srv, nil
+}
+
 // ConnectAll connects to all configured MCP servers, discovers
 // their tools, and returns them as fantasy.AgentTool values.
 // Tools are sorted by their prefixed name so callers
@@ -122,7 +223,7 @@ type UserOIDCTokenSource interface {
 func ConnectAll(
 	ctx context.Context,
 	logger slog.Logger,
-	configs []database.MCPServerConfig,
+	servers []Server,
 	tokens []database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
@@ -130,8 +231,38 @@ func ConnectAll(
 	httpClient *http.Client,
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	return connectAllWithHooks(
-		ctx, logger, configs, tokens, userID, oidcSrc, coderHeaders,
-		httpClient, connectTimeout, connectHooks{},
+		ctx, logger, servers, tokens, userID, oidcSrc, coderHeaders,
+		connectOptions{
+			httpClient: httpClient,
+			timeout:    connectTimeout,
+			kind:       connectionKindOrg,
+		},
+	)
+}
+
+// ConnectInline connects to MCP servers that a chat owner declared
+// inline on their own chat. Unlike org-configured servers, these
+// endpoints are chosen by an end user, so the connection is hardened:
+// response bodies, tool counts, tool definitions, and tool results are
+// size-capped after redaction, and each server's URL, its path segments,
+// and header values are redacted from every string a model or a
+// non-owner chat viewer can see. Inline servers have no OAuth tokens or
+// OIDC identity, so those inputs are always empty. A nil httpClient
+// falls back to the default guarded client.
+func ConnectInline(
+	ctx context.Context,
+	logger slog.Logger,
+	servers []Server,
+	coderHeaders map[string]string,
+	httpClient *http.Client,
+) ([]fantasy.AgentTool, []ConnectSummary, func()) {
+	return connectAllWithHooks(
+		ctx, logger, servers, nil, uuid.Nil, nil, coderHeaders,
+		connectOptions{
+			httpClient: inlineHTTPClient(httpClient),
+			timeout:    connectTimeout,
+			kind:       connectionKindInline,
+		},
 	)
 }
 
@@ -144,17 +275,35 @@ type connectHooks struct {
 	reaperDone func()
 }
 
+// connectionKind selects the trust level of an MCP server connection.
+type connectionKind uint8
+
+const (
+	// connectionKindOrg is a server configured by an org admin.
+	connectionKindOrg connectionKind = iota
+	// connectionKindInline is a server declared inline on a chat by the
+	// chat owner. It is untrusted and subject to caps and redaction.
+	connectionKindInline
+)
+
+// connectOptions carries the per-connect settings shared by every
+// server in one ConnectAll or ConnectInline call.
+type connectOptions struct {
+	httpClient *http.Client
+	timeout    time.Duration
+	hooks      connectHooks
+	kind       connectionKind
+}
+
 func connectAllWithHooks(
 	ctx context.Context,
 	logger slog.Logger,
-	configs []database.MCPServerConfig,
+	servers []Server,
 	tokens []database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
-	httpClient *http.Client,
-	timeout time.Duration,
-	hooks connectHooks,
+	opts connectOptions,
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	// Index tokens by server config ID so auth header
 	// construction is O(1) per server.
@@ -190,31 +339,34 @@ func connectAllWithHooks(
 	}
 
 	var eg errgroup.Group
-	for _, cfg := range configs {
-		if !cfg.Enabled {
-			continue
-		}
-
+	for _, srv := range servers {
 		eg.Go(func() error {
+			redactor := newServerRedactor(opts.kind, srv)
 			start := time.Now()
 			serverTools, session, connectErr := connectOne(
-				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
-				httpClient, timeout, hooks,
+				ctx, logger, srv, tokensByConfigID, userID, oidcSrc, coderHeaders,
+				opts, redactor,
 			)
 			duration := time.Since(start)
 			summary := ConnectSummary{
-				ConfigID:   cfg.ID,
-				Slug:       cfg.Slug,
+				ConfigID:   srv.ID,
+				Slug:       redactor.redactString(srv.Slug),
 				DurationMS: duration.Milliseconds(),
 				ToolCount:  len(serverTools),
+			}
+			// Redact before truncating so a secret cut at the byte cap
+			// cannot leak a prefix into the persisted summary.
+			var errText string
+			if connectErr != nil {
+				errText = redactor.redactString(redactErrorURL(opts.kind, connectErr))
 			}
 			switch {
 			case connectErr != nil && errors.Is(connectErr, context.DeadlineExceeded):
 				summary.Outcome = ConnectOutcomeTimeout
-				summary.Error = summaryError(connectErr)
+				summary.Error = truncateSummaryError(errText)
 			case connectErr != nil:
 				summary.Outcome = ConnectOutcomeError
-				summary.Error = summaryError(connectErr)
+				summary.Error = truncateSummaryError(errText)
 			case len(serverTools) == 0:
 				summary.Outcome = ConnectOutcomeNoTools
 			default:
@@ -224,16 +376,16 @@ func connectAllWithHooks(
 			if connectErr != nil {
 				logger.Warn(ctx,
 					"skipping MCP server due to connection failure",
-					slog.F("server_slug", cfg.Slug),
-					slog.F("server_url", RedactURL(cfg.Url)),
+					slog.F("server_slug", summary.Slug),
+					slog.F("server_url", redactServerURL(opts.kind, srv.URL)),
 					slog.F("duration", duration),
-					slog.F("error", redactErrorURL(connectErr)),
+					slog.F("error", summary.Error),
 				)
 			} else if duration >= slowConnectThreshold {
 				logger.Warn(ctx,
 					"slow MCP server connect",
-					slog.F("server_slug", cfg.Slug),
-					slog.F("server_url", RedactURL(cfg.Url)),
+					slog.F("server_slug", summary.Slug),
+					slog.F("server_url", redactServerURL(opts.kind, srv.URL)),
 					slog.F("duration", duration),
 				)
 			}
@@ -325,16 +477,15 @@ func connectAllWithHooks(
 func connectOne(
 	ctx context.Context,
 	logger slog.Logger,
-	cfg database.MCPServerConfig,
+	srv Server,
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
-	httpClient *http.Client,
-	timeout time.Duration,
-	hooks connectHooks,
+	opts connectOptions,
+	redactor secretRedactor,
 ) ([]fantasy.AgentTool, *mcp.ClientSession, error) {
-	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
+	headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc)
 
 	// When opted-in, merge Coder identity headers BEFORE the
 	// transport is created so any auth header already set above
@@ -344,7 +495,7 @@ func connectOne(
 	// admin-configured header that differs only in case from a Coder
 	// identity header would land in the request map twice and the
 	// surviving value would be non-deterministic.
-	if cfg.ForwardCoderHeaders {
+	if srv.ForwardCoderHeaders {
 		canonicalAuth := make(map[string]struct{}, len(headers))
 		for k := range headers {
 			canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
@@ -357,7 +508,12 @@ func connectOne(
 		}
 	}
 
-	tr, err := createTransport(cfg, headers, httpClient)
+	maxResultBytes, maxEventSize := 0, 0
+	if opts.kind == connectionKindInline {
+		maxResultBytes = maxInlineToolResultBytes
+		maxEventSize = maxInlineHTTPResponseBytes
+	}
+	tr, err := createTransport(srv, headers, opts.httpClient, maxEventSize)
 	if err != nil {
 		return nil, nil, xerrors.Errorf(
 			"create transport: %w", err,
@@ -372,7 +528,7 @@ func connectOne(
 	// The timeout covers the entire connect+list sequence, not
 	// each phase individually. The SDK negotiates the protocol
 	// version during Connect; the session outlives connectCtx.
-	connectCtx, cancel := context.WithTimeout(ctx, timeout)
+	connectCtx, cancel := context.WithTimeout(ctx, opts.timeout)
 	defer cancel()
 
 	// Run the connect+list sequence in a goroutine and enforce the
@@ -420,8 +576,8 @@ func connectOne(
 			if late := <-resCh; late.session != nil {
 				_ = late.session.Close()
 			}
-			if hooks.reaperDone != nil {
-				hooks.reaperDone()
+			if opts.hooks.reaperDone != nil {
+				opts.hooks.reaperDone()
 			}
 		}()
 		return nil, nil, xerrors.Errorf("connect: %w", connectCtx.Err())
@@ -433,21 +589,32 @@ func connectOne(
 
 	var tools []fantasy.AgentTool
 	for _, mcpTool := range toolsResult.Tools {
+		if mcpTool == nil {
+			go func() { _ = session.Close() }()
+			return nil, nil, xerrors.New("MCP server returned a null tool definition")
+		}
 		if !isToolAllowed(
 			mcpTool.Name,
-			cfg.ToolAllowList,
-			cfg.ToolDenyList,
+			srv.ToolAllowList,
+			srv.ToolDenyList,
 		) {
 			logger.Debug(ctx, "skipping denied MCP tool",
-				slog.F("server_slug", cfg.Slug),
-				slog.F("tool_name", mcpTool.Name),
+				slog.F("server_slug", redactor.redactString(srv.Slug)),
+				slog.F("tool_name", redactor.redactString(mcpTool.Name)),
 			)
 			continue
 		}
 
 		tools = append(
-			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, session, cfg.ModelIntent),
+			tools, newMCPTool(srv.ID, srv.Slug, mcpTool, session, srv.ModelIntent, redactor, maxResultBytes),
 		)
+	}
+
+	if opts.kind == connectionKindInline {
+		if err := validateInlineToolDefinitions(tools); err != nil {
+			go func() { _ = session.Close() }()
+			return nil, nil, err
+		}
 	}
 
 	if len(tools) == 0 {
@@ -462,51 +629,106 @@ func connectOne(
 	return tools, session, nil
 }
 
+// Caps for inline servers. Tool definitions are sent to the model
+// on every turn and tool results are persisted into chat messages, so an
+// end-user-chosen server must not be able to inflate either unboundedly.
+const (
+	maxInlineTools                = 64
+	maxInlineToolDefinitionBytes  = 64 << 10
+	maxInlineToolDefinitionsBytes = 256 << 10
+	maxInlineToolResultBytes      = 256 << 10
+)
+
+// validateInlineToolDefinitions rejects a tool list that exceeds
+// the inline server count or size caps. Sizes are measured on the
+// redacted definitions the model sees. The whole server is skipped
+// rather than truncated so the model never sees a partial tool set.
+func validateInlineToolDefinitions(tools []fantasy.AgentTool) error {
+	if len(tools) > maxInlineTools {
+		return xerrors.Errorf(
+			"inline MCP server returned %d tools, maximum is %d",
+			len(tools), maxInlineTools,
+		)
+	}
+
+	totalBytes := 0
+	for _, tool := range tools {
+		definition, err := json.Marshal(tool.Info())
+		if err != nil {
+			return xerrors.Errorf("marshal inline MCP tool definition: %w", err)
+		}
+		if len(definition) > maxInlineToolDefinitionBytes {
+			return xerrors.Errorf(
+				"inline MCP tool definition exceeds maximum size of %d bytes",
+				maxInlineToolDefinitionBytes,
+			)
+		}
+		totalBytes += len(definition)
+		if totalBytes > maxInlineToolDefinitionsBytes {
+			return xerrors.Errorf(
+				"inline MCP tool definitions exceed maximum total size of %d bytes",
+				maxInlineToolDefinitionsBytes,
+			)
+		}
+	}
+	return nil
+}
+
 func createTransport(
-	cfg database.MCPServerConfig,
+	srv Server,
 	headers map[string]string,
 	baseHTTPClient *http.Client,
+	maxEventSize int,
 ) (mcp.Transport, error) {
-	httpClient := httpClientWithHeaders(baseHTTPClient, headers)
+	signingSecret := ""
+	if srv.ForwardCoderHeaders {
+		signingSecret = srv.SigningSecret
+	}
+	httpClient := httpClientWithHeaders(baseHTTPClient, headers, signingSecret)
 
-	switch cfg.Transport {
-	case "sse":
+	switch srv.Transport {
+	case TransportSSE:
 		return &mcp.SSEClientTransport{
-			Endpoint:   cfg.Url,
-			HTTPClient: httpClient,
+			Endpoint:     srv.URL,
+			HTTPClient:   httpClient,
+			MaxEventSize: maxEventSize,
 		}, nil
-	case "", "streamable_http":
-		// Default to streamable HTTP, the newer transport.
+	case TransportStreamableHTTP:
 		return &mcp.StreamableClientTransport{
-			Endpoint:   cfg.Url,
-			HTTPClient: httpClient,
+			Endpoint:     srv.URL,
+			HTTPClient:   httpClient,
+			MaxEventSize: maxEventSize,
 		}, nil
 	default:
 		return nil, xerrors.Errorf(
-			"unsupported transport %q", cfg.Transport,
+			"unsupported transport %q", srv.Transport,
 		)
 	}
 }
 
-// buildAuthHeaders constructs HTTP headers for authenticating
-// with the MCP server based on the configured auth type.
+// buildAuthHeaders constructs HTTP headers for authenticating with the
+// MCP server: the static headers on the Server plus any per-user
+// credential selected by UserAuth.
 func buildAuthHeaders(
 	ctx context.Context,
 	logger slog.Logger,
-	cfg database.MCPServerConfig,
+	srv Server,
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 ) map[string]string {
-	headers := make(map[string]string)
+	headers := maps.Clone(srv.Headers)
+	if headers == nil {
+		headers = make(map[string]string)
+	}
 
-	switch cfg.AuthType {
-	case "oauth2":
-		tok, ok := tokensByConfigID[cfg.ID]
+	switch srv.UserAuth {
+	case UserAuthOAuth2:
+		tok, ok := tokensByConfigID[srv.ID]
 		if !ok {
 			logger.Warn(ctx,
 				"no oauth2 token found for MCP server",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 			)
 			break
 		}
@@ -516,21 +738,21 @@ func buildAuthHeaders(
 			// any leftover token material.
 			logger.Warn(ctx,
 				"oauth2 token for MCP server requires reconnect, skipping auth header",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 			)
 			break
 		}
 		if tok.Expiry.Valid && tok.Expiry.Time.Before(time.Now()) {
 			logger.Warn(ctx,
 				"oauth2 token for MCP server is expired",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 				slog.F("expired_at", tok.Expiry.Time),
 			)
 		}
 		if tok.AccessToken == "" {
 			logger.Warn(ctx,
 				"oauth2 token record has empty access token",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 			)
 			break
 		}
@@ -545,28 +767,7 @@ func buildAuthHeaders(
 			tokenType = "Bearer"
 		}
 		headers["Authorization"] = tokenType + " " + tok.AccessToken
-	case "api_key":
-		if cfg.APIKeyHeader != "" && cfg.APIKeyValue != "" {
-			headers[cfg.APIKeyHeader] = cfg.APIKeyValue
-		}
-	case "custom_headers":
-		if cfg.CustomHeaders != "" {
-			var custom map[string]string
-			if err := json.Unmarshal(
-				[]byte(cfg.CustomHeaders), &custom,
-			); err != nil {
-				logger.Warn(ctx,
-					"failed to parse custom headers JSON",
-					slog.F("server_slug", cfg.Slug),
-					slog.Error(err),
-				)
-			} else {
-				for k, v := range custom {
-					headers[k] = v
-				}
-			}
-		}
-	case "user_oidc":
+	case UserAuthOIDC:
 		// Forward the calling user's OIDC access token from
 		// user_links as Authorization: Bearer <token>. The token
 		// source is responsible for refreshing tokens that are
@@ -574,7 +775,7 @@ func buildAuthHeaders(
 		if oidcSrc == nil || userID == uuid.Nil {
 			logger.Warn(ctx,
 				"user_oidc auth requested but no token source available",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 			)
 			break
 		}
@@ -582,7 +783,7 @@ func buildAuthHeaders(
 		if err != nil {
 			logger.Warn(ctx,
 				"failed to obtain user OIDC token for MCP server",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 				slog.Error(err),
 			)
 			break
@@ -595,13 +796,13 @@ func buildAuthHeaders(
 			// GitHub users don't generate noise for every chat turn.
 			logger.Debug(ctx,
 				"no user OIDC token available for MCP server",
-				slog.F("server_slug", cfg.Slug),
+				slog.F("server_slug", srv.Slug),
 			)
 			break
 		}
 		headers["Authorization"] = "Bearer " + token
-	case "none", "":
-		// No auth headers needed.
+	case UserAuthNone:
+		// Only the static headers apply.
 	}
 
 	return headers
@@ -652,16 +853,30 @@ func RedactURL(rawURL string) string {
 	return u.String()
 }
 
+// redactServerURL renders a server URL for logs and persisted connect
+// errors. Inline server URLs are chosen by an end user and commonly
+// carry the credential in the path, so only their origin is kept.
+func redactServerURL(kind connectionKind, rawURL string) string {
+	if kind != connectionKindInline {
+		return RedactURL(rawURL)
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
+}
+
 // redactErrorURL rewrites URLs in an error string to strip
 // credentials. Go's net/http embeds the full request URL in
 // *url.Error messages, which can leak userinfo.
-func redactErrorURL(err error) string {
+func redactErrorURL(kind connectionKind, err error) string {
 	if err == nil {
 		return ""
 	}
 	var urlErr *url.Error
 	if errors.As(err, &urlErr) {
-		urlErr.URL = RedactURL(urlErr.URL)
+		urlErr.URL = redactServerURL(kind, urlErr.URL)
 		return urlErr.Error()
 	}
 	return err.Error()
@@ -678,7 +893,12 @@ const maxSummaryErrorLen = 512
 // credential-bearing URLs are redacted and the result is truncated
 // to maxSummaryErrorLen bytes on a rune boundary.
 func summaryError(err error) string {
-	msg := redactErrorURL(err)
+	return truncateSummaryError(redactErrorURL(connectionKindOrg, err))
+}
+
+// truncateSummaryError caps an already-redacted error message at
+// maxSummaryErrorLen bytes on a rune boundary.
+func truncateSummaryError(msg string) string {
 	if len(msg) <= maxSummaryErrorLen {
 		return msg
 	}
@@ -695,18 +915,210 @@ type MCPToolIdentifier interface {
 	MCPServerConfigID() uuid.UUID
 }
 
+// AppendInline appends inline tools to an existing tool
+// list. When an inline tool has the same name as an existing
+// tool, the existing tool wins and the inline one is dropped
+// with a warning: org-configured and built-in tools must never be
+// shadowed by an end-user-chosen server.
+func AppendInline(
+	ctx context.Context,
+	logger slog.Logger,
+	tools []fantasy.AgentTool,
+	inline []fantasy.AgentTool,
+) []fantasy.AgentTool {
+	if len(inline) == 0 {
+		return tools
+	}
+	existing := make(map[string]struct{}, len(tools))
+	for _, tool := range tools {
+		existing[tool.Info().Name] = struct{}{}
+	}
+	out := slices.Clone(tools)
+	for _, tool := range inline {
+		name := tool.Info().Name
+		if _, ok := existing[name]; ok {
+			var configID uuid.UUID
+			if ident, ok := tool.(MCPToolIdentifier); ok {
+				configID = ident.MCPServerConfigID()
+			}
+			logger.Warn(ctx,
+				"inline MCP tool name collides with an existing tool; inline tool dropped",
+				slog.F("tool_name", name),
+				slog.F("config_id", configID),
+			)
+			continue
+		}
+		existing[name] = struct{}{}
+		out = append(out, tool)
+	}
+	return out
+}
+
+// toolCallIDMetaKey is the _meta key that carries the model's tool
+// call ID on every tools/call request. It is a correlation ID for one
+// model tool call and is stable across chatd retries of that call, so a
+// server MAY use it to deduplicate. No other idempotency guarantee is
+// made. The key is reverse-DNS namespaced per the MCP _meta guidance.
+const toolCallIDMetaKey = "com.coder/tool_call_id"
+
+// redactedPlaceholder replaces each sensitive value in redacted text.
+const redactedPlaceholder = "[REDACTED]"
+
+// MinSensitiveValueBytes is the shortest value the redactor will
+// replace. Shorter values cannot be secrets, and replacing them would
+// rewrite ordinary text, tool names, and schema property names.
+const MinSensitiveValueBytes = 8
+
+// secretRedactor replaces a fixed set of sensitive strings with
+// redactedPlaceholder. The zero value redacts nothing. Longer values
+// are replaced first so a value that contains another value is
+// redacted whole. Empty values, substrings of the placeholder, and
+// values shorter than MinSensitiveValueBytes are dropped: the first
+// would insert the placeholder between every byte, the second would
+// mangle placeholders and cannot hide anything, and the third would
+// rewrite ordinary text without hiding a plausible secret.
+// Redaction can lengthen its input, so size caps are checked after it.
+type secretRedactor struct {
+	values []string
+}
+
+func newSecretRedactor(values []string) secretRedactor {
+	values = slices.Clone(values)
+	values = slices.DeleteFunc(values, func(value string) bool {
+		return value == "" ||
+			strings.Contains(redactedPlaceholder, value) ||
+			len(value) < MinSensitiveValueBytes
+	})
+	slices.SortFunc(values, func(a, b string) int {
+		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a, b))
+	})
+	values = slices.Compact(values)
+	return secretRedactor{values: values}
+}
+
+// newServerRedactor hides every value an inline server's operator
+// supplied, whole and as each structural component, because a server
+// may echo a path segment or a header credential on its own. The URL
+// origin is public, as in redactServerURL. Org servers are not redacted.
+func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
+	if kind != connectionKindInline {
+		return secretRedactor{}
+	}
+	values := []string{srv.URL}
+	if u, err := url.Parse(srv.URL); err == nil {
+		for _, path := range []string{u.EscapedPath(), u.Path} {
+			values = append(values, path)
+			values = append(values, strings.Split(path, "/")...)
+		}
+	}
+	for _, value := range srv.Headers {
+		values = append(values, value)
+		values = append(values, strings.Fields(value)...)
+		parts := strings.FieldsFunc(value, func(r rune) bool {
+			return unicode.IsSpace(r) || r == ';' || r == ','
+		})
+		for _, part := range parts {
+			values = append(values, part)
+			// Add the value of a name=value part on its own, but not the
+			// name. A name is not secret, and redacting it could rewrite
+			// a schema property with the same name.
+			if _, v, ok := strings.Cut(part, "="); ok {
+				values = append(values, strings.Trim(v, `"`))
+			}
+		}
+	}
+	return newSecretRedactor(values)
+}
+
+func (r secretRedactor) redactString(value string) string {
+	for _, secret := range r.values {
+		value = strings.ReplaceAll(value, secret, redactedPlaceholder)
+	}
+	return value
+}
+
+func (r secretRedactor) redactStrings(values []string) []string {
+	if len(values) == 0 || len(r.values) == 0 {
+		return values
+	}
+	redacted := make([]string, len(values))
+	for i, item := range values {
+		redacted[i] = r.redactString(item)
+	}
+	return redacted
+}
+
+func (r secretRedactor) redactBytes(value []byte) []byte {
+	if len(value) == 0 || len(r.values) == 0 {
+		return value
+	}
+	redacted := bytes.Clone(value)
+	for _, secret := range r.values {
+		redacted = bytes.ReplaceAll(redacted, []byte(secret), []byte(redactedPlaceholder))
+	}
+	return redacted
+}
+
+func (r secretRedactor) redactMap(value map[string]any) map[string]any {
+	if len(value) == 0 || len(r.values) == 0 {
+		return value
+	}
+	redacted := make(map[string]any, len(value))
+	for key, item := range value {
+		redacted[r.redactString(key)] = r.redactValue(item)
+	}
+	return redacted
+}
+
+func (r secretRedactor) redactValue(value any) any {
+	if len(r.values) == 0 {
+		return value
+	}
+	switch typed := value.(type) {
+	case string:
+		return r.redactString(typed)
+	case map[string]any:
+		return r.redactMap(typed)
+	case []any:
+		redacted := make([]any, len(typed))
+		for i, item := range typed {
+			redacted[i] = r.redactValue(item)
+		}
+		return redacted
+	case []string:
+		return r.redactStrings(typed)
+	default:
+		return value
+	}
+}
+
+func (r secretRedactor) redactResponse(response fantasy.ToolResponse) fantasy.ToolResponse {
+	if len(r.values) == 0 {
+		return response
+	}
+	response.Type = r.redactString(response.Type)
+	response.Content = r.redactString(response.Content)
+	response.Data = r.redactBytes(response.Data)
+	response.MediaType = r.redactString(response.MediaType)
+	response.Metadata = r.redactString(response.Metadata)
+	return response
+}
+
 // mcpToolWrapper adapts a single MCP tool into a
 // fantasy.AgentTool. It stores the prefixed name for Info() but
 // strips the prefix when forwarding calls to the remote server.
 type mcpToolWrapper struct {
-	configID        uuid.UUID
-	prefixedName    string
-	originalName    string
-	description     string
-	parameters      map[string]any
-	required        []string
-	modelIntent     bool
-	session         *mcp.ClientSession
+	configID     uuid.UUID
+	prefixedName string
+	originalName string
+	description  string
+	parameters   map[string]any
+	required     []string
+	modelIntent  bool
+	session      *mcp.ClientSession
+	redactor     secretRedactor
+	// maxResultBytes caps the serialized tool result; 0 means no cap.
+	maxResultBytes  int
 	providerOptions fantasy.ProviderOptions
 }
 
@@ -724,17 +1136,24 @@ func newMCPTool(
 	tool *mcp.Tool,
 	session *mcp.ClientSession,
 	modelIntent bool,
+	redactor secretRedactor,
+	maxResultBytes int,
 ) *mcpToolWrapper {
 	properties, required := splitInputSchema(tool.InputSchema)
+	// Model-visible fields are redacted once here. originalName is
+	// deliberately left as is: it is the name sent in tools/call and the
+	// server must recognize it.
 	return &mcpToolWrapper{
-		configID:     configID,
-		prefixedName: truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(tool.Name)),
-		originalName: tool.Name,
-		description:  tool.Description,
-		parameters:   properties,
-		required:     required,
-		modelIntent:  modelIntent,
-		session:      session,
+		configID:       configID,
+		prefixedName:   truncateToolName(aidmcp.SanitizeToolName(redactor.redactString(serverSlug)) + toolNameSep + aidmcp.SanitizeToolName(redactor.redactString(tool.Name))),
+		originalName:   tool.Name,
+		description:    redactor.redactString(tool.Description),
+		parameters:     redactor.redactMap(properties),
+		required:       redactor.redactStrings(required),
+		modelIntent:    modelIntent,
+		session:        session,
+		redactor:       redactor,
+		maxResultBytes: maxResultBytes,
 	}
 }
 
@@ -816,7 +1235,7 @@ func (t *mcpToolWrapper) Run(
 			[]byte(input), &args,
 		); err != nil {
 			return fantasy.NewTextErrorResponse(
-				"invalid JSON input: " + err.Error(),
+				t.redactor.redactString("invalid JSON input: " + err.Error()),
 			), nil
 		}
 	}
@@ -824,18 +1243,32 @@ func (t *mcpToolWrapper) Run(
 	callCtx, cancel := context.WithTimeout(ctx, toolCallTimeout)
 	defer cancel()
 
-	result, err := t.session.CallTool(
-		callCtx,
-		&mcp.CallToolParams{
-			Name:      t.originalName,
-			Arguments: args,
-		},
-	)
-	if err != nil {
-		return fantasy.NewTextErrorResponse(err.Error()), nil
+	callParams := &mcp.CallToolParams{
+		Name:      t.originalName,
+		Arguments: args,
 	}
-
-	return convertCallResult(result), nil
+	if params.ID != "" {
+		callParams.Meta = mcp.Meta{toolCallIDMetaKey: params.ID}
+	}
+	result, err := t.session.CallTool(callCtx, callParams)
+	var resp fantasy.ToolResponse
+	if err != nil {
+		resp = fantasy.NewTextErrorResponse(t.redactor.redactString(err.Error()))
+	} else {
+		// Structured content is redacted before convertCallResult encodes it
+		// as JSON, where escaping would hide a secret from the string match.
+		if result != nil {
+			result.StructuredContent = t.redactor.redactValue(result.StructuredContent)
+		}
+		resp = t.redactor.redactResponse(convertCallResult(result))
+	}
+	// Measure the result as the model receives it: Data is sent base64-encoded.
+	if t.maxResultBytes > 0 && len(resp.Content)+len(resp.MediaType)+base64.StdEncoding.EncodedLen(len(resp.Data)) > t.maxResultBytes {
+		return fantasy.NewTextErrorResponse(fmt.Sprintf(
+			"tool result exceeded maximum size of %d bytes", t.maxResultBytes,
+		)), nil
+	}
+	return resp, nil
 }
 
 func (t *mcpToolWrapper) ProviderOptions() fantasy.ProviderOptions {
@@ -878,12 +1311,8 @@ func unwrapModelIntent(input string) string {
 	return input
 }
 
-// convertCallResult translates an MCP CallToolResult into a
-// fantasy.ToolResponse. The fantasy response model supports a
-// single content type per response, so we prioritize text. All
-// text items are collected first. Binary items (image, audio,
-// or embedded blob) are only returned when no text content is
-// available.
+// fantasy permits one media payload per response, so only the first eligible
+// binary block is kept alongside the text.
 func convertCallResult(
 	result *mcp.CallToolResult,
 ) fantasy.ToolResponse {
@@ -902,7 +1331,7 @@ func convertCallResult(
 		case *mcp.ImageContent:
 			// The SDK decodes base64 payloads during unmarshal, so
 			// Data is raw bytes.
-			if binaryResult == nil {
+			if binaryResult == nil && len(c.Data) > 0 && c.MIMEType != "" {
 				r := fantasy.ToolResponse{
 					Type:      "image",
 					Data:      c.Data,
@@ -912,7 +1341,7 @@ func convertCallResult(
 				binaryResult = &r
 			}
 		case *mcp.AudioContent:
-			if binaryResult == nil {
+			if binaryResult == nil && len(c.Data) > 0 && c.MIMEType != "" {
 				r := fantasy.ToolResponse{
 					Type:      "media",
 					Data:      c.Data,
@@ -931,7 +1360,7 @@ func convertCallResult(
 					"[embedded resource with no contents]",
 				)
 			case c.Resource.Blob != nil:
-				if binaryResult == nil {
+				if binaryResult == nil && len(c.Resource.Blob) > 0 && c.Resource.MIMEType != "" {
 					blobType := "media"
 					if strings.HasPrefix(c.Resource.MIMEType, "image/") {
 						blobType = "image"
@@ -982,19 +1411,13 @@ func convertCallResult(
 		}
 	}
 
-	// Prefer text content. Only fall back to binary when no
-	// text was collected.
-	if len(textParts) > 0 {
-		resp := fantasy.NewTextResponse(
-			strings.Join(textParts, "\n"),
-		)
-		resp.IsError = result.IsError
-		return resp
-	}
 	if binaryResult != nil {
+		binaryResult.Content = strings.Join(textParts, "\n")
 		return *binaryResult
 	}
-	return fantasy.NewTextResponse("")
+	resp := fantasy.NewTextResponse(strings.Join(textParts, "\n"))
+	resp.IsError = result.IsError
+	return resp
 }
 
 // RefreshResult contains the outcome of an OAuth2 token refresh

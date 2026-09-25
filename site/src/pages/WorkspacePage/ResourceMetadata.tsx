@@ -1,11 +1,11 @@
-import { Children, type FC, type HTMLAttributes } from "react";
+import { cn } from "cn";
+import { Children, type ComponentProps, type FC } from "react";
 import type { WorkspaceResource } from "#/api/typesGenerated";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import { MemoizedInlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { SensitiveValue } from "#/modules/resources/SensitiveValue";
-import { cn } from "#/utils/cn";
 
-type ResourceMetadataProps = Omit<HTMLAttributes<HTMLElement>, "resource"> & {
+type ResourceMetadataProps = Omit<ComponentProps<"header">, "resource"> & {
 	resource: WorkspaceResource;
 };
 
@@ -58,7 +58,7 @@ export const ResourceMetadata: FC<ResourceMetadataProps> = ({
 													</CopyableValue>
 												);
 											}
-											return <>{children}</>;
+											return children;
 										},
 									}}
 								>

@@ -22,7 +22,7 @@ const READY_FALLBACK_MS = 100;
 /** Keeps a recently hidden terminal attached long enough for quick tab toggles. */
 const TERMINAL_IDLE_DETACH_MS = 30_000;
 
-interface TerminalPanelProps {
+type TerminalPanelProps = {
 	chatId: string;
 	reconnectionToken?: string;
 	/** Command run when the PTY session is first created, such as a command app. */
@@ -41,7 +41,7 @@ interface TerminalPanelProps {
 	onReady?: () => void;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
-}
+};
 
 export const TerminalPanel: FC<TerminalPanelProps> = ({
 	chatId,
@@ -83,13 +83,13 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 
 	const shouldMountTerminal = Boolean(isHot) || isWarm;
 	const hasSignaledReadyRef = useRef(false);
-	const signalReady = useEffectEvent(() => {
+	const signalReady = () => {
 		if (hasSignaledReadyRef.current) {
 			return;
 		}
 		hasSignaledReadyRef.current = true;
 		onReady?.();
-	});
+	};
 	const handleStatusChange = (status: ConnectionStatus) => {
 		setConnectionStatus(status);
 		// A dropped connection produces no output, so signal readiness to surface

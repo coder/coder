@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import { CircleQuestionMarkIcon } from "lucide-react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { cn } from "#/utils/cn";
 
 export const AIBridgeProviderIcon = ({
 	provider,
@@ -57,6 +57,13 @@ export const AIBridgeProviderIcon = ({
 			return (
 				<ExternalImage
 					src="/icon/vercel.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
+		case "openrouter":
+			return (
+				<ExternalImage
+					src="/icon/openrouter.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);

@@ -1,7 +1,6 @@
 import type { StoryContext } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
-import { expect, waitFor } from "storybook/test";
 import { withDefaultFeatures } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { hasFirstUserKey, meKey } from "#/api/queries/users";
@@ -27,28 +26,6 @@ import {
 	MockProxyLatencies,
 } from "./entities";
 
-/**
- * Wait for Radix to finish tearing down a just-closed layer (Select
- * listbox, Popover, and similar). While the layer is open, Radix marks
- * the rest of the page `aria-hidden` and disables pointer events on it,
- * and it undoes both asynchronously after the closing interaction. A
- * pointer interaction or role query issued before that cleanup lands
- * flakes under CPU load, so re-query the next interaction target until
- * it is back in the accessibility tree and accepts pointer input.
- */
-export const waitForRadixLayerClose = async (
-	getTarget: () => HTMLElement,
-): Promise<void> => {
-	await waitFor(
-		() => {
-			// getTarget must re-query by role so an aria-hidden target throws.
-			const target = getTarget();
-			expect(window.getComputedStyle(target).pointerEvents).not.toBe("none");
-		},
-		{ timeout: 10_000 },
-	);
-};
-
 export const withDashboardProvider = (
 	Story: FC,
 	{ parameters }: StoryContext,
@@ -59,6 +36,7 @@ export const withDashboardProvider = (
 		showOrganizations = false,
 		organizations = [MockDefaultOrganization],
 		canViewOrganizationSettings = false,
+		buildInfo = {},
 	} = parameters;
 
 	const entitlements: Entitlements = {
@@ -86,6 +64,7 @@ export const withDashboardProvider = (
 				buildInfo: {
 					...MockBuildInfo,
 					version: "v0.0.0-test",
+					...buildInfo,
 				},
 				organizations,
 				showOrganizations,
@@ -183,7 +162,10 @@ export const withDesktopViewport = (Story: FC) => (
 	</div>
 );
 
-export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
+export const withAuthProvider = function WithAuthProvider(
+	Story: FC,
+	{ parameters }: StoryContext,
+) {
 	if (!parameters.user) {
 		throw new Error("You forgot to add `parameters.user` to your story");
 	}

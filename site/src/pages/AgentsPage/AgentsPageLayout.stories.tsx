@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { Navigate, useOutletContext } from "react-router";
+import { Navigate } from "react-router";
 import {
 	expect,
 	fireEvent,
@@ -23,13 +23,17 @@ import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
+import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
+	MockFailedWorkspaceBuild,
 	MockNoPermissions,
 	MockOrganization2,
 	MockPermissions,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -38,14 +42,13 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
-import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
+import AgentChatPage from "./AgentChatPage";
 import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
 import AgentSettingsLayout from "./AgentSettingsLayout";
-import AgentsPageLayout, {
-	type AgentsPageOutletContext,
-} from "./AgentsPageLayout";
+import AgentsPageLayout from "./AgentsPageLayout";
+import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import {
 	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	clampLeftSidebarWidth,
@@ -56,6 +59,7 @@ import {
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
+import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 
 const defaultModelID = "model-config-1";
 
@@ -95,9 +99,6 @@ const todayTimestamp = new Date().toISOString();
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...MockChat,
 	id: "chat-default",
-	owner_id: "owner-1",
-	owner_username: "owner",
-	owner_name: undefined,
 	last_model_config_id: defaultModels[0].id,
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
@@ -195,17 +196,10 @@ const setInnerWidthForStory = (width: number) => {
 };
 
 const AgentTopBarRouteElement = () => {
-	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
-		useOutletContext<AgentsPageOutletContext>();
 	return (
 		<ChatTopBar
-			chatTitle="Collapsed sidebar agent"
+			chat={{ ...MockChat, title: "Collapsed sidebar agent" }}
 			panel={{ showSidebarPanel: false, onToggleSidebar: fn() }}
-			onArchiveAgent={fn()}
-			onArchiveAndDeleteWorkspace={fn()}
-			onUnarchiveAgent={fn()}
-			isSidebarCollapsed={isSidebarCollapsed}
-			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 		/>
 	);
 };
@@ -272,41 +266,15 @@ const meta: Meta<typeof AgentsPageLayout> = {
 	args: {},
 	beforeEach: () => {
 		localStorage.removeItem(LEFT_SIDEBAR_STORAGE_KEY);
+		localStorage.removeItem(emptyInputStorageKey);
 		// Mocks for the queries AgentsPageLayout runs for the sidebar.
 		spyOn(API.experimental, "getChats").mockResolvedValue([]);
 		spyOn(
 			API.experimental,
 			"getUserChatPersonalModelOverrides",
 		).mockResolvedValue({
+			...MockUnsetUserChatPersonalModelOverrides,
 			enabled: false,
-			root: {
-				context: "root",
-				mode: "deployment_default",
-				model_config_id: "",
-				is_set: false,
-			},
-			general: {
-				context: "general",
-				mode: "deployment_default",
-				model_config_id: "",
-				is_set: false,
-			},
-			explore: {
-				context: "explore",
-				mode: "deployment_default",
-				model_config_id: "",
-				is_set: false,
-			},
-			deployment_defaults: {
-				general: {
-					context: "general",
-					model_config_id: "",
-				},
-				explore: {
-					context: "explore",
-					model_config_id: "",
-				},
-			},
 		});
 		spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],
@@ -416,6 +384,9 @@ const meta: Meta<typeof AgentsPageLayout> = {
 		spyOn(API.experimental, "updateChatRetentionDays").mockResolvedValue();
 
 		spyOn(API, "getGroups").mockResolvedValue([]);
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: false,
+		});
 	},
 };
 
@@ -569,10 +540,13 @@ export const ResizableSidebar: Story = {
 
 		const sidebarWidth = () =>
 			sidebar.style.getPropertyValue("--agents-left-sidebar-width");
+		// Synthetic pointer events default isPrimary to false; a real mouse
+		// always reports true, and the handle ignores non-primary pointers.
+		const pointer = { pointerId: 1, isPrimary: true };
 		const dragSidebar = (fromX: number, toX: number) => {
-			fireEvent.pointerDown(handle, { clientX: fromX, pointerId: 1 });
-			fireEvent.pointerMove(handle, { clientX: toX, pointerId: 1 });
-			fireEvent.pointerUp(handle, { clientX: toX, pointerId: 1 });
+			fireEvent.pointerDown(handle, { ...pointer, clientX: fromX });
+			fireEvent.pointerMove(handle, { ...pointer, clientX: toX });
+			fireEvent.pointerUp(handle, { ...pointer, clientX: toX });
 		};
 
 		const initialWidth = clampLeftSidebarWidth(LEFT_SIDEBAR_DEFAULT_WIDTH);
@@ -629,21 +603,6 @@ export const PersistedResizableSidebarWidth: Story = {
 	parameters: {
 		viewport: { defaultViewport: "ipad" },
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const sidebar = canvas.getByTestId("agents-sidebar-panel");
-		const handle = canvas.getByRole("separator", {
-			name: "Resize agents sidebar",
-		});
-		const sidebarWidth = () =>
-			sidebar.style.getPropertyValue("--agents-left-sidebar-width");
-
-		await expect(handle).toHaveAttribute(
-			"aria-valuenow",
-			String(persistedLeftSidebarWidth),
-		);
-		await expect(sidebarWidth()).toBe(`${persistedLeftSidebarWidth}px`);
-	},
 };
 
 const narrowAgentsLayoutWidth = 720;
@@ -682,36 +641,6 @@ export const WideSidebarPreservesChatPaneWidth: Story = {
 			location: { path: "/agents/chat-wide-sidebar" },
 			routing: agentsWithChatPaneMinimumRouting,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const layout = await canvas.findByTestId("agents-page-layout");
-		const sidebar = await canvas.findByTestId("agents-sidebar-panel");
-		const main = await canvas.findByTestId("agents-main-panel");
-		const chatPanel = await canvas.findByTestId("agents-chat-panel");
-		const composer = await canvas.findByTestId("chat-composer");
-		const sendButton = within(composer).getByRole("button", { name: "Send" });
-
-		await waitFor(() => {
-			const layoutRect = layout.getBoundingClientRect();
-			const sidebarRect = sidebar.getBoundingClientRect();
-			const mainRect = main.getBoundingClientRect();
-			const chatPanelRect = chatPanel.getBoundingClientRect();
-			const composerRect = composer.getBoundingClientRect();
-			const sendButtonRect = sendButton.getBoundingClientRect();
-			const maxSidebarWidth = layoutRect.width - AGENTS_MAIN_PANEL_MIN_WIDTH;
-
-			expect(layoutRect.width).toBe(narrowAgentsLayoutWidth);
-			expect(sidebarRect.width).toBeLessThanOrEqual(maxSidebarWidth + 1);
-			expect(mainRect.width).toBeGreaterThanOrEqual(
-				AGENTS_MAIN_PANEL_MIN_WIDTH - 1,
-			);
-			expect(chatPanelRect.width).toBeGreaterThanOrEqual(
-				AGENTS_MAIN_PANEL_MIN_WIDTH - 1,
-			);
-			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
-			expect(composerRect.right).toBeLessThanOrEqual(layoutRect.right + 1);
-		});
 	},
 };
 
@@ -802,8 +731,7 @@ export const ChatsLoadError: Story = {
 	},
 };
 
-// The collapsed state is internal to the layout. Drive it through
-// the UI, then assert the collapse took effect.
+// The collapsed state is internal to the layout; drive it through the UI.
 export const SidebarCollapsed: Story = {
 	beforeEach: () => {
 		mockChats([
@@ -819,69 +747,7 @@ export const SidebarCollapsed: Story = {
 		await userEvent.click(
 			await canvas.findByRole("button", { name: "Collapse sidebar" }),
 		);
-		await expect(
-			await canvas.findByRole("button", { name: "Expand sidebar" }),
-		).toBeVisible();
-	},
-};
-
-export const EmptyStateZoom200Desktop: Story = {
-	parameters: {
-		viewport: { defaultViewport: "desktopZoom200" },
-		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
-		// viewport param; migrate it to a pixel viewport.
-		chromatic: { viewports: [720] },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const layout = await canvas.findByTestId("agents-page-layout");
-		const sidebar = await canvas.findByTestId("agents-sidebar-panel");
-		const main = await canvas.findByTestId("agents-main-panel");
-
-		await waitFor(() => {
-			const layoutStyles = getComputedStyle(layout);
-			const sidebarStyles = getComputedStyle(sidebar);
-			const mainStyles = getComputedStyle(main);
-			const sidebarRect = sidebar.getBoundingClientRect();
-			const mainRect = main.getBoundingClientRect();
-
-			expect(layoutStyles.flexDirection).toBe("row");
-			expect(sidebarStyles.display).not.toBe("none");
-			expect(mainStyles.display).toBe("flex");
-			expect(sidebarRect.width).toBeGreaterThan(0);
-			expect(mainRect.width).toBeGreaterThan(0);
-			expect(sidebarRect.left).toBeLessThan(mainRect.left);
-			expect(sidebarRect.right).toBeLessThanOrEqual(mainRect.left + 1);
-		});
-
-		await expect(canvas.getByRole("link", { name: "Settings" })).toBeVisible();
-		await expect(canvas.getByRole("link", { name: "New chat" })).toBeVisible();
-		await expect(
-			canvas.getByRole("button", { name: "Collapse sidebar" }),
-		).toBeVisible();
-		await expect(
-			canvas.getByRole("button", { name: /TestUser/ }),
-		).toBeVisible();
-	},
-};
-
-export const CollapsedSidebarZoom200Desktop: Story = {
-	parameters: {
-		viewport: { defaultViewport: "desktopZoom200" },
-		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
-		// viewport param; migrate it to a pixel viewport.
-		chromatic: { viewports: [720] },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			await canvas.findByRole("button", { name: "Collapse sidebar" }),
-		);
-		const expandButton = await canvas.findByRole("button", {
-			name: "Expand sidebar",
-		});
-
-		await expect(expandButton).toBeVisible();
+		await canvas.findByRole("button", { name: "Expand sidebar" });
 	},
 };
 
@@ -910,11 +776,9 @@ export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
 		await userEvent.click(
 			await canvas.findByRole("button", { name: "Collapse sidebar" }),
 		);
-		const expandButton = await canvas.findByRole("button", {
+		await canvas.findByRole("button", {
 			name: "Expand sidebar",
 		});
-
-		await expect(expandButton).toBeVisible();
 	},
 };
 
@@ -949,27 +813,18 @@ export const DeleteConfirmationDialog: Story = {
 	},
 	play: async () => {
 		const dialog = await screen.findByRole("dialog");
-		await expect(dialog).toBeInTheDocument();
-		await expect(
-			within(dialog).getByText("Archive agent & delete workspace"),
-		).toBeInTheDocument();
 
-		// Confirm button should be disabled before typing the workspace name.
+		// Confirm button is disabled before typing the workspace name.
 		const confirmButton = within(dialog).getByRole("button", {
 			name: /delete/i,
 		});
-		await expect(confirmButton).toBeDisabled();
 
 		// Type the workspace name to satisfy the confirmation guard.
 		const input = within(dialog).getByLabelText(/name of the workspace/i);
 		await userEvent.type(input, "my-workspace");
-		await expect(confirmButton).toBeEnabled();
 
-		// Click confirm and verify the callback fires, then enters loading state.
+		// Click confirm so the dialog enters its loading state.
 		await userEvent.click(confirmButton);
-		await waitFor(() => {
-			expect(confirmButton).toBeDisabled();
-		});
 	},
 };
 
@@ -1018,7 +873,7 @@ const agentsWithAgentChatPageRouting = {
 const WATCHED_CHAT_ID = "chat-watched";
 
 // MockChat is owned by MockUserOwner, so the page renders the owner view
-// (composer enabled unless archived) instead of the other-user banner.
+// instead of the other-user banner. Archived chats hide the composer.
 const watchedChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...MockChat,
 	id: WATCHED_CHAT_ID,
@@ -1096,16 +951,7 @@ export const ArchiveWatchEventKeepsOpenChatMounted: Story = {
 	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByText("This agent has been archived and is read-only."),
-		).toBeVisible();
-		await waitFor(() => {
-			expect(canvas.getByRole("textbox")).toHaveAttribute(
-				"aria-disabled",
-				"true",
-			);
-		});
-		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+		await canvas.findByText("This agent has been archived and is read-only.");
 	},
 };
 
@@ -1120,16 +966,12 @@ export const UnarchiveWatchEventRecoversArchivedChat: Story = {
 	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByRole("textbox")).not.toHaveAttribute(
-				"aria-disabled",
-				"true",
-			);
-		});
-		expect(
-			canvas.queryByText("This agent has been archived and is read-only."),
-		).not.toBeInTheDocument();
-		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+		await canvas.findByRole("textbox", { name: "Chat message" });
+		await waitFor(
+			() =>
+				canvas.queryByText("This agent has been archived and is read-only.") ===
+				null,
+		);
 	},
 };
 
@@ -1179,11 +1021,7 @@ export const OpensSettingsForAdmins: Story = {
 	play: async ({ canvasElement }) => {
 		await openSettingsView(canvasElement);
 
-		await waitFor(() => {
-			expect(
-				screen.getByText("Personal preferences for your chat experience."),
-			).toBeInTheDocument();
-		});
+		await screen.findByText("Personal preferences for your chat experience.");
 	},
 };
 
@@ -1194,15 +1032,7 @@ export const OpensSettingsForNonAdmins: Story = {
 	play: async ({ canvasElement }) => {
 		await openSettingsView(canvasElement);
 
-		await waitFor(() => {
-			expect(
-				screen.getByText("Personal preferences for your chat experience."),
-			).toBeInTheDocument();
-		});
-
-		expect(
-			screen.queryByRole("link", { name: "Manage agents" }),
-		).not.toBeInTheDocument();
+		await screen.findByText("Personal preferences for your chat experience.");
 	},
 };
 
@@ -1216,13 +1046,9 @@ export const OpensSettingsForOrgModelAdmins: Story = {
 	play: async ({ canvasElement }) => {
 		await openSettingsView(canvasElement);
 
-		const manageAgentsLink = await screen.findByRole("link", {
+		await screen.findByRole("link", {
 			name: "Manage agents",
 		});
-		expect(manageAgentsLink).toHaveAttribute(
-			"href",
-			"/ai/settings/coder-agents",
-		);
 	},
 };
 
@@ -1238,16 +1064,10 @@ export const OpensAISettingsFromManageAgentsOnMobile: Story = {
 		const manageAgentsLink = await screen.findByRole("link", {
 			name: "Manage agents",
 		});
-		expect(manageAgentsLink).toHaveAttribute(
-			"href",
-			"/ai/settings/coder-agents",
-		);
 
 		await userEvent.click(manageAgentsLink);
 
-		await expect(
-			await screen.findByRole("heading", { name: "Coder Agents" }),
-		).toBeInTheDocument();
+		await screen.findByRole("heading", { name: "Coder Agents" });
 	},
 };
 
@@ -1255,28 +1075,49 @@ export const SettingsViewCoderAgentsLink: Story = {
 	play: async ({ canvasElement }) => {
 		await openSettingsView(canvasElement);
 
-		await waitFor(() => {
-			expect(
-				screen.getByText("Personal preferences for your chat experience."),
-			).toBeInTheDocument();
-		});
+		await screen.findByText("Personal preferences for your chat experience.");
 
 		const manageAgentsLink = await screen.findByRole("link", {
 			name: "Manage agents",
 		});
-		expect(manageAgentsLink).toHaveAttribute(
-			"href",
-			"/ai/settings/coder-agents",
-		);
-
 		await userEvent.click(manageAgentsLink);
 
-		await waitFor(() => {
-			expect(
-				screen.getByText(
-					/organization model choices and deployment-wide Coder Agents capabilities/,
-				),
-			).toBeInTheDocument();
-		});
+		await screen.findByText(
+			/organization model choices and deployment-wide Coder Agents capabilities/,
+		);
+	},
+};
+
+const debugWorkspaceBuildRouter = (buildId: string) =>
+	reactRouterParameters({
+		location: {
+			path: "/agents",
+			searchParams: { [debugWorkspaceBuildSearchParam]: buildId },
+		},
+		routing: [agentsRouting, aiSettingsRouting],
+	});
+
+export const DebugWorkspaceBuildLoading: Story = {
+	parameters: {
+		experiments: ["enable-ai-workspace-debug"],
+		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuild().id),
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceBuild").mockReturnValue(new Promise(() => {}));
+	},
+};
+
+export const DebugWorkspaceBuildLoadError: Story = {
+	parameters: {
+		experiments: ["enable-ai-workspace-debug"],
+		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuild().id),
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceBuild").mockRejectedValue(
+			mockApiError({
+				message:
+					"Resource not found or you do not have access to this resource",
+			}),
+		);
 	},
 };

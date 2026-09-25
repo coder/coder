@@ -1,15 +1,15 @@
+import { SquareTerminalIcon } from "lucide-react";
 import type { FC, MouseEvent } from "react";
-import { TerminalIcon } from "#/components/Icons/TerminalIcon";
 import { getTerminalHref, openAppInNewWindow } from "#/modules/apps/apps";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
-interface TerminalLinkProps {
+type TerminalLinkProps = {
 	workspaceName: string;
 	agentName?: string;
 	userName?: string;
 	containerName?: string;
-}
+};
 
 /**
  * Generate a link to a terminal connected to the provided workspace agent.  If
@@ -40,7 +40,7 @@ export const TerminalLink: FC<TerminalLinkProps> = ({
 					openAppInNewWindow(href);
 				}}
 			>
-				<TerminalIcon />
+				<SquareTerminalIcon />
 				{DisplayAppNameMap.web_terminal}
 			</a>
 		</AgentButton>

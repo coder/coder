@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ChevronLeftIcon,
 	ExternalLinkIcon,
@@ -51,7 +52,6 @@ import { TemplateFileTree } from "#/modules/templates/TemplateFiles/TemplateFile
 import { TemplateResourcesTable } from "#/modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
-import { cn } from "#/utils/cn";
 import {
 	createFile,
 	existsFile,
@@ -75,7 +75,7 @@ import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
-interface TemplateVersionEditorProps {
+type TemplateVersionEditorProps = {
 	template: Template;
 	templateVersion: TemplateVersion;
 	fileTree: FileTree;
@@ -102,7 +102,7 @@ interface TemplateVersionEditorProps {
 	onUpdateProvisionerTags: (tags: Record<string, string>) => void;
 	activePath: string | undefined;
 	onActivePathChange: (path: string | undefined) => void;
-}
+};
 
 export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	isBuilding,
@@ -513,7 +513,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							{selectedTab === "logs" && (
 								<div className="flex flex-col h-[280px] overflow-y-auto">
 									{templateVersion.job.error ? (
-										<div>
+										<div className="sticky top-0 z-10">
 											<ProvisionerAlert
 												title="Error during the build"
 												detail={templateVersion.job.error}

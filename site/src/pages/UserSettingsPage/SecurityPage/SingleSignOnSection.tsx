@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useId, useState } from "react";
 import { useMutation } from "react-query";
@@ -21,7 +22,6 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
 type LoginTypeConfirmation =
@@ -214,9 +214,9 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 	);
 };
 
-interface OIDCIconProps {
+type OIDCIconProps = {
 	oidcAuth: OIDCAuthMethod;
-}
+};
 
 const OIDCIcon: FC<OIDCIconProps> = ({ oidcAuth }) => {
 	if (!oidcAuth.iconUrl) {
@@ -236,13 +236,13 @@ const getOIDCLabel = (oidcAuth: OIDCAuthMethod) => {
 	return oidcAuth.signInText || "OpenID Connect";
 };
 
-interface ConfirmLoginTypeChangeModalProps {
+type ConfirmLoginTypeChangeModalProps = {
 	open: boolean;
 	loading: boolean;
 	error: unknown;
 	onClose: () => void;
 	onConfirm: (password: string) => void;
-}
+};
 
 const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 	open,

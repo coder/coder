@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import {
 	Tooltip,
@@ -5,17 +6,16 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { baseModeFor, type ConcreteThemeName } from "#/theme";
-import { cn } from "#/utils/cn";
 import { THEME_COPY } from "./themeCopy";
 
-interface ThemeSwatchProps {
+type ThemeSwatchProps = {
 	name: string;
 	theme: ConcreteThemeName;
 	selected: boolean;
 	onSelect: () => void;
 	onPreview?: () => void;
 	onPreviewEnd?: () => void;
-}
+};
 
 export const ThemeSwatch: FC<ThemeSwatchProps> = ({
 	name,

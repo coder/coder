@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import { EllipsisVerticalIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
@@ -39,7 +40,6 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
 import { SpendEstimateDocsLink } from "./AICostControl";
 import {
@@ -221,14 +221,14 @@ const GroupMembersPage: FC = () => {
 	);
 };
 
-interface GroupMemberRowProps {
+type GroupMemberRowProps = {
 	member: MemberWithSpend;
 	group: Group;
 	canUpdate: boolean;
 	showAIBudget: boolean;
 	onManageAIBudget: () => void;
 	onRemove: () => void;
-}
+};
 
 const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	member,

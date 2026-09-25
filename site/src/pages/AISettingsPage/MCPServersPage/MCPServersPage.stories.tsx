@@ -17,7 +17,6 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
-	waitForRadixLayerClose,
 	withAuthProvider,
 	withDashboardProvider,
 	withToaster,
@@ -966,11 +965,9 @@ export const AddFailurePreservesEnteredValues: Story = {
 			canvas.getByRole("combobox", { name: /authentication method/i }),
 		);
 		await userEvent.click(body.getByRole("option", { name: "OAuth2" }));
-		// The option click closes the listbox; wait for Radix to restore
-		// pointer events before typing into the next field.
-		await waitForRadixLayerClose(() =>
-			canvas.getByRole("textbox", { name: /client id/i }),
-		);
+		await waitFor(() => {
+			expect(body.queryByRole("option", { name: "OAuth2" })).toBeNull();
+		});
 		await userEvent.type(canvas.getByLabelText(/client id/i), "client-id");
 		await userEvent.type(canvas.getByLabelText(/client secret/i), "secret");
 		await userEvent.click(canvas.getByRole("button", { name: "Add server" }));

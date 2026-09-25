@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { mockApiError } from "#/testHelpers/entities";
-import { waitForRadixLayerClose } from "#/testHelpers/storybook";
 import { TrialRequestForm } from "./TrialRequestForm";
 
 const meta: Meta<typeof TrialRequestForm> = {
@@ -41,23 +40,28 @@ const selectOption = async (
 		await canvas.findByRole("combobox", { name: comboboxName }),
 	);
 	await userEvent.click(await body.findByRole("option", { name: optionName }));
-	// The option click closes the listbox; wait for Radix to make the rest
-	// of the page interactive again before the caller's next step.
-	await waitForRadixLayerClose(() =>
-		canvas.getByRole("combobox", { name: comboboxName }),
-	);
+	await waitFor(() => {
+		expect(body.queryByRole("option", { name: optionName })).toBeNull();
+	});
 };
 
 export const Default: Story = {
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const submit = canvas.getByRole("button", { name: "Start a trial" });
 
-		await expect(submit).toBeDisabled();
+		// The button stays enabled so submitting surfaces validation errors
+		// instead of silently blocking the user.
+		await expect(submit).toBeEnabled();
 
-		await userEvent.click(canvas.getByRole("checkbox"));
+		await userEvent.click(submit);
 
-		await waitFor(() => expect(submit).toBeEnabled());
+		await waitFor(() =>
+			expect(
+				canvas.getByText("Please acknowledge the database requirements."),
+			).toBeInTheDocument(),
+		);
+		await expect(args.onSubmit).not.toHaveBeenCalled();
 	},
 };
 

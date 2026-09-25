@@ -1,8 +1,7 @@
+import { cn } from "cn";
 import type { MotionProps } from "motion/react";
 import { MotionConfig, MotionConfigContext, motion } from "motion/react";
 import { type ElementType, type JSX, useContext } from "react";
-
-import { cn } from "#/utils/cn";
 
 type MotionHTMLProps = MotionProps & Record<string, unknown>;
 
@@ -21,13 +20,13 @@ const getMotionComponent = (element: keyof JSX.IntrinsicElements) => {
 	return component;
 };
 
-interface TextShimmerProps {
+type TextShimmerProps = {
 	children: string;
 	as?: ElementType;
 	className?: string;
 	duration?: number;
 	spread?: number;
-}
+};
 
 const ShimmerComponent = ({
 	children,

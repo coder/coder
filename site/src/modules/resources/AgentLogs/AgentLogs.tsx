@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	type CSSProperties,
 	type FC,
@@ -18,7 +19,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { AGENT_LOG_LINE_HEIGHT, AgentLogLine } from "./AgentLogLine";
 
 // Fallback log used in places where we must always have a valid log source.
@@ -33,7 +33,7 @@ const fallbackLog: WorkspaceAgentLogSource = {
 };
 
 type AgentLogsProps = Omit<
-	React.ComponentPropsWithoutRef<typeof List>,
+	React.ComponentProps<typeof List>,
 	"children" | "itemSize" | "itemCount" | "itemKey"
 > & {
 	logs: readonly Line[];
@@ -257,13 +257,13 @@ export const AgentLogs: FC<AgentLogsProps> = ({
 	);
 };
 
-interface MeasuredLogRowProps {
+type MeasuredLogRowProps = {
 	index: number;
 	// react-window's positioning style for the row (absolute top/left/width).
 	style: CSSProperties;
 	onMeasure: (index: number, height: number) => void;
 	children: ReactNode;
-}
+};
 
 // Wraps a log line and reports its rendered height back to the virtualized
 // list. The height is left to the content (`height: auto`) so wrapped or

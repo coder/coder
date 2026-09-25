@@ -3,10 +3,10 @@ import { Link as RouterLink } from "react-router";
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 
-interface WorkspaceDeletedBannerProps {
+type WorkspaceDeletedBannerProps = {
 	createWorkspaceLink: string;
 	templateName: string;
-}
+};
 
 export const WorkspaceDeletedBanner: FC<WorkspaceDeletedBannerProps> = ({
 	createWorkspaceLink,

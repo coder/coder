@@ -1,10 +1,10 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
-import { cn } from "#/utils/cn";
 
-interface TemplateUpdateMessageProps {
+type TemplateUpdateMessageProps = {
 	children: string;
-}
+};
 
 export const TemplateUpdateMessage: FC<TemplateUpdateMessageProps> = ({
 	children,

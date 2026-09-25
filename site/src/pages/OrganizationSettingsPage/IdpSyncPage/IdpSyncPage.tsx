@@ -1,5 +1,5 @@
-import { type FC, useEffect, useState } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
+import { type FC, useState } from "react";
+import { useMutation, useQueries, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -37,8 +37,8 @@ const IdpSyncPage: FC = () => {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
-	const [groupField, setGroupField] = useState("");
-	const [roleField, setRoleField] = useState("");
+	const [groupFieldOverride, setGroupFieldOverride] = useState<string>();
+	const [roleFieldOverride, setRoleFieldOverride] = useState<string>();
 
 	const [
 		groupIdpSyncSettingsQuery,
@@ -54,29 +54,24 @@ const IdpSyncPage: FC = () => {
 		],
 	});
 
-	useEffect(() => {
-		if (!groupIdpSyncSettingsQuery.data) {
-			return;
-		}
-
-		setGroupField(groupIdpSyncSettingsQuery.data.field);
-	}, [groupIdpSyncSettingsQuery.data]);
-
-	useEffect(() => {
-		if (!roleIdpSyncSettingsQuery.data) {
-			return;
-		}
-
-		setRoleField(roleIdpSyncSettingsQuery.data.field);
-	}, [roleIdpSyncSettingsQuery.data]);
-
 	const [searchParams] = useSearchParams();
-	const tab = searchParams.get("tab") || "groups";
-	const field = tab === "groups" ? groupField : roleField;
+	const tab = searchParams.get("tab") === "roles" ? "roles" : "groups";
+	const groupField =
+		groupFieldOverride ?? groupIdpSyncSettingsQuery.data?.field ?? "";
+	const roleField =
+		roleFieldOverride ?? roleIdpSyncSettingsQuery.data?.field ?? "";
 
-	const fieldValuesQuery = useQuery({
-		...organizationIdpSyncClaimFieldValues(organizationName, field),
-		enabled: Boolean(field),
+	const [groupFieldValuesQuery, roleFieldValuesQuery] = useQueries({
+		queries: [
+			{
+				...organizationIdpSyncClaimFieldValues(organizationName, groupField),
+				enabled: Boolean(groupField),
+			},
+			{
+				...organizationIdpSyncClaimFieldValues(organizationName, roleField),
+				enabled: Boolean(roleField),
+			},
+		],
 	});
 
 	const patchGroupSyncSettingsMutation = useMutation(
@@ -149,43 +144,46 @@ const IdpSyncPage: FC = () => {
 					tab={tab}
 					groupSyncSettings={groupIdpSyncSettingsQuery.data}
 					roleSyncSettings={roleIdpSyncSettingsQuery.data}
-					claimFieldValues={fieldValuesQuery.data}
+					groupClaimFieldValues={groupFieldValuesQuery.data}
+					roleClaimFieldValues={roleFieldValuesQuery.data}
 					groups={groupsQuery.data}
 					groupsMap={groupsMap}
 					roles={rolesQuery.data}
 					organization={organization}
-					onGroupSyncFieldChange={setGroupField}
-					onRoleSyncFieldChange={setRoleField}
+					onGroupSyncFieldChange={setGroupFieldOverride}
+					onRoleSyncFieldChange={setRoleFieldOverride}
 					error={error}
 					onSubmitGroupSyncSettings={async (data) => {
 						const mutation = patchGroupSyncSettingsMutation.mutateAsync(data);
-						toast.promise(mutation, {
-							loading: "Updating IdP group sync settings...",
-							success: "IdP group sync settings updated.",
-							error: (error) => ({
-								message: getErrorMessage(
-									error,
-									"Failed to update IdP group sync settings.",
-								),
-								description: getErrorDetail(error),
-							}),
-						});
+						await toast
+							.promise(mutation, {
+								loading: "Updating IdP group sync settings...",
+								success: "IdP group sync settings updated.",
+								error: (error) => ({
+									message: getErrorMessage(
+										error,
+										"Failed to update IdP group sync settings.",
+									),
+									description: getErrorDetail(error),
+								}),
+							})
+							.unwrap();
 					}}
 					onSubmitRoleSyncSettings={async (data) => {
-						try {
-							await patchRoleSyncSettingsMutation.mutateAsync(data);
-							toast.success("IdP Role sync settings updated.");
-						} catch (error) {
-							toast.error(
-								getErrorMessage(
-									error,
-									"Failed to update IdP role sync settings.",
-								),
-								{
+						const mutation = patchRoleSyncSettingsMutation.mutateAsync(data);
+						await toast
+							.promise(mutation, {
+								loading: "Updating IdP role sync settings...",
+								success: "IdP role sync settings updated.",
+								error: (error) => ({
+									message: getErrorMessage(
+										error,
+										"Failed to update IdP role sync settings.",
+									),
 									description: getErrorDetail(error),
-								},
-							);
-						}
+								}),
+							})
+							.unwrap();
 					}}
 				/>
 			)}

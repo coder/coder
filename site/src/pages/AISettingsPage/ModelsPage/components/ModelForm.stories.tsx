@@ -21,11 +21,7 @@ import {
 	MockDefaultOrganization,
 	MockOrganizationPermissions,
 } from "#/testHelpers/entities";
-import {
-	waitForRadixLayerClose,
-	withDashboardProvider,
-	withToaster,
-} from "#/testHelpers/storybook";
+import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
 import {
 	modelOrganizationSearchParam,
 	OrganizationModelsContext,
@@ -161,33 +157,16 @@ export const AddSetAsDefault: Story = {
 export const LeaveWithUnsavedChanges: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.type(canvas.getByLabelText(/model identifier/i), "gpt-5");
-		// The identifier combobox only commits the typed value to the form
-		// on blur, and the navigation blocker only arms once the resulting
-		// dirty state commits a render. Clicking the link relies on its own
-		// pointerdown blur and can navigate away before the blocker arms
-		// under CPU load, so blur explicitly and wait for the prompt's
-		// beforeunload leg (registered in the same commit) to observe the
-		// dirty state before navigating.
-		await userEvent.tab();
-		await waitFor(
-			() => {
-				const probe = new Event("beforeunload", { cancelable: true });
-				window.dispatchEvent(probe);
-				expect(probe.defaultPrevented).toBe(true);
-			},
-			{ timeout: 10_000 },
-		);
+		// Dirty the form through a plain input. The model identifier
+		// autocomplete only commits to Formik on blur, which races the
+		// leaving click and would skip the unsaved-changes blocker.
+		await userEvent.type(canvas.getByLabelText(/context limit/i), "200000");
 		await userEvent.click(
 			canvas.getByRole("link", { name: /back to models/i }),
 		);
-		// The blocker dialog mounts asynchronously; the default 1s timeout
-		// is too tight when the suite runs under full pre-push CPU load.
-		const dialog = await screen.findByRole(
-			"dialog",
-			{ name: /unsaved changes/i },
-			{ timeout: 10_000 },
-		);
+		const dialog = await screen.findByRole("dialog", {
+			name: /unsaved changes/i,
+		});
 		await expect(dialog).toBeInTheDocument();
 	},
 };
@@ -538,17 +517,15 @@ export const ReasoningEffortInProviderConfiguration: Story = {
 		await userEvent.click(
 			await screen.findByRole("option", { name: "Medium" }),
 		);
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Medium" })).toBeNull();
+		});
 
-		// Each option click closes the listbox; wait for Radix to restore
-		// pointer events before the next click.
-		await waitForRadixLayerClose(() =>
-			canvas.getByRole("combobox", { name: /max reasoning effort/i }),
-		);
 		await userEvent.click(maxSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "Max" }));
-		await waitForRadixLayerClose(() =>
-			canvas.getByRole("button", { name: /add model/i }),
-		);
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Max" })).toBeNull();
+		});
 
 		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
 		await expect(args.onCreateModel).toHaveBeenCalledWith(
@@ -576,22 +553,17 @@ export const ReasoningEffortValidationError: Story = {
 
 		await userEvent.click(defaultSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "High" }));
-		// The option click closes the listbox; wait for Radix to restore
-		// pointer events before opening the next select.
-		await waitForRadixLayerClose(() =>
-			canvas.getByRole("combobox", { name: /max reasoning effort/i }),
-		);
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "High" })).toBeNull();
+		});
 		await userEvent.click(maxSelect);
 		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
 
-		// Formik validation runs asynchronously after the value change.
-		await waitFor(() => {
-			expect(
-				canvas.getByText(
-					"Default reasoning effort must not exceed the max reasoning effort.",
-				),
-			).toBeVisible();
-		});
+		await expect(
+			canvas.getByText(
+				"Default reasoning effort must not exceed the max reasoning effort.",
+			),
+		).toBeVisible();
 	},
 };
 
@@ -617,21 +589,19 @@ export const GoogleThinkingLevelBudgetMutualExclusion: Story = {
 		await userEvent.click(level);
 		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
 		await expect(budget).toBeDisabled();
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Low" })).toBeNull();
+		});
 
-		// Each option click closes the listbox; wait for Radix to restore
-		// pointer events before the next pointer interaction.
-		await waitForRadixLayerClose(() =>
-			canvas.getByRole("combobox", { name: /thinking config thinking level/i }),
-		);
 		await userEvent.click(level);
 		await userEvent.click(
 			await screen.findByRole("option", { name: "Default" }),
 		);
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "Default" })).toBeNull();
+		});
 		await expect(budget).toBeEnabled();
 
-		await waitForRadixLayerClose(() =>
-			canvas.getByLabelText(/thinking config thinking budget/i),
-		);
 		await userEvent.type(budget, "2048");
 		await expect(level).toBeDisabled();
 

@@ -484,8 +484,8 @@ type MergeWatchedChatOptions = {
 	readonly activeChatId?: string;
 };
 
-// Shallow-compare two ChatDiffStatus objects by their meaningful
-// fields, ignoring refreshed_at/stale_at which change on every poll.
+// Do not compare refreshed_at and stale_at: they change on every
+// poll. If they were compared, the cache would update every time.
 const diffStatusEqual = (
 	a: TypesGen.ChatDiffStatus | undefined,
 	b: TypesGen.ChatDiffStatus | undefined,
@@ -505,9 +505,12 @@ const diffStatusEqual = (
 		a.additions === b.additions &&
 		a.deletions === b.deletions &&
 		a.changed_files === b.changed_files &&
+		a.base_branch === b.base_branch &&
+		a.head_branch === b.head_branch &&
 		a.pr_number === b.pr_number &&
 		a.approved === b.approved &&
-		a.commits === b.commits
+		a.commits === b.commits &&
+		a.reviewer_count === b.reviewer_count
 	);
 };
 
@@ -1059,6 +1062,11 @@ const toChatPlanModePayload = (
 	// The API expects an empty string on the wire to clear plan mode.
 	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
 };
+
+export const planModeFieldsForCreateMessage = (
+	clearPlanMode: boolean,
+): { readonly plan_mode?: ChatPlanModeOrClear } =>
+	clearPlanMode ? { plan_mode: toChatPlanModePayload(undefined) } : {};
 
 export const CHAT_SOURCE_ORDER = [
 	...ChatListSources,
@@ -2156,7 +2164,7 @@ export const updateUserChatPersonalModelOverride = (
 	},
 });
 
-const userCompactionThresholdsKey = [
+export const userCompactionThresholdsKey = [
 	...chatConfigKey,
 	"compaction-thresholds",
 	"me",
@@ -2319,9 +2327,30 @@ export const updateChatModel = (queryClient: QueryClient) => ({
 	mutationFn: ({ organizationId, modelId, req }: UpdateChatModelMutationArgs) =>
 		API.experimental.updateChatModel(organizationId, modelId, req),
 	onSuccess: async (
-		_model: TypesGen.ChatModel,
+		model: TypesGen.ChatModel,
 		variables: UpdateChatModelMutationArgs,
 	) => {
+		// Seed the catalog with the confirmed result so the saved state does not
+		// depend on the refetch that follows succeeding.
+		queryClient.setQueryData<TypesGen.OrganizationChatModelsResponse>(
+			organizationChatModelsKey(variables.organizationId),
+			(current) => {
+				if (!current) {
+					return current;
+				}
+				return {
+					...current,
+					models: current.models.map((existing) => {
+						if (existing.id === model.id) {
+							return model;
+						}
+						return model.is_default && existing.is_default
+							? { ...existing, is_default: false }
+							: existing;
+					}),
+				};
+			},
+		);
 		await invalidateChatConfigurationQueries(
 			queryClient,
 			variables.organizationId,

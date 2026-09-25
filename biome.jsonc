@@ -15,6 +15,7 @@
 	"linter": {
 		"rules": {
 			"a11y": {
+				"useMediaCaption": "off", // oxlint owns media-has-caption
 				"noSvgWithoutTitle": "off",
 				"useButtonType": "off",
 				"useSemanticElements": "off",
@@ -69,6 +70,7 @@
 				}
 			},
 			"suspicious": {
+				"noConfusingVoidType": "off", // oxlint owns no-invalid-void-type
 				"noExplicitAny": "off", // oxlint owns no-explicit-any
 				"noArrayIndexKey": "off",
 				"noThenProperty": "off",
@@ -84,6 +86,7 @@
 			},
 			"complexity": {
 				"noImportantStyles": "off", // TODO: check and fix !important styles
+				"noUselessThisAlias": "off",
 				"useLiteralKeys": "off"
 			}
 		}

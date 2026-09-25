@@ -94,10 +94,10 @@ const ExternalLoadingProviderForm = ({
 
 const errorSubmitMessage = "Failed to update provider.";
 
-let bedrockSubmitDeferred = createDeferred<void>();
-let apiKeySubmitDeferred = createDeferred<void>();
-let failedSubmitDeferred = createDeferred<void>();
-let externalSaveDeferred = createDeferred<void>();
+let bedrockSubmitDeferred: Deferred<void> = createDeferred();
+let apiKeySubmitDeferred: Deferred<void> = createDeferred();
+let failedSubmitDeferred: Deferred<void> = createDeferred();
+let externalSaveDeferred: Deferred<void> = createDeferred();
 
 export const AddAnthropicDefault: Story = {};
 
@@ -380,7 +380,7 @@ export const AddBedrockMantleRejectsInvokeUrl: Story = {
 
 export const EditBedrockKeepCredentials: Story = {
 	render: (args) => {
-		bedrockSubmitDeferred = createDeferred<void>();
+		bedrockSubmitDeferred = createDeferred();
 		return (
 			<SuccessfulSubmitProviderForm
 				args={args}
@@ -570,7 +570,7 @@ export const Submitting: Story = {
 
 export const CredentialFocusClear: Story = {
 	render: (args) => {
-		apiKeySubmitDeferred = createDeferred<void>();
+		apiKeySubmitDeferred = createDeferred();
 		return (
 			<SuccessfulSubmitProviderForm
 				args={args}
@@ -637,7 +637,7 @@ export const CredentialFocusClear: Story = {
 };
 export const FailedSubmitKeepsCredential: Story = {
 	render: (args) => {
-		failedSubmitDeferred = createDeferred<void>();
+		failedSubmitDeferred = createDeferred();
 		return (
 			<FailedSubmitProviderForm args={args} deferred={failedSubmitDeferred} />
 		);
@@ -689,7 +689,7 @@ export const FailedSubmitKeepsCredential: Story = {
 
 export const ExternalLoadingKeepsCredential: Story = {
 	render: (args) => {
-		externalSaveDeferred = createDeferred<void>();
+		externalSaveDeferred = createDeferred();
 		return (
 			<ExternalLoadingProviderForm
 				args={args}

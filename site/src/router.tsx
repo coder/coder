@@ -12,7 +12,6 @@ import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBound
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
-import { aiTasksEnabled } from "./modules/tasks/useAITasksEnabled";
 import { AISettingsIndexRedirect } from "./pages/AISettingsPage/AISettingsIndexRedirect";
 import { ModelDefaultsRedirect } from "./pages/AISettingsPage/ModelsPage/ModelDefaultsRedirect";
 import AuditPage from "./pages/AuditPage/AuditPage";
@@ -403,8 +402,6 @@ import {
 } from "./pages/AgentsPage/components/AgentsSkeletons";
 
 const CoderCupPage = lazy(() => import("./pages/CoderCupPage/CoderCupPage"));
-const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
-const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
 const AIBridgeLayout = lazy(
 	() => import("./pages/AIBridgePage/AIBridgeLayout"),
 );
@@ -439,6 +436,9 @@ const AISettingsAddProviderPage = lazy(
 );
 const AISettingsGatewayKeysPage = lazy(
 	() => import("./pages/AISettingsPage/GatewayKeysPage/GatewayKeysPage"),
+);
+const AISettingsSpendPage = lazy(
+	() => import("./pages/AISettingsPage/SpendPage/SpendPage"),
 );
 const AISettingsModelsPage = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/ModelsPage"),
@@ -593,8 +593,6 @@ export const router = createBrowserRouter(
 
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
 
-					{aiTasksEnabled() && <Route path="/tasks" element={<TasksPage />} />}
-
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
 						<Route path="new" element={<CreateOrganizationPage />} />
 
@@ -747,6 +745,7 @@ export const router = createBrowserRouter(
 							path="gateway-keys"
 							element={<AISettingsGatewayKeysPage />}
 						/>
+						<Route path="spend" element={<AISettingsSpendPage />} />
 						<Route index element={<AISettingsIndexRedirect />} />
 						<Route path="models/defaults" element={<ModelDefaultsRedirect />} />
 						<Route
@@ -825,9 +824,6 @@ export const router = createBrowserRouter(
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/coder-cup" element={<CoderCupPage />} />
 				<Route path="/icons" element={<IconsPage />} />
-				{aiTasksEnabled() && (
-					<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
-				)}
 				<Route
 					path="/agents"
 					element={

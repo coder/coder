@@ -2,6 +2,8 @@
  * Copied from shadc/ui on 13/01/2025
  * @see {@link https://ui.shadcn.com/docs/components/select}
  */
+
+import { cn } from "cn";
 import {
 	CheckIcon,
 	ChevronUpIcon,
@@ -9,7 +11,6 @@ import {
 } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { cn } from "#/utils/cn";
 
 export const Select = SelectPrimitive.Root;
 
@@ -17,9 +18,7 @@ export const SelectGroup = SelectPrimitive.Group;
 
 export const SelectValue = SelectPrimitive.Value;
 
-export type SelectTriggerProps = React.ComponentPropsWithRef<
-	typeof SelectPrimitive.Trigger
->;
+type SelectTriggerProps = React.ComponentProps<typeof SelectPrimitive.Trigger>;
 
 export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 	className,
@@ -45,7 +44,7 @@ export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 );
 
 const SelectScrollUpButton: React.FC<
-	React.ComponentPropsWithRef<typeof SelectPrimitive.ScrollUpButton>
+	React.ComponentProps<typeof SelectPrimitive.ScrollUpButton>
 > = ({ className, ...props }) => (
 	<SelectPrimitive.ScrollUpButton
 		className={cn(
@@ -59,7 +58,7 @@ const SelectScrollUpButton: React.FC<
 );
 
 const SelectScrollDownButton: React.FC<
-	React.ComponentPropsWithRef<typeof SelectPrimitive.ScrollDownButton>
+	React.ComponentProps<typeof SelectPrimitive.ScrollDownButton>
 > = ({ className, ...props }) => {
 	return (
 		<SelectPrimitive.ScrollDownButton
@@ -75,13 +74,14 @@ const SelectScrollDownButton: React.FC<
 };
 
 export const SelectContent: React.FC<
-	React.ComponentPropsWithRef<typeof SelectPrimitive.Content>
+	React.ComponentProps<typeof SelectPrimitive.Content>
 > = ({ className, children, position = "popper", ...props }) => (
 	<SelectPrimitive.Portal>
 		<SelectPrimitive.Content
 			className={cn(
 				"relative z-50 max-h-96 min-w-32 overflow-hidden rounded-md border ",
 				"border-border border-solid bg-surface-primary text-content-primary shadow-md ",
+				"origin-(--radix-popper-transform-origin) ",
 				"data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 ",
 				"data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 ",
 				"data-[state=open]:data-[side=bottom]:slide-in-from-top-2 data-[state=open]:data-[side=left]:slide-in-from-right-2 ",
@@ -110,7 +110,7 @@ export const SelectContent: React.FC<
 );
 
 export const SelectLabel: React.FC<
-	React.ComponentPropsWithRef<typeof SelectPrimitive.Label>
+	React.ComponentProps<typeof SelectPrimitive.Label>
 > = ({ className, ...props }) => {
 	return (
 		<SelectPrimitive.Label
@@ -121,7 +121,7 @@ export const SelectLabel: React.FC<
 };
 
 export const SelectItem: React.FC<
-	React.ComponentPropsWithRef<typeof SelectPrimitive.Item>
+	React.ComponentProps<typeof SelectPrimitive.Item>
 > = ({ className, children, ...props }) => (
 	<SelectPrimitive.Item
 		className={cn(

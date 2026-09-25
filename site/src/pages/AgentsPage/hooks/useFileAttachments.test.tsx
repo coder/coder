@@ -59,6 +59,25 @@ describe("useFileAttachments org scoping", () => {
 		expect(uploadedFileIds(result.current)).toStrictEqual(["file-b"]);
 	});
 
+	it("keeps the persisted entry in storage after adopting it for its own org", async () => {
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([
+				persistEntry("file-permitted-org", "notes.txt", "org-b"),
+			]),
+		);
+		const { result } = renderAttachments({ orgId: "org-b" });
+
+		await waitFor(() => {
+			expect(uploadedFileIds(result.current)).toStrictEqual([
+				"file-permitted-org",
+			]);
+		});
+		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toContain(
+			"file-permitted-org",
+		);
+	});
+
 	it("drops another org's attachments when the org changes", async () => {
 		localStorage.setItem(
 			persistedAttachmentsStorageKey,
@@ -192,6 +211,42 @@ describe("useFileAttachments org scoping", () => {
 		await waitFor(() => {
 			expect(uploadedFileIds(result.current)).toStrictEqual(["file-a"]);
 		});
+	});
+
+	it("drops an unpersisted upload when the org changes and leaves storage alone", async () => {
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
+		);
+		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "file-x",
+		});
+		const { result, rerender } = renderHook(
+			({ orgId }: { orgId: string }) =>
+				useFileAttachments(orgId, { persist: false }),
+			{ initialProps: { orgId: "org-a" } },
+		);
+		await waitFor(() => {
+			expect(result.current.organizationAdopted).toBe(true);
+		});
+		expect(result.current.attachments).toStrictEqual([]);
+
+		act(() => {
+			result.current.startUpload(new File(["x"], "x.txt"));
+		});
+		await waitFor(() => {
+			expect(uploadedFileIds(result.current)).toStrictEqual(["file-x"]);
+		});
+
+		rerender({ orgId: "org-b" });
+		expect(uploadedFileIds(result.current)).toStrictEqual([]);
+		await waitFor(() => {
+			expect(result.current.organizationAdopted).toBe(true);
+		});
+		expect(result.current.attachments).toStrictEqual([]);
+		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBe(
+			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
+		);
 	});
 
 	it("does not prune storage during a render that never commits", () => {

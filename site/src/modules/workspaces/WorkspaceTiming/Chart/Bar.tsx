@@ -1,4 +1,4 @@
-import { cn } from "#/utils/cn";
+import { cn } from "cn";
 export type BarColors = {
 	stroke: string;
 	fill: string;
@@ -21,7 +21,7 @@ type BaseBarProps<T> = Omit<T, "size" | "color"> & {
 	colors?: BarColors;
 };
 
-type BarProps = BaseBarProps<React.ComponentPropsWithRef<"div">>;
+type BarProps = BaseBarProps<React.ComponentProps<"div">>;
 
 export const Bar: React.FC<BarProps> = ({
 	colors,
@@ -43,7 +43,7 @@ export const Bar: React.FC<BarProps> = ({
 	);
 };
 
-type ClickableBarProps = BaseBarProps<React.ComponentPropsWithRef<"button">>;
+type ClickableBarProps = BaseBarProps<React.ComponentProps<"button">>;
 
 export const ClickableBar: React.FC<ClickableBarProps> = ({
 	colors,

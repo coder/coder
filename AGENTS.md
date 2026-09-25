@@ -1,8 +1,15 @@
 # Coder Development Guidelines
 
-Make the smallest correct change, follow existing patterns, and verify the result. Ask only when the request is unclear, a meaningful design choice remains, or the action is destructive. If you want an exception to any rule in these documents, stop and get explicit permission first.
+Make the smallest correct change, follow existing patterns, and verify the result. Carry the requested task through implementation, verification, and necessary follow-up until it is complete or blocked by information or access you cannot obtain. Do not stop at a plan, partial fix, or offer to continue when the user requested completed work.
 
 Prioritize correctness over agreement. State uncertainty instead of guessing, and push back on technically unsound requests with evidence.
+
+## Autonomy and clarification
+
+- Resolve routine ambiguity by inspecting relevant code, tests, documentation, and history. Make reasonable, reversible assumptions consistent with the user's intent and existing patterns; state consequential assumptions and continue working.
+- Ask only when essential information cannot be recovered from available context and would materially change the result, or when a destructive or irreversible action requires authorization the user has not already provided. Reuse authorization from the conversation instead of asking again for the same action.
+- If clarification or approval is required, continue authorized work that does not depend on the answer. Explain the specific blocker and what you have already investigated.
+- Apply repository guidance within its stated scope and honor explicit user instructions. Do not turn optional recommendations or routine implementation choices into approval requirements.
 
 ## Task-specific guidance
 
@@ -28,17 +35,18 @@ Load only the guidance relevant to the task:
 | New, moved, or restructured docs                    | [write-docs skill](.claude/skills/write-docs/SKILL.md)  |
 | Frontend                                            | [site/AGENTS.md](site/AGENTS.md)                        |
 
-For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRONTEND_PATTERNS.md). For chatd work, read [coderd/x/chatd/ARCHITECTURE.md](coderd/x/chatd/ARCHITECTURE.md). When the docs style guide and the content guidelines conflict, the content guidelines govern scope and routing.
+For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRONTEND_PATTERNS.md). For chatd work, read [coderd/x/chatd/ARCHITECTURE.md](coderd/x/chatd/ARCHITECTURE.md). When the docs style guide and the content guidelines conflict, the content guidelines govern scope and routing. Automated tooling checks a small subset of the style guide and Vale runs advisory, so read the guide and apply it; a clean `make lint/prose` is not conformance. [What the tooling checks, and what it doesn't](docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt) has the current numbers.
 
 ## Workflow
 
 - Inspect the working tree before editing. For an existing PR, check out its branch first.
-- Discuss architectural decisions such as framework changes, major refactoring, and system design before implementing them. Routine fixes and clear implementations do not need discussion.
-- When asked a question, answer the question instead of jumping to implementation.
+- Follow existing architecture for routine decisions. For requested architectural work, investigate options, choose a reasonable approach, and explain the tradeoffs while proceeding. Ask before introducing major architectural changes outside the requested scope.
+- Answer informational questions directly. Requests to implement, fix, or investigate authorize that work even when phrased as a question.
 - Install and use the repository Git hooks. Never bypass them with `--no-verify`. Wait for slow first runs while caches warm.
 - Prefer targeted tests and checks while iterating. Run the broader checks required by the affected area before handoff.
 - Do not force-push unless explicitly requested.
 - Commit and PR titles use `type(scope): message`. A scope must be a real path containing every changed file. Use a broader scope or no scope for cross-cutting changes.
+- Name branches so they do not collide with issue-tracker IDs. When a branch references a GitHub issue number, write it as `issue-<number>` (for example, `issue-1234-fix-flake`), not as a bare `<word>-<number>` such as `docs-1234` or a leading number. Connected trackers like Linear auto-link any branch containing a `<key>-<number>` token to the same-numbered issue on the team that owns `<key>`, silently attaching the PR to an unrelated ticket and moving it through that ticket's workflow.
 
 ## Essential commands
 
@@ -61,12 +69,14 @@ Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live
 ## Repository guardrails
 
 - **Database changes:** edit `coderd/database/queries/*.sql`, run `make gen`, update `enterprise/audit/table.go` for audit errors, then run `make gen` again.
+- **New resources:** scope every new resource to an organization (`organization_id` column, organization-scoped RBAC and routes), never deployment-wide.
 - **OAuth2:** return RFC-compliant errors such as `writeOAuth2Error(...)`. Public endpoints that need system access use `dbauthz.AsSystemRestricted`.
 - **Chatd:** when a change affects the documented architecture, do not edit the architecture document yourself. Leave TODO items in the affected sections; the human PR author writes the actual updates.
+  - When you review a PR, treat changes to that document as the owner's work. TODOs are notes for the author, so flag any that the PR adds to the architecture document.
 - **Public API:** add the required Swagger annotations for new public HTTP endpoints.
 - **Transactions:** keep `InTx` work on the transaction handle. Prefer explicit database-to-SDK converters.
 - **Concurrent tests:** call `t.Parallel()`, use unique identifiers, and do not use `time.Sleep` to mask timing problems.
-- **Frontend:** reuse shared UI primitives and test components or pages through Storybook stories. Plain Vitest files are for pure logic only.
+- **Frontend:** reuse shared UI primitives. Prefer Vitest and `userEvent` tests that assert the non-visual outcome of the interaction (callback, request, state); extend existing coverage instead of adding a new test when equivalent coverage already exists. Use Storybook stories only for visual components that should be covered by the visual regression tool, which Pixel screenshots in CI.
 - **GitHub Actions:** set top-level `permissions: {}` and grant only required permissions per job.
 
 ## Code and writing style

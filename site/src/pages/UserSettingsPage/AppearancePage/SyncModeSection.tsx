@@ -1,19 +1,19 @@
+import { cn } from "cn";
 import { MoonIcon, SunIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import type { ConcreteThemeName } from "#/theme";
-import { cn } from "#/utils/cn";
 import { ThemePreview } from "./ThemePreview";
 import { ThemeSwatch } from "./ThemeSwatch";
 import { SYNC_MODE_THEMES, THEME_COPY } from "./themeCopy";
 
-interface SyncModeSectionProps {
+type SyncModeSectionProps = {
 	light: ConcreteThemeName;
 	dark: ConcreteThemeName;
 	activeScheme: "dark" | "light"; // The OS color scheme currently in effect
 	namePrefix?: string;
 	onSelect: (scheme: "light" | "dark", theme: ConcreteThemeName) => void;
-}
+};
 
 export const SyncModeSection: FC<SyncModeSectionProps> = ({
 	light,
@@ -44,13 +44,13 @@ export const SyncModeSection: FC<SyncModeSectionProps> = ({
 	);
 };
 
-interface SyncCardProps {
+type SyncCardProps = {
 	scheme: "light" | "dark";
 	selected: ConcreteThemeName;
 	active: boolean;
 	name: string;
 	onSelect: (theme: ConcreteThemeName) => void;
-}
+};
 
 const SyncCard: FC<SyncCardProps> = ({
 	scheme,

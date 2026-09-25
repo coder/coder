@@ -15,7 +15,7 @@ import type {
 	FriendlyDiagnostic,
 	PreviewParameter,
 } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { WorkspaceUserAutocomplete } from "#/components/Autocomplete/WorkspaceUserAutocomplete";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -29,16 +29,13 @@ import {
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 import { useDebouncedFunction } from "#/hooks/debounce";
 import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
 import { useSyncFormParameters } from "#/modules/hooks/useSyncFormParameters";
@@ -56,7 +53,7 @@ import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
-interface CreateWorkspacePageViewProps {
+type CreateWorkspacePageViewProps = {
 	autofillParameters: AutofillBuildParameter[];
 	canUpdateTemplate?: boolean;
 	creatingWorkspace: boolean;
@@ -88,7 +85,7 @@ interface CreateWorkspacePageViewProps {
 	startPollingExternalAuth: (providerId: string) => void;
 	owner: TypesGen.MinimalUser;
 	setOwner: (user: TypesGen.MinimalUser) => void;
-}
+};
 
 export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	autofillParameters,
@@ -440,22 +437,22 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
 
-						<HelpPopover>
-							<HelpPopoverIconTrigger />
-							<HelpPopoverContent className="max-w-xs text-sm">
+						<InfoTooltip>
+							<TooltipMessage>
 								Dynamic Parameters enhances Coder's existing parameter system
 								with real-time validation, conditional parameter behavior, and
 								richer input types.
 								<br />
 								<Link
+									size="sm"
 									href={docs(
 										"/admin/templates/extending-templates/dynamic-parameters",
 									)}
 								>
 									View docs
 								</Link>
-							</HelpPopoverContent>
-						</HelpPopover>
+							</TooltipMessage>
+						</InfoTooltip>
 					</span>
 				</header>
 
@@ -466,6 +463,41 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					data-testid="form"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
+
+					{template.use_classic_parameter_flow && (
+						<Alert
+							severity="warning"
+							prominent
+							actions={
+								canUpdateTemplate && (
+									<Button asChild size="sm">
+										<RouterLink
+											to={`/templates/${template.organization_name}/${template.name}/settings/parameters`}
+										>
+											Open template settings
+										</RouterLink>
+									</Button>
+								)
+							}
+						>
+							<AlertTitle>This template uses deprecated parameters</AlertTitle>
+							<AlertDescription>
+								Some features like real-time validation and conditional
+								parameters won&apos;t work here until the template is switched
+								to dynamic parameters.{" "}
+								<Link
+									href={docs(
+										"/admin/templates/extending-templates/dynamic-parameters",
+									)}
+									target="_blank"
+									rel="noreferrer"
+								>
+									View docs
+									<span className="sr-only"> (opens in new tab)</span>
+								</Link>
+							</AlertDescription>
+						</Alert>
+					)}
 
 					{urlPresetError && (
 						<Alert severity="warning" dismissible>

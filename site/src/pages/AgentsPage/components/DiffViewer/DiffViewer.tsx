@@ -9,6 +9,7 @@ import type {
 import { CodeView } from "@pierre/diffs/react";
 import type { FileTreeSortComparator, GitStatusEntry } from "@pierre/trees";
 import { FileTree, useFileTree } from "@pierre/trees/react";
+import { cn } from "cn";
 import {
 	type ComponentProps,
 	type CSSProperties,
@@ -22,13 +23,12 @@ import {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useTheme } from "#/theme/context";
-import { cn } from "#/utils/cn";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
 import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
 import { useActiveFileTracking } from "./useActiveFileTracking";
 
-interface DiffViewerProps {
+type DiffViewerProps = {
 	parsedFiles: readonly FileDiffMetadata[];
 	isExpanded?: boolean;
 	isLoading?: boolean;
@@ -51,7 +51,7 @@ interface DiffViewerProps {
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
 	scrollToFile?: string | null;
 	onScrollToFileComplete?: () => void;
-}
+};
 
 export type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";
@@ -420,7 +420,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	onScrollToFileComplete,
 }) => {
 	const theme = useTheme();
-	const codeViewRef = useRef<CodeViewHandle<string>>(null);
+	const codeViewRef = useRef<CodeViewHandle<string, undefined>>(null);
 	const isDark = theme.palette.mode === "dark";
 	const [activeFile, setActiveFile] = useState<string | null>(null);
 

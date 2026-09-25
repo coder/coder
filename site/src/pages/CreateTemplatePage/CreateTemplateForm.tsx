@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
@@ -36,7 +37,6 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { ProvisionerTagsField } from "#/modules/provisioners/ProvisionerTagsField";
 import { SelectedTemplate } from "#/pages/CreateWorkspacePage/SelectedTemplate";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
@@ -54,7 +54,7 @@ import { VariableInput } from "./VariableInput";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
-export interface CreateTemplateFormData {
+export type CreateTemplateFormData = {
 	name: string;
 	display_name: string;
 	description: string;
@@ -72,7 +72,7 @@ export interface CreateTemplateFormData {
 	provisioner_type: ProvisionerType;
 	organization: string;
 	tags: CreateTemplateVersionRequest["tags"];
-}
+};
 
 const validationSchema = Yup.object({
 	name: nameValidator("Name"),

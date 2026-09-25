@@ -6,6 +6,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasybedrock "charm.land/fantasy/providers/bedrock"
 	fantasygoogle "charm.land/fantasy/providers/google"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
@@ -64,6 +65,53 @@ func TestApplyReasoningEffort(t *testing.T) {
 		require.Equal(t, "user", *providerOptions.User)
 		require.True(t, *providerOptions.ParallelToolCalls)
 		require.Equal(t, fantasyopenai.ReasoningEffortHigh, *providerOptions.ReasoningEffort)
+	})
+
+	t.Run("ClampsUnsupportedGPT6AstraEfforts", func(t *testing.T) {
+		t.Parallel()
+
+		astra := NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-6-astra"}, nil)
+		for effort, want := range map[string]fantasyopenai.ReasoningEffort{
+			codersdk.ChatModelReasoningEffortNone:    fantasyopenai.ReasoningEffortLow,
+			codersdk.ChatModelReasoningEffortMinimal: fantasyopenai.ReasoningEffortLow,
+			codersdk.ChatModelReasoningEffortLow:     fantasyopenai.ReasoningEffortLow,
+			codersdk.ChatModelReasoningEffortMax:     fantasyopenai.ReasoningEffortMax,
+		} {
+			got := applyReasoningEffort(astra, nil, &effort)
+			providerOptions, ok := got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+			require.True(t, ok, "%T", got[fantasyopenai.Name])
+			require.Equal(t, want, *providerOptions.ReasoningEffort, "effort %q", effort)
+		}
+
+		// Other OpenAI models keep the caller's value.
+		sol := NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-5.6-sol"}, nil)
+		got := applyReasoningEffort(sol, nil, new(codersdk.ChatModelReasoningEffortNone))
+		require.Equal(t, fantasyopenai.ReasoningEffortNone, *got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions).ReasoningEffort)
+	})
+
+	t.Run("ClampsNoneForClaudeOpus55", func(t *testing.T) {
+		t.Parallel()
+
+		for _, model := range []Model{
+			NewModel(&chattest.FakeModel{ProviderName: fantasyanthropic.Name, ModelName: "claude-opus-5-5"}, nil),
+			NewModel(&chattest.FakeModel{ProviderName: fantasybedrock.Name, ModelName: "global.anthropic.claude-opus-5-5"}, nil),
+		} {
+			for effort, want := range map[string]fantasyanthropic.Effort{
+				codersdk.ChatModelReasoningEffortNone: fantasyanthropic.EffortLow,
+				codersdk.ChatModelReasoningEffortLow:  fantasyanthropic.EffortLow,
+				codersdk.ChatModelReasoningEffortMax:  fantasyanthropic.EffortMax,
+			} {
+				got := applyReasoningEffort(model, nil, &effort)
+				providerOptions, ok := got[fantasyanthropic.Name].(*fantasyanthropic.ProviderOptions)
+				require.True(t, ok, "%T", got[fantasyanthropic.Name])
+				require.Equal(t, want, *providerOptions.Effort, "model %q effort %q", model.ModelID(), effort)
+			}
+		}
+
+		// Other Claude models keep none.
+		opus5 := NewModel(&chattest.FakeModel{ProviderName: fantasyanthropic.Name, ModelName: "claude-opus-5"}, nil)
+		got := applyReasoningEffort(opus5, nil, new(codersdk.ChatModelReasoningEffortNone))
+		require.Equal(t, fantasyanthropic.EffortNone, *got[fantasyanthropic.Name].(*fantasyanthropic.ProviderOptions).Effort)
 	})
 
 	tests := []struct {

@@ -1,15 +1,15 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import {
+	type ComponentProps,
 	type FC,
 	Fragment,
-	type HTMLAttributes,
 	useLayoutEffect,
 	useRef,
 } from "react";
 import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
 import type { Line } from "#/components/Logs/LogLine";
 import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "#/components/Logs/Logs";
-import { cn } from "#/utils/cn";
 
 type Stage = ProvisionerJobLog["stage"];
 type LogsGroupedByStage = Record<Stage, ProvisionerJobLog[]>;
@@ -39,13 +39,13 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 	return completedAt.diff(startedAt, "seconds");
 };
 
-interface WorkspaceBuildLogsProps extends HTMLAttributes<HTMLDivElement> {
+type WorkspaceBuildLogsProps = Omit<ComponentProps<"div">, "ref"> & {
 	hideTimestamps?: boolean;
 	sticky?: boolean;
 	logs: ProvisionerJobLog[];
 	build?: WorkspaceBuild;
 	disableAutoscroll?: boolean;
-}
+};
 
 export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 	hideTimestamps,

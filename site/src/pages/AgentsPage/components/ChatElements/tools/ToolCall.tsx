@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ChevronDownIcon,
 	LoaderIcon,
@@ -5,7 +6,7 @@ import {
 	TriangleAlertIcon,
 } from "lucide-react";
 import {
-	type ComponentPropsWithoutRef,
+	type ComponentProps,
 	createContext,
 	type FC,
 	type ReactNode,
@@ -18,7 +19,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { Shimmer } from "../Shimmer";
 import { TranscriptRow } from "../TranscriptRow";
 import { ToolIcon } from "./ToolIcon";
@@ -105,7 +105,7 @@ const useToolCallContext = () => {
  * Standard `div` attributes are forwarded to the wrapper element so
  * callers can attach semantics such as live region roles.
  */
-type ToolCallRootProps = Omit<ComponentPropsWithoutRef<"div">, "children"> & {
+type ToolCallRootProps = Omit<ComponentProps<"div">, "children"> & {
 	children: ReactNode;
 	status: ToolStatus;
 	isError?: boolean;
@@ -259,7 +259,7 @@ const LeadingIcon: FC<ToolCallLeadingIconProps> = ({
 }) => {
 	const { active } = useToolCallContext();
 	if (children) {
-		return <>{children}</>;
+		return children;
 	}
 	if (!name) {
 		return null;
@@ -444,7 +444,7 @@ const Content: FC<ToolCallContentProps> = ({ children }) => {
 	if (!collapsible || !expanded) {
 		return null;
 	}
-	return <>{children}</>;
+	return children;
 };
 
 export const ToolCall = {

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CoinsIcon, InfoIcon, ServerIcon } from "lucide-react";
 import { type FC, Fragment, type ReactNode } from "react";
 import { useQuery } from "react-query";
@@ -30,7 +31,6 @@ import {
 	type UsageSeverity,
 	usageProgressPercentage,
 } from "#/utils/budget";
-import { cn } from "#/utils/cn";
 import { formatCostMicros } from "#/utils/currency";
 import { SvgRingProgress } from "./SvgRingProgress";
 
@@ -302,7 +302,7 @@ const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
 								<TooltipTrigger asChild>
 									<button
 										type="button"
-										className="mt-0.5 inline-flex size-3.5 shrink-0 cursor-help items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary/70 outline-hidden transition-colors hover:text-content-primary focus-visible:ring-2 focus-visible:ring-content-link"
+										className="mt-0.5 inline-flex size-3.5 shrink-0 items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary/70 outline-hidden transition-colors hover:text-content-primary focus-visible:ring-2 focus-visible:ring-content-link"
 										aria-label={`${section.title} help`}
 									>
 										<InfoIcon className="size-3.5" />

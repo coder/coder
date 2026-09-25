@@ -9,10 +9,10 @@ import {
 } from "#/components/Dialog/Dialog";
 import { Link } from "#/components/Link/Link";
 
-interface RequirePermissionProps {
+type RequirePermissionProps = {
 	children?: ReactNode;
 	isFeatureVisible: boolean;
-}
+};
 
 /**
  * Wraps routes that are available based on RBAC or licensing.
@@ -42,5 +42,5 @@ export const RequirePermission: FC<RequirePermissionProps> = ({
 		);
 	}
 
-	return <>{children}</>;
+	return children;
 };

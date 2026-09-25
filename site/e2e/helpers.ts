@@ -614,7 +614,7 @@ type RecursivePartial<T> = {
 			: T[P];
 };
 
-interface EchoProvisionerResponses {
+type EchoProvisionerResponses = {
 	init?: RecursivePartial<Response>[];
 	// parse is for observing any Terraform variables
 	parse?: RecursivePartial<Response>[];
@@ -626,7 +626,7 @@ interface EchoProvisionerResponses {
 	// extraFiles allows the bundling of terraform files in echo provisioner tars
 	// in order to support dynamic parameters
 	extraFiles?: Map<string, string>;
-}
+};
 
 const emptyPlan = new TextEncoder().encode("{}");
 
@@ -850,7 +850,6 @@ const createTemplateVersionTar = async (
 			timings: [],
 			presets: [],
 			resourceReplacements: [],
-			aiTasks: [],
 			...response.graph,
 		} as GraphComplete;
 		response.graph.resources = response.graph.resources?.map(fillResource);
@@ -1342,8 +1341,8 @@ export async function createUser(
 	await page.goto("/deployment/users", { waitUntil: "domcontentloaded" });
 	await expect(page).toHaveTitle("Users - Coder");
 
-	await page.getByRole("link", { name: "Create user" }).click();
-	await expect(page).toHaveTitle("Create User - Coder");
+	await page.getByRole("link", { name: "New user" }).click();
+	await expect(page).toHaveTitle("New user - Coder");
 
 	const username = userValues.username ?? randomName();
 	const name = userValues.name ?? username;
@@ -1353,7 +1352,7 @@ export async function createUser(
 
 	await page.getByLabel("Username").fill(username);
 	if (name) {
-		await page.getByLabel("Full name").fill(name);
+		await page.getByLabel("Name", { exact: true }).fill(name);
 	}
 	await page.getByLabel("Email").fill(email);
 

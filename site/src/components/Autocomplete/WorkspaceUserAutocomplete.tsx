@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FC, useId, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { getErrorMessage } from "#/api/errors";
@@ -19,7 +20,6 @@ import {
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
-import { cn } from "#/utils/cn";
 import { prepareQuery } from "#/utils/filters";
 
 // The common properties between users and org members that we need.

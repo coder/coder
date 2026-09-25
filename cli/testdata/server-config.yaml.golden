@@ -321,6 +321,12 @@ oauth2:
     # Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
     # (default: <unset>, type: string)
     enterpriseBaseURL: ""
+  provider:
+    # Enable the OAuth 2.1 authorization server, which lets external applications
+    # (such as MCP clients) obtain tokens for Coder on behalf of users. Disabled by
+    # default. When disabled, the OAuth2 endpoints and discovery documents return 404.
+    # (default: false, type: bool)
+    enable: false
 oidc:
   # Whether new users can sign up with OIDC.
   # (default: true, type: bool)
@@ -494,6 +500,16 @@ provisioning:
   # Time to force cancel provisioning tasks that are stuck.
   # (default: 10m0s, type: duration)
   forceCancelInterval: 10m0s
+  # Disable the reuse of Terraform modules cached at template import for all
+  # templates. Modules are re-downloaded on every workspace build. Individual
+  # templates cannot opt back in.
+  # (default: false, type: bool)
+  disableModuleCache: false
+# Evaluate every resource in a template when rendering dynamic parameters, instead
+# of only the parameter, preset, and tag blocks and what they reference. Slower,
+# and only needed if a template renders incorrectly with the default.
+# (default: false, type: bool)
+dynamicParametersFullEvaluation: false
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.
@@ -573,6 +589,11 @@ disableWorkspaceSharing: false
 # their chats.
 # (default: <unset>, type: bool)
 disableChatSharing: false
+# Disable caller-supplied tools in chats. Chat requests that include
+# unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing chats run
+# without their dynamic tools and inline MCP servers.
+# (default: <unset>, type: bool)
+disableChatCallerSuppliedTools: false
 # Stop persisting workspace agent context snapshots (instructions, skills, and MCP
 # state used for pinned chat context). When set, coderd rejects agent context
 # pushes as unimplemented and agents stop sending them; chats cannot pin workspace
@@ -580,6 +601,10 @@ disableChatSharing: false
 # deployments.
 # (default: <unset>, type: bool)
 disableWorkspaceAgentContextSync: false
+# Disable Coder-managed file path delivery for user secrets. Stored paths remain
+# until users clear them and resume if this setting is turned off.
+# (default: <unset>, type: bool)
+disableUserSecretFilePath: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:
@@ -603,7 +628,7 @@ client:
   # (default: <unset>, type: string-array)
   sshConfigOptions: []
   # The upgrade message to display to users when a client/server mismatch is
-  # detected. By default it instructs users to update using 'curl -L
+  # detected. By default it instructs users to update using 'curl -fsSL
   # https://coder.com/install.sh | sh'.
   # (default: <unset>, type: string)
   cliUpgradeMessage: ""
@@ -805,11 +830,6 @@ workspace_prebuilds:
   # limit; disabled when set to zero.
   # (default: 3, type: int)
   failure_hard_limit: 3
-# Enable Coder Tasks. When unset, the Tasks routes are not served, the Tasks UI
-# and its URLs are unavailable, the task RBAC permissions are stripped from
-# built-in roles, and the CLI task commands are hidden.
-# (default: false, type: bool)
-enableAITasks: false
 # Configure the background chat processing daemon.
 chat:
   # How many pending chats a worker should acquire per polling cycle.
@@ -840,41 +860,16 @@ chat:
   # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
   aiGatewayRoutingEnabled: true
+  # Maximum time to wait for the next streamed part from the chat model before the
+  # attempt is canceled and retried. This also bounds the time to first token. Set
+  # to 0 to disable. Must be no more than 24h.
+  # (default: 10m0s, type: duration)
+  streamSilenceTimeout: 10m0s
 aibridge:
   # Deprecated: use --ai-gateway-enabled or CODER_AI_GATEWAY_ENABLED instead.
   # Whether to start an in-memory aibridged instance.
   # (default: true, type: bool)
   enabled: true
-  # Deprecated: use --ai-gateway-openai-base-url or CODER_AI_GATEWAY_OPENAI_BASE_URL
-  # instead. The base URL of the OpenAI API.
-  # (default: https://api.openai.com/v1/, type: string)
-  openai_base_url: https://api.openai.com/v1/
-  # Deprecated: use --ai-gateway-anthropic-base-url or
-  # CODER_AI_GATEWAY_ANTHROPIC_BASE_URL instead. The base URL of the Anthropic API.
-  # (default: https://api.anthropic.com/, type: string)
-  anthropic_base_url: https://api.anthropic.com/
-  # Deprecated: use --ai-gateway-bedrock-base-url or
-  # CODER_AI_GATEWAY_BEDROCK_BASE_URL instead. The base URL to use for the AWS
-  # Bedrock API. Use this setting to specify an exact URL to use. Takes precedence
-  # over CODER_AIBRIDGE_BEDROCK_REGION.
-  # (default: <unset>, type: string)
-  bedrock_base_url: ""
-  # Deprecated: use --ai-gateway-bedrock-region or CODER_AI_GATEWAY_BEDROCK_REGION
-  # instead. The AWS Bedrock API region to use. Constructs a base URL to use for the
-  # AWS Bedrock API in the form of `https://bedrock-runtime.<region>.amazonaws.com`.
-  # (default: <unset>, type: string)
-  bedrock_region: ""
-  # Deprecated: use --ai-gateway-bedrock-model or CODER_AI_GATEWAY_BEDROCK_MODEL
-  # instead. The model to use when making requests to the AWS Bedrock API.
-  # (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0, type: string)
-  bedrock_model: global.anthropic.claude-sonnet-4-5-20250929-v1:0
-  # Deprecated: use --ai-gateway-bedrock-small-fastmodel or
-  # CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL instead. The small fast model to use
-  # when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models
-  # to perform background tasks. See
-  # https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
-  # (default: global.anthropic.claude-haiku-4-5-20251001-v1:0, type: string)
-  bedrock_small_fast_model: global.anthropic.claude-haiku-4-5-20251001-v1:0
   # Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a
   # future release. This option is an alias for --ai-gateway-inject-coder-mcp-tools.
   # (default: false, type: bool)
@@ -944,48 +939,10 @@ ai_gateway:
   # Whether to start an in-memory AI Gateway instance.
   # (default: true, type: bool)
   enabled: true
-  # Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this
-  # option seeds provider configuration at startup only exactly once. It will not be
-  # used in service runtime. The base URL of the OpenAI API.
-  # (default: https://api.openai.com/v1/, type: string)
-  openai_base_url: https://api.openai.com/v1/
-  # Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this
-  # option seeds provider configuration at startup only exactly once. It will not be
-  # used in service runtime. The base URL of the Anthropic API.
-  # (default: https://api.anthropic.com/, type: string)
-  anthropic_base_url: https://api.anthropic.com/
-  # Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this
-  # option seeds provider configuration at startup only exactly once. It will not be
-  # used in service runtime. The base URL to use for the AWS Bedrock API. Use this
-  # setting to specify an exact URL to use. Takes precedence over
-  # CODER_AI_GATEWAY_BEDROCK_REGION.
-  # (default: <unset>, type: string)
-  bedrock_base_url: ""
-  # Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this
-  # option seeds provider configuration at startup only exactly once. It will not be
-  # used in service runtime. The AWS Bedrock API region to use. Constructs a base
-  # URL to use for the AWS Bedrock API in the form of
-  # `https://bedrock-runtime.<region>.amazonaws.com`.
-  # (default: <unset>, type: string)
-  bedrock_region: ""
-  # Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this
-  # option seeds provider configuration at startup only exactly once. It will not be
-  # used in service runtime. The model to use when making requests to the AWS
-  # Bedrock API.
-  # (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0, type: string)
-  bedrock_model: global.anthropic.claude-sonnet-4-5-20250929-v1:0
-  # Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this
-  # option seeds provider configuration at startup only exactly once. It will not be
-  # used in service runtime. The small fast model to use when making requests to the
-  # AWS Bedrock API. Claude Code uses Haiku-class models to perform background
-  # tasks. See
-  # https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
-  # (default: global.anthropic.claude-haiku-4-5-20251001-v1:0, type: string)
-  bedrock_small_fast_model: global.anthropic.claude-haiku-4-5-20251001-v1:0
   # Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a
   # future release. Whether to inject Coder's MCP tools into intercepted AI Gateway
-  # requests (requires the "oauth2" and "mcp-server-http" experiments to be
-  # enabled).
+  # requests (requires CODER_OAUTH2_PROVIDER_ENABLE and the "mcp-server-http"
+  # experiment to be enabled).
   # (default: false, type: bool)
   inject_coder_mcp_tools: false
   # Length of time to retain data such as interceptions and all related records

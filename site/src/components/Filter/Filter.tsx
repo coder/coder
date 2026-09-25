@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ExternalLinkIcon, SlidersHorizontalIcon } from "lucide-react";
 import {
 	type ComponentProps,
@@ -25,7 +26,6 @@ import {
 import { SearchField } from "#/components/SearchField/SearchField";
 import { Skeleton, type SkeletonProps } from "#/components/Skeleton/Skeleton";
 import { useDebouncedFunction } from "#/hooks/debounce";
-import { cn } from "#/utils/cn";
 import {
 	type FilterValues,
 	parseFilterQuery,
@@ -225,14 +225,14 @@ export const Filter: FC<FilterProps> = ({
 	);
 };
 
-interface PresetMenuProps {
+type PresetMenuProps = {
 	value: string;
 	presets: PresetFilter[];
 	learnMoreLink?: string;
 	learnMoreLabel2?: string;
 	learnMoreLink2?: string;
 	onSelect: (query: string) => void;
-}
+};
 
 const PresetMenu: FC<PresetMenuProps> = ({
 	value,

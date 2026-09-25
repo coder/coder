@@ -21,6 +21,9 @@ needs docs; this skill covers writing them well.
 >   [`docs/.style/style-guide/`](../../../docs/.style/style-guide/README.md).
 >   Open it and apply it as a checklist. Do not write from memory; most style
 >   churn in review comes from rules that already exist but were not applied.
+>   Automated tooling checks a small subset of that guide, and Vale runs
+>   advisory, so a clean lint run is not evidence that you applied it. Refer to
+>   [What the tooling checks, and what it doesn't](../../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
 > - **Agent-facing structure and research notes:**
 >   [`.claude/docs/DOCS_STYLE_GUIDE.md`](../../docs/DOCS_STYLE_GUIDE.md).
 >
@@ -43,7 +46,9 @@ style.
    - **Read the real source.** Open the actual template, config, code path,
      or CLI definition. Copy exact identifiers, defaults, file paths, option
      names, RBAC role names, thresholds, and API paths from the source, not
-     from memory.
+     from memory. These copies are verification inputs; whether each value
+     appears on the page is governed by
+     [Evidence versus claim](#evidence-versus-claim).
    - **Run the real thing.** Execute the commands in the same environment and
      image the reader will use. Capture real output and real error strings.
      Do not paraphrase an error you did not see. If you can only
@@ -72,7 +77,9 @@ style.
    [Structural rules](../../../docs/.style/content-guidelines.md#structural-rules).
 4. **Draft with deliberate pedagogy** (see patterns below).
 5. **Self-review and validate.** Apply the prose style guide with it open.
-   Run `make lint/emdash`, markdownlint, and Vale. Run the commands and code
+   Most of the guide is unenforced, so this reading pass is the only thing
+   that catches those rules. Then run `make lint/emdash`, markdownlint, and
+   Vale. Run the commands and code
    in the page. Fix every inbound link you moved and add redirects for any
    rename (see [Structural rules to apply](#structural-rules-to-apply)).
 6. **Open the PR.** Write the title and description per the
@@ -110,6 +117,13 @@ style.
   reader is and what comes next. End each page with a consistent next step (and
   Previous/Next where the engine supports it); never ship a page that
   dead-ends.
+
+## Evidence versus claim
+
+The canonical rule is
+[Evidence justifies a claim; it does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+in the content guidelines; they govern. Read it there rather than from a
+summary here.
 
 ## What not to write
 
@@ -155,10 +169,15 @@ the whole series as a single review.
 - Telling the reader their tool is wrong when it merely needs configuration.
 - Brittle references that rot: hard-coded line numbers, or a screenshot
   standing in for text the reader could copy.
+- Publishing verification evidence as content: identifiers on a page whose
+  reader never types or receives them (see
+  [Evidence versus claim](#evidence-versus-claim)).
 - Duplicating large content silently instead of flagging the maintenance
   cost to the reviewer.
 - Treating the style guide as optional recall instead of a checklist you open
   and apply.
+- Reading a clean Vale run as conformance with the style guide. It checks a
+  small, mechanical subset and runs advisory.
 
 ## Pre-handoff checklist
 
@@ -172,8 +191,12 @@ the whole series as a single review.
 - [ ] New, renamed, or deprecated product or feature names have a matching
       `docs/reference/glossary.md` entry (a rename keeps the former name; a
       deprecation names the replacement).
-- [ ] Prose style guide applied with it open; `make lint/emdash`,
-      markdownlint, and Vale pass.
+- [ ] Prose style guide opened and applied section by section, including the
+      rules no linter checks.
+- [ ] `make lint/emdash`, markdownlint, and Vale pass. Treat this as a floor,
+      not as conformance: tooling covers a small subset of the guide, and Vale
+      never fails a build. The count lives in
+      [What the tooling checks, and what it doesn't](../../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
 - [ ] Inbound links resolve; renames have redirects in `coder/coder.com`.
 - [ ] Premium pages carry the title suffix and manifest state.
 - [ ] Series pages orient the reader and link the next step; no dead-ends.
@@ -182,6 +205,10 @@ the whole series as a single review.
       series).
 - [ ] PR title and description follow the PR description style guide (including
       draft vs. ready-for-review).
+- [ ] Identifiers on the page pass the
+      [Evidence versus claim](#evidence-versus-claim) test for this page's
+      task, and anything stripped under that rule is disclosed as the rule
+      requires.
 - [ ] Maintenance tradeoffs (duplication, unverified claims) are disclosed to
       the reviewer, not hidden.
 

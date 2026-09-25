@@ -92,7 +92,7 @@ func Serve(ctx context.Context, server Server, options *ServeOptions) error {
 	if err != nil {
 		return xerrors.Errorf("register provisioner: %w", err)
 	}
-	srv := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux}, drpcserver.Options{
+	srv := drpcsdk.NewServer(options.Logger, &tracing.DRPCHandler{Handler: mux}, drpcserver.Options{
 		Manager: drpcsdk.DefaultDRPCOptions(nil),
 	})
 

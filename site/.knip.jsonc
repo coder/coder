@@ -15,7 +15,7 @@
 		"@tailwindcss/typography",
 		"@types/react-virtualized-auto-sizer",
 		"tailwindcss",
-		"tailwindcss-animate",
+		"tw-animate-css",
 		"ts-proto"
 	]
 }

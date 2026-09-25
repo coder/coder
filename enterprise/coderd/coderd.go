@@ -316,6 +316,16 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/ai-gateway/providers", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/", api.aiBridgeListProviders)
+		})
+	})
+
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Route("/ai-gateway/keys", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -558,6 +568,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 			)
 			r.Get("/export", api.exportOrganizationAISpend)
+			r.Get("/users", api.organizationAISpendUsers)
 		})
 		r.Route("/provisionerkeys", func(r chi.Router) {
 			r.Use(
@@ -1162,7 +1173,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				)
 				api.AGPL.AppearanceFetcher.Store(&f)
 			} else {
-				f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
+				f := appearance.NewDefaultFetcher(api.Database, api.DeploymentValues.DocsURL.String())
 				api.AGPL.AppearanceFetcher.Store(&f)
 			}
 		}
@@ -1217,7 +1228,6 @@ func (api *API) CheckBuildUsage(
 	_ context.Context,
 	_ database.Store,
 	templateVersion *database.TemplateVersion,
-	task *database.Task,
 	transition database.WorkspaceTransition,
 ) (wsbuilder.UsageCheckResponse, error) {
 	// External-agent templates require an entitlement for start builds.
@@ -1230,25 +1240,6 @@ func (api *API) CheckBuildUsage(
 				Message:   "You have a template which uses external agents but your license is not entitled to this feature. You will be unable to create new workspaces from these templates.",
 			}, nil
 		}
-	}
-
-	// Verify managed agent entitlement for AI task builds.
-	// The count/limit check is intentionally omitted — breaching the
-	// limit is advisory only and surfaced as a warning via entitlements.
-	if transition != database.WorkspaceTransitionStart || task == nil {
-		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
-	}
-
-	if !api.Entitlements.HasLicense() {
-		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
-	}
-
-	managedAgentLimit, ok := api.Entitlements.Feature(codersdk.FeatureManagedAgentLimit)
-	if !ok || !managedAgentLimit.Enabled {
-		return wsbuilder.UsageCheckResponse{
-			Permitted: false,
-			Message:   "Your license is not entitled to managed agents. Please contact sales to continue using managed agents.",
-		}, nil
 	}
 
 	return wsbuilder.UsageCheckResponse{Permitted: true}, nil

@@ -1,6 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
-import type { ModelSelectorOption } from "../components/ChatElements";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import {
 	asNumber,
 	asString,
@@ -210,6 +210,31 @@ export const filterModelsWithEnabledProvider = (
 		return info !== undefined && info.enabled !== false;
 	});
 
+/** Unlike getModelOptionsFromModels, neither filters nor sorts. */
+export const toEnabledModelSelectorOptions = (
+	enabledModels: readonly TypesGen.ChatModel[],
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+): readonly ModelSelectorOption[] =>
+	enabledModels.map((modelConfig) => {
+		const providerInfo = providerInfoByID.get(modelConfig.ai_provider_id);
+		const reasoningEffort = modelConfig.model_config?.reasoning_effort;
+		const reasoningEfforts = modelConfig.reasoning_efforts ?? [];
+		return {
+			id: modelConfig.id,
+			provider: providerInfo?.provider ?? "",
+			providerId: modelConfig.ai_provider_id,
+			providerLabel: providerInfo?.displayName,
+			providerIcon: providerInfo?.icon,
+			model: modelConfig.model,
+			displayName: modelConfig.display_name.trim() || modelConfig.model,
+			contextLimit: modelConfig.context_limit,
+			...(reasoningEffort?.default
+				? { reasoningEffortDefault: reasoningEffort.default }
+				: {}),
+			...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
+		};
+	});
+
 export const getModelOptionsFromModels = (
 	models: readonly TypesGen.ChatModel[] | null | undefined,
 	catalog: TypesGen.OrganizationChatModelsResponse | null | undefined,
@@ -283,12 +308,12 @@ type SelectorQuery<T> = {
 	readonly isLoading: boolean;
 };
 
-interface ModelSelectorState {
+type ModelSelectorState = {
 	readonly options: readonly ModelSelectorOption[];
 	readonly isModelCatalogLoading: boolean;
 	readonly modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	readonly hasConfiguredModels: boolean;
-}
+};
 
 // Provider identity comes from a separate query (userProviderModels).
 // Folding both loading states into one flag here spares every caller the
@@ -320,6 +345,63 @@ export const getProviderForModelOption = (
 	modelOptions.find((option) => option.id === selectedModel)?.provider;
 
 export { formatProviderLabel } from "#/utils/aiProviders";
+
+export function resolveCompactionThreshold(
+	modelID: string | undefined,
+	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
+	models: readonly TypesGen.ChatModel[] | null | undefined,
+): number | undefined {
+	if (!modelID || !Array.isArray(models)) {
+		return undefined;
+	}
+	const model = models.find((model) => model.id === modelID);
+	if (!model) {
+		return undefined;
+	}
+	const userOverride = userThresholds?.find(
+		(threshold) => threshold.model_config_id === modelID,
+	);
+	if (userOverride) {
+		return userOverride.threshold_percent;
+	}
+	return model.compression_threshold;
+}
+
+/**
+ * Context window the compaction trigger is measured against. Mirrors the
+ * backend: when the organization routes compaction to an override model,
+ * the history must also fit that model's window, so the smaller of the
+ * two limits wins. Returns 0 when neither limit is known.
+ */
+export function resolveCompactionContextLimit(
+	model: TypesGen.ChatModel,
+	models: readonly TypesGen.ChatModel[],
+	compactionModelIDByOrganization: ReadonlyMap<string, string>,
+): number {
+	const chatLimit = model.context_limit > 0 ? model.context_limit : 0;
+	const overrideID = compactionModelIDByOrganization.get(model.organization_id);
+	const overrideLimit =
+		models.find((candidate) => candidate.id === overrideID)?.context_limit ?? 0;
+	if (overrideLimit > 0 && (chatLimit <= 0 || overrideLimit < chatLimit)) {
+		return overrideLimit;
+	}
+	return chatLimit;
+}
+
+/**
+ * Token count at which compaction triggers for the given context window and
+ * threshold, or undefined when the window is unknown or compaction is
+ * disabled (100%).
+ */
+export function compactionTriggerTokens(
+	contextLimit: number,
+	thresholdPercent: number,
+): number | undefined {
+	if (contextLimit <= 0 || thresholdPercent >= 100) {
+		return undefined;
+	}
+	return Math.round((contextLimit * thresholdPercent) / 100);
+}
 
 export const getModelSelectorPlaceholder = (
 	modelOptions: readonly ModelSelectorOption[],

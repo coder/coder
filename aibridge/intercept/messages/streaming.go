@@ -22,7 +22,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
@@ -46,13 +45,14 @@ func NewStreamingInterceptor(
 	tracer trace.Tracer,
 ) *StreamingInterception {
 	return &StreamingInterception{interceptionBase: interceptionBase{
-		id:            id,
-		reqPayload:    reqPayload,
-		cfg:           cfg,
-		cred:          cred,
-		bedrock:       bedrock,
-		clientHeaders: clientHeaders,
-		tracer:        tracer,
+		id:               id,
+		reqPayload:       reqPayload,
+		cfg:              cfg,
+		cred:             cred,
+		bedrock:          bedrock,
+		clientHeaders:    clientHeaders,
+		tracer:           tracer,
+		isSmallFastModel: isSmallFastModel(reqPayload.model()),
 	}}
 }
 
@@ -115,7 +115,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	}
 
 	// Claude Code uses a "small/fast model" for certain tasks.
-	if !i.isSmallFastModel() {
+	if !i.isSmallFastModel {
 		// Only inject tools into "actual" request.
 		i.injectTools()
 	}
@@ -123,12 +123,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	streamCtx, streamCancel := context.WithCancelCause(ctx)
 	defer streamCancel(xerrors.New("deferred"))
 
-	// TODO(ssncferreira): inject actor headers directly in the client-header
-	//   middleware instead of using SDK options.
 	var opts []option.RequestOption
-	if actor := aibcontext.ActorFromContext(ctx); actor != nil && i.cfg.SendActorHeaders {
-		opts = append(opts, intercept.ActorHeadersAsAnthropicOpts(actor)...)
-	}
 
 	svc, err := i.newMessagesService(streamCtx, opts...)
 	if err != nil {

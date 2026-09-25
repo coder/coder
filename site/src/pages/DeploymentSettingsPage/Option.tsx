@@ -1,7 +1,7 @@
+import { cn } from "cn";
 import { WrenchIcon } from "lucide-react";
-import type { FC, HTMLAttributes, PropsWithChildren } from "react";
-import { DisabledBadge, EnabledBadge } from "#/components/Badges/Badges";
-import { cn } from "#/utils/cn";
+import type { ComponentProps, FC, PropsWithChildren } from "react";
+import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
 	return (
@@ -15,9 +15,9 @@ export const OptionDescription: FC<PropsWithChildren> = ({ children }) => {
 	return <span className="text-sm font-normal">{children}</span>;
 };
 
-interface OptionValueProps {
+type OptionValueProps = {
 	children?: boolean | number | string | string[] | Record<string, boolean>;
-}
+};
 
 export const OptionValue: FC<OptionValueProps> = (props) => {
 	const { children: value } = props;
@@ -99,7 +99,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 	);
 };
 
-type OptionConfigProps = HTMLAttributes<HTMLDivElement> & { isSource: boolean };
+type OptionConfigProps = ComponentProps<"div"> & { isSource: boolean };
 
 // OptionConfig takes a isSource bool to indicate if the Option is the source of the configured value.
 export const OptionConfig: FC<OptionConfigProps> = ({
@@ -122,7 +122,7 @@ export const OptionConfig: FC<OptionConfigProps> = ({
 	);
 };
 
-export const OptionConfigFlag: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
+export const OptionConfigFlag: FC<ComponentProps<"div">> = (props) => {
 	return (
 		<div
 			{...props}

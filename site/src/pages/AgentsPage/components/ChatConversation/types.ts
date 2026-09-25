@@ -8,6 +8,7 @@ export type ParsedToolCall = {
 	parsedCommands?: readonly string[][];
 	mcpServerConfigId?: string;
 	hookRewritten?: boolean;
+	startedAt?: string;
 };
 
 export type ParsedToolResult = {
@@ -15,6 +16,7 @@ export type ParsedToolResult = {
 	name: string;
 	result?: unknown;
 	isError: boolean;
+	isMedia?: boolean;
 	mcpServerConfigId?: string;
 };
 
@@ -23,7 +25,10 @@ export type MergedTool = {
 	name: string;
 	args?: unknown;
 	result?: unknown;
+	/** Streamed advisor reasoning, present only while the advisor runs. */
+	reasoning?: string;
 	isError: boolean;
+	isMedia?: boolean;
 	status: "completed" | "error" | "running";
 	mcpServerConfigId?: string;
 	modelIntent?: string;
@@ -31,6 +36,8 @@ export type MergedTool = {
 	hookRewritten?: boolean;
 	/** Set when a process_signal killed/terminated this process. */
 	killedBySignal?: "kill" | "terminate";
+	/** When the model emitted the call, from the tool-call part's created_at. */
+	startedAt?: string;
 };
 
 export type RenderBlock =
@@ -90,6 +97,7 @@ type StreamToolCall = {
 	parsedCommands?: readonly string[][];
 	mcpServerConfigId?: string;
 	modelIntent?: string;
+	startedAt?: string;
 };
 
 type StreamToolResult = {
@@ -97,8 +105,11 @@ type StreamToolResult = {
 	name: string;
 	result?: unknown;
 	resultRaw?: string;
+	/** Reasoning deltas so far; absent when none arrived or the result is final. */
+	reasoning?: string;
 	isError: boolean;
-	/** True while result deltas are still accumulating before the final result. */
+	isMedia?: boolean;
+	/** True while result or reasoning deltas are still accumulating before the final result. */
 	isStreaming?: boolean;
 	mcpServerConfigId?: string;
 };

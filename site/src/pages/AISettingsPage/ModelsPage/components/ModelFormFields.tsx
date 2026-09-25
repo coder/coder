@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FormikContextType } from "formik";
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
@@ -31,19 +32,18 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import type { ProviderState } from "#/modules/aiModels/providerStates";
 import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
 	PricingEstimateFields,
 	ReasoningEffortConfigFields,
-} from "#/pages/AgentsPage/components/ChatModelAdminPanel/ModelConfigFields";
-import { ModelIdentifierField } from "#/pages/AgentsPage/components/ChatModelAdminPanel/ModelIdentifierField";
+} from "#/modules/aiModels/ModelConfigFields";
+import { ModelIdentifierField } from "#/modules/aiModels/ModelIdentifierField";
 import type {
 	ModelConfigFormBuildResult,
 	ModelFormValues,
-} from "#/pages/AgentsPage/components/ChatModelAdminPanel/modelConfigFormLogic";
-import { cn } from "#/utils/cn";
+} from "#/modules/aiModels/modelConfigFormLogic";
+import type { ProviderState } from "#/modules/aiModels/providerStates";
 import { docs } from "#/utils/docs";
 import type { FormHelpers } from "#/utils/formUtils";
 import {

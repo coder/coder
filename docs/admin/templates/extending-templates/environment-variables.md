@@ -1,4 +1,6 @@
-# Environment variables
+---
+title: Environment variables
+---
 
 Use the
 [`coder_env`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env)

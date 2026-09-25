@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"reflect"
 	"testing"
 	"time"
@@ -318,6 +319,45 @@ func TestTemplateVersionParameter_BadDescription(t *testing.T) {
 	// if we feed it garbage data.
 	req.NoError(err)
 	req.NotEmpty(sdk.DescriptionPlaintext, "broke the markdown parser with %v", desc)
+}
+
+func TestOAuth2ProviderApp_ClientType(t *testing.T) {
+	t.Parallel()
+
+	accessURL := &url.URL{Scheme: "https", Host: "coder.example.com"}
+
+	tests := []struct {
+		name           string
+		dbClientType   string
+		wantClientType codersdk.OAuth2ClientType
+	}{
+		{
+			name:           "Confidential",
+			dbClientType:   "confidential",
+			wantClientType: codersdk.OAuth2ClientTypeConfidential,
+		},
+		{
+			name:           "Public",
+			dbClientType:   "public",
+			wantClientType: codersdk.OAuth2ClientTypePublic,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dbApp := database.OAuth2ProviderApp{
+				ID:          uuid.New(),
+				Name:        "test-app-" + tt.name,
+				CallbackURL: "https://example.com/callback",
+				ClientType:  tt.dbClientType,
+			}
+
+			sdkApp := db2sdk.OAuth2ProviderApp(accessURL, dbApp)
+
+			require.Equal(t, tt.wantClientType, sdkApp.ClientType)
+		})
+	}
 }
 
 func TestChatDebugRunSummary(t *testing.T) {
@@ -709,6 +749,44 @@ func TestChatDebugRunDetail_NullableFieldsNil(t *testing.T) {
 	require.Empty(t, sdk.Steps)
 }
 
+func TestChatMessage_QueuedMessageID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Promoted", func(t *testing.T) {
+		t.Parallel()
+		result := db2sdk.ChatMessage(database.ChatMessage{
+			ID:              2,
+			ChatID:          uuid.New(),
+			Role:            database.ChatMessageRoleUser,
+			QueuedMessageID: sql.NullInt64{Int64: 7, Valid: true},
+		})
+		require.NotNil(t, result.QueuedMessageID)
+		require.Equal(t, int64(7), *result.QueuedMessageID)
+
+		raw, err := json.Marshal(result)
+		require.NoError(t, err)
+		var fields map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(raw, &fields))
+		require.JSONEq(t, "7", string(fields["queued_message_id"]))
+	})
+
+	t.Run("NotPromoted", func(t *testing.T) {
+		t.Parallel()
+		result := db2sdk.ChatMessage(database.ChatMessage{
+			ID:     1,
+			ChatID: uuid.New(),
+			Role:   database.ChatMessageRoleUser,
+		})
+		require.Nil(t, result.QueuedMessageID)
+
+		raw, err := json.Marshal(result)
+		require.NoError(t, err)
+		var fields map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(raw, &fields))
+		require.NotContains(t, fields, "queued_message_id")
+	})
+}
+
 func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
 	t.Parallel()
 
@@ -868,7 +946,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	v := reflect.ValueOf(got)
 	typ := v.Type()
 	// These fields are set outside db2sdk.Chat and intentionally remain zero.
-	skip := map[string]bool{"HasUnread": true, "Warnings": true, "QueuedForCapacity": true}
+	skip := map[string]bool{"HasUnread": true, "Warnings": true, "QueuedForCapacity": true, "InlineMCPServers": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)
 		if skip[field.Name] {

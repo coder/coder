@@ -1,6 +1,8 @@
 package rbac_test
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -60,6 +62,94 @@ func TestExpandScope(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestFirstScopeNotCovered(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		allowed   []rbac.ScopeName
+		requested []rbac.ScopeName
+		want      rbac.ScopeName
+		// wantErrContains names the side that could not be expanded, as in
+		// TestScopesCover.
+		wantErrContains string
+	}{
+		{
+			name:      "EmptyRequestIsCovered",
+			allowed:   []rbac.ScopeName{"workspace:read"},
+			requested: nil,
+		},
+		{
+			name:      "EveryRequestedScopeCovered",
+			allowed:   []rbac.ScopeName{"coder:workspaces.access"},
+			requested: []rbac.ScopeName{"workspace:read", "workspace:ssh"},
+		},
+		{
+			// The answer names which scope failed, not merely that one did.
+			name:      "NamesTheFirstUncovered",
+			allowed:   []rbac.ScopeName{"coder:workspaces.access"},
+			requested: []rbac.ScopeName{"workspace:read", "workspace:delete", "user_secret:delete"},
+			want:      "workspace:delete",
+		},
+		{
+			name:            "UnexpandableRequestedScopeNamed",
+			allowed:         []rbac.ScopeName{"coder:workspaces.access"},
+			requested:       []rbac.ScopeName{"workspace:read", "not_a_real_scope"},
+			want:            "not_a_real_scope",
+			wantErrContains: "expand requested scope",
+		},
+		{
+			name:            "UnexpandableAllowedScopeNamed",
+			allowed:         []rbac.ScopeName{"not_a_real_scope"},
+			requested:       []rbac.ScopeName{"workspace:read"},
+			want:            "not_a_real_scope",
+			wantErrContains: "expand allowed scope",
+		},
+		{
+			// The alias validates but is not an expandable name, so callers
+			// must canonicalize first. Pinned because the allowed side is
+			// expanded once now, outside the per-scope loop.
+			name:            "LegacyAliasIsNotExpandable",
+			allowed:         []rbac.ScopeName{"all"},
+			requested:       []rbac.ScopeName{"workspace:read"},
+			want:            "all",
+			wantErrContains: "expand allowed scope",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := rbac.FirstScopeNotCovered(test.allowed, test.requested)
+			if test.wantErrContains != "" {
+				require.ErrorContains(t, err, test.wantErrContains)
+				require.Equal(t, test.want, got, "an undecidable comparison must name the scope it could not decide")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.want, got)
+		})
+	}
+}
+
+// The two answer the same question, so a row that disagrees means one of them
+// changed alone.
+func TestFirstScopeNotCoveredAgreesWithScopesCover(t *testing.T) {
+	t.Parallel()
+
+	allowed := []rbac.ScopeName{"coder:workspaces.access", "coder:templates.build"}
+	for _, name := range rbac.ExternalScopeNames() {
+		canonical := rbac.CanonicalScopeName(rbac.ScopeName(name))
+		covered, err := rbac.ScopesCover(allowed, canonical)
+		require.NoError(t, err, "scope %q", name)
+
+		outside, err := rbac.FirstScopeNotCovered(allowed, []rbac.ScopeName{canonical})
+		require.NoError(t, err, "scope %q", name)
+		require.Equal(t, covered, outside == "", "scope %q", name)
+	}
 }
 
 func TestScopesCover(t *testing.T) {
@@ -167,6 +257,13 @@ func TestScopesCover(t *testing.T) {
 			wantErrContains: "expand allowed scope",
 		},
 		{
+			// An implementation answering on the first match never reaches it.
+			name:            "UnknownAllowedScopeErrorsBesideCoveringScope",
+			allowed:         []rbac.ScopeName{rbac.ScopeAll, "not_a_real_scope"},
+			requested:       "workspace:read",
+			wantErrContains: "expand allowed scope",
+		},
+		{
 			// The aliases IsExternalScope accepts are not expandable names,
 			// so callers must canonicalize before asking about coverage.
 			name:            "NonCanonicalAliasErrorsRequestedAll",
@@ -228,6 +325,87 @@ func TestCanonicalScopeName(t *testing.T) {
 	require.Equal(t, rbac.ScopeApplicationConnect, rbac.CanonicalScopeName(rbac.ScopeApplicationConnect))
 	require.Equal(t, rbac.ScopeName("workspace:read"), rbac.CanonicalScopeName("workspace:read"))
 	require.Equal(t, rbac.ScopeName("not_a_real_scope"), rbac.CanonicalScopeName("not_a_real_scope"))
+}
+
+// TestCanonicalScopeList pins the display form of a stored allowlist.
+func TestCanonicalScopeList(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{name: "empty", raw: "", want: ""},
+		// Whitespace-only is a configured allowlist that grants nothing, so it
+		// must not read back as the empty, unrestricted value.
+		{name: "whitespace_only", raw: "  \t\n ", want: "  \t\n "},
+		{name: "single", raw: "workspace:read", want: "workspace:read"},
+		{
+			name: "aliases_rewritten",
+			raw:  "all application_connect",
+			want: "coder:all coder:application_connect",
+		},
+		{
+			name: "alias_and_canonical_collapse",
+			raw:  "all coder:all application_connect coder:application_connect",
+			want: "coder:all coder:application_connect",
+		},
+		{
+			name: "duplicates_keep_first_seen_order",
+			raw:  "template:read workspace:read template:read workspace:read",
+			want: "template:read workspace:read",
+		},
+		{
+			name: "unknown_names_kept",
+			raw:  "workspace:read not_a_real_scope workspace:read not_a_real_scope",
+			want: "workspace:read not_a_real_scope",
+		},
+		{
+			name: "extra_whitespace_normalized",
+			raw:  "  workspace:read\t\ntemplate:read  ",
+			want: "workspace:read template:read",
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, test.want, rbac.CanonicalScopeList(test.raw))
+		})
+	}
+
+	// A large list of distinct names must come back intact and in order.
+	t.Run("large_distinct_list", func(t *testing.T) {
+		t.Parallel()
+
+		raw := distinctScopeList(100_000)
+
+		got := rbac.CanonicalScopeList(raw)
+		require.Equal(t, raw, got)
+
+		// A repeated list collapses onto the first copy.
+		got = rbac.CanonicalScopeList(raw + " " + raw)
+		require.Equal(t, raw, got)
+	})
+}
+
+// distinctScopeList returns count distinct unknown names, space separated.
+func distinctScopeList(count int) string {
+	names := make([]string, 0, count)
+	for i := range count {
+		names = append(names, fmt.Sprintf("unknown:%d", i))
+	}
+	return strings.Join(names, " ")
+}
+
+// BenchmarkCanonicalScopeList measures a list of many distinct names, the
+// input that made the dedupe quadratic before it used a set.
+func BenchmarkCanonicalScopeList(b *testing.B) {
+	raw := distinctScopeList(100_000)
+	for b.Loop() {
+		_ = rbac.CanonicalScopeList(raw)
+	}
 }
 
 // TestScopesCoverEveryExternalScope asserts the property the OAuth2 allowlist

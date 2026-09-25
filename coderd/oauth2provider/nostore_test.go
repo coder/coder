@@ -120,9 +120,13 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 		app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
 		_, challenge := oauth2providertest.GeneratePKCE(t)
 
-		// An unsupported response_type renders a static error page rather
-		// than going through httpapi.
-		uri := strings.Replace(authorizeURL(baseURL, app.ID.String(), challenge), "response_type=code", "response_type=token", 1)
+		// A redirect_uri that does not match the registration is the one
+		// parameter failure RFC 6749 §4.1.2.1 keeps on this server, so it is
+		// what still renders a static error page rather than going through
+		// httpapi.
+		uri := strings.Replace(authorizeURL(baseURL, app.ID.String(), challenge),
+			url.QueryEscape(oauth2providertest.TestRedirectURI),
+			url.QueryEscape("http://localhost:9876/not-the-registered-callback"), 1)
 		resp := doRequest(ctx, t, http.MethodGet, uri, nil, sessionToken(client))
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -149,8 +153,18 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 		form.Set("token", token.RefreshToken)
 		form.Set("client_id", app.ID.String())
 
-		// RFC 7009 success is a bare WriteHeader(200), never httpapi.Write.
+		// A confidential client authenticates at revocation (RFC 7009 §2.1),
+		// so the 401 refusal must be no-store as well.
 		resp := doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/revoke", strings.NewReader(form.Encode()), formContentType)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		requireNoStore(t, resp)
+		require.Equal(t, `Basic realm="coder"`, resp.Header.Get("WWW-Authenticate"))
+
+		form.Set("client_secret", secret)
+
+		// RFC 7009 success is a bare WriteHeader(200), never httpapi.Write.
+		resp = doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/revoke", strings.NewReader(form.Encode()), formContentType)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		requireNoStore(t, resp)

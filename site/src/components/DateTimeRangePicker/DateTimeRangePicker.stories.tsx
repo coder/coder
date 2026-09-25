@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
-import { waitForRadixLayerClose } from "#/testHelpers/storybook";
 import { DateTimeRangePicker } from "./DateTimeRangePicker";
 import type { DateTimeRangeValue } from "./dateTimeRange";
 
@@ -200,12 +199,10 @@ export const ApplyCustomRange: Story = {
 			screen.getByRole("combobox", { name: "To AM or PM" }),
 		);
 		await userEvent.click(await screen.findByRole("option", { name: "AM" }));
+		await waitFor(() => {
+			expect(screen.queryByRole("option", { name: "AM" })).toBeNull();
+		});
 
-		// The option click closes the meridiem listbox; wait for Radix to
-		// restore pointer events before clicking Apply.
-		await waitForRadixLayerClose(() =>
-			screen.getByRole("button", { name: "Apply" }),
-		);
 		await waitFor(() => {
 			expect(applyButton).toBeEnabled();
 		});
@@ -369,5 +366,28 @@ export const IntraDayTriggerLabel: Story = {
 		expect(
 			canvas.getByRole("button", { name: /April 12, 9:00 AM - 11:00 AM/ }),
 		).toBeInTheDocument();
+	},
+};
+
+// Days before minDate are disabled, presets reaching past it are hidden, and
+// a draft longer than maxDays shows the range error with Apply disabled.
+export const RangeLimits: Story = {
+	args: {
+		value: presetValue,
+		minDate: new Date(2026, 3, 2, 9, 0, 0),
+		maxDays: 7,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(
+			await screen.findByRole("radio", { name: "Custom range" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("button", { name: /April 4th, 2026/ }),
+		);
+		await userEvent.click(
+			screen.getByRole("button", { name: /April 14th, 2026/ }),
+		);
 	},
 };

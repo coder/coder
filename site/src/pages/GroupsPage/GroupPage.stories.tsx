@@ -207,6 +207,18 @@ export const NoUpdatePermission: Story = {
 			permissionsQuery({ canUpdateGroup: false }),
 		],
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByRole("link", { name: "Back to groups" }),
+		).toHaveAttribute(
+			"href",
+			`/organizations/${MockDefaultOrganization.name}/groups`,
+		);
+		expect(
+			canvas.queryByRole("button", { name: "Add users" }),
+		).not.toBeInTheDocument();
+	},
 };
 
 /**
@@ -244,6 +256,15 @@ export const SettingsWithoutUpdatePermission: Story = {
 		).toBeInTheDocument();
 		// The editable budget/name form is never rendered.
 		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByRole("link", {
+				name: "Back to groups",
+				hidden: true,
+			}),
+		).toHaveAttribute(
+			"href",
+			`/organizations/${MockDefaultOrganization.name}/groups`,
+		);
 		expect(
 			canvas.queryByRole("button", { name: "Save" }),
 		).not.toBeInTheDocument();
@@ -403,7 +424,7 @@ export const WithMemberAIBudget: Story = {
 		).toHaveTextContent("$3,235 USD");
 
 		const body = within(document.body);
-		await userEvent.click(
+		await userEvent.hover(
 			within(canvas.getByText("AI spend")).getByRole("button", {
 				name: "More info",
 			}),
@@ -413,7 +434,7 @@ export const WithMemberAIBudget: Story = {
 				/^Approximate monthly AI spend for this user\. Resets .*The group's default limit is \$7,000 per member\.$/,
 			),
 		).toBeInTheDocument();
-		await userEvent.click(
+		await userEvent.hover(
 			within(canvas.getByText("Budget group")).getByRole("button", {
 				name: "More info",
 			}),
@@ -473,7 +494,7 @@ export const AIBudgetActionEnabledForOtherGroup: Story = {
 		const body = within(document.body);
 
 		// Without a group default budget, the header note ends at the reset date.
-		await userEvent.click(
+		await userEvent.hover(
 			within(canvas.getByText("AI spend")).getByRole("button", {
 				name: "More info",
 			}),
@@ -483,7 +504,11 @@ export const AIBudgetActionEnabledForOtherGroup: Story = {
 				/^Approximate monthly AI spend for this user\. Resets .*\.$/,
 			),
 		).toBeInTheDocument();
-		await userEvent.keyboard("{Escape}");
+		await userEvent.unhover(
+			within(canvas.getByText("AI spend")).getByRole("button", {
+				name: "More info",
+			}),
+		);
 
 		// The menu stays enabled while the governing group's name resolves.
 		await canvas.findByText("developer");
@@ -537,13 +562,15 @@ export const WithMemberAIBudgetInAnotherOrg: Story = {
 			`member-ai-budget-${MockUserOwner.id}`,
 		);
 		await expect(cell).toHaveTextContent("\u2014");
-		await userEvent.click(
+		await userEvent.hover(
 			within(cell).getByRole("button", { name: "More info" }),
 		);
 		await expect(
 			await body.findByText(/managed by a group in another organization/),
 		).toBeInTheDocument();
-		await userEvent.keyboard("{Escape}");
+		await userEvent.unhover(
+			within(cell).getByRole("button", { name: "More info" }),
+		);
 
 		await userEvent.click(
 			canvas.getAllByRole("button", { name: "Open menu" })[0],

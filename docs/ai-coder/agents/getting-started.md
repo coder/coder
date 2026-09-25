@@ -48,7 +48,7 @@ To configure Coder Agents:
 1. Select **Add model** and configure at least one model with its identifier, display name, and context limit.
 
 Coder makes the first model of an organization the default model.
-To change the default later, open a model and select **Set as Coder Agents default model**.
+To change the default later, open a model and select **Set as Coder Agents default model**, or pick a model in the **Default model** row under **Admin settings** > **AI** > **Coder Agents** > **Organization settings**.
 
 Each organization has its own model list and its own default model.
 Repeat the model steps in every organization that uses Coder Agents.
@@ -67,11 +67,10 @@ Detailed instructions for each provider and model option are in the
 1. Select a model from the dropdown (your default will be pre-selected).
 1. Type a prompt and send it.
 
-The agent processes the prompt in the control plane. If the task requires
-a workspace — reading files, running commands, editing code — the agent
-selects a template and provisions one automatically. Conversations that
-don't require compute (planning, Q&A, architecture discussions) start
-immediately with no provisioning delay.
+The agent processes the prompt in the control plane.
+When the conversation and available tools are sufficient, it works without provisioning a workspace.
+If missing tools, skills, MCP integrations, or context block progress, the agent selects a template and provisions a workspace to continue.
+It also provisions a workspace for tasks that need file access, command execution, or code changes.
 
 ## Optimize your templates
 

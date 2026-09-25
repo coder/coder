@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	CheckIcon,
 	ChevronDownIcon,
@@ -30,7 +31,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import {
@@ -50,12 +50,12 @@ const GIT_NOT_SETUP_BODY =
 const GIT_STATUS_LOADING_TITLE = "Waiting for Git status";
 const GIT_STATUS_LOADING_BODY = "Checking the workspace for Git repositories.";
 
-interface DiffStats {
+type DiffStats = {
 	additions: number;
 	deletions: number;
-}
+};
 
-interface GitPanelProps {
+type GitPanelProps = {
 	/** PR tab data. Omitted if no PR is associated. */
 	prTab?: {
 		prNumber: number;
@@ -82,14 +82,14 @@ interface GitPanelProps {
 	 * file and then reverts it.
 	 */
 	everDirty?: ReadonlySet<string>;
-}
+};
 
 function repoLabel(repoRoot: string): string {
 	const segments = repoRoot.split("/").filter(Boolean);
 	return segments[segments.length - 1] ?? repoRoot;
 }
 
-interface ViewItemBase {
+type ViewItemBase = {
 	id: string;
 	/** Left-pill label on the trigger (e.g. "Open", "Merged", "Working"). */
 	stateLabel: string;
@@ -101,7 +101,7 @@ interface ViewItemBase {
 	itemSecondary?: string;
 	stateClasses: string;
 	icon: React.ReactNode;
-}
+};
 
 type ViewItem =
 	| (ViewItemBase & { kind: "remote" })
@@ -455,7 +455,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 // Git view switcher: dropdown for the active PR/Branch/Working view.
 // ---------------------------------------------------------------
 
-interface GitViewSwitcherProps {
+type GitViewSwitcherProps = {
 	items: ReadonlyArray<ViewItem>;
 	activeItem?: ViewItem;
 	/**
@@ -464,7 +464,7 @@ interface GitViewSwitcherProps {
 	 */
 	hasRemoteItem: boolean;
 	onSelect: (item: ViewItem) => void;
-}
+};
 
 const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	items,

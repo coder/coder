@@ -18,21 +18,32 @@ import (
 func TestLinkFilesUnavailable(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	fileID := uuid.New()
-	foreignKeyErr := &pq.Error{
-		Code:       pq.ErrorCode("23503"),
-		Constraint: string(database.ForeignKeyChatFileLinksFileID),
-	}
-	store.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
-		ChatID:       chatID,
-		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-		FileIds:      []uuid.UUID{fileID},
-	}).Return(int32(0), foreignKeyErr)
+	for name, dbErr := range map[string]*pq.Error{
+		"missing": {
+			Code:       pq.ErrorCode("23503"),
+			Constraint: string(database.ForeignKeyChatFileLinksFileID),
+		},
+		"linked to another chat": {
+			Code:       pq.ErrorCode("23505"),
+			Constraint: string(database.UniqueChatFileLinksFileIDKey),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-	err := chatstate.LinkFiles(context.Background(), store, chatID, []uuid.UUID{fileID})
-	require.ErrorIs(t, err, chatstate.ErrChatFileUnavailable)
-	require.ErrorIs(t, err, foreignKeyErr)
+			ctrl := gomock.NewController(t)
+			store := dbmock.NewMockStore(ctrl)
+			chatID := uuid.New()
+			fileID := uuid.New()
+			store.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
+				ChatID:       chatID,
+				MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+				FileIds:      []uuid.UUID{fileID},
+			}).Return(int32(0), dbErr)
+
+			err := chatstate.LinkFiles(context.Background(), store, chatID, []uuid.UUID{fileID})
+			require.ErrorIs(t, err, chatstate.ErrChatFileUnavailable)
+			require.ErrorIs(t, err, dbErr)
+		})
+	}
 }

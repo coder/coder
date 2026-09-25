@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import type { FormikContextType } from "formik";
 import { type FC, type ReactNode, useId } from "react";
 import { Button } from "#/components/Button/Button";
@@ -15,7 +16,6 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 import { MCPServerAuthSection } from "./MCPServerAuthSection";
 import { MCPServerBehaviorSection } from "./MCPServerBehaviorSection";
 import { CollapsibleSection, Field } from "./MCPServerFormFieldPrimitives";
@@ -25,7 +25,7 @@ import {
 	TRANSPORT_OPTIONS,
 } from "./mcpServerFormLogic";
 
-interface MCPServerFormFieldsProps {
+type MCPServerFormFieldsProps = {
 	form: FormikContextType<MCPServerFormValues>;
 	isSaving: boolean;
 	isDisabled: boolean;
@@ -40,7 +40,7 @@ interface MCPServerFormFieldsProps {
 	setShowAuth: (open: boolean) => void;
 	showBehavior: boolean;
 	setShowBehavior: (open: boolean) => void;
-}
+};
 
 export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 	form,

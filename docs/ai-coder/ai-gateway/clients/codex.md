@@ -1,4 +1,6 @@
-# Codex CLI
+---
+title: Codex CLI
+---
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../../ai-governance.md), which is

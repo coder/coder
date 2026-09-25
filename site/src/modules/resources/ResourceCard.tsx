@@ -12,10 +12,10 @@ import {
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
 
-interface ResourceCardProps {
+type ResourceCardProps = {
 	resource: WorkspaceResource;
 	agentRow: (agent: WorkspaceAgent) => JSX.Element;
-}
+};
 
 export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 	const [shouldDisplayAllMetadata, setShouldDisplayAllMetadata] =
@@ -94,7 +94,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 															</CopyableValue>
 														);
 													}
-													return <>{children}</>;
+													return children;
 												},
 											}}
 										>

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FormikErrors, useFormik } from "formik";
 import {
 	type ChangeEvent,
@@ -21,7 +22,6 @@ import {
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 import { formatKiB } from "#/utils/fileSize";
 import {
 	buildPersonalSkillMarkdown,
@@ -38,7 +38,7 @@ export type PersonalSkillErrorDisplay = {
 	detail?: string;
 };
 
-interface PersonalSkillEditorProps {
+type PersonalSkillEditorProps = {
 	open: boolean;
 	mode: "create" | "edit";
 	initialValues: PersonalSkillFormValues;
@@ -47,7 +47,7 @@ interface PersonalSkillEditorProps {
 	isSubmitting: boolean;
 	onOpenChange: (open: boolean) => void;
 	onSubmit: (values: PersonalSkillFormValues, content: string) => void;
-}
+};
 
 type ImportStatus = {
 	kind: "success" | "error";

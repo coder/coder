@@ -1,12 +1,13 @@
+import { cn } from "cn";
 import { type FC, useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { cn } from "#/utils/cn";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
+import {
+	RIGHT_PANEL_OPEN_KEY,
+	RIGHT_PANEL_WIDTH_KEY,
+} from "./RightPanel/RightPanel";
 
-/** localStorage keys shared with the agents panel components. */
-const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
-const RIGHT_PANEL_WIDTH_KEY = "agents.right-panel-width";
 const DEFAULT_PANEL_WIDTH = 480;
 const MIN_PANEL_WIDTH = 360;
 

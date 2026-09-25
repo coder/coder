@@ -61,8 +61,9 @@ func newTestServerWithDialer(t *testing.T, dialer aibridged.Dialer, loggerOption
 			return client, nil
 		}
 	}
-	srv, err := aibridged.New(t.Context(), pool, dialer, logger, testTracer)
+	srv, err := aibridged.New(t.Context(), dialer, logger, testTracer, nil, nil)
 	require.NoError(t, err, "create new aibridged")
+	require.NoError(t, srv.SetPoolForTest(testutil.Context(t, testutil.WaitShort), t, pool))
 	t.Cleanup(func() {
 		srv.Shutdown(context.Background())
 	})
@@ -107,6 +108,19 @@ func sdkError(status int, message string) error {
 	})
 }
 
+// shutdownAndRequirePoolClosed verifies cleanup reaches the real interception pool.
+func shutdownAndRequirePoolClosed(t *testing.T, srv *aibridged.Server) {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	require.NotNil(t, srv.InterceptionPoolForTest())
+	require.NoError(t, srv.Shutdown(ctx))
+
+	// Use a live context so cancellation cannot mask a pool left open.
+	handler, err := srv.GetRequestHandler(ctx, aibridged.Request{})
+	require.ErrorContains(t, err, "pool shutting down")
+	require.Nil(t, handler)
+}
+
 func TestClient_TransientDialErrorRetries(t *testing.T) {
 	t.Parallel()
 
@@ -114,8 +128,6 @@ func TestClient_TransientDialErrorRetries(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	client := mock.NewMockDRPCClient(ctrl)
 	client.EXPECT().DRPCConn().AnyTimes().Return(&mockDRPCConn{})
-	pool := mock.NewMockPooler(ctrl)
-	pool.EXPECT().Shutdown(gomock.Any()).MinTimes(1).Return(nil)
 	dialFc := func(context.Context) (aibridged.DRPCClient, error) {
 		if calls.Add(1) == 1 {
 			return nil, sdkError(http.StatusInternalServerError, "internal error")
@@ -123,9 +135,9 @@ func TestClient_TransientDialErrorRetries(t *testing.T) {
 		return client, nil
 	}
 
-	srv, err := aibridged.New(t.Context(), pool, dialFc, slogtest.Make(t, nil), testTracer)
+	srv, err := aibridged.New(t.Context(), dialFc, slogtest.Make(t, nil), testTracer, nil, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
+	t.Cleanup(func() { shutdownAndRequirePoolClosed(t, srv) })
 
 	_, err = srv.Client(testutil.Context(t, testutil.WaitShort))
 	require.NoError(t, err)
@@ -156,17 +168,14 @@ func TestClient_FatalDialErrors(t *testing.T) {
 			t.Parallel()
 
 			var calls atomic.Int32
-			ctrl := gomock.NewController(t)
-			pool := mock.NewMockPooler(ctrl)
-			pool.EXPECT().Shutdown(gomock.Any()).MinTimes(1).Return(nil)
 			dialFc := func(context.Context) (aibridged.DRPCClient, error) {
 				calls.Add(1)
 				return nil, sdkError(tc.status, "dial rejected")
 			}
 
-			srv, err := aibridged.New(t.Context(), pool, dialFc, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), testTracer)
+			srv, err := aibridged.New(t.Context(), dialFc, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), testTracer, nil, nil)
 			require.NoError(t, err)
-			t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
+			t.Cleanup(func() { shutdownAndRequirePoolClosed(t, srv) })
 
 			ctx := testutil.Context(t, testutil.WaitShort)
 			if !tc.fatal {
@@ -853,8 +862,6 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 				}, nil),
 			}
 
-			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
-			require.NoError(t, err)
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 
@@ -869,13 +876,15 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).AnyTimes()
 
 			// Given: aibridged is started.
-			srv, err := aibridged.New(t.Context(), pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
+			srv, err := aibridged.New(t.Context(), func(ctx context.Context) (aibridged.DRPCClient, error) {
 				return client, nil
-			}, logger, testTracer)
+			}, logger, testTracer, nil, nil)
 			require.NoError(t, err, "create new aibridged")
 			t.Cleanup(func() {
 				_ = srv.Shutdown(testutil.Context(t, testutil.WaitShort))
 			})
+
+			require.NoError(t, srv.ReplaceProviders(t.Context(), providers))
 
 			// When: a request is made to aibridged.
 			ctx := testutil.Context(t, testutil.WaitShort)
@@ -956,8 +965,6 @@ func TestRouting(t *testing.T) {
 				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: openaiSrv.URL, KeyPool: singleKeyPool(t, "openai", "test-key")}),
 				aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{BaseURL: antSrv.URL, KeyPool: singleKeyPool(t, "anthropic", "test-key")}, nil),
 			}
-			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
-			require.NoError(t, err)
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 
@@ -974,13 +981,15 @@ func TestRouting(t *testing.T) {
 			client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).Times(tc.expectedHits)
 
 			// Given: aibridged is started.
-			srv, err := aibridged.New(t.Context(), pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
+			srv, err := aibridged.New(t.Context(), func(ctx context.Context) (aibridged.DRPCClient, error) {
 				return client, nil
-			}, logger, testTracer)
+			}, logger, testTracer, nil, nil)
 			require.NoError(t, err, "create new aibridged")
 			t.Cleanup(func() {
 				_ = srv.Shutdown(testutil.Context(t, testutil.WaitShort))
 			})
+
+			require.NoError(t, srv.ReplaceProviders(t.Context(), providers))
 
 			// When: a request is made to aibridged.
 			ctx := testutil.Context(t, testutil.WaitShort)
@@ -1076,9 +1085,6 @@ func TestReady(t *testing.T) {
 		t.Parallel()
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		ctrl := gomock.NewController(t)
-		pool := mock.NewMockPooler(ctrl)
-		pool.EXPECT().Shutdown(gomock.Any()).MinTimes(1).Return(nil)
 
 		dialerCalled := make(chan struct{}, 1)
 		blockDialer := func(ctx context.Context) (aibridged.DRPCClient, error) {
@@ -1090,9 +1096,9 @@ func TestReady(t *testing.T) {
 			return nil, ctx.Err()
 		}
 
-		srv, err := aibridged.New(t.Context(), pool, blockDialer, logger, testTracer)
+		srv, err := aibridged.New(t.Context(), blockDialer, logger, testTracer, nil, nil)
 		require.NoError(t, err)
-		t.Cleanup(func() { srv.Close() })
+		t.Cleanup(func() { shutdownAndRequirePoolClosed(t, srv) })
 
 		testutil.RequireReceive(t.Context(), t, dialerCalled)
 		require.False(t, srv.Ready(), "expected not ready before first connection")
@@ -1113,8 +1119,6 @@ func TestReady(t *testing.T) {
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 		ctrl := gomock.NewController(t)
-		pool := mock.NewMockPooler(ctrl)
-		pool.EXPECT().Shutdown(gomock.Any()).MinTimes(1).Return(nil)
 
 		// allowDial gates the dialer. When open, dials succeed
 		// immediately. Replace with a fresh channel to block dials.
@@ -1143,9 +1147,9 @@ func TestReady(t *testing.T) {
 		// Start with dialer unblocked.
 		close(allowDial)
 
-		srv, err := aibridged.New(t.Context(), pool, dialer, logger, testTracer)
+		srv, err := aibridged.New(t.Context(), dialer, logger, testTracer, nil, nil)
 		require.NoError(t, err)
-		t.Cleanup(func() { srv.Close() })
+		t.Cleanup(func() { shutdownAndRequirePoolClosed(t, srv) })
 		srvNotReady := func() bool { return !srv.Ready() }
 
 		// Wait for the initial connection.

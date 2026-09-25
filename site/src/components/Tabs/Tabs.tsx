@@ -1,9 +1,9 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { Tabs as TabsPrimitive } from "radix-ui";
 import {
 	type ComponentProps,
 	createContext,
-	type HTMLAttributes,
 	useCallback,
 	useContext,
 	useEffect,
@@ -11,7 +11,6 @@ import {
 	useRef,
 } from "react";
 import { Link, type LinkProps } from "react-router";
-import { cn } from "#/utils/cn";
 
 // --- Radix tabs (stateful panels) ---
 
@@ -117,7 +116,7 @@ const LinkTabsContext = createContext<LinkTabsContextValue | undefined>(
 	undefined,
 );
 
-type LinkTabsProps = HTMLAttributes<HTMLDivElement> & LinkTabsContextValue;
+type LinkTabsProps = ComponentProps<"div"> & LinkTabsContextValue;
 
 export const LinkTabs = ({
 	className,
@@ -140,7 +139,7 @@ export const LinkTabs = ({
 	);
 };
 
-type LinkTabsListProps = HTMLAttributes<HTMLDivElement>;
+type LinkTabsListProps = ComponentProps<"div">;
 
 export const LinkTabsList = ({ className, ...props }: LinkTabsListProps) => {
 	const tabsContext = useContext(LinkTabsContext);

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -22,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -662,6 +665,257 @@ func TestUpdateClientConfiguration_LegacyAuthMethodMismatch(t *testing.T) {
 			secrets, err := db.GetOAuth2ProviderAppSecretsByAppID(ctx, legacy.ID)
 			require.NoError(t, err)
 			require.Len(t, secrets, 1)
+		})
+	}
+}
+
+// TestUpdateClientConfiguration_LegacyOversizedScope covers apps that stored
+// a scope list larger than the current limit before the limit existed. An
+// RFC 7592 update replaces every field, so a client changing only its name
+// has to resend that list. Resending it unchanged must succeed, while a new
+// value is still held to the limit.
+func TestUpdateClientConfiguration_LegacyOversizedScope(t *testing.T) {
+	t.Parallel()
+
+	oversized := strings.TrimSpace(strings.Repeat("workspace:read ", codersdk.OAuth2ScopeListMaxNames+1))
+
+	tests := []struct {
+		name       string
+		scope      string
+		wantStatus int
+	}{
+		{
+			name:       "ResendingStoredScopeIsAccepted",
+			scope:      oversized,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "NewOversizedScopeIsRejected",
+			scope:      oversized + " workspace:write",
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			db, _ := dbtestutil.NewDB(t)
+			require.NoError(t, db.UpsertOAuth2DCREnabled(ctx, true))
+
+			legacy := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+				Name:                    "legacy-app",
+				CallbackURL:             "https://example.com/callback",
+				RedirectUris:            []string{"https://example.com/callback"},
+				ClientType:              database.OAuth2ProviderAppClientTypeConfidential,
+				TokenEndpointAuthMethod: sql.NullString{String: "client_secret_basic", Valid: true},
+				DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
+				Scope:                   sql.NullString{String: oversized, Valid: true},
+			})
+
+			logger := slogtest.Make(t, nil)
+			auditor := audit.NewNop()
+			handler := tracing.StatusWriterMiddleware(oauth2provider.UpdateClientConfiguration(db, &auditor, logger))
+
+			body, err := json.Marshal(codersdk.OAuth2ClientRegistrationRequest{
+				ClientName:              "renamed-app",
+				RedirectURIs:            []string{"https://example.com/callback"},
+				TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+				Scope:                   tt.scope,
+			})
+			require.NoError(t, err)
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("client_id", legacy.ID.String())
+			r := httptest.NewRequest(http.MethodPut, "/oauth2/clients/"+legacy.ID.String(),
+				bytes.NewReader(body)).WithContext(context.WithValue(ctx, chi.RouteCtxKey, rctx))
+			r.Header.Set("Content-Type", "application/json")
+			rw := httptest.NewRecorder()
+
+			handler.ServeHTTP(rw, r)
+			require.Equal(t, tt.wantStatus, rw.Code, "body: %s", rw.Body.String())
+
+			app, err := db.GetOAuth2ProviderAppByClientID(ctx, legacy.ID)
+			require.NoError(t, err)
+			// Neither request changes the stored scope: the unchanged value
+			// is kept and the oversized new value is rejected.
+			require.Equal(t, oversized, app.Scope.String)
+			if tt.wantStatus == http.StatusOK {
+				require.Equal(t, "renamed-app", app.Name)
+			} else {
+				require.Equal(t, "legacy-app", app.Name)
+				require.Contains(t, rw.Body.String(), "invalid_client_metadata")
+			}
+		})
+	}
+}
+
+// TestCreateDynamicClientRegistration_BodyTooLarge asserts that an oversized
+// body is rejected with an RFC 7591 error body rather than a codersdk.Response.
+// Every other error in this handler is protocol-shaped, and a client that parses
+// the OAuth2 error shape would fail to read a codersdk.Response, so the status
+// alone is not sufficient.
+func TestCreateDynamicClientRegistration_BodyTooLarge(t *testing.T) {
+	t.Parallel()
+
+	accessURL, err := url.Parse("https://oauth2-registration-too-large-test.example.com")
+	require.NoError(t, err)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	db, _ := dbtestutil.NewDB(t)
+	require.NoError(t, db.UpsertOAuth2DCREnabled(ctx, true))
+
+	logger := slogtest.Make(t, nil)
+	auditor := audit.NewNop()
+	handler := tracing.StatusWriterMiddleware(oauth2provider.CreateDynamicClientRegistration(db, accessURL, &auditor, logger))
+
+	// One valid redirect URI padded past the limit, so size is the only reason
+	// to reject the request.
+	req := codersdk.OAuth2ClientRegistrationRequest{
+		RedirectURIs: []string{"https://example.com/callback"},
+		ClientName:   strings.Repeat("a", httpapi.DefaultMaxRequestBodyBytes),
+	}
+	body, err := json.Marshal(req)
+	require.NoError(t, err)
+	require.Greater(t, len(body), httpapi.DefaultMaxRequestBodyBytes)
+
+	r := httptest.NewRequest(http.MethodPost, "/oauth2/register", bytes.NewReader(body)).WithContext(ctx)
+	r.Header.Set("Content-Type", "application/json")
+	rw := httptest.NewRecorder()
+
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+
+	var errResp map[string]string
+	require.NoError(t, json.Unmarshal(rw.Body.Bytes(), &errResp))
+	require.Equal(t, "invalid_request", errResp["error"])
+	require.Contains(t, errResp["error_description"], strconv.Itoa(httpapi.DefaultMaxRequestBodyBytes))
+}
+
+func TestClientConfiguration_ReportedAuthMethod(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		clientType string
+		// An old row reads back empty whether it is NULL or an empty string.
+		stored sql.NullString
+		// Sent on the PUT. Must either match the stored method or agree with
+		// the client type, or the type-change guard rejects the update first.
+		resend codersdk.OAuth2TokenEndpointAuthMethod
+		want   codersdk.OAuth2TokenEndpointAuthMethod
+	}{
+		{
+			// A client that sends back the stored method, not the reported one.
+			name:       "ConfidentialStoringNoneResendingStored",
+			clientType: database.OAuth2ProviderAppClientTypeConfidential,
+			stored:     sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodNone), Valid: true},
+			resend:     codersdk.OAuth2TokenEndpointAuthMethodNone,
+			want:       codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+		},
+		{
+			// A client that sends back what GET reported, which fixes the row.
+			name:       "ConfidentialStoringNoneResendingReported",
+			clientType: database.OAuth2ProviderAppClientTypeConfidential,
+			stored:     sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodNone), Valid: true},
+			resend:     codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+			want:       codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+		},
+		{
+			name:       "PublicStoringSecretMethodResendingStored",
+			clientType: database.OAuth2ProviderAppClientTypePublic,
+			stored:     sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic), Valid: true},
+			resend:     codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+			want:       codersdk.OAuth2TokenEndpointAuthMethodNone,
+		},
+		{
+			name:       "PublicStoringSecretMethodResendingReported",
+			clientType: database.OAuth2ProviderAppClientTypePublic,
+			stored:     sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic), Valid: true},
+			resend:     codersdk.OAuth2TokenEndpointAuthMethodNone,
+			want:       codersdk.OAuth2TokenEndpointAuthMethodNone,
+		},
+		{
+			// RFC 7591 §2 defaults an unset method to client_secret_basic.
+			name:       "ConfidentialStoringNothing",
+			clientType: database.OAuth2ProviderAppClientTypeConfidential,
+			stored:     sql.NullString{String: "", Valid: true},
+			resend:     codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+			want:       codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+		},
+		{
+			// The stored method agrees with the type but is not the type
+			// default, so this case fails if the default is returned instead.
+			name:       "ConfidentialStoringClientSecretPost",
+			clientType: database.OAuth2ProviderAppClientTypeConfidential,
+			stored:     sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost), Valid: true},
+			resend:     codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost,
+			want:       codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			db, _ := dbtestutil.NewDB(t)
+
+			// Seeded directly, since registration derives the type from the
+			// method and can no longer create a disagreeing row.
+			app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+				CallbackURL:             "https://example.com/callback",
+				RedirectUris:            []string{"https://example.com/callback"},
+				ClientType:              tt.clientType,
+				TokenEndpointAuthMethod: tt.stored,
+				DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
+			})
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("client_id", app.ID.String())
+			getReq := httptest.NewRequest(http.MethodGet, "/oauth2/clients/"+app.ID.String(), nil).
+				WithContext(context.WithValue(ctx, chi.RouteCtxKey, rctx))
+			getRW := httptest.NewRecorder()
+
+			oauth2provider.GetClientConfiguration(db).ServeHTTP(getRW, getReq)
+			require.Equal(t, http.StatusOK, getRW.Code, "body: %s", getRW.Body.String())
+
+			var got codersdk.OAuth2ClientConfiguration
+			require.NoError(t, json.NewDecoder(getRW.Body).Decode(&got))
+			require.Equal(t, tt.want, got.TokenEndpointAuthMethod)
+
+			logger := slogtest.Make(t, nil)
+			auditor := audit.NewNop()
+			handler := tracing.StatusWriterMiddleware(oauth2provider.UpdateClientConfiguration(db, &auditor, logger))
+
+			body, err := json.Marshal(codersdk.OAuth2ClientRegistrationRequest{
+				RedirectURIs:            []string{"https://example.com/callback"},
+				TokenEndpointAuthMethod: tt.resend,
+			})
+			require.NoError(t, err)
+
+			putRCtx := chi.NewRouteContext()
+			putRCtx.URLParams.Add("client_id", app.ID.String())
+			putReq := httptest.NewRequest(http.MethodPut, "/oauth2/clients/"+app.ID.String(),
+				bytes.NewReader(body)).WithContext(context.WithValue(ctx, chi.RouteCtxKey, putRCtx))
+			putReq.Header.Set("Content-Type", "application/json")
+			putRW := httptest.NewRecorder()
+
+			handler.ServeHTTP(putRW, putReq)
+			require.Equal(t, http.StatusOK, putRW.Code, "body: %s", putRW.Body.String())
+
+			var updated codersdk.OAuth2ClientConfiguration
+			require.NoError(t, json.NewDecoder(putRW.Body).Decode(&updated))
+			require.Equal(t, tt.want, updated.TokenEndpointAuthMethod)
+
+			// The row keeps what the client sent, so the response can still
+			// disagree with it.
+			stored, err := db.GetOAuth2ProviderAppByClientID(ctx, app.ID)
+			require.NoError(t, err)
+			require.Equal(t, string(tt.resend), stored.TokenEndpointAuthMethod.String)
+			require.Equal(t, tt.clientType, stored.ClientType)
 		})
 	}
 }

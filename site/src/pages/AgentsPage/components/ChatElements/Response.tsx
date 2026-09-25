@@ -2,7 +2,8 @@ import {
 	File as FileViewer,
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
-import type { ComponentPropsWithRef, ReactNode } from "react";
+import { cn } from "cn";
+import type { ComponentProps, ReactNode } from "react";
 import {
 	type Components,
 	defaultRehypePlugins,
@@ -11,17 +12,17 @@ import {
 } from "streamdown";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
-import { cn } from "#/utils/cn";
 import { MarkdownImage } from "./MarkdownImage";
+import { MermaidDiagram } from "./MermaidDiagram";
 
-interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
+type ResponseProps = Omit<ComponentProps<"div">, "children"> & {
 	children: string;
 	urlTransform?: UrlTransform;
 	/** Enable streaming-mode Streamdown with incomplete-markdown
-	 * preprocessing (remend) and useTransition-based render
-	 * scheduling. Pass true only for live-streaming output. */
+	 * preprocessing (remend). Pass true only for live-streaming
+	 * output. */
 	streaming?: boolean;
-}
+};
 
 // Omit rehype-raw so HTML-like syntax in LLM output is rendered as
 // escaped text instead of being parsed by the HTML5 engine. Without
@@ -224,7 +225,14 @@ const createComponents = (
 				const lang = langClass?.replace(/^language-/, "") ?? "text";
 				const content = getHastText(codeChild).trimEnd();
 				if (content) {
-					return (
+					const isMermaid = lang === "mermaid";
+					// Shiki has no Mermaid grammar and the viewer renders
+					// nothing for unknown languages, so the fallback source
+					// view is highlighted as plain text.
+					const viewerLang: SupportedLanguages = isMermaid
+						? "text"
+						: (lang as SupportedLanguages);
+					const codeBlock = (
 						<ScrollArea
 							orientation="both"
 							className="my-4 rounded-md border border-solid border-border-default bg-surface-primary"
@@ -233,8 +241,8 @@ const createComponents = (
 						>
 							<FileViewer
 								file={{
-									name: `block.${lang}`,
-									lang: lang as SupportedLanguages,
+									name: `block.${viewerLang}`,
+									lang: viewerLang,
 									contents: content,
 									cacheKey: content,
 								}}
@@ -250,6 +258,10 @@ const createComponents = (
 							/>
 						</ScrollArea>
 					);
+					if (isMermaid) {
+						return <MermaidDiagram source={content} fallback={codeBlock} />;
+					}
+					return codeBlock;
 				}
 			}
 			return <pre>{getHastText(node)}</pre>;
@@ -295,6 +307,15 @@ export const Response = ({
 				rehypePlugins={chatRehypePlugins}
 				mode={streaming ? "streaming" : "static"}
 				parseIncompleteMarkdown={streaming}
+				// Streamdown only flags the trailing block as an
+				// incomplete code fence while isAnimating is set, which
+				// MermaidDiagram relies on to defer rendering.
+				isAnimating={streaming}
+				// Streamdown 2.6 caps table height at 300px by
+				// default, even with controls disabled. Chat tables
+				// should grow with their content instead of
+				// scrolling internally.
+				tableMaxHeight={0}
 			>
 				{children}
 			</Streamdown>

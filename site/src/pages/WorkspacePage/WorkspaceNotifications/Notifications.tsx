@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FC, type ReactNode, useState } from "react";
 import type { AlertProps } from "#/components/Alert/Alert";
 import { Badge } from "#/components/Badge/Badge";
@@ -8,9 +9,8 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import type { ThemeRole } from "#/theme/roles";
-import { cn } from "#/utils/cn";
 
-export type NotificationItem = {
+export type Notification = {
 	title: string;
 	severity: AlertProps["severity"];
 	detail?: ReactNode;
@@ -20,7 +20,7 @@ export type NotificationItem = {
 type NotificationSeverity = "warning" | "info";
 
 type NotificationsProps = {
-	items: NotificationItem[];
+	items: Notification[];
 	severity: NotificationSeverity;
 	icon: ReactNode;
 };
@@ -130,9 +130,9 @@ const NotificationPill: FC<NotificationPillProps> = ({
 	);
 };
 
-interface NotificationItemProps {
-	notification: NotificationItem;
-}
+type NotificationItemProps = {
+	notification: Notification;
+};
 
 const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 	return (

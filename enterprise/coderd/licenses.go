@@ -41,7 +41,7 @@ const (
 	// re-read licenses from the database and recompute entitlements.
 	//
 	// It is published and subscribed on api.ReplicaSyncPubsub (always Postgres),
-	// not api.Pubsub. When the NATS pubsub experiment is enabled, api.Pubsub is
+	// not api.Pubsub. When the embedded NATS pubsub is in use, api.Pubsub is
 	// the embedded NATS pubsub whose cluster mesh only forms once a replica is
 	// HA-licensed, so propagating license changes over it is circular: a fresh
 	// replica could not learn about the license that would let it join the mesh.
@@ -173,6 +173,7 @@ func (api *API) postTrialLicense(rw http.ResponseWriter, r *http.Request) {
 	rawLicense, err := api.trialer.Request(ctx, codersdk.LicensorTrialRequest{
 		DeploymentID: api.AGPL.DeploymentID,
 		Email:        req.Email,
+		Source:       codersdk.LicensorTrialSourceProduct,
 		FirstName:    req.FirstName,
 		LastName:     req.LastName,
 		PhoneNumber:  req.PhoneNumber,

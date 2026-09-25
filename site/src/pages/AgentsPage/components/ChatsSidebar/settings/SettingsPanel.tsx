@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ArrowLeftIcon,
 	ArrowUpRightIcon,
@@ -12,10 +13,9 @@ import {
 import type { FC } from "react";
 import { Link, type Location } from "react-router";
 import { Button } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
 import { SettingsNavItem } from "./SettingsNavItem";
 
-interface SettingsPanelProps {
+type SettingsPanelProps = {
 	readonly isSettingsPanel: boolean;
 	readonly settingsSection: string | undefined;
 	readonly showApiKeysItem: boolean;
@@ -23,7 +23,7 @@ interface SettingsPanelProps {
 	readonly canManageAgentSettings: boolean;
 	readonly location: Location;
 	readonly onCollapse?: () => void;
-}
+};
 
 export const SettingsPanel: FC<SettingsPanelProps> = ({
 	isSettingsPanel,

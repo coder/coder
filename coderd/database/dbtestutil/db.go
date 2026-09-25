@@ -121,7 +121,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		o.fixedTimezone = DefaultTimezone
 	}
 	dbName := dbNameFromConnectionURL(t, connectionURL)
-	setDBTimezone(t, connectionURL, dbName, o.fixedTimezone)
+	setDBSettings(t, connectionURL, dbName, o.fixedTimezone)
 
 	sqlDB, err := sql.Open("postgres", connectionURL)
 	require.NoError(t, err)
@@ -137,7 +137,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	// Unit tests should not retry serial transaction failures.
 	db = database.New(sqlDB, database.WithSerialRetryCount(1))
 
-	ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
+	ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = ps.Close()
@@ -146,10 +146,11 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	return db, ps
 }
 
-// setRandDBTimezone sets the timezone of the database to the given timezone.
-// Note that the updated timezone only comes into effect on reconnect, so we
-// create our own connection for this and close the DB after we're done.
-func setDBTimezone(t testing.TB, dbURL, dbname, tz string) {
+// setDBSettings sets the timezone of the database to the given timezone and
+// disables JIT. Note that the updated settings only come into effect on
+// reconnect, so we create our own connection for this and close the DB after
+// we're done.
+func setDBSettings(t testing.TB, dbURL, dbname, tz string) {
 	t.Helper()
 
 	sqlDB, err := sql.Open("postgres", dbURL)
@@ -161,6 +162,14 @@ func setDBTimezone(t testing.TB, dbURL, dbname, tz string) {
 	// nolint: gosec // This unfortunately does not work with placeholders.
 	_, err = sqlDB.Exec(fmt.Sprintf("ALTER DATABASE %s SET TIMEZONE TO %q", dbname, tz))
 	require.NoError(t, err, "failed to set timezone for database")
+
+	// The planner misestimates some queries so badly on near-empty test
+	// databases that they exceed jit_above_cost, and Postgres then spends
+	// hundreds of milliseconds LLVM-compiling them on every call. JIT is an
+	// execution optimization with no semantic effect, so turn it off.
+	// nolint: gosec // This unfortunately does not work with placeholders.
+	_, err = sqlDB.Exec(fmt.Sprintf("ALTER DATABASE %s SET jit = off", dbname))
+	require.NoError(t, err, "failed to disable jit for database")
 }
 
 // dbNameFromConnectionURL returns the database name from the given connection URL,

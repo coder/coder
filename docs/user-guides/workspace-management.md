@@ -1,8 +1,9 @@
-# Workspaces
+---
+title: Manage workspaces
+---
 
-A workspace is the environment that a developer works in. Developers in a team
-each work from their own workspace and can use
-[multiple IDEs](./workspace-access/index.md).
+A workspace is the environment where a developer or a coding agent works.
+Developers and agents in a team each work from their own workspace and can use [multiple IDEs](./workspace-access/index.md).
 
 A developer creates a workspace from a
 [shared template](../admin/templates/index.md). This lets an entire team work in
@@ -60,6 +61,9 @@ The following filters are supported:
 
 - `owner` - Represents the `username` of the owner. You can also use `me` as a
   convenient alias for the logged-in user, e.g., `owner:me`
+- `user` - Workspaces a user owns, plus workspaces shared with them directly
+  or through a group they belong to. Accepts a `username`, user ID, or `me`,
+  e.g., `user:me`
 - `name` - Name of the workspace.
 - `template` - Name of the template.
 - `status` - Indicates the status of the workspace, e.g, `status:failed` For a

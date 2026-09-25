@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import type { Organization } from "#/api/typesGenerated";
@@ -16,9 +17,8 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 
-interface CompactOrgSelectorProps {
+type CompactOrgSelectorProps = {
 	value: Organization | null;
 	onChange?: (organization: Organization) => void;
 	options: readonly Organization[];
@@ -26,7 +26,7 @@ interface CompactOrgSelectorProps {
 	className?: string;
 	dropdownSide?: "top" | "bottom" | "left" | "right";
 	dropdownAlign?: "start" | "center" | "end";
-}
+};
 
 export const CompactOrgSelector: FC<CompactOrgSelectorProps> = ({
 	value,
