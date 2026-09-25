@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
 	"charm.land/fantasy"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -121,6 +123,48 @@ type ExecuteArgs struct {
 // ExecuteToolName is the registered name of the execute tool.
 const ExecuteToolName = "execute"
 
+// RunsInBackground reports whether the execute tool runs the command in
+// the background: run_in_background is set, or the command ends with a
+// shell-style "&" that is not "&&" or "|&".
+func (a ExecuteArgs) RunsInBackground() bool {
+	if a.RunInBackground != nil && *a.RunInBackground {
+		return true
+	}
+	_, ok := trailingAmpersandCommand(a.Command)
+	return ok
+}
+
+// trailingAmpersandCommand returns command without a shell-style
+// trailing "&", and whether it had one. Models sometimes use "cmd &"
+// instead of run_in_background, which makes the shell fork and exit
+// immediately, leaving an untracked orphan process.
+func trailingAmpersandCommand(command string) (string, bool) {
+	trimmed := strings.TrimSpace(command)
+	if !strings.HasSuffix(trimmed, "&") || strings.HasSuffix(trimmed, "&&") || strings.HasSuffix(trimmed, "|&") {
+		return command, false
+	}
+	return strings.TrimSpace(strings.TrimSuffix(trimmed, "&")), true
+}
+
+// EffectiveTimeout returns how long a foreground execute call waits for
+// its command: the timeout argument, or optionTimeout
+// (ExecuteOptions.DefaultTimeout) when the argument is unset, or 10s
+// when neither is set.
+func (a ExecuteArgs) EffectiveTimeout(optionTimeout time.Duration) (time.Duration, error) {
+	timeout := optionTimeout
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
+	if a.Timeout != nil {
+		parsed, err := time.ParseDuration(*a.Timeout)
+		if err != nil {
+			return 0, xerrors.Errorf("invalid timeout %q: %w", *a.Timeout, err)
+		}
+		timeout = parsed
+	}
+	return timeout, nil
+}
+
 // Execute returns an AgentTool that runs a shell command in the
 // workspace via the agent HTTP API.
 func Execute(options ExecuteOptions) fantasy.AgentTool {
@@ -160,16 +204,10 @@ func executeTool(
 		env[k] = v
 	}
 
-	background := args.RunInBackground != nil && *args.RunInBackground
-
-	// Detect shell-style backgrounding (trailing &) and promote to
-	// background mode. Models sometimes use "cmd &" instead of the
-	// run_in_background parameter, which causes the shell to fork
-	// and exit immediately, leaving an untracked orphan process.
-	trimmed := strings.TrimSpace(args.Command)
-	if !background && strings.HasSuffix(trimmed, "&") && !strings.HasSuffix(trimmed, "&&") && !strings.HasSuffix(trimmed, "|&") {
-		background = true
-		args.Command = strings.TrimSpace(strings.TrimSuffix(trimmed, "&"))
+	background := args.RunsInBackground()
+	// A trailing "&" is promoted to background mode and stripped.
+	if args.RunInBackground == nil || !*args.RunInBackground {
+		args.Command, _ = trailingAmpersandCommand(args.Command)
 	}
 
 	var workDir string
@@ -228,18 +266,9 @@ func executeForeground(
 	workDir string,
 	env map[string]string,
 ) fantasy.ToolResponse {
-	timeout := optTimeout
-	if timeout <= 0 {
-		timeout = defaultTimeout
-	}
-	if args.Timeout != nil {
-		parsed, err := time.ParseDuration(*args.Timeout)
-		if err != nil {
-			return fantasy.NewTextErrorResponse(
-				fmt.Sprintf("invalid timeout %q: %v", *args.Timeout, err),
-			)
-		}
-		timeout = parsed
+	timeout, err := args.EffectiveTimeout(optTimeout)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(err.Error())
 	}
 
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -282,6 +311,11 @@ func executeForeground(
 	return fantasy.NewTextResponse(string(data))
 }
 
+// agentRestartedResultError is the result error for a tool call the
+// workspace agent answered with agent_started_after_tool_call.
+const agentRestartedResultError = "outcome unknown: the workspace agent restarted after this tool call, " +
+	"so the command may have run before the restart. Check the workspace state before running it again."
+
 // startErrorResult converts a StartProcess error into a result. ctx is
 // the tool call's context. A *workspacesdk.ToolCallError is the agent's
 // answer for the tool call in ctx.
@@ -301,8 +335,7 @@ func startErrorResult(ctx context.Context, action string, err error) fantasy.Too
 	}
 	switch tcErr.Code {
 	case workspacesdk.ToolCallErrorAgentStartedAfterToolCall:
-		return errorResult("outcome unknown: the workspace agent restarted after this tool call, " +
-			"so the command may have run before the restart. Check the workspace state before running it again.")
+		return errorResult(agentRestartedResultError)
 	case workspacesdk.ToolCallErrorInputMismatch:
 		return errorResult(fmt.Sprintf("%s: the workspace agent has a record of this tool call "+
 			"with a different input, so no process was started: %v", action, tcErr))
@@ -310,6 +343,95 @@ func startErrorResult(ctx context.Context, action string, err error) fantasy.Too
 		// stale_tool_call and tool_call_canceled reach only a stale
 		// attempt, whose commit fails the history version fence.
 		return errorResult(fmt.Sprintf("%s: %v", action, tcErr))
+	}
+}
+
+// InterruptExecute ends a foreground execute call the user interrupted
+// and returns its result. timeout is the call's effective timeout. A
+// process past its execute deadline keeps running, as the timed out
+// result with background_process_id promises; anything else is canceled.
+// ok is false when the agent's answer does not describe the tool call:
+// an error response other than agent_started_after_tool_call, including
+// the 404 of an agent without the cancel route.
+func InterruptExecute(ctx context.Context, conn workspacesdk.AgentConn, id ToolCallIdentity, timeout time.Duration) (result ExecuteResult, ok bool) {
+	processID := id.UUID()
+	// The execute deadline is process start plus timeout, and the process
+	// starts after the tool call is committed, so a younger tool call is
+	// within it. Both ages are measured when the request is sent, after
+	// the dial, so a deadline that passes during the dial keeps the process
+	// running.
+	if id.Age.Now() >= timeout {
+		out, err := conn.ProcessOutput(ctx, processID, nil)
+		if err == nil && out.Running && time.Duration(out.AgeMs)*time.Millisecond >= timeout {
+			result := timedOutRunningResult(out, timeout, processID)
+			result.WallDurationMs = out.AgeMs
+			return result, true
+		}
+	}
+	resp, err := conn.CancelProcess(workspacesdk.WithToolCall(ctx, id.AgentToolCall()), processID)
+	return canceledExecuteResult(processID, resp, err)
+}
+
+// canceledExecuteResult returns the result of a foreground execute call
+// from the workspace agent's answer to CancelProcess for processID.
+func canceledExecuteResult(processID string, resp workspacesdk.CancelProcessResponse, err error) (result ExecuteResult, ok bool) {
+	if err != nil {
+		var tcErr *workspacesdk.ToolCallError
+		if errors.As(err, &tcErr) {
+			if tcErr.Code == workspacesdk.ToolCallErrorAgentStartedAfterToolCall {
+				return ExecuteResult{Error: agentRestartedResultError}, true
+			}
+			return ExecuteResult{}, false
+		}
+		var sdkErr *codersdk.Error
+		if errors.As(err, &sdkErr) {
+			return ExecuteResult{}, false
+		}
+		// The HTTP client returns *url.Error when no response arrived.
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			return AgentUnreachableExecuteResult(processID, err), true
+		}
+		return ExecuteResult{
+			Error: fmt.Sprintf("outcome unknown: the workspace agent answered the cancel request, but its response "+
+				"could not be read, so the command may still be running: %v. On agents that support tool calls, "+
+				"check or signal it with process_output or process_signal using process ID %s.", err, processID),
+		}, true
+	}
+	switch {
+	case !resp.Started:
+		return ExecuteResult{Error: "not run: the command was canceled before it started."}, true
+	case resp.Canceled:
+		exitCode := -1
+		if resp.ExitCode != nil {
+			exitCode = *resp.ExitCode
+		}
+		return ExecuteResult{
+			Output:         truncateOutput(resp.Output),
+			ExitCode:       exitCode,
+			WallDurationMs: resp.AgeMs,
+			Error:          fmt.Sprintf("canceled by the user after %s", time.Duration(resp.AgeMs)*time.Millisecond),
+			Truncated:      resp.Truncated,
+		}, true
+	default:
+		result := completedResult(workspacesdk.ProcessOutputResponse{
+			Output:    resp.Output,
+			ExitCode:  resp.ExitCode,
+			Truncated: resp.Truncated,
+		})
+		result.WallDurationMs = resp.AgeMs
+		return result, true
+	}
+}
+
+// AgentUnreachableExecuteResult returns the result of a foreground
+// execute call the user interrupted when the workspace agent could not
+// be reached to end the process with processID.
+func AgentUnreachableExecuteResult(processID string, err error) ExecuteResult {
+	return ExecuteResult{
+		Error: fmt.Sprintf("outcome unknown: the workspace agent could not be reached to cancel the command, "+
+			"so it may still be running: %v. On agents that support tool calls, check or signal it with "+
+			"process_output or process_signal using process ID %s.", err, processID),
 	}
 }
 

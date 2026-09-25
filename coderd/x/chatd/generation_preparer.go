@@ -233,18 +233,8 @@ func (server *Server) prepareGeneration(
 		advisorPromptSnapshot = slices.Clone(msgs)
 	}
 
-	currentChat := chat
-	loadChatSnapshot := func(loadCtx context.Context, chatID uuid.UUID) (database.Chat, error) {
-		return server.db.GetChatByID(loadCtx, chatID)
-	}
-	var chatStateMu sync.Mutex
 	var workspaceMu sync.Mutex
-	workspaceCtx := turnWorkspaceContext{
-		server:           server,
-		chatStateMu:      &chatStateMu,
-		currentChat:      &currentChat,
-		loadChatSnapshot: loadChatSnapshot,
-	}
+	workspaceCtx := newTurnWorkspaceContext(server, chat)
 	// mcpCleanup and inlineMCPCleanup are assigned by g2 goroutines and
 	// read only after g2.Wait, so no error path can run this before
 	// they are set.
@@ -477,7 +467,7 @@ func (server *Server) prepareGeneration(
 	}
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
-			workspaceMCPTools = server.resolveWorkspaceMCPTools(ctx, logger, chat, &workspaceCtx)
+			workspaceMCPTools = server.resolveWorkspaceMCPTools(ctx, logger, chat, workspaceCtx)
 			return nil
 		})
 	}
@@ -557,7 +547,7 @@ func (server *Server) prepareGeneration(
 	}
 	setAdvisorPromptSnapshot(prompt)
 
-	storeChatAttachment := server.newStoreChatAttachmentFunc(&workspaceCtx)
+	storeChatAttachment := server.newStoreChatAttachmentFunc(workspaceCtx)
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.WriteFile(chattool.WriteFileOptions{
@@ -589,7 +579,7 @@ func (server *Server) prepareGeneration(
 		tools = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{
 			chat:            chat,
 			modelConfigID:   modelConfig.ID,
-			workspaceCtx:    &workspaceCtx,
+			workspaceCtx:    workspaceCtx,
 			workspaceMu:     &workspaceMu,
 			resolvePlanPath: resolvePlanPathForTools,
 			storeFile:       storeChatAttachment,

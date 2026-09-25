@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/assert"
@@ -759,6 +760,62 @@ func TestExecuteTool(t *testing.T) {
 		assert.True(t, resp.IsError)
 		assert.Contains(t, resp.Content, "workspace offline")
 	})
+}
+
+func TestExecuteArgsRunsInBackground(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		command         string
+		runInBackground *bool
+		want            bool
+	}{
+		{name: "Foreground", command: "cmd", want: false},
+		{name: "Flag", command: "cmd", runInBackground: ptr(true), want: true},
+		{name: "FlagFalse", command: "cmd", runInBackground: ptr(false), want: false},
+		{name: "TrailingAmpersand", command: "cmd &", want: true},
+		{name: "TrailingAmpersandWithSpace", command: "cmd & ", want: true},
+		{name: "TrailingAmpersandFlagFalse", command: "cmd &", runInBackground: ptr(false), want: true},
+		{name: "TrailingDoubleAmpersand", command: "cmd &&", want: false},
+		{name: "BashPipeStderr", command: "cmd |&", want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			args := chattool.ExecuteArgs{Command: tc.command, RunInBackground: tc.runInBackground}
+			assert.Equal(t, tc.want, args.RunsInBackground())
+		})
+	}
+}
+
+func TestExecuteArgsEffectiveTimeout(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		timeout        *string
+		optionTimeout  time.Duration
+		want           time.Duration
+		wantErrContain string
+	}{
+		{name: "ToolDefault", want: 10 * time.Second},
+		{name: "OptionDefault", optionTimeout: time.Minute, want: time.Minute},
+		{name: "Argument", timeout: ptr("5m"), optionTimeout: time.Minute, want: 5 * time.Minute},
+		{name: "Invalid", timeout: ptr("soon"), wantErrContain: `invalid timeout "soon"`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := chattool.ExecuteArgs{Command: "cmd", Timeout: tc.timeout}.EffectiveTimeout(tc.optionTimeout)
+			if tc.wantErrContain != "" {
+				require.ErrorContains(t, err, tc.wantErrContain)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
 
 func TestDetectFileDump(t *testing.T) {

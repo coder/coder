@@ -6,13 +6,18 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -25,8 +30,11 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -842,6 +850,606 @@ func TestInterruptTask_ToolCancellationWithoutLiveBatchHasNoRuntime(t *testing.T
 	execRow := findToolResultMessage(t, messages, execCallID)
 	require.False(t, execRow.RuntimeMs.Valid)
 	require.Empty(t, batchUsageRecords(t, f, batch.chat.ID))
+}
+
+// executeInterrupt is an interrupted batch whose chat is bound to a
+// workspace agent that dials conn. The tool call message is backdated by
+// an hour, so a tool call age of at least an hour comes from the
+// database clock. No message part episode exists for the interrupt, as
+// after an ownership change; createEpisode adds one.
+type executeInterrupt struct {
+	interruptedBatch
+	messageID int64
+	conn      *agentconnmock.MockAgentConn
+	dials     *atomic.Int32
+	releases  *atomic.Int32
+}
+
+// Execute arguments whose deadline an hour-old tool call is within, and
+// past.
+const (
+	executeWithinDeadline = `{"command":"make test","timeout":"2h"}`
+	executePastDeadline   = `{"command":"make test","timeout":"10m"}`
+)
+
+func newExecuteInterrupt(t *testing.T, f *taskTestFixture, calls []codersdk.ChatMessagePart, dialErr error) executeInterrupt {
+	t.Helper()
+	batch := interruptedBatchFixture(t, f, calls)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	_, err := f.sqlDB.ExecContext(ctx,
+		`UPDATE chat_messages SET created_at = created_at - interval '1 hour' WHERE chat_id = $1 AND role = 'assistant'`,
+		batch.chat.ID)
+	require.NoError(t, err)
+	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: batch.chat.ID})
+	require.NoError(t, err)
+	assistant := messages[len(messages)-1]
+	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
+	// Updating a message moves the chat's history version and generation
+	// attempt, so the interrupt reads a new episode.
+	chat, err := f.db.GetChatByID(ctx, batch.chat.ID)
+	require.NoError(t, err)
+	batch.key = messagepartbuffer.Key{
+		ChatID:            chat.ID,
+		HistoryVersion:    chat.HistoryVersion,
+		GenerationAttempt: chat.GenerationAttempt,
+	}
+
+	workspace, build, agent := seedWorkspaceBinding(t, f.db, f.user.ID)
+	_, err = f.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+		ID:          batch.chat.ID,
+		WorkspaceID: uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		BuildID:     uuid.NullUUID{UUID: build.ID, Valid: true},
+		AgentID:     uuid.NullUUID{UUID: agent.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	var dials, releases atomic.Int32
+	batch.starter.server.agentConnFn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		dials.Add(1)
+		assert.Equal(t, agent.ID, agentID)
+		if dialErr != nil {
+			return nil, nil, dialErr
+		}
+		return conn, func() { releases.Add(1) }, nil
+	}
+	return executeInterrupt{
+		interruptedBatch: batch,
+		messageID:        assistant.ID,
+		conn:             conn,
+		dials:            &dials,
+		releases:         &releases,
+	}
+}
+
+// createEpisode creates the interrupted generation attempt's episode, as
+// on the replica that ran it.
+func (e executeInterrupt) createEpisode(t *testing.T) {
+	t.Helper()
+	require.NoError(t, e.starter.opts.MessagePartBuffer.CreateEpisode(e.key))
+}
+
+func (e executeInterrupt) processID(callID string) string {
+	return workspacesdk.ToolCallUUID(e.chat.ID, e.messageID, callID).String()
+}
+
+func (e executeInterrupt) startInput(t *testing.T, f *taskTestFixture) chatWorkerTaskStartInput {
+	t.Helper()
+	interrupting := f.interruptChat(t, e.chat.ID)
+	return chatWorkerTaskStartInput{
+		ChatID:            e.chat.ID,
+		WorkerID:          e.workerID,
+		RunnerID:          e.runnerID,
+		HistoryVersion:    interrupting.HistoryVersion,
+		GenerationAttempt: interrupting.GenerationAttempt,
+		Status:            database.ChatStatusInterrupting,
+	}
+}
+
+// expectCancel expects one cancel request for callID that carries the
+// tool call and returns resp and err.
+func (e executeInterrupt) expectCancel(t *testing.T, callID string, resp workspacesdk.CancelProcessResponse, err error) {
+	t.Helper()
+	e.conn.EXPECT().CancelProcess(gomock.Any(), e.processID(callID)).
+		DoAndReturn(func(ctx context.Context, _ string) (workspacesdk.CancelProcessResponse, error) {
+			e.assertToolCall(ctx, t, callID)
+			return resp, err
+		})
+}
+
+func (e executeInterrupt) assertToolCall(ctx context.Context, t *testing.T, callID string) {
+	tc, ok := workspacesdk.ToolCallFromContext(ctx)
+	if assert.True(t, ok, "cancel request must carry the tool call") {
+		assert.Equal(t, e.messageID, tc.MessageID)
+		assert.Equal(t, callID, tc.ID)
+		assert.GreaterOrEqual(t, tc.Age, time.Hour)
+	}
+}
+
+func executeToolCall(callID, args string) codersdk.ChatMessagePart {
+	return codersdk.ChatMessagePart{
+		Type:       codersdk.ChatMessagePartTypeToolCall,
+		ToolCallID: callID,
+		ToolName:   chattool.ExecuteToolName,
+		Args:       json.RawMessage(args),
+	}
+}
+
+// agentTransportError is the error shape agent requests return when the
+// request got no response.
+func agentTransportError(err error) error {
+	return &url.Error{Op: http.MethodPost, URL: "http://agent/api/v0/processes", Err: err}
+}
+
+func toolResults(t *testing.T, messages []database.ChatMessage, callID string) []codersdk.ChatMessagePart {
+	t.Helper()
+	var results []codersdk.ChatMessagePart
+	for _, msg := range messages {
+		if msg.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolCallID == callID {
+				results = append(results, part)
+			}
+		}
+	}
+	return results
+}
+
+// singleToolResult returns the only committed result for callID.
+func singleToolResult(t *testing.T, messages []database.ChatMessage, callID string) codersdk.ChatMessagePart {
+	t.Helper()
+	results := toolResults(t, messages, callID)
+	require.Len(t, results, 1, "tool call %s must have exactly one result", callID)
+	return results[0]
+}
+
+func requireGenericInterruptResult(t *testing.T, part codersdk.ChatMessagePart) {
+	t.Helper()
+	require.True(t, part.IsError)
+	require.JSONEq(t, fmt.Sprintf(`{"error":%q}`, interruptedToolResultErrorMessage), string(part.Result))
+}
+
+func requireExecuteResult(t *testing.T, part codersdk.ChatMessagePart) chattool.ExecuteResult {
+	t.Helper()
+	// The model sees every field only when the result is not an error
+	// result, as for every execute result.
+	require.False(t, part.IsError)
+	var result chattool.ExecuteResult
+	require.NoError(t, json.Unmarshal(part.Result, &result), string(part.Result))
+	return result
+}
+
+// TestInterruptTask_ForegroundExecuteResults runs without a message part
+// episode, as after an ownership change, so only the execute deadline
+// decides whether a call is canceled.
+func TestInterruptTask_ForegroundExecuteResults(t *testing.T) {
+	t.Parallel()
+
+	intPtr := func(v int) *int { return &v }
+	tests := []struct {
+		name string
+		args string
+		// snapshot is set when a non-blocking output request is expected,
+		// answered with output and outputErr.
+		snapshot  bool
+		output    workspacesdk.ProcessOutputResponse
+		outputErr error
+		// noCancel is set when no cancel request is expected.
+		noCancel bool
+		resp     workspacesdk.CancelProcessResponse
+		err      error
+		dialErr  error
+		// generic is set when the call keeps today's interrupted result.
+		generic bool
+		// want is compared without Error, which must contain wantError.
+		want      chattool.ExecuteResult
+		wantError string
+		// wantUUID is set when Error must name the tool call UUID.
+		wantUUID bool
+		// wantBackground is set when BackgroundProcessID must be the tool
+		// call UUID.
+		wantBackground bool
+	}{
+		{
+			name:      "CanceledAfterStart",
+			args:      executeWithinDeadline,
+			resp:      workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: "partial", ExitCode: intPtr(137), AgeMs: 12_000},
+			want:      chattool.ExecuteResult{Output: "partial", ExitCode: 137, WallDurationMs: 12_000},
+			wantError: "canceled by the user after 12s",
+		},
+		{
+			name:      "CanceledWithoutExitCode",
+			args:      executeWithinDeadline,
+			resp:      workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: "partial", AgeMs: 1_500},
+			want:      chattool.ExecuteResult{Output: "partial", ExitCode: -1, WallDurationMs: 1_500},
+			wantError: "canceled by the user after 1.5s",
+		},
+		{
+			name: "AlreadyExited",
+			args: executeWithinDeadline,
+			resp: workspacesdk.CancelProcessResponse{Started: true, Output: "PASS", ExitCode: intPtr(0), AgeMs: 3_000},
+			want: chattool.ExecuteResult{Success: true, Output: "PASS", ExitCode: 0, WallDurationMs: 3_000},
+		},
+		{
+			name: "AlreadyExitedWithFailure",
+			args: executeWithinDeadline,
+			resp: workspacesdk.CancelProcessResponse{Started: true, Output: "FAIL", ExitCode: intPtr(2), AgeMs: 3_000},
+			want: chattool.ExecuteResult{Output: "FAIL", ExitCode: 2, WallDurationMs: 3_000},
+		},
+		{
+			name:      "NotStarted",
+			args:      executeWithinDeadline,
+			resp:      workspacesdk.CancelProcessResponse{},
+			wantError: "not run: the command was canceled before it started",
+		},
+		{
+			name: "AgentStartedAfterToolCall",
+			args: executeWithinDeadline,
+			err: &workspacesdk.ToolCallError{
+				Response: codersdk.Response{Message: "agent started after the tool call"},
+				Code:     workspacesdk.ToolCallErrorAgentStartedAfterToolCall,
+			},
+			wantError: "outcome unknown: the workspace agent restarted after this tool call",
+		},
+		{
+			name:    "OldAgentWithoutCancelRoute",
+			args:    executeWithinDeadline,
+			err:     codersdk.NewTestError(http.StatusNotFound, http.MethodPost, "/api/v0/processes/x/cancel"),
+			generic: true,
+		},
+		{
+			name:    "OtherErrorResponse",
+			args:    executeWithinDeadline,
+			err:     codersdk.NewTestError(http.StatusInternalServerError, http.MethodPost, "/api/v0/processes/x/cancel"),
+			generic: true,
+		},
+		{
+			name: "StaleToolCall",
+			args: executeWithinDeadline,
+			err: &workspacesdk.ToolCallError{
+				Response: codersdk.Response{Message: "stale"},
+				Code:     workspacesdk.ToolCallErrorStale,
+			},
+			generic: true,
+		},
+		{
+			name:      "TransportError",
+			args:      executeWithinDeadline,
+			err:       agentTransportError(xerrors.New("connection reset by peer")),
+			wantError: "outcome unknown: the workspace agent could not be reached",
+			wantUUID:  true,
+		},
+		{
+			name:      "UnreadableResponse",
+			args:      executeWithinDeadline,
+			err:       xerrors.New("unexpected EOF"),
+			wantError: "outcome unknown: the workspace agent answered the cancel request, but its response could not be read",
+			wantUUID:  true,
+		},
+		{
+			name:      "NoConnection",
+			args:      executeWithinDeadline,
+			dialErr:   xerrors.New("dial failed"),
+			noCancel:  true,
+			wantError: "outcome unknown: the workspace agent could not be reached",
+			wantUUID:  true,
+		},
+		{
+			name:           "PastDeadlineStillRunning",
+			args:           executePastDeadline,
+			snapshot:       true,
+			output:         workspacesdk.ProcessOutputResponse{Running: true, Output: "still going", AgeMs: 11 * 60_000},
+			noCancel:       true,
+			want:           chattool.ExecuteResult{Output: "still going", ExitCode: -1, WallDurationMs: 11 * 60_000},
+			wantError:      "command timed out after 10m0s",
+			wantBackground: true,
+		},
+		{
+			// The process started late, so its own deadline is still ahead.
+			name:      "PastDeadlineRunningWithinProcessDeadline",
+			args:      executePastDeadline,
+			snapshot:  true,
+			output:    workspacesdk.ProcessOutputResponse{Running: true, Output: "partial", AgeMs: 5 * 60_000},
+			resp:      workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: "partial", ExitCode: intPtr(137), AgeMs: 5 * 60_000},
+			want:      chattool.ExecuteResult{Output: "partial", ExitCode: 137, WallDurationMs: 5 * 60_000},
+			wantError: "canceled by the user after 5m0s",
+		},
+		{
+			name:     "PastDeadlineExited",
+			args:     executePastDeadline,
+			snapshot: true,
+			output:   workspacesdk.ProcessOutputResponse{Output: "PASS", ExitCode: intPtr(0), AgeMs: 3_000},
+			resp:     workspacesdk.CancelProcessResponse{Started: true, Output: "PASS", ExitCode: intPtr(0), AgeMs: 3_000},
+			want:     chattool.ExecuteResult{Success: true, Output: "PASS", ExitCode: 0, WallDurationMs: 3_000},
+		},
+		{
+			name:      "PastDeadlineOutputError",
+			args:      executePastDeadline,
+			snapshot:  true,
+			outputErr: agentTransportError(xerrors.New("connection reset by peer")),
+			resp:      workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: "partial", ExitCode: intPtr(137), AgeMs: 5 * 60_000},
+			want:      chattool.ExecuteResult{Output: "partial", ExitCode: 137, WallDurationMs: 5 * 60_000},
+			wantError: "canceled by the user after 5m0s",
+		},
+		{
+			name:      "PastDeadlineNotFound",
+			args:      executePastDeadline,
+			snapshot:  true,
+			outputErr: codersdk.NewTestError(http.StatusNotFound, http.MethodGet, "/api/v0/processes/x/output"),
+			err:       codersdk.NewTestError(http.StatusNotFound, http.MethodPost, "/api/v0/processes/x/cancel"),
+			generic:   true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newTaskTestFixture(t)
+			callID := "call_" + uuid.NewString()
+			e := newExecuteInterrupt(t, f, []codersdk.ChatMessagePart{executeToolCall(callID, tc.args)}, tc.dialErr)
+			if tc.snapshot {
+				e.conn.EXPECT().ProcessOutput(gomock.Any(), e.processID(callID), nil).Return(tc.output, tc.outputErr)
+			}
+			if !tc.noCancel {
+				e.expectCancel(t, callID, tc.resp, tc.err)
+			}
+
+			part := singleToolResult(t, e.interrupt(t, f), callID)
+			if tc.dialErr == nil {
+				assert.EqualValues(t, 1, e.dials.Load())
+				assert.EqualValues(t, 1, e.releases.Load(), "the connection must be released")
+			} else {
+				// A failed dial is retried once after validating the agent.
+				assert.Positive(t, e.dials.Load())
+			}
+			if tc.generic {
+				requireGenericInterruptResult(t, part)
+				return
+			}
+			result := requireExecuteResult(t, part)
+			assert.Contains(t, result.Error, tc.wantError)
+			if tc.wantError == "" {
+				assert.Empty(t, result.Error)
+			}
+			if tc.wantUUID {
+				assert.Contains(t, result.Error, e.processID(callID))
+			}
+			want := tc.want
+			if tc.wantBackground {
+				want.BackgroundProcessID = e.processID(callID)
+			}
+			result.Error = ""
+			assert.Equal(t, want, result)
+		})
+	}
+}
+
+// TestInterruptTask_ExecuteCallsWithoutCancel covers unresolved calls the
+// interrupt must not cancel: they keep today's result and no agent
+// connection is made.
+func TestInterruptTask_ExecuteCallsWithoutCancel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		calls func(callID string) []codersdk.ChatMessagePart
+	}{
+		{
+			name: "RunInBackground",
+			calls: func(callID string) []codersdk.ChatMessagePart {
+				return []codersdk.ChatMessagePart{executeToolCall(callID, `{"command":"make dev","run_in_background":true}`)}
+			},
+		},
+		{
+			name: "TrailingAmpersand",
+			calls: func(callID string) []codersdk.ChatMessagePart {
+				return []codersdk.ChatMessagePart{executeToolCall(callID, `{"command":"make dev &"}`)}
+			},
+		},
+		{
+			name: "UnparsableArgs",
+			calls: func(callID string) []codersdk.ChatMessagePart {
+				return []codersdk.ChatMessagePart{executeToolCall(callID, `{"command":1}`)}
+			},
+		},
+		{
+			// The tool rejects the timeout before starting a process.
+			name: "InvalidTimeout",
+			calls: func(callID string) []codersdk.ChatMessagePart {
+				return []codersdk.ChatMessagePart{executeToolCall(callID, `{"command":"make test","timeout":"soon"}`)}
+			},
+		},
+		{
+			name: "NonExecuteTool",
+			calls: func(callID string) []codersdk.ChatMessagePart {
+				return []codersdk.ChatMessagePart{{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: callID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)}}
+			},
+		},
+		{
+			// Both calls share one tool call UUID, and canceling it would
+			// kill the background process.
+			name: "DuplicateIDOnlyOneQualifies",
+			calls: func(callID string) []codersdk.ChatMessagePart {
+				return []codersdk.ChatMessagePart{
+					executeToolCall(callID, executeWithinDeadline),
+					executeToolCall(callID, `{"command":"make dev","run_in_background":true}`),
+				}
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newTaskTestFixture(t)
+			callID := "call_" + uuid.NewString()
+			calls := tc.calls(callID)
+			e := newExecuteInterrupt(t, f, calls, nil)
+
+			results := toolResults(t, e.interrupt(t, f), callID)
+			require.Len(t, results, len(calls))
+			for _, result := range results {
+				requireGenericInterruptResult(t, result)
+			}
+			assert.Zero(t, e.dials.Load())
+		})
+	}
+}
+
+// TestInterruptTask_CancelIgnoresEpisodeBuffer covers the usual interrupt:
+// the canceled generation goroutine records the call's completion and
+// publishes its result before interrupt handling reads the episode. The
+// call is still canceled and the cancel answer is its only result.
+func TestInterruptTask_CancelIgnoresEpisodeBuffer(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	callID := "call_" + uuid.NewString()
+	e := newExecuteInterrupt(t, f, []codersdk.ChatMessagePart{executeToolCall(callID, executeWithinDeadline)}, nil)
+	e.createEpisode(t)
+	buffer := e.starter.opts.MessagePartBuffer
+	require.NoError(t, buffer.RecordToolStart(e.key, 0, e.clock.Now()))
+	require.NoError(t, buffer.RecordToolCompletion(e.key, 0, e.clock.Now()))
+	canceledResult := codersdk.ChatMessageToolResult(callID, chattool.ExecuteToolName, json.RawMessage(`{"error":"context canceled"}`), false, false)
+	require.NoError(t, buffer.AddPart(e.key, codersdk.ChatMessageRoleTool, canceledResult))
+	e.expectCancel(t, callID, workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: "partial", AgeMs: 2_000}, nil)
+
+	result := requireExecuteResult(t, singleToolResult(t, e.interrupt(t, f), callID))
+	assert.Equal(t, "partial", result.Output)
+	assert.Contains(t, result.Error, "canceled by the user after 2s")
+}
+
+// TestInterruptTask_CancelsExecuteCallsInParallel requires both cancel
+// requests to be in flight at once, and keeps billing and the results of
+// other calls in the batch as they are today.
+func TestInterruptTask_CancelsExecuteCallsInParallel(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	firstCallID := "call_" + uuid.NewString()
+	secondCallID := "call_" + uuid.NewString()
+	waitCallID := "call_" + uuid.NewString()
+	e := newExecuteInterrupt(t, f, []codersdk.ChatMessagePart{
+		executeToolCall(firstCallID, executeWithinDeadline),
+		executeToolCall(secondCallID, executeWithinDeadline),
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: waitCallID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)},
+	}, nil)
+	e.createEpisode(t)
+	buffer := e.starter.opts.MessagePartBuffer
+	e.clock.Advance(2 * time.Second)
+	require.NoError(t, buffer.RecordToolStart(e.key, 0, e.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(e.key, 1, e.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(e.key, 2, e.clock.Now()))
+	e.clock.Advance(5 * time.Second)
+
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	bothArrived := make(chan struct{})
+	var arrivals atomic.Int32
+	cancel := func(callID string, output string) func(context.Context, string) (workspacesdk.CancelProcessResponse, error) {
+		return func(ctx context.Context, _ string) (workspacesdk.CancelProcessResponse, error) {
+			e.assertToolCall(ctx, t, callID)
+			if arrivals.Add(1) == 2 {
+				close(bothArrived)
+			}
+			select {
+			case <-bothArrived:
+			case <-testCtx.Done():
+				return workspacesdk.CancelProcessResponse{}, xerrors.New("the other cancel request never arrived")
+			}
+			return workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: output, AgeMs: 5_000}, nil
+		}
+	}
+	e.conn.EXPECT().CancelProcess(gomock.Any(), e.processID(firstCallID)).DoAndReturn(cancel(firstCallID, "first"))
+	e.conn.EXPECT().CancelProcess(gomock.Any(), e.processID(secondCallID)).DoAndReturn(cancel(secondCallID, "second"))
+
+	messages := e.interrupt(t, f)
+	for callID, output := range map[string]string{firstCallID: "first", secondCallID: "second"} {
+		result := requireExecuteResult(t, singleToolResult(t, messages, callID))
+		assert.Equal(t, output, result.Output)
+		assert.Contains(t, result.Error, "canceled by the user after 5s")
+	}
+	requireGenericInterruptResult(t, singleToolResult(t, messages, waitCallID))
+	assert.EqualValues(t, 1, e.dials.Load())
+	// Both execute calls ran [2s,7s]; wait_agent is unbilled.
+	requireSingleBatchUsageRecord(t, f, e.chat.ID, 5_000, 2)
+}
+
+// TestInterruptTask_CancelBoundYieldsUnknown shows that an agent that
+// never answers yields an unknown result once the bound passes.
+func TestInterruptTask_CancelBoundYieldsUnknown(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	callID := "call_" + uuid.NewString()
+	e := newExecuteInterrupt(t, f, []codersdk.ChatMessagePart{executeToolCall(callID, executeWithinDeadline)}, nil)
+	e.createEpisode(t)
+	arrived := make(chan struct{})
+	e.conn.EXPECT().CancelProcess(gomock.Any(), e.processID(callID)).
+		DoAndReturn(func(ctx context.Context, _ string) (workspacesdk.CancelProcessResponse, error) {
+			close(arrived)
+			<-ctx.Done()
+			return workspacesdk.CancelProcessResponse{}, agentTransportError(ctx.Err())
+		})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	advanced := make(chan struct{})
+	go func() {
+		defer close(advanced)
+		select {
+		case <-arrived:
+		case <-ctx.Done():
+			return
+		}
+		// The bound's timer exists before the request is sent. Step over
+		// the message part buffer's cleanup ticks until it fires.
+		for elapsed := time.Duration(0); elapsed < interruptCancelTimeout; {
+			d, w := e.clock.AdvanceNext()
+			if !assert.NoError(t, w.Wait(ctx)) {
+				return
+			}
+			elapsed += d
+		}
+	}()
+
+	result := requireExecuteResult(t, singleToolResult(t, e.interrupt(t, f), callID))
+	<-advanced
+	assert.Contains(t, result.Error, "outcome unknown: the workspace agent could not be reached")
+	assert.Contains(t, result.Error, e.processID(callID))
+}
+
+// TestInterruptTask_ParentCanceledDuringCancelCommitsNothing ends the
+// interrupt task while its cancel request is in flight.
+func TestInterruptTask_ParentCanceledDuringCancelCommitsNothing(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	callID := "call_" + uuid.NewString()
+	e := newExecuteInterrupt(t, f, []codersdk.ChatMessagePart{executeToolCall(callID, executeWithinDeadline)}, nil)
+	input := e.startInput(t, f)
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+	defer cancel()
+	e.conn.EXPECT().CancelProcess(gomock.Any(), e.processID(callID)).
+		DoAndReturn(func(reqCtx context.Context, _ string) (workspacesdk.CancelProcessResponse, error) {
+			cancel()
+			<-reqCtx.Done()
+			return workspacesdk.CancelProcessResponse{}, agentTransportError(reqCtx.Err())
+		})
+
+	err := e.starter.StartInterrupt(ctx, input)
+	require.ErrorIs(t, err, errTaskExpectedExit)
+
+	checkCtx := testutil.Context(t, testutil.WaitShort)
+	messages, err := f.db.GetChatMessagesByChatID(checkCtx, database.GetChatMessagesByChatIDParams{ChatID: e.chat.ID})
+	require.NoError(t, err)
+	assert.Empty(t, toolResults(t, messages, callID))
+	chat, err := f.db.GetChatByID(checkCtx, e.chat.ID)
+	require.NoError(t, err)
+	assert.Equal(t, database.ChatStatusInterrupting, chat.Status)
 }
 
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {
