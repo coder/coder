@@ -234,12 +234,8 @@ message AIProvider {
 // AIProviderKindClaudePlatformAWS configures Anthropic's AWS-hosted Messages
 // API. Requests use a supplied API key, otherwise ambient AWS credentials.
 message AIProviderKindClaudePlatformAWS {
-  reserved 1;
-  reserved "auth_mode";
   string region = 2;
   string workspace_id = 3;
-  reserved 4 to 7;
-  reserved "access_key", "access_key_secret", "role_arn", "external_id";
 }
 
 message AIProviderKindBedrock {
