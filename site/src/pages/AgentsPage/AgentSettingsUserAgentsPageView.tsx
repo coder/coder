@@ -17,8 +17,8 @@ import { SectionHeader } from "./components/SectionHeader";
 export type AgentSettingsUserAgentsPageViewProps = {
 	overridesData?: TypesGen.UserChatPersonalModelOverridesResponse;
 	overridesError: unknown;
-	onRetryOverrides?: () => void;
-	isRetryingOverrides?: boolean;
+	onRetryOverrides: () => void;
+	isRetryingOverrides: boolean;
 	isLoadingOverrides: boolean;
 	modelOptions: readonly ModelSelectorOption[];
 	models: readonly TypesGen.ChatModel[];
@@ -46,7 +46,7 @@ export const AgentSettingsUserAgentsPageView: FC<
 	overridesData,
 	overridesError,
 	onRetryOverrides,
-	isRetryingOverrides = false,
+	isRetryingOverrides,
 	isLoadingOverrides,
 	modelOptions,
 	models,
@@ -96,17 +96,15 @@ export const AgentSettingsUserAgentsPageView: FC<
 			{overridesError ? (
 				<div className="flex flex-col gap-2">
 					<ErrorAlert error={overridesError} />
-					{onRetryOverrides && (
-						<Button
-							disabled={isRetryingOverrides}
-							onClick={onRetryOverrides}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							Retry
-						</Button>
-					)}
+					<Button
+						disabled={isRetryingOverrides}
+						onClick={onRetryOverrides}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
+						Retry
+					</Button>
 				</div>
 			) : null}
 			{!personalOverridesEnabled && (

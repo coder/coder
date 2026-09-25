@@ -227,9 +227,9 @@ const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 const UsageRingProgress: FC<{
 	ariaLabel: string;
 	percent: number;
-	severity?: UsageSeverity;
+	severity: UsageSeverity;
 	icon: ReactNode;
-}> = ({ ariaLabel, percent, severity = "normal", icon }) => {
+}> = ({ ariaLabel, percent, severity, icon }) => {
 	const clampedPercent = clampPercentage(percent);
 
 	return (

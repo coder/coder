@@ -122,11 +122,11 @@ export const isUnavailableHistoricalModelID = (
  * The function returns an empty string when the default is unavailable.
  */
 export const getUsableDefaultModelIDForOrganization = (
-	configs: readonly TypesGen.ChatModel[] | null | undefined,
+	configs: readonly TypesGen.ChatModel[],
 	modelOptions: readonly ModelSelectorOption[],
 	organizationID: string,
 ): string => {
-	if (!organizationID || !configs) {
+	if (!organizationID) {
 		return "";
 	}
 	const defaultConfig = configs.find(
@@ -347,11 +347,11 @@ export const getProviderForModelOption = (
 export { formatProviderLabel } from "#/utils/aiProviders";
 
 export function resolveCompactionThreshold(
-	modelID: string | undefined,
+	modelID: string,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
 	models: readonly TypesGen.ChatModel[] | null | undefined,
 ): number | undefined {
-	if (!modelID || !Array.isArray(models)) {
+	if (!Array.isArray(models)) {
 		return undefined;
 	}
 	const model = models.find((model) => model.id === modelID);

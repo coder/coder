@@ -20,7 +20,7 @@ import {
 
 type CompactOrgSelectorProps = {
 	value: Organization | null;
-	onChange?: (organization: Organization) => void;
+	onChange: (organization: Organization) => void;
 	options: readonly Organization[];
 	disabled?: boolean;
 	className?: string;
@@ -98,7 +98,7 @@ export const CompactOrgSelector: FC<CompactOrgSelectorProps> = ({
 									key={org.id}
 									value={`${org.display_name} ${org.name}`}
 									onSelect={() => {
-										onChange?.(org);
+										onChange(org);
 										setOpen(false);
 									}}
 								>
