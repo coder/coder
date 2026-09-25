@@ -84,8 +84,10 @@ type generationPrepared struct {
 	// StructuredRequestID is the open structured output request of the
 	// latest user turn, or uuid.Nil. FinalizerSchema is its compiled schema
 	// when the finalizer tool is offered.
+	// Structured is that request's state, or the zero state.
 	StructuredRequestID uuid.UUID
 	FinalizerSchema     *chatstructured.Schema
+	Structured          chatstructured.ActiveRequestState
 	// Cleanup is always non-nil when prepareGeneration succeeds.
 	Cleanup func()
 
@@ -158,6 +160,8 @@ type generationDecision struct {
 	// forced marks a compact action triggered by a manual
 	// compaction request rather than the usage threshold.
 	forced bool
+	// structured is the receipt a finish commits for an open request.
+	structured *structuredTerminal
 }
 
 type generationRetryDecision struct {
@@ -204,6 +208,8 @@ type generationDecisionInput struct {
 	compactionNeeded           bool
 	compactionThresholdPercent int32
 	compactionContextLimit     int64
+	// structured is the turn's open structured output request, if any.
+	structured chatstructured.ActiveRequestState
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
@@ -241,21 +247,32 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 		}
 	}
 
+	// An open structured output request ends only through its receipt.
+	open := input.structured.Active
+	if open {
+		terminal, err := decideStructuredTurn(input, false)
+		if err != nil {
+			return generationDecision{}, err
+		}
+		if terminal != nil {
+			return generationDecision{kind: generationActionFinishTurn, structured: terminal}, nil
+		}
+	}
 	stopAfter, err := historyHasStopAfterToolResult(input.messages, input.stopAfterTools)
 	if err != nil {
 		return generationDecision{}, err
 	}
-	if stopAfter {
+	if stopAfter && !open {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonStopAfterTool}, nil
 	}
 	complete, err := currentHistoryComplete(input.messages)
 	if err != nil {
 		return generationDecision{}, err
 	}
-	if complete {
+	if complete && !open {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, nil
 	}
-	if input.maxSteps > 0 && currentTurnStepCount(input.messages) >= input.maxSteps {
+	if !open && input.maxSteps > 0 && currentTurnStepCount(input.messages) >= input.maxSteps {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonMaxSteps}, nil
 	}
 	compactionRequirement := compactionRequirementNotNeeded
@@ -488,6 +505,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 					compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
 					compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
 					compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
+					structured:                 prepared.Structured,
 				})
 			})
 		}
@@ -515,6 +533,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			return s.enterRequiresAction(ctx, machine, input)
 		case generationActionFinishTurn:
 			cleanup()
+			input.structuredTerminal = decision.structured
 			return s.finishGenerationTurn(ctx, machine, input, generationAttemptNotRequired)
 		case generationActionGenerateAssistant:
 			actionErr = s.generateAssistant(ctx, machine, input, prepared)
@@ -760,6 +779,13 @@ func (s *taskStarter) generateAssistant(
 		return xerrors.Errorf("generate assistant: %w", err)
 	}
 	if len(outcome.Step.Content) == 0 {
+		// An empty step ends the turn, so an open request closes with it.
+		if prepared.Structured.Active {
+			input.structuredTerminal, err = decideStructuredTurn(generationDecisionInput{messages: prepared.Messages, structured: prepared.Structured}, true)
+			if err != nil {
+				return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+			}
+		}
 		return s.finishGenerationTurn(ctx, machine, input, requireGenerationAttempt(attempt.number))
 	}
 	// Rejected finalizer calls are resolved in this commit, so hooks never
@@ -769,6 +795,17 @@ func (s *taskStarter) generateAssistant(
 		return xerrors.Errorf("screen structured output finalizer calls: %w", err)
 	}
 	outcome.Step.Content = content
+	// A step without tool calls ends the turn; for an open request without a
+	// candidate it is a rejected batch that the loop repairs instead.
+	var corrective []chatstate.Message
+	if len(controlParts) == 0 && !slices.ContainsFunc(content, func(block fantasy.Content) bool {
+		call, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
+		return ok && !call.ProviderExecuted
+	}) {
+		if controlParts, corrective, err = structuredRepair(prepared); err != nil {
+			return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+		}
+	}
 	admitted := content
 	if len(rejected) > 0 {
 		admitted = slices.DeleteFunc(slices.Clone(content), func(block fantasy.Content) bool {
@@ -797,6 +834,7 @@ func (s *taskStarter) generateAssistant(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
+	messages.Messages = append(messages.Messages, corrective...)
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, generationCommitHooks{})
 }
 
@@ -981,6 +1019,20 @@ func (s *taskStarter) executeLocalTools(
 			return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 		}
 	}
+	// A stop-after tool ends the turn; for an open request without a
+	// candidate its batch is rejected once and the loop repairs it.
+	var corrective []chatstate.Message
+	if stopID := stopAfterResultID(outcome.Content, prepared.StopAfterTools); stopID != "" && len(controls) == 0 && prepared.Structured.Active {
+		_, rejected, _, err := structuredStepFacts(prepared.Messages, prepared.Structured.RequestRowID, nil)
+		var parts []codersdk.ChatMessagePart
+		if err == nil && !rejected {
+			parts, corrective, err = structuredRepair(prepared)
+		}
+		if err != nil {
+			return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+		}
+		controls = map[string][]codersdk.ChatMessagePart{stopID: parts}
+	}
 	step := stepDataFromPersisted(outcome)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:        prepared.ModelConfigID,
@@ -997,6 +1049,7 @@ func (s *taskStarter) executeLocalTools(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
+	messages.Messages = append(messages.Messages, corrective...)
 	var postCommitErr error
 	switch {
 	case spawnDispatchErr != nil:
@@ -1459,7 +1512,11 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
-		finishResult, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+		receipts, err := structuredFinishMessages(ctx, store, input.ChatID, input.structuredTerminal)
+		if err != nil {
+			return err
+		}
+		finishResult, err := tx.FinishTurn(chatstate.FinishTurnInput{TerminalMessages: receipts})
 		if err != nil {
 			return xerrors.Errorf("tx.FinishTurn: %w", err)
 		}
@@ -1528,7 +1585,11 @@ func (s *taskStarter) finishGenerationTurn(
 			}
 		}
 		if !continueTurn {
-			finishResult, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+			receipts, err := structuredFinishMessages(ctx, store, input.ChatID, input.structuredTerminal)
+			if err != nil {
+				return err
+			}
+			finishResult, err := tx.FinishTurn(chatstate.FinishTurnInput{TerminalMessages: receipts})
 			if err != nil {
 				return xerrors.Errorf("tx.FinishTurn: %w", err)
 			}
@@ -1589,18 +1650,25 @@ func (s *taskStarter) finishGenerationError(
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
 		// A configuration error closes its structured output request in
-		// this transaction; the receipt helper skips a request already
-		// closed, so a retried finish writes no second receipt.
+		// this transaction, and any other error closes the open request as
+		// generation_failed with fixed text; the receipt helpers skip a
+		// request already closed, so a retried finish writes no second receipt.
 		var receipts []chatstate.Message
+		var err error
 		if errors.As(cause, &configuration) {
-			var err error
 			receipts, err = structuredReceiptMessages(ctx, store, input.ChatID, configuration.requestRowID, codersdk.ChatStructuredOutput{
 				RequestID: configuration.requestID, Status: codersdk.ChatStructuredOutputStatusFailed,
 				Error: &codersdk.ChatStructuredOutputError{Code: codersdk.ChatStructuredOutputErrorCodeConfigurationError, Message: configuration.reason},
 			})
-			if err != nil {
-				return err
+		} else {
+			var history []database.ChatMessage
+			if history, err = store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: input.ChatID}); err == nil {
+				receipts, err = activeRequestReceipt(ctx, s.opts.Logger, store, input.ChatID, history,
+					structuredFailure(chatstructured.ActiveRequestState{}, codersdk.ChatStructuredOutputErrorCodeGenerationFailed).outcome)
 			}
+		}
+		if err != nil {
+			return xerrors.Errorf("structured output receipt: %w", err)
 		}
 		if _, err := tx.FinishError(chatstate.FinishErrorInput{LastError: lastError, TerminalMessages: receipts}); err != nil {
 			return xerrors.Errorf("tx.FinishError: %w", err)
