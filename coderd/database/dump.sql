@@ -1051,9 +1051,19 @@ DECLARE
     total_bytes_limit constant bigint := 204800;   -- 200 KiB
     env_bytes_limit   constant bigint := 24576;    -- 24 KiB
 BEGIN
-    -- Serialize cap checks per user so concurrent inserts cannot all
-    -- observe the same pre-insert aggregates and exceed the cap.
-    PERFORM 1 FROM users WHERE id = NEW.user_id FOR UPDATE;
+    -- Serialize cap checks per user so concurrent inserts or updates cannot
+    -- all observe the same pre-statement aggregates and exceed the caps.
+    -- FOR NO KEY UPDATE conflicts with itself and with the soft-delete
+    -- UPDATE of the users row, but not with the FOR KEY SHARE locks that
+    -- foreign-key checks take on the users row.
+    PERFORM 1 FROM users WHERE id = NEW.user_id FOR NO KEY UPDATE;
+
+    -- trigger_upsert_user_secrets checked users.deleted before this
+    -- trigger could wait for the lock. Recheck now: at READ COMMITTED this
+    -- statement sees a soft-delete that committed during the wait.
+    IF (SELECT deleted FROM users WHERE id = NEW.user_id) THEN
+        RAISE EXCEPTION 'Cannot create user_secret for deleted user';
+    END IF;
 
     -- Sum existing rows excluding the row being updated (so UPDATE statements
     -- don't double-count NEW). On INSERT, no row matches NEW.id, so
@@ -1104,11 +1114,21 @@ DECLARE
     skill_limit constant int := 100;
 BEGIN
     -- Serialize skill-cap checks per user so concurrent inserts cannot all
-    -- observe the same pre-insert count and exceed the hard limit.
+    -- observe the same pre-insert count and exceed the hard limit. See
+    -- enforce_user_secrets_per_user_limits for the lock strength.
     PERFORM 1
     FROM users
     WHERE id = NEW.user_id
-    FOR UPDATE;
+    FOR NO KEY UPDATE;
+
+    -- trigger_upsert_user_skills checked users.deleted before this trigger
+    -- could wait for the lock. Recheck now: at READ COMMITTED this
+    -- statement sees a soft-delete that committed during the wait.
+    IF (SELECT deleted FROM users WHERE id = NEW.user_id) THEN
+        RAISE EXCEPTION 'Cannot create user_skill for deleted user'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_skill_user_deleted';
+    END IF;
 
     SELECT count(*) INTO skill_count
     FROM user_skills
