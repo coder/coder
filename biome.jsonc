@@ -77,6 +77,7 @@
 				"noTemplateCurlyInString": "off",
 				"useIterableCallbackReturn": "off",
 				"noUnknownAtRules": "off", // Allow Tailwind directives
+				"noEmptyInterface": "off", // oxlint owns no-empty-interface
 				"noConsole": {
 					"level": "error",
 					"options": {
@@ -99,18 +100,6 @@
 		}
 	},
 	"overrides": [
-		{
-			// Generated Go types can produce empty interfaces; the
-			// safe fix conflicts with noBannedTypes.
-			"includes": ["**/typesGenerated.ts"],
-			"linter": {
-				"rules": {
-					"suspicious": {
-						"noEmptyInterface": "off"
-					}
-				}
-			}
-		},
 		{
 			// parseDiff.ts is the single choke point allowed to import
 			// the raw @pierre/diffs parsers.
