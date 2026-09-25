@@ -175,7 +175,7 @@ func (f stageMetricsFixture) requireUnobservedTTFT(t *testing.T, wantErr string)
 }
 
 // requireObservedTTFT asserts one successful time_to_first_token window
-// of want on both TTFT histograms.
+// of want on both TTFT histograms, which observe the same elapsed time.
 func (f stageMetricsFixture) requireObservedTTFT(t *testing.T, want time.Duration) {
 	t.Helper()
 	require.Equal(t, codes.Unset, endedSpan(t, f.spans, StageTimeToFirstToken).Status().Code)
@@ -185,7 +185,7 @@ func (f stageMetricsFixture) requireObservedTTFT(t *testing.T, want time.Duratio
 	require.InDelta(t, want.Seconds(), stage.GetHistogram().GetSampleSum(), 1e-9)
 	count, sum := histogramTotals(t, f.registry, "coderd_chatd_ttft_seconds")
 	require.Equal(t, uint64(1), count)
-	require.InDelta(t, want.Seconds(), sum, 1e-9)
+	require.Equal(t, stage.GetHistogram().GetSampleSum(), sum)
 }
 
 // drainStream returns the number of parts consumed.
@@ -205,7 +205,7 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		fixture := newStageMetricsFixture(t)
 
 		attempt, err := fixture.guardedStream(ContextWithScope(t.Context(), ScopeTurn),
-			StageModel{ProviderType: "bedrock", Model: "claude", Effort: "high"},
+			StageModel{Provider: "anthropic", ProviderType: "bedrock", Model: "claude", Effort: "high"},
 			func(context.Context) (fantasy.StreamResponse, error) {
 				return fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 					fixture.clock.Advance(250 * time.Millisecond)
@@ -218,11 +218,9 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		attempt.release()
 
 		fixture.requireObservedTTFT(t, 250*time.Millisecond)
-		modelSeries, ok := stageSeries(t, fixture.registry, "coderd_chatd_model_stage_duration_seconds", StageTimeToFirstToken)
-		require.True(t, ok)
-		require.Equal(t, uint64(1), modelSeries.GetHistogram().GetSampleCount())
-		require.Equal(t, "bedrock", metricLabel(modelSeries, "provider_type"))
-		require.Equal(t, "claude", metricLabel(modelSeries, "model"))
+		// Per-model time to first token is ttft_seconds only.
+		_, ok := stageSeries(t, fixture.registry, "coderd_chatd_model_stage_duration_seconds", StageTimeToFirstToken)
+		require.False(t, ok)
 		// provider is the wire protocol and provider_type the configured
 		// AI provider type.
 		providers := map[attribute.Key][]string{}
@@ -235,6 +233,29 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 			AttrProvider:     {"anthropic"},
 			AttrProviderType: {"bedrock"},
 		}, providers)
+	})
+
+	t.Run("NilTracerObservesTTFTSeconds", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+
+		attempt, err := guardedStream(t.Context(), "anthropic", "claude", fixture.clock, time.Minute,
+			func(context.Context) (fantasy.StreamResponse, error) {
+				return fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
+					fixture.clock.Advance(250 * time.Millisecond)
+					yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, Delta: "hi"})
+				}), nil
+			},
+			fixture.metrics, nil, StageModel{},
+		)
+		require.NoError(t, err)
+		drainStream(attempt.stream)
+		attempt.release()
+
+		count, sum := histogramTotals(t, fixture.registry, "coderd_chatd_ttft_seconds")
+		require.Equal(t, uint64(1), count)
+		require.InDelta(t, 0.25, sum, 1e-9)
+		require.Empty(t, fixture.spans.Ended())
 	})
 
 	t.Run("OpenFailureEndsSpanWithoutObservation", func(t *testing.T) {
@@ -373,7 +394,7 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 func TestGenerateAssistantStreamStage(t *testing.T) {
 	t.Parallel()
 
-	stageModel := StageModel{ProviderType: "bedrock", Model: "claude", Effort: "high"}
+	stageModel := StageModel{Provider: "anthropic", ProviderType: "bedrock", Model: "claude", Effort: "high"}
 	generateWith := func(t *testing.T, fixture stageMetricsFixture, streamFn func(context.Context, fantasy.Call) (fantasy.StreamResponse, error)) error {
 		t.Helper()
 		model := &chattest.FakeModel{
