@@ -1460,15 +1460,9 @@ func (c *closerStack) push(name string, closer io.Closer) error {
 	return nil
 }
 
-type rawSSHConn interface {
-	io.Reader
-	io.Writer
-	CloseWrite() error
-}
-
 // rawSSHCopier handles copying raw SSH data between the conn and the pair (r, w).
 type rawSSHCopier struct {
-	conn   rawSSHConn
+	conn   workspacesdk.TCPConn
 	logger slog.Logger
 	r      io.Reader
 	w      io.Writer
@@ -1476,7 +1470,7 @@ type rawSSHCopier struct {
 	done chan struct{}
 }
 
-func newRawSSHCopier(logger slog.Logger, conn rawSSHConn, r io.Reader, w io.Writer) *rawSSHCopier {
+func newRawSSHCopier(logger slog.Logger, conn workspacesdk.TCPConn, r io.Reader, w io.Writer) *rawSSHCopier {
 	return &rawSSHCopier{conn: conn, logger: logger, r: r, w: w, done: make(chan struct{})}
 }
 
