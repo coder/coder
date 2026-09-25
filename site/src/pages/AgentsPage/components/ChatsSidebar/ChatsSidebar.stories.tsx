@@ -235,6 +235,7 @@ export const SharedUnreadChat: Story = {
 				owner_id: "sharing-user",
 				owner_name: "Sharing User",
 				owner_username: "sharing-user",
+				owner_avatar_url: "/emojis/1f9d1-200d-1f4bb.png",
 				shared: true,
 				has_unread: true,
 				last_turn_summary: "Original unread chat summary",
