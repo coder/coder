@@ -238,7 +238,14 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		>
 			{({ isActive }) => (
 				<div className="min-w-0 flex-1 overflow-hidden text-left">
-					<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+					<div
+						className={cn(
+							"flex min-w-0 items-center gap-1.5 overflow-hidden",
+							// Match the 24px status and badge slots so the title
+							// centers on the same line as their icons.
+							isOneLine && "h-6",
+						)}
+					>
 						<span
 							className={cn(
 								"block flex-1 truncate text-[13px]",
