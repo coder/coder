@@ -202,6 +202,14 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 		canConfigureAgentSetup: true,
 		providerCount: 1,
 		modelCount: 1,
+		unsupportedProviderNames: [],
+		onReasoningEffortChange: fn(),
+		isModelCatalogLoading: false,
+		onPlanModeToggle: fn(),
+		isWorkspaceLoading: false,
+		onImplementPlan: fn(),
+		onSendAskUserQuestionResponse: fn(),
+		urlTransform: (url: string) => url,
 		initialMessages: [],
 		...overrides,
 		store,
@@ -755,6 +763,9 @@ export const Loading: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
+			isModelCatalogLoading={false}
+			planModeEnabled={false}
+			onPlanModeToggle={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -775,6 +786,9 @@ export const LoadingWithModelOptions: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
+			isModelCatalogLoading={false}
+			planModeEnabled={false}
+			onPlanModeToggle={fn()}
 			showRightPanel={false}
 		/>
 	),
@@ -794,6 +808,9 @@ export const LoadingWithRightPanel: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
+			isModelCatalogLoading={false}
+			planModeEnabled={false}
+			onPlanModeToggle={fn()}
 			showRightPanel
 		/>
 	),
@@ -815,6 +832,9 @@ export const LoadingSidebarCollapsed: Story = {
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
+			isModelCatalogLoading={false}
+			planModeEnabled={false}
+			onPlanModeToggle={fn()}
 			showRightPanel={false}
 		/>
 	),

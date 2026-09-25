@@ -37,6 +37,21 @@ const renderChatPageInput = (
 			canConfigureAgentSetup={false}
 			isEditing={false}
 			onCancelHistoryEdit={vi.fn()}
+			isReadOnly={false}
+			onReasoningEffortChange={vi.fn()}
+			unsupportedProviderNames={[]}
+			onPlanModeToggle={vi.fn()}
+			isModelCatalogLoading={false}
+			inputRef={{ current: null }}
+			initialValue=""
+			remountKey={0}
+			onContentChange={vi.fn()}
+			editingFileBlocks={[]}
+			mcpServers={[]}
+			selectedMCPServerIds={[]}
+			onMCPSelectionChange={vi.fn()}
+			onMCPAuthComplete={vi.fn()}
+			isWorkspaceLoading={false}
 		/>,
 	);
 
