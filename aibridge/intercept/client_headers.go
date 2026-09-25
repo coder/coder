@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 )
 
 // hopByHopHeaders are connection-level headers specific to the connection
@@ -95,7 +96,7 @@ func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, auth
 	}
 
 	if cfg.SendActorHeaders {
-		for name, value := range headersFromActor(actor) {
+		for name, value := range aibheaders.FromActor(actor) {
 			headers.Set(name, value)
 		}
 	}

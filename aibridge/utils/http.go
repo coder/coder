@@ -7,19 +7,8 @@ import (
 	"math"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 )
-
-const (
-	ActorHeaderPrefix      = "X-AI-Bridge-Actor"
-	actorHeaderPrefixLower = "x-ai-bridge-actor"
-)
-
-// IsActorHeader reports whether name is an AI Bridge actor header.
-func IsActorHeader(name string) bool {
-	return strings.HasPrefix(strings.ToLower(name), actorHeaderPrefixLower)
-}
 
 // NewStreamingTransport returns an HTTP transport tuned for streaming with no
 // response header timeout.
