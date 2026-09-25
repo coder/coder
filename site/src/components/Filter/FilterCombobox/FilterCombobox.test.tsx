@@ -289,14 +289,14 @@ describe("FilterCombobox", () => {
 		expect(onChange).toHaveBeenLastCalledWith("status:starting");
 	});
 
-	it("selects the first matching inline option with Enter before suggestions load", async () => {
+	it("selects the highlighted inline option with Enter before suggestions load", async () => {
 		const { user, onChange, input, filtersButton } = setup([
 			ownerCategory,
 			statusCategory,
 		]);
 
-		// The Enter path picks the first cached Status row while the typed query
-		// is still debounced.
+		// Cached Status rows are filtered locally, so Running is highlighted
+		// while the typed query is still debounced.
 		await user.click(filtersButton);
 		await screen.findByRole("option", { name: "Running" });
 		await user.click(input);
@@ -492,6 +492,21 @@ describe("FilterCombobox", () => {
 		expect(onChange).toHaveBeenLastCalledWith("owner:alice");
 		expect(onChange).not.toHaveBeenCalledWith("owner:alice zzz");
 		expect(input).toHaveValue("");
+	});
+
+	it("keeps the applied search when a flyout option is picked from all filters", async () => {
+		const { user, onChange, filtersButton } = setup([ownerCategory], {
+			initialValue: "zzz",
+			skipHover: true,
+		});
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		await user.click(await screen.findByRole("button", { name: "alice" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice zzz"),
+		);
 	});
 
 	it("applies unmatched typed text with the remaining chips after a chip is removed during its lookup", async () => {

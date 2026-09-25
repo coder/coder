@@ -276,8 +276,6 @@ export const useFilterCombobox = ({
 		cancelTypedTextLookup();
 		emitQueryKeepingLookup(query);
 	};
-	const appliedFreeText = () =>
-		extractFreeText(lastEmittedRef.current, chipKeys);
 
 	// Reconcile local state with the caller-owned `value`. Reparse whenever the
 	// value changes externally or the chip categories change, so renaming or
@@ -520,8 +518,10 @@ export const useFilterCombobox = ({
 					chipValues,
 				);
 
-	// A failed suggestion query for the current input ends loading, so the live
-	// region announces the failure instead of repeating "Loading suggestions".
+	// A failed category query for the current input ends loading even while
+	// other category queries are still fetching, so the live region announces
+	// the failure and the popup shows the error and Retry instead of "Loading
+	// suggestions".
 	const typeaheadError =
 		typeaheadQuerySource.length > 0 &&
 		!typeaheadQueryPending &&
@@ -878,7 +878,7 @@ export const useFilterCombobox = ({
 			composeFilterQuery(
 				chipValues.filter((entry) => entry !== token),
 				chipKeys,
-				appliedFreeText(),
+				extractFreeText(lastEmittedRef.current, chipKeys),
 			),
 		);
 	};
@@ -936,9 +936,7 @@ export const useFilterCombobox = ({
 		}
 
 		// Same for a typed inline prefix such as `status:starting`, whose value
-		// may not be one of the suggested options. While the typed text is
-		// debounced the highlight may not have reached the first row yet, so the
-		// first matching row is taken, as it would be once highlighted.
+		// may not be one of the suggested options.
 		if (
 			event.key === "Enter" &&
 			mode === "browsing" &&
@@ -950,10 +948,7 @@ export const useFilterCombobox = ({
 			const hasHighlightedOption = inlineOptionRows.some(
 				(row) => row.token === highlighted,
 			);
-			const firstRow = typeaheadQueryPending ? inlineOptionRows[0] : undefined;
-			const candidate = firstRow
-				? firstRow.token
-				: chipToken(categoryKey, typedInlinePrefix.query.trim());
+			const candidate = chipToken(categoryKey, typedInlinePrefix.query.trim());
 			if (!hasHighlightedOption && parseChipToken(candidate, chipKeys)) {
 				event.preventDefault();
 				applyInlineChips(
