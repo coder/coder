@@ -6,6 +6,9 @@ type CheckConstraint string
 
 // CheckConstraint enums.
 const (
+	CheckAgentTimeBackfillStatusCursorMessageIDNonnegative   CheckConstraint = "agent_time_backfill_status_cursor_message_id_nonnegative"  // agent_time_backfill_status
+	CheckAgentTimeBackfillStatusProcessedMessagesNonnegative CheckConstraint = "agent_time_backfill_status_processed_messages_nonnegative" // agent_time_backfill_status
+	CheckAgentTimeCaptureSingletonCheck                      CheckConstraint = "agent_time_capture_singleton_check"                        // agent_time_capture
 	CheckAIGatewayKeysHashedSecretCheck                      CheckConstraint = "ai_gateway_keys_hashed_secret_check"                       // ai_gateway_keys
 	CheckAIGatewayKeysNameCheck                              CheckConstraint = "ai_gateway_keys_name_check"                                // ai_gateway_keys
 	CheckAIGatewayKeysSecretPrefixCheck                      CheckConstraint = "ai_gateway_keys_secret_prefix_check"                       // ai_gateway_keys
