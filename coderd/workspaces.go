@@ -121,6 +121,11 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Forbidden(rw)
 			return
 		}
+		// The build was requested but does not exist.
+		if errors.Is(err, errWorkspaceBuildNotFound) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
 			Detail:  err.Error(),
@@ -294,6 +299,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param workspacename path string true "Workspace name"
 // @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
+// @Param include_related query string false "Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything."
 // @Success 200 {object} codersdk.Workspace
 // @Router /api/v2/users/{user}/workspace/{workspacename} [get]
 func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
@@ -341,11 +347,25 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	data, err := api.singleWorkspaceData(ctx, workspace, wsrelated.All())
+	// Omitting include_related is backward compatible: everything is returned.
+	// When present, only the requested related data is loaded.
+	related := wsrelated.All()
+	if r.URL.Query().Has("include_related") {
+		related, err = wsrelated.Parse(r.URL.Query().Get("include_related"))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid include_related query param.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	data, err := api.singleWorkspaceData(ctx, workspace, related)
 	if err != nil {
-		// Preserve concealment: a template the actor cannot read is reported as
-		// not found rather than forbidden.
-		if errors.Is(err, errWorkspaceTemplateUnauthorized) {
+		// Preserve concealment: a template the actor cannot read, or a build
+		// that does not exist, is reported as not found rather than forbidden.
+		if errors.Is(err, errWorkspaceTemplateUnauthorized) || errors.Is(err, errWorkspaceBuildNotFound) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -356,14 +376,19 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if len(data.builds) == 0 {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	appStatus := codersdk.WorkspaceAppStatus{}
 	if len(data.appStatuses) > 0 {
 		appStatus = data.appStatuses[0]
+	}
+
+	// Related data may be omitted, in which case these carry zero values.
+	var build codersdk.WorkspaceBuild
+	if len(data.builds) > 0 {
+		build = data.builds[0]
+	}
+	var template database.Template
+	if len(data.templates) > 0 {
+		template = data.templates[0]
 	}
 
 	w, err := convertWorkspace(
@@ -371,8 +396,8 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		api.Logger,
 		apiKey.UserID,
 		workspace,
-		data.builds[0],
-		data.templates[0],
+		build,
+		template,
 		api.AllowWorkspaceRenames,
 		appStatus,
 	)
@@ -2815,11 +2840,17 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 // template means the read was denied.
 var errWorkspaceTemplateUnauthorized = xerrors.New("not authorized to read workspace template")
 
+// errWorkspaceBuildNotFound indicates the actor requested a workspace's latest
+// build but none exists. A workspace should always have a build, so an
+// absent-but-requested build means the workspace was not found.
+var errWorkspaceBuildNotFound = xerrors.New("workspace build not found")
+
 // singleWorkspaceData loads related data for one workspace. Unlike the batch
 // workspaceData, which omits templates the actor cannot read so list endpoints
 // can skip them, it returns errWorkspaceTemplateUnauthorized when the template
-// was requested but is absent. Callers map that error to the response their
-// endpoint requires (403, 404, or an SSE error).
+// was requested but is absent, and errWorkspaceBuildNotFound when the latest
+// build was requested but is absent. Callers map those errors to the response
+// their endpoint requires (403, 404, or an SSE error).
 func (api *API) singleWorkspaceData(ctx context.Context, workspace database.Workspace, cfg wsrelated.Config) (workspaceData, error) {
 	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, cfg)
 	if err != nil {
@@ -2829,6 +2860,9 @@ func (api *API) singleWorkspaceData(ctx context.Context, workspace database.Work
 		return t.ID == workspace.TemplateID
 	}) {
 		return workspaceData{}, errWorkspaceTemplateUnauthorized
+	}
+	if cfg.LatestBuild != nil && len(data.builds) == 0 {
+		return workspaceData{}, errWorkspaceBuildNotFound
 	}
 	return data, nil
 }
