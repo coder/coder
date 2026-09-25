@@ -288,4 +288,15 @@ describe("FilterCombobox", () => {
 
 		expect(search).toHaveFocus();
 	});
+
+	it("clears every chip and keeps the search text with Clear all", async () => {
+		const { user, onChange } = setup(
+			[ownerCategory, statusCategory, attributesCategory],
+			{ initialValue: "owner:alice status:running outdated:true dev" },
+		);
+
+		await user.click(screen.getByRole("button", { name: "Clear all" }));
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("dev"));
+	});
 });
