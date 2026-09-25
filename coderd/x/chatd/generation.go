@@ -151,6 +151,9 @@ type generationDecision struct {
 	// forced marks a compact action triggered by a manual
 	// compaction request rather than the usage threshold.
 	forced bool
+	// toolCallMessage is the assistant message containing
+	// localToolCalls.
+	toolCallMessage toolCallMessage
 }
 
 type generationRetryDecision struct {
@@ -200,7 +203,7 @@ type generationDecisionInput struct {
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
-	localCalls, dynamicCalls, err := unresolvedToolCallsFromHistory(input.messages, input.dynamicToolNames)
+	toolCallMsg, localCalls, dynamicCalls, err := unresolvedToolCallsFromHistory(input.messages, input.dynamicToolNames)
 	if err != nil {
 		return generationDecision{}, err
 	}
@@ -214,7 +217,11 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 				})
 			}
 		}
-		return generationDecision{kind: generationActionExecuteLocalTools, localToolCalls: localCalls}, nil
+		return generationDecision{
+			kind:            generationActionExecuteLocalTools,
+			localToolCalls:  localCalls,
+			toolCallMessage: toolCallMsg,
+		}, nil
 	}
 	if len(dynamicCalls) > 0 {
 		return generationDecision{kind: generationActionEnterRequiresAction}, nil
@@ -288,23 +295,33 @@ func generationCompactionContextLimit(compaction *generationCompaction) int64 {
 	return compaction.Options.ContextLimit
 }
 
+// toolCallMessage identifies the assistant message whose tool calls
+// unresolvedToolCallsFromHistory returns.
+type toolCallMessage struct {
+	id        int64
+	createdAt time.Time
+}
+
+// unresolvedToolCallsFromHistory returns the tool calls without a result
+// in the latest assistant message, split into local and dynamic calls,
+// and that message.
 func unresolvedToolCallsFromHistory(
 	messages []database.ChatMessage,
 	dynamicToolNames map[string]bool,
-) ([]fantasy.ToolCallContent, []pendingDynamicToolCall, error) {
+) (toolCallMessage, []fantasy.ToolCallContent, []pendingDynamicToolCall, error) {
 	assistantIndex := lastMessageIndex(messages, func(msg database.ChatMessage) bool {
 		return msg.Role == database.ChatMessageRoleAssistant
 	})
 	if assistantIndex == -1 {
-		return nil, nil, nil
+		return toolCallMessage{}, nil, nil, nil
 	}
 	assistantParts, err := chatprompt.ParseContent(messages[assistantIndex])
 	if err != nil {
-		return nil, nil, xerrors.Errorf("parse assistant message: %w", err)
+		return toolCallMessage{}, nil, nil, xerrors.Errorf("parse assistant message: %w", err)
 	}
 	handled, err := handledToolCallIDs(messages[assistantIndex+1:])
 	if err != nil {
-		return nil, nil, err
+		return toolCallMessage{}, nil, nil, err
 	}
 	localCalls := make([]fantasy.ToolCallContent, 0)
 	dynamicCalls := make([]pendingDynamicToolCall, 0)
@@ -327,7 +344,8 @@ func unresolvedToolCallsFromHistory(
 			ProviderExecuted: part.ProviderExecuted,
 		})
 	}
-	return localCalls, dynamicCalls, nil
+	msg := toolCallMessage{id: messages[assistantIndex].ID, createdAt: messages[assistantIndex].CreatedAt}
+	return msg, localCalls, dynamicCalls, nil
 }
 
 // exclusiveBatchRejected reports whether the exclusive-tool policy will
@@ -885,6 +903,11 @@ func (s *taskStarter) executeLocalTools(
 		return xerrors.Errorf("beginGenerationAttempt: %w", err)
 	}
 	defer attempt.closeEpisode()
+	dbNow, err := s.opts.Store.GetDatabaseNow(ctx)
+	if err != nil {
+		return normalizeTaskInfrastructureError(err, "get database time")
+	}
+	toolCallAge := chattool.NewToolCallAge(s.opts.Clock, dbNow, decision.toolCallMessage.createdAt)
 	provider := ""
 	modelName := ""
 	if prepared.Model.Valid() {
@@ -913,6 +936,9 @@ func (s *taskStarter) executeLocalTools(
 			BuiltinToolNames:   prepared.BuiltinToolNames,
 			ModelProvider:      provider,
 			ModelName:          modelName,
+			ChatID:             input.ChatID,
+			ToolCallMessageID:  decision.toolCallMessage.id,
+			ToolCallAge:        toolCallAge,
 			ContextLimit:       prepared.ContextLimitFallback,
 			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,
