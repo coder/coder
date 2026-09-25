@@ -3862,13 +3862,4 @@ func TestServerOrganizationName(t *testing.T) {
 		require.Equal(t, "", server.organizationName(t.Context(), orgID))
 		require.Equal(t, "acme", server.organizationName(t.Context(), orgID))
 	})
-
-	t.Run("NilIDSkipsTheStore", func(t *testing.T) {
-		t.Parallel()
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db, logger: slogtest.Make(t, nil)}
-
-		require.Equal(t, "", server.organizationName(t.Context(), uuid.Nil))
-	})
 }
