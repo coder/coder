@@ -75,11 +75,11 @@ func NewMetrics(reg prometheus.Registerer) *metrics.Metrics {
 	return metrics.NewMetrics(reg)
 }
 
-// NewRecorder creates a [Recorder] which logs each record and acquires a client
-// per call. clientFn receives the context of the call it serves.
-func NewRecorder(logger slog.Logger, tracer trace.Tracer, clientFn func(context.Context) (Recorder, error)) Recorder {
+// NewRecorder creates a [Recorder] which logs each record before handing it to
+// base.
+func NewRecorder(logger slog.Logger, tracer trace.Tracer, base Recorder) Recorder {
 	return recorder.ChainMiddleware(
 		recorder.WithLogging(logger),
 		recorder.WithTracing(tracer),
-	)(recorder.NewWrappedRecorder(clientFn))
+	)(base)
 }
