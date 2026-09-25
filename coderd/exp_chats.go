@@ -47,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
@@ -3681,6 +3682,39 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, diff)
+}
+
+// chatRenderTemplateParameters evaluates a template version's parameters
+// for the chat owner with no inputs, which is the form state the owner would
+// see on the workspace creation page. It authorizes as the owner itself, like
+// the other chat hooks. Prepare selects the static renderer for versions that
+// predate dynamic parameters and returns
+// dynamicparameters.ErrTemplateVersionNotReady while the import job runs.
+func (api *API) chatRenderTemplateParameters(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	templateVersionID uuid.UUID,
+) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("load user authorization: %w", err)
+	}
+	ctx = dbauthz.As(ctx, actor)
+
+	renderer, err := dynamicparameters.Prepare(ctx, api.Database, api.FileCache, templateVersionID,
+		dynamicparameters.WithPreviewOptions(dynamicparameters.PreviewOptions(api.DeploymentValues)...),
+	)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("prepare template version renderer: %w", err)
+	}
+	defer renderer.Close()
+
+	output, diags := renderer.Render(ctx, ownerID, map[string]string{})
+	var params []codersdk.PreviewParameter
+	if output != nil {
+		params = slice.List(output.Parameters, db2sdk.PreviewParameter)
+	}
+	return params, db2sdk.HCLDiagnostics(diags), nil
 }
 
 // chatCreateWorkspace provides workspace creation for the chat

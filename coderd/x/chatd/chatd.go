@@ -181,6 +181,7 @@ type Server struct {
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
 	stopWorkspaceFn                chattool.StopWorkspaceFn
+	renderTemplateParametersFn     chattool.RenderTemplateParametersFn
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
 	hooks                          *chathooks.Trigger
@@ -2860,6 +2861,7 @@ type Config struct {
 	CreateWorkspace                chattool.CreateWorkspaceFn
 	StartWorkspace                 chattool.StartWorkspaceFn
 	StopWorkspace                  chattool.StopWorkspaceFn
+	RenderTemplateParameters       chattool.RenderTemplateParametersFn
 	ProviderAPIKeys                chatprovider.ProviderAPIKeys
 	AllowBYOK                      bool
 	AllowBYOKSet                   bool
@@ -2962,6 +2964,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
 		stopWorkspaceFn:                cfg.StopWorkspace,
+		renderTemplateParametersFn:     cfg.RenderTemplateParameters,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,
 		hooks:                          chathooks.NewTrigger(hookDispatcher),
@@ -3737,7 +3740,9 @@ func (p *Server) appendRootChatTools(
 			Clock:   p.clock,
 		}),
 		chattool.ReadTemplate(p.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
-			OwnerID: opts.chat.OwnerID,
+			OwnerID:          opts.chat.OwnerID,
+			RenderParameters: p.renderTemplateParametersFn,
+			Logger:           p.logger,
 		}),
 		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:                        opts.chat.OwnerID,

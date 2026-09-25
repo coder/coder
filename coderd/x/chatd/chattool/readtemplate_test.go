@@ -1,6 +1,7 @@
 package chattool_test
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"strings"
@@ -9,11 +10,15 @@ import (
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -287,5 +292,346 @@ func TestReadTemplate_Readme(t *testing.T) {
 		tmplInfo := readTemplateInfo(t, uuid.New())
 		_, ok := tmplInfo["readme"]
 		require.False(t, ok, "readme should be omitted when the version is missing")
+	})
+}
+
+// TestReadTemplate_OwnerEvaluatedParameters covers the parameter source
+// selection: owner-evaluated parameters replace the import-time rows, and
+// any failure to evaluate falls back to those rows with a note saying so.
+func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	// newTemplate creates an agents-allowed template whose active version
+	// carries the given import-time parameter rows.
+	newTemplate := func(t *testing.T, seed database.Template, rows ...database.TemplateVersionParameter) database.Template {
+		t.Helper()
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		seed.OrganizationID = org.ID
+		seed.CreatedBy = user.ID
+		seed.ActiveVersionID = tv.ID
+		seed.AgentsAllowed = true
+		tmpl := dbgen.Template(t, db, seed)
+		for _, row := range rows {
+			row.TemplateVersionID = tv.ID
+			_ = dbgen.TemplateVersionParameter(t, db, row)
+		}
+		return tmpl
+	}
+	// regionRow is the import-time row for the Region parameter. It records
+	// the default seen by the template importer, which is what the fallback
+	// path must report.
+	regionRow := database.TemplateVersionParameter{
+		Name:         "Region",
+		Type:         "string",
+		DefaultValue: "us-pittsburgh",
+		Mutable:      false,
+		Options:      json.RawMessage(`[{"name":"Pittsburgh","value":"us-pittsburgh"},{"name":"Falkenstein","value":"eu-helsinki"}]`),
+	}
+	tmpl := newTemplate(t, database.Template{}, regionRow)
+
+	regex := "^[a-z-]+$"
+	ownerRendered := []codersdk.PreviewParameter{
+		{
+			PreviewParameterData: codersdk.PreviewParameterData{
+				Name:         "Region",
+				Type:         codersdk.OptionTypeString,
+				FormType:     codersdk.ParameterFormTypeRadio,
+				Mutable:      false,
+				DefaultValue: codersdk.NullHCLString{Value: "eu-helsinki", Valid: true},
+				Options: []codersdk.PreviewParameterOption{
+					{Name: "Pittsburgh", Value: codersdk.NullHCLString{Value: "us-pittsburgh", Valid: true}},
+					{Name: "Falkenstein", Value: codersdk.NullHCLString{Value: "eu-helsinki", Valid: true}},
+				},
+				Validations: []codersdk.PreviewParameterValidation{{Regex: &regex}},
+			},
+			Value: codersdk.NullHCLString{Value: "eu-helsinki", Valid: true},
+		},
+	}
+
+	// readAll runs read_template and returns the parameters by name plus the
+	// parameters_note.
+	readAll := func(t *testing.T, templateID uuid.UUID, render chattool.RenderTemplateParametersFn) (map[string]map[string]any, string) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
+			OwnerID:          user.ID,
+			RenderParameters: render,
+			Logger:           slogtest.Make(t, nil),
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-owner",
+			Name:  "read_template",
+			Input: `{"template_id":"` + templateID.String() + `"}`,
+		})
+		require.NoError(t, err)
+		require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
+
+		var result struct {
+			Parameters []map[string]any `json:"parameters"`
+			Note       string           `json:"parameters_note"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		byName := make(map[string]map[string]any, len(result.Parameters))
+		for _, p := range result.Parameters {
+			byName[p["name"].(string)] = p
+		}
+		require.Len(t, byName, len(result.Parameters), "parameter names must be unique")
+		return byName, result.Note
+	}
+	// readParams reads the shared template and returns its Region parameter.
+	readParams := func(t *testing.T, render chattool.RenderTemplateParametersFn) (map[string]any, string) {
+		t.Helper()
+		params, note := readAll(t, tmpl.ID, render)
+		require.Len(t, params, 1)
+		return params["Region"], note
+	}
+	renderStatic := func(params ...codersdk.PreviewParameter) chattool.RenderTemplateParametersFn {
+		return func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return params, nil, nil
+		}
+	}
+
+	t.Run("OwnerDefaultsWin", func(t *testing.T) {
+		t.Parallel()
+		var gotOwner, gotVersion uuid.UUID
+		region, note := readParams(t, func(_ context.Context, ownerID, versionID uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			gotOwner, gotVersion = ownerID, versionID
+			return ownerRendered, []codersdk.FriendlyDiagnostic{{Severity: codersdk.DiagnosticSeverityWarning, Summary: "ignored"}}, nil
+		})
+		require.Equal(t, user.ID, gotOwner)
+		require.Equal(t, tmpl.ActiveVersionID, gotVersion)
+		require.Equal(t, "eu-helsinki", region["default"])
+		require.Equal(t, false, region["mutable"])
+		require.Equal(t, "radio", region["form_type"])
+		require.Equal(t, regex, region["validation_regex"])
+		opts, ok := region["options"].([]any)
+		require.True(t, ok)
+		require.Len(t, opts, 2)
+		require.Equal(t, "eu-helsinki", opts[1].(map[string]any)["value"])
+		require.NotContains(t, region, "default_note")
+		require.Contains(t, note, "values a build for this workspace owner uses")
+		// The render omits every parameter, and a build re-evaluates a
+		// default that depends on another parameter against the values it
+		// is given, so the note must not promise more than that.
+		require.Contains(t, note, "omits every parameter")
+		require.Contains(t, note, "re-evaluated against the values passed to create_workspace")
+	})
+
+	t.Run("ParameterErrorIsReported", func(t *testing.T) {
+		t.Parallel()
+		// Mirrors preview output for an owner-evaluated default outside the
+		// option set: the default itself is a valid string and the error
+		// is scoped to the parameter, not the top-level diagnostics.
+		broken := ownerRendered[0]
+		broken.DefaultValue = codersdk.NullHCLString{Value: "not-an-option", Valid: true}
+		broken.Value = codersdk.NullHCLString{}
+		broken.Diagnostics = []codersdk.FriendlyDiagnostic{{
+			Severity: codersdk.DiagnosticSeverityError,
+			Summary:  "Value must be a valid option",
+			Detail:   "not-an-option is not one of the options",
+		}}
+		region, note := readParams(t, renderStatic(broken))
+		require.NotContains(t, region, "default", "an errored default must not be asserted")
+		require.Equal(t, `Value must be a valid option: not-an-option is not one of the options; the evaluated default "not-an-option" cannot be used, pass a value explicitly`, region["error"])
+		require.Contains(t, note, "values a build for this workspace owner uses")
+	})
+
+	t.Run("RequiredWithoutValueIsNotAnError", func(t *testing.T) {
+		t.Parallel()
+		// preview tags required parameters rendered with no inputs with a
+		// "required" error diagnostic; that must not be reported as a
+		// broken default, and the import default must not stand in.
+		required := codersdk.PreviewParameter{
+			PreviewParameterData: codersdk.PreviewParameterData{
+				Name:     "Region",
+				Type:     codersdk.OptionTypeString,
+				Required: true,
+				Mutable:  true,
+			},
+			Diagnostics: []codersdk.FriendlyDiagnostic{{
+				Severity: codersdk.DiagnosticSeverityError,
+				Summary:  "Required parameter not provided",
+				Detail:   "parameter value is null",
+				Extra:    codersdk.DiagnosticExtra{Code: "required"},
+			}},
+		}
+		region, note := readParams(t, renderStatic(required))
+		require.Equal(t, true, region["required"])
+		require.NotContains(t, region, "default")
+		require.NotContains(t, region, "error")
+		require.Contains(t, note, "values a build for this workspace owner uses")
+	})
+
+	t.Run("RenderErrorFallsBack", func(t *testing.T) {
+		t.Parallel()
+		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return nil, nil, xerrors.New("boom")
+		})
+		require.Equal(t, "us-pittsburgh", region["default"])
+		require.Equal(t, false, region["mutable"])
+		require.Contains(t, note, "recorded at template import")
+	})
+
+	t.Run("ErrorDiagnosticFallsBack", func(t *testing.T) {
+		t.Parallel()
+		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return ownerRendered, []codersdk.FriendlyDiagnostic{{Severity: codersdk.DiagnosticSeverityError, Summary: "bad template"}}, nil
+		})
+		require.Equal(t, "us-pittsburgh", region["default"])
+		require.Contains(t, note, "recorded at template import")
+	})
+
+	t.Run("NotReadyReportsImporting", func(t *testing.T) {
+		t.Parallel()
+		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return nil, nil, xerrors.Errorf("prepare: %w", dynamicparameters.ErrTemplateVersionNotReady)
+		})
+		require.Equal(t, "us-pittsburgh", region["default"])
+		require.Contains(t, note, "still importing")
+	})
+
+	t.Run("ClassicFlowSkipsOwnerEvaluation", func(t *testing.T) {
+		t.Parallel()
+		// Builds for classic-flow templates use the import rows, so those are
+		// reported as the build values without consulting the renderer.
+		classic := newTemplate(t, database.Template{UseClassicParameterFlow: true}, regionRow)
+		params, note := readAll(t, classic.ID, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			t.Fatal("renderer must not run for classic-flow templates")
+			return nil, nil, nil
+		})
+		require.Equal(t, "us-pittsburgh", params["Region"]["default"])
+		require.Contains(t, note, "values a build for this workspace owner uses")
+	})
+
+	t.Run("UnresolvedDefaultIsNotFilledFromImport", func(t *testing.T) {
+		t.Parallel()
+		// Preview renders a default that depends on data.coder_provisioner
+		// and a default that evaluates to null for this owner identically:
+		// Valid is false and there is no diagnostic. The import row cannot
+		// tell them apart, so its value must not stand in.
+		unknown := ownerRendered[0]
+		unknown.DefaultValue = codersdk.NullHCLString{}
+		unknown.Value = codersdk.NullHCLString{}
+		region, note := readParams(t, renderStatic(unknown))
+		require.NotContains(t, region, "default", "import default must not stand in for an unevaluated one")
+		require.Contains(t, region["default_note"], "no default could be evaluated")
+		require.NotContains(t, region, "error")
+		require.Contains(t, note, "values a build for this workspace owner uses")
+	})
+
+	t.Run("IncompleteRenderKeepsModuleParameters", func(t *testing.T) {
+		t.Parallel()
+		// preview drops every parameter declared by a module it cannot load
+		// and reports that as a module_not_loaded warning, not an error.
+		// provisionerd still resolves the module at build time, so the
+		// import row is the best estimate for those parameters. Import rows
+		// do not say which module declared them, so a root-level parameter
+		// the render omitted for this owner is restored the same way and
+		// must carry the same caveat.
+		withModule := newTemplate(t, database.Template{}, regionRow, database.TemplateVersionParameter{
+			Name:         "jetbrains_ide",
+			Type:         "string",
+			DefaultValue: "GO",
+		})
+		// A required root parameter with count = 0 for this owner. Inserted
+		// directly because dbgen fills an empty default with a random value.
+		_, err := db.InsertTemplateVersionParameter(testutil.Context(t, testutil.WaitShort), database.InsertTemplateVersionParameterParams{
+			TemplateVersionID: withModule.ActiveVersionID,
+			Name:              "admin_only",
+			Type:              "string",
+			Required:          true,
+			Options:           json.RawMessage("[]"),
+		})
+		require.NoError(t, err)
+		params, note := readAll(t, withModule.ID, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return ownerRendered, []codersdk.FriendlyDiagnostic{{
+				Severity: codersdk.DiagnosticSeverityWarning,
+				Summary:  "Module not loaded. Did you run `terraform init`?",
+				Extra:    codersdk.DiagnosticExtra{Code: "module_not_loaded"},
+			}}, nil
+		})
+		require.Len(t, params, 3)
+		require.Equal(t, "eu-helsinki", params["Region"]["default"], "rendered parameters keep the owner default")
+		require.NotContains(t, params["Region"], "note")
+		require.Equal(t, "GO", params["jetbrains_ide"]["default"], "module parameter recovered from the import row")
+		require.Contains(t, params["jetbrains_ide"]["note"], "may not apply to this owner")
+		require.Equal(t, true, params["admin_only"]["required"])
+		require.Contains(t, params["admin_only"]["note"], "may not apply to this owner",
+			"a restored row without a default is still an import-time estimate")
+		require.Contains(t, note, "values a build for this workspace owner uses")
+	})
+
+	t.Run("UnknownOptionValuesAreOmitted", func(t *testing.T) {
+		t.Parallel()
+		// An option value that depends on data preview cannot see, such as
+		// data.coder_provisioner attributes, renders as invalid and preview
+		// flags the parameter. The option is left out rather than shown with
+		// an empty value or replaced from the import row, and the error
+		// tells the model to pass a value explicitly.
+		unknownOption := ownerRendered[0]
+		unknownOption.Options = []codersdk.PreviewParameterOption{
+			{Name: "Pittsburgh", Value: codersdk.NullHCLString{Value: "us-pittsburgh", Valid: true}},
+			{Name: "Native (" + user.Username + ")", Value: codersdk.NullHCLString{}},
+		}
+		unknownOption.Diagnostics = []codersdk.FriendlyDiagnostic{{
+			Severity: codersdk.DiagnosticSeverityError,
+			Summary:  "Parameter contains 1 invalid options",
+			Detail:   "The set of options cannot be resolved, and use of the parameter is limited.",
+		}}
+		region, _ := readParams(t, renderStatic(unknownOption))
+		require.Contains(t, region["error"], "invalid options")
+		opts, ok := region["options"].([]any)
+		require.True(t, ok)
+		require.Len(t, opts, 1, "only options with a known value are listed")
+		require.Equal(t, "us-pittsburgh", opts[0].(map[string]any)["value"])
+	})
+
+	t.Run("ValidationIsNotFilledFromImport", func(t *testing.T) {
+		t.Parallel()
+		// Preview returns a nil bound both for one that evaluates to null
+		// for this owner and for one it could not evaluate, so the import
+		// row's bound must not stand in for a missing one.
+		constrained := regionRow
+		constrained.Name = "cpu"
+		constrained.Type = "number"
+		constrained.DefaultValue = "4"
+		constrained.Options = nil
+		constrained.ValidationMin = sql.NullInt32{Int32: 2, Valid: true}
+		constrained.ValidationMax = sql.NullInt32{Int32: 16, Valid: true}
+		withValidation := newTemplate(t, database.Template{}, constrained)
+		maxCPU := int64(16)
+		params, _ := readAll(t, withValidation.ID, renderStatic(codersdk.PreviewParameter{
+			PreviewParameterData: codersdk.PreviewParameterData{
+				Name:         "cpu",
+				Type:         codersdk.OptionTypeNumber,
+				Mutable:      true,
+				DefaultValue: codersdk.NullHCLString{Value: "4", Valid: true},
+				Validations:  []codersdk.PreviewParameterValidation{{Max: &maxCPU}},
+			},
+			Value: codersdk.NullHCLString{Value: "4", Valid: true},
+		}))
+		cpu := params["cpu"]
+		require.Equal(t, "4", cpu["default"])
+		require.EqualValues(t, 16, cpu["validation_max"], "evaluated bounds come from the render")
+		require.NotContains(t, cpu, "validation_min", "import bound must not stand in for a null one")
+		require.NotContains(t, cpu, "default_note")
+	})
+
+	t.Run("NoRendererUsesImportDefaults", func(t *testing.T) {
+		t.Parallel()
+		region, note := readParams(t, nil)
+		require.Equal(t, "us-pittsburgh", region["default"])
+		require.Contains(t, note, "recorded at template import")
 	})
 }
