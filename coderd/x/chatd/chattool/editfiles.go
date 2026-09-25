@@ -23,9 +23,12 @@ type EditFilesArgs struct {
 	Files []workspacesdk.FileEdits `json:"files" description:"Files to edit. Every entry must include path and at least one edit."`
 }
 
+// EditFilesToolName is the registered name of the edit_files tool.
+const EditFilesToolName = "edit_files"
+
 func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
-		"edit_files",
+		EditFilesToolName,
 		"Perform edits on one or more files by replacing old_text with"+
 			" new_text. Each entry in files must include the absolute path"+
 			" of the file to edit and at least one edit. Matching is fuzzy"+

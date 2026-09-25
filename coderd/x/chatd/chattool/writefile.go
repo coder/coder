@@ -20,9 +20,12 @@ type WriteFileArgs struct {
 	Content string `json:"content"`
 }
 
+// WriteFileToolName is the registered name of the write_file tool.
+const WriteFileToolName = "write_file"
+
 func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
-		"write_file",
+		WriteFileToolName,
 		"Write a file to the workspace.",
 		func(ctx context.Context, args WriteFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			var planPath string
