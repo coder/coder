@@ -699,6 +699,11 @@ export type APIKeyScope =
 	| "chat_model_config:read"
 	| "chat_model_config:share"
 	| "chat_model_config:update"
+	| "chat_project:*"
+	| "chat_project:create"
+	| "chat_project:delete"
+	| "chat_project:read"
+	| "chat_project:update"
 	| "chat:read"
 	| "chat:share"
 	| "chat:update"
@@ -946,6 +951,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_model_config:read",
 	"chat_model_config:share",
 	"chat_model_config:update",
+	"chat_project:*",
+	"chat_project:create",
+	"chat_project:delete",
+	"chat_project:read",
+	"chat_project:update",
 	"chat:read",
 	"chat:share",
 	"chat:update",
@@ -1956,6 +1966,7 @@ export interface Chat {
 	readonly owner_username?: string;
 	readonly owner_name?: string;
 	readonly workspace_id?: string;
+	readonly project_id?: string;
 	readonly build_id?: string;
 	readonly agent_id?: string;
 	readonly parent_chat_id?: string;
@@ -3253,6 +3264,25 @@ export const ChatPlanModes: ChatPlanMode[] = ["plan"];
 
 // From codersdk/chats.go
 /**
+ * ChatProject groups related chats in an organization.
+ */
+export interface ChatProject {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly name: string;
+	readonly description: string;
+	/**
+	 * Icon is a URL, typically an emoji image under /emojis, or empty for the
+	 * default folder glyph.
+	 */
+	readonly icon: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatPrompt is a single user-authored prompt in a chat, returned by
  * GET /api/v2/chats/{chat}/prompts. The text field contains
  * the concatenated text payload of the underlying chat message; non-text
@@ -3928,6 +3958,17 @@ export interface CreateChatModelRequest {
 
 // From codersdk/chats.go
 /**
+ * CreateChatProjectRequest creates an organization-scoped chat project.
+ */
+export interface CreateChatProjectRequest {
+	readonly organization_id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly icon?: string;
+}
+
+// From codersdk/chats.go
+/**
  * CreateChatRequest is the request to create a new chat.
  */
 export interface CreateChatRequest {
@@ -3941,6 +3982,7 @@ export interface CreateChatRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
+	readonly project_id?: string;
 	readonly model_config_id?: string;
 	readonly reasoning_effort?: string;
 	readonly mcp_server_ids?: readonly string[];
@@ -5090,6 +5132,7 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "chat-advisor"
 	| "chat-inline-mcp-servers"
+	| "chat-projects"
 	| "chat-virtual-desktop"
 	| "enable-ai-workspace-debug"
 	| "example"
@@ -5108,6 +5151,7 @@ export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"chat-advisor",
 	"chat-inline-mcp-servers",
+	"chat-projects",
 	"chat-virtual-desktop",
 	"enable-ai-workspace-debug",
 	"example",
@@ -5997,6 +6041,7 @@ export interface ListChatsOptions extends Pagination {
 	 */
 	readonly Source: ChatListSource;
 	readonly Labels: Record<string, string>;
+	readonly ProjectID: string | null;
 }
 
 // From codersdk/inboxnotification.go
@@ -8285,6 +8330,7 @@ export type RBACResource =
 	| "boundary_usage"
 	| "chat"
 	| "chat_model_config"
+	| "chat_project"
 	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
@@ -8339,6 +8385,7 @@ export const RBACResources: RBACResource[] = [
 	"boundary_usage",
 	"chat",
 	"chat_model_config",
+	"chat_project",
 	"connection_log",
 	"crypto_key",
 	"debug_info",
@@ -8494,6 +8541,7 @@ export type ResourceType =
 	| "chat_instruction_settings"
 	| "chat_model_config"
 	| "chat_operational_settings"
+	| "chat_project"
 	| "convert_login"
 	| "custom_role"
 	| "git_ssh_key"
@@ -8536,6 +8584,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_instruction_settings",
 	"chat_model_config",
 	"chat_operational_settings",
+	"chat_project",
 	"convert_login",
 	"custom_role",
 	"git_ssh_key",
@@ -10125,6 +10174,16 @@ export interface UpdateChatPersonalModelOverridesAdminSettingsRequest {
  */
 export interface UpdateChatPlanModeInstructionsRequest {
 	readonly plan_mode_instructions: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatProjectRequest updates a chat project.
+ */
+export interface UpdateChatProjectRequest {
+	readonly name?: string;
+	readonly description?: string;
+	readonly icon?: string;
 }
 
 // From codersdk/chats.go

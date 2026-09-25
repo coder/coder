@@ -154,6 +154,203 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/projects": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat projects",
+                "operationId": "list-chat-projects",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProject"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat project",
+                "operationId": "create-chat-project",
+                "parameters": [
+                    {
+                        "description": "Create chat project request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProject"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/chats/projects/{project}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat project",
+                "operationId": "get-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProject"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat project",
+                "operationId": "delete-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat project",
+                "operationId": "update-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update chat project request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProject"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/{chat}/stream/desktop": {
             "get": {
                 "description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -1568,6 +1765,13 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Page offset",
                         "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Only chats in this project. Requires the chat-projects experiment.",
+                        "name": "project_id",
                         "in": "query"
                     }
                 ],
@@ -18602,6 +18806,11 @@ const docTemplate = `{
                 "chat_model_config:read",
                 "chat_model_config:share",
                 "chat_model_config:update",
+                "chat_project:*",
+                "chat_project:create",
+                "chat_project:delete",
+                "chat_project:read",
+                "chat_project:update",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -18849,6 +19058,11 @@ const docTemplate = `{
                 "APIKeyScopeChatModelConfigRead",
                 "APIKeyScopeChatModelConfigShare",
                 "APIKeyScopeChatModelConfigUpdate",
+                "APIKeyScopeChatProjectAll",
+                "APIKeyScopeChatProjectCreate",
+                "APIKeyScopeChatProjectDelete",
+                "APIKeyScopeChatProjectRead",
+                "APIKeyScopeChatProjectUpdate",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -19805,6 +20019,10 @@ const docTemplate = `{
                 },
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "queued_for_capacity": {
                     "description": "QueuedForCapacity reports that the chat is waiting for a concurrent\nagent slot. Single-chat reads derive it; list responses leave it false.",
@@ -21319,6 +21537,41 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatProject": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "description": "Icon is a URL, typically an emoji image under /emojis, or empty for the\ndefault folder glyph.",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "codersdk.ChatPrompt": {
             "type": "object",
             "properties": {
@@ -22017,6 +22270,28 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateChatProjectRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "organization_id"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.CreateChatRequest": {
             "type": "object",
             "properties": {
@@ -22064,6 +22339,10 @@ const docTemplate = `{
                 },
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "reasoning_effort": {
                     "type": "string"
@@ -23738,6 +24017,7 @@ const docTemplate = `{
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
                 "ai-gateway-reverse-proxy",
+                "chat-projects",
                 "chat-advisor",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks",
@@ -23751,6 +24031,7 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
+                "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
@@ -23774,6 +24055,7 @@ const docTemplate = `{
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
+                "Enables organization-scoped projects that group agent chats.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats.",
@@ -23792,6 +24074,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentAIGatewayReverseProxy",
+                "ExperimentChatProjects",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks",
@@ -27746,6 +28029,7 @@ const docTemplate = `{
                 "boundary_usage",
                 "chat",
                 "chat_model_config",
+                "chat_project",
                 "connection_log",
                 "crypto_key",
                 "debug_info",
@@ -27800,6 +28084,7 @@ const docTemplate = `{
                 "ResourceBoundaryUsage",
                 "ResourceChat",
                 "ResourceChatModelConfig",
+                "ResourceChatProject",
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
@@ -28056,6 +28341,7 @@ const docTemplate = `{
                 "group_ai_budget",
                 "user_ai_budget_override",
                 "chat",
+                "chat_project",
                 "mcp_server_config",
                 "chat_model_config",
                 "user_secret",
@@ -28098,6 +28384,7 @@ const docTemplate = `{
                 "ResourceTypeGroupAIBudget",
                 "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
+                "ResourceTypeChatProject",
                 "ResourceTypeMCPServerConfig",
                 "ResourceTypeChatModelConfig",
                 "ResourceTypeUserSecret",
@@ -29951,6 +30238,20 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "plan_mode_instructions": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateChatProjectRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
                     "type": "string"
                 }
             }

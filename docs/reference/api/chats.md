@@ -52,13 +52,14 @@ curl -X GET http://coder-server:8080/api/v2/chats \
 
 ### Parameters
 
-| Name       | In    | Type          | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-|------------|-------|---------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`        | query | string        | false    | Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`. |
-| `label`    | query | array[string] | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `after_id` | query | string(uuid)  | false    | After ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `limit`    | query | integer       | false    | Page limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `offset`   | query | integer       | false    | Page offset                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Name         | In    | Type          | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+|--------------|-------|---------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`          | query | string        | false    | Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`. |
+| `label`      | query | array[string] | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `after_id`   | query | string(uuid)  | false    | After ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `limit`      | query | integer       | false    | Page limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `offset`     | query | integer       | false    | Page offset                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `project_id` | query | string(uuid)  | false    | Only chats in this project. Requires the chat-projects experiment.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 ### Example responses
 
@@ -174,6 +175,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
+    "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
     "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
@@ -284,6 +286,7 @@ Status Code **200**
 | `» parent_chat_id`         | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» pin_order`              | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `» plan_mode`              | [codersdk.ChatPlanMode](schemas.md#codersdkchatplanmode)                           | false    |              |                                                                                                                                                                                                                                                                            |
+| `» project_id`             | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» queued_for_capacity`    | boolean                                                                            | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
 | `» root_chat_id`           | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» shared`                 | boolean                                                                            | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
@@ -364,6 +367,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "reasoning_effort": "string",
   "system_prompt": "string",
   "unsafe_dynamic_tools": [
@@ -501,6 +505,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
@@ -615,6 +620,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
@@ -1483,6 +1489,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
+    "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
     "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
@@ -1649,6 +1656,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
@@ -1763,6 +1771,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
@@ -1964,6 +1973,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
@@ -2078,6 +2088,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
@@ -2327,6 +2338,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
@@ -2441,6 +2453,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
@@ -3414,6 +3427,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
       "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
@@ -3528,6 +3542,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,

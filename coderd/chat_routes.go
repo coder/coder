@@ -23,14 +23,16 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 	})
 	r.Route("/chats", func(r chi.Router) {
 		r.Use(apiKeyMiddleware)
-		// Reserve the unmounted segment so it returns 404 instead of
+		// Reserve unmounted segments so they return 404 instead of
 		// falling into the {chat} wildcard and failing UUID parsing
 		// with a 400.
-		r.Route("/model-configs", func(r chi.Router) {
-			r.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
-				httpapi.RouteNotFound(rw)
+		for _, segment := range []string{"/model-configs", "/projects"} {
+			r.Route(segment, func(r chi.Router) {
+				r.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
+					httpapi.RouteNotFound(rw)
+				})
 			})
-		})
+		}
 		r.Get("/by-workspace", api.chatsByWorkspace)
 		r.Get("/", api.listChats)
 		r.Post("/", api.postChats)
@@ -105,6 +107,17 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware func(http.Handler) http.Handler) {
 	r.Route("/chats", func(r chi.Router) {
 		r.Use(apiKeyMiddleware)
+		r.Route("/projects", func(r chi.Router) {
+			r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjects))
+			r.Get("/", api.listChatProjects)
+			r.Post("/", api.postChatProject)
+			r.Route("/{project}", func(r chi.Router) {
+				r.Use(httpmw.ExtractChatProjectParam(api.Database))
+				r.Get("/", api.getChatProject)
+				r.Patch("/", api.patchChatProject)
+				r.Delete("/", api.deleteChatProject)
+			})
+		})
 		r.Route("/config", func(r chi.Router) {
 			r.Group(func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))

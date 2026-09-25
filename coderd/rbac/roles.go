@@ -1209,6 +1209,10 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			policy.ActionShare,
 			policy.ActionUpdate,
 		},
+		// Projects group a member's own chats, so they follow chat access
+		// rather than workspace access. ChatProject.RBACObject sets
+		// WithOwner(OwnerID), which keeps them private to their owner.
+		ResourceChatProject.Type: ResourceChatProject.AvailableActions(),
 	})
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
@@ -1256,7 +1260,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	// Chat permissions are intentionally omitted for service accounts.
+	// Chat and chat project permissions are intentionally omitted for service accounts.
 	memberPerms := Permissions(map[string][]policy.Action{
 		// Read-self org-member record.
 		ResourceOrganizationMember.Type: {policy.ActionRead},
