@@ -520,8 +520,7 @@ export const useFilterCombobox = ({
 
 	// A failed category query for the current input ends loading even while
 	// other category queries are still fetching, so the live region announces
-	// the failure and the popup shows the error and Retry instead of "Loading
-	// suggestions".
+	// the failure instead of "Loading suggestions".
 	const typeaheadError =
 		typeaheadQuerySource.length > 0 &&
 		!typeaheadQueryPending &&

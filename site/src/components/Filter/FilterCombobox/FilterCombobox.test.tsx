@@ -6,7 +6,10 @@ import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { FilterCombobox, SEARCHABLE_OPTION_COUNT } from "./FilterCombobox";
 import { SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
-import { TYPED_TEXT_LOOKUP_TIMEOUT_MS } from "./useFilterCombobox";
+import {
+	SUGGESTIONS_ERROR_MESSAGE,
+	TYPED_TEXT_LOOKUP_TIMEOUT_MS,
+} from "./useFilterCombobox";
 
 const ownerCategory: FilterCategory = {
 	key: "owner",
@@ -509,6 +512,34 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	it("keeps the applied search when a typed drill-in value is committed", async () => {
+		const { user, onChange, input, filtersButton } = setup(
+			[
+				{
+					...ownerCategory,
+					getOptions: async (query) =>
+						query === "carol" ? [] : ownerCategory.getOptions(query),
+				},
+			],
+			{ initialValue: "zzz" },
+		);
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowDown}{ArrowRight}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.type(input, "carol");
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("option", { name: "alice" }),
+			).not.toBeInTheDocument(),
+		);
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:carol zzz"),
+		);
+	});
+
 	it("applies unmatched typed text with the remaining chips after a chip is removed during its lookup", async () => {
 		const owner = heldSearch(ownerCategory, "xyz");
 		const { user, onChange, input } = setup([owner.category, statusCategory], {
@@ -638,6 +669,50 @@ describe("FilterCombobox", () => {
 
 		expect(screen.getByRole("status")).toHaveTextContent("Loading suggestions");
 	});
+
+	it("announces a failed suggestion query while another is still fetching", async () => {
+		const { user, input } = setup([
+			{
+				...ownerCategory,
+				getOptions: async (query) => {
+					if (query) {
+						throw new Error("failed");
+					}
+					return [];
+				},
+			},
+			heldSearch(emptyTemplateCategory, "zzz").category,
+		]);
+
+		await user.click(input);
+		await user.type(input, "zzz");
+
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				SUGGESTIONS_ERROR_MESSAGE,
+			),
+		);
+	});
+
+	it.each([
+		["Enter", "{Enter}"],
+		["Space", " "],
+	])(
+		"removes a chip with %s on its remove button and focuses the input",
+		async (_, key) => {
+			const { user, onChange, input } = setup([ownerCategory, statusCategory], {
+				initialValue: "owner:alice status:running",
+			});
+
+			screen.getByRole("button", { name: "Remove owner:alice" }).focus();
+			await user.keyboard(key);
+
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("status:running"),
+			);
+			expect(input).toHaveFocus();
+		},
+	);
 
 	it("keeps matching rows selectable while typed text is debounced", async () => {
 		const { user, onChange, input } = setup([ownerCategory, statusCategory]);
