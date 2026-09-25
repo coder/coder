@@ -182,9 +182,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 				onArchiveAndDeleteWorkspace(chat.id, workspaceId);
 			}
 		},
-		onOpenRenameDialog: onOpenRenameDialog
-			? () => onOpenRenameDialog(chat)
-			: undefined,
+		onOpenRenameDialog: () => onOpenRenameDialog(chat),
 	};
 
 	return (
