@@ -51,6 +51,12 @@ type WorkspaceTerminalProps = {
 	onStatusChange?: (status: ConnectionStatus) => void;
 	onError?: (error: Error) => void;
 	onContentReady?: () => void;
+	/**
+	 * Called when the shell sets the terminal title via an OSC escape
+	 * sequence (e.g. `\033]0;My Title\007`), mirroring how native
+	 * terminals expose shell-controlled window titles.
+	 */
+	onTitleChange?: (title: string) => void;
 	reconnectionToken: string;
 	/**
 	 * The session ID correlates all logs, requests, and telemetry for this
@@ -88,6 +94,7 @@ export const WorkspaceTerminal = ({
 	onStatusChange,
 	onError,
 	onContentReady,
+	onTitleChange,
 	reconnectionToken,
 	sessionId,
 	baseUrl,
@@ -111,6 +118,9 @@ export const WorkspaceTerminal = ({
 	});
 	const handleContentReady = useEffectEvent(() => {
 		onContentReady?.();
+	});
+	const handleTitleChange = useEffectEvent((title: string) => {
+		onTitleChange?.(title);
 	});
 	const [terminal, setTerminal] = useState<Terminal>();
 	const { copyToClipboard, readFromClipboard } = useClipboard();
@@ -319,6 +329,14 @@ export const WorkspaceTerminal = ({
 		// right-click paste anyway.
 		nextTerminal.onSelectionChange(() => {
 			copySelection();
+		});
+
+		// Wire xterm's OSC title escape sequence (e.g. `\033]0;My Title\007`)
+		// through to the browser tab, matching native terminal behavior.
+		nextTerminal.onTitleChange((title) => {
+			if (title) {
+				handleTitleChange(title);
+			}
 		});
 
 		nextTerminal.open(mountNode);

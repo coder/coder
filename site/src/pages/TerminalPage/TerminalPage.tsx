@@ -44,6 +44,10 @@ const TerminalPage: FC = () => {
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
 	const [commandConfirmed, setCommandConfirmed] = useState(false);
+	// Set by the shell via an OSC title escape sequence (e.g.
+	// `\033]0;My Title\007`). Once set, it takes over the browser tab
+	// title entirely, the same as a native terminal window.
+	const [shellTitle, setShellTitle] = useState<string>();
 	const [searchParams] = useSearchParams();
 	const isDebugging = searchParams.has("debug");
 	// The reconnection token is a unique token that identifies
@@ -157,15 +161,22 @@ const TerminalPage: FC = () => {
 		);
 	}, [navigate, reconnectionToken, searchParams]);
 
+	// Disambiguates multiple open terminal tabs (different agents or dev
+	// containers within the same workspace) by including them in the title.
+	const terminalContext = [workspaceAgent?.name, containerName]
+		.filter(Boolean)
+		.join("/");
+	const defaultTerminalTitle = workspace.data
+		? pageTitle(
+				terminalContext ? `Terminal (${terminalContext})` : "Terminal",
+				`${workspace.data.owner_name}/${workspace.data.name}`,
+			)
+		: undefined;
+
 	return (
 		<ThemeOverride theme={theme}>
-			{workspace.data && (
-				<title>
-					{pageTitle(
-						"Terminal",
-						`${workspace.data.owner_name}/${workspace.data.name}`,
-					)}
-				</title>
+			{(shellTitle ?? defaultTerminalTitle) && (
+				<title>{shellTitle ?? defaultTerminalTitle}</title>
 			)}
 
 			<div className="flex flex-col h-screen" data-status={connectionStatus}>
@@ -185,6 +196,7 @@ const TerminalPage: FC = () => {
 					containerUser={containerUser}
 					onStatusChange={setConnectionStatus}
 					onError={handleTerminalError}
+					onTitleChange={setShellTitle}
 					reconnectionToken={reconnectionToken}
 					sessionId={sessionId}
 					baseUrl={terminalConfig.baseUrl}
