@@ -36,6 +36,7 @@ import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
 import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
+import { SharedChatOwnerAvatar } from "./SharedChatOwnerAvatar";
 import { getChatDisplayConfig } from "./statusConfig";
 
 type ChatTreeNodeProps = {
@@ -127,6 +128,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	}, [isStaleTurnSummary]);
 	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
 	const isSharedChat = chat.shared;
+	const isSharedWithMe = isSharedChat && chat.owner_id !== currentUserId;
+	const showUnread = chat.has_unread && !isActiveChat;
 	const subtitle =
 		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
 	const {
@@ -212,16 +215,29 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										"[@media(hover:hover)]:group-hover/icon:invisible",
 								)}
 							>
-								<StatusIcon
-									data-testid={
-										isDelegatedExecuting
-											? `agents-tree-executing-${chat.id}`
-											: undefined
-									}
-									role="img"
-									aria-label={statusLabel}
-									className={cn("size-3.5 shrink-0", statusClassName)}
-								/>
+								{isSharedWithMe ? (
+									<SharedChatOwnerAvatar
+										chat={chat}
+										statusLabel={statusLabel}
+										showUnread={showUnread}
+										data-testid={
+											isDelegatedExecuting
+												? `agents-tree-executing-${chat.id}`
+												: undefined
+										}
+									/>
+								) : (
+									<StatusIcon
+										data-testid={
+											isDelegatedExecuting
+												? `agents-tree-executing-${chat.id}`
+												: undefined
+										}
+										role="img"
+										aria-label={statusLabel}
+										className={cn("size-3.5 shrink-0", statusClassName)}
+									/>
+								)}
 							</div>
 							{hasChildren && (
 								<Button
@@ -259,43 +275,43 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										>
 											{chat.title}
 										</span>
-										{chat.has_unread && !isActiveChat && (
-											<span className="sr-only">(unread)</span>
-										)}
+										{showUnread && <span className="sr-only">(unread)</span>}
 									</div>
-									<div className="flex min-w-0 items-center gap-1.5">
-										{PRIcon && prIcon && (
-											<PRIcon
-												role="img"
-												aria-label={prIcon.label}
-												className={cn("size-3.5 shrink-0", prIcon.className)}
-											/>
-										)}
-										{hasLinkedDiffStatus && hasLineStats && (
-											<span
-												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-												title={`${filesChangedLabel}, +${additions} -${deletions}`}
-											>
-												<span className="text-git-added-bright">
-													+{additions}
-												</span>
-												<span className="text-git-deleted-bright">
-													&minus;{deletions}
-												</span>
-											</span>
-										)}
-										<div
-											className={cn(
-												"min-w-0 overflow-hidden text-[13px] leading-4",
-												errorReason
-													? "line-clamp-1 whitespace-normal text-content-secondary wrap-anywhere"
-													: "truncate text-content-secondary",
+									{!isSharedWithMe && (
+										<div className="flex min-w-0 items-center gap-1.5">
+											{PRIcon && prIcon && (
+												<PRIcon
+													role="img"
+													aria-label={prIcon.label}
+													className={cn("size-3.5 shrink-0", prIcon.className)}
+												/>
 											)}
-											title={subtitle}
-										>
-											{subtitle}
+											{hasLinkedDiffStatus && hasLineStats && (
+												<span
+													className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+													title={`${filesChangedLabel}, +${additions} -${deletions}`}
+												>
+													<span className="text-git-added-bright">
+														+{additions}
+													</span>
+													<span className="text-git-deleted-bright">
+														&minus;{deletions}
+													</span>
+												</span>
+											)}
+											<div
+												className={cn(
+													"min-w-0 overflow-hidden text-[13px] leading-4",
+													errorReason
+														? "line-clamp-1 whitespace-normal text-content-secondary wrap-anywhere"
+														: "truncate text-content-secondary",
+												)}
+												title={subtitle}
+											>
+												{subtitle}
+											</div>
 										</div>
-									</div>
+									)}
 								</div>
 							)}
 						</NavLink>
@@ -306,7 +322,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										className="h-3.5 w-3.5 text-content-secondary"
 										loading
 									/>
-								) : (
+								) : isSharedWithMe ? null : (
 									<span
 										className={cn(
 											"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
@@ -318,7 +334,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 											hasMenuActions && isActiveChat && "hidden",
 										)}
 									>
-										{chat.has_unread && !isActiveChat ? (
+										{showUnread ? (
 											<span className="flex w-3.5 shrink-0 justify-center">
 												<span
 													className="size-2 rounded-full bg-content-link"
@@ -340,7 +356,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 									</span>
 								)}
 							</div>
-							{isSharedChat && (
+							{isSharedChat && !isSharedWithMe && (
 								<UsersIcon
 									className="mt-auto size-3.5 text-content-secondary"
 									aria-label="Shared chat"

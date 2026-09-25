@@ -243,9 +243,26 @@ export const SharedUnreadChat: Story = {
 	},
 };
 
+/** A running chat shared with the viewer shimmers the owner avatar. */
+export const SharedRunningChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-running-chat",
+				title: "Shared running chat",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				status: "running",
+			}),
+		],
+	},
+};
+
 /**
- * The active row normally swaps its timestamp for the actions trigger, but
- * another user's shared chat has no owner actions, so the timestamp stays.
+ * Another user's shared chat has no owner actions, so the active row shows
+ * neither a timestamp nor an actions trigger.
  */
 export const ActiveSharedChatViewerHasNoActions: Story = {
 	args: {
