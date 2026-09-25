@@ -1179,12 +1179,20 @@ func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
 	if required == nil {
 		required = []string{}
 	}
+	// A tool whose inputSchema omits "properties" leaves parameters
+	// nil, which serializes to JSON null and OpenAI rejects. Use an
+	// empty object instead. The model_intent wrapper below nests it
+	// where chatloop's outer normalization cannot reach.
+	parameters := t.parameters
+	if parameters == nil {
+		parameters = map[string]any{}
+	}
 
 	if !t.modelIntent {
 		return fantasy.ToolInfo{
 			Name:        t.prefixedName,
 			Description: t.description,
-			Parameters:  t.parameters,
+			Parameters:  parameters,
 			Required:    required,
 			Parallel:    true,
 		}
@@ -1207,7 +1215,7 @@ func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
 		},
 		"properties": map[string]any{
 			"type":       "object",
-			"properties": t.parameters,
+			"properties": parameters,
 			"required":   required,
 		},
 	}
