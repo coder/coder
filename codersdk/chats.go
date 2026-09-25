@@ -141,7 +141,10 @@ type Chat struct {
 	HasUnread bool `json:"has_unread"`
 	// Context reports the chat's pinned workspace-context state and
 	// whether it has drifted from the agent's latest pushed snapshot.
-	// Nil when the chat has no pinned context yet.
+	// Nil until context is pinned, except on the single-chat GET, which
+	// also returns it for a chat bound to an agent before its first
+	// snapshot so mcp_discovery can report pending. Resources and
+	// mcp_discovery are only populated by the single-chat GET.
 	Context *ChatContext `json:"context,omitempty"`
 	// QueuedForCapacity reports that the chat is waiting for a concurrent
 	// agent slot. Single-chat reads derive it; list responses leave it false.
@@ -173,6 +176,42 @@ type ChatContext struct {
 	// populated only on the single-chat GET response; list and watch
 	// payloads leave it nil to stay lightweight.
 	Resources []ChatContextResource `json:"resources,omitempty"`
+	// MCPDiscovery reports how far the bound agent's workspace MCP
+	// discovery has progressed and whether the pinned MCP rows are
+	// current. Populated only on the single-chat GET response for chats
+	// bound to a workspace agent; nil otherwise.
+	MCPDiscovery *ChatContextMCPDiscovery `json:"mcp_discovery,omitempty"`
+}
+
+// ChatContextMCPDiscoveryPhase is the completeness of the bound agent's
+// workspace MCP discovery.
+type ChatContextMCPDiscoveryPhase string
+
+const (
+	// ChatContextMCPDiscoveryPhaseUnknown means the agent gave no
+	// completeness guarantee (a legacy agent, or no snapshot yet).
+	ChatContextMCPDiscoveryPhaseUnknown ChatContextMCPDiscoveryPhase = "unknown"
+	// ChatContextMCPDiscoveryPhasePending means the agent's initial MCP
+	// reload has not finished; the pinned mcp_server rows may be
+	// incomplete.
+	ChatContextMCPDiscoveryPhasePending ChatContextMCPDiscoveryPhase = "pending"
+	// ChatContextMCPDiscoveryPhaseComplete means the initial reload
+	// reached a terminal result. Per-server outcomes are on the
+	// mcp_server and mcp_config resources; complete does not mean every
+	// server is usable.
+	ChatContextMCPDiscoveryPhaseComplete ChatContextMCPDiscoveryPhase = "complete"
+)
+
+// ChatContextMCPDiscovery is the workspace MCP discovery state a chat's
+// tools and context indicator are derived from. It describes discovery
+// only: whether a tool invocation succeeds is reported by the invocation.
+type ChatContextMCPDiscovery struct {
+	Phase ChatContextMCPDiscoveryPhase `json:"phase"`
+	// Stale is true when the pinned MCP rows were published by a previous
+	// agent process (the snapshot's agent run id differs from the agent's
+	// current run id). Their tools are withheld from the model until the
+	// current process publishes.
+	Stale bool `json:"stale"`
 }
 
 // ChatContextResourceKind classifies a pinned context resource the prompt

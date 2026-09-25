@@ -149,6 +149,81 @@ func TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{hydratedChat.ID, dirtiedChat.ID, syncedChat.ID}, gotChatIDs)
 }
 
+// TestHydrateAndMarkChatsDirtyPublishesOnDiscoveryChange verifies a push that
+// only moved the MCP discovery phase (no hydration, drift, or MCP row change)
+// still notifies every active chat bound to the agent, without marking any
+// pinned instructions dirty, and that a push without a discovery change
+// publishes nothing.
+func TestHydrateAndMarkChatsDirtyPublishesOnDiscoveryChange(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name             string
+		discoveryChanged bool
+		wantEvents       int
+	}{
+		{name: "PhaseOnlyTransition", discoveryChanged: true, wantEvents: 2},
+		{name: "NoChange", discoveryChanged: false, wantEvents: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			ps := dbpubsub.NewInMemory()
+			server := &Server{db: db, logger: slogtest.Make(t, nil), pubsub: ps}
+
+			ownerID := uuid.New()
+			agentID := uuid.New()
+			hash := []byte{0x01}
+			now := time.Now()
+			openChats := []database.Chat{
+				{ID: uuid.New(), OwnerID: ownerID, ContextAggregateHash: hash},
+				{ID: uuid.New(), OwnerID: ownerID, ContextAggregateHash: hash},
+			}
+
+			events := make(chan codersdk.ChatWatchEvent, 4)
+			cancelSub, err := ps.SubscribeWithErr(
+				coderdpubsub.ChatWatchEventChannel(ownerID),
+				coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
+					require.NoError(t, err)
+					events <- payload
+				}),
+			)
+			require.NoError(t, err)
+			defer cancelSub()
+
+			// Nothing hydrates, drifts, or syncs: the resources are unchanged.
+			db.EXPECT().HydrateAgentChatsContext(gomock.Any(), gomock.Any()).Return(nil, nil)
+			db.EXPECT().MarkChatsContextDirtyByAgent(gomock.Any(), gomock.Any()).Return(nil, nil)
+			db.EXPECT().SyncAgentChatsContextMCPResources(gomock.Any(), agentID).Return(nil, nil)
+			if tc.discoveryChanged {
+				db.EXPECT().GetActiveChatsByAgentID(gomock.Any(), agentID).Return(openChats, nil)
+			}
+
+			publish, err := server.HydrateAndMarkChatsDirty(ctx, db, agentID, hash, "", tc.discoveryChanged, now)
+			require.NoError(t, err)
+			publish()
+
+			gotChatIDs := make([]uuid.UUID, 0, tc.wantEvents)
+			for range tc.wantEvents {
+				event := testutil.RequireReceive(ctx, t, events)
+				require.Equal(t, codersdk.ChatWatchEventKindContextDirty, event.Kind)
+				require.Nil(t, event.Chat.Context.DirtySince, "a discovery transition never marks instructions dirty")
+				gotChatIDs = append(gotChatIDs, event.Chat.ID)
+			}
+			if tc.wantEvents > 0 {
+				require.ElementsMatch(t, []uuid.UUID{openChats[0].ID, openChats[1].ID}, gotChatIDs)
+			}
+			select {
+			case event := <-events:
+				t.Fatalf("unexpected extra event for chat %s", event.Chat.ID)
+			default:
+			}
+		})
+	}
+}
+
 // TestEnsureChatContextPinnedOnFirstTurn covers the lazy-bind pinning path. An
 // API-created chat carries no agent at create, binds its agent on the first
 // turn, and must pin the agent's already-pushed snapshot then. This is the

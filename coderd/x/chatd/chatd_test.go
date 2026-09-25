@@ -4667,15 +4667,29 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		_, err = api.Database.UpsertWorkspaceAgentContextResource(systemCtx, resource)
 		require.NoError(t, err)
 	}
+	_ = agenttest.New(t, client.URL, agentToken)
+
+	// MCP tools are served only from a snapshot the current agent process
+	// pushed, so the seeded snapshot carries the run id the agent registered
+	// on connect and reports discovery as complete.
+	var agentRunID string
+	require.Eventually(t, func() bool {
+		agent, err := api.Database.GetWorkspaceAgentByID(systemCtx, workspaceAgentID)
+		if err != nil || agent.AgentRunID == "" {
+			return false
+		}
+		agentRunID = agent.AgentRunID
+		return true
+	}, testutil.WaitLong, testutil.IntervalFast)
 	_, err = api.Database.UpsertWorkspaceAgentContextSnapshot(systemCtx, database.UpsertWorkspaceAgentContextSnapshotParams{
 		WorkspaceAgentID:  workspaceAgentID,
 		Version:           1,
 		AggregateHash:     []byte("created-workspace-context"),
 		ReceivedAt:        now,
-		McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseUnspecified,
+		AgentRunID:        agentRunID,
+		McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseComplete,
 	})
 	require.NoError(t, err)
-	_ = agenttest.New(t, client.URL, agentToken)
 
 	var chatResult codersdk.Chat
 	require.Eventually(t, func() bool {
