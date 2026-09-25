@@ -1,7 +1,7 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { ACPToolNames } from "../ChatElements/tools/acpToolNames";
 import { mergeACPTranscriptDelta } from "../ChatElements/tools/acpTranscript";
-import { appendTextBlock } from "./blockUtils";
+import { appendTextBlock, placeCitationsAfterText } from "./blockUtils";
 import {
 	ensureToolBlock,
 	getToolResultStatus,
@@ -40,7 +40,7 @@ export const applyMessagePartToStreamState = (
 			if (blocks === nextState.blocks) {
 				return prev;
 			}
-			return { ...nextState, blocks };
+			return { ...nextState, blocks: placeCitationsAfterText(blocks) };
 		}
 		case "reasoning": {
 			const blocks = appendTextBlock(nextState.blocks, "thinking", part.text);

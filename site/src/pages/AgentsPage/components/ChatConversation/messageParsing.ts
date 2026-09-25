@@ -9,7 +9,7 @@ import {
 	type SubagentVariant,
 } from "../ChatElements/tools/subagentDescriptor";
 import { serializeMessageDraft } from "../ChatMessageInput/SkillInvocationNode";
-import { appendTextBlock } from "./blockUtils";
+import { appendTextBlock, placeCitationsAfterText } from "./blockUtils";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -382,6 +382,7 @@ export const parseMessageContent = (
 			}
 		}
 	}
+	parsed.blocks = placeCitationsAfterText(parsed.blocks);
 	return parsed;
 };
 
