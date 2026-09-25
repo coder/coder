@@ -47,8 +47,8 @@ export type FilterCategory = {
 	 * empty-query options are fetched when the filter renders. Until every
 	 * category with this flag finishes its first load, successfully or not, the
 	 * unnarrowed menu shows placeholder rows in place of all submenu rows. An
-	 * applied chip or a failed lookup keeps it in the menu; a retry that returns
-	 * at most one option removes it. Does not apply to inline categories.
+	 * applied chip keeps it in the menu. A failed lookup keeps it until a retry
+	 * returns at most one option. Does not apply to inline categories.
 	 */
 	hideWhenSingleOption?: boolean;
 };
