@@ -15760,7 +15760,7 @@
 					"type": "integer"
 				},
 				"disable_content_recording": {
-					"description": "DisableContentRecording stops prompts, tool call arguments and model\nthoughts from being recorded. Interceptions and token usage are still\nrecorded, so AI spend accounting and budget enforcement are unaffected.",
+					"description": "DisableContentRecording stops user prompts, tool calls and model\nreasoning from being recorded, including tool names and their arguments.\nInterceptions and token usage are still recorded, so cost controls,\nbudget enforcement and spend reporting are unaffected.",
 					"type": "boolean"
 				},
 				"enabled": {

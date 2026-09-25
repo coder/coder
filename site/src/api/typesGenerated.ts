@@ -75,9 +75,10 @@ export interface AIBridgeConfig {
 	 */
 	readonly api_dump_dir: string;
 	/**
-	 * DisableContentRecording stops prompts, tool call arguments and model
-	 * thoughts from being recorded. Interceptions and token usage are still
-	 * recorded, so AI spend accounting and budget enforcement are unaffected.
+	 * DisableContentRecording stops user prompts, tool calls and model
+	 * reasoning from being recorded, including tool names and their arguments.
+	 * Interceptions and token usage are still recorded, so cost controls,
+	 * budget enforcement and spend reporting are unaffected.
 	 */
 	readonly disable_content_recording: boolean;
 }

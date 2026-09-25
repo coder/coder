@@ -270,7 +270,7 @@ Length of time to retain data such as interceptions and all related records (tok
 
 ### Disable content recording
 
-Stop recording the content of intercepted conversations: user prompts, tool call arguments and model thoughts. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. Sessions pages, prompt and tool call telemetry, and the audit trail of what was asked are lost. Combine with --ai-gateway-structured-logging-source=gateway to keep exporting the dropped records to a SIEM.
+Stop recording the content of intercepted conversations. No user prompt, tool call or model reasoning record is stored, including tool names and the arguments they were called with. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. Sessions show no conversation detail, prompt and tool call telemetry report zero, and interceptions are no longer grouped into threads for clients that do not send their own session ID. Combine with --ai-gateway-structured-logging-source=gateway to keep exporting these records to a SIEM instead.
 
 - Environment variable: `CODER_AI_GATEWAY_DISABLE_CONTENT_RECORDING`
 - CLI flag: [`--ai-gateway-disable-content-recording`](../../reference/cli/server.md#--ai-gateway-disable-content-recording)
