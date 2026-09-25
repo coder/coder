@@ -33,7 +33,7 @@ func TestMetrics_Interception(t *testing.T) {
 		expectModel    string
 		expectRoute    string
 		expectProvider string
-		expectClient   aibclient.Client
+		expectClient   aibclient.Type
 		allowOverflow  bool // error fixtures may cause retries
 	}{
 		{
@@ -44,7 +44,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "claude-sonnet-4-0",
 			expectRoute:    "/v1/messages",
 			expectProvider: config.ProviderAnthropic,
-			expectClient:   aibclient.ClientUnknown,
+			expectClient:   aibclient.Unknown,
 		},
 		{
 			name:           "ant_error",
@@ -55,7 +55,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "claude-sonnet-4-0",
 			expectRoute:    "/v1/messages",
 			expectProvider: config.ProviderAnthropic,
-			expectClient:   aibclient.ClientKilo,
+			expectClient:   aibclient.Kilo,
 			allowOverflow:  true,
 		},
 		{
@@ -67,7 +67,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "claude-sonnet-4-0",
 			expectRoute:    "/v1/messages",
 			expectProvider: config.ProviderAnthropic,
-			expectClient:   aibclient.ClientClaudeCode,
+			expectClient:   aibclient.ClaudeCode,
 		},
 		{
 			name:           "oai_chat_simple",
@@ -78,7 +78,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "gpt-4.1",
 			expectRoute:    "/v1/chat/completions",
 			expectProvider: config.ProviderOpenAI,
-			expectClient:   aibclient.ClientCopilotCLI,
+			expectClient:   aibclient.CopilotCLI,
 		},
 		{
 			name:           "oai_chat_error",
@@ -89,7 +89,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "gpt-4.1",
 			expectRoute:    "/v1/chat/completions",
 			expectProvider: config.ProviderOpenAI,
-			expectClient:   aibclient.ClientCopilotVSC,
+			expectClient:   aibclient.CopilotVSC,
 			allowOverflow:  true,
 		},
 		{
@@ -101,7 +101,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "gpt-4o-mini",
 			expectRoute:    "/v1/responses",
 			expectProvider: config.ProviderOpenAI,
-			expectClient:   aibclient.ClientCursor,
+			expectClient:   aibclient.Cursor,
 		},
 		{
 			name:           "oai_responses_blocking_error",
@@ -112,7 +112,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "gpt-4o-mini",
 			expectRoute:    "/v1/responses",
 			expectProvider: config.ProviderOpenAI,
-			expectClient:   aibclient.ClientCodex,
+			expectClient:   aibclient.Codex,
 			allowOverflow:  true,
 		},
 		{
@@ -124,7 +124,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "gpt-4o-mini",
 			expectRoute:    "/v1/responses",
 			expectProvider: config.ProviderOpenAI,
-			expectClient:   aibclient.ClientZed,
+			expectClient:   aibclient.Zed,
 		},
 		{
 			name:           "oai_responses_streaming_error",
@@ -135,7 +135,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "gpt-4o-mini",
 			expectRoute:    "/v1/responses",
 			expectProvider: config.ProviderOpenAI,
-			expectClient:   aibclient.ClientRoo,
+			expectClient:   aibclient.Roo,
 			allowOverflow:  true,
 		},
 	}
@@ -272,7 +272,7 @@ func TestMetrics_PromptCount(t *testing.T) {
 	require.NoError(t, err)
 
 	prompts := promtest.ToFloat64(m.PromptCount.WithLabelValues(
-		config.ProviderOpenAI, "gpt-4.1", defaultActorID, string(aibclient.ClientClaudeCode)))
+		config.ProviderOpenAI, "gpt-4.1", defaultActorID, string(aibclient.ClaudeCode)))
 	require.Equal(t, 1.0, prompts)
 }
 
@@ -365,12 +365,12 @@ func TestMetrics_TokenUseCount(t *testing.T) {
 			// metrics are updated asynchronously
 			require.Eventually(t, func() bool {
 				return promtest.ToFloat64(m.TokenUseCount.WithLabelValues(
-					tc.expectProvider, tc.expectModel, "input", defaultActorID, string(aibclient.ClientUnknown))) > 0
+					tc.expectProvider, tc.expectModel, "input", defaultActorID, string(aibclient.Unknown))) > 0
 			}, testutil.WaitMedium, testutil.IntervalFast)
 
 			for label, expected := range tc.expectedLabels {
 				require.Equal(t, expected, promtest.ToFloat64(m.TokenUseCount.WithLabelValues(
-					tc.expectProvider, tc.expectModel, label, defaultActorID, string(aibclient.ClientUnknown),
+					tc.expectProvider, tc.expectModel, label, defaultActorID, string(aibclient.Unknown),
 				)), "metric label %q mismatch", label)
 			}
 		})

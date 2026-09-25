@@ -16,13 +16,13 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 const (
@@ -160,14 +160,14 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 // authentication has already been stripped. A BYOK token, if present, arrives
 // in the Authorization header. Otherwise the request uses the provider's
 // centralized key pool with failover, which must be configured.
-func (p *OpenAI) resolveCredential(r *http.Request) (intercept.Credential, error) {
-	if token := utils.ExtractBearerToken(r.Header.Get(credential.AuthHeaderAuthorization)); token != "" {
-		return intercept.BYOK{Secret: token, Header: credential.AuthHeaderAuthorization}, nil
+func (p *OpenAI) resolveCredential(r *http.Request) (credential.Credential, error) {
+	if token := aibheaders.ExtractBearerToken(r.Header.Get(aibheaders.AuthHeaderAuthorization)); token != "" {
+		return credential.BYOK{Secret: token, Header: aibheaders.AuthHeaderAuthorization}, nil
 	}
 	if p.cfg.KeyPool == nil {
 		return nil, ErrNoCredential
 	}
-	return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
+	return &credential.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
 }
 
 func (p *OpenAI) BaseURL() string {

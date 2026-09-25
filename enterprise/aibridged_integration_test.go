@@ -255,7 +255,7 @@ func TestIntegration(t *testing.T) {
 	require.False(t, intc0.EndedAt.Time.Before(intc0.StartedAt), "EndedAt should not be before StartedAt")
 	require.Less(t, intc0.EndedAt.Time.Sub(intc0.StartedAt), 5*time.Second)
 	require.True(t, intc0.Client.Valid)
-	require.Equal(t, string(aibclient.ClientCodex), intc0.Client.String)
+	require.Equal(t, string(aibclient.Codex), intc0.Client.String)
 	require.Equal(t, database.CredentialKindCentralized, intc0.CredentialKind)
 	require.Equal(t, "test...-key", intc0.CredentialHint)
 

@@ -26,7 +26,7 @@ func (s stubCategorizer) CategorizeError(error) *recorder.ErrorType {
 
 func ptr(t recorder.ErrorType) *recorder.ErrorType { return &t }
 
-func TestCategorizeInterceptionError(t *testing.T) {
+func TestCategorize(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -116,7 +116,7 @@ func TestCategorizeInterceptionError(t *testing.T) {
 	}
 }
 
-func TestCategorizeInterceptionErrorTruncatesMessage(t *testing.T) {
+func TestCategorizeTruncatesMessage(t *testing.T) {
 	t.Parallel()
 
 	const maxRecordedErrorMessageBytes = 1024

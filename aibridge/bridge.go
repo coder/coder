@@ -19,7 +19,8 @@ import (
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
 	aibclient "github.com/coder/coder/v2/aibridge/client"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/interceptionerror"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/metrics"
@@ -57,7 +58,7 @@ var _ http.Handler = &RequestBridge{}
 // NewRequestBridge creates a new *[RequestBridge] and registers the HTTP routes defined by the given providers.
 // Any routes which are requested but not registered will be reverse-proxied to the upstream service.
 //
-// A [intercept.Recorder] is also required to record prompt, tool, and token use.
+// A [recorder.Recorder] is also required to record prompt, tool, and token use.
 //
 // mcpProxy will be closed when the [RequestBridge] is closed.
 //
@@ -149,7 +150,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		client := aibclient.GuessClient(r)
 		sessionID := aibclient.GuessSessionID(client, r)
 
-		if aibclient.IsWebSocketUpgrade(r) {
+		if aibheaders.IsWebSocketUpgrade(r) {
 			route := strings.TrimPrefix(r.URL.Path, fmt.Sprintf("/%s", p.Name()))
 			logger.Debug(ctx, "rejecting unsupported WebSocket upgrade",
 				slog.F("provider", p.Name()),
@@ -166,7 +167,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// themselves are stripped from the upstream request by
 		// PrepareClientHeaders. Fail closed: reject the request if the
 		// headers are partial or malformed.
-		agentFirewallSessionID, agentFirewallSeqNumber, err := aibclient.ExtractAgentFirewallHeaders(r)
+		agentFirewallSessionID, agentFirewallSeqNumber, err := aibheaders.ExtractAgentFirewallHeaders(r)
 		if err != nil {
 			logger.Warn(ctx, "rejecting request with invalid agent firewall headers", slog.Error(err))
 			http.Error(w, "invalid agent firewall headers", http.StatusBadRequest)
@@ -267,7 +268,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		})
 		// For a centralized pool, the hint now reflects the last key the
 		// failover loop attempted.
-		credCtx := intercept.WithCredentialInfo(ctx, cred)
+		credCtx := credential.WithCredentialInfo(ctx, cred)
 		errType, errMsg := interceptionerror.Categorize(p, execErr)
 		if execErr != nil {
 			if m != nil {

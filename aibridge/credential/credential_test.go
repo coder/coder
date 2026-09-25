@@ -1,4 +1,4 @@
-package intercept_test
+package credential_test
 
 import (
 	"testing"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/credential"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/quartz"
 )
@@ -25,7 +25,7 @@ func TestCredential(t *testing.T) {
 
 	tests := []struct {
 		name                    string
-		newCred                 func(t *testing.T) intercept.Credential
+		newCred                 func(t *testing.T) credential.Credential
 		expectKind              credential.Kind
 		expectAuthHeader        string
 		expectHint              string
@@ -35,22 +35,22 @@ func TestCredential(t *testing.T) {
 	}{
 		{
 			name: "byok_authorization",
-			newCred: func(*testing.T) intercept.Credential {
-				return intercept.BYOK{Secret: "user-bearer-token", Header: credential.AuthHeaderAuthorization}
+			newCred: func(*testing.T) credential.Credential {
+				return credential.BYOK{Secret: "user-bearer-token", Header: aibheaders.AuthHeaderAuthorization}
 			},
 			expectKind:       credential.KindBYOK,
-			expectAuthHeader: credential.AuthHeaderAuthorization,
+			expectAuthHeader: aibheaders.AuthHeaderAuthorization,
 			expectHint:       "us...en",
 			expectLength:     len("user-bearer-token"),
 			expectAsBYOK:     true,
 		},
 		{
 			name: "byok_xapikey",
-			newCred: func(*testing.T) intercept.Credential {
-				return intercept.BYOK{Secret: "user-api-key", Header: credential.AuthHeaderXAPIKey}
+			newCred: func(*testing.T) credential.Credential {
+				return credential.BYOK{Secret: "user-api-key", Header: aibheaders.AuthHeaderXAPIKey}
 			},
 			expectKind:       credential.KindBYOK,
-			expectAuthHeader: credential.AuthHeaderXAPIKey,
+			expectAuthHeader: aibheaders.AuthHeaderXAPIKey,
 			expectHint:       "us...ey",
 			expectLength:     len("user-api-key"),
 			expectAsBYOK:     true,
@@ -59,8 +59,8 @@ func TestCredential(t *testing.T) {
 			// Bedrock with static AWS credentials: the access key ID is
 			// masked. AWS signs the request, so there is no auth header.
 			name: "centralized_bedrock_static",
-			newCred: func(*testing.T) intercept.Credential {
-				return intercept.AWSSigV4{AccessKey: "AKIAIOSFODNN7EXAMPLE"}
+			newCred: func(*testing.T) credential.Credential {
+				return credential.AWSSigV4{AccessKey: "AKIAIOSFODNN7EXAMPLE"}
 			},
 			expectKind:       credential.KindCentralized,
 			expectAuthHeader: "",
@@ -71,8 +71,8 @@ func TestCredential(t *testing.T) {
 			// Bedrock with dynamic credentials (AWS default credential chain):
 			// no static key to mask, so the hint is a descriptive placeholder.
 			name: "centralized_bedrock_dynamic",
-			newCred: func(*testing.T) intercept.Credential {
-				return intercept.AWSSigV4{AccessKey: ""}
+			newCred: func(*testing.T) credential.Credential {
+				return credential.AWSSigV4{AccessKey: ""}
 			},
 			expectKind:       credential.KindCentralized,
 			expectAuthHeader: "",
@@ -83,13 +83,13 @@ func TestCredential(t *testing.T) {
 			// Pool before failover selects a key: the hint is a placeholder
 			// until NextKey hands one out.
 			name: "centralized_pool_before_key",
-			newCred: func(t *testing.T) intercept.Credential {
+			newCred: func(t *testing.T) credential.Credential {
 				pool, err := keypool.New(config.ProviderAnthropic, []string{"k0-pool-key"}, quartz.NewMock(t), nil)
 				require.NoError(t, err)
-				return &intercept.CentralizedPool{Pool: pool, Header: credential.AuthHeaderXAPIKey}
+				return &credential.CentralizedPool{Pool: pool, Header: aibheaders.AuthHeaderXAPIKey}
 			},
 			expectKind:              credential.KindCentralized,
-			expectAuthHeader:        credential.AuthHeaderXAPIKey,
+			expectAuthHeader:        aibheaders.AuthHeaderXAPIKey,
 			expectHint:              "<failover key>",
 			expectLength:            0,
 			expectAsCentralizedPool: true,
@@ -97,16 +97,16 @@ func TestCredential(t *testing.T) {
 		{
 			// Pool after NextKey: Hint/Length reflect the selected key.
 			name: "centralized_pool_after_next_key",
-			newCred: func(t *testing.T) intercept.Credential {
+			newCred: func(t *testing.T) credential.Credential {
 				pool, err := keypool.New(config.ProviderAnthropic, []string{"k0-pool-key"}, quartz.NewMock(t), nil)
 				require.NoError(t, err)
-				cp := &intercept.CentralizedPool{Pool: pool, Header: credential.AuthHeaderXAPIKey}
+				cp := &credential.CentralizedPool{Pool: pool, Header: aibheaders.AuthHeaderXAPIKey}
 				_, keyErr := cp.NextKey(cp.Pool.Walker())
 				require.Nil(t, keyErr)
 				return cp
 			},
 			expectKind:              credential.KindCentralized,
-			expectAuthHeader:        credential.AuthHeaderXAPIKey,
+			expectAuthHeader:        aibheaders.AuthHeaderXAPIKey,
 			expectHint:              "k0...ey",
 			expectLength:            len("k0-pool-key"),
 			expectAsCentralizedPool: true,
@@ -126,13 +126,13 @@ func TestCredential(t *testing.T) {
 				"Hint must fit the credential_hint column")
 			assert.Equal(t, tc.expectLength, cred.Length(), "Length")
 
-			credBYOK, credBYOKOK := intercept.AsBYOK(cred)
+			credBYOK, credBYOKOK := credential.AsBYOK(cred)
 			assert.Equal(t, tc.expectAsBYOK, credBYOKOK, "AsBYOK ok")
 			if tc.expectAsBYOK {
 				assert.Equal(t, cred, credBYOK, "AsBYOK returns the credential")
 			}
 
-			credPool, credPoolOK := intercept.AsCentralizedPool(cred)
+			credPool, credPoolOK := credential.AsCentralizedPool(cred)
 			assert.Equal(t, tc.expectAsCentralizedPool, credPoolOK, "AsCentralizedPool ok")
 			if tc.expectAsCentralizedPool {
 				assert.Same(t, cred, credPool, "AsCentralizedPool returns the same pointer")

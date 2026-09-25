@@ -16,6 +16,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
@@ -330,7 +332,7 @@ func TestMarkKeyOnError(t *testing.T) {
 			key, keyPoolErr := pool.Walker().Next()
 			require.Nil(t, keyPoolErr)
 
-			base := &interceptionBase{cred: &intercept.CentralizedPool{Pool: pool}, logger: slog.Make()}
+			base := &interceptionBase{cred: &credential.CentralizedPool{Pool: pool}, logger: slog.Make()}
 
 			got := base.markKeyOnError(context.Background(), key, tc.err)
 			assert.Equal(t, tc.expectedReturn, got)
@@ -422,13 +424,13 @@ func TestNewCompletionsServiceBedrockAuth(t *testing.T) {
 
 	tests := []struct {
 		name string
-		cred intercept.Credential
+		cred credential.Credential
 		// check asserts on the Authorization header the upstream received.
 		check func(t *testing.T, header http.Header)
 	}{
 		{
 			name: "byok uses bearer token",
-			cred: intercept.BYOK{Secret: userKey, Header: intercept.AuthHeaderAuthorization},
+			cred: credential.BYOK{Secret: userKey, Header: aibheaders.AuthHeaderAuthorization},
 			check: func(t *testing.T, header http.Header) {
 				require.Equal(t, "Bearer "+userKey, header.Get("Authorization"))
 				require.Empty(t, header.Get("X-Amz-Date"))
@@ -436,7 +438,7 @@ func TestNewCompletionsServiceBedrockAuth(t *testing.T) {
 		},
 		{
 			name: "centralized uses sigv4",
-			cred: intercept.AWSSigV4{AccessKey: "AKID"},
+			cred: credential.AWSSigV4{AccessKey: "AKID"},
 			check: func(t *testing.T, header http.Header) {
 				require.Contains(t, header.Get("Authorization"), "AWS4-HMAC-SHA256")
 				require.Contains(t, header.Get("Authorization"), "/bedrock-mantle/aws4_request")

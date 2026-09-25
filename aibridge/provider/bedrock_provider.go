@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
@@ -24,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 // Bedrock Mantle OpenAI protocol routes. The Bedrock provider bridges these
@@ -273,14 +273,14 @@ func (p *Bedrock) bedrockInterceptConfig() intercept.Config {
 // the Bedrock credential backed by the runtime's access key. BYOK
 // X-Api-Key/Authorization headers are honored for users who bring their own
 // key.
-func (p *Bedrock) resolveCredential(r *http.Request) (intercept.Credential, error) {
-	if apiKey := r.Header.Get(credential.AuthHeaderXAPIKey); apiKey != "" {
-		return intercept.BYOK{Secret: apiKey, Header: credential.AuthHeaderXAPIKey}, nil
+func (p *Bedrock) resolveCredential(r *http.Request) (credential.Credential, error) {
+	if apiKey := r.Header.Get(aibheaders.AuthHeaderXAPIKey); apiKey != "" {
+		return credential.BYOK{Secret: apiKey, Header: aibheaders.AuthHeaderXAPIKey}, nil
 	}
-	if token := utils.ExtractBearerToken(r.Header.Get(credential.AuthHeaderAuthorization)); token != "" {
-		return intercept.BYOK{Secret: token, Header: credential.AuthHeaderAuthorization}, nil
+	if token := aibheaders.ExtractBearerToken(r.Header.Get(aibheaders.AuthHeaderAuthorization)); token != "" {
+		return credential.BYOK{Secret: token, Header: aibheaders.AuthHeaderAuthorization}, nil
 	}
-	return intercept.AWSSigV4{AccessKey: p.runtime.Cfg.AccessKey}, nil
+	return credential.AWSSigV4{AccessKey: p.runtime.Cfg.AccessKey}, nil
 }
 
 func (p *Bedrock) BaseURL() string {
@@ -288,7 +288,7 @@ func (p *Bedrock) BaseURL() string {
 }
 
 func (*Bedrock) AuthHeader() string {
-	return credential.AuthHeaderXAPIKey
+	return aibheaders.AuthHeaderXAPIKey
 }
 
 // KeyPool returns nil. Bedrock authenticates via AWS signing, not a key pool.

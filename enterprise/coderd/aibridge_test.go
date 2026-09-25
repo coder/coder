@@ -855,7 +855,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 			Client:      sql.NullString{String: "claude-code", Valid: true},
 		}, &withClientEndedAt)
 
-		// Session with NULL client (should COALESCE to ClientUnknown).
+		// Session with NULL client (should COALESCE to aibclient.Unknown).
 		nullClientEndedAt := now.Add(-time.Hour + time.Minute)
 		nullClient := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: firstUser.UserID,
@@ -863,11 +863,11 @@ func TestAIBridgeListSessions(t *testing.T) {
 			// Client field deliberately omitted (NULL).
 		}, &nullClientEndedAt)
 
-		// Filtering by ClientUnknown should return only the NULL-client
+		// Filtering by aibclient.Unknown should return only the NULL-client
 		// session.
 		//nolint:gocritic // Owner role is irrelevant; testing COALESCE.
 		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
-			Client: string(aibclient.ClientUnknown),
+			Client: string(aibclient.Unknown),
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res.Count)
@@ -1427,14 +1427,14 @@ func TestAIBridgeListClients(t *testing.T) {
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,
-		Client:      sql.NullString{String: string(aibclient.ClientCursor), Valid: true},
+		Client:      sql.NullString{String: string(aibclient.Cursor), Valid: true},
 	}, &endedAt)
 
 	// Completed interception with a different client.
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,
-		Client:      sql.NullString{String: string(aibclient.ClientClaudeCode), Valid: true},
+		Client:      sql.NullString{String: string(aibclient.ClaudeCode), Valid: true},
 	}, &endedAt)
 
 	// Completed interception with no client. Should appear as "Unknown".
@@ -1455,22 +1455,22 @@ func TestAIBridgeListClients(t *testing.T) {
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,
-		Client:      sql.NullString{String: string(aibclient.ClientCursor), Valid: true},
+		Client:      sql.NullString{String: string(aibclient.Cursor), Valid: true},
 	}, &endedAt)
 
 	// In-flight interception (no ended_at). Must NOT appear in results.
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,
-		Client:      sql.NullString{String: string(aibclient.ClientCopilotCLI), Valid: true},
+		Client:      sql.NullString{String: string(aibclient.CopilotCLI), Valid: true},
 	}, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	clients, err := client.AIBridgeListClients(ctx)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{
-		string(aibclient.ClientCursor),
-		string(aibclient.ClientClaudeCode),
+		string(aibclient.Cursor),
+		string(aibclient.ClaudeCode),
 		"Unknown",
 	}, clients)
 }

@@ -1,4 +1,4 @@
-package intercept_test
+package headers_test
 
 import (
 	"net/http"
@@ -8,10 +8,234 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge/context"
-	aibheaders "github.com/coder/coder/v2/aibridge/headers"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/recorder"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 )
+
+func TestActorHeaders(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "X-AI-Bridge-Actor-ID", headers.ActorIDHeader())
+	require.Equal(t, "X-AI-Bridge-Actor-Metadata-Username", headers.ActorMetadataHeader("Username"))
+
+	require.True(t, headers.IsActorHeader(headers.ActorIDHeader()))
+	require.True(t, headers.IsActorHeader("x-ai-bridge-actor-metadata-name"))
+	require.False(t, headers.IsActorHeader("X-AI-Bridge-Request-ID"))
+}
+
+func TestExtractBearerToken(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Empty",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "Whitespace",
+			input:    " ",
+			expected: "",
+		},
+		{
+			name:     "InvalidFormat",
+			input:    "some-token",
+			expected: "",
+		},
+		{
+			name:     "BearerOnly",
+			input:    "Bearer",
+			expected: "",
+		},
+		{
+			name:     "Valid",
+			input:    "Bearer my-secret-token",
+			expected: "my-secret-token",
+		},
+		{
+			name:     "BearerMixedCase",
+			input:    "BeArEr my-secret-token",
+			expected: "my-secret-token",
+		},
+		{
+			name:     "LeadingWhitespace",
+			input:    "  Bearer my-secret-token",
+			expected: "my-secret-token",
+		},
+		{
+			name:     "TrailingWhitespace",
+			input:    "Bearer my-secret-token  ",
+			expected: "my-secret-token",
+		},
+		{
+			name:     "TooManyParts",
+			input:    "Bearer token extra",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := headers.ExtractBearerToken(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestIsWebSocketUpgrade(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		method     string
+		connection string
+		upgrade    string
+		want       bool
+	}{
+		{name: "websocket upgrade", method: http.MethodGet, connection: "keep-alive, Upgrade", upgrade: "WebSocket", want: true},
+		{name: "non-GET request", method: http.MethodPost, connection: "Upgrade", upgrade: "websocket", want: false},
+		{name: "missing connection upgrade", method: http.MethodGet, connection: "keep-alive", upgrade: "websocket", want: false},
+		{name: "different upgrade protocol", method: http.MethodGet, connection: "Upgrade", upgrade: "h2c", want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			req, err := http.NewRequestWithContext(t.Context(), tc.method, "/", nil)
+			require.NoError(t, err)
+			req.Header.Set("Connection", tc.connection)
+			req.Header.Set("Upgrade", tc.upgrade)
+
+			assert.Equal(t, tc.want, headers.IsWebSocketUpgrade(req))
+		})
+	}
+}
+
+func TestExtractAgentFirewallHeaders(t *testing.T) {
+	t.Parallel()
+
+	const validSessionID = "e5f6a7b8-1234-5678-9abc-def012345678"
+
+	ptr := func(s string) *string { return &s }
+
+	cases := []struct {
+		name string
+		// sessionID and seqNumber set the corresponding headers when
+		// non-nil. A nil value leaves the header unset.
+		sessionID *string
+		seqNumber *string
+
+		wantErr     bool
+		errContains string
+		wantSession *string
+		wantSeq     *int32
+	}{
+		{
+			name:        "both headers present",
+			sessionID:   ptr(validSessionID),
+			seqNumber:   ptr("42"),
+			wantSession: ptr(validSessionID),
+			wantSeq:     int32Ptr(42),
+		},
+		{
+			name: "no headers present",
+		},
+		{
+			name:        "only session ID returns error",
+			sessionID:   ptr(validSessionID),
+			wantErr:     true,
+			errContains: "without sequence number",
+		},
+		{
+			name:        "only sequence number returns error",
+			seqNumber:   ptr("7"),
+			wantErr:     true,
+			errContains: "without session ID",
+		},
+		{
+			name:        "sequence number zero",
+			sessionID:   ptr(validSessionID),
+			seqNumber:   ptr("0"),
+			wantSession: ptr(validSessionID),
+			wantSeq:     int32Ptr(0),
+		},
+		{
+			name:        "invalid session ID returns error",
+			sessionID:   ptr("not-a-uuid"),
+			seqNumber:   ptr("42"),
+			wantErr:     true,
+			errContains: "invalid agent firewall session ID",
+		},
+		{
+			name:        "invalid sequence number returns error",
+			sessionID:   ptr(validSessionID),
+			seqNumber:   ptr("not-a-number"),
+			wantErr:     true,
+			errContains: "invalid agent firewall sequence number",
+		},
+		{
+			name:        "negative sequence number returns error",
+			sessionID:   ptr(validSessionID),
+			seqNumber:   ptr("-1"),
+			wantErr:     true,
+			errContains: "must be non-negative",
+		},
+		{
+			name:        "sequence number exceeding int32 range returns error",
+			sessionID:   ptr(validSessionID),
+			seqNumber:   ptr("2147483648"), // max int32 + 1
+			wantErr:     true,
+			errContains: "invalid agent firewall sequence number",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil)
+			require.NoError(t, err)
+			if tc.sessionID != nil {
+				req.Header.Set(agplaibridge.HeaderAgentFirewallSessionID, *tc.sessionID)
+			}
+			if tc.seqNumber != nil {
+				req.Header.Set(agplaibridge.HeaderAgentFirewallSequenceNumber, *tc.seqNumber)
+			}
+
+			sessionID, seqNumber, extractErr := headers.ExtractAgentFirewallHeaders(req)
+
+			if tc.wantErr {
+				require.Error(t, extractErr)
+				assert.Contains(t, extractErr.Error(), tc.errContains)
+				assert.Nil(t, sessionID)
+				assert.Nil(t, seqNumber)
+				return
+			}
+
+			require.NoError(t, extractErr)
+			if tc.wantSession == nil {
+				assert.Nil(t, sessionID)
+			} else {
+				require.NotNil(t, sessionID)
+				assert.Equal(t, *tc.wantSession, *sessionID)
+			}
+			if tc.wantSeq == nil {
+				assert.Nil(t, seqNumber)
+			} else {
+				require.NotNil(t, seqNumber)
+				assert.Equal(t, *tc.wantSeq, *seqNumber)
+			}
+		})
+	}
+}
 
 func TestPrepareClientHeaders(t *testing.T) {
 	t.Parallel()
@@ -19,7 +243,7 @@ func TestPrepareClientHeaders(t *testing.T) {
 	t.Run("nil input returns empty header", func(t *testing.T) {
 		t.Parallel()
 
-		result := intercept.PrepareClientHeaders(nil)
+		result := headers.PrepareClientHeaders(nil)
 		require.Empty(t, result)
 	})
 
@@ -34,7 +258,7 @@ func TestPrepareClientHeaders(t *testing.T) {
 			"X-Custom":          {"preserved"},
 		}
 
-		result := intercept.PrepareClientHeaders(input)
+		result := headers.PrepareClientHeaders(input)
 
 		assert.Empty(t, result.Get("Connection"))
 		assert.Empty(t, result.Get("Keep-Alive"))
@@ -53,7 +277,7 @@ func TestPrepareClientHeaders(t *testing.T) {
 			"X-Custom":        {"preserved"},
 		}
 
-		result := intercept.PrepareClientHeaders(input)
+		result := headers.PrepareClientHeaders(input)
 
 		assert.Empty(t, result.Get("Host"))
 		assert.Empty(t, result.Get("Accept-Encoding"))
@@ -70,7 +294,7 @@ func TestPrepareClientHeaders(t *testing.T) {
 			"X-Custom":      {"preserved"},
 		}
 
-		result := intercept.PrepareClientHeaders(input)
+		result := headers.PrepareClientHeaders(input)
 
 		assert.Empty(t, result.Get("Authorization"))
 		assert.Empty(t, result.Get("X-Api-Key"))
@@ -89,7 +313,7 @@ func TestPrepareClientHeaders(t *testing.T) {
 			"X-Custom":          {"preserved"},
 		}
 
-		result := intercept.PrepareClientHeaders(input)
+		result := headers.PrepareClientHeaders(input)
 
 		assert.Empty(t, result.Get("X-Forwarded-For"))
 		assert.Empty(t, result.Get("X-Forwarded-Host"))
@@ -106,7 +330,7 @@ func TestPrepareClientHeaders(t *testing.T) {
 			"X-Custom": {"value-1", "value-2"},
 		}
 
-		result := intercept.PrepareClientHeaders(input)
+		result := headers.PrepareClientHeaders(input)
 
 		require.Equal(t, []string{"value-1", "value-2"}, result["X-Custom"])
 	})
@@ -120,7 +344,7 @@ func TestPrepareClientHeaders(t *testing.T) {
 		}
 		originalCopy := input.Clone()
 
-		_ = intercept.PrepareClientHeaders(input)
+		_ = headers.PrepareClientHeaders(input)
 
 		require.Equal(t, originalCopy, input)
 	})
@@ -134,7 +358,7 @@ func TestPrepareClientHeaders(t *testing.T) {
 			"X-Custom":                               {"preserved"},
 		}
 
-		result := intercept.PrepareClientHeaders(input)
+		result := headers.PrepareClientHeaders(input)
 
 		assert.Empty(t, result.Get("X-Coder-Agent-Firewall-Session-Id"))
 		assert.Empty(t, result.Get("X-Coder-Agent-Firewall-Sequence-Number"))
@@ -156,7 +380,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			"User-Agent":    {"claude-code/1.0"},
 		}
 
-		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", intercept.Config{}, nil)
+		result := headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", false, nil)
 
 		assert.Equal(t, "Bearer sk-provider-key", result.Get("Authorization"))
 		assert.Equal(t, "claude-code/1.0", result.Get("User-Agent"))
@@ -174,7 +398,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			"Anthropic-Beta": {"prompt-caching-2024-07-31"},
 		}
 
-		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "X-Api-Key", intercept.Config{}, nil)
+		result := headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "X-Api-Key", false, nil)
 
 		assert.Equal(t, "sk-ant-provider-key", result.Get("X-Api-Key"))
 		assert.Empty(t, result.Get("Authorization"))
@@ -196,7 +420,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			"User-Agent":        {"claude-code/1.0"},
 		}
 
-		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", intercept.Config{}, nil)
+		result := headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", false, nil)
 
 		assert.Empty(t, result.Get("Connection"))
 		assert.Empty(t, result.Get("Host"))
@@ -214,7 +438,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			"User-Agent": {"claude-code/1.0"},
 		}
 
-		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", intercept.Config{}, nil)
+		result := headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", false, nil)
 
 		assert.Empty(t, result.Get("Authorization"))
 		assert.Equal(t, "claude-code/1.0", result.Get("User-Agent"))
@@ -233,7 +457,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		sdkCopy := sdkHeader.Clone()
 		clientCopy := clientHeaders.Clone()
 
-		_ = intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", intercept.Config{}, nil)
+		_ = headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", false, nil)
 
 		require.Equal(t, sdkCopy, sdkHeader)
 		require.Equal(t, clientCopy, clientHeaders)
@@ -254,10 +478,10 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
 		actor := &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}}
 
-		result := intercept.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", intercept.Config{SendActorHeaders: true}, actor)
+		result := headers.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", true, actor)
 
-		require.Equal(t, []string{"user-123"}, result.Values(aibheaders.ActorIDHeader()))
-		require.Equal(t, []string{"alice"}, result.Values(aibheaders.ActorMetadataHeader("Username")))
+		require.Equal(t, []string{"user-123"}, result.Values(headers.ActorIDHeader()))
+		require.Equal(t, []string{"alice"}, result.Values(headers.ActorMetadataHeader("Username")))
 		require.Equal(t, "Bearer provider-key", result.Get("Authorization"))
 		require.Equal(t, sdkCopy, sdkHeaders)
 		require.Equal(t, clientCopy, clientHeaders)
@@ -280,9 +504,11 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				result := intercept.BuildUpstreamHeaders(nil, nil, "Authorization", intercept.Config{SendActorHeaders: tc.send}, tc.actor)
-				require.Equal(t, tc.want, result.Get(aibheaders.ActorIDHeader()))
+				result := headers.BuildUpstreamHeaders(nil, nil, "Authorization", tc.send, tc.actor)
+				require.Equal(t, tc.want, result.Get(headers.ActorIDHeader()))
 			})
 		}
 	})
 }
+
+func int32Ptr(n int32) *int32 { return &n }

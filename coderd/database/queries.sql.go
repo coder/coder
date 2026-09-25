@@ -1230,7 +1230,7 @@ WITH per_request AS (
 			c.root_chat_id = $1::uuid
 			OR (c.root_chat_id IS NULL AND c.id = $1::uuid)
 		)
-		-- Restrict to aibridge/client.ClientCoderAgents so another client's
+		-- Restrict to aibridge/client.CoderAgents so another client's
 		-- session reference cannot match a chat ID.
 		AND i.client = 'Coder Agents'
 		AND i.ended_at IS NOT NULL

@@ -22,8 +22,8 @@ import (
 	"github.com/tidwall/gjson"
 
 	"github.com/coder/coder/v2/aibridge/fixtures"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 // UpstreamResponse defines a single response that MockUpstream will replay
@@ -89,7 +89,7 @@ func NewErrorResponse(status int, retryAfter string) UpstreamResponse {
 // prefix, and other headers are returned verbatim.
 func KeyFromHeader(name string, h http.Header) string {
 	if name == "Authorization" {
-		return utils.ExtractBearerToken(h.Get(name))
+		return aibheaders.ExtractBearerToken(h.Get(name))
 	}
 	return h.Get(name)
 }
