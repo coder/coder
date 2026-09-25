@@ -112,6 +112,7 @@ export function FilterCombobox({
 		statusMessage,
 		listedCategories,
 		categoriesNarrowedByText,
+		autoHighlight,
 		unfilteredOptionsByKey,
 		unfilteredOptionsErroredKeys,
 		valueSuggestions,
@@ -275,6 +276,7 @@ export function FilterCombobox({
 		<>
 			<FilterComboboxRoot
 				open={open}
+				autoHighlight={autoHighlight}
 				onDismiss={actions.dismiss}
 				onRemoveValue={actions.removeChip}
 				inputValue={inputValue}
