@@ -203,11 +203,12 @@ func TestOAuth2RegistrationTokenSecurity(t *testing.T) {
 	})
 }
 
-// TestOAuth2PrivilegeEscalation tests that clients cannot escalate their privileges
+// TestOAuth2PrivilegeEscalation tests that clients cannot gain access through
+// registration metadata.
 func TestOAuth2PrivilegeEscalation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("CannotEscalateScopeViaUpdate", func(t *testing.T) {
+	t.Run("UpdateNarrowsScopeToCatalog", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)

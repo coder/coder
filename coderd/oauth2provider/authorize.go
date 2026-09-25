@@ -32,11 +32,8 @@ import (
 var (
 	// The name is not in the external scope catalog: unknown, or internal-only.
 	errUnknownScope = xerrors.New("unknown or unsupported scope")
-	// Every entry in the app's allowlist falls outside the catalog. Returned
-	// bare, never naming the registered value: that value is unvalidated RFC
-	// 7591 metadata bounded only by the request body limit, and it need not obey
-	// the ASCII subset RFC 6749 §5.2 allows in error_description. The reason
-	// alone is actionable, since the client is the party that registered it.
+	// Every entry in the app's allowlist falls outside the catalog. The stored
+	// value is not echoed because not every write path checks it.
 	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; change the app's registered scopes to supported ones")
 	// The scope expands to permissions the allowlist does not cover.
 	errScopeNotAllowed = xerrors.New("scope requests permissions beyond this app's allowed scopes")
@@ -82,12 +79,8 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 // callers happen to answer errNoGrantableScope, but only one of them can say
 // whether an empty allowlist should also fail the request.
 //
-// No allocation here may be sized by appScope. It is unvalidated RFC 7591
-// metadata bounded only by the request body limit, and it is read on every
-// authorization and redemption, so a whitespace-heavy or repetitive value would
-// otherwise cost megabytes per request. Dropping duplicates as names are read,
-// rather than once the loop has collected them all, holds the slice to the size
-// of the catalog whatever the input.
+// No allocation here may be sized by appScope, since not every write path
+// narrows it. Duplicates are dropped as names are read.
 func grantableScopes(appScope string) []string {
 	var filtered []string
 	for a := range strings.FieldsSeq(appScope) {
