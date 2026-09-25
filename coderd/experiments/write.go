@@ -58,7 +58,7 @@ func WriteRule(
 	ex codersdk.Experiment,
 	rule Rule,
 	expectedRevision int64,
-) (Rule, Rule, bool, error) {
+) (oldRule, newRule Rule, changed bool, err error) {
 	if actorID == uuid.Nil {
 		return Rule{}, Rule{}, false, xerrors.New("write experiment rule: actor is required")
 	}
@@ -69,13 +69,9 @@ func WriteRule(
 		return Rule{}, Rule{}, false, xerrors.Errorf("invalid experiment rule: %w", err)
 	}
 
-	var (
-		oldRule, newRule Rule
-		changed          bool
-	)
 	lockCtx, cancel := context.WithTimeout(ctx, writeLockTimeout)
 	defer cancel()
-	err := db.InTx(func(tx database.Store) error {
+	err = db.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(lockCtx, database.GenLockID(ruleLockPrefix+string(ex))); err != nil {
 			return xerrors.Errorf("acquire experiment rule lock: %w", err)
 		}
