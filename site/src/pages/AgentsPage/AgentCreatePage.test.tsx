@@ -215,6 +215,27 @@ describe("AgentCreatePage prompt link", () => {
 		]);
 	});
 
+	it("ignores the prompt when a debug link is also present", async () => {
+		enableExperiment();
+		const { createChat } = mockPageQueries();
+		const user = userEvent.setup();
+
+		const { router } = renderPage(`${deepLink}&prompt=hi`);
+
+		const sendButton = await findEnabledSendButton();
+		expect(router.state.location).toMatchObject({
+			search: "?archived=archived",
+			state: { debugWorkspaceBuildId: failedBuild.id },
+		});
+		await user.click(sendButton);
+
+		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
+		expect(createChat.mock.calls[0][0].content).toEqual([
+			{ type: "text", text: debugWorkspaceBuildPrompt(failedBuild) },
+			{ type: "file", file_id: "uploaded-logs" },
+		]);
+	});
+
 	it("moves the prompt out of the URL so New chat gets a plain composer", async () => {
 		const { createChat } = mockPageQueries();
 		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
