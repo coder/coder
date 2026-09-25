@@ -1,4 +1,4 @@
-package chatd //nolint:testpackage // Tests the acquisition loop's capacity wait bookkeeping.
+package chatd
 
 import (
 	"testing"
@@ -42,18 +42,6 @@ func candidateRows(ids ...uuid.UUID) []database.GetChatWorkerAcquisitionCandidat
 func TestCapacityWaitBookkeeping(t *testing.T) {
 	t.Parallel()
 
-	t.Run("PruneKeepsCandidates", func(t *testing.T) {
-		t.Parallel()
-		worker, _, _ := newCapacityWaitWorker(t)
-		waiting, gone := database.Chat{ID: uuid.New()}, database.Chat{ID: uuid.New()}
-
-		worker.noteCapacityRefused(waiting.ID, waiting.HistoryVersion, waiting.UpdatedAt)
-		worker.noteCapacityRefused(gone.ID, gone.HistoryVersion, gone.UpdatedAt)
-		worker.pruneCapacityWaits(candidateRows(waiting.ID, uuid.New()))
-		require.Contains(t, worker.capacityWaits, waiting.ID)
-		require.NotContains(t, worker.capacityWaits, gone.ID)
-	})
-
 	t.Run("RecordMeasuresFromFirstRefusal", func(t *testing.T) {
 		t.Parallel()
 		worker, clock, recorder := newCapacityWaitWorker(t)
@@ -89,84 +77,53 @@ func TestCapacityWaitBookkeeping(t *testing.T) {
 		require.Empty(t, recorder.Ended())
 	})
 
-	// A refusal remembered for one prompt must not be charged to a
-	// later prompt of the same chat: the chat left this worker's
-	// candidate set while every candidate batch was truncated at its
-	// limit, so it was never pruned, and it returned with a new history
-	// version.
-	t.Run("StaleRefusalRecordsNothing", func(t *testing.T) {
-		t.Parallel()
-		worker, clock, recorder := newCapacityWaitWorker(t)
-		chat := database.Chat{ID: uuid.New(), Status: database.ChatStatusRunning, HistoryVersion: 3}
+	// A write to the chat row after the first refusal ends that wait.
+	// Recording against the written row emits nothing, and a refusal of
+	// the written row starts a new wait. A history_version change is a
+	// new prompt; an updated_at change alone is another replica
+	// acquiring and abandoning the chat.
+	bumpHistoryVersion := func(chat *database.Chat, _ time.Time) { chat.HistoryVersion++ }
+	touchUpdatedAt := func(chat *database.Chat, now time.Time) { chat.UpdatedAt = now }
+	rowChanges := []struct {
+		name        string
+		change      func(chat *database.Chat, now time.Time)
+		refuseAgain bool
+	}{
+		{name: "NewVersionRecordsNothing", change: bumpHistoryVersion},
+		{name: "NewVersionRefusalRestartsWait", change: bumpHistoryVersion, refuseAgain: true},
+		{name: "RowWriteRecordsNothing", change: touchUpdatedAt},
+		{name: "RowWriteRefusalRestartsWait", change: touchUpdatedAt, refuseAgain: true},
+	}
+	for _, tt := range rowChanges {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			worker, clock, recorder := newCapacityWaitWorker(t)
+			chat := database.Chat{
+				ID:             uuid.New(),
+				Status:         database.ChatStatusRunning,
+				HistoryVersion: 3,
+				UpdatedAt:      clock.Now(),
+			}
 
-		worker.noteCapacityRefused(chat.ID, chat.HistoryVersion, chat.UpdatedAt)
-		clock.Advance(time.Hour)
-		chat.HistoryVersion = 4
-		worker.recordCapacityWait(t.Context(), chat)
+			worker.noteCapacityRefused(chat.ID, chat.HistoryVersion, chat.UpdatedAt)
+			clock.Advance(time.Hour)
+			tt.change(&chat, clock.Now())
+			if tt.refuseAgain {
+				worker.noteCapacityRefused(chat.ID, chat.HistoryVersion, chat.UpdatedAt)
+				clock.Advance(time.Second)
+			}
+			worker.recordCapacityWait(t.Context(), chat)
 
-		require.Empty(t, recorder.Ended())
-		require.NotContains(t, worker.capacityWaits, chat.ID)
-	})
-
-	t.Run("RefusalAtNewVersionRestartsWait", func(t *testing.T) {
-		t.Parallel()
-		worker, clock, recorder := newCapacityWaitWorker(t)
-		chat := database.Chat{ID: uuid.New(), Status: database.ChatStatusRunning, HistoryVersion: 3}
-
-		worker.noteCapacityRefused(chat.ID, chat.HistoryVersion, chat.UpdatedAt)
-		clock.Advance(time.Hour)
-		chat.HistoryVersion = 4
-		worker.noteCapacityRefused(chat.ID, chat.HistoryVersion, chat.UpdatedAt)
-		clock.Advance(time.Second)
-		worker.recordCapacityWait(t.Context(), chat)
-
-		ended := recorder.Ended()
-		require.Len(t, ended, 1)
-		require.Equal(t, time.Second, ended[0].EndTime().Sub(ended[0].StartTime()))
-	})
-
-	// Another replica acquiring and abandoning the chat writes
-	// updated_at without changing history_version.
-	t.Run("RowWriteRecordsNothing", func(t *testing.T) {
-		t.Parallel()
-		worker, clock, recorder := newCapacityWaitWorker(t)
-		chat := database.Chat{
-			ID:             uuid.New(),
-			Status:         database.ChatStatusRunning,
-			HistoryVersion: 3,
-			UpdatedAt:      clock.Now(),
-		}
-
-		worker.noteCapacityRefused(chat.ID, chat.HistoryVersion, chat.UpdatedAt)
-		clock.Advance(time.Hour)
-		chat.UpdatedAt = clock.Now()
-		worker.recordCapacityWait(t.Context(), chat)
-
-		require.Empty(t, recorder.Ended())
-		require.NotContains(t, worker.capacityWaits, chat.ID)
-	})
-
-	t.Run("RefusalAfterRowWriteRestartsWait", func(t *testing.T) {
-		t.Parallel()
-		worker, clock, recorder := newCapacityWaitWorker(t)
-		chat := database.Chat{
-			ID:             uuid.New(),
-			Status:         database.ChatStatusRunning,
-			HistoryVersion: 3,
-			UpdatedAt:      clock.Now(),
-		}
-
-		worker.noteCapacityRefused(chat.ID, chat.HistoryVersion, chat.UpdatedAt)
-		clock.Advance(time.Hour)
-		chat.UpdatedAt = clock.Now()
-		worker.noteCapacityRefused(chat.ID, chat.HistoryVersion, chat.UpdatedAt)
-		clock.Advance(time.Second)
-		worker.recordCapacityWait(t.Context(), chat)
-
-		ended := recorder.Ended()
-		require.Len(t, ended, 1)
-		require.Equal(t, time.Second, ended[0].EndTime().Sub(ended[0].StartTime()))
-	})
+			require.NotContains(t, worker.capacityWaits, chat.ID)
+			ended := recorder.Ended()
+			if !tt.refuseAgain {
+				require.Empty(t, ended)
+				return
+			}
+			require.Len(t, ended, 1)
+			require.Equal(t, time.Second, ended[0].EndTime().Sub(ended[0].StartTime()))
+		})
+	}
 
 	// The limiter admits every non-running chat, so a chat interrupted
 	// while it waited was not admitted for capacity.
@@ -291,25 +248,26 @@ func TestAcquireOncePrunesOnlyShortBatches(t *testing.T) {
 	}
 }
 
-// TestAcquireCandidateForgetsWaitOnSkip acquires against a real store
-// so the transaction body runs: a candidate skipped for a reason other
-// than capacity drops its remembered wait.
-func TestAcquireCandidateForgetsWaitOnSkip(t *testing.T) {
+// TestAcquireCandidateCapacityWait acquires single candidates against a
+// real store so the transaction body runs.
+func TestAcquireCandidateCapacityWait(t *testing.T) {
 	t.Parallel()
+	f := newWorkerTestFixture(t)
 
-	newWorker := func(t *testing.T, f *workerTestFixture) *chatWorker {
+	newWorker := func(t *testing.T) *chatWorker {
 		t.Helper()
 		worker, err := newChatWorker(newUnstartedServer(t, f.pubsub, f.db), testOptions(t, f, nil))
 		require.NoError(t, err)
 		return worker
 	}
 
-	t.Run("FreshlyOwnedChat", func(t *testing.T) {
+	// A candidate skipped for a reason other than capacity drops its
+	// remembered wait.
+	t.Run("FreshlyOwnedChatForgetsWait", func(t *testing.T) {
 		t.Parallel()
-		f := newWorkerTestFixture(t)
 		chat := f.createRunningChat(t)
 		acquireChat(t, f, chat.ID, uuid.New(), uuid.New())
-		worker := newWorker(t, f)
+		worker := newWorker(t)
 		worker.noteCapacityRefused(chat.ID, chat.HistoryVersion, chat.UpdatedAt)
 
 		acquired, err := worker.acquireCandidate(testutil.Context(t, testutil.WaitShort), worker.opts.WorkerID, nil, chat.ID)
@@ -318,10 +276,9 @@ func TestAcquireCandidateForgetsWaitOnSkip(t *testing.T) {
 		require.NotContains(t, worker.capacityWaits, chat.ID)
 	})
 
-	t.Run("MissingChat", func(t *testing.T) {
+	t.Run("MissingChatForgetsWait", func(t *testing.T) {
 		t.Parallel()
-		f := newWorkerTestFixture(t)
-		worker := newWorker(t, f)
+		worker := newWorker(t)
 		chatID := uuid.New()
 		worker.noteCapacityRefused(chatID, 1, time.Time{})
 
@@ -329,5 +286,39 @@ func TestAcquireCandidateForgetsWaitOnSkip(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, acquired)
 		require.NotContains(t, worker.capacityWaits, chatID)
+	})
+
+	// The chat is acquired after a refusal, but the closed runner
+	// manager rejects the spawn, so no runner starts and no wait is
+	// recorded.
+	t.Run("SpawnFailureRecordsNothing", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		clock := quartz.NewMock(t)
+		tracer, recorder := newStageTestTracer(t)
+		server := newUnstartedServer(t, f.pubsub, f.db)
+		server.stages = tracer
+		admission := newFakeAdmission()
+		opts := testOptions(t, f, nil)
+		opts.Clock = clock
+		opts.AgentCapacityLimiter = admission
+		worker, err := newChatWorker(server, opts)
+		require.NoError(t, err)
+		manager := newRunnerManager(ctx, server, worker.opts)
+		manager.closeAndDrainQueues()
+		chat := f.createRunningChat(t)
+
+		admission.refuse(chat.ID)
+		_, err = worker.acquireCandidate(ctx, worker.opts.WorkerID, manager, chat.ID)
+		require.ErrorIs(t, err, errCapacityRefused)
+		require.Contains(t, worker.capacityWaits, chat.ID)
+
+		clock.Advance(time.Second)
+		admission.allow(chat.ID)
+		acquired, err := worker.acquireCandidate(ctx, worker.opts.WorkerID, manager, chat.ID)
+		require.Error(t, err)
+		require.False(t, acquired)
+		require.Equal(t, 2, admission.admitCallCount())
+		require.Empty(t, recorder.Ended())
 	})
 }
