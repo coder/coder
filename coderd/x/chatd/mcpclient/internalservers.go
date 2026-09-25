@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"sync"
 
 	"golang.org/x/xerrors"
 
@@ -21,52 +20,36 @@ const InternalScheme = "coder-internal"
 
 var internalHostPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
-// InternalServers maps hosts to in-process MCP handlers. It is safe for
-// concurrent use. A nil *InternalServers has no servers.
+// InternalServers maps hosts to in-process MCP handlers. It is fixed when
+// it is built, so it is safe for concurrent use. The zero value has no
+// servers.
 type InternalServers struct {
-	mu      sync.RWMutex
-	servers map[string]http.RoundTripper
+	transports map[string]http.RoundTripper
 }
 
-// NewInternalServers returns an empty registry.
-func NewInternalServers() *InternalServers {
-	return &InternalServers{servers: make(map[string]http.RoundTripper)}
+// NewInternalServers serves each handler at InternalURL(host). It panics
+// when a host is not a lowercase DNS label, as http.ServeMux.Handle panics
+// on an invalid pattern.
+func NewInternalServers(handlers map[string]http.Handler) InternalServers {
+	transports := make(map[string]http.RoundTripper, len(handlers))
+	for host, h := range handlers {
+		if !internalHostPattern.MatchString(host) {
+			panic(fmt.Sprintf("mcpclient: invalid internal MCP server host %q", host))
+		}
+		transports[host] = xhttp.HandlerTransport(h)
+	}
+	return InternalServers{transports: transports}
 }
 
-// Register serves h at coder-internal://<host> and returns that URL. It
-// panics when host is not a lowercase DNS label or is already registered,
-// as http.ServeMux.Handle does.
-func (s *InternalServers) Register(host string, h http.Handler) string {
-	if !internalHostPattern.MatchString(host) {
-		panic(fmt.Sprintf("mcpclient: invalid internal MCP server host %q", host))
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.servers[host]; ok {
-		panic(fmt.Sprintf("mcpclient: internal MCP server host %q is already registered", host))
-	}
-	s.servers[host] = xhttp.HandlerTransport(h)
+// InternalURL returns the URL at which chats reach the internal MCP
+// server for host.
+func InternalURL(host string) string {
 	return InternalScheme + "://" + host
 }
 
-// Empty reports whether no server is registered.
-func (s *InternalServers) Empty() bool {
-	if s == nil {
-		return true
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.servers) == 0
-}
-
-func (s *InternalServers) transport(host string) (http.RoundTripper, bool) {
-	if s == nil {
-		return nil, false
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	rt, ok := s.servers[host]
-	return rt, ok
+// Empty reports whether s has no servers.
+func (s InternalServers) Empty() bool {
+	return len(s.transports) == 0
 }
 
 // IsInternalURL reports whether rawURL uses InternalScheme.
@@ -78,7 +61,7 @@ func IsInternalURL(rawURL string) bool {
 // internalRouter sends coder-internal requests to the registered handlers
 // and all other requests to next.
 type internalRouter struct {
-	servers *InternalServers
+	servers InternalServers
 	next    http.RoundTripper
 }
 
@@ -86,7 +69,7 @@ func (r *internalRouter) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.URL.Scheme != InternalScheme {
 		return r.next.RoundTrip(req)
 	}
-	rt, ok := r.servers.transport(req.URL.Host)
+	rt, ok := r.servers.transports[req.URL.Host]
 	if !ok {
 		if req.Body != nil {
 			_ = req.Body.Close()

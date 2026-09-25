@@ -14,13 +14,15 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestInternalServersRegister(t *testing.T) {
+func TestNewInternalServers(t *testing.T) {
 	t.Parallel()
 
-	servers := mcpclient.NewInternalServers()
-	require.Equal(t, "coder-internal://slack", servers.Register("slack", http.NotFoundHandler()))
-	require.Panics(t, func() { servers.Register("slack", http.NotFoundHandler()) }, "duplicate host")
-	require.Panics(t, func() { servers.Register("Slack", http.NotFoundHandler()) }, "invalid host")
+	require.Equal(t, "coder-internal://slack", mcpclient.InternalURL("slack"))
+	require.True(t, mcpclient.InternalServers{}.Empty())
+	require.False(t, mcpclient.NewInternalServers(map[string]http.Handler{"slack": http.NotFoundHandler()}).Empty())
+	require.Panics(t, func() {
+		mcpclient.NewInternalServers(map[string]http.Handler{"Slack": http.NotFoundHandler()})
+	}, "invalid host")
 }
 
 func TestConnectInline_InternalServer(t *testing.T) {
@@ -41,14 +43,13 @@ func TestConnectInline_InternalServer(t *testing.T) {
 			srv := mcp.NewServer(&mcp.Implementation{Name: "internal", Version: "1.0.0"}, nil)
 			echo := echoTool()
 			srv.AddTool(echo.tool, echo.handler)
-			servers := mcpclient.NewInternalServers()
-			serverURL := servers.Register("bot", mcp.NewStreamableHTTPHandler(
+			servers := mcpclient.NewInternalServers(map[string]http.Handler{"bot": mcp.NewStreamableHTTPHandler(
 				func(*http.Request) *mcp.Server { return srv },
 				&mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: tc.jsonResponse},
-			))
+			)})
 
 			tools, summaries, cleanup := mcpclient.ConnectInline(
-				ctx, logger, []mcpclient.Server{makeConfig("bot", serverURL)}, nil,
+				ctx, logger, []mcpclient.Server{makeConfig("bot", mcpclient.InternalURL("bot"))}, nil,
 				mcpclient.NewHTTPClient(nil), servers,
 			)
 			t.Cleanup(cleanup)
@@ -69,7 +70,7 @@ func TestConnectInline_UnregisteredInternalServer(t *testing.T) {
 
 	tools, summaries, cleanup := mcpclient.ConnectInline(
 		ctx, logger, []mcpclient.Server{makeConfig("bot", "coder-internal://missing")}, nil,
-		mcpclient.NewHTTPClient(nil), mcpclient.NewInternalServers(),
+		mcpclient.NewHTTPClient(nil), mcpclient.InternalServers{},
 	)
 	t.Cleanup(cleanup)
 	require.Empty(t, tools)
@@ -85,12 +86,11 @@ func TestConnectInline_RedirectCannotReachInternalServer(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-	servers := mcpclient.NewInternalServers()
-	serverURL := servers.Register("target", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	servers := mcpclient.NewInternalServers(map[string]http.Handler{"target": http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Error("the redirect reached the internal server")
-	}))
+	})})
 	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, serverURL, http.StatusTemporaryRedirect)
+		http.Redirect(w, r, mcpclient.InternalURL("target"), http.StatusTemporaryRedirect)
 	}))
 	t.Cleanup(redirector.Close)
 

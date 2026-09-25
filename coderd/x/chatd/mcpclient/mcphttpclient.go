@@ -78,7 +78,7 @@ var errInlineResponseTooLarge = xerrors.New("inline MCP response body exceeds ma
 // maxInlineHTTPResponseBytes and coder-internal requests reach the
 // handlers in internal. A nil or transport-less base falls back to
 // the default guarded client, matching httpClientWithHeaders.
-func inlineHTTPClient(base *http.Client, internal *InternalServers) *http.Client {
+func inlineHTTPClient(base *http.Client, internal InternalServers) *http.Client {
 	if base == nil || base.Transport == nil {
 		base = NewHTTPClient(base)
 	}

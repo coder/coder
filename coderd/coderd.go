@@ -272,6 +272,12 @@ type Options struct {
 	ChatStreamPartsDialer chatd.StreamPartsDialer
 	// Nil keeps the default chat agent caps active.
 	ChatAgentCapacityUnlock chatd.AgentCapacityUnlock
+	// ChatInternalMCPServers maps hosts to MCP handlers that chats reach
+	// in process at mcpclient.InternalURL(host). Attach one to a chat
+	// through chatd.CreateOptions.InlineMCPServers with
+	// ForwardCoderHeaders set. New starts the chat worker, so each handler
+	// must be able to serve before New returns.
+	ChatInternalMCPServers map[string]http.Handler
 	// ChatProviderAPIKeys supplies fallback provider keys for chat execution.
 	// Test harnesses use this to route chat models to local providers.
 	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
@@ -698,14 +704,13 @@ func New(options *Options) *API {
 		safedial.WithAllowedPrefixes(options.MCPAllowedPrivateCIDRs...),
 	)
 	api := &API{
-		ctx:                ctx,
-		cancel:             cancel,
-		DeploymentID:       depID,
-		ID:                 uuid.New(),
-		Options:            options,
-		mcpHTTPClient:      mcpHTTPClient,
-		internalMCPServers: mcpclient.NewInternalServers(),
-		RootHandler:        r,
+		ctx:           ctx,
+		cancel:        cancel,
+		DeploymentID:  depID,
+		ID:            uuid.New(),
+		Options:       options,
+		mcpHTTPClient: mcpHTTPClient,
+		RootHandler:   r,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -952,7 +957,7 @@ func New(options *Options) *API {
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				MCPHTTPClient:                  api.mcpHTTPClient,
-				InternalMCPServers:             api.internalMCPServers,
+				InternalMCPServers:             options.ChatInternalMCPServers,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
 			})
@@ -2158,8 +2163,7 @@ type API struct {
 	DeploymentID string
 
 	*Options
-	mcpHTTPClient      *http.Client
-	internalMCPServers *mcpclient.InternalServers
+	mcpHTTPClient *http.Client
 	// ID is a uniquely generated ID on initialization.
 	// This is used to associate objects with a specific
 	// Coder API instance, like workspace agents to a

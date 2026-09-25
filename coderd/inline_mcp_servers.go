@@ -23,15 +23,6 @@ import (
 
 var inlineMCPServerSlugPattern = regexp.MustCompile(fmt.Sprintf(`^[A-Za-z0-9][A-Za-z0-9_-]{0,%d}$`, codersdk.MaxInlineMCPServerSlugBytes-1))
 
-// RegisterInternalMCPServer serves h in process at the returned
-// coder-internal://<host> URL. Attach it to a chat through
-// chatd.CreateOptions.InlineMCPServers with ForwardCoderHeaders set.
-// Call it at startup on every replica, because any replica can run a
-// chat step.
-func (api *API) RegisterInternalMCPServer(host string, h http.Handler) string {
-	return api.internalMCPServers.Register(host, h)
-}
-
 func writeChatCallerSuppliedToolsDisabled(ctx context.Context, rw http.ResponseWriter) {
 	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 		Message: "Caller-supplied tools are disabled on this deployment.",
