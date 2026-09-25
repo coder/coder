@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
@@ -935,7 +936,7 @@ func (server *Server) deriveFinalTurnRunResult(
 // single source of truth for the turn status label input.
 func latestAssistantText(messages []database.ChatMessage) string {
 	for i := len(messages) - 1; i >= 0; i-- {
-		if messages[i].Role != database.ChatMessageRoleAssistant {
+		if messages[i].Role != database.ChatMessageRoleAssistant || chatstate.IsReceiptRow(messages[i]) {
 			continue
 		}
 		parts, err := chatprompt.ParseContent(messages[i])

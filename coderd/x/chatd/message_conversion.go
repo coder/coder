@@ -481,7 +481,7 @@ func currentTurnStepCount(messages []database.ChatMessage) int {
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
-		if msg.Role == database.ChatMessageRoleAssistant {
+		if msg.Role == database.ChatMessageRoleAssistant && !chatstate.IsReceiptRow(msg) {
 			count++
 		}
 	}
@@ -576,7 +576,7 @@ func pendingUserSegmentStart(promptRows []database.ChatMessage) int {
 func firstUncompressedAssistantAfter(messages []database.ChatMessage, index int) (database.ChatMessage, bool) {
 	for i := index + 1; i < len(messages); i++ {
 		msg := messages[i]
-		if msg.Deleted || msg.Compressed {
+		if msg.Deleted || msg.Compressed || chatstate.IsReceiptRow(msg) {
 			continue
 		}
 		if msg.Role == database.ChatMessageRoleAssistant {
@@ -589,7 +589,7 @@ func firstUncompressedAssistantAfter(messages []database.ChatMessage, index int)
 func hasUncompressedMessageAfter(messages []database.ChatMessage, index int) bool {
 	for i := index + 1; i < len(messages); i++ {
 		msg := messages[i]
-		if !msg.Deleted && !msg.Compressed {
+		if !msg.Deleted && !msg.Compressed && !chatstate.IsReceiptRow(msg) {
 			return true
 		}
 	}
@@ -648,7 +648,7 @@ func historyHasStopAfterToolResult(messages []database.ChatMessage, stopAfterToo
 }
 
 func currentHistoryComplete(messages []database.ChatMessage) (bool, error) {
-	idx := lastMessageIndex(messages, func(database.ChatMessage) bool { return true })
+	idx := lastMessageIndex(messages, func(msg database.ChatMessage) bool { return !chatstate.IsReceiptRow(msg) })
 	if idx == -1 || messages[idx].Role != database.ChatMessageRoleAssistant {
 		return false, nil
 	}

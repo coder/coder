@@ -1573,6 +1573,14 @@ func ReceiptRowOutcome(msg database.ChatMessage) (codersdk.ChatStructuredOutput,
 	return chatstructured.ReceiptOutcome(parts)
 }
 
+// IsReceiptRow reports whether msg is a structured output receipt row.
+// History readers skip receipts: they close requests without being model
+// output.
+func IsReceiptRow(msg database.ChatMessage) bool {
+	_, ok := receiptParts(msg)
+	return ok
+}
+
 // receiptParts returns the parts of msg and whether it has the receipt row
 // shape that the database exempts from execution fencing.
 func receiptParts(msg database.ChatMessage) ([]codersdk.ChatMessagePart, bool) {
