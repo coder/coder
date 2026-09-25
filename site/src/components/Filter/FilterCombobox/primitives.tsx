@@ -1,4 +1,4 @@
-import { Command as CommandPrimitive, useCommandState } from "cmdk";
+import { Command as CommandPrimitive } from "cmdk";
 import { cn } from "cn";
 import { XIcon } from "lucide-react";
 import {
@@ -45,13 +45,6 @@ function useFilterComboboxState(): FilterComboboxStateValue {
 		);
 	}
 	return context;
-}
-
-// cmdk keeps a running count of the rows it renders; both the content wrapper
-// and the list drive a `data-empty` styling group from it so
-// `FilterComboboxEmpty` and empty-state padding can toggle via CSS.
-function useFilterComboboxIsEmpty(): boolean {
-	return (useCommandState((state) => state.filtered.count) ?? 0) === 0;
 }
 
 type FilterComboboxRootProps = {
@@ -140,14 +133,11 @@ export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 	...props
 }) => {
 	const anchorRef = useContext(FilterComboboxAnchorContext);
-	const isEmpty = useFilterComboboxIsEmpty();
-
 	return (
 		<PopoverContent
 			disablePortal
 			align={align}
 			sideOffset={sideOffset}
-			data-empty={isEmpty ? "" : undefined}
 			onOpenAutoFocus={(event) => event.preventDefault()}
 			onInteractOutside={(event) => {
 				if (
@@ -158,7 +148,7 @@ export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 				}
 			}}
 			className={cn(
-				"group/combobox-content flex w-(--radix-popover-trigger-width) max-h-[min(24rem,var(--radix-popper-available-height))] flex-col overflow-y-hidden p-0",
+				"flex w-(--radix-popover-trigger-width) max-h-[min(24rem,var(--radix-popper-available-height))] flex-col overflow-y-hidden p-0",
 				className,
 			)}
 			{...props}
@@ -172,12 +162,9 @@ export const FilterComboboxList: FC<FilterComboboxListProps> = ({
 	className,
 	...props
 }) => {
-	const isEmpty = useFilterComboboxIsEmpty();
-
 	return (
 		<CommandPrimitive.List
 			data-slot="combobox-list"
-			data-empty={isEmpty ? "" : undefined}
 			className={cn(
 				"min-h-0 scroll-py-1 overflow-y-auto overscroll-contain p-1",
 				className,
@@ -308,8 +295,6 @@ type FilterComboboxChipProps = ComponentProps<typeof Badge> & {
 	showRemove?: boolean;
 	/** Accessible name for the remove control. Defaults to `Remove ${value}`. */
 	removeLabel?: string;
-	/** Replaces the root's `onRemoveValue` for chips that are not query tokens. */
-	onRemove?: () => void;
 };
 
 export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
@@ -318,7 +303,6 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 	value,
 	showRemove = true,
 	removeLabel,
-	onRemove,
 	...props
 }) => {
 	const { onRemoveValue } = useFilterComboboxState();
@@ -352,9 +336,7 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 					onMouseDown={(event) => event.preventDefault()}
 					onClick={(event) => {
 						event.stopPropagation();
-						if (onRemove) {
-							onRemove();
-						} else if (removeValue) {
+						if (removeValue) {
 							onRemoveValue?.(removeValue);
 						}
 					}}

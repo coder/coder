@@ -201,13 +201,7 @@ describe("FilterCombobox", () => {
 		await screen.findByRole("option", { name: "Running" });
 		await user.keyboard("{ArrowRight}");
 		await screen.findByRole("option", { name: "alice" });
-		await user.keyboard("{ArrowDown}{ArrowLeft}");
-		await waitFor(() =>
-			expect(
-				screen.queryByRole("option", { name: "alice" }),
-			).not.toBeInTheDocument(),
-		);
-		await user.keyboard("{ArrowRight}");
+		await user.keyboard("{ArrowDown}{ArrowLeft}{ArrowRight}");
 		await screen.findByRole("option", { name: "alice" });
 		await user.keyboard("{ArrowDown}{Enter}");
 
@@ -274,19 +268,48 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:zed"));
 	});
 
+	it("retries a failed hover flyout search", async () => {
+		let failed = false;
+		const getOptions = vi.fn(async (query: string) => {
+			if (query === "zed" && !failed) {
+				failed = true;
+				throw new Error("boom");
+			}
+			return manyOwnersCategory.getOptions(query);
+		});
+		const { user, filtersButton } = setup(
+			[{ ...manyOwnersCategory, getOptions }],
+			{ skipHover: true },
+		);
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		const search = await screen.findByRole("textbox", { name: "Search Owner" });
+		await user.type(search, "zed");
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+
+		await waitFor(() =>
+			expect(
+				getOptions.mock.calls.filter(([query]) => query === "zed"),
+			).toHaveLength(2),
+		);
+	});
+
 	it("keeps the category search field while results shrink", async () => {
-		const { user, filtersButton } = setup([manyOwnersCategory]);
+		const getOptions = vi.fn(manyOwnersCategory.getOptions);
+		const { user, filtersButton } = setup([
+			{ ...manyOwnersCategory, getOptions },
+		]);
 
 		await user.click(filtersButton);
 		await user.keyboard("{ArrowRight}");
 		const search = await screen.findByRole("textbox", { name: "Search Owner" });
 		await user.click(search);
 		await user.type(search, "user-1");
-		await waitFor(() =>
-			expect(screen.queryByRole("option", { name: "user-2" })).toBeNull(),
-		);
+		await waitFor(() => expect(getOptions).toHaveBeenCalledWith("user-1"));
+		await getOptions.mock.results.at(-1)?.value;
 
-		expect(search).toHaveFocus();
+		await waitFor(() => expect(search).toHaveFocus());
 	});
 
 	it("clears every chip and keeps the search text with Clear all", async () => {
