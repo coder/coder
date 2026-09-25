@@ -98,7 +98,7 @@ func TestResolveModelCallDerivesProviderOptions(t *testing.T) {
 	requireOpenAIUserOption(t, summaryObjectCall(resolved).ProviderOptions, "summary-options-sentinel")
 }
 
-func TestResolveModelCallResolvedEffort(t *testing.T) {
+func TestResolveModelCallStageModel(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

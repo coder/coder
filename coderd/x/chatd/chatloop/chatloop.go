@@ -288,7 +288,7 @@ type reasoningState struct {
 
 // GenerateAssistant performs one assistant model stream and returns the
 // durable assistant-side content. It does not execute tools, retry, or persist.
-func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (AssistantOutcome, error) {
+func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ AssistantOutcome, retErr error) {
 	if opts.Model == nil {
 		return AssistantOutcome{}, xerrors.New("chat model is required")
 	}
@@ -356,18 +356,23 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		}
 		return AssistantOutcome{}, wrappedErr
 	}
-	defer attempt.release()
 	// Releasing the attempt closes the time_to_first_token window, so it
 	// must happen before the stream stage ends: a window still open then
-	// would be counted outside the stream that contains it.
-	endStream := func(err error) {
+	// would be counted outside the stream that contains it. The stream
+	// stage ends with the unwrapped stream error, or else the returned
+	// error.
+	var streamEndErr error
+	defer func() {
 		attempt.release()
-		streamSpan.End(err)
-	}
+		if streamEndErr == nil {
+			streamEndErr = retErr
+		}
+		streamSpan.End(streamEndErr)
+	}()
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
 	if err := attempt.finish(processErr); err != nil {
-		endStream(err)
+		streamEndErr = err
 		wrappedErr := wrapProviderStreamError(errorProvider, err)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
 		if classified.Retryable {
@@ -377,7 +382,6 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	}
 
 	contextLimit := extractContextLimitWithFallback(result.providerMetadata, opts.ContextLimitFallback)
-	endStream(nil)
 	result.content = chatsanitize.SanitizeAnthropicProviderToolStepContent(
 		ctx, opts.Logger, provider, modelName,
 		"assistant_helper", 0, result.finishReason, result.content,
@@ -820,8 +824,9 @@ func guardedStream(
 	ttftSpan.SetModel(stageModel)
 	var ttftOnce sync.Once
 	// ttftSpan.End(nil) observes the stage histogram and returns the
-	// window TTFTSeconds observes. A silence timeout replaces err, which
-	// is then only the cancellation it caused.
+	// window TTFTSeconds observes. When the silence guard canceled the
+	// attempt, err is only the resulting cancellation, so it is replaced
+	// with the classified silence timeout.
 	finishTTFT := func(err error) {
 		ttftOnce.Do(func() {
 			if err != nil {
