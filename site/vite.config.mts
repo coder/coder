@@ -198,6 +198,10 @@ export default defineConfig({
 						"src/**/*.test.?(m)ts?(x)",
 						"scripts/**/*.test.?(m)[jt]s?(x)",
 					],
+					// Vitest stubs CSS imports with empty strings by default. The
+					// annotator inlines its stylesheet into a shadow root, so its
+					// tests should mount the real thing.
+					css: { include: [/\/annotator\/.*\.css(\?.*)?$/] },
 					globals: true,
 					environment: "jsdom",
 					setupFiles: [

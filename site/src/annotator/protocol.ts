@@ -70,7 +70,10 @@ function hasMessageType(value: unknown): value is { type: string } {
 // The overlay sends one annotation per save; a handful is plenty of slack.
 const maxAnnotations = 5;
 const maxCommentLength = 2000;
-const maxFieldLength = 300;
+// Cap on every other string field. Exported so the overlay can trim what
+// it reads from the page before posting, rather than cloning an
+// arbitrarily large value into the dashboard for the parser to cut down.
+export const maxFieldLength = 300;
 const maxClasses = 20;
 const maxComponents = 10;
 // Coordinates well past any real screen are meaningless and only make

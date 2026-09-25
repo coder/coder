@@ -1,0 +1,6 @@
+/* Applied to the host document, not the shadow root, while picking. */
+*,
+*::before,
+*::after {
+	cursor: crosshair !important;
+}

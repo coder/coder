@@ -687,6 +687,7 @@ func TestShouldCacheFile(t *testing.T) {
 		{"static/images/section-a/image.jpeg", true},
 
 		{"service-worker.js", false},
+		{"annotator.js", false},
 		{"dashboard.html", false},
 		{"apps/app/code/terminal.html", false},
 	}
