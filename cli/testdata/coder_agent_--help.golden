@@ -66,6 +66,11 @@ OPTIONS:
       --devcontainers-project-discovery-enable bool, $CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE (default: true)
           Allow the agent to search the filesystem for devcontainer projects.
 
+      --log-buffer-size int, $CODER_AGENT_LOG_BUFFER_SIZE (default: 1000)
+          Number of debug log entries to keep in memory and emit on a connection
+          failure to coderd. Set to 0 to disable buffering. Ignored when
+          --verbose is set.
+
       --log-dir string, $CODER_AGENT_LOG_DIR (default: /tmp)
           Specify the location for the agent log files.
 
@@ -93,6 +98,10 @@ OPTIONS:
 
       --tailnet-listen-port int, $CODER_AGENT_TAILNET_LISTEN_PORT (default: 0)
           Specify a static port for Tailscale to use for listening.
+
+      --verbose bool, $CODER_AGENT_VERBOSE (default: false)
+          Write debug logs to the configured sinks instead of buffering them in
+          memory.
 
 ———
 Run `coder --help` for a list of global options.

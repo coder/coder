@@ -40,9 +40,16 @@ import (
 	"github.com/coder/serpent"
 )
 
+// defaultAgentLogBufferSize is the default number of below-level (debug) log
+// entries the agent keeps in memory and emits when it loses its connection to
+// coderd.
+const defaultAgentLogBufferSize = 1000
+
 func workspaceAgent() *serpent.Command {
 	var (
 		logDir                          string
+		logBufferSize                   int64
+		verbose                         bool
 		scriptDataDir                   string
 		pprofAddress                    string
 		noReap                          bool
@@ -167,7 +174,18 @@ func workspaceAgent() *serpent.Command {
 			defer logWriter.Close()
 
 			sinks = append(sinks, sloghuman.Sink(logWriter))
-			logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
+			// In verbose mode, write debug logs to the sinks as before. Otherwise
+			// run at Info so normal operation stays quiet and keep a rolling
+			// in-memory history of the debug entries via a flight recorder. The
+			// history is flushed on a connection failure (see agent.runLoop) so the
+			// detail leading up to the failure is emitted without logging debug all
+			// the time.
+			logger := inv.Logger.AppendSinks(sinks...)
+			if verbose {
+				logger = logger.Leveled(slog.LevelDebug)
+			} else {
+				logger = logger.Leveled(slog.LevelInfo).FlightRecorder(int(logBufferSize))
+			}
 
 			// Handle interrupt signals to allow for graceful shutdown,
 			// note that calling stopNotify disables the signal handler
@@ -495,6 +513,22 @@ func workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_LOGGING_STACKDRIVER",
 			Default:     "",
 			Value:       serpent.StringOf(&slogStackdriverPath),
+		},
+		{
+			Flag:    "log-buffer-size",
+			Env:     "CODER_AGENT_LOG_BUFFER_SIZE",
+			Default: strconv.Itoa(defaultAgentLogBufferSize),
+			Description: "Number of debug log entries to keep in memory and emit " +
+				"on a connection failure to coderd. Set to 0 to disable buffering. " +
+				"Ignored when --verbose is set.",
+			Value: serpent.Int64Of(&logBufferSize),
+		},
+		{
+			Flag:        "verbose",
+			Env:         "CODER_AGENT_VERBOSE",
+			Default:     "false",
+			Description: "Write debug logs to the configured sinks instead of buffering them in memory.",
+			Value:       serpent.BoolOf(&verbose),
 		},
 		{
 			Flag:        "block-file-transfer",
