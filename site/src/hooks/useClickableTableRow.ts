@@ -62,7 +62,13 @@ export const useClickableTableRow = <
 			"first:rounded-t-md last:rounded-b-md",
 		]),
 		hover: true,
-		onDoubleClick,
+		onDoubleClick:
+			onDoubleClick &&
+			((event) => {
+				if (!isFromPortal(event)) {
+					onDoubleClick(event);
+				}
+			}),
 		onAuxClick: (event) => {
 			// A middle-click paste (Linux) into a portaled dialog's input would
 			// otherwise open the row's link in a new tab.

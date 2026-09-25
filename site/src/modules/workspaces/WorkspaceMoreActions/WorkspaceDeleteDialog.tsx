@@ -33,20 +33,20 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 }) => {
 	const orphanId = useId();
 
-	const confirmation = useDeleteConfirmation(workspace.name);
+	const confirmation = useDeleteConfirmation(workspace.name, isOpen);
 	const [orphanWorkspace, setOrphanWorkspace] =
 		useState<CreateWorkspaceBuildRequest["orphan"]>(false);
 
-	// This component stays mounted while closed, so clear the confirmation on
-	// close and on confirm. Otherwise reopening (for example after a failed
-	// delete) would show the name already typed and an enabled Delete button.
-	const resetConfirmation = () => {
+	// This component stays mounted while closed, so clear the form on close
+	// and on confirm. Otherwise reopening (for example after a failed delete)
+	// would show the name already typed and an enabled Delete button.
+	const resetForm = () => {
 		confirmation.reset();
 		setOrphanWorkspace(false);
 	};
 
 	const confirm = () => {
-		resetConfirmation();
+		resetForm();
 		onConfirm(orphanWorkspace);
 	};
 
@@ -78,7 +78,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 			title="Delete Workspace"
 			onConfirm={confirm}
 			onClose={() => {
-				resetConfirmation();
+				resetForm();
 				onCancel();
 			}}
 			disabled={!confirmation.confirmed}

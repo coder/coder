@@ -10,14 +10,36 @@ import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 
 /**
- * State for a "type the name to confirm" field. The owning dialog uses
- * `confirmed` to enable its delete action and calls `reset` when it closes or
- * confirms, so reopening never shows a previously typed name.
+ * State for a "type the name to confirm" field: the typed value, whether it
+ * matches `name`, and whether to show the mismatch error. The owning dialog
+ * uses `confirmed` to enable its delete action.
+ *
+ * The state clears whenever `isOpen` becomes false, however the dialog was
+ * closed, so reopening never shows a previously typed name with the delete
+ * action already enabled. While the dialog stays open (for example after a
+ * failed delete that the owner lets the user retry) the typed name is kept.
+ * `reset` clears it immediately.
  */
-export const useDeleteConfirmation = (name: string) => {
+export const useDeleteConfirmation = (name: string, isOpen: boolean) => {
 	const [value, setValue] = useState("");
 	const [isFocused, setIsFocused] = useState(false);
 	const [hasSubmittedInvalid, setHasSubmittedInvalid] = useState(false);
+	const [wasOpen, setWasOpen] = useState(isOpen);
+
+	const reset = () => {
+		setValue("");
+		setIsFocused(false);
+		setHasSubmittedInvalid(false);
+	};
+
+	// Adjusting state while rendering, per React's guidance for resetting
+	// state when a prop changes, avoids an extra render with stale state.
+	if (isOpen !== wasOpen) {
+		setWasOpen(isOpen);
+		if (!isOpen) {
+			reset();
+		}
+	}
 
 	const confirmed = value === name;
 	const showError =
@@ -28,11 +50,7 @@ export const useDeleteConfirmation = (name: string) => {
 		value,
 		confirmed,
 		showError,
-		reset: () => {
-			setValue("");
-			setIsFocused(false);
-			setHasSubmittedInvalid(false);
-		},
+		reset,
 		inputProps: {
 			value,
 			onChange: (event: ChangeEvent<HTMLInputElement>) => {
@@ -42,11 +60,9 @@ export const useDeleteConfirmation = (name: string) => {
 			onFocus: () => setIsFocused(true),
 			onBlur: () => setIsFocused(false),
 			onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => {
-				// Handled here rather than in onSubmit because forms whose submit
-				// button is disabled for a wrong name never submit, while forms
-				// without a submit button would submit a wrong name.
+				// Handled here rather than in onSubmit because a form whose submit
+				// button is disabled for a wrong name never submits.
 				if (event.key === "Enter" && !confirmed) {
-					event.preventDefault();
 					setHasSubmittedInvalid(true);
 				}
 			},

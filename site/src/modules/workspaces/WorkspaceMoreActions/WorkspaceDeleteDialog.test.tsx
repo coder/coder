@@ -76,7 +76,9 @@ describe("WorkspaceDeleteDialog", () => {
 		expect(onCancel).not.toHaveBeenCalled();
 		expect(input).toHaveFocus();
 		expect(input).toHaveAttribute("aria-invalid", "true");
-		expect(screen.getByRole("alert")).toHaveTextContent("does not match");
+		expect(input).toHaveAccessibleDescription(
+			"“wrong name” does not match the name of this workspace",
+		);
 	});
 
 	it("clears the submitted error when the user edits the name", async () => {
@@ -87,6 +89,7 @@ describe("WorkspaceDeleteDialog", () => {
 		await user.type(input, "wrong name{Enter}x");
 
 		expect(input).toHaveAttribute("aria-invalid", "false");
+		expect(screen.getByRole("alert")).toBeEmptyDOMElement();
 	});
 
 	it("confirms on Enter when the name matches", async () => {

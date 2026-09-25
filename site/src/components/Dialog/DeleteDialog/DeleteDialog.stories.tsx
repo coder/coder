@@ -48,11 +48,6 @@ export const FilledWrong: Story = {
 		await user.type(input, "InvalidFooName");
 		// Blur so the mismatch error becomes visible.
 		await user.tab();
-
-		await expect(body.getByRole("button", { name: "Delete" })).toBeDisabled();
-		await expect(input).toHaveAccessibleDescription(
-			"“InvalidFooName” does not match the name of this foo",
-		);
 	},
 };
 

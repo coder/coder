@@ -43,11 +43,10 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 	label,
 	confirmText = "Delete",
 }) => {
-	const confirmation = useDeleteConfirmation(name);
+	const confirmation = useDeleteConfirmation(name, isOpen);
 
 	const handleOpenChange = (open: boolean) => {
 		if (!open) {
-			confirmation.reset();
 			onCancel();
 		}
 	};
