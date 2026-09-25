@@ -59,7 +59,11 @@ func pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
 		AggregateHash: append([]byte(nil), req.AggregateHash[:]...),
 		Initial:       req.Initial,
 		SnapshotError: req.SnapshotError,
+		AgentRunId:    req.AgentRunID,
 		Resources:     make([]*agentproto.ContextResource, 0, len(req.Resources)),
+	}
+	if phase := mcpDiscoveryPhaseToProto(req.MCPDiscovery); phase != agentproto.MCPDiscovery_PHASE_UNSPECIFIED {
+		pb.McpDiscovery = &agentproto.MCPDiscovery{Phase: phase}
 	}
 	for i := range req.Resources {
 		r := req.Resources[i]
@@ -175,3 +179,17 @@ func resourceStatusToProto(s ResourceStatus) agentproto.ContextResource_Status {
 // Ensure DRPCPusher continues to satisfy the Pusher interface
 // even if the interface gains methods in the future.
 var _ Pusher = (*DRPCPusher)(nil)
+
+// mcpDiscoveryPhaseToProto maps the sampled discovery phase to the wire
+// enum. Unspecified is not sent as a message so legacy coderd and
+// legacy-shaped snapshots stay byte-identical.
+func mcpDiscoveryPhaseToProto(phase MCPDiscoveryPhase) agentproto.MCPDiscovery_Phase {
+	switch phase {
+	case MCPDiscoveryPending:
+		return agentproto.MCPDiscovery_PENDING
+	case MCPDiscoveryComplete:
+		return agentproto.MCPDiscovery_COMPLETE
+	default:
+		return agentproto.MCPDiscovery_PHASE_UNSPECIFIED
+	}
+}
