@@ -121,6 +121,8 @@ func (p RequestPayload) model() string {
 }
 
 // InvocationModel returns the exact upstream target before payload rewrites.
+// Call it on the original parsed request, before the interceptor rewrites its
+// model.
 // InvokeModel uses the configured primary or small/fast model, which may be an
 // inference profile ARN. Other protocols use the model from the request body.
 func (p RequestPayload) InvocationModel(bedrock *BedrockRuntime) string {

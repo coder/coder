@@ -272,6 +272,8 @@ func (p *Bedrock) bedrockInterceptConfig() intercept.Config {
 // the Bedrock credential backed by the runtime's access key. BYOK
 // X-Api-Key/Authorization headers are honored for users who bring their own
 // key.
+// Coder authentication credentials must already have been removed from the
+// request.
 func (p *Bedrock) ResolveCredential(r *http.Request) (intercept.Credential, error) {
 	if apiKey := r.Header.Get(intercept.AuthHeaderXAPIKey); apiKey != "" {
 		return intercept.BYOK{Secret: apiKey, Header: intercept.AuthHeaderXAPIKey}, nil

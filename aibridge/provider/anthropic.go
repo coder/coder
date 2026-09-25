@@ -162,9 +162,9 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 	return interceptor, nil
 }
 
-// ResolveCredential determines the upstream credential for a request. At this
-// point the request contains only LLM provider headers. Any Coder-specific
-// authentication has already been stripped.
+// ResolveCredential determines the upstream credential for a request.
+// Coder authentication credentials must already have been removed from it.
+// Remaining provider authentication headers are interpreted as BYOK credentials.
 //
 //   - X-Api-Key present: BYOK with a personal API key.
 //   - Authorization present: BYOK with an access token.

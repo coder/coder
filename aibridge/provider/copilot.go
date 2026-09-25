@@ -206,6 +206,8 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 }
 
 // ResolveCredential resolves Copilot's per-request BYOK token.
+// Coder authentication credentials must already have been removed from the
+// request.
 func (*Copilot) ResolveCredential(r *http.Request) (intercept.Credential, error) {
 	key := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization))
 	if key == "" {
