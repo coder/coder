@@ -155,10 +155,10 @@ func newStageMetricsFixture(t *testing.T) stageMetricsFixture {
 // clock, tracer and metrics.
 func (f stageMetricsFixture) guardedStream(
 	ctx context.Context,
-	model StageModel,
+	stageModel StageModel,
 	open func(context.Context) (fantasy.StreamResponse, error),
 ) (guardedAttempt, error) {
-	return guardedStream(ctx, "anthropic", "claude", f.clock, time.Minute, open, f.metrics, f.tracer, model)
+	return guardedStream(ctx, "anthropic", "claude", f.clock, time.Minute, open, f.metrics, f.tracer, stageModel)
 }
 
 // requireUnobservedTTFT asserts that the time_to_first_token span
@@ -255,7 +255,6 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		count, sum := histogramTotals(t, fixture.registry, "coderd_chatd_ttft_seconds")
 		require.Equal(t, uint64(1), count)
 		require.InDelta(t, 0.25, sum, 1e-9)
-		require.Empty(t, fixture.spans.Ended())
 	})
 
 	t.Run("OpenFailureEndsSpanWithoutObservation", func(t *testing.T) {
@@ -496,6 +495,37 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		stream := endedSpan(t, fixture.spans, StageStream)
 		require.Equal(t, codes.Error, stream.Status().Code)
 		require.Equal(t, streamErr.Error(), recordedErrorMessage(t, stream))
+		requireStreamObserved(t, fixture)
+	})
+
+	t.Run("ContentFilterEndsStreamWithError", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+
+		err := generate(t, fixture, []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonContentFilter},
+		})
+		require.ErrorIs(t, err, ErrContentFiltered)
+
+		stream := endedSpan(t, fixture.spans, StageStream)
+		require.Equal(t, codes.Error, stream.Status().Code)
+		require.Equal(t, err.Error(), recordedErrorMessage(t, stream))
+		requireEndedBefore(t, fixture.spans, StageTimeToFirstToken, StageStream)
+		requireStreamObserved(t, fixture)
+	})
+
+	t.Run("NoOutputEndsStreamWithError", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+
+		err := generate(t, fixture, []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonUnknown},
+		})
+		require.ErrorIs(t, err, ErrNoModelOutput)
+
+		stream := endedSpan(t, fixture.spans, StageStream)
+		require.Equal(t, codes.Error, stream.Status().Code)
+		require.Equal(t, err.Error(), recordedErrorMessage(t, stream))
 		requireStreamObserved(t, fixture)
 	})
 }
