@@ -6,7 +6,7 @@ import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -194,16 +194,18 @@ export const WithOpenPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/123",
-				pull_request_title: "fix: resolve race condition in workspace builds",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 42,
-				deletions: 7,
-				changed_files: 5,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/123",
+					pull_request_title: "fix: resolve race condition in workspace builds",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 42,
+					deletions: 7,
+					changed_files: 5,
+				},
+			],
 		},
 	},
 };
@@ -212,16 +214,18 @@ export const WithDraftPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/456",
-				pull_request_title: "feat: add new notification system",
-				pull_request_draft: true,
-				changes_requested: false,
-				additions: 120,
-				deletions: 30,
-				changed_files: 8,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/456",
+					pull_request_title: "feat: add new notification system",
+					pull_request_draft: true,
+					changes_requested: false,
+					additions: 120,
+					deletions: 30,
+					changed_files: 8,
+				},
+			],
 		},
 	},
 };
@@ -230,17 +234,19 @@ export const WithMergedPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/789",
-				pull_request_title: "chore: update dependencies",
-				pull_request_state: "merged",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 5,
-				deletions: 3,
-				changed_files: 1,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/789",
+					pull_request_title: "chore: update dependencies",
+					pull_request_state: "merged",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 5,
+					deletions: 3,
+					changed_files: 1,
+				},
+			],
 		},
 	},
 };
@@ -249,17 +255,19 @@ export const WithClosedPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/101",
-				pull_request_title: "fix: deprecated API cleanup",
-				pull_request_state: "closed",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 0,
-				deletions: 50,
-				changed_files: 3,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/101",
+					pull_request_title: "fix: deprecated API cleanup",
+					pull_request_state: "closed",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 50,
+					changed_files: 3,
+				},
+			],
 		},
 	},
 };
@@ -283,16 +291,18 @@ export const MobileWithOpenPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/123",
-				pull_request_title: "fix: resolve race condition in workspace builds",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 42,
-				deletions: 7,
-				changed_files: 5,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/123",
+					pull_request_title: "fix: resolve race condition in workspace builds",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 42,
+					deletions: 7,
+					changed_files: 5,
+				},
+			],
 		},
 	},
 };
@@ -303,16 +313,18 @@ export const MobileWithDraftPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/456",
-				pull_request_title: "feat: add new notification system",
-				pull_request_draft: true,
-				changes_requested: false,
-				additions: 120,
-				deletions: 30,
-				changed_files: 8,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/456",
+					pull_request_title: "feat: add new notification system",
+					pull_request_draft: true,
+					changes_requested: false,
+					additions: 120,
+					deletions: 30,
+					changed_files: 8,
+				},
+			],
 		},
 	},
 };
@@ -323,17 +335,19 @@ export const MobileWithMergedPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/789",
-				pull_request_title: "chore: update dependencies",
-				pull_request_state: "merged",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 5,
-				deletions: 3,
-				changed_files: 1,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/789",
+					pull_request_title: "chore: update dependencies",
+					pull_request_state: "merged",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 5,
+					deletions: 3,
+					changed_files: 1,
+				},
+			],
 		},
 	},
 };
@@ -344,18 +358,79 @@ export const MobileWithClosedPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/101",
-				pull_request_title: "fix: deprecated API cleanup",
-				pull_request_state: "closed",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 0,
-				deletions: 50,
-				changed_files: 3,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/101",
+					pull_request_title: "fix: deprecated API cleanup",
+					pull_request_state: "closed",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 50,
+					changed_files: 3,
+				},
+			],
 		},
+	},
+};
+
+const mockPRStatuses = [
+	{
+		...MockChatDiffStatus,
+		git_branch: "feat/one",
+		pull_request_title: "fix: resolve race condition in workspace builds",
+	},
+	{
+		...MockChatDiffStatus,
+		git_branch: "feat/two",
+		url: "https://github.com/coder/coder/pull/456",
+		pr_number: 456,
+		pull_request_title: "feat: add new notification system",
+		pull_request_draft: true,
+	},
+] as const;
+
+export const WithMultiplePRs: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			diff_statuses: mockPRStatuses,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Open the menu so the screenshot captures it.
+		await userEvent.click(canvas.getByRole("button", { name: /2 PRs/ }));
+		await within(document.body).findByRole("menu");
+	},
+};
+
+// Both repositories carry PR #123, so the menu must name each
+// repository to keep the entries apart.
+const mockCrossOriginPRStatuses = [
+	mockPRStatuses[0],
+	{
+		...mockPRStatuses[1],
+		remote_origin: "https://github.com/coder/other-project.git",
+		url: "https://github.com/coder/other-project/pull/123",
+		pr_number: 123,
+		pull_request_title: "fix: resolve race condition in workspace builds",
+	},
+] as const;
+
+export const WithCrossOriginPRs: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			diff_statuses: mockCrossOriginPRStatuses,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Open the menu so the screenshot captures it.
+		await userEvent.click(canvas.getByRole("button", { name: /2 PRs/ }));
+		await within(document.body).findByRole("menu");
 	},
 };
 
