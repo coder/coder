@@ -1507,6 +1507,9 @@ type sqlcQuerier interface {
 	// fresh retry budget and message part episode keys a history change
 	// would grant, mirroring the chat_messages trigger postcondition.
 	UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error)
+	// Preserve delegated IDs and credentials when reconciling synthetic key scopes.
+	// User-created tokens with colliding names must never be updated.
+	UpdateChatGatewayAPIKeyScopesByID(ctx context.Context, arg UpdateChatGatewayAPIKeyScopesByIDParams) (APIKey, error)
 	// Bumps the heartbeat timestamp for the given set of chat IDs,
 	// provided they are still running and owned by the specified
 	// worker. Returns the IDs that were actually updated so the

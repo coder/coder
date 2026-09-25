@@ -471,6 +471,13 @@ func defaultIPAddress() pqtype.Inet {
 }
 
 func (s *MethodTestSuite) TestChatGatewayAPIKey() {
+	s.Run("UpdateChatGatewayAPIKeyScopesByID", s.Mocked(func(_ *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		// Even an owner actor cannot use the synthetic-only scope update.
+		// The minter and SQL selector are exercised with real RBAC below.
+		check.Args(database.UpdateChatGatewayAPIKeyScopesByIDParams{
+			ID: "synthetic", UserID: testActorID, Scopes: database.APIKeyScopes{database.ApiKeyScopeApiKeyRead},
+		}).Asserts().Errors(errMatchAny)
+	}))
 	s.Run("GetUserForChatSyntheticAPIKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		dbm.EXPECT().GetUserForChatSyntheticAPIKeyByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
@@ -7745,6 +7752,100 @@ func TestAsChatdKeyMinter(t *testing.T) {
 		require.Error(t, auth.Authorize(ctx, actor, action, rbac.ResourceApiKey.WithOwner(uuid.NewString())))
 	}
 	require.NoError(t, auth.Authorize(ctx, actor, policy.ActionReadPersonal, rbac.ResourceUserObject(userID)))
+}
+
+func TestUpdateChatGatewayAPIKeyScopesByID(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	auth := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+	q := dbauthz.New(db, auth, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+	for _, tc := range []struct {
+		name       string
+		actor      string
+		loginType  database.LoginType
+		wrongName  bool
+		wrongOwner bool
+		missing    bool
+		wantNoRows bool
+		wantDenied bool
+	}{
+		{name: "synthetic", actor: "minter"},
+		{name: "user_token_collision", actor: "minter", loginType: database.LoginTypeToken, wantNoRows: true},
+		{name: "ordinary_session", actor: "minter", wrongName: true, wantNoRows: true},
+		{name: "other_owner_selector", actor: "minter", wrongOwner: true, wantNoRows: true},
+		{name: "missing_key", actor: "minter", missing: true, wantNoRows: true},
+		{name: "other_user_minter", actor: "other_minter", wantDenied: true},
+		{name: "chatd_daemon", actor: "chatd", wantDenied: true},
+		{name: "system_restricted", actor: "system", wantDenied: true},
+		{name: "key_owner", actor: "member", wantDenied: true},
+		{name: "deployment_owner", actor: "owner", wantDenied: true},
+		{name: "no_actor", wantDenied: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			owner := dbgen.User(t, db, database.User{})
+			otherID := uuid.New()
+			name := fmt.Sprintf("chatd_%s_session_token", owner.ID)
+			if tc.wrongName {
+				name = fmt.Sprintf("chatd_%s_session_token", otherID)
+			}
+			key, _ := dbgen.APIKey(t, db, database.APIKey{
+				UserID: owner.ID, LoginType: tc.loginType, TokenName: name,
+				Scopes:    database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+				AllowList: database.AllowList{{Type: rbac.ResourceWorkspace.Type, ID: uuid.NewString()}},
+			})
+			arg := database.UpdateChatGatewayAPIKeyScopesByIDParams{
+				ID: key.ID, UserID: owner.ID,
+				Scopes: database.APIKeyScopes{database.ApiKeyScopeApiKeyRead},
+			}
+			if tc.wrongOwner {
+				// Authorized for the selector owner, but the row belongs to
+				// someone else. SQL must reject this independently of RBAC.
+				arg.UserID = otherID
+			}
+			if tc.missing {
+				arg.ID = "missing"
+			}
+			ctx := t.Context()
+			switch tc.actor {
+			case "minter":
+				ctx = dbauthz.AsChatdKeyMinter(ctx, arg.UserID)
+			case "other_minter":
+				ctx = dbauthz.AsChatdKeyMinter(ctx, otherID)
+			case "chatd":
+				ctx = dbauthz.AsChatd(ctx)
+			case "system":
+				ctx = dbauthz.AsSystemRestricted(ctx)
+			case "member", "owner":
+				role := rbac.RoleMember()
+				if tc.actor == "owner" {
+					role = rbac.RoleOwner()
+				}
+				actor := rbac.Subject{ID: owner.ID.String(), Roles: rbac.RoleIdentifiers{role}, Scope: rbac.ScopeAll}
+				ctx = dbauthz.As(ctx, actor)
+				require.NoError(t, auth.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceApiKey.WithOwner(owner.ID.String())))
+			}
+			updated, err := q.UpdateChatGatewayAPIKeyScopesByID(ctx, arg)
+			switch {
+			case tc.wantNoRows:
+				require.ErrorIs(t, err, sql.ErrNoRows)
+			case tc.wantDenied:
+				if tc.actor == "" {
+					require.ErrorIs(t, err, dbauthz.ErrNoActor)
+				} else {
+					require.ErrorAs(t, err, &dbauthz.NotAuthorizedError{})
+				}
+			default:
+				require.NoError(t, err)
+				key.Scopes = arg.Scopes
+				require.Equal(t, key, updated, "scope updates preserve every other column")
+			}
+			stored, err := db.GetAPIKeyByID(t.Context(), key.ID)
+			require.NoError(t, err)
+			require.Equal(t, key, stored)
+		})
+	}
 }
 
 func TestAsChatd(t *testing.T) {

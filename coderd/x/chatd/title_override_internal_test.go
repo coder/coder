@@ -304,6 +304,7 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 		ID:        apiKeyID,
 		UserID:    chat.OwnerID,
 		ExpiresAt: time.Now().Add(48 * time.Hour),
+		Scopes:    database.APIKeyScopes{database.ApiKeyScopeApiKeyRead},
 	}, nil)
 	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
