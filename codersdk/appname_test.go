@@ -304,3 +304,17 @@ func TestSessionCountAppIcons(t *testing.T) {
 		require.FileExists(t, filepath.Join("..", "site", "static", app.Icon), "icon for %s must be bundled", name)
 	}
 }
+
+// Every family an app falls into has a display name.
+func TestAppFamilyDisplayName(t *testing.T) {
+	t.Parallel()
+
+	families := []codersdk.AppFamilyName{codersdk.AppFamilyUnknown}
+	for _, family := range codersdk.SessionCountAppFamilies() {
+		families = append(families, family)
+	}
+	for _, family := range families {
+		require.NotEmpty(t, family.DisplayName(), family)
+	}
+	require.Equal(t, "VS Code Family", codersdk.AppFamilyVSCode.DisplayName())
+}
