@@ -263,18 +263,16 @@ func (w *chatWorker) acquireCandidate(
 	runnerID := uuid.New()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := store.GetChatByID(ctx, chatID)
-		if errors.Is(err, sql.ErrNoRows) {
+		// The bump already returned the locked row; reading it again here
+		// would add two round trips while the transition lock is held.
+		chat, state, err := tx.Current()
+		if errors.Is(err, chatstate.ErrChatNotFound) {
 			return errSkipAcquire
 		}
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
-		queueCount, err := store.CountChatQueuedMessages(ctx, chatID)
-		if err != nil {
-			return xerrors.Errorf("count queue: %w", err)
-		}
-		if !chatstate.ClassifyExecutionState(chat, queueCount > 0, true).IsRunnable() || chat.Archived {
+		if !state.IsRunnable() || chat.Archived {
 			return errSkipAcquire
 		}
 		if chat.WorkerID.Valid && chat.RunnerID.Valid {

@@ -2575,8 +2575,49 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(bumped_chat.root_chat_id, bumped_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = bumped_chat.owner_id
 )
-SELECT *
+SELECT
+    sqlc.embed(chats_expanded),
+    -- Returned alongside the row so ChatMachine.Update can classify the
+    -- execution state without a second round trip under the lock.
+    EXISTS (
+        SELECT 1 FROM chat_queued_messages q
+        WHERE q.chat_id = chats_expanded.id
+    ) AS has_queued
 FROM chats_expanded;
+
+-- name: GetChatTransitionState :one
+-- Lean post-transition read for ChatMachine.Update: only the fields needed
+-- to publish the state update and classify execution state, plus whether the
+-- queue is non-empty and whether the current ownership lease is stale. One
+-- single-table statement replaces GetChatByID, CountChatQueuedMessages, and
+-- IsChatHeartbeatStale while the transition lock is held.
+SELECT
+    c.id,
+    c.snapshot_version,
+    c.history_version,
+    c.queue_version,
+    c.retry_state_version,
+    c.generation_attempt,
+    c.status,
+    c.archived,
+    c.worker_id,
+    c.runner_id,
+    EXISTS (
+        SELECT 1 FROM chat_queued_messages q
+        WHERE q.chat_id = c.id
+    ) AS has_queued,
+    (
+        c.worker_id IS NULL
+        OR c.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1 FROM chat_heartbeats h
+            WHERE h.chat_id = c.id
+              AND h.runner_id = c.runner_id
+              AND h.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+        )
+    )::boolean AS ownership_stale
+FROM chats c
+WHERE c.id = @id::uuid;
 
 -- name: UpdateChatExecutionState :one
 -- Atomically updates the execution-state-managed fields on a chat:

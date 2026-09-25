@@ -3710,6 +3710,13 @@ func (q *querier) GetChatSystemPromptConfig(ctx context.Context) (database.GetCh
 	return q.db.GetChatSystemPromptConfig(ctx)
 }
 
+func (q *querier) GetChatTransitionState(ctx context.Context, arg database.GetChatTransitionStateParams) (database.GetChatTransitionStateRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return database.GetChatTransitionStateRow{}, err
+	}
+	return q.db.GetChatTransitionState(ctx, arg)
+}
+
 func (q *querier) GetChatUserModelOverride(ctx context.Context, arg database.GetChatUserModelOverrideParams) (database.ChatUserModelOverride, error) {
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
@@ -7066,13 +7073,13 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
 }
 
-func (q *querier) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+func (q *querier) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.LockChatAndBumpSnapshotVersionRow, error) {
 	chat, err := q.db.GetChatByID(ctx, id)
 	if err != nil {
-		return database.Chat{}, err
+		return database.LockChatAndBumpSnapshotVersionRow{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
+		return database.LockChatAndBumpSnapshotVersionRow{}, err
 	}
 	_ = chat
 	return q.db.LockChatAndBumpSnapshotVersion(ctx, id)

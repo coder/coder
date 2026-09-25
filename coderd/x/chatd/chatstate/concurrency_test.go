@@ -73,7 +73,7 @@ func (s *lockAttemptStore) InTx(fn func(database.Store) error, opts *database.Tx
 	}, opts)
 }
 
-func (s *lockAttemptStore) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+func (s *lockAttemptStore) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.LockChatAndBumpSnapshotVersionRow, error) {
 	s.once.Do(func() { close(s.attempted) })
 	return s.Store.LockChatAndBumpSnapshotVersion(ctx, id)
 }

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -99,25 +100,74 @@ func (b *PublishBuffer) Discard() {
 	b.disabled = true
 }
 
-// buildChatUpdateMessage produces the JSON payload for a
-// `chat:update:{chat_id}` message describing the post-transition
-// snapshot of chat.
-func buildChatUpdateMessage(chat database.Chat) []byte {
-	msg := coderdpubsub.ChatStateUpdateMessage{
+// chatStateSnapshot carries the chat columns the state-update and
+// ownership publications read, so both the full chat row and the lean
+// post-transition row can feed them.
+type chatStateSnapshot struct {
+	ID                uuid.UUID
+	SnapshotVersion   int64
+	HistoryVersion    int64
+	QueueVersion      int64
+	RetryStateVersion int64
+	GenerationAttempt int64
+	Status            database.ChatStatus
+	Archived          bool
+	WorkerID          uuid.NullUUID
+	RunnerID          uuid.NullUUID
+}
+
+func snapshotFromChat(chat database.Chat) chatStateSnapshot {
+	return chatStateSnapshot{
+		ID:                chat.ID,
 		SnapshotVersion:   chat.SnapshotVersion,
 		HistoryVersion:    chat.HistoryVersion,
 		QueueVersion:      chat.QueueVersion,
 		RetryStateVersion: chat.RetryStateVersion,
 		GenerationAttempt: chat.GenerationAttempt,
-		Status:            string(chat.Status),
+		Status:            chat.Status,
 		Archived:          chat.Archived,
+		WorkerID:          chat.WorkerID,
+		RunnerID:          chat.RunnerID,
 	}
-	if chat.WorkerID.Valid {
-		id := chat.WorkerID.UUID
+}
+
+func snapshotFromTransitionState(row database.GetChatTransitionStateRow) chatStateSnapshot {
+	return chatStateSnapshot{
+		ID:                row.ID,
+		SnapshotVersion:   row.SnapshotVersion,
+		HistoryVersion:    row.HistoryVersion,
+		QueueVersion:      row.QueueVersion,
+		RetryStateVersion: row.RetryStateVersion,
+		GenerationAttempt: row.GenerationAttempt,
+		Status:            row.Status,
+		Archived:          row.Archived,
+		WorkerID:          row.WorkerID,
+		RunnerID:          row.RunnerID,
+	}
+}
+
+// buildChatUpdateMessage produces the JSON payload for a
+// `chat:update` publication from a full chat row.
+func buildChatUpdateMessage(chat database.Chat) []byte {
+	return chatUpdateMessage(snapshotFromChat(chat))
+}
+
+func chatUpdateMessage(s chatStateSnapshot) []byte {
+	msg := coderdpubsub.ChatStateUpdateMessage{
+		SnapshotVersion:   s.SnapshotVersion,
+		HistoryVersion:    s.HistoryVersion,
+		QueueVersion:      s.QueueVersion,
+		RetryStateVersion: s.RetryStateVersion,
+		GenerationAttempt: s.GenerationAttempt,
+		Status:            string(s.Status),
+		Archived:          s.Archived,
+	}
+	if s.WorkerID.Valid {
+		id := s.WorkerID.UUID
 		msg.WorkerID = &id
 	}
-	if chat.RunnerID.Valid {
-		id := chat.RunnerID.UUID
+	if s.RunnerID.Valid {
+		id := s.RunnerID.UUID
 		msg.RunnerID = &id
 	}
 	payload, err := json.Marshal(msg)
@@ -131,11 +181,15 @@ func buildChatUpdateMessage(chat database.Chat) []byte {
 }
 
 // buildChatOwnershipMessage produces the JSON payload for the global
-// `chat:ownership` ownership hint for chat.
+// `chat:ownership` ownership hint from a full chat row.
 func buildChatOwnershipMessage(chat database.Chat) []byte {
+	return chatOwnershipMessage(snapshotFromChat(chat))
+}
+
+func chatOwnershipMessage(s chatStateSnapshot) []byte {
 	payload, err := json.Marshal(coderdpubsub.ChatStateOwnershipMessage{
-		ChatID:          chat.ID,
-		SnapshotVersion: chat.SnapshotVersion,
+		ChatID:          s.ID,
+		SnapshotVersion: s.SnapshotVersion,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("marshal chat state ownership: %v", err))

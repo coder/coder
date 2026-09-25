@@ -1840,6 +1840,14 @@ func (m queryMetricsStore) GetChatSystemPromptConfig(ctx context.Context) (datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatTransitionState(ctx context.Context, arg database.GetChatTransitionStateParams) (database.GetChatTransitionStateRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatTransitionState(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatTransitionState").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTransitionState").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatUserModelOverride(ctx context.Context, arg database.GetChatUserModelOverrideParams) (database.ChatUserModelOverride, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatUserModelOverride(ctx, arg)
@@ -4920,7 +4928,7 @@ func (m queryMetricsStore) ListWorkspaceAgentPortShares(ctx context.Context, wor
 	return r0, r1
 }
 
-func (m queryMetricsStore) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.Chat, error) {
+func (m queryMetricsStore) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.LockChatAndBumpSnapshotVersionRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockChatAndBumpSnapshotVersion(ctx, id)
 	m.queryLatencies.WithLabelValues("LockChatAndBumpSnapshotVersion").Observe(time.Since(start).Seconds())

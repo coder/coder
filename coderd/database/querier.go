@@ -546,6 +546,12 @@ type sqlcQuerier interface {
 	// non-empty custom prompt implied opting out before the explicit toggle
 	// existed.
 	GetChatSystemPromptConfig(ctx context.Context) (GetChatSystemPromptConfigRow, error)
+	// Lean post-transition read for ChatMachine.Update: only the fields needed
+	// to publish the state update and classify execution state, plus whether the
+	// queue is non-empty and whether the current ownership lease is stale. One
+	// single-table statement replaces GetChatByID, CountChatQueuedMessages, and
+	// IsChatHeartbeatStale while the transition lock is held.
+	GetChatTransitionState(ctx context.Context, arg GetChatTransitionStateParams) (GetChatTransitionStateRow, error)
 	GetChatUserModelOverride(ctx context.Context, arg GetChatUserModelOverrideParams) (ChatUserModelOverride, error)
 	GetChatUserModelOverrides(ctx context.Context, arg GetChatUserModelOverridesParams) ([]ChatUserModelOverride, error)
 	// Returns the concatenated text of each user-visible user prompt in a
@@ -1349,7 +1355,7 @@ type sqlcQuerier interface {
 	// messages, queued messages) take on the chat row, so those writers do
 	// not convoy against transitions. Concurrent transitions still serialize
 	// because FOR NO KEY UPDATE conflicts with itself.
-	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
+	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (LockChatAndBumpSnapshotVersionRow, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
 	// current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock
