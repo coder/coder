@@ -932,6 +932,40 @@ describe("FilterCombobox", () => {
 		expect(onChange).toHaveBeenLastCalledWith("outdated:true status:running");
 	});
 
+	it("keeps a typed inline prefix in the input when Filters is clicked", async () => {
+		const { user, input, filtersButton } = setup([
+			statusCategory,
+			attributesCategory,
+		]);
+
+		await user.click(input);
+		await user.type(input, "ali status:ru");
+		await user.click(filtersButton);
+
+		expect(input).toHaveValue("ali status:ru");
+	});
+
+	it("keeps a typed chip token applied while value lags the sent query", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<FilterCombobox
+				value=""
+				onChange={onChange}
+				categories={[attributesCategory]}
+				placeholder="Search and filter"
+			/>,
+		);
+		const input = screen.getByRole("combobox", { name: "Search and filter" });
+
+		await user.click(input);
+		await user.type(input, "outdated:true");
+		await user.keyboard("{Enter}");
+		await user.click(screen.getByRole("button", { name: "Filters" }));
+
+		expect(onChange).toHaveBeenLastCalledWith("outdated:true");
+	});
+
 	it("does not restore a removed typed chip token on Escape", async () => {
 		const { user, onChange, input } = setup([attributesCategory]);
 
@@ -1235,7 +1269,7 @@ describe("FilterCombobox", () => {
 			{
 				...ownerCategory,
 				getOptions: async (query) => {
-					if (query !== "" && !searched) {
+					if (query === "ali" && !searched) {
 						searched = true;
 						await failFirstSearch.promise;
 						throw new Error("failed");
