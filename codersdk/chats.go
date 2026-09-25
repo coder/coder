@@ -303,6 +303,13 @@ const (
 	// either attached to a prompt or in its own row. It is excluded from model
 	// prompts and rejected in client-submitted content.
 	ChatMessagePartTypeHookNotice ChatMessagePartType = "hook-notice"
+	// ChatMessagePartTypeStructuredOutputRequest, Control and Outcome carry
+	// internal structured output metadata in StructuredOutputData. They are
+	// dropped from every client-facing conversion and never sent to the
+	// model. An outcome part is terminal: it closes its request.
+	ChatMessagePartTypeStructuredOutputRequest ChatMessagePartType = "structured-output-request"
+	ChatMessagePartTypeStructuredOutputControl ChatMessagePartType = "structured-output-control"
+	ChatMessagePartTypeStructuredOutputOutcome ChatMessagePartType = "structured-output-outcome"
 )
 
 // AllChatMessagePartTypes returns all known ChatMessagePartType values.
@@ -319,6 +326,9 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeSkill,
 		ChatMessagePartTypeHookContext,
 		ChatMessagePartTypeHookNotice,
+		ChatMessagePartTypeStructuredOutputRequest,
+		ChatMessagePartTypeStructuredOutputControl,
+		ChatMessagePartTypeStructuredOutputOutcome,
 	}
 }
 
@@ -441,6 +451,10 @@ type ChatMessagePart struct {
 	// read_skill tool uses the correct filename even when the
 	// agent configured a non-default value.
 	ContextFileSkillMetaFile string `json:"context_file_skill_meta_file,omitempty" typescript:"-"`
+	// StructuredOutputData is the JSON payload of a structured output
+	// request, control or outcome part. Internal only: cleared by
+	// StripInternal, and db2sdk drops those parts entirely.
+	StructuredOutputData json.RawMessage `json:"structured_output_data,omitempty" typescript:"-"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -461,6 +475,49 @@ func (p *ChatMessagePart) StripInternal() {
 	p.ContextFileDirectory = ""
 	p.SkillDir = ""
 	p.ContextFileSkillMetaFile = ""
+	p.StructuredOutputData = nil
+}
+
+// ChatStructuredOutputStatus is the terminal status of a structured output
+// request.
+type ChatStructuredOutputStatus string
+
+const (
+	ChatStructuredOutputStatusSucceeded ChatStructuredOutputStatus = "succeeded"
+	ChatStructuredOutputStatusFailed    ChatStructuredOutputStatus = "failed"
+	ChatStructuredOutputStatusCanceled  ChatStructuredOutputStatus = "canceled"
+)
+
+// ChatStructuredOutputErrorCode explains why a structured output request did
+// not succeed. Failed requests use not_produced, validation_exhausted,
+// generation_failed or configuration_error; canceled requests use
+// interrupted, superseded or queue_deleted.
+type ChatStructuredOutputErrorCode string
+
+const (
+	ChatStructuredOutputErrorCodeNotProduced         ChatStructuredOutputErrorCode = "not_produced"
+	ChatStructuredOutputErrorCodeValidationExhausted ChatStructuredOutputErrorCode = "validation_exhausted"
+	ChatStructuredOutputErrorCodeGenerationFailed    ChatStructuredOutputErrorCode = "generation_failed"
+	ChatStructuredOutputErrorCodeConfigurationError  ChatStructuredOutputErrorCode = "configuration_error"
+	ChatStructuredOutputErrorCodeInterrupted         ChatStructuredOutputErrorCode = "interrupted"
+	ChatStructuredOutputErrorCodeSuperseded          ChatStructuredOutputErrorCode = "superseded"
+	ChatStructuredOutputErrorCodeQueueDeleted        ChatStructuredOutputErrorCode = "queue_deleted"
+)
+
+// ChatStructuredOutput is the outcome of a structured output request.
+type ChatStructuredOutput struct {
+	RequestID uuid.UUID                  `json:"request_id" format:"uuid"`
+	Status    ChatStructuredOutputStatus `json:"status"`
+	// Value is the validated output of a succeeded request. The JSON null
+	// value is a valid output and is distinct from an absent value.
+	Value json.RawMessage            `json:"value,omitempty"`
+	Error *ChatStructuredOutputError `json:"error,omitempty"`
+}
+
+// ChatStructuredOutputError describes why a request failed or was canceled.
+type ChatStructuredOutputError struct {
+	Code    ChatStructuredOutputErrorCode `json:"code"`
+	Message string                        `json:"message"`
 }
 
 // ChatMessageText builds a text chat message part.

@@ -2722,6 +2722,9 @@ export type ChatMessagePartType =
 	| "reasoning"
 	| "skill"
 	| "source"
+	| "structured-output-control"
+	| "structured-output-outcome"
+	| "structured-output-request"
 	| "text"
 	| "tool-call"
 	| "tool-result";
@@ -2735,6 +2738,9 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"reasoning",
 	"skill",
 	"source",
+	"structured-output-control",
+	"structured-output-outcome",
+	"structured-output-request",
 	"text",
 	"tool-call",
 	"tool-result",
@@ -3480,6 +3486,59 @@ export interface ChatStreamToolCall {
 	readonly tool_name: string;
 	readonly args: string;
 }
+
+// From codersdk/chats.go
+/**
+ * ChatStructuredOutput is the outcome of a structured output request.
+ */
+export interface ChatStructuredOutput {
+	readonly request_id: string;
+	readonly status: ChatStructuredOutputStatus;
+	/**
+	 * Value is the validated output of a succeeded request. The JSON null
+	 * value is a valid output and is distinct from an absent value.
+	 */
+	readonly value?: Record<string, string>;
+	readonly error?: ChatStructuredOutputError;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatStructuredOutputError describes why a request failed or was canceled.
+ */
+export interface ChatStructuredOutputError {
+	readonly code: ChatStructuredOutputErrorCode;
+	readonly message: string;
+}
+
+// From codersdk/chats.go
+export type ChatStructuredOutputErrorCode =
+	| "configuration_error"
+	| "generation_failed"
+	| "interrupted"
+	| "not_produced"
+	| "queue_deleted"
+	| "superseded"
+	| "validation_exhausted";
+
+export const ChatStructuredOutputErrorCodes: ChatStructuredOutputErrorCode[] = [
+	"configuration_error",
+	"generation_failed",
+	"interrupted",
+	"not_produced",
+	"queue_deleted",
+	"superseded",
+	"validation_exhausted",
+];
+
+// From codersdk/chats.go
+export type ChatStructuredOutputStatus = "canceled" | "failed" | "succeeded";
+
+export const ChatStructuredOutputStatuses: ChatStructuredOutputStatus[] = [
+	"canceled",
+	"failed",
+	"succeeded",
+];
 
 // From codersdk/chats.go
 /**

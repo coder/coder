@@ -1584,6 +1584,10 @@ func partsToMessageParts(
 		case codersdk.ChatMessagePartTypeHookNotice:
 			// Client-only hook notice, never sent to the model.
 			continue
+		case codersdk.ChatMessagePartTypeStructuredOutputRequest, codersdk.ChatMessagePartTypeStructuredOutputControl,
+			codersdk.ChatMessagePartTypeStructuredOutputOutcome:
+			// Internal structured output metadata, never sent to the model.
+			continue
 		case codersdk.ChatMessagePartTypeSource:
 			// Source parts are metadata-only, not sent to LLM.
 			continue
@@ -1858,6 +1862,7 @@ var partNulFields = []partNulField{
 	{name: "Title", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.Title }},
 	{name: "Content", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.Content }},
 	{name: "ProviderMetadata", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage { return &p.ProviderMetadata }},
+	{name: "StructuredOutputData", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage { return &p.StructuredOutputData }},
 	{name: "ContextFileContent", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileContent }},
 	{name: "SkillDescription", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillDescription }},
 	{name: "Type", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return (*string)(&p.Type) }},

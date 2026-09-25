@@ -20482,6 +20482,13 @@ const docTemplate = `{
                 "start_line": {
                     "type": "integer"
                 },
+                "structured_output_data": {
+                    "description": "StructuredOutputData is the JSON payload of a structured output\nrequest, control or outcome part. Internal only: cleared by\nStripInternal, and db2sdk drops those parts entirely.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
                 "text": {
                     "type": "string"
                 },
@@ -20515,7 +20522,10 @@ const docTemplate = `{
                 "context-file",
                 "skill",
                 "hook-context",
-                "hook-notice"
+                "hook-notice",
+                "structured-output-request",
+                "structured-output-control",
+                "structured-output-outcome"
             ],
             "x-enum-varnames": [
                 "ChatMessagePartTypeText",
@@ -20528,7 +20538,10 @@ const docTemplate = `{
                 "ChatMessagePartTypeContextFile",
                 "ChatMessagePartTypeSkill",
                 "ChatMessagePartTypeHookContext",
-                "ChatMessagePartTypeHookNotice"
+                "ChatMessagePartTypeHookNotice",
+                "ChatMessagePartTypeStructuredOutputRequest",
+                "ChatMessagePartTypeStructuredOutputControl",
+                "ChatMessagePartTypeStructuredOutputOutcome"
             ]
         },
         "codersdk.ChatMessageRole": {

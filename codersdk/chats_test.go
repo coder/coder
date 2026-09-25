@@ -190,6 +190,21 @@ func TestChatMessagePart_StripInternal(t *testing.T) {
 		assert.True(t, part.ContextFileAgentID.Valid)
 	})
 
+	t.Run("StripsStructuredOutputData", func(t *testing.T) {
+		t.Parallel()
+		part := codersdk.ChatMessagePart{
+			Type:                 codersdk.ChatMessagePartTypeStructuredOutputControl,
+			StructuredOutputData: json.RawMessage(`{"kind":"candidate","value":9007199254740993}`),
+		}
+		encoded, err := json.Marshal(part)
+		require.NoError(t, err)
+		var decoded codersdk.ChatMessagePart
+		require.NoError(t, json.Unmarshal(encoded, &decoded))
+		require.Equal(t, part, decoded)
+		decoded.StripInternal()
+		assert.Nil(t, decoded.StructuredOutputData)
+	})
+
 	t.Run("NoopOnCleanPart", func(t *testing.T) {
 		t.Parallel()
 		part := codersdk.ChatMessageText("hello")
@@ -234,12 +249,16 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",
 		"skill_dir":                    "internal only, used by read_skill tools (typescript:\"-\")",
 		"context_file_skill_meta_file": "internal only, restored on subsequent turns (typescript:\"-\")",
+		"structured_output_data":       "internal only, structured output metadata cleared by StripInternal (typescript:\"-\")",
 	}
 	// Part types intentionally excluded from all generated variants.
 	// If you add a new part type, either reference it in a variants
 	// tag or add it here with a reason.
 	excludedTypes := map[codersdk.ChatMessagePartType]string{
-		codersdk.ChatMessagePartTypeHookContext: "internal only, stripped from client-facing conversions by db2sdk",
+		codersdk.ChatMessagePartTypeHookContext:             "internal only, stripped from client-facing conversions by db2sdk",
+		codersdk.ChatMessagePartTypeStructuredOutputRequest: "internal only, dropped by db2sdk and omitted from prompts",
+		codersdk.ChatMessagePartTypeStructuredOutputControl: "internal only, dropped by db2sdk and omitted from prompts",
+		codersdk.ChatMessagePartTypeStructuredOutputOutcome: "internal only, dropped by db2sdk and omitted from prompts",
 	}
 	knownTypes := make(map[codersdk.ChatMessagePartType]bool)
 	for _, pt := range codersdk.AllChatMessagePartTypes() {
