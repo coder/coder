@@ -11,12 +11,6 @@ const (
 	// KindBYOK identifies user-supplied provider credentials.
 	KindBYOK Kind = "byok"
 
-	// Auth header names shared by providers and request handlers.
-	// AuthHeaderXAPIKey carries an API key.
-	AuthHeaderXAPIKey = "X-Api-Key" //nolint:gosec // HTTP header name, not a credential.
-	// AuthHeaderAuthorization carries an authorization credential.
-	AuthHeaderAuthorization = "Authorization"
-
 	// Hint placeholders for credentials with no static key value to mask.
 	// Hints are persisted to aibridge_interceptions.credential_hint, a VARCHAR(15),
 	// so every value here must be at most 15 characters.

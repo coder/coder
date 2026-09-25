@@ -1,4 +1,4 @@
-package client_test
+package headers_test
 
 import (
 	"net/http"
@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/aibridge/client"
+	"github.com/coder/coder/v2/aibridge/headers"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 )
 
@@ -36,7 +36,7 @@ func TestIsWebSocketUpgrade(t *testing.T) {
 			req.Header.Set("Connection", tc.connection)
 			req.Header.Set("Upgrade", tc.upgrade)
 
-			assert.Equal(t, tc.want, client.IsWebSocketUpgrade(req))
+			assert.Equal(t, tc.want, headers.IsWebSocketUpgrade(req))
 		})
 	}
 }
@@ -132,7 +132,7 @@ func TestExtractAgentFirewallHeaders(t *testing.T) {
 				req.Header.Set(agplaibridge.HeaderAgentFirewallSequenceNumber, *tc.seqNumber)
 			}
 
-			sessionID, seqNumber, extractErr := client.ExtractAgentFirewallHeaders(req)
+			sessionID, seqNumber, extractErr := headers.ExtractAgentFirewallHeaders(req)
 
 			if tc.wantErr {
 				require.Error(t, extractErr)

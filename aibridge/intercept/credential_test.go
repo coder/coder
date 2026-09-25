@@ -8,6 +8,7 @@ import (
 
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/quartz"
@@ -36,10 +37,10 @@ func TestCredential(t *testing.T) {
 		{
 			name: "byok_authorization",
 			newCred: func(*testing.T) intercept.Credential {
-				return intercept.BYOK{Secret: "user-bearer-token", Header: credential.AuthHeaderAuthorization}
+				return intercept.BYOK{Secret: "user-bearer-token", Header: aibheaders.AuthHeaderAuthorization}
 			},
 			expectKind:       credential.KindBYOK,
-			expectAuthHeader: credential.AuthHeaderAuthorization,
+			expectAuthHeader: aibheaders.AuthHeaderAuthorization,
 			expectHint:       "us...en",
 			expectLength:     len("user-bearer-token"),
 			expectAsBYOK:     true,
@@ -47,10 +48,10 @@ func TestCredential(t *testing.T) {
 		{
 			name: "byok_xapikey",
 			newCred: func(*testing.T) intercept.Credential {
-				return intercept.BYOK{Secret: "user-api-key", Header: credential.AuthHeaderXAPIKey}
+				return intercept.BYOK{Secret: "user-api-key", Header: aibheaders.AuthHeaderXAPIKey}
 			},
 			expectKind:       credential.KindBYOK,
-			expectAuthHeader: credential.AuthHeaderXAPIKey,
+			expectAuthHeader: aibheaders.AuthHeaderXAPIKey,
 			expectHint:       "us...ey",
 			expectLength:     len("user-api-key"),
 			expectAsBYOK:     true,
@@ -86,10 +87,10 @@ func TestCredential(t *testing.T) {
 			newCred: func(t *testing.T) intercept.Credential {
 				pool, err := keypool.New(config.ProviderAnthropic, []string{"k0-pool-key"}, quartz.NewMock(t), nil)
 				require.NoError(t, err)
-				return &intercept.CentralizedPool{Pool: pool, Header: credential.AuthHeaderXAPIKey}
+				return &intercept.CentralizedPool{Pool: pool, Header: aibheaders.AuthHeaderXAPIKey}
 			},
 			expectKind:              credential.KindCentralized,
-			expectAuthHeader:        credential.AuthHeaderXAPIKey,
+			expectAuthHeader:        aibheaders.AuthHeaderXAPIKey,
 			expectHint:              "<failover key>",
 			expectLength:            0,
 			expectAsCentralizedPool: true,
@@ -100,13 +101,13 @@ func TestCredential(t *testing.T) {
 			newCred: func(t *testing.T) intercept.Credential {
 				pool, err := keypool.New(config.ProviderAnthropic, []string{"k0-pool-key"}, quartz.NewMock(t), nil)
 				require.NoError(t, err)
-				cp := &intercept.CentralizedPool{Pool: pool, Header: credential.AuthHeaderXAPIKey}
+				cp := &intercept.CentralizedPool{Pool: pool, Header: aibheaders.AuthHeaderXAPIKey}
 				_, keyErr := cp.NextKey(cp.Pool.Walker())
 				require.Nil(t, keyErr)
 				return cp
 			},
 			expectKind:              credential.KindCentralized,
-			expectAuthHeader:        credential.AuthHeaderXAPIKey,
+			expectAuthHeader:        aibheaders.AuthHeaderXAPIKey,
 			expectHint:              "k0...ey",
 			expectLength:            len("k0-pool-key"),
 			expectAsCentralizedPool: true,

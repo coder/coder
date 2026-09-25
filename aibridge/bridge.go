@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
 	aibclient "github.com/coder/coder/v2/aibridge/client"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/interceptionerror"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -149,7 +150,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		client := aibclient.GuessClient(r)
 		sessionID := aibclient.GuessSessionID(client, r)
 
-		if aibclient.IsWebSocketUpgrade(r) {
+		if aibheaders.IsWebSocketUpgrade(r) {
 			route := strings.TrimPrefix(r.URL.Path, fmt.Sprintf("/%s", p.Name()))
 			logger.Debug(ctx, "rejecting unsupported WebSocket upgrade",
 				slog.F("provider", p.Name()),
@@ -166,7 +167,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// themselves are stripped from the upstream request by
 		// PrepareClientHeaders. Fail closed: reject the request if the
 		// headers are partial or malformed.
-		agentFirewallSessionID, agentFirewallSeqNumber, err := aibclient.ExtractAgentFirewallHeaders(r)
+		agentFirewallSessionID, agentFirewallSeqNumber, err := aibheaders.ExtractAgentFirewallHeaders(r)
 		if err != nil {
 			logger.Warn(ctx, "rejecting request with invalid agent firewall headers", slog.Error(err))
 			http.Error(w, "invalid agent firewall headers", http.StatusBadRequest)

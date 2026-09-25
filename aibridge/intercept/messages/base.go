@@ -25,7 +25,7 @@ import (
 	"cdr.dev/slog/v3"
 	aibconfig "github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
-	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
@@ -333,9 +333,9 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
 		)
 		switch byok.Header {
-		case credential.AuthHeaderAuthorization:
+		case aibheaders.AuthHeaderAuthorization:
 			opts = append(opts, option.WithAuthToken(byok.Secret))
-		case credential.AuthHeaderXAPIKey:
+		case aibheaders.AuthHeaderXAPIKey:
 			opts = append(opts, option.WithAPIKey(byok.Secret))
 		default:
 			return anthropic.MessageService{}, xerrors.Errorf("unexpected byok auth header: %q", byok.Header)
@@ -348,7 +348,7 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg, aibcontext.ActorFromContext(req.Context()))
+			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.SendActorHeaders, aibcontext.ActorFromContext(req.Context()))
 			return next(req)
 		}))
 	}

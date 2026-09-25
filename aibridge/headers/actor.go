@@ -31,8 +31,8 @@ func IsActorHeader(name string) bool {
 	return strings.HasPrefix(strings.ToLower(name), actorHeaderPrefixLower)
 }
 
-// FromActor produces a map of actor headers from a given [aibcontext.Actor].
-func FromActor(actor *aibcontext.Actor) map[string]string {
+// headersFromActor produces a map of headers from a given [aibcontext.Actor].
+func headersFromActor(actor *aibcontext.Actor) map[string]string {
 	if actor == nil {
 		return nil
 	}
