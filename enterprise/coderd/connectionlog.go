@@ -132,20 +132,11 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		sshInfo *codersdk.ConnectionLogSSHInfo
 	)
 
-	switch dblog.ConnectionLog.Type {
-	case database.ConnectionTypeWorkspaceApp,
-		database.ConnectionTypePortForwarding,
-		database.ConnectionTypeTunnel:
-		webInfo = &codersdk.ConnectionLogWebInfo{
-			UserAgent:  dblog.ConnectionLog.UserAgent.String,
-			User:       user,
-			SlugOrPort: dblog.ConnectionLog.SlugOrPort.String,
-			StatusCode: dblog.ConnectionLog.Code.Int32,
-		}
-	case database.ConnectionTypeSsh,
-		database.ConnectionTypeReconnectingPty,
-		database.ConnectionTypeJetbrains,
-		database.ConnectionTypeVscode:
+	var appName, appDisplayName string
+	switch source := dblog.ConnectionLog.Source; source {
+	case database.ConnectionSourceAgent:
+		appName = dblog.ConnectionLog.AppNameOrPort.String
+		appDisplayName = codersdk.AppDisplayName(appName)
 		sshInfo = &codersdk.ConnectionLogSSHInfo{
 			ConnectionID:     dblog.ConnectionLog.ConnectionID.UUID,
 			DisconnectReason: dblog.ConnectionLog.DisconnectReason.String,
@@ -155,6 +146,17 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		}
 		if dblog.ConnectionLog.Code.Valid {
 			sshInfo.ExitCode = &dblog.ConnectionLog.Code.Int32
+		}
+	default:
+		if source == database.ConnectionSourceWorkspaceApp {
+			appName = dblog.ConnectionLog.AppNameOrPort.String
+			appDisplayName = appName
+		}
+		webInfo = &codersdk.ConnectionLogWebInfo{
+			UserAgent:  dblog.ConnectionLog.UserAgent.String,
+			User:       user,
+			SlugOrPort: dblog.ConnectionLog.AppNameOrPort.String,
+			StatusCode: dblog.ConnectionLog.Code.Int32,
 		}
 	}
 
@@ -172,7 +174,9 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		WorkspaceID:            dblog.ConnectionLog.WorkspaceID,
 		WorkspaceName:          dblog.ConnectionLog.WorkspaceName,
 		AgentName:              dblog.ConnectionLog.AgentName,
-		Type:                   codersdk.ConnectionType(dblog.ConnectionLog.Type),
+		Type:                   db2sdk.ConnectionLogType(dblog.ConnectionLog.Source, dblog.ConnectionLog.AppNameOrPort.String),
+		AppName:                appName,
+		AppDisplayName:         appDisplayName,
 		IP:                     ip,
 		WebInfo:                webInfo,
 		SSHInfo:                sshInfo,

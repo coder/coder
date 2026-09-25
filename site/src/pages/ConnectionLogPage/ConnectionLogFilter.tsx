@@ -1,5 +1,6 @@
 import capitalize from "lodash/capitalize";
 import type { FC } from "react";
+import { connectionTypeDisplayNames } from "#/api/connectionTypesGenerated";
 import {
 	type ConnectionLogStatus,
 	ConnectionLogStatuses,
@@ -28,7 +29,6 @@ import {
 	type OrganizationsFilterMenu,
 	OrganizationsMenu,
 } from "#/modules/tableFiltering/options";
-import { connectionTypeToFriendlyName } from "#/utils/connection";
 import { docs } from "#/utils/docs";
 
 type ConnectionLogFilterValues = {
@@ -149,13 +149,10 @@ export const useTypeFilterMenu = ({
 	value,
 	onChange,
 }: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
-	const typeOptions: SelectFilterOption[] = ConnectionTypes.map((type) => {
-		const label: string = connectionTypeToFriendlyName(type);
-		return {
-			value: type,
-			label,
-		};
-	});
+	const typeOptions: SelectFilterOption[] = ConnectionTypes.map((type) => ({
+		value: type,
+		label: connectionTypeDisplayNames[type],
+	}));
 	return useFilterMenu({
 		onChange,
 		value,

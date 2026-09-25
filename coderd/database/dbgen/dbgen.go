@@ -456,7 +456,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		WorkspaceID:      takeFirst(seed.WorkspaceID, uuid.New()),
 		WorkspaceName:    takeFirst(seed.WorkspaceName, testutil.GetRandomName(t)),
 		AgentName:        takeFirst(seed.AgentName, testutil.GetRandomName(t)),
-		Type:             takeFirst(seed.Type, database.ConnectionTypeSsh),
+		Source:           takeFirst(seed.Source, database.ConnectionSourceAgent),
 		Code: sql.NullInt32{
 			Int32: takeFirst(seed.Code.Int32, 0),
 			Valid: takeFirst(seed.Code.Valid, false),
@@ -476,9 +476,9 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			UUID:  takeFirst(seed.UserID.UUID, uuid.Nil),
 			Valid: takeFirst(seed.UserID.Valid, false),
 		},
-		SlugOrPort: sql.NullString{
-			String: takeFirst(seed.SlugOrPort.String, ""),
-			Valid:  takeFirst(seed.SlugOrPort.Valid, false),
+		AppNameOrPort: sql.NullString{
+			String: takeFirst(seed.AppNameOrPort.String, ""),
+			Valid:  takeFirst(seed.AppNameOrPort.Valid, false),
 		},
 		ConnectionID: uuid.NullUUID{
 			UUID:  takeFirst(seed.ConnectionID.UUID, uuid.Nil),
@@ -489,6 +489,10 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			Valid:  takeFirst(seed.DisconnectReason.Valid, false),
 		},
 		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
+	}
+	// Agents always report an app.
+	if arg.Source == database.ConnectionSourceAgent && !arg.AppNameOrPort.Valid {
+		arg.AppNameOrPort = sql.NullString{String: string(codersdk.AppFamilySSH), Valid: true}
 	}
 
 	var disconnectTime sql.NullTime
@@ -504,13 +508,13 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		WorkspaceID:      []uuid.UUID{arg.WorkspaceID},
 		WorkspaceName:    []string{arg.WorkspaceName},
 		AgentName:        []string{arg.AgentName},
-		Type:             []database.ConnectionType{arg.Type},
+		Source:           []string{string(arg.Source)},
 		Code:             []int32{arg.Code.Int32},
 		CodeValid:        []bool{arg.Code.Valid},
 		Ip:               []pqtype.Inet{arg.IP},
 		UserAgent:        []string{arg.UserAgent.String},
 		UserID:           []uuid.UUID{arg.UserID.UUID},
-		SlugOrPort:       []string{arg.SlugOrPort.String},
+		AppNameOrPort:    []string{arg.AppNameOrPort.String},
 		ConnectionID:     []uuid.UUID{arg.ConnectionID.UUID},
 		DisconnectReason: []string{arg.DisconnectReason.String},
 		DisconnectTime:   []time.Time{disconnectTime.Time},
