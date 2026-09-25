@@ -746,23 +746,18 @@ const LIST_NAVIGATION_KEYS = new Set([
 	"Enter",
 ]);
 
-type FlyoutSearchConfig = {
+type FlyoutSearchProps = Readonly<{
+	label: string;
 	value: string;
 	onChange: (value: string) => void;
-	/**
-	 * The panel's options are combobox rows, so list navigation keys reach them
-	 * from the search field instead of stopping there.
-	 */
-	navigatesList?: boolean;
-};
-
-type FlyoutSearchProps = Readonly<FlyoutSearchConfig & { label: string }>;
+	navigatesList: boolean;
+}>;
 
 function FlyoutSearch({
 	label,
 	value,
 	onChange,
-	navigatesList = false,
+	navigatesList,
 }: FlyoutSearchProps) {
 	return (
 		<div className="-mx-2 -mt-2 mb-2 flex items-center border-b border-border px-3">
@@ -793,7 +788,12 @@ type OptionsPanelProps = Readonly<{
 	embedded?: boolean;
 	offset: number;
 	/** Shown above the options when the category is searchable. */
-	search?: FlyoutSearchConfig;
+	search?: { value: string; onChange: (value: string) => void };
+	/**
+	 * The options are combobox rows, so list navigation keys reach them from
+	 * the panel's own controls instead of stopping there.
+	 */
+	navigatesList?: boolean;
 	emptyMessage?: string;
 	onMouseEnter?: () => void;
 	children: ReactNode;
@@ -804,6 +804,7 @@ function OptionsPanel({
 	embedded = false,
 	offset,
 	search,
+	navigatesList = false,
 	emptyMessage,
 	onMouseEnter,
 	children,
@@ -829,7 +830,12 @@ function OptionsPanel({
 			}
 		>
 			{search && category && (
-				<FlyoutSearch label={category.label} {...search} />
+				<FlyoutSearch
+					label={category.label}
+					value={search.value}
+					onChange={search.onChange}
+					navigatesList={navigatesList}
+				/>
 			)}
 			{children}
 			{emptyMessage && <EmptyOptions message={emptyMessage} />}
@@ -1008,13 +1014,10 @@ function CategoryOptionsList({
 			offset={offset}
 			search={
 				searchable
-					? {
-							value: searchValue,
-							onChange: onSearchChange,
-							navigatesList: true,
-						}
+					? { value: searchValue, onChange: onSearchChange }
 					: undefined
 			}
+			navigatesList
 			emptyMessage={options?.length === 0 ? "No matching options" : undefined}
 		>
 			{options === undefined && <LoadingOptions />}
