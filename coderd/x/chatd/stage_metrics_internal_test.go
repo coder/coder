@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -36,15 +37,9 @@ func TestServerStageMetricsFollowExperiment(t *testing.T) {
 			)
 			server.metrics.RecordStageDuration(chatloop.StageCommit, chatloop.ScopeTurn, chatloop.ChatKindRoot, chatloop.StageModel{}, time.Second)
 
-			families, err := registry.Gather()
+			count, err := promtestutil.GatherAndCount(registry, "coderd_chatd_stage_duration_seconds")
 			require.NoError(t, err)
-			var found bool
-			for _, family := range families {
-				if family.GetName() == "coderd_chatd_stage_duration_seconds" {
-					found = true
-				}
-			}
-			require.Equal(t, enabled, found)
+			require.Equal(t, enabled, count > 0)
 		})
 	}
 }

@@ -193,6 +193,24 @@ func TestStageTracerStart(t *testing.T) {
 		require.InDelta(t, 5.0, fixture.stageSum(t, chatloop.StageCommit), 0.001)
 	})
 
+	t.Run("SetAttributesBeforeEndOnly", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageFixture(t)
+
+		_, span := fixture.tracer.Start(t.Context(), chatloop.StageCommit)
+		span.SetAttributes(attribute.String(chatloop.AttrToolName, "before"))
+		span.End(nil)
+		span.SetAttributes(attribute.String(chatloop.AttrHTTPMethod, "after"))
+
+		ended := fixture.spans.Ended()
+		require.Len(t, ended, 1)
+		require.Contains(t, ended[0].Attributes(),
+			attribute.String(chatloop.AttrToolName, "before"))
+		for _, attr := range ended[0].Attributes() {
+			require.NotEqual(t, chatloop.AttrHTTPMethod, string(attr.Key))
+		}
+	})
+
 	t.Run("ErrorEndsMarkStatus", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageFixture(t)
@@ -394,9 +412,8 @@ func TestStageTracerChatKind(t *testing.T) {
 		t.Parallel()
 		fixture := newStageFixture(t)
 
-		// RecordAs sets the turn scope on a context that carries none.
 		start := fixture.clock.Now().Add(-time.Second)
-		fixture.tracer.RecordAs(t.Context(), chatloop.StageQueueWait, chatloop.ScopeTurn,
+		fixture.tracer.Record(chatloop.ContextWithScope(t.Context(), chatloop.ScopeTurn), chatloop.StageQueueWait,
 			chatloop.StageModel{}, start, fixture.clock.Now(), nil)
 
 		require.Equal(t, map[stageKey]uint64{
@@ -473,7 +490,7 @@ func TestStageTracerModelLabels(t *testing.T) {
 		fixture := newStageFixture(t)
 
 		start := fixture.clock.Now().Add(-time.Second)
-		fixture.tracer.RecordAs(t.Context(), chatloop.StageStream, chatloop.ScopeTurn, model, start, fixture.clock.Now(), nil)
+		fixture.tracer.Record(chatloop.ContextWithScope(t.Context(), chatloop.ScopeTurn), chatloop.StageStream, model, start, fixture.clock.Now(), nil)
 
 		require.Equal(t, map[stageKey]uint64{{
 			stage: chatloop.StageStream,
@@ -522,7 +539,7 @@ func TestStageTracerModelLabels(t *testing.T) {
 		// A turn-scoped model stage with a provider type but no model
 		// stays off the model histogram.
 		start := fixture.clock.Now().Add(-time.Second)
-		fixture.tracer.RecordAs(t.Context(), chatloop.StageStream, chatloop.ScopeTurn,
+		fixture.tracer.Record(chatloop.ContextWithScope(t.Context(), chatloop.ScopeTurn), chatloop.StageStream,
 			chatloop.StageModel{ProviderType: model.ProviderType}, start, fixture.clock.Now(), nil)
 
 		require.Equal(t, map[stageKey]uint64{{
@@ -542,17 +559,18 @@ func TestStageTracerRecord(t *testing.T) {
 
 		start := fixture.clock.Now().Add(-90 * time.Second)
 		end := start.Add(30 * time.Second)
-		fixture.tracer.Record(t.Context(), chatloop.StageQueueWait, chatloop.StageModel{}, start, end, nil,
-			attribute.String(chatloop.AttrChatKind, string(chatloop.ChatKindRoot)),
-		)
+		ctx := chatloop.ContextWithScope(chatloop.ContextWithChatKind(t.Context(), chatloop.ChatKindRoot), chatloop.ScopeTurn)
+		fixture.tracer.Record(ctx, chatloop.StageQueueWait, chatloop.StageModel{}, start, end, nil)
 
 		ended := fixture.spans.Ended()
 		require.Len(t, ended, 1)
 		require.Equal(t, string(chatloop.StageQueueWait), ended[0].Name())
 		require.Equal(t, start.UTC(), ended[0].StartTime().UTC())
 		require.Equal(t, end.UTC(), ended[0].EndTime().UTC())
+		require.Contains(t, ended[0].Attributes(),
+			attribute.String(chatloop.AttrChatKind, string(chatloop.ChatKindRoot)))
 		require.Equal(t, map[stageKey]uint64{
-			{stage: chatloop.StageQueueWait, scope: chatloop.ScopeBackground}: 1,
+			{stage: chatloop.StageQueueWait, scope: chatloop.ScopeTurn, chatKind: chatloop.ChatKindRoot}: 1,
 		}, fixture.stageObservations(t))
 		require.InDelta(t, 30, fixture.stageSum(t, chatloop.StageQueueWait), 0.001)
 	})
