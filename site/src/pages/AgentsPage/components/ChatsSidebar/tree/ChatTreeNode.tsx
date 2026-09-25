@@ -383,7 +383,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										}}
 									>
 										<ChatActionsMenuItems
-											menu="dropdown"
 											{...sharedMenuItemProps}
 											Item={DropdownMenuItem}
 											Separator={DropdownMenuSeparator}
@@ -396,7 +395,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 				</ContextMenuTrigger>
 				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
 					<ChatActionsMenuItems
-						menu="context"
 						{...sharedMenuItemProps}
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}

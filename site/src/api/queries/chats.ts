@@ -1049,11 +1049,6 @@ type UpdateChatWorkspaceVariables = {
 	workspaceId: string | null;
 };
 
-type UpdateChatProjectVariables = {
-	chatId: string;
-	projectId: string | null;
-};
-
 type UpdateChatPlanModeVariables = {
 	chatId: string;
 	planMode?: TypesGen.ChatPlanMode;
@@ -1396,75 +1391,6 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 			),
 		);
 		patchChatEntity(queryClient, chatId, () => previousChat);
-	},
-});
-
-export const moveChatToProject = (queryClient: QueryClient) => ({
-	mutationFn: ({ chatId, projectId }: UpdateChatProjectVariables) =>
-		API.experimental.updateChat(chatId, {
-			project_id:
-				projectId ??
-				// The API uses the nil UUID to clear the project association.
-				"00000000-0000-0000-0000-000000000000",
-		}),
-	onMutate: async ({ chatId, projectId }: UpdateChatProjectVariables) => {
-		await cancelChatListQueries(queryClient);
-		await cancelChatEntity(queryClient, chatId);
-		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
-			chatEntityKey(chatId),
-		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId
-					? { ...chat, project_id: projectId ?? undefined }
-					: chat,
-			),
-		);
-		if (previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
-				...previousChat,
-				project_id: projectId ?? undefined,
-			});
-		}
-		return { previousChat };
-	},
-	onError: (
-		_error: unknown,
-		{ chatId, projectId }: UpdateChatProjectVariables,
-		context:
-			| {
-					previousChat?: TypesGen.Chat;
-			  }
-			| undefined,
-	) => {
-		void invalidateChatListQueries(queryClient);
-		const previousChat = context?.previousChat;
-		if (previousChat) {
-			updateInfiniteChatsCache(queryClient, (chats) =>
-				chats.map((chat) =>
-					chat.id === chatId && chat.project_id === (projectId ?? undefined)
-						? { ...chat, project_id: previousChat.project_id }
-						: chat,
-				),
-			);
-			patchChatEntity(queryClient, chatId, (chat) => {
-				if (!chat || chat.project_id !== (projectId ?? undefined)) {
-					return chat;
-				}
-				return { ...chat, project_id: previousChat.project_id };
-			});
-		}
-	},
-	onSettled: async (
-		_data: unknown,
-		_error: unknown,
-		{ chatId }: UpdateChatProjectVariables,
-	) => {
-		await Promise.all([
-			invalidateChatListQueries(queryClient),
-			invalidateChatEntity(queryClient, chatId),
-			invalidateChatsByWorkspace(queryClient),
-		]);
 	},
 });
 
