@@ -194,3 +194,55 @@ describe("AgentCreatePage debug deep link", () => {
 		expect(uploadChatFile).not.toHaveBeenCalled();
 	});
 });
+
+describe("AgentCreatePage prompt link", () => {
+	it("prefills the prompt from a prompt link and sends it only on Send", async () => {
+		const { uploadChatFile, createChat } = mockPageQueries();
+		const prompt = "Fix the flaky test\nin a & b = c";
+		const user = userEvent.setup();
+
+		renderPage(`/agents?prompt=${encodeURIComponent(prompt)}`);
+
+		const sendButton = await findEnabledSendButton();
+		expect(createChat).not.toHaveBeenCalled();
+		expect(uploadChatFile).not.toHaveBeenCalled();
+
+		await user.click(sendButton);
+
+		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
+		expect(createChat.mock.calls[0][0].content).toEqual([
+			{ type: "text", text: prompt },
+		]);
+	});
+
+	it("moves the prompt out of the URL so New chat gets a plain composer", async () => {
+		const { createChat } = mockPageQueries();
+		localStorage.setItem(emptyInputStorageKey, "draft the user typed earlier");
+		const user = userEvent.setup();
+
+		const { router } = renderPage("/agents?archived=archived&prompt=hi");
+
+		await findEnabledSendButton();
+		expect(router.state.location).toMatchObject({
+			search: "?archived=archived",
+			state: { prompt: "hi" },
+		});
+		// The layout's links forward location.search to a new history entry.
+		await router.navigate({
+			pathname: "/agents",
+			search: router.state.location.search,
+		});
+		await waitFor(() =>
+			expect(
+				screen.getByRole("textbox", { name: "Chat message" }),
+			).toHaveTextContent("draft the user typed earlier"),
+		);
+
+		await user.click(await findEnabledSendButton());
+
+		await waitFor(() => expect(createChat).toHaveBeenCalledTimes(1));
+		expect(createChat.mock.calls[0][0].content).toEqual([
+			{ type: "text", text: "draft the user typed earlier" },
+		]);
+	});
+});

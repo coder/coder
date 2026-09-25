@@ -34,18 +34,29 @@ import {
 	formatWorkspaceBuildLogsForDebug,
 } from "./utils/workspaceBuildDebug";
 
-// The deep link's build ID moves from the URL into this entry's history state
-// on arrival, because the layout's links forward location.search and the
-// next composer must be a plain one.
-type DebugLinkState = { debugWorkspaceBuildId: string };
+const promptSearchParam = "prompt";
 
-const readDebugLinkState = (state: unknown): string | null =>
-	typeof state === "object" &&
-	state !== null &&
-	"debugWorkspaceBuildId" in state &&
-	typeof state.debugWorkspaceBuildId === "string"
-		? state.debugWorkspaceBuildId
-		: null;
+// Deep link values move from the URL into this entry's history state on
+// arrival, because the layout's links forward location.search and the next
+// composer must be a plain one.
+type DeepLinkState = { debugWorkspaceBuildId?: string; prompt?: string };
+
+const readDeepLinkState = (state: unknown): DeepLinkState => {
+	if (typeof state !== "object" || state === null) {
+		return {};
+	}
+	return {
+		debugWorkspaceBuildId:
+			"debugWorkspaceBuildId" in state &&
+			typeof state.debugWorkspaceBuildId === "string"
+				? state.debugWorkspaceBuildId
+				: undefined,
+		prompt:
+			"prompt" in state && typeof state.prompt === "string"
+				? state.prompt
+				: undefined,
+	};
+};
 
 type DebugWorkspaceBuildAlertProps = {
 	error: unknown;
@@ -91,29 +102,48 @@ const AgentCreatePage: FC = () => {
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
+	const linkState = readDeepLinkState(location.state);
 	const debugLinkParam = searchParams.get(debugWorkspaceBuildSearchParam);
-	const debugLinkValue = debugLinkParam ?? readDebugLinkState(location.state);
+	const debugLinkValue = debugLinkParam ?? linkState.debugWorkspaceBuildId;
 	const debugBuildId =
-		debugLinkValue !== null &&
+		debugLinkValue !== undefined &&
 		isUUID(debugLinkValue) &&
 		experiments.includes("enable-ai-workspace-debug")
 			? debugLinkValue
 			: null;
+	const promptParam = searchParams.get(promptSearchParam);
+	const promptValue = promptParam ?? linkState.prompt;
+	// The debug link wins when both are present.
+	const linkPrompt =
+		debugBuildId === null && promptValue?.trim() ? promptValue : undefined;
+	// One navigation removes both parameters: separate navigations would each
+	// rebuild the URL from the same snapshot and restore the other parameter.
 	useEffect(() => {
-		if (debugLinkParam === null) {
+		if (debugLinkParam === null && promptParam === null) {
 			return;
 		}
 		const search = new URLSearchParams(searchParams);
 		search.delete(debugWorkspaceBuildSearchParam);
-		const state: DebugLinkState | undefined =
+		search.delete(promptSearchParam);
+		const state: DeepLinkState | undefined =
 			debugBuildId !== null
 				? { debugWorkspaceBuildId: debugBuildId }
-				: undefined;
+				: linkPrompt !== undefined
+					? { prompt: linkPrompt }
+					: undefined;
 		navigate(
 			{ pathname: location.pathname, search: search.toString() },
 			{ replace: true, state },
 		);
-	}, [debugLinkParam, debugBuildId, location.pathname, navigate, searchParams]);
+	}, [
+		debugLinkParam,
+		promptParam,
+		debugBuildId,
+		linkPrompt,
+		location.pathname,
+		navigate,
+		searchParams,
+	]);
 	const debugBuildQuery = useQuery({
 		...workspaceBuildById(debugBuildId ?? ""),
 		enabled: debugBuildId !== null,
@@ -129,7 +159,7 @@ const AgentCreatePage: FC = () => {
 		enabled: debugBuildFailed,
 	});
 	const prefillError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
-	const prefill: AgentCreatePrefill | undefined =
+	const debugPrefill: AgentCreatePrefill | undefined =
 		debugBuild && debugBuildFailed && debugBuildLogsQuery.data
 			? {
 					message: debugWorkspaceBuildPrompt(debugBuild),
@@ -142,6 +172,8 @@ const AgentCreatePage: FC = () => {
 					},
 				}
 			: undefined;
+	const prefill: AgentCreatePrefill | undefined =
+		debugPrefill ?? (linkPrompt ? { message: linkPrompt } : undefined);
 	// Hold the form until the prefill is ready: AgentCreateForm reads message
 	// and attachment only on mount.
 	const isPrefillLoading =
@@ -219,11 +251,26 @@ const AgentCreatePage: FC = () => {
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
 			<DebugWorkspaceBuildAlert error={prefillError} build={debugBuild} />
+			{linkPrompt && (
+				<div className="mx-auto w-full max-w-3xl px-4 pt-4">
+					<Alert severity="info">
+						<AlertDescription>
+							This prompt came from a link. Review it before you send it.
+						</AlertDescription>
+					</Alert>
+				</div>
+			)}
 			{isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : (
 				<AgentCreateForm
-					key={prefill ? debugBuildId : "draft"}
+					key={
+						debugPrefill
+							? debugBuildId
+							: linkPrompt
+								? `prompt:${linkPrompt}`
+								: "draft"
+					}
 					onCreateChat={handleCreateChat}
 					isCreating={createMutation.isPending}
 					createError={createMutation.error}
