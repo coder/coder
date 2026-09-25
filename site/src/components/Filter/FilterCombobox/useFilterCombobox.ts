@@ -915,6 +915,7 @@ export const useFilterCombobox = ({
 		}
 
 		dispatch({ type: "typeFreeText", value: nextValue });
+		setHighlightedValue("");
 		scheduleTypedTextLookup(
 			nextValue.trim(),
 			typedTextLookupGenerationRef.current,
@@ -953,6 +954,16 @@ export const useFilterCombobox = ({
 			),
 		);
 	};
+
+	// Free-typed text may be a workspace search, so no row is highlighted until
+	// the user moves to one. A typed `key:` prefix asks for a filter, so its
+	// first match stays highlighted.
+	const autoHighlight = !(
+		mode === "browsing" &&
+		!browseAll &&
+		typedInlinePrefix === null &&
+		inputValue.trim().length > 0
+	);
 
 	const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
 		const isBackspaceOrDelete =
@@ -1035,6 +1046,18 @@ export const useFilterCombobox = ({
 			return;
 		}
 
+		// With free-typed text and no row chosen, Enter searches workspaces.
+		if (
+			event.key === "Enter" &&
+			!autoHighlight &&
+			getHighlightedValue() === ""
+		) {
+			event.preventDefault();
+			applyTypedSearch();
+			dispatch({ type: "close" });
+			return;
+		}
+
 		// Enter and Tab complete the highlighted row, and Tab otherwise moves
 		// focus. ArrowRight only opens a highlighted category.
 		const isComplete =
@@ -1043,7 +1066,15 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		const highlighted = getHighlightedValue();
+		// Tab still completes the first match when no row is highlighted.
+		const highlighted =
+			getHighlightedValue() ||
+			(event.key === "Tab" && !autoHighlight
+				? (listedCategories[0]?.key ??
+					inlineOptionRows[0]?.token ??
+					valueSuggestions[0]?.token ??
+					"")
+				: "");
 		const category = listedCategories.find(
 			(entry) => entry.key === highlighted,
 		);
@@ -1070,6 +1101,7 @@ export const useFilterCombobox = ({
 		listedCategories,
 		categoriesNarrowedByText: categoryQuery.length > 0,
 		categoryPlaceholderCount,
+		autoHighlight,
 		unfilteredOptionsByKey: unfilteredOptions.optionsByKey,
 		unfilteredOptionsErroredKeys: unfilteredOptions.erroredKeys,
 		valueSuggestions,
