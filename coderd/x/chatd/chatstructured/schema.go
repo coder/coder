@@ -11,6 +11,7 @@ package chatstructured
 
 import (
 	"maps"
+	"slices"
 
 	"golang.org/x/xerrors"
 )
@@ -70,9 +71,11 @@ func screenSchema(v any) (any, error) {
 
 // screenObject builds the sanitized copy of one schema object in a fresh
 // map. The input is never modified; literal values are shared read-only.
+// Rejection is deterministic because keys are walked in sorted order.
 func screenObject(obj map[string]any) (map[string]any, error) {
 	out := make(map[string]any, len(obj))
-	for key, val := range obj {
+	for _, key := range slices.Sorted(maps.Keys(obj)) {
+		val := obj[key]
 		var err error
 		switch key {
 		case "title", "description", "default", "examples", "$comment", "readOnly", "writeOnly",
@@ -137,7 +140,8 @@ func screenList(list []any) ([]any, error) {
 // array-form dependencies pass through screenSchema unchanged.
 func screenMembers(members map[string]any) (map[string]any, error) {
 	out := make(map[string]any, len(members))
-	for name, v := range members {
+	for _, name := range slices.Sorted(maps.Keys(members)) {
+		v := members[name]
 		sub, err := screenSchema(v)
 		if err != nil {
 			return nil, err

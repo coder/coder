@@ -152,6 +152,9 @@ func preflightCases() []preflightCase {
 		{name: "KeywordLiterals", input: `{"const":` + refLiteral + `,"enum":` + literals + `,"properties":{"a":{"const":` + literals + `}}}`},
 		{name: "LargeEnum", input: `{"enum":[` + repeatJoin(300, `{"$ref":"#/@","$id":"x"}`) + `]}`},
 		{name: "NestedUnknownKeyword", input: `{"properties":{"a":{"x-marker":1}}}`, wantErr: ErrUnsupportedKeyword},
+		{name: "SortedKeys", input: `{"$ref":"#","format":"regex"}`, wantErr: ErrUnsupportedKeyword},
+		{name: "SortedMembers", input: `{"properties":{"a":{"format":"regex"},"b":{"$ref":"#"}}}`, wantErr: ErrUnsupportedFormat},
+		{name: "SortedBranches", input: `{"allOf":[{"format":"regex"},{"$ref":"#"}],"anyOf":[{"x":1}]}`, wantErr: ErrUnsupportedFormat},
 		// Raw JSON rejections pass through unchanged.
 		{name: "DuplicateKey", input: `{"type":"string","type":"object"}`, wantErr: ErrDuplicateKey},
 		{name: "TrailingData", input: `{} {}`, wantErr: ErrTrailingData},
@@ -211,6 +214,10 @@ func TestPreflightSchema(t *testing.T) {
 				require.ErrorIs(t, err, tt.wantErr)
 				// Fixed sentinel text never echoes input.
 				require.Equal(t, tt.wantErr.Error(), err.Error())
+				for range 100 {
+					_, again := preflightSchema([]byte(tt.input))
+					require.Equal(t, err, again)
+				}
 				return
 			}
 			require.NoError(t, err)
