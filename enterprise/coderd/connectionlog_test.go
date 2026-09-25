@@ -56,7 +56,7 @@ func TestConnectionLogs(t *testing.T) {
 
 		ws := createWorkspace(t, db)
 		_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-			Kind:             database.ConnectionKindSSH,
+			Source:           database.ConnectionSourceAgent,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -72,7 +72,7 @@ func TestConnectionLogs(t *testing.T) {
 		require.Equal(t, "SSH", logs.ConnectionLogs[0].AppDisplayName)
 	})
 
-	// Type groups apps by family, including older rows without an app name.
+	// Type groups apps by family.
 	t.Run("AppName", func(t *testing.T) {
 		t.Parallel()
 
@@ -88,21 +88,21 @@ func TestConnectionLogs(t *testing.T) {
 		})
 
 		ws := createWorkspace(t, db)
-		insert := func(kind database.ConnectionKind, appNameOrPort string) {
+		insert := func(source database.ConnectionSource, appNameOrPort string) {
 			_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-				Kind:             kind,
+				Source:           source,
 				AppNameOrPort:    sql.NullString{String: appNameOrPort, Valid: appNameOrPort != ""},
 				WorkspaceID:      ws.ID,
 				OrganizationID:   ws.OrganizationID,
 				WorkspaceOwnerID: ws.OwnerID,
-				ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: kind == database.ConnectionKindSSH || kind == database.ConnectionKindVSCode},
+				ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: source == database.ConnectionSourceAgent},
 			})
 		}
-		insert(database.ConnectionKindSSH, "cursor")
-		insert(database.ConnectionKindVSCode, "")
+		insert(database.ConnectionSourceAgent, "cursor")
+		insert(database.ConnectionSourceAgent, "vscode")
 		// A workspace app slugged like an IDE is still a workspace app.
-		insert(database.ConnectionKindWorkspaceApp, "cursor")
-		insert(database.ConnectionKindPortForwarding, "8080")
+		insert(database.ConnectionSourceWorkspaceApp, "cursor")
+		insert(database.ConnectionSourcePortForwarding, "8080")
 
 		type got struct {
 			Type           codersdk.ConnectionType
@@ -120,15 +120,15 @@ func TestConnectionLogs(t *testing.T) {
 		}
 
 		ide := got{codersdk.ConnectionTypeVSCode, "cursor", "Cursor"}
-		legacy := got{codersdk.ConnectionTypeVSCode, "vscode", "VS Code"}
+		vsCode := got{codersdk.ConnectionTypeVSCode, "vscode", "VS Code"}
 		webApp := got{codersdk.ConnectionTypeWorkspaceApp, "cursor", "cursor"}
 		port := got{codersdk.ConnectionTypePortForwarding, "", ""}
 
-		require.ElementsMatch(t, []got{ide, legacy, webApp, port}, query(""))
-		require.ElementsMatch(t, []got{ide, legacy}, query("type:vscode"))
+		require.ElementsMatch(t, []got{ide, vsCode, webApp, port}, query(""))
+		require.ElementsMatch(t, []got{ide, vsCode}, query("type:vscode"))
 		require.ElementsMatch(t, []got{webApp}, query("type:workspace_app"))
 		require.ElementsMatch(t, []got{ide, webApp}, query("app:cursor"))
-		require.ElementsMatch(t, []got{legacy}, query("app:vscode"))
+		require.ElementsMatch(t, []got{vsCode}, query("app:vscode"))
 		// A port is not an app.
 		require.Empty(t, query("app:8080"))
 	})
@@ -170,13 +170,13 @@ func TestConnectionLogs(t *testing.T) {
 		org := dbgen.Organization(t, db, database.Organization{})
 		ws := createWorkspace(t, db)
 		_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-			Kind:             database.ConnectionKindSSH,
+			Source:           database.ConnectionSourceAgent,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   org.ID,
 			WorkspaceOwnerID: ws.OwnerID,
 		})
 		_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
-			Kind:             database.ConnectionKindSSH,
+			Source:           database.ConnectionSourceAgent,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -221,7 +221,7 @@ func TestConnectionLogs(t *testing.T) {
 		ws := createWorkspace(t, db)
 		clog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			Time:             now.Add(-time.Hour),
-			Kind:             database.ConnectionKindWorkspaceApp,
+			Source:           database.ConnectionSourceWorkspaceApp,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -262,7 +262,7 @@ func TestConnectionLogs(t *testing.T) {
 		// user's identity; they must surface it via WebInfo.
 		clog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			Time:             now.Add(-time.Hour),
-			Kind:             database.ConnectionKindTunnel,
+			Source:           database.ConnectionSourceTunnel,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -303,7 +303,7 @@ func TestConnectionLogs(t *testing.T) {
 		ws := createWorkspace(t, db)
 		clog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			Time:             now.Add(-time.Hour),
-			Kind:             database.ConnectionKindSSH,
+			Source:           database.ConnectionSourceAgent,
 			WorkspaceID:      ws.ID,
 			OrganizationID:   ws.OrganizationID,
 			WorkspaceOwnerID: ws.OwnerID,
@@ -324,7 +324,7 @@ func TestConnectionLogs(t *testing.T) {
 		updatedClog := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			Time:             now,
 			OrganizationID:   clog.OrganizationID,
-			Kind:             clog.Kind,
+			Source:           clog.Source,
 			WorkspaceID:      clog.WorkspaceID,
 			WorkspaceOwnerID: clog.WorkspaceOwnerID,
 			WorkspaceName:    clog.WorkspaceName,

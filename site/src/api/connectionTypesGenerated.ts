@@ -10,6 +10,6 @@ export const connectionTypeDisplayNames: Record<ConnectionType, string> = {
 	ssh: "SSH",
 	tunnel: "Tunnel",
 	unknown: "Unknown",
-	vscode: "Visual Studio Code",
+	vscode: "VS Code Family",
 	workspace_app: "Workspace App",
 };

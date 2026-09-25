@@ -115,6 +115,9 @@ sql:
           - column: "template_with_names.group_acl"
             go_type:
               type: "TemplateACL"
+          - column: "connection_logs.source"
+            go_type:
+              type: "ConnectionSource"
           - column: "template_usage_stats.app_usage_mins"
             go_type:
               type: "StringMapOfInt"
@@ -229,10 +232,6 @@ sql:
           session_count_ssh: SessionCountSSH
           connection_median_latency_ms: ConnectionMedianLatencyMS
           login_type_oidc: LoginTypeOIDC
-          connection_kind_ssh: ConnectionKindSSH
-          connection_kind_vscode: ConnectionKindVSCode
-          connection_kind_jetbrains: ConnectionKindJetBrains
-          connection_kind_reconnecting_pty: ConnectionKindReconnectingPTY
           oauth_access_token: OAuthAccessToken
           oauth_access_token_key_id: OAuthAccessTokenKeyID
           oauth_expiry: OAuthExpiry

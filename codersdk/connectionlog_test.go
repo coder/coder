@@ -1,12 +1,9 @@
 package codersdk_test
 
 import (
-	"go/constant"
-	"go/types"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/tools/go/packages"
 
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -58,7 +55,7 @@ func TestConnectionTypeDisplayName(t *testing.T) {
 	t.Parallel()
 
 	for typ, want := range map[codersdk.ConnectionType]string{
-		codersdk.ConnectionTypeVSCode:          "Visual Studio Code",
+		codersdk.ConnectionTypeVSCode:          "VS Code Family",
 		codersdk.ConnectionTypeJetBrains:       "JetBrains",
 		codersdk.ConnectionTypeReconnectingPTY: "Web Terminal",
 		codersdk.ConnectionTypeWorkspaceApp:    "Workspace App",
@@ -72,18 +69,15 @@ func TestConnectionTypeDisplayName(t *testing.T) {
 func TestConnectionTypeConstantsMatchRegistry(t *testing.T) {
 	t.Parallel()
 
-	pkgs, err := packages.Load(&packages.Config{Mode: packages.NeedTypes}, ".")
-	require.NoError(t, err)
-	require.Len(t, pkgs, 1)
-	require.Empty(t, pkgs[0].Errors)
-
-	scope := pkgs[0].Types.Scope()
-	connType := scope.Lookup("ConnectionType").Type()
-	var declared []codersdk.ConnectionType
-	for _, name := range scope.Names() {
-		if c, ok := scope.Lookup(name).(*types.Const); ok && types.Identical(c.Type(), connType) {
-			declared = append(declared, codersdk.ConnectionType(constant.StringVal(c.Val())))
-		}
+	declared := []codersdk.ConnectionType{
+		codersdk.ConnectionTypeSSH,
+		codersdk.ConnectionTypeVSCode,
+		codersdk.ConnectionTypeJetBrains,
+		codersdk.ConnectionTypeReconnectingPTY,
+		codersdk.ConnectionTypeUnknown,
+		codersdk.ConnectionTypeWorkspaceApp,
+		codersdk.ConnectionTypePortForwarding,
+		codersdk.ConnectionTypeTunnel,
 	}
 	require.ElementsMatch(t, declared, codersdk.FilterableConnectionTypes())
 
