@@ -230,11 +230,6 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 		setIsRenamingChat(false);
 	};
 
-	// Saving the unchanged text of a title that is not yet the user's
-	// records it as the user's title.
-	const isUnchangedUserTitle =
-		renameTitle.trim() === chat?.title && chat?.title_source === "user";
-
 	return (
 		<Dialog
 			open={chat !== null}
@@ -340,7 +335,7 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 							size="sm"
 							disabled={
 								!renameTitle.trim() ||
-								isUnchangedUserTitle ||
+								renameTitle.trim() === chat?.title ||
 								isRenamingChat ||
 								isGeneratingTitle ||
 								isTypingGeneratedTitle
