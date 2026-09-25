@@ -177,9 +177,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 				onArchiveAndDeleteWorkspace(chat.id, workspaceId);
 			}
 		},
-		onOpenRenameDialog: onOpenRenameDialog
-			? () => onOpenRenameDialog(chat)
-			: undefined,
+		onOpenRenameDialog: () => onOpenRenameDialog(chat),
 	};
 
 	return (

@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router";
 import { userChatProviderConfigs } from "#/api/queries/chats";
@@ -16,38 +16,36 @@ type ChatsSidebarProps = {
 	chats: readonly Chat[];
 	chatErrorReasons: Record<string, string>;
 	modelConfigs: readonly ChatModel[];
-	isLoadingModelConfigs?: boolean;
+	isLoadingModelConfigs: boolean;
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
 	onPinAgent: (chatId: string) => void;
 	onUnpinAgent: (chatId: string) => void;
-	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
-	onProposeTitle?: (chatId: string) => Promise<string>;
+	onReorderPinnedAgent: (chatId: string, pinOrder: number) => void;
+	onRenameTitle: (chatId: string, title: string) => Promise<void>;
+	onProposeTitle: (chatId: string) => Promise<string>;
 	/**
-	 * Controlled value for the rename-chat dialog. When provided alongside
-	 * `onChatPendingRenameChange`, the dialog is opened by the parent so
-	 * the chat top bar and the sidebar share a single dialog instance.
-	 * Falls back to internal state when omitted.
+	 * Chat shown in the rename-chat dialog. Owned by the parent so the chat
+	 * top bar and the sidebar share a single dialog instance.
 	 */
-	chatPendingRename?: Chat | null;
-	onChatPendingRenameChange?: (chat: Chat | null) => void;
-	onBeforeNewAgent?: () => void;
+	chatPendingRename: Chat | null;
+	onChatPendingRenameChange: (chat: Chat | null) => void;
+	onBeforeNewAgent: () => void;
 	isSearchDialogOpen: boolean;
 	onSearchDialogOpenChange: (open: boolean) => void;
 	isCreating: boolean;
-	isArchiving?: boolean;
+	isArchiving: boolean;
 	archivingChatId?: string | null;
-	isLoading?: boolean;
+	isLoading: boolean;
 	loadError?: unknown;
-	onRetryLoad?: () => void;
-	hasNextPage?: boolean;
-	onLoadMore?: () => void;
-	isFetchingNextPage?: boolean;
+	onRetryLoad: () => void;
+	hasNextPage: boolean;
+	onLoadMore: () => void;
+	isFetchingNextPage: boolean;
 	sidebarFilters: AgentSidebarFilters;
 	onSidebarFiltersChange: (filters: AgentSidebarFilters) => void;
-	onCollapse?: () => void;
+	onCollapse: () => void;
 	isPersonalModelOverridesEnabled?: boolean;
 	isAdmin?: boolean;
 	/**
@@ -55,7 +53,7 @@ type ChatsSidebarProps = {
 	 * than isAdmin: organization model admins qualify without deployment
 	 * config access.
 	 */
-	canManageAgentSettings?: boolean;
+	canManageAgentSettings: boolean;
 	currentUserId: string;
 };
 
@@ -64,7 +62,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		chats,
 		chatErrorReasons,
 		modelConfigs,
-		isLoadingModelConfigs = false,
+		isLoadingModelConfigs,
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
@@ -73,15 +71,15 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		onReorderPinnedAgent,
 		onRenameTitle,
 		onProposeTitle,
-		chatPendingRename: chatPendingRenameProp,
+		chatPendingRename,
 		onChatPendingRenameChange,
 		onBeforeNewAgent,
 		isSearchDialogOpen,
 		onSearchDialogOpenChange,
 		isCreating,
-		isArchiving = false,
+		isArchiving,
 		archivingChatId = null,
-		isLoading = false,
+		isLoading,
 		loadError,
 		onRetryLoad,
 		hasNextPage,
@@ -92,7 +90,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		onCollapse,
 		isPersonalModelOverridesEnabled = false,
 		isAdmin = false,
-		canManageAgentSettings = false,
+		canManageAgentSettings,
 		currentUserId,
 	} = props;
 	const { agentId, chatId } = useParams<{
@@ -111,19 +109,6 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const isApiKeysSection = isSettingsPanel && settingsSection === "api-keys";
 	const showApiKeysItem =
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
-	const [internalChatPendingRename, setInternalChatPendingRename] =
-		useState<Chat | null>(null);
-	const isControlled = chatPendingRenameProp !== undefined;
-	const chatPendingRename = isControlled
-		? chatPendingRenameProp
-		: internalChatPendingRename;
-	const setChatPendingRename = (chat: Chat | null) => {
-		if (isControlled) {
-			onChatPendingRenameChange?.(chat);
-		} else {
-			setInternalChatPendingRename(chat);
-		}
-	};
 
 	return (
 		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
@@ -140,7 +125,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				onReorderPinnedAgent={onReorderPinnedAgent}
 				onBeforeNewAgent={onBeforeNewAgent}
 				onOpenSearchDialog={() => onSearchDialogOpenChange(true)}
-				onOpenRenameDialog={onRenameTitle ? setChatPendingRename : undefined}
+				onOpenRenameDialog={onChatPendingRenameChange}
 				isCreating={isCreating}
 				isArchiving={isArchiving}
 				archivingChatId={archivingChatId}
@@ -174,16 +159,14 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				location={location}
 				recentChats={chats}
 			/>
-			{onRenameTitle && (
-				<RenameChatDialog
-					chat={chatPendingRename}
-					onRename={onRenameTitle}
-					onPropose={onProposeTitle}
-					onOpenChange={(open: boolean) => {
-						if (!open) setChatPendingRename(null);
-					}}
-				/>
-			)}
+			<RenameChatDialog
+				chat={chatPendingRename}
+				onRename={onRenameTitle}
+				onPropose={onProposeTitle}
+				onOpenChange={(open: boolean) => {
+					if (!open) onChatPendingRenameChange(null);
+				}}
+			/>
 		</div>
 	);
 };

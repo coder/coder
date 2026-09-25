@@ -86,8 +86,8 @@ type ChatActionsMenuItemsProps = {
 	/** See {@link canManageChat}. When false, only the subagents toggle renders. */
 	readonly canManage: boolean;
 	readonly hasWorkspace: boolean;
-	readonly isArchiving?: boolean;
-	readonly isArchiveBlocked?: boolean;
+	readonly isArchiving: boolean;
+	readonly isArchiveBlocked: boolean;
 	readonly subagentCount?: number;
 	readonly isSubagentsExpanded?: boolean;
 	readonly onToggleSubagents?: () => void;
@@ -106,8 +106,8 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	chat,
 	canManage,
 	hasWorkspace,
-	isArchiving = false,
-	isArchiveBlocked = false,
+	isArchiving,
+	isArchiveBlocked,
 	subagentCount = 0,
 	isSubagentsExpanded = false,
 	onToggleSubagents,

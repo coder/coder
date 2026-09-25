@@ -24,7 +24,7 @@ export type ChatTreeContextValue = {
 	) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
-	readonly onOpenRenameDialog?: (chat: Chat) => void;
+	readonly onOpenRenameDialog: (chat: Chat) => void;
 };
 
 export const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);

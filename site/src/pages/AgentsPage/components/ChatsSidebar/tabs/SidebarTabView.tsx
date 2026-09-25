@@ -42,9 +42,9 @@ type SidebarTabViewProps = {
 	/** Callback to toggle expanded state. */
 	onToggleExpanded: () => void;
 	/** Shown in center when expanded. */
-	chatTitle?: string;
+	chatTitle: string;
 	/** Callback to close the panel (used on mobile). */
-	onClose?: () => void;
+	onClose: () => void;
 	/**
 	 * The resolved tab ID to render as active (computed by the parent
 	 * with `getEffectiveTabId`). Keeping a single source of truth in the
@@ -179,17 +179,15 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					role="tablist"
 					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
 				>
-					{onClose && (
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={onClose}
-							aria-label="Close panel"
-							className="size-7 shrink-0 lg:hidden"
-						>
-							<ArrowLeftIcon />
-						</Button>
-					)}
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={onClose}
+						aria-label="Close panel"
+						className="size-7 shrink-0 lg:hidden"
+					>
+						<ArrowLeftIcon />
+					</Button>
 					<div className="min-w-0 shrink-0 text-center">
 						{isExpanded && chatTitle && (
 							<span className="truncate text-sm text-content-primary">
@@ -221,17 +219,15 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				role="tablist"
 				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
 			>
-				{onClose && (
-					<Button
-						variant="subtle"
-						size="icon"
-						onClick={onClose}
-						aria-label="Close panel"
-						className="size-7 shrink-0 lg:hidden"
-					>
-						<ArrowLeftIcon />
-					</Button>
-				)}
+				<Button
+					variant="subtle"
+					size="icon"
+					onClick={onClose}
+					aria-label="Close panel"
+					className="size-7 shrink-0 lg:hidden"
+				>
+					<ArrowLeftIcon />
+				</Button>
 				{isExpanded && isSidebarCollapsed && onToggleSidebarCollapsed && (
 					<Button
 						variant="subtle"
