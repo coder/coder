@@ -1,6 +1,15 @@
+import { getDefaultStore } from "jotai";
+import { atomWithStorage, createJSONStorage } from "jotai/utils";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { App } from "./App";
+
+const preloadReloadAtom = atomWithStorage<number | null>(
+	"preload-reload",
+	null,
+	createJSONStorage(() => sessionStorage),
+	{ getOnInit: true },
+);
 
 console.info(`      -#######          +######-      ########+       ##########  ########+.      ###########
    +#####--######    +#####--#####+   ############    ##########  ####+++#####-   ###########
@@ -18,11 +27,11 @@ console.info(`      -#######          +######-      ########+       ##########  
 // silently reload so the browser fetches a fresh index.html with the new
 // chunk names. A sessionStorage guard prevents infinite reload loops.
 window.addEventListener("vite:preloadError", () => {
-	const key = "preload-reload";
-	const last = sessionStorage.getItem(key);
+	const store = getDefaultStore();
+	const last = store.get(preloadReloadAtom);
 	const now = Date.now();
-	if (!last || now - Number(last) > 10_000) {
-		sessionStorage.setItem(key, String(now));
+	if (last === null || now - last > 10_000) {
+		store.set(preloadReloadAtom, now);
 		location.reload();
 	}
 });
