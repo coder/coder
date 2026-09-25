@@ -821,7 +821,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 				skippedErrors++;
 				continue;
 			}
-			if (state?.status === "uploaded" && state.fileId) {
+			if (state?.status === "uploaded") {
 				fileIds.push(state.fileId);
 			}
 		}
