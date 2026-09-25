@@ -497,6 +497,8 @@ const diffStatusEqual = (
 		return false;
 	}
 	return (
+		a.remote_origin === b.remote_origin &&
+		a.git_branch === b.git_branch &&
 		a.url === b.url &&
 		a.pull_request_state === b.pull_request_state &&
 		a.pull_request_title === b.pull_request_title &&
