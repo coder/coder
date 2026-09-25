@@ -8799,7 +8799,20 @@ func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg datab
 }
 
 func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
-	// TODO: This is a workspace agent operation. Should users be able to query this?
+	// Fast path: check if we have an RBAC object in context. This is set by
+	// the workspace agent RPC handler to avoid the expensive
+	// GetWorkspaceByWorkspaceAppID query for every app health update.
+	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
+		// Errors here will result in falling back to the slow path below,
+		// in case the cached object is stale.
+		if err := q.authorizeContext(ctx, policy.ActionUpdate, rbacObj); err == nil {
+			return q.db.UpdateWorkspaceAppHealthByID(ctx, arg)
+		}
+		q.log.Debug(ctx, "fast path authorization failed for UpdateWorkspaceAppHealthByID, using slow path",
+			slog.F("app_id", arg.ID))
+	}
+
+	// Slow path: TODO: This is a workspace agent operation. Should users be able to query this?
 	workspace, err := q.db.GetWorkspaceByWorkspaceAppID(ctx, arg.ID)
 	if err != nil {
 		return err
