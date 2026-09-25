@@ -62,7 +62,7 @@ const longAdvice = [
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/AdvisorTool",
 	component: Tool,
-	args: { name: "advisor" },
+	args: { name: "advisor", organizationId: "organization-id", mcpServers: [] },
 };
 export default meta;
 type Story = StoryObj<typeof Tool>;

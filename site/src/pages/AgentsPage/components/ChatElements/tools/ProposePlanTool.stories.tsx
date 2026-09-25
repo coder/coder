@@ -41,7 +41,11 @@ const defaultPlanPath =
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/ProposePlan",
 	component: Tool,
-	args: { name: "propose_plan" },
+	args: {
+		name: "propose_plan",
+		organizationId: "organization-id",
+		mcpServers: [],
+	},
 	parameters: {
 		reactRouter: reactRouterParameters({ routing: { path: "/" } }),
 	},

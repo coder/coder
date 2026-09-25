@@ -22,7 +22,12 @@ describe("Tool workspace lifecycle rows", () => {
 		render(
 			<QueryClientProvider client={createTestQueryClient()}>
 				<ChatWorkspaceContext value={{ buildId: CHAT_BUILD_ID }}>
-					<Tool name="stop_workspace" status="running" />
+					<Tool
+						name="stop_workspace"
+						status="running"
+						organizationId="organization-id"
+						mcpServers={[]}
+					/>
 				</ChatWorkspaceContext>
 			</QueryClientProvider>,
 		);

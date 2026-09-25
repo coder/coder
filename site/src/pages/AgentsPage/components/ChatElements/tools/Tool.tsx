@@ -65,7 +65,7 @@ import { WorkspaceLifecycleTool } from "./WorkspaceLifecycleTool";
 import { WriteFileTool } from "./WriteFileTool";
 
 type ToolProps = Omit<ComponentProps<"div">, "children"> & {
-	organizationId?: string;
+	organizationId: string;
 	name: string;
 	status?: ToolStatus;
 	args?: unknown;
@@ -88,7 +88,7 @@ type ToolProps = Omit<ComponentProps<"div">, "children"> & {
 	/** MCP server config ID associated with this tool call. */
 	mcpServerConfigId?: string;
 	/** Available MCP server configs for icon/name lookup. */
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	mcpServers: readonly TypesGen.MCPServerConfig[];
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
