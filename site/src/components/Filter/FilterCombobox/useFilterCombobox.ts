@@ -963,8 +963,10 @@ export const useFilterCombobox = ({
 	// True when text matches the name of any category, including one left out
 	// of the menu, or a loaded option or an option getOptions returns within
 	// TYPED_TEXT_LOOKUP_TIMEOUT_MS of a category in the menu or an inline
-	// category. Failed and pending lookups count as no match. Callers hold such
-	// text back from the search so results do not empty out mid-word.
+	// category. Failed and pending lookups count as no match, and so does a
+	// category whose first load leaves it out of the menu once it settles.
+	// Callers hold such text back from the search so results do not empty out
+	// mid-word.
 	const couldBeFilterSearch = (text: string): Promise<boolean> => {
 		if (text.length === 0) {
 			return Promise.resolve(false);
@@ -983,6 +985,17 @@ export const useFilterCombobox = ({
 			return Promise.resolve(true);
 		}
 		const matches = optionLookupCategories.map(async (category) => {
+			if (isHideableFirstLoad(category)) {
+				const unfiltered = await queryClient.fetchQuery(
+					filterComboboxOptions(category.key, category.getOptions, "", true),
+				);
+				const hasChip = chipValues.some(
+					(token) => categoryForChip(token) === category,
+				);
+				if (unfiltered.length <= 1 && !hasChip) {
+					throw new Error("Category leaves the menu");
+				}
+			}
 			const options = await queryClient.fetchQuery(
 				filterComboboxOptions(category.key, category.getOptions, text, true),
 			);
@@ -1062,7 +1075,9 @@ export const useFilterCombobox = ({
 			returnToCategories();
 			return;
 		}
-		// Focus fires no event on an input that already has it.
+		// A `value` change from the caller can drop the highlighted row.
+		// `handleInputFocus` repairs it, but `focus()` fires no focus event when
+		// the input already has focus.
 		highlightCategoryListRow(chipValues, getHighlightedValue());
 		applyTypedSearch();
 		dispatch({ type: "showAllFilters" });
