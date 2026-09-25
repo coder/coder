@@ -46,9 +46,11 @@ type State = {
 	inputValue: string;
 	/**
 	 * Text typed outside chips and category prefixes; its last token can be a
-	 * chip token still being typed. While it could still be a filter being
-	 * searched for, it is withheld from the emitted query until
-	 * `applyTypedSearch` runs.
+	 * chip token still being typed. While it could still be a filter, the
+	 * typed-text lookup withholds it from the emitted query until
+	 * `applyTypedSearch` runs; when it ends with a chip token still being typed,
+	 * the text before that token has already been emitted, and the token waits
+	 * until it is committed as a chip.
 	 */
 	typedFreeText: string;
 };
@@ -816,11 +818,15 @@ export const useFilterCombobox = ({
 
 	// Chip tokens in typed text become chips rather than search text that
 	// would repeat them, whether the menu held one back while it was typed or
-	// it was pasted (`owner:me template:docker`).
-	const splitTypedChips = (text: string) => {
+	// it was pasted (`owner:me template:docker`). Applied chips come from the
+	// last sent query, which `value` can lag.
+	const composeTypedQuery = (text: string) => {
 		const freeText = extractFreeText(text, chipKeys);
 		const query = composeFilterQuery(
-			[...chipValues, ...queryToChips(text, chipKeys)],
+			[
+				...queryToChips(lastEmittedRef.current, chipKeys),
+				...queryToChips(text, chipKeys),
+			],
 			chipKeys,
 			freeText,
 		);
@@ -828,8 +834,8 @@ export const useFilterCombobox = ({
 	};
 	// Commits text on the spot, such as text typed ahead of a `key:` prefix,
 	// and returns the text left after its chip tokens.
-	const commitTypedChips = (text: string) => {
-		const { query, freeText } = splitTypedChips(text);
+	const commitTypedText = (text: string) => {
+		const { query, freeText } = composeTypedQuery(text);
 		emitQuery(query);
 		return freeText;
 	};
@@ -838,7 +844,7 @@ export const useFilterCombobox = ({
 	// not send them again.
 	const applyTypedSearch = () => {
 		cancelTypedTextLookup();
-		const { query, freeText } = splitTypedChips(typedFreeText);
+		const { query, freeText } = composeTypedQuery(typedFreeText);
 		if (query !== lastEmittedRef.current) {
 			emitQuery(query);
 		}
@@ -896,7 +902,7 @@ export const useFilterCombobox = ({
 				type: "enterCategory",
 				categoryKey: typedCategory.categoryKey,
 				query: typedCategory.query,
-				typedFreeText: commitTypedChips(typedCategory.freeText),
+				typedFreeText: commitTypedText(typedCategory.freeText),
 			});
 			return;
 		}
@@ -912,7 +918,7 @@ export const useFilterCombobox = ({
 		if (typedInline) {
 			dispatch({
 				type: "setTypedFreeText",
-				value: commitTypedChips(typedInline.freeText),
+				value: commitTypedText(typedInline.freeText),
 			});
 			dispatch({ type: "typeFilterSearch", value: nextValue });
 			return;
@@ -931,7 +937,7 @@ export const useFilterCombobox = ({
 			inProgress.length > 0 && queryToChips(inProgress, chipKeys).length > 0;
 
 		if (settledChips.length > 0 || inProgressIsPartialChip) {
-			const settledFreeText = commitTypedChips(settledText);
+			const settledFreeText = commitTypedText(settledText);
 			const inputFreeText = inProgressIsPartialChip
 				? [settledFreeText, inProgress].filter(Boolean).join(" ")
 				: settledFreeText;
