@@ -170,6 +170,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const handleProjectSubmit = (request: {
 		name: string;
 		description: string;
+		icon: string;
 		organization_id?: string;
 	}) => {
 		if (projectDialog?.mode === "edit") {
@@ -179,6 +180,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 					request: {
 						name: request.name,
 						description: request.description,
+						icon: request.icon,
 					},
 				},
 				{ onSuccess: closeProjectDialog },
@@ -191,6 +193,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 					organization_id: request.organization_id,
 					name: request.name,
 					description: request.description,
+					icon: request.icon,
 				},
 				{ onSuccess: closeProjectDialog },
 			);

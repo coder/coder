@@ -4609,6 +4609,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
+  "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -4619,15 +4620,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description |
-|-------------------|--------|----------|--------------|-------------|
-| `created_at`      | string | false    |              |             |
-| `description`     | string | false    |              |             |
-| `id`              | string | false    |              |             |
-| `name`            | string | false    |              |             |
-| `organization_id` | string | false    |              |             |
-| `owner_id`        | string | false    |              |             |
-| `updated_at`      | string | false    |              |             |
+| Name              | Type   | Required | Restrictions | Description                                                                                   |
+|-------------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------|
+| `created_at`      | string | false    |              |                                                                                               |
+| `description`     | string | false    |              |                                                                                               |
+| `icon`            | string | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
+| `id`              | string | false    |              |                                                                                               |
+| `name`            | string | false    |              |                                                                                               |
+| `organization_id` | string | false    |              |                                                                                               |
+| `owner_id`        | string | false    |              |                                                                                               |
+| `updated_at`      | string | false    |              |                                                                                               |
 
 ## codersdk.ChatProjectMemory
 
@@ -6256,6 +6258,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "description": "string",
+  "icon": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6"
 }
@@ -6266,6 +6269,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name              | Type   | Required | Restrictions | Description |
 |-------------------|--------|----------|--------------|-------------|
 | `description`     | string | false    |              |             |
+| `icon`            | string | false    |              |             |
 | `name`            | string | true     |              |             |
 | `organization_id` | string | true     |              |             |
 
@@ -15835,6 +15839,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "description": "string",
+  "icon": "string",
   "name": "string"
 }
 ```
@@ -15844,6 +15849,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name          | Type   | Required | Restrictions | Description |
 |---------------|--------|----------|--------------|-------------|
 | `description` | string | false    |              |             |
+| `icon`        | string | false    |              |             |
 | `name`        | string | false    |              |             |
 
 ## codersdk.UpdateChatRequest
@@ -15857,7 +15863,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   },
   "pin_order": 0,
   "plan_mode": "plan",
-  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "title": "string",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
@@ -15872,7 +15877,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | » `[any property]` | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `pin_order`        | integer                                        | false    |              | Pin order controls the chat's pinned state and position. - nil: no change to pin state. - 0: unpin the chat. - >0 (chat is unpinned): pin the chat, appending it to   the end of the pinned list. The specific value is   ignored; the server assigns the next available position. - >0 (chat is already pinned): move the chat to the   requested position, shifting neighbors as needed. The   value is clamped to [1, pinned_count]. |
 | `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode) | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                                                                                                                                                                                                                                                            |
-| `project_id`       | string                                         | false    |              | Project ID changes the chat project. A UUID value of nil clears the project.                                                                                                                                                                                                                                                                                                                                                            |
 | `title`            | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `workspace_id`     | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 

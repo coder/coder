@@ -22,6 +22,7 @@ import {
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChatProjectDialog } from "./components/ChatsSidebar/dialogs/ChatProjectDialog";
 import { ChimeButton } from "./components/ChimeButton";
+import { ProjectComposerHeader } from "./components/ProjectComposerHeader";
 import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
@@ -170,16 +171,7 @@ const AgentCreatePage: FC = () => {
 					lockedOrganizationId={selectedProject?.organization_id}
 					header={
 						selectedProject && (
-							<div className="mb-4 min-w-0 text-center">
-								<h1 className="m-0 break-words text-2xl font-semibold text-content-primary [overflow-wrap:anywhere]">
-									{selectedProject.name}
-								</h1>
-								{selectedProject.description && (
-									<p className="mx-auto mb-0 mt-2 max-w-xl break-words text-sm text-content-secondary [overflow-wrap:anywhere]">
-										{selectedProject.description}
-									</p>
-								)}
-							</div>
+							<ProjectComposerHeader project={selectedProject} />
 						)
 					}
 					footer={

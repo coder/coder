@@ -58,6 +58,7 @@ import {
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
 import { type ProjectDialogMode, ProjectFolders } from "./ProjectFolders";
+import { groupChatsByProject } from "./projectGrouping";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const UNREAD_SECTION_KEY = "Unread";
@@ -185,25 +186,11 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	);
 	// Owned, unpinned chats render in their folder. A chat whose project is not
 	// loaded stays in the sections below so it never disappears.
-	const loadedProjectIds = new Set(projects.map((project) => project.id));
-	const chatsByProjectId = new Map<string, Chat[]>();
-	const unfiledOwnedChats: Chat[] = [];
-	for (const chat of unpinnedOwnedChats) {
-		if (
-			chatProjectsEnabled &&
-			chat.project_id &&
-			loadedProjectIds.has(chat.project_id)
-		) {
-			const bucket = chatsByProjectId.get(chat.project_id);
-			if (bucket) {
-				bucket.push(chat);
-			} else {
-				chatsByProjectId.set(chat.project_id, [chat]);
-			}
-		} else {
-			unfiledOwnedChats.push(chat);
-		}
-	}
+	const { chatsByProjectId, unfiledChats: unfiledOwnedChats } =
+		groupChatsByProject(
+			unpinnedOwnedChats,
+			chatProjectsEnabled ? projects : [],
+		);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||

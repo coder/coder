@@ -231,6 +231,7 @@ describe("ChatsSidebar projects", () => {
 				organization_id: MockDefaultOrganization.id,
 				name: "New project name",
 				description: "Project description",
+				icon: "",
 			});
 		});
 	});
@@ -496,41 +497,6 @@ describe("ChatsSidebar projects", () => {
 		});
 	});
 
-	it("files project chats under their folder instead of the date sections", async () => {
-		const user = userEvent.setup();
-		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject]),
-			),
-		);
-
-		render(
-			<Wrapper experiments={["chat-projects"]}>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({ id: "loose-chat", title: "Loose chat" }),
-						buildChat({
-							id: "project-chat",
-							title: "Project chat",
-							organization_id: MockChatProject.organization_id,
-							project_id: MockChatProject.id,
-						}),
-					]}
-				/>
-			</Wrapper>,
-		);
-
-		await screen.findByRole("link", { name: MockChatProject.name });
-		expect(screen.getByText("Loose chat")).toBeInTheDocument();
-		expect(screen.queryByText("Project chat")).toBeNull();
-
-		await user.click(
-			screen.getByRole("button", { name: `Expand ${MockChatProject.name}` }),
-		);
-		expect(screen.getByText("Project chat")).toBeInTheDocument();
-	});
-
 	it("opens the folder of the project being viewed until the user collapses it", async () => {
 		const user = userEvent.setup();
 		server.use(
@@ -562,32 +528,6 @@ describe("ChatsSidebar projects", () => {
 		expect(screen.getByRole("link", { name: "New chat" })).not.toHaveAttribute(
 			"aria-current",
 		);
-	});
-
-	it("keeps a chat in the date sections when its project is not loaded", async () => {
-		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject]),
-			),
-		);
-
-		render(
-			<Wrapper experiments={["chat-projects"]}>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({
-							id: "other-org-project-chat",
-							title: "Other org project chat",
-							project_id: "project-in-another-organization",
-						}),
-					]}
-				/>
-			</Wrapper>,
-		);
-
-		await screen.findByRole("link", { name: MockChatProject.name });
-		expect(screen.getByText("Other org project chat")).toBeInTheDocument();
 	});
 });
 

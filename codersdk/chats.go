@@ -164,8 +164,11 @@ type ChatProject struct {
 	OwnerID        uuid.UUID `json:"owner_id" format:"uuid"`
 	Name           string    `json:"name"`
 	Description    string    `json:"description"`
-	CreatedAt      time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt      time.Time `json:"updated_at" format:"date-time"`
+	// Icon is a URL, typically an emoji image under /emojis, or empty for the
+	// default folder glyph.
+	Icon      string    `json:"icon"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
 }
 
 // CreateChatProjectRequest creates an organization-scoped chat project.
@@ -173,12 +176,14 @@ type CreateChatProjectRequest struct {
 	OrganizationID uuid.UUID `json:"organization_id" validate:"required" format:"uuid"`
 	Name           string    `json:"name" validate:"required"`
 	Description    string    `json:"description"`
+	Icon           string    `json:"icon,omitempty"`
 }
 
 // UpdateChatProjectRequest updates a chat project.
 type UpdateChatProjectRequest struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
+	Icon        *string `json:"icon,omitempty"`
 }
 
 // ChatProjectMemory is a durable memory shared by chats in a project.
@@ -644,8 +649,6 @@ type UpdateChatRequest struct {
 	Title       *string    `json:"title,omitempty"`
 	Archived    *bool      `json:"archived,omitempty"`
 	WorkspaceID *uuid.UUID `json:"workspace_id,omitempty" format:"uuid"`
-	// ProjectID changes the chat project. A UUID value of nil clears the project.
-	ProjectID *uuid.UUID `json:"project_id,omitempty" format:"uuid"`
 	// PinOrder controls the chat's pinned state and position.
 	// - nil: no change to pin state.
 	// - 0: unpin the chat.

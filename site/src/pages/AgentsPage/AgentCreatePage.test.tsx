@@ -297,25 +297,6 @@ describe("AgentCreatePage project assignment", () => {
 });
 
 describe("AgentCreatePage project frame", () => {
-	it("shows the project name and description around the composer", async () => {
-		server.use(
-			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
-				HttpResponse.json(MockChatProject),
-			),
-		);
-
-		render(
-			<Wrapper experiments={["chat-projects"]}>
-				<AgentCreatePage />
-			</Wrapper>,
-		);
-
-		expect(
-			await screen.findByRole("heading", { name: MockChatProject.name }),
-		).toBeInTheDocument();
-		expect(screen.getByText(MockChatProject.description)).toBeInTheDocument();
-	});
-
 	it("keeps the edit target aligned after browser history navigation", async () => {
 		const user = userEvent.setup();
 		const projectA = {
@@ -375,6 +356,7 @@ describe("AgentCreatePage project frame", () => {
 			expect(requestBody).toEqual({
 				name: projectB.name,
 				description: projectB.description,
+				icon: projectB.icon,
 			});
 		});
 	});

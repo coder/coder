@@ -1338,14 +1338,6 @@ chats_expanded AS (
 SELECT *
 FROM chats_expanded;
 
--- name: UpdateChatProjectBinding :one
-UPDATE chats
-SET
-    project_id = sqlc.narg('project_id')::uuid,
-    updated_at = now()
-WHERE id = @id::uuid
-RETURNING *;
-
 -- name: UpdateChatWorkspaceBinding :one
 WITH current_chat AS (
     SELECT *

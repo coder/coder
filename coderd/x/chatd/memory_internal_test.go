@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestResolveMemoryScope(t *testing.T) {
+func TestResolveProjectMemory(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Project", func(t *testing.T) {
@@ -24,37 +24,38 @@ func TestResolveMemoryScope(t *testing.T) {
 		projectID := uuid.New()
 		db.EXPECT().GetChatProjectByID(gomock.Any(), projectID).Return(database.ChatProject{Name: "platform"}, nil)
 		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
-		_, scope, status := server.resolveMemoryScope(t.Context(), database.Chat{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}})
-		require.Equal(t, memoryScopeAvailable, status)
-		require.Equal(t, "platform", scope.Label)
+		store, projectName, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}})
+		require.True(t, ok)
+		require.NotNil(t, store)
+		require.Equal(t, "platform", projectName)
 	})
 
 	t.Run("OutsideProject", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
-		_, _, status := server.resolveMemoryScope(t.Context(), database.Chat{ID: uuid.New()})
-		require.Equal(t, memoryScopeUnavailable, status)
+		_, _, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New()})
+		require.False(t, ok)
 	})
 
 	t.Run("Subagent", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
-		_, _, status := server.resolveMemoryScope(t.Context(), database.Chat{
+		_, _, ok := server.resolveProjectMemory(t.Context(), database.Chat{
 			ID:           uuid.New(),
 			ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			ProjectID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		})
-		require.Equal(t, memoryScopeUnavailable, status)
+		require.False(t, ok)
 	})
 
 	t.Run("ExperimentDisabled", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		server := &Server{db: db, logger: slogtest.Make(t, nil)}
-		_, _, status := server.resolveMemoryScope(t.Context(), database.Chat{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: uuid.New(), Valid: true}})
-		require.Equal(t, memoryScopeUnavailable, status)
+		_, _, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: uuid.New(), Valid: true}})
+		require.False(t, ok)
 	})
 
 	t.Run("ProjectLookupFailure", func(t *testing.T) {
@@ -63,8 +64,8 @@ func TestResolveMemoryScope(t *testing.T) {
 		projectID := uuid.New()
 		db.EXPECT().GetChatProjectByID(gomock.Any(), projectID).Return(database.ChatProject{}, xerrors.New("connection reset"))
 		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
-		_, _, status := server.resolveMemoryScope(t.Context(), database.Chat{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}})
-		require.Equal(t, memoryScopeUnavailable, status)
+		_, _, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}})
+		require.False(t, ok)
 	})
 }
 

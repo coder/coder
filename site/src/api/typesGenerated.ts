@@ -3244,6 +3244,11 @@ export interface ChatProject {
 	readonly owner_id: string;
 	readonly name: string;
 	readonly description: string;
+	/**
+	 * Icon is a URL, typically an emoji image under /emojis, or empty for the
+	 * default folder glyph.
+	 */
+	readonly icon: string;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -3950,6 +3955,7 @@ export interface CreateChatProjectRequest {
 	readonly organization_id: string;
 	readonly name: string;
 	readonly description: string;
+	readonly icon?: string;
 }
 
 // From codersdk/chats.go
@@ -9979,6 +9985,7 @@ export interface UpdateChatProjectMemoryRequest {
 export interface UpdateChatProjectRequest {
 	readonly name?: string;
 	readonly description?: string;
+	readonly icon?: string;
 }
 
 // From codersdk/chats.go
@@ -9989,10 +9996,6 @@ export interface UpdateChatRequest {
 	readonly title?: string;
 	readonly archived?: boolean;
 	readonly workspace_id?: string;
-	/**
-	 * ProjectID changes the chat project. A UUID value of nil clears the project.
-	 */
-	readonly project_id?: string;
 	/**
 	 * PinOrder controls the chat's pinned state and position.
 	 * - nil: no change to pin state.

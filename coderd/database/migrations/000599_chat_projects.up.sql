@@ -12,14 +12,19 @@ CREATE TABLE chat_projects (
     owner_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name text NOT NULL,
     description text NOT NULL DEFAULT '',
+    -- Icons follow the template and organization convention: a URL, usually
+    -- an emoji image under /emojis, rendered by the frontend.
+    icon text NOT NULL DEFAULT '',
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT chat_projects_name_not_blank CHECK (length(trim(name)) > 0),
     CONSTRAINT chat_projects_name_length CHECK (length(name) <= 64),
-    CONSTRAINT chat_projects_description_length CHECK (length(description) <= 1024)
+    CONSTRAINT chat_projects_description_length CHECK (length(description) <= 1024),
+    CONSTRAINT chat_projects_icon_length CHECK (length(icon) <= 256)
 );
 
 COMMENT ON TABLE chat_projects IS 'Organization-scoped projects that group agent chats.';
+COMMENT ON COLUMN chat_projects.icon IS 'Optional icon URL shown next to the project name.';
 
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects (organization_id);
 -- Projects are private to their creator, so names are unique per creator

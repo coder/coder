@@ -7620,7 +7620,7 @@ func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) er
 }
 
 const getChatProjectByID = `-- name: GetChatProjectByID :one
-SELECT id, organization_id, owner_id, name, description, created_at, updated_at
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at
 FROM chat_projects
 WHERE id = $1::uuid
 `
@@ -7634,6 +7634,7 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 		&i.OwnerID,
 		&i.Name,
 		&i.Description,
+		&i.Icon,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -7641,7 +7642,7 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 }
 
 const getChatProjectsByOrganizationID = `-- name: GetChatProjectsByOrganizationID :many
-SELECT id, organization_id, owner_id, name, description, created_at, updated_at
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at
 FROM chat_projects
 WHERE organization_id = $1::uuid
 ORDER BY lower(name)
@@ -7662,6 +7663,7 @@ func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organi
 			&i.OwnerID,
 			&i.Name,
 			&i.Description,
+			&i.Icon,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -7679,15 +7681,16 @@ func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organi
 }
 
 const insertChatProject = `-- name: InsertChatProject :one
-INSERT INTO chat_projects (id, organization_id, owner_id, name, description)
+INSERT INTO chat_projects (id, organization_id, owner_id, name, description, icon)
 VALUES (
     COALESCE($1::uuid, gen_random_uuid()),
     $2::uuid,
     $3::uuid,
     $4::text,
-    $5::text
+    $5::text,
+    $6::text
 )
-RETURNING id, organization_id, owner_id, name, description, created_at, updated_at
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at
 `
 
 type InsertChatProjectParams struct {
@@ -7696,6 +7699,7 @@ type InsertChatProjectParams struct {
 	OwnerID        uuid.UUID     `db:"owner_id" json:"owner_id"`
 	Name           string        `db:"name" json:"name"`
 	Description    string        `db:"description" json:"description"`
+	Icon           string        `db:"icon" json:"icon"`
 }
 
 func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjectParams) (ChatProject, error) {
@@ -7705,6 +7709,7 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		arg.OwnerID,
 		arg.Name,
 		arg.Description,
+		arg.Icon,
 	)
 	var i ChatProject
 	err := row.Scan(
@@ -7713,6 +7718,7 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		&i.OwnerID,
 		&i.Name,
 		&i.Description,
+		&i.Icon,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -7724,19 +7730,26 @@ UPDATE chat_projects
 SET
     name = $1::text,
     description = $2::text,
+    icon = $3::text,
     updated_at = now()
-WHERE id = $3::uuid
-RETURNING id, organization_id, owner_id, name, description, created_at, updated_at
+WHERE id = $4::uuid
+RETURNING id, organization_id, owner_id, name, description, icon, created_at, updated_at
 `
 
 type UpdateChatProjectByIDParams struct {
 	Name        string    `db:"name" json:"name"`
 	Description string    `db:"description" json:"description"`
+	Icon        string    `db:"icon" json:"icon"`
 	ID          uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error) {
-	row := q.db.QueryRowContext(ctx, updateChatProjectByID, arg.Name, arg.Description, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateChatProjectByID,
+		arg.Name,
+		arg.Description,
+		arg.Icon,
+		arg.ID,
+	)
 	var i ChatProject
 	err := row.Scan(
 		&i.ID,
@@ -7744,6 +7757,7 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		&i.OwnerID,
 		&i.Name,
 		&i.Description,
+		&i.Icon,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -13826,74 +13840,6 @@ func (q *sqlQuerier) UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatP
 		&i.ContextDirtyResources,
 		&i.ContextError,
 		&i.CompactionRequestedAt,
-	)
-	return i, err
-}
-
-const updateChatProjectBinding = `-- name: UpdateChatProjectBinding :one
-UPDATE chats
-SET
-    project_id = $1::uuid,
-    updated_at = now()
-WHERE id = $2::uuid
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at, project_id
-`
-
-type UpdateChatProjectBindingParams struct {
-	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
-	ID        uuid.UUID     `db:"id" json:"id"`
-}
-
-func (q *sqlQuerier) UpdateChatProjectBinding(ctx context.Context, arg UpdateChatProjectBindingParams) (ChatTable, error) {
-	row := q.db.QueryRowContext(ctx, updateChatProjectBinding, arg.ProjectID, arg.ID)
-	var i ChatTable
-	err := row.Scan(
-		&i.ID,
-		&i.OwnerID,
-		&i.WorkspaceID,
-		&i.Title,
-		&i.Status,
-		&i.WorkerID,
-		&i.StartedAt,
-		&i.HeartbeatAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ParentChatID,
-		&i.RootChatID,
-		&i.LastModelConfigID,
-		&i.Archived,
-		&i.LastError,
-		&i.Mode,
-		pq.Array(&i.MCPServerIDs),
-		&i.Labels,
-		&i.BuildID,
-		&i.AgentID,
-		&i.PinOrder,
-		&i.LastReadMessageID,
-		&i.DynamicTools,
-		&i.OrganizationID,
-		&i.PlanMode,
-		&i.ClientType,
-		&i.LastTurnSummary,
-		&i.UserACL,
-		&i.GroupACL,
-		&i.SnapshotVersion,
-		&i.HistoryVersion,
-		&i.QueueVersion,
-		&i.GenerationAttempt,
-		&i.RetryState,
-		&i.RetryStateVersion,
-		&i.RunnerID,
-		&i.RequiresActionDeadlineAt,
-		&i.ContextAggregateHash,
-		&i.ContextDirtySince,
-		&i.ContextDirtyResources,
-		&i.ContextError,
-		&i.LastReasoningEffort,
-		&i.CompactionRequestedAt,
-		&i.Summary,
-		&i.SummaryGeneratedAt,
-		&i.ProjectID,
 	)
 	return i, err
 }

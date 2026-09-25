@@ -87,7 +87,6 @@ import {
 	mcpServerConfigsKey,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
-	moveChatToProject,
 	openChat,
 	organizationChatModelsKey,
 	patchChatEntity,
@@ -713,28 +712,6 @@ describe("updateChatTitle cache update", () => {
 			exact: true,
 		});
 		invalidateSpy.mockRestore();
-	});
-});
-
-describe("moveChatToProject optimistic update", () => {
-	it("does not roll back a newer move", async () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		const originalChat = makeChat(chatId, { project_id: "project-0" });
-		seedInfiniteChats(queryClient, [originalChat]);
-		queryClient.setQueryData(chatEntityKey(chatId), originalChat);
-		const mutation = moveChatToProject(queryClient);
-		const firstMove = { chatId, projectId: "project-1" };
-		const firstContext = await mutation.onMutate(firstMove);
-
-		await mutation.onMutate({ chatId, projectId: "project-2" });
-		mutation.onError(new Error("first move failed"), firstMove, firstContext);
-
-		expect(readInfiniteChats(queryClient)?.[0].project_id).toBe("project-2");
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
-				?.project_id,
-		).toBe("project-2");
 	});
 });
 

@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactElement } from "react";
+import type { FC, PropsWithChildren } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
@@ -11,13 +11,16 @@ import {
 import themes, { DEFAULT_THEME } from "#/theme";
 import { ChatProjectDialog } from "./ChatProjectDialog";
 
-const renderDialog = (ui: ReactElement) =>
-	render(<ThemeOverride theme={themes[DEFAULT_THEME]}>{ui}</ThemeOverride>);
+// The icon field renders external images, which read the active theme.
+const Wrapper: FC<PropsWithChildren> = ({ children }) => (
+	<ThemeOverride theme={themes[DEFAULT_THEME]}>{children}</ThemeOverride>
+);
 
 describe("ChatProjectDialog", () => {
-	it("submits the selected project's name and description", async () => {
+	it("submits the selected project's name, description, and icon", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
+		const project = { ...MockChatProject, icon: "/emojis/1f4c1.png" };
 		const { rerender } = render(
 			<ChatProjectDialog
 				open={false}
@@ -26,11 +29,12 @@ describe("ChatProjectDialog", () => {
 				error={undefined}
 				onSubmit={onSubmit}
 			/>,
+			{ wrapper: Wrapper },
 		);
 
 		rerender(
 			<ChatProjectDialog
-				project={MockChatProject}
+				project={project}
 				open
 				onOpenChange={vi.fn()}
 				isSubmitting={false}
@@ -42,8 +46,9 @@ describe("ChatProjectDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith({
-			name: MockChatProject.name,
-			description: MockChatProject.description,
+			name: project.name,
+			description: project.description,
+			icon: project.icon,
 		});
 		expect(screen.queryByTestId("compact-org-selector")).toBeNull();
 	});
@@ -60,6 +65,7 @@ describe("ChatProjectDialog", () => {
 				error={undefined}
 				onSubmit={onSubmit}
 			/>,
+			{ wrapper: Wrapper },
 		);
 
 		expect(screen.queryByTestId("compact-org-selector")).toBeNull();
@@ -69,6 +75,7 @@ describe("ChatProjectDialog", () => {
 		expect(onSubmit).toHaveBeenCalledWith({
 			name: "Notes",
 			description: "",
+			icon: "",
 			organization_id: MockOrganization2.id,
 		});
 	});
@@ -76,7 +83,7 @@ describe("ChatProjectDialog", () => {
 	it("submits the organization chosen in the picker", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
-		renderDialog(
+		render(
 			<ChatProjectDialog
 				open
 				organizations={[MockDefaultOrganization, MockOrganization2]}
@@ -85,6 +92,7 @@ describe("ChatProjectDialog", () => {
 				error={undefined}
 				onSubmit={onSubmit}
 			/>,
+			{ wrapper: Wrapper },
 		);
 
 		await user.click(
@@ -101,6 +109,7 @@ describe("ChatProjectDialog", () => {
 		expect(onSubmit).toHaveBeenCalledWith({
 			name: "Notes",
 			description: "",
+			icon: "",
 			organization_id: MockOrganization2.id,
 		});
 	});
