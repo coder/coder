@@ -153,11 +153,9 @@ func (t *runnerTurnSpan) startLocked(ctx context.Context, startAt time.Time) con
 	t.invalidErr = nil
 	t.lastAnchorAt = startAt
 
-	// StartRootAt reads the chat kind and organization for the chat_turn
-	// span from ctx.
-	ctx = chatloop.ContextWithChatKind(ctx, t.chatKind)
-	ctx = chatloop.ContextWithOrganization(ctx, t.organization)
-	turnCtx, span := t.stages.StartRootAt(ctx, chatloop.StageChatTurn, startAt, nil,
+	// The turn is open but has no span yet, so contextLocked adds only
+	// the stage identity the chat_turn span reads.
+	turnCtx, span := t.stages.StartRootAt(t.contextLocked(ctx), chatloop.StageChatTurn, startAt,
 		attribute.String(chatloop.AttrChatID, t.chatID))
 	t.span = span
 	t.spanCtx = span.SpanContext()
@@ -168,12 +166,9 @@ func (t *runnerTurnSpan) contextLocked(ctx context.Context) context.Context {
 	if !t.open || t.ended {
 		return ctx
 	}
-	// The scope, chat kind, and organization are set independently of
-	// the span context so stages run on this context keep them when
-	// tracing is not recording.
-	ctx = chatloop.ContextWithScope(ctx, chatloop.ScopeTurn)
-	ctx = chatloop.ContextWithChatKind(ctx, t.chatKind)
-	ctx = chatloop.ContextWithOrganization(ctx, t.organization)
+	// The stage identity is set independently of the span context so
+	// stages run on this context keep it when tracing is not recording.
+	ctx = withStageIdentity(ctx, chatloop.ScopeTurn, t.chatKind, t.organization)
 	if !t.spanCtx.IsValid() {
 		return ctx
 	}

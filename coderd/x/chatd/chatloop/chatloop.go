@@ -19,6 +19,7 @@ import (
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -1243,7 +1244,6 @@ func executeTools(
 	runCall := func(i int, tc fantasy.ToolCallContent) {
 		toolCtx, toolSpan := stages.Start(ctx, StageToolCall,
 			attribute.String(AttrToolName, tc.ToolName),
-			attribute.String(AttrProvider, provider),
 		)
 		toolSpan.SetModel(stageModel)
 		var execErr error
