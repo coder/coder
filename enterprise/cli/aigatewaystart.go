@@ -81,6 +81,8 @@ var aiGatewayInheritedEnvs = map[string]struct{}{
 	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL":          {},
 	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS":      {},
 	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT":           {},
+	"CODER_AI_GATEWAY_ACTOR_HEADER_ID":                   {},
+	"CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME":        {},
 	"CODER_AI_GATEWAY_DUMP_DIR":                          {},
 	"CODER_AI_GATEWAY_MAX_CONCURRENCY":                   {},
 	"CODER_AI_GATEWAY_RATE_LIMIT":                        {},
@@ -114,6 +116,9 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			"(CODER_AI_GATEWAY_KEY_FILE). A user login or session token is " +
 			"not required.",
 		Handler: func(inv *serpent.Invocation) error {
+			if err := vals.AI.BridgeConfig.ValidateActorHeaderNames(); err != nil {
+				return err
+			}
 			signalCtx, stop := inv.SignalNotifyContext(inv.Context(), agpl.StopSignals...)
 			defer stop()
 
