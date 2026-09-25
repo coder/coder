@@ -335,6 +335,14 @@ const markdownClassName = cn(
 	"[&_:is(h1,h2,h3,h4,h5,h6)]:mt-8",
 	"[&_:is(h1,h2,h3,h4,h5,h6)]:mb-4",
 	"[&_:is(h1,h2,h3,h4,h5,h6)]:leading-tight",
+	// Tailwind preflight resets every heading to font-size/font-weight: inherit.
+	// h2 is restored globally in index.css; the other levels are only restored
+	// here, scoped to rendered Markdown, so they don't collapse to body text.
+	"[&_h1]:text-3xl [&_h1]:font-bold",
+	"[&_h3]:text-lg [&_h3]:font-semibold",
+	"[&_h4]:text-base [&_h4]:font-semibold",
+	"[&_h5]:text-sm [&_h5]:font-semibold",
+	"[&_h6]:text-sm [&_h6]:font-semibold",
 	"[&_p]:mt-0 [&_p]:mb-4 [&_p:only-child]:my-0",
 	"[&_ul]:mb-4 [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-2",
 	"[&_ol]:mb-4 [&_ol]:flex [&_ol]:flex-col [&_ol]:gap-2",
