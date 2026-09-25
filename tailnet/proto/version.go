@@ -90,6 +90,7 @@ import (
 //   - Added the client_session_id to TelemetryEvent.
 //   - Added client_session_id to Connection on the agent API, for logging the
 //     client's session ID in the connections table.
+//   - Added app_name to Connection on the Agent API.
 const (
 	CurrentMajor = 2
 	CurrentMinor = 12

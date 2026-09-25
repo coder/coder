@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/sdk2db"
@@ -56,5 +57,31 @@ func TestConnectionLogTypeFilter(t *testing.T) {
 				require.Equal(t, typ, db2sdk.ConnectionLogType(database.ConnectionSourceAgent, appName), appName)
 			}
 		}
+	}
+}
+
+func TestConnectionLogAppName(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		appName string
+		typ     agentproto.Connection_Type
+		want    string
+	}{
+		{"AppNamePreferred", "cursor", agentproto.Connection_VSCODE, "cursor"},
+		{"AppNameNormalized", "  VS-Code  ", agentproto.Connection_VSCODE, "vs_code"},
+		// Agents without app_name send only the type.
+		{"TypeFallback", "", agentproto.Connection_JETBRAINS, "jetbrains"},
+		{"WebTerminal", "", agentproto.Connection_RECONNECTING_PTY, "reconnecting_pty"},
+		{"Unspecified", "", agentproto.Connection_TYPE_UNSPECIFIED, "unknown"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, sdk2db.ConnectionLogAppName(&agentproto.Connection{
+				AppName: tc.appName,
+				Type:    tc.typ,
+			}))
+		})
 	}
 }

@@ -51,6 +51,13 @@ func TestReportConnection(t *testing.T) {
 				clientSessionID: "0123456789abcdef0123456789abcdef",
 			},
 		},
+		{
+			name: "AppName",
+			report: connectionReport{
+				connectionType: proto.Connection_VSCODE,
+				appName:        "cursor",
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -71,6 +78,7 @@ func TestReportConnection(t *testing.T) {
 		require.Equal(t, connID[:], req0.GetConnection().GetId())
 		require.Equal(t, proto.Connection_CONNECT, req0.GetConnection().GetAction())
 		require.Equal(t, tc.report.clientSessionID, req0.GetConnection().GetClientSessionId())
+		require.Equal(t, tc.report.appName, req0.GetConnection().GetAppName())
 
 		disconnected(0, "because")
 		require.Len(t, uut.reportConnections, 2)
@@ -80,7 +88,8 @@ func TestReportConnection(t *testing.T) {
 		require.Equal(t, connID[:], req1.GetConnection().GetId())
 		require.Equal(t, proto.Connection_DISCONNECT, req1.GetConnection().GetAction())
 		require.Equal(t, "because", req1.GetConnection().GetReason())
-		require.Equal(t, tc.report.clientSessionID, req0.GetConnection().GetClientSessionId())
+		require.Equal(t, tc.report.clientSessionID, req1.GetConnection().GetClientSessionId())
+		require.Equal(t, tc.report.appName, req1.GetConnection().GetAppName())
 	}
 }
 
@@ -164,5 +173,22 @@ func TestClassifyCoordinatorRPCExit(t *testing.T) {
 			require.Equal(t, tc.reason, reason)
 			require.Equal(t, tc.initiator, initiator)
 		})
+	}
+}
+
+// Every app must map to a value that coderd without app_name accepts.
+func TestSSHConnectionType(t *testing.T) {
+	t.Parallel()
+
+	for appName, want := range map[string]proto.Connection_Type{
+		"ssh":                 proto.Connection_SSH,
+		"zed":                 proto.Connection_SSH,
+		"cursor":              proto.Connection_VSCODE,
+		"jetbrains":           proto.Connection_JETBRAINS,
+		"an_unregistered_ide": proto.Connection_SSH,
+		// Only the reconnecting PTY server reports RECONNECTING_PTY.
+		"reconnecting_pty": proto.Connection_SSH,
+	} {
+		require.Equal(t, want, sshConnectionType(appName), appName)
 	}
 }

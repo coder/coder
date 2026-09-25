@@ -412,22 +412,9 @@ func (a *agent) init() {
 		BlockReversePortForwarding: a.blockReversePortForwarding,
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
 		ReportConnection: func(id uuid.UUID, report agentssh.ConnectionReport) func(code int, reason string) {
-			var connectionType proto.Connection_Type
-			// Connection_Type is a fixed enum, stored as a database enum in
-			// the connection log, so it can only hold a family.
-			switch codersdk.AppNameFamily(report.AppName) {
-			case codersdk.AppFamilySSH:
-				connectionType = proto.Connection_SSH
-			case codersdk.AppFamilyVSCode:
-				connectionType = proto.Connection_VSCODE
-			case codersdk.AppFamilyJetBrains:
-				connectionType = proto.Connection_JETBRAINS
-			default:
-				connectionType = proto.Connection_TYPE_UNSPECIFIED
-			}
-
 			return a.reportConnection(id, connectionReport{
-				connectionType:  connectionType,
+				connectionType:  sshConnectionType(report.AppName),
+				appName:         report.AppName,
 				ip:              report.IP,
 				clientSessionID: report.ClientSessionID,
 			})
@@ -513,6 +500,7 @@ func (a *agent) init() {
 		func(id uuid.UUID, ip string) func(code int, reason string) {
 			return a.reportConnection(id, connectionReport{
 				connectionType: proto.Connection_RECONNECTING_PTY,
+				appName:        string(codersdk.AppFamilyReconnectingPTY),
 				ip:             ip,
 			})
 		},
@@ -1043,8 +1031,22 @@ const (
 
 type connectionReport struct {
 	connectionType  proto.Connection_Type
+	appName         string
 	ip              string
 	clientSessionID string
+}
+
+// sshConnectionType maps appName onto the frozen enum for coderd without
+// app_name.
+func sshConnectionType(appName string) proto.Connection_Type {
+	switch codersdk.AppNameFamily(appName) {
+	case codersdk.AppFamilyVSCode:
+		return proto.Connection_VSCODE
+	case codersdk.AppFamilyJetBrains:
+		return proto.Connection_JETBRAINS
+	default:
+		return proto.Connection_SSH
+	}
 }
 
 func (a *agent) reportConnection(id uuid.UUID, report connectionReport) (disconnected func(code int, reason string)) {
@@ -1075,7 +1077,7 @@ func (a *agent) reportConnection(id uuid.UUID, report connectionReport) (disconn
 		a.logger.Warn(a.hardCtx, "connection report buffer limit reached, dropping connect",
 			slog.F("limit", reportConnectionBufferLimit),
 			slog.F("connection_id", id),
-			slog.F("connection_type", report.connectionType),
+			slog.F("app_name", report.appName),
 			slog.F("ip", ip),
 			slog.F("client_session_id", report.clientSessionID),
 		)
@@ -1085,6 +1087,7 @@ func (a *agent) reportConnection(id uuid.UUID, report connectionReport) (disconn
 				Id:              id[:],
 				Action:          proto.Connection_CONNECT,
 				Type:            report.connectionType,
+				AppName:         report.appName,
 				Timestamp:       timestamppb.New(time.Now()),
 				Ip:              ip,
 				StatusCode:      0,
@@ -1105,7 +1108,7 @@ func (a *agent) reportConnection(id uuid.UUID, report connectionReport) (disconn
 			a.logger.Warn(a.hardCtx, "connection report buffer limit reached, dropping disconnect",
 				slog.F("limit", reportConnectionBufferLimit),
 				slog.F("connection_id", id),
-				slog.F("connection_type", report.connectionType),
+				slog.F("app_name", report.appName),
 				slog.F("ip", ip),
 				slog.F("client_session_id", report.clientSessionID),
 			)
@@ -1117,6 +1120,7 @@ func (a *agent) reportConnection(id uuid.UUID, report connectionReport) (disconn
 				Id:              id[:],
 				Action:          proto.Connection_DISCONNECT,
 				Type:            report.connectionType,
+				AppName:         report.appName,
 				Timestamp:       timestamppb.New(time.Now()),
 				Ip:              ip,
 				StatusCode:      int32(code), //nolint:gosec
