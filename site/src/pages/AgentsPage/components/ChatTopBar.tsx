@@ -9,7 +9,7 @@ import {
 	Share2Icon,
 	UsersIcon,
 } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, type RefObject, useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
 import { checkAuthorization } from "#/api/queries/authCheck";
@@ -49,6 +49,7 @@ type ChatSharingTopBarButtonProps = {
 };
 
 type ChatTopBarProps = {
+	panelToggleRef?: RefObject<HTMLButtonElement | null>;
 	chat?: TypesGen.Chat;
 	liveChatStatus?: TypesGen.ChatStatus | null;
 	panel: SidebarPanelState;
@@ -95,6 +96,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
 	panel,
+	panelToggleRef,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const { user: currentUser } = useAuthenticated();
@@ -348,6 +350,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					<Button
 						variant="subtle"
 						size="icon"
+						ref={panelToggleRef}
 						onClick={panel.onToggleSidebar}
 						className="size-7 text-content-secondary hover:text-content-primary"
 						aria-label="Toggle panel"

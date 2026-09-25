@@ -53,6 +53,7 @@ const meta: Meta<typeof AgentChatInput> = {
 	},
 	args: {
 		onSend: fn(),
+		onOpenDetails: fn(),
 		onContentChange: fn(),
 		onModelChange: fn(),
 		initialValue: "",
@@ -1358,6 +1359,11 @@ export const WithContextUsage: Story = {
 	args: {
 		contextUsage: baseContextUsage,
 	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: /Context usage:/ }),
+		);
+	},
 };
 
 /** Streaming on a phone with a draft. */
@@ -1377,7 +1383,7 @@ export const StreamingWithDraftMobile: Story = {
 	},
 };
 
-/** Tooltip lists the chat's pinned context resources. */
+/** The composer links to Details even when the pinned snapshot has issues. */
 export const WithContextFiles: Story = {
 	args: {
 		contextUsage: {

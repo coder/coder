@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	chatPromptsKey,
 	userCompactionThresholdsKey,
@@ -26,6 +27,8 @@ import {
 } from "#/testHelpers/storybook";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
+import { useChatContext } from "../hooks/useChatContext";
+import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
@@ -50,6 +53,13 @@ const StoryChatPageTimeline: FC<{
 
 const meta = {
 	title: "pages/AgentsPage/ChatPageContent",
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue(MockChat);
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockResolvedValue({ overrides: [] });
+	},
 	decorators: [withAuthProvider, withDashboardProvider],
 	parameters: {
 		user: MockUserOwner,
@@ -107,7 +117,11 @@ const StoryChatPageInput: FC<{
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
 			store={store}
-			models={[]}
+			contextUsage={getLatestContextUsage(
+				[...store.getSnapshot().messagesByID.values()],
+				contextLimit,
+			)}
+			onOpenDetails={fn()}
 			onSend={fn()}
 			onDeleteQueuedMessage={fn()}
 			onPromoteQueuedMessage={fn()}
@@ -438,12 +452,18 @@ const CompactionChatPageInput: FC = () => {
 		},
 	]);
 
+	const contextState = useChatContext({
+		chat: MockChat,
+		messages: [...store.getSnapshot().messagesByID.values()],
+		models: mockCompactionModels,
+	});
 	return (
 		<div className="mx-auto w-full max-w-3xl p-4">
 			<ChatPageInput
 				chat={MockChat}
 				store={store}
-				models={mockCompactionModels}
+				contextUsage={contextState.contextUsage}
+				onOpenDetails={fn()}
 				onSend={fn()}
 				onDeleteQueuedMessage={fn()}
 				onPromoteQueuedMessage={fn()}
