@@ -315,105 +315,109 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 								</div>
 							)}
 						</NavLink>
-						<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
-							<div className="flex h-6 w-7 shrink-0 items-center justify-end">
-								{isArchivingThisChat ? (
-									<Spinner
-										className="h-3.5 w-3.5 text-content-secondary"
-										loading
-									/>
-								) : isSharedWithMe ? null : (
-									<span
-										className={cn(
-											"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
-											// The timestamp swaps out for the actions trigger on
-											// hover; without menu actions there is no trigger, so
-											// keep the timestamp visible.
-											hasMenuActions &&
-												"[@media(hover:hover)]:group-hover:hidden group-has-data-[state=open]:hidden",
-											hasMenuActions && isActiveChat && "hidden",
-										)}
-									>
-										{showUnread ? (
-											<span className="flex w-3.5 shrink-0 justify-center">
-												<span
-													className="size-2 rounded-full bg-content-link"
-													data-testid={`unread-indicator-${chat.id}`}
-													aria-hidden="true"
-												/>
-											</span>
-										) : (
-											<>
-												{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
-												<span
-													data-pixel="ignore"
-													className="inline-block w-7 text-right"
-												>
-													{shortRelativeTime(chat.updated_at)}
-												</span>
-											</>
-										)}
-									</span>
-								)}
-							</div>
-							{isSharedChat && !isSharedWithMe && (
-								<UsersIcon
-									className="mt-auto size-3.5 text-content-secondary"
-									aria-label="Shared chat"
-								/>
-							)}
-							{hasMenuActions && !isArchivingThisChat && (
-								<DropdownMenu>
-									<DropdownMenuTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
+						{/* Rows shared with the viewer show nothing on the right except the
+						    actions trigger, so reserve the column only when it can appear. */}
+						{(!isSharedWithMe || hasMenuActions || isArchivingThisChat) && (
+							<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
+								<div className="flex h-6 w-7 shrink-0 items-center justify-end">
+									{isArchivingThisChat ? (
+										<Spinner
+											className="h-3.5 w-3.5 text-content-secondary"
+											loading
+										/>
+									) : isSharedWithMe ? null : (
+										<span
 											className={cn(
-												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
-												isActiveChat && "opacity-100",
+												"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
+												// The timestamp swaps out for the actions trigger on
+												// hover; without menu actions there is no trigger, so
+												// keep the timestamp visible.
+												hasMenuActions &&
+													"[@media(hover:hover)]:group-hover:hidden group-has-data-[state=open]:hidden",
+												hasMenuActions && isActiveChat && "hidden",
 											)}
-											aria-label={`Open actions for ${chat.title}`}
-											onContextMenuCapture={(e) => {
+										>
+											{showUnread ? (
+												<span className="flex w-3.5 shrink-0 justify-center">
+													<span
+														className="size-2 rounded-full bg-content-link"
+														data-testid={`unread-indicator-${chat.id}`}
+														aria-hidden="true"
+													/>
+												</span>
+											) : (
+												<>
+													{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
+													<span
+														data-pixel="ignore"
+														className="inline-block w-7 text-right"
+													>
+														{shortRelativeTime(chat.updated_at)}
+													</span>
+												</>
+											)}
+										</span>
+									)}
+								</div>
+								{isSharedChat && !isSharedWithMe && (
+									<UsersIcon
+										className="mt-auto size-3.5 text-content-secondary"
+										aria-label="Shared chat"
+									/>
+								)}
+								{hasMenuActions && !isArchivingThisChat && (
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												className={cn(
+													"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
+													isActiveChat && "opacity-100",
+												)}
+												aria-label={`Open actions for ${chat.title}`}
+												onContextMenuCapture={(e) => {
+													e.preventDefault();
+													e.stopPropagation();
+												}}
+												onMouseDownCapture={(e) => {
+													if (e.button === 2) {
+														e.preventDefault();
+														e.stopPropagation();
+													}
+												}}
+												onPointerDownCapture={(e) => {
+													if (e.button === 2) {
+														e.preventDefault();
+														e.stopPropagation();
+													}
+												}}
+											>
+												<EllipsisVerticalIcon className="size-3.5" />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent
+											align="end"
+											className="[&_[role=menuitem]]:text-[13px]"
+											// The dropdown is portaled to the body, but React
+											// portals bubble events through the React tree, so a
+											// right-click inside the menu would still reach the
+											// row's context-menu trigger and open a duplicate menu.
+											onContextMenu={(e) => {
 												e.preventDefault();
 												e.stopPropagation();
 											}}
-											onMouseDownCapture={(e) => {
-												if (e.button === 2) {
-													e.preventDefault();
-													e.stopPropagation();
-												}
-											}}
-											onPointerDownCapture={(e) => {
-												if (e.button === 2) {
-													e.preventDefault();
-													e.stopPropagation();
-												}
-											}}
 										>
-											<EllipsisVerticalIcon className="size-3.5" />
-										</Button>
-									</DropdownMenuTrigger>
-									<DropdownMenuContent
-										align="end"
-										className="[&_[role=menuitem]]:text-[13px]"
-										// The dropdown is portaled to the body, but React
-										// portals bubble events through the React tree, so a
-										// right-click inside the menu would still reach the
-										// row's context-menu trigger and open a duplicate menu.
-										onContextMenu={(e) => {
-											e.preventDefault();
-											e.stopPropagation();
-										}}
-									>
-										<ChatActionsMenuItems
-											{...sharedMenuItemProps}
-											Item={DropdownMenuItem}
-											Separator={DropdownMenuSeparator}
-										/>
-									</DropdownMenuContent>
-								</DropdownMenu>
-							)}
-						</div>
+											<ChatActionsMenuItems
+												{...sharedMenuItemProps}
+												Item={DropdownMenuItem}
+												Separator={DropdownMenuSeparator}
+											/>
+										</DropdownMenuContent>
+									</DropdownMenu>
+								)}
+							</div>
+						)}
 					</div>
 				</ContextMenuTrigger>
 				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
