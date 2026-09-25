@@ -19,7 +19,7 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
-import { ChatTopBar } from "./ChatTopBar";
+import { ChatTopBar, ChatTopBarFrame } from "./ChatTopBar";
 
 // Probe element rendered at /agents to verify search params are preserved
 // when the mobile back button navigates away from a chat.
@@ -184,10 +184,9 @@ export const Archived: Story = {
 	},
 };
 
+/** The chatless frame rendered by the loading, error, and not-found views. */
 export const NoTitle: Story = {
-	args: {
-		chat: undefined,
-	},
+	render: (args) => <ChatTopBarFrame panel={args.panel} />,
 };
 
 export const WithOpenPR: Story = {
