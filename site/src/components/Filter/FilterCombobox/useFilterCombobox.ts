@@ -416,16 +416,16 @@ export const useFilterCombobox = ({
 		hideableFirstLoadPending
 			? allSubmenuCategories.length
 			: 0;
+	// Placeholder rows are not cmdk items, so automatic highlight is off while
+	// they show; otherwise cmdk would highlight the first inline row and Enter
+	// would apply it.
+	const placeholdersShown = categoryPlaceholderCount > 0;
 	const listedCategories =
-		!open || typedInlinePrefix !== null || categoryPlaceholderCount > 0
+		!open || typedInlinePrefix !== null || placeholdersShown
 			? []
 			: categoryQuery.length === 0
 				? menuCategories
 				: matchCategories(categoryQuery, menuCategories);
-
-	// Placeholder rows are not cmdk items, so an inline row would take the
-	// automatic highlight while they show.
-	const placeholdersShown = categoryPlaceholderCount > 0;
 
 	const activeOptionsQuerySource = activeCategoryKey !== null ? inputValue : "";
 	const debouncedActiveOptionsQuery = useDebouncedValue(
@@ -621,7 +621,7 @@ export const useFilterCombobox = ({
 		activeOptionsLoading,
 		activeOptionsError,
 		activeOptionsEmpty,
-		categoryListLoading: categoryPlaceholderCount > 0,
+		categoryListLoading: placeholdersShown,
 		typeaheadLoading,
 		typeaheadError,
 		typeaheadEmpty,
