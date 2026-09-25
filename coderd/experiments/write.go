@@ -113,6 +113,24 @@ func WriteRule(
 	return oldRule, newRule, changed, nil
 }
 
+// auditIDNamespace derives audit resource IDs from experiment names. It
+// must never change: audit history groups entries by these IDs.
+var auditIDNamespace = uuid.MustParse("65b7b16d-c22d-4972-adca-014b0a4b77f0")
+
+// AuditRecord returns the audited form of rule for ex. The ID is derived
+// from the experiment name, so every audit entry for one experiment shares
+// it. A zero Rule (no stored rule) yields empty mode and condition with
+// revision 0.
+func AuditRecord(ex codersdk.Experiment, rule Rule) database.ExperimentRule {
+	return database.ExperimentRule{
+		ID:         uuid.NewSHA1(auditIDNamespace, []byte(ex)),
+		Experiment: string(ex),
+		Mode:       string(rule.Mode),
+		Condition:  rule.Condition,
+		Revision:   rule.Revision,
+	}
+}
+
 // readRule returns the stored rule for ex, or the zero Rule when none is
 // stored. The stored shape is not checked so that a malformed rule can be
 // replaced; only its revision must be readable.

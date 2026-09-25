@@ -241,3 +241,26 @@ func (s failAfterUpsert) UpsertExperimentRule(ctx context.Context, arg database.
 	}
 	return errInjected
 }
+
+func TestAuditRecord(t *testing.T) {
+	t.Parallel()
+
+	rule := experiments.Rule{Mode: experiments.ModeCondition, Condition: `"owner" in user.roles`, Revision: 4}
+	got := experiments.AuditRecord(codersdk.ExperimentExample, rule)
+	require.Equal(t, database.ExperimentRule{
+		ID:         got.ID,
+		Experiment: string(codersdk.ExperimentExample),
+		Mode:       "condition",
+		Condition:  `"owner" in user.roles`,
+		Revision:   4,
+	}, got)
+
+	// The ID identifies the experiment, not the rule: audit history for one
+	// experiment groups under one ID, and experiments never share one.
+	require.NotEqual(t, uuid.Nil, got.ID)
+	require.Equal(t, got.ID, experiments.AuditRecord(codersdk.ExperimentExample, experiments.Rule{}).ID)
+	require.NotEqual(t, got.ID, experiments.AuditRecord(codersdk.ExperimentAutoFillParameters, rule).ID)
+	// Pin the derivation so a namespace change, which would split existing
+	// audit history, fails here.
+	require.Equal(t, uuid.NewSHA1(uuid.MustParse("65b7b16d-c22d-4972-adca-014b0a4b77f0"), []byte("example")), got.ID)
+}
