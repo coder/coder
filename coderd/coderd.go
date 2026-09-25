@@ -801,8 +801,10 @@ func New(options *Options) *API {
 			// Not here, as this result gets cached.
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
 				Database: healthcheck.DatabaseReportOptions{
-					DB:        options.Database,
-					Threshold: options.DeploymentValues.Healthcheck.ThresholdDatabase.Value(),
+					DB:                options.Database,
+					Threshold:         options.DeploymentValues.Healthcheck.ThresholdDatabase.Value(),
+					Pubsub:            options.Pubsub,
+					PubsubNATSEnabled: !experiments.Enabled(codersdk.ExperimentNoNATSPubsub),
 				},
 				Websocket: healthcheck.WebsocketReportOptions{
 					AccessURL: options.AccessURL,

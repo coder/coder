@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
@@ -20,6 +21,19 @@ type DatabaseReportOptions struct {
 	DB        database.Store
 	Threshold time.Duration
 
+	// Pubsub is the pubsub backend currently in use. If it implements
+	// pubsub.ConnectionStatusReporter (currently only the embedded NATS pubsub
+	// does), the report's Pubsub.Connected field reflects its live
+	// connection state.
+	Pubsub pubsub.Pubsub
+	// PubsubNATSEnabled indicates whether the embedded NATS pubsub backend is
+	// enabled for this deployment (i.e. the no_nats_pubsub experiment is not
+	// set). It is independent of Pubsub, since a deployment can be configured
+	// to use NATS and still be running PostgreSQL pubsub because it fell back
+	// (e.g. missing cluster host). NATS is optional, so neither field affects
+	// this report's severity.
+	PubsubNATSEnabled bool
+
 	Dismissed bool
 }
 
@@ -27,6 +41,11 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	r.Warnings = []health.Message{}
 	r.Severity = health.SeverityOK
 	r.Dismissed = opts.Dismissed
+
+	r.Pubsub.Enabled = opts.PubsubNATSEnabled
+	if checker, ok := opts.Pubsub.(pubsub.ConnectionStatusReporter); ok {
+		r.Pubsub.Connected = checker.Connected()
+	}
 
 	r.ThresholdMS = opts.Threshold.Milliseconds()
 	if r.ThresholdMS == 0 {

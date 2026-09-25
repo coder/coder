@@ -455,6 +455,14 @@ func newConnPool(ns *natsserver.Server, opts Options, handlers connHandlers, cou
 	return pool, nil
 }
 
+// Connected reports whether every connection this Pubsub owns is currently
+// dialed to the embedded NATS server. It mirrors the coder_pubsub_connected
+// Prometheus gauge (backend="nats") so callers can query connectivity
+// in-process, without scraping metrics.
+func (p *Pubsub) Connected() bool {
+	return p.conns.connected()
+}
+
 // Publish publishes a message under the given event name. The
 // publisher connection is selected by a stable hash of the subject so
 // same-subject publishes preserve per-subject ordering.

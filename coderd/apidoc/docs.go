@@ -33219,6 +33219,19 @@ const docTemplate = `{
                 }
             }
         },
+        "healthsdk.DatabasePubsubReport": {
+            "type": "object",
+            "properties": {
+                "connected": {
+                    "description": "Connected indicates whether this replica is currently connected to the\nembedded NATS pubsub backend. It is false when NATS pubsub is disabled,\nhas fallen back to PostgreSQL pubsub (e.g. missing cluster host), or is\nnot yet connected.",
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "description": "Enabled indicates whether the embedded NATS pubsub backend is enabled\nfor this deployment, i.e. the no_nats_pubsub experiment is not set.",
+                    "type": "boolean"
+                }
+            }
+        },
         "healthsdk.DatabaseReport": {
             "type": "object",
             "properties": {
@@ -33237,6 +33250,14 @@ const docTemplate = `{
                 },
                 "latency_ms": {
                     "type": "integer"
+                },
+                "pubsub": {
+                    "description": "Pubsub reports the status of the Coder pubsub subsystem, including\nwhether this replica is using the embedded NATS pubsub backend in\naddition to PostgreSQL pubsub, which is always available. NATS is\noptional, so it never affects the Severity of this report.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/healthsdk.DatabasePubsubReport"
+                        }
+                    ]
                 },
                 "reachable": {
                     "type": "boolean"

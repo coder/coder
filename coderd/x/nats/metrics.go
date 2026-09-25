@@ -81,3 +81,12 @@ func (c *connTracker) setConnectedLocked() {
 	}
 	c.m.MarkDisconnected()
 }
+
+// connected reports the same state as the connected gauge: true only while
+// every owned connection is up. It lets callers query current connectivity
+// without scraping Prometheus.
+func (c *connTracker) connected() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.totalConns > 0 && c.connectedConns == c.totalConns
+}

@@ -20563,6 +20563,22 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 |------------|--------------------------|
 | `severity` | `error`, `ok`, `warning` |
 
+## healthsdk.DatabasePubsubReport
+
+```json
+{
+  "connected": true,
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description                                                                                                                                                                                                                               |
+|-------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `connected` | boolean | false    |              | Connected indicates whether this replica is currently connected to the embedded NATS pubsub backend. It is false when NATS pubsub is disabled, has fallen back to PostgreSQL pubsub (e.g. missing cluster host), or is not yet connected. |
+| `enabled`   | boolean | false    |              | Enabled indicates whether the embedded NATS pubsub backend is enabled for this deployment, i.e. the no_nats_pubsub experiment is not set.                                                                                                 |
+
 ## healthsdk.DatabaseReport
 
 ```json
@@ -20572,6 +20588,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
   "healthy": true,
   "latency": "string",
   "latency_ms": 0,
+  "pubsub": {
+    "connected": true,
+    "enabled": true
+  },
   "reachable": true,
   "severity": "ok",
   "threshold_ms": 0,
@@ -20586,17 +20606,18 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 ### Properties
 
-| Name           | Type                                      | Required | Restrictions | Description                                                                                 |
-|----------------|-------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------|
-| `dismissed`    | boolean                                   | false    |              |                                                                                             |
-| `error`        | string                                    | false    |              |                                                                                             |
-| `healthy`      | boolean                                   | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `latency`      | string                                    | false    |              |                                                                                             |
-| `latency_ms`   | integer                                   | false    |              |                                                                                             |
-| `reachable`    | boolean                                   | false    |              |                                                                                             |
-| `severity`     | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
-| `threshold_ms` | integer                                   | false    |              |                                                                                             |
-| `warnings`     | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
+| Name           | Type                                                             | Required | Restrictions | Description                                                                                                                                                                                                                                                       |
+|----------------|------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dismissed`    | boolean                                                          | false    |              |                                                                                                                                                                                                                                                                   |
+| `error`        | string                                                           | false    |              |                                                                                                                                                                                                                                                                   |
+| `healthy`      | boolean                                                          | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.                                                                                                                                                                       |
+| `latency`      | string                                                           | false    |              |                                                                                                                                                                                                                                                                   |
+| `latency_ms`   | integer                                                          | false    |              |                                                                                                                                                                                                                                                                   |
+| `pubsub`       | [healthsdk.DatabasePubsubReport](#healthsdkdatabasepubsubreport) | false    |              | Pubsub reports the status of the Coder pubsub subsystem, including whether this replica is using the embedded NATS pubsub backend in addition to PostgreSQL pubsub, which is always available. NATS is optional, so it never affects the Severity of this report. |
+| `reachable`    | boolean                                                          | false    |              |                                                                                                                                                                                                                                                                   |
+| `severity`     | [health.Severity](#healthseverity)                               | false    |              |                                                                                                                                                                                                                                                                   |
+| `threshold_ms` | integer                                                          | false    |              |                                                                                                                                                                                                                                                                   |
+| `warnings`     | array of [health.Message](#healthmessage)                        | false    |              |                                                                                                                                                                                                                                                                   |
 
 #### Enumerated Values
 
@@ -20661,6 +20682,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
     "healthy": true,
     "latency": "string",
     "latency_ms": 0,
+    "pubsub": {
+      "connected": true,
+      "enabled": true
+    },
     "reachable": true,
     "severity": "ok",
     "threshold_ms": 0,
