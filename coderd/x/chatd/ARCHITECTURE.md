@@ -129,6 +129,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `Acquire(worker_id, runner_id)` locks the chat row, sets `chats.worker_id` and `chats.runner_id`, and inserts an initial heartbeat row for `(chat_id, runner_id)`.
 - `Abandon` clears `worker_id` and `runner_id` on the chat row.
 - `CommitStep(step)` inserts one durable message suffix while remaining `running`. A committed step may insert ordinary assistant/tool messages, and a compaction step may insert a compressed summary boundary plus visible compaction tool-call and tool-result messages, optionally followed by uncompressed model-only user rows replaying the pending-user segment (see [Manual compaction](#manual-compaction)).
+- TODO: while the latest user turn has an open structured output request, a generated step's `coder_structured_output` calls are screened before commit (envelope caps on the original argument bytes, and only `stop` or `tool-calls` finishes are eligible). A rejected call is committed with `{}` arguments, an error tool result, and one rejection control part on the step's assistant row, so it is never dispatched. Describe this here.
 - `EnterRequiresAction` records a pending-action episode by relying on the committed assistant tool-call messages as the durable call set, sets `requires_action_deadline_at`, which is a timestamp 5 minutes in the future, and lands in `requires_action`.
 - `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and lands in `waiting` if no queued message is promoted. If interrupt finalization also promotes the queue head, it inserts the promoted queued message into history and lands in `running`.
 - `RecordGenerationAttempt` verifies the chat is still `running`, increments `generation_attempt`, and returns the updated chat snapshot.
@@ -996,6 +997,8 @@ The goroutine does the following in order:
 4. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
 
 TODO: when the latest user turn has an open structured output request, the interrupt goroutine appends a `canceled`/`interrupted` receipt as the last partial message (after buffered partials and committed tool cancellations, before any promotion). It never records a value. Unreadable or inconsistent structured metadata skips the receipt with a warning. Describe this here.
+
+TODO: buffered `coder_structured_output` calls for an open structured output request are persisted with `{}` arguments on interrupt, never their raw bytes. Describe this here.
 
 #### Dynamic tools timeout goroutine
 

@@ -33,6 +33,9 @@ type buildCommitStepMessagesInput struct {
 	logger                 slog.Logger
 	contentVersion         int16
 	hookRewrittenToolCalls map[string]json.RawMessage
+	// extraAssistantParts are appended to the assistant row, for example a
+	// structured output rejection control part.
+	extraAssistantParts []codersdk.ChatMessagePart
 }
 
 type stepMessagesForCommit struct {
@@ -50,6 +53,9 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 
 	assistantBlocks, toolResults := splitStepContent(input.step.Content)
 	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID, input.hookRewrittenToolCalls)
+	if len(assistantParts) > 0 {
+		assistantParts = append(assistantParts, input.extraAssistantParts...)
+	}
 
 	messages := make([]chatstate.Message, 0, 1+len(toolResults))
 	if len(assistantParts) > 0 {
@@ -707,6 +713,9 @@ type bufferedPartsToPartialMessagesInput struct {
 	// runtime_ms on the first partial assistant message when the
 	// attempt streamed model-generated assistant content.
 	attemptRuntime time.Duration
+	// governingFinalizer replaces the arguments of finalizer calls for an
+	// open structured output request with the placeholder.
+	governingFinalizer bool
 }
 
 type partialToolCall struct {
@@ -851,6 +860,9 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 
 	durable := part
 	durable.ArgsDelta = ""
+	if s.input.governingFinalizer && isFinalizerCallPart(call.part) {
+		durable.Args = finalizerPlaceholderArgs
+	}
 	if len(durable.Args) > 0 && !json.Valid(durable.Args) {
 		call.valid = false
 		s.assistantParts[call.index] = codersdk.ChatMessagePart{}
@@ -957,6 +969,10 @@ func (s *partialMessageConversionState) finalizeToolCallPlaceholders() error {
 			continue
 		}
 		args := json.RawMessage(call.argsDelta.String())
+		// An interrupted attempt is never eligible to submit its arguments.
+		if s.input.governingFinalizer && isFinalizerCallPart(call.part) {
+			args = finalizerPlaceholderArgs
+		}
 		if len(args) == 0 || !json.Valid(args) {
 			s.assistantParts[call.index] = codersdk.ChatMessagePart{}
 			call.valid = false
