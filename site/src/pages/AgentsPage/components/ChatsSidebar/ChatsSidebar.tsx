@@ -1,9 +1,16 @@
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router";
+import { checkAuthorization } from "#/api/queries/authCheck";
 import { userChatProviderConfigs } from "#/api/queries/chats";
-import type { Chat, ChatModel } from "#/api/typesGenerated";
+import type {
+	AuthorizationRequest,
+	Chat,
+	ChatModel,
+} from "#/api/typesGenerated";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
+import { getParentChatID } from "../ChatConversation/chatHelpers";
+import { ChatSharingDialog } from "../ChatSharingPopover";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import { ChatSearchDialog } from "./dialogs/ChatSearchDialog";
 import { RenameChatDialog } from "./dialogs/RenameChatDialog";
@@ -124,6 +131,40 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 			setInternalChatPendingRename(chat);
 		}
 	};
+	const [chatPendingShare, setChatPendingShare] = useState<Chat | null>(null);
+
+	// Sharing can be disabled per deployment, so check the share action
+	// once per organization the user's own root chats live in rather
+	// than once per row.
+	const ownedChatOrganizationIds = [
+		...new Set(
+			chats
+				.filter(
+					(chat) => chat.owner_id === currentUserId && !getParentChatID(chat),
+				)
+				.map((chat) => chat.organization_id),
+		),
+	].sort();
+	const shareChecks: AuthorizationRequest["checks"] = {};
+	for (const organizationId of ownedChatOrganizationIds) {
+		shareChecks[organizationId] = {
+			object: {
+				resource_type: "chat",
+				owner_id: currentUserId,
+				organization_id: organizationId,
+			},
+			action: "share",
+		};
+	}
+	const shareAuthorizationQuery = useQuery({
+		...checkAuthorization({ checks: shareChecks }),
+		enabled: ownedChatOrganizationIds.length > 0,
+	});
+	const shareableOrganizationIds = new Set(
+		ownedChatOrganizationIds.filter(
+			(organizationId) => shareAuthorizationQuery.data?.[organizationId],
+		),
+	);
 
 	return (
 		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
@@ -141,6 +182,8 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				onBeforeNewAgent={onBeforeNewAgent}
 				onOpenSearchDialog={() => onSearchDialogOpenChange(true)}
 				onOpenRenameDialog={onRenameTitle ? setChatPendingRename : undefined}
+				shareableOrganizationIds={shareableOrganizationIds}
+				onOpenSharingDialog={setChatPendingShare}
 				isCreating={isCreating}
 				isArchiving={isArchiving}
 				archivingChatId={archivingChatId}
@@ -184,6 +227,10 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 					}}
 				/>
 			)}
+			<ChatSharingDialog
+				chat={chatPendingShare}
+				onClose={() => setChatPendingShare(null)}
+			/>
 		</div>
 	);
 };

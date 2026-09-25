@@ -10,6 +10,7 @@ import {
 } from "./components/DisplayModeSettings";
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
+import { SidebarChatLayoutSettings } from "./components/SidebarChatLayoutSettings";
 import { UserChatDebugLoggingSettings } from "./components/UserChatDebugLoggingSettings";
 
 export type AgentSettingsGeneralPageViewProps = {
@@ -59,6 +60,7 @@ export const AgentSettingsGeneralPageView: FC<
 				isAnyPromptSaving={isSavingUserPrompt}
 			/>
 			<ChatFullWidthSettings />
+			<SidebarChatLayoutSettings />
 			<ChatSendShortcutSettings />
 			<ThinkingDisplaySettings />
 			<ShellToolDisplaySettings />

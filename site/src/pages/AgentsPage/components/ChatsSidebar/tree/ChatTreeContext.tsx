@@ -25,6 +25,9 @@ export type ChatTreeContextValue = {
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
+	/** Organizations where the current user may share their own chats. */
+	readonly shareableOrganizationIds: ReadonlySet<string>;
+	readonly onOpenSharingDialog: (chat: Chat) => void;
 };
 
 export const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);

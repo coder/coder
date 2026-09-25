@@ -6,11 +6,13 @@ import {
 	expect,
 	fireEvent,
 	fn,
+	spyOn,
 	userEvent,
 	waitFor,
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
@@ -21,6 +23,7 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
+import { sidebarChatLayoutStorageKey } from "../../hooks/useSidebarChatLayout";
 import { DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -1839,6 +1842,136 @@ export const WithMultiplePRs: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
+	},
+};
+
+const layoutPullRequest = (
+	chatId: string,
+	number: number,
+	overrides: Partial<TypesGen.ChatDiffStatus> = {},
+): TypesGen.ChatDiffStatus => ({
+	...MockChatDiffStatus,
+	chat_id: chatId,
+	git_branch: `feat/${number}`,
+	pr_number: number,
+	url: `https://github.com/coder/coder/pull/${number}`,
+	pull_request_title: "Split the worker health check into two services",
+	additions: 25,
+	deletions: 65,
+	changed_files: 3,
+	...overrides,
+});
+
+const layoutShowcaseChats: Chat[] = [
+	buildChat({
+		id: "layout-unread",
+		title: "Title one goes here and it is always really long",
+		has_unread: true,
+		updated_at: recentTimestamp,
+		diff_statuses: [layoutPullRequest("layout-unread", 4847)],
+	}),
+	buildChat({
+		id: "layout-running",
+		title: "Add health check to worker service",
+		status: "running",
+		shared: true,
+		updated_at: recentTimestamp,
+	}),
+	buildChat({
+		id: "layout-shared-closed",
+		title: "Add health check to worker service",
+		shared: true,
+		updated_at: recentTimestamp,
+		diff_statuses: [
+			layoutPullRequest("layout-shared-closed", 4848, {
+				pull_request_state: "closed",
+			}),
+		],
+	}),
+	buildChat({
+		id: "layout-multi-pr",
+		title: "Agent with three pull requests",
+		updated_at: recentTimestamp,
+		diff_statuses: [
+			layoutPullRequest("layout-multi-pr", 1234, { pull_request_draft: true }),
+			layoutPullRequest("layout-multi-pr", 4847),
+			layoutPullRequest("layout-multi-pr", 6789, {
+				pull_request_state: "merged",
+			}),
+		],
+	}),
+	buildChat({
+		id: "layout-plain",
+		title: "This chat has no pull request",
+		updated_at: recentTimestamp,
+	}),
+];
+
+const withOneLineLayout = () => {
+	localStorage.setItem(sidebarChatLayoutStorageKey, "one_line");
+	return () => localStorage.removeItem(sidebarChatLayoutStorageKey);
+};
+
+const allowChatSharing = () => {
+	spyOn(API, "checkAuthorization").mockResolvedValue({
+		[MockChat.organization_id]: true,
+	});
+};
+
+export const TwoLineLayout: Story = {
+	args: { chats: layoutShowcaseChats },
+};
+
+export const OneLineLayout: Story = {
+	args: { chats: layoutShowcaseChats },
+	beforeEach: withOneLineLayout,
+};
+
+export const OneLineLayoutActiveChat: Story = {
+	args: { chats: layoutShowcaseChats },
+	beforeEach: withOneLineLayout,
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/layout-multi-pr",
+				pathParams: { agentId: "layout-multi-pr" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const RowMenuWithPullRequest: Story = {
+	args: { chats: layoutShowcaseChats },
+	beforeEach: allowChatSharing,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Title one goes here and it is always really long",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Sharing" });
+	},
+};
+
+export const RowMenuWithPullRequestFlyout: Story = {
+	args: { chats: layoutShowcaseChats },
+	beforeEach: () => {
+		allowChatSharing();
+		return withOneLineLayout();
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Agent with three pull requests",
+			}),
+		);
+		const body = within(document.body);
+		await body.findByRole("menuitem", { name: "Sharing" });
+		await userEvent.hover(body.getByRole("menuitem", { name: "3 PRs" }));
+		await body.findByRole("menuitem", { name: /PR #6789/ });
 	},
 };
 

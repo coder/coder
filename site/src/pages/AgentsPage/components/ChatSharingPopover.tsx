@@ -19,6 +19,12 @@ import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
 import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -203,6 +209,69 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 	chatId,
 	organizationId,
 	open,
+}) => (
+	<PopoverContent
+		align="end"
+		className="w-[calc(100vw-2rem)] p-3 sm:w-[580px] sm:p-4"
+	>
+		<div className="flex items-center justify-between gap-2 mb-4">
+			<h3 className="text-lg font-semibold m-0">Chat sharing</h3>
+			<CopyChatLinkButton chatId={chatId} />
+		</div>
+		<ChatSharingMembers
+			chatId={chatId}
+			organizationId={organizationId}
+			open={open}
+		/>
+	</PopoverContent>
+);
+
+type ChatSharingDialogProps = {
+	/** The chat to manage sharing for. The dialog is open while it is set. */
+	readonly chat: TypesGen.Chat | null;
+	readonly onClose: () => void;
+};
+
+/**
+ * The chat sharing controls as a modal, for surfaces such as the sidebar
+ * where there is no top bar button to anchor the popover to.
+ */
+export const ChatSharingDialog: FC<ChatSharingDialogProps> = ({
+	chat,
+	onClose,
+}) => (
+	<Dialog
+		open={chat !== null}
+		onOpenChange={(open) => {
+			if (!open) {
+				onClose();
+			}
+		}}
+	>
+		{chat && (
+			<DialogContent
+				className="max-w-[580px] gap-4 p-4 sm:p-6"
+				aria-describedby={undefined}
+			>
+				<DialogHeader className="flex-row items-center justify-between gap-2 space-y-0 sm:flex-row">
+					<DialogTitle className="text-lg">Chat sharing</DialogTitle>
+					<CopyChatLinkButton chatId={chat.id} />
+				</DialogHeader>
+				<ChatSharingMembers
+					key={chat.id}
+					chatId={chat.id}
+					organizationId={chat.organization_id}
+					open
+				/>
+			</DialogContent>
+		)}
+	</Dialog>
+);
+
+const ChatSharingMembers: FC<ChatSharingPopoverContentProps> = ({
+	chatId,
+	organizationId,
+	open,
 }) => {
 	const { user: currentUser } = useAuthenticated();
 	const queryClient = useQueryClient();
@@ -310,130 +379,120 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 	const isEmpty = groups.length === 0 && users.length === 0;
 
 	return (
-		<PopoverContent
-			align="end"
-			className="w-[calc(100vw-2rem)] p-3 sm:w-[580px] sm:p-4"
-		>
-			<div className="flex items-center justify-between gap-2 mb-4">
-				<h3 className="text-lg font-semibold m-0">Chat sharing</h3>
-				<CopyChatLinkButton chatId={chatId} />
-			</div>
+		<div className="flex flex-col gap-4">
+			{mutationError && <ErrorAlert error={mutationError} />}
+			{aclQuery.error && <ErrorAlert error={aclQuery.error} />}
 
-			<div className="flex flex-col gap-4">
-				{mutationError && <ErrorAlert error={mutationError} />}
-				{aclQuery.error && <ErrorAlert error={aclQuery.error} />}
+			{aclQuery.isLoading ? (
+				<div role="status" className="flex flex-col items-center gap-4 py-8">
+					<Spinner loading />
+					<span>Loading chat sharing</span>
+				</div>
+			) : acl ? (
+				<>
+					<AddChatMemberForm
+						isLoading={isMutating}
+						disabled={!selectedOption}
+						onSubmit={handleAddMember}
+					>
+						<UserOrGroupAutocomplete
+							value={selectedOption}
+							onChange={setSelectedOption}
+							organizationId={organizationId}
+							exclude={excludeFromAutocomplete}
+							className="w-full sm:w-80"
+						/>
+					</AddChatMemberForm>
 
-				{aclQuery.isLoading ? (
-					<div role="status" className="flex flex-col items-center gap-4 py-8">
-						<Spinner loading />
-						<span>Loading chat sharing</span>
-					</div>
-				) : acl ? (
-					<>
-						<AddChatMemberForm
-							isLoading={isMutating}
-							disabled={!selectedOption}
-							onSubmit={handleAddMember}
-						>
-							<UserOrGroupAutocomplete
-								value={selectedOption}
-								onChange={setSelectedOption}
-								organizationId={organizationId}
-								exclude={excludeFromAutocomplete}
-								className="w-full sm:w-80"
-							/>
-						</AddChatMemberForm>
-
-						{isEmpty ? (
-							<div className="flex min-h-44 flex-col items-center justify-center px-6 py-6 text-center">
-								<h4 className="m-0 text-sm font-medium text-content-secondary">
-									No shared members or groups yet
-								</h4>
-								<p className="m-0 mt-2 text-sm text-content-secondary">
-									Add a member or group using the controls above.
-								</p>
-							</div>
-						) : (
-							<div className="max-h-[min(60vh,24rem)] overflow-y-auto rounded-md border border-solid border-border sm:hidden">
-								{groups.map((group) => (
-									<MobileMemberRow
-										key={group.id}
-										disabled={isMutating}
-										onRemove={() => handleRemoveGroup(group)}
-									>
-										<MemberIdentity kind="group" group={group} />
-									</MobileMemberRow>
-								))}
-								{users.map((user) => (
-									<MobileMemberRow
-										key={user.id}
-										disabled={isMutating}
-										onRemove={() => handleRemoveUser(user)}
-									>
-										<MemberIdentity kind="user" user={user} />
-									</MobileMemberRow>
-								))}
-							</div>
-						)}
-
-						{!isEmpty && (
-							<div className="hidden sm:block">
-								<Table
-									aria-label="Shared chat members and groups"
-									wrapperClassName="max-h-60 overflow-y-auto"
+					{isEmpty ? (
+						<div className="flex min-h-44 flex-col items-center justify-center px-6 py-6 text-center">
+							<h4 className="m-0 text-sm font-medium text-content-secondary">
+								No shared members or groups yet
+							</h4>
+							<p className="m-0 mt-2 text-sm text-content-secondary">
+								Add a member or group using the controls above.
+							</p>
+						</div>
+					) : (
+						<div className="max-h-[min(60vh,24rem)] overflow-y-auto rounded-md border border-solid border-border sm:hidden">
+							{groups.map((group) => (
+								<MobileMemberRow
+									key={group.id}
+									disabled={isMutating}
+									onRemove={() => handleRemoveGroup(group)}
 								>
-									<TableHeader>
-										<TableRow>
-											<TableHead className="sticky top-0 z-10 w-[50%] bg-surface-primary py-2">
-												Member
-											</TableHead>
-											<TableHead className="sticky top-0 z-10 w-[40%] bg-surface-primary py-2">
-												Role
-											</TableHead>
-											<TableHead className="sticky top-0 z-10 w-[10%] bg-surface-primary py-2" />
+									<MemberIdentity kind="group" group={group} />
+								</MobileMemberRow>
+							))}
+							{users.map((user) => (
+								<MobileMemberRow
+									key={user.id}
+									disabled={isMutating}
+									onRemove={() => handleRemoveUser(user)}
+								>
+									<MemberIdentity kind="user" user={user} />
+								</MobileMemberRow>
+							))}
+						</div>
+					)}
+
+					{!isEmpty && (
+						<div className="hidden sm:block">
+							<Table
+								aria-label="Shared chat members and groups"
+								wrapperClassName="max-h-60 overflow-y-auto"
+							>
+								<TableHeader>
+									<TableRow>
+										<TableHead className="sticky top-0 z-10 w-[50%] bg-surface-primary py-2">
+											Member
+										</TableHead>
+										<TableHead className="sticky top-0 z-10 w-[40%] bg-surface-primary py-2">
+											Role
+										</TableHead>
+										<TableHead className="sticky top-0 z-10 w-[10%] bg-surface-primary py-2" />
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{groups.map((group) => (
+										<TableRow key={group.id}>
+											<TableCell className="py-2 w-[50%]">
+												<MemberIdentity kind="group" group={group} />
+											</TableCell>
+											<TableCell className="py-2 w-[40%]">
+												<ReadRoleBadge />
+											</TableCell>
+											<TableCell className="py-2 w-[10%]">
+												<MemberRowMenu
+													disabled={isMutating}
+													onRemove={() => handleRemoveGroup(group)}
+												/>
+											</TableCell>
 										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{groups.map((group) => (
-											<TableRow key={group.id}>
-												<TableCell className="py-2 w-[50%]">
-													<MemberIdentity kind="group" group={group} />
-												</TableCell>
-												<TableCell className="py-2 w-[40%]">
-													<ReadRoleBadge />
-												</TableCell>
-												<TableCell className="py-2 w-[10%]">
-													<MemberRowMenu
-														disabled={isMutating}
-														onRemove={() => handleRemoveGroup(group)}
-													/>
-												</TableCell>
-											</TableRow>
-										))}
-										{users.map((user) => (
-											<TableRow key={user.id}>
-												<TableCell className="py-2 w-[50%]">
-													<MemberIdentity kind="user" user={user} />
-												</TableCell>
-												<TableCell className="py-2 w-[40%]">
-													<ReadRoleBadge />
-												</TableCell>
-												<TableCell className="py-2 w-[10%]">
-													<MemberRowMenu
-														disabled={isMutating}
-														onRemove={() => handleRemoveUser(user)}
-													/>
-												</TableCell>
-											</TableRow>
-										))}
-									</TableBody>
-								</Table>
-							</div>
-						)}
-					</>
-				) : null}
-			</div>
-		</PopoverContent>
+									))}
+									{users.map((user) => (
+										<TableRow key={user.id}>
+											<TableCell className="py-2 w-[50%]">
+												<MemberIdentity kind="user" user={user} />
+											</TableCell>
+											<TableCell className="py-2 w-[40%]">
+												<ReadRoleBadge />
+											</TableCell>
+											<TableCell className="py-2 w-[10%]">
+												<MemberRowMenu
+													disabled={isMutating}
+													onRemove={() => handleRemoveUser(user)}
+												/>
+											</TableCell>
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+						</div>
+					)}
+				</>
+			) : null}
+		</div>
 	);
 };
 

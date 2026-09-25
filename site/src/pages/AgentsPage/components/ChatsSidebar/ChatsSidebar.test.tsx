@@ -4,6 +4,7 @@ import type { FC, ReactNode } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
@@ -814,5 +815,119 @@ describe("ChatsSidebar subtitles", () => {
 		);
 
 		expect(screen.getByText("GPT-4o")).toBeInTheDocument();
+	});
+});
+
+describe("ChatsSidebar row actions", () => {
+	const pullRequest = (
+		number: number,
+		state: string,
+		title: string,
+	): TypesGen.ChatDiffStatus => ({
+		...MockChatDiffStatus,
+		chat_id: "pr-chat",
+		git_branch: `feat/${number}`,
+		url: `https://github.com/coder/coder/pull/${number}`,
+		pr_number: number,
+		pull_request_state: state,
+		pull_request_title: title,
+	});
+
+	const mockShareAuthorization = (allowed: boolean) =>
+		vi
+			.spyOn(API, "checkAuthorization")
+			.mockResolvedValue({ [MockChat.organization_id]: allowed });
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("links the sole pull request from the row menu", async () => {
+		const user = userEvent.setup();
+		mockShareAuthorization(false);
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "pr-chat",
+							title: "One PR chat",
+							diff_statuses: [pullRequest(4847, "open", "feat: add login")],
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Open actions for One PR chat" }),
+		);
+		const item = await screen.findByRole("menuitem", { name: /PR #4847/ });
+		expect(item).toHaveAttribute(
+			"href",
+			"https://github.com/coder/coder/pull/4847",
+		);
+		expect(item).toHaveAttribute("target", "_blank");
+	});
+
+	it("lists several pull requests in a flyout from the row menu", async () => {
+		const user = userEvent.setup();
+		mockShareAuthorization(false);
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "pr-chat",
+							title: "Multi PR chat",
+							diff_statuses: [
+								pullRequest(1234, "open", "feat: one"),
+								pullRequest(6789, "merged", "feat: two"),
+							],
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Open actions for Multi PR chat" }),
+		);
+		const trigger = await screen.findByRole("menuitem", { name: "2 PRs" });
+		trigger.focus();
+		await user.keyboard("{ArrowRight}");
+
+		const items = await screen.findAllByRole("menuitem", { name: /PR #/ });
+		expect(items.map((item) => item.getAttribute("href"))).toEqual([
+			"https://github.com/coder/coder/pull/1234",
+			"https://github.com/coder/coder/pull/6789",
+		]);
+	});
+
+	it("opens the sharing dialog from the row menu when sharing is allowed", async () => {
+		const user = userEvent.setup();
+		const authorization = mockShareAuthorization(true);
+		const getChatACL = vi
+			.spyOn(API.experimental, "getChatACL")
+			.mockResolvedValue({ users: [], groups: [] });
+
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await waitFor(() => expect(authorization).toHaveBeenCalled());
+		await user.click(
+			screen.getByRole("button", { name: "Open actions for Chat One" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "Sharing" }));
+
+		await screen.findByRole("dialog", { name: "Chat sharing" });
+		await waitFor(() => expect(getChatACL).toHaveBeenCalledWith("chat-1"));
 	});
 });

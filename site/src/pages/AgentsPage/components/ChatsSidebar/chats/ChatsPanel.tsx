@@ -81,6 +81,8 @@ type ChatsPanelProps = {
 	readonly onBeforeNewAgent?: () => void;
 	readonly onOpenSearchDialog?: () => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
+	readonly shareableOrganizationIds: ReadonlySet<string>;
+	readonly onOpenSharingDialog: (chat: Chat) => void;
 	readonly isCreating: boolean;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
@@ -114,6 +116,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	onBeforeNewAgent,
 	onOpenSearchDialog,
 	onOpenRenameDialog,
+	shareableOrganizationIds,
+	onOpenSharingDialog,
 	isCreating,
 	isArchiving,
 	archivingChatId,
@@ -310,6 +314,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		onPinAgent,
 		onUnpinAgent,
 		onOpenRenameDialog,
+		shareableOrganizationIds,
+		onOpenSharingDialog,
 	};
 
 	const chatSections = (
