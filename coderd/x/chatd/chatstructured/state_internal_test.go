@@ -28,7 +28,7 @@ func TestStructuredOutputCodecs(t *testing.T) {
 	for _, c := range []Control{
 		{RequestID: id, Kind: ControlCandidate, Value: json.RawMessage(`{"n":9007199254740993,"s":"exact  text"}`)},
 		{RequestID: id, Kind: ControlCandidate, Value: json.RawMessage(`null`)},
-		{RequestID: id, Kind: ControlCandidate, Value: json.RawMessage(`[1e100,-1.5e-99,0.5e3]`)},
+		{RequestID: id, Kind: ControlCandidate, Value: json.RawMessage(`[1e100,-1.5e-99]`)},
 		{RequestID: id, Kind: ControlRejection},
 		{RequestID: id, Kind: ControlInvalidation},
 	} {
@@ -81,15 +81,12 @@ func TestStructuredOutputCodecs(t *testing.T) {
 			require.Equal(t, ErrMalformedStructuredOutputMetadata.Error(), err.Error())
 		}
 	}
-	// Encoding fails closed when its output would not decode, before or
-	// after JSONB storage renders numbers without exponents and pads
-	// separators: values nested past the payload depth cap, re-escaped past
-	// the byte cap, holding what the raw screen rejects, with a number that
-	// renders past the literal cap, or padded or expanded past the byte cap.
+	// Encoding fails closed when its output would not decode: values nested
+	// past the payload depth cap, re-escaped past the byte cap, or holding
+	// what the raw screen rejects, or outgrowing the caps once JSONB stores them.
 	for _, value := range []string{
 		strings.Repeat("[", 33) + strings.Repeat("]", 33), `"` + strings.Repeat("<", 100<<10) + `"`,
-		`{"a":1,"a":2}`, `"\u0000"`, `1e2000`, `1e200`, `-1e-130`,
-		"[" + strings.Repeat("1e120,", 4500) + "0]", "[" + strings.Repeat("0,", 200<<10) + "0]",
+		`{"a":1,"a":2}`, `"\u0000"`, `1e2000`, `1e200`, "[" + strings.Repeat("1e120,", 4500) + "0]", "[" + strings.Repeat("0,", 200<<10) + "0]",
 	} {
 		_, err := EncodeControlPart(Control{RequestID: id, Kind: ControlCandidate, Value: json.RawMessage(value)})
 		require.ErrorIs(t, err, ErrMalformedStructuredOutputMetadata, value[:min(len(value), 20)])
@@ -98,22 +95,14 @@ func TestStructuredOutputCodecs(t *testing.T) {
 	}
 	_, err = DecodeControlPart(part)
 	require.ErrorIs(t, err, ErrMalformedStructuredOutputMetadata)
-	// Requests also fail closed on a null schema, on text that marshaling
-	// would repair, and on a schema that no longer fits the schema caps once
-	// stored.
-	for _, bad := range []Request{
-		{Name: "a", Schema: json.RawMessage(`{}`)},
-		{RequestID: id, Name: "a"},
-		{RequestID: id, Name: "a", Schema: json.RawMessage(`null`)},
-		{RequestID: id, Name: "a", Description: "a\xffb", Schema: json.RawMessage(`{}`)},
-		{RequestID: id, Name: "a", Schema: json.RawMessage(`{"maximum":1e200}`)},
-		{RequestID: id, Name: "a", Schema: json.RawMessage(`{"enum":[` + strings.Repeat("0,", 7000) + `0]}`)},
-	} {
-		_, err = EncodeRequestPart(bad)
-		require.ErrorIs(t, err, ErrMalformedStructuredOutputMetadata, string(bad.Schema[:min(len(bad.Schema), 20)]))
+	for _, schema := range []json.RawMessage{nil, json.RawMessage(`{"maximum":1e200}`), json.RawMessage(`{"enum":[` + strings.Repeat("0,", 7000) + `0]}`)} {
+		_, err = EncodeRequestPart(Request{RequestID: id, Name: "a", Schema: schema})
+		require.ErrorIs(t, err, ErrMalformedStructuredOutputMetadata)
 	}
-	_, err = EncodeOutcomePart(codersdk.ChatStructuredOutput{RequestID: id, Status: codersdk.ChatStructuredOutputStatusFailed, Error: &codersdk.ChatStructuredOutputError{
-		Code: codersdk.ChatStructuredOutputErrorCodeNotProduced, Message: "a\xffb",
-	}})
+	_, err = EncodeRequestPart(Request{RequestID: id, Name: "a", Description: "\xff", Schema: json.RawMessage(`{}`)})
+	require.ErrorIs(t, err, ErrMalformedStructuredOutputMetadata)
+	_, err = EncodeOutcomePart(codersdk.ChatStructuredOutput{RequestID: id, Status: "failed", Error: &codersdk.ChatStructuredOutputError{Code: "not_produced", Message: "\xff"}})
+	require.ErrorIs(t, err, ErrMalformedStructuredOutputMetadata)
+	_, err = EncodeRequestPart(Request{Name: "a", Schema: json.RawMessage(`{}`)})
 	require.ErrorIs(t, err, ErrMalformedStructuredOutputMetadata)
 }

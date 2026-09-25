@@ -8,8 +8,6 @@ package chatstructured
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
-	"io"
 	"regexp"
 	"slices"
 	"strconv"
@@ -29,10 +27,8 @@ var ErrMalformedStructuredOutputMetadata = xerrors.New("structured output metada
 var requestNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 // metadataLimits bound a stored payload. Values inside it were bounded when
-// recorded, but storage may re-escape them, pad separators and render
-// numbers without exponents, so only bytes and depth are capped: a candidate
-// or outcome value of the output caps nests one level. A value that passes
-// the output caps can still fail to encode; encoding then fails closed.
+// recorded, but storage may re-escape them, so only bytes and depth are
+// capped: a candidate or outcome value of the output caps nests one level.
 var metadataLimits = limits{maxBytes: 512 << 10, maxDepth: 33}
 
 // payloadKeys are the exact keys of each payload object; encoding/json alone
@@ -76,9 +72,8 @@ func (r Request) valid() bool {
 	if r.RequestID == uuid.Nil || !requestNamePattern.MatchString(r.Name) || !validText(r.Description, true) {
 		return false
 	}
-	// A null schema is rejected like a missing one.
 	doc, err := ParseSchemaDocument(r.Schema)
-	return err == nil && doc != nil
+	return err == nil && doc != nil // A null schema counts as missing.
 }
 
 func (c Control) valid() bool {
@@ -118,46 +113,33 @@ func validText(s string, allowEmpty bool) bool {
 
 // EncodeRequestPart, EncodeControlPart and EncodeOutcomePart build internal
 // parts, returning ErrMalformedStructuredOutputMetadata for invalid payloads.
-// Payloads are checked before marshaling, which replaces invalid UTF-8.
 func EncodeRequestPart(r Request) (codersdk.ChatMessagePart, error) {
-	if !r.valid() {
+	part, err := encodePart(codersdk.ChatMessagePartTypeStructuredOutputRequest, r, r.valid)
+	// The executor compiles the stored schema, so it must fit the schema caps once stored.
+	if stored, _ := DecodeRequestPart(part); err == nil && !fitsStorage(stored.Schema, schemaDocumentLimits.maxBytes) {
 		return codersdk.ChatMessagePart{}, ErrMalformedStructuredOutputMetadata
 	}
-	part, err := encodePart(codersdk.ChatMessagePartTypeStructuredOutputRequest, r)
-	if err != nil {
-		return codersdk.ChatMessagePart{}, err
-	}
-	// The executor compiles the stored schema, so its stored form must also
-	// fit the schema document caps.
-	if encoded, _ := DecodeRequestPart(part); !fitsStorage(encoded.Schema, schemaDocumentLimits.maxBytes) {
-		return codersdk.ChatMessagePart{}, ErrMalformedStructuredOutputMetadata
-	}
-	return part, nil
+	return part, err
 }
 
 func EncodeControlPart(c Control) (codersdk.ChatMessagePart, error) {
-	if !c.valid() {
-		return codersdk.ChatMessagePart{}, ErrMalformedStructuredOutputMetadata
-	}
-	return encodePart(codersdk.ChatMessagePartTypeStructuredOutputControl, c)
+	return encodePart(codersdk.ChatMessagePartTypeStructuredOutputControl, c, c.valid)
 }
 
 func EncodeOutcomePart(o codersdk.ChatStructuredOutput) (codersdk.ChatMessagePart, error) {
-	if !validOutcome(o) {
-		return codersdk.ChatMessagePart{}, ErrMalformedStructuredOutputMetadata
-	}
-	return encodePart(codersdk.ChatMessagePartTypeStructuredOutputOutcome, o)
+	return encodePart(codersdk.ChatMessagePartTypeStructuredOutputOutcome, o, func() bool { return validOutcome(o) })
 }
 
 // encodePart marshals a payload and decodes the result with the strict
-// decoder, so every part it returns decodes, also after JSONB storage:
-// marshaling can re-escape a raw value past the byte cap, a raw value can
-// nest past the depth cap or hold what the raw screen rejects, and storage
-// can grow numbers and separators.
-func encodePart(typ codersdk.ChatMessagePartType, payload any) (codersdk.ChatMessagePart, error) {
+// decoder, which also applies the validity rules, so every part it returns
+// decodes: marshaling can re-escape a raw value past the byte cap, and a raw
+// value can nest past the depth cap, hold what the raw screen rejects, or
+// outgrow the caps once stored. valid checks the original payload: marshaling
+// would replace invalid UTF-8.
+func encodePart(typ codersdk.ChatMessagePartType, payload any, valid func() bool) (codersdk.ChatMessagePart, error) {
 	data, err := json.Marshal(payload)
 	part := codersdk.ChatMessagePart{Type: typ, StructuredOutputData: data}
-	if err != nil {
+	if !valid() || err != nil {
 		return codersdk.ChatMessagePart{}, ErrMalformedStructuredOutputMetadata
 	}
 	if _, err := decodePart(part); err != nil || !fitsStorage(data, metadataLimits.maxBytes) {
@@ -166,54 +148,27 @@ func encodePart(typ codersdk.ChatMessagePartType, payload any) (codersdk.ChatMes
 	return part, nil
 }
 
-// fitsStorage reports whether compact JSON data still passes maxBytes and
-// the number literal cap once PostgreSQL stores it as JSONB and renders it
-// back. That rendering adds a space after every separator and writes
-// numbers as plain decimals, so 1e308 takes 309 bytes. Strings never grow:
-// encoding/json escapes at least every character JSONB escapes.
+// fitsStorage bounds strictly decoded compact data as PostgreSQL JSONB
+// renders it: a space after each separator (one byte per token) and plain
+// decimal numbers, so 1e308 takes 309 bytes (a number with an exponent is
+// charged |exponent|+2 extra bytes). Strings never grow: encoding/json
+// escapes at least what JSONB escapes.
 func fitsStorage(data []byte, maxBytes int) bool {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	size := len(data)
-	for {
-		tok, err := dec.Token()
-		if err != nil {
-			return errors.Is(err, io.EOF) && size <= maxBytes
-		}
-		size++ // At most one separator follows each token.
-		if n, ok := tok.(json.Number); ok {
-			stored := storedNumberLen(string(n))
-			if stored > maxNumberLiteralBytes {
+	for tok, err := dec.Token(); err == nil; tok, err = dec.Token() {
+		size++
+		n, _ := tok.(json.Number)
+		if e := strings.IndexAny(string(n), "eE"); e >= 0 {
+			exp, expErr := strconv.Atoi(strings.TrimPrefix(string(n[e+1:]), "-"))
+			if expErr != nil || len(n)+exp+2 > maxNumberLiteralBytes {
 				return false
 			}
-			size += stored - len(n)
+			size += exp + 2
 		}
 	}
-}
-
-// storedNumberLen bounds the length of a JSONB number rendering: the digits
-// before the point shift by the exponent (at least "0"), and the fraction
-// keeps the literal's fraction digits minus the exponent. It is exact except
-// that it counts leading zeros such as the "0" of 0.5e3 or a "-" of -0.
-func storedNumberLen(n string) int {
-	mantissa, exp := n, 0
-	if e := strings.IndexAny(n, "eE"); e >= 0 {
-		v, err := strconv.Atoi(n[e+1:])
-		if err != nil {
-			return maxNumberLiteralBytes + 1
-		}
-		mantissa, exp = n[:e], v
-	}
-	size := 0
-	if strings.HasPrefix(mantissa, "-") {
-		size, mantissa = 1, mantissa[1:]
-	}
-	intPart, frac, _ := strings.Cut(mantissa, ".")
-	size += max(1, len(intPart)+exp)
-	if scale := len(frac) - exp; scale > 0 {
-		size += 1 + scale
-	}
-	return size
+	return size <= maxBytes
 }
 
 // DecodeRequestPart, DecodeControlPart and DecodeOutcomePart strictly decode
