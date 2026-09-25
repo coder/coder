@@ -183,7 +183,12 @@ type UseFileAttachmentsReturn = {
 
 export function useFileAttachments(
 	organizationId: string | undefined,
-	options?: { persist?: boolean; provider?: string },
+	options?: {
+		// Restore, save, and clear attachments in localStorage. Attachments are
+		// scoped to the organization either way.
+		persist?: boolean;
+		provider?: string;
+	},
 ): UseFileAttachmentsReturn {
 	const persist = options?.persist ?? false;
 
@@ -229,7 +234,7 @@ export function useFileAttachments(
 		uploadEpoch: number,
 		state: UploadState,
 	) => {
-		if (persist && adoptionEpochRef.current !== uploadEpoch) {
+		if (adoptionEpochRef.current !== uploadEpoch) {
 			return;
 		}
 		setUploadStates((prev) => new Map(prev).set(file, state));
@@ -292,16 +297,22 @@ export function useFileAttachments(
 		revokePreviewUrls();
 		setTextContents(new Map());
 		setStateOrgId(orgId);
-		const restored = restorePersistedAttachments(orgId);
+		const restored = persist
+			? restorePersistedAttachments(orgId)
+			: {
+					attachments: [],
+					uploadStates: new Map<File, UploadState>(),
+					previewUrls: new Map<File, string>(),
+				};
 		setAttachments(restored.attachments);
 		setUploadStates(restored.uploadStates);
 		setPreviewUrls(restored.previewUrls);
 	});
 	useEffect(() => {
-		if (persist && organizationId && stateOrgId !== organizationId) {
+		if (organizationId && stateOrgId !== organizationId) {
 			adoptOrganization(organizationId);
 		}
-	}, [persist, stateOrgId, organizationId]);
+	}, [stateOrgId, organizationId]);
 
 	type AttachItem = { file: File; needsResize: boolean };
 
@@ -543,12 +554,11 @@ export function useFileAttachments(
 
 	// Hide state that belongs to another organization. Exposing it could send
 	// stale file IDs or remove persisted attachments from the previous org.
-	const orgMismatch =
-		persist && stateOrgId !== null && stateOrgId !== organizationId;
+	const orgMismatch = stateOrgId !== null && stateOrgId !== organizationId;
 
 	return {
 		organizationAdopted:
-			!persist || (Boolean(organizationId) && stateOrgId === organizationId),
+			Boolean(organizationId) && stateOrgId === organizationId,
 		attachments: orgMismatch ? [] : attachments,
 		textContents: orgMismatch ? new Map<File, string>() : textContents,
 		uploadStates: orgMismatch ? new Map<File, UploadState>() : uploadStates,

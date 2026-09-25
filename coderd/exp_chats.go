@@ -1378,6 +1378,22 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if (len(req.UnsafeDynamicTools) > 0 || len(req.InlineMCPServers) > 0) && api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
+		writeChatCallerSuppliedToolsDisabled(ctx, rw)
+		return
+	}
+
+	if len(req.InlineMCPServers) > 0 {
+		if !api.Experiments.Enabled(codersdk.ExperimentChatInlineMCPServers) {
+			writeInlineMCPServersExperimentRequired(ctx, rw)
+			return
+		}
+		if validations := validateInlineMCPServers(req.InlineMCPServers, api.MCPAllowedPrivateCIDRs); len(validations) > 0 {
+			writeInlineMCPServersInvalid(ctx, rw, validations)
+			return
+		}
+	}
+
 	if len(req.UnsafeDynamicTools) > 250 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Too many dynamic tools.",
@@ -1457,6 +1473,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		SystemPrompt:            req.SystemPrompt,
 		InitialUserContent:      contentBlocks,
 		MCPServerIDs:            mcpServerIDs,
+		InlineMCPServers:        req.InlineMCPServers,
 		Labels:                  labels,
 		DynamicTools:            dynamicToolsJSON,
 		// IMPORTANT: users can only create root chats at the time of writing.
@@ -1624,6 +1641,23 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		sdkChat.Children = db2sdk.ChildChatRows(childRows, childDiffStatuses)
+	}
+
+	if api.Experiments.Enabled(codersdk.ExperimentChatInlineMCPServers) {
+		servers, err := api.chatInlineMCPServers(ctx, chat.ID)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to get inline MCP servers",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		} else {
+			if chat.OwnerID != httpmw.APIKey(r).UserID {
+				for i := range servers {
+					servers[i].URL = ""
+				}
+			}
+			sdkChat.InlineMCPServers = servers
+		}
 	}
 
 	enriched := []codersdk.Chat{sdkChat}
@@ -2686,6 +2720,33 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 	req.MCPServerIDs = normalizedMCPServerIDs
 
+	if req.InlineMCPServers != nil {
+		// The field belongs to root chats, so a child rejects every value,
+		// including []. The kill switch and experiment gates apply only to
+		// non-empty declarations: [] is the detach path and must keep
+		// working when the feature is turned off.
+		if chat.ParentChatID.Valid {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "inline_mcp_servers can only be declared on a root chat.",
+			})
+			return
+		}
+		if len(*req.InlineMCPServers) > 0 {
+			if api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
+				writeChatCallerSuppliedToolsDisabled(ctx, rw)
+				return
+			}
+			if !api.Experiments.Enabled(codersdk.ExperimentChatInlineMCPServers) {
+				writeInlineMCPServersExperimentRequired(ctx, rw)
+				return
+			}
+			if validations := validateInlineMCPServers(*req.InlineMCPServers, api.MCPAllowedPrivateCIDRs); len(validations) > 0 {
+				writeInlineMCPServersInvalid(ctx, rw, validations)
+				return
+			}
+		}
+	}
+
 	if req.PlanMode != nil {
 		if !validateChatPlanMode(*req.PlanMode) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -2733,14 +2794,15 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
-			ChatID:          chatID,
-			CreatedBy:       apiKey.UserID,
-			Content:         contentBlocks,
-			ModelConfigID:   modelConfigID,
-			ReasoningEffort: reasoningEffort,
-			BusyBehavior:    busyBehavior,
-			PlanMode:        sendPlanMode,
-			MCPServerIDs:    req.MCPServerIDs,
+			ChatID:           chatID,
+			CreatedBy:        apiKey.UserID,
+			Content:          contentBlocks,
+			ModelConfigID:    modelConfigID,
+			ReasoningEffort:  reasoningEffort,
+			BusyBehavior:     busyBehavior,
+			PlanMode:         sendPlanMode,
+			MCPServerIDs:     req.MCPServerIDs,
+			InlineMCPServers: req.InlineMCPServers,
 		},
 	)
 	if sendErr != nil {
@@ -8161,6 +8223,14 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	if chat.Archived {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Cannot submit tool results to an archived chat.",
+		})
+		return
+	}
+
+	if api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Caller-supplied tools are disabled on this deployment.",
+			Detail:  "The server runs with --disable-chat-caller-supplied-tools. Interrupt the chat to cancel the pending tool calls.",
 		})
 		return
 	}

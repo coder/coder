@@ -1142,6 +1142,191 @@ func TestMCPServerConfigs(t *testing.T) {
 	})
 }
 
+func TestChatMCPServers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const headers = `{"Authorization":"Bearer chat-secret"}`
+
+	// insertChat creates a chat with a valid owner so the owner-scoped
+	// query has something to resolve.
+	insertChat := func(t *testing.T, store database.Store) database.Chat {
+		t.Helper()
+		defaultOrg, err := store.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+		owner := dbgen.User(t, store, database.User{})
+		model := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{OrganizationID: defaultOrg.ID})
+		return dbgen.Chat(t, store, database.Chat{
+			OrganizationID:    defaultOrg.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: model.ID,
+		})
+	}
+	// insertServer creates a chat MCP server through the encrypted store
+	// and asserts the returned row is plaintext.
+	insertServer := func(t *testing.T, crypt *dbCrypt, ciphers []Cipher, chatID uuid.UUID) database.ChatMCPServer {
+		t.Helper()
+		server := dbgen.ChatMCPServer(t, crypt, database.ChatMCPServer{
+			ChatID:  chatID,
+			Headers: headers,
+		})
+		require.Equal(t, headers, server.Headers)
+		require.Equal(t, ciphers[0].HexDigest(), server.HeadersKeyID.String)
+		return server
+	}
+	requireRawEncrypted := func(t *testing.T, rawDB database.Store, chatID, serverID uuid.UUID, ciphers []Cipher, want string) {
+		t.Helper()
+		raws, err := rawDB.GetChatMCPServersByChatID(ctx, chatID)
+		require.NoError(t, err)
+		var found bool
+		for _, raw := range raws {
+			if raw.ID != serverID {
+				continue
+			}
+			found = true
+			requireEncryptedEquals(t, ciphers[0], raw.Headers, want)
+			require.Equal(t, ciphers[0].HexDigest(), raw.HeadersKeyID.String)
+		}
+		require.True(t, found, "server %s not found", serverID)
+	}
+
+	t.Run("UpsertChatMCPServer", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+		requireRawEncrypted(t, db, chat.ID, server.ID, ciphers, headers)
+	})
+
+	t.Run("GetChatMCPServersByChatID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+
+		got, err := crypt.GetChatMCPServersByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, server.ID, got[0].ID)
+		require.Equal(t, headers, got[0].Headers)
+		require.Equal(t, ciphers[0].HexDigest(), got[0].HeadersKeyID.String)
+		requireRawEncrypted(t, db, chat.ID, server.ID, ciphers, headers)
+	})
+
+	t.Run("GetChatMCPServersByChatOwnerID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+
+		got, err := crypt.GetChatMCPServersByChatOwnerID(ctx, chat.OwnerID)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, server.ID, got[0].ID)
+		require.Equal(t, headers, got[0].Headers)
+		require.Equal(t, ciphers[0].HexDigest(), got[0].HeadersKeyID.String)
+		requireRawEncrypted(t, db, chat.ID, server.ID, ciphers, headers)
+
+		// Another owner sees nothing.
+		got, err = crypt.GetChatMCPServersByChatOwnerID(ctx, uuid.New())
+		require.NoError(t, err)
+		require.Empty(t, got)
+	})
+
+	t.Run("UpdateEncryptedChatMCPServerHeaders", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+
+		const newHeaders = `{"X-Rotated":"new-value"}`
+		err := crypt.UpdateEncryptedChatMCPServerHeaders(ctx, database.UpdateEncryptedChatMCPServerHeadersParams{
+			ID:           server.ID,
+			Headers:      newHeaders,
+			HeadersKeyID: sql.NullString{},
+		})
+		require.NoError(t, err)
+		requireRawEncrypted(t, db, chat.ID, server.ID, ciphers, newHeaders)
+
+		got, err := crypt.GetChatMCPServersByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, newHeaders, got[0].Headers)
+	})
+
+	t.Run("EmptyHeaders", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, _ := setup(t)
+		chat := insertChat(t, crypt)
+
+		for _, empty := range []string{"", "{}"} {
+			server := dbgen.ChatMCPServer(t, crypt, database.ChatMCPServer{
+				ChatID:  chat.ID,
+				Headers: empty,
+			})
+			require.Equal(t, "{}", server.Headers)
+			require.False(t, server.HeadersKeyID.Valid)
+
+			raws, err := db.GetChatMCPServersByChatID(ctx, chat.ID)
+			require.NoError(t, err)
+			for _, raw := range raws {
+				if raw.ID != server.ID {
+					continue
+				}
+				require.Equal(t, "{}", raw.Headers)
+				require.False(t, raw.HeadersKeyID.Valid)
+			}
+		}
+	})
+
+	t.Run("ReupsertKeepsID", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		chat := insertChat(t, crypt)
+		server := insertServer(t, crypt, ciphers, chat.ID)
+
+		const newURL = "https://mcp.example.com/v2/mcp"
+		again, err := crypt.UpsertChatMCPServer(ctx, database.UpsertChatMCPServerParams{
+			ID:            uuid.New(),
+			ChatID:        chat.ID,
+			Slug:          server.Slug,
+			Url:           newURL,
+			Headers:       headers,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, server.ID, again.ID)
+		require.Equal(t, newURL, again.Url)
+		require.Equal(t, headers, again.Headers)
+		require.Equal(t, server.CreatedAt, again.CreatedAt)
+		require.True(t, again.UpdatedAt.After(server.UpdatedAt))
+
+		got, err := crypt.GetChatMCPServersByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+	})
+
+	t.Run("NoCiphers", func(t *testing.T) {
+		t.Parallel()
+		db, crypt := setupNoCiphers(t)
+		chat := insertChat(t, crypt)
+
+		server := dbgen.ChatMCPServer(t, crypt, database.ChatMCPServer{
+			ChatID:  chat.ID,
+			Headers: headers,
+		})
+		require.Equal(t, headers, server.Headers)
+		require.False(t, server.HeadersKeyID.Valid)
+
+		raws, err := db.GetChatMCPServersByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, raws, 1)
+		require.Equal(t, headers, raws[0].Headers)
+		require.False(t, raws[0].HeadersKeyID.Valid)
+	})
+}
+
 func requireAIProviderDecrypted(
 	t *testing.T,
 	provider database.AIProvider,

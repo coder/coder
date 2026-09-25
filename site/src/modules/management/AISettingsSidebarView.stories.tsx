@@ -32,7 +32,6 @@ const LocationProbe = () => {
 
 const aiSettingsRoutes: [RouterRoute, ...RouterRoute[]] = [
 	{ path: "/ai/settings/governance", useStoryElement: true },
-	{ path: "/ai/settings/spend", useStoryElement: true },
 	{ path: "/ai/settings/gateway-keys", useStoryElement: true },
 	{ path: "/ai/settings/providers", useStoryElement: true },
 	{ path: "/ai/settings/coder-agents", useStoryElement: true },
@@ -90,21 +89,6 @@ export default meta;
 type Story = StoryObj<typeof AISettingsSidebarView>;
 
 export const CoderAgentsActive: Story = {};
-
-export const SpendVisible: Story = {
-	args: {
-		canViewAISpend: true,
-	},
-};
-
-export const UserSpendActive: Story = {
-	args: {
-		canViewAISpend: true,
-	},
-	parameters: {
-		reactRouter: atLocation("/ai/settings/spend"),
-	},
-};
 
 export const ModelsActive: Story = {
 	parameters: {

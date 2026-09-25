@@ -213,13 +213,16 @@ The first model that you add to an organization becomes that organization's defa
 The models list marks the current default with a **Default** badge.
 The default model is pre-selected when developers start a new chat in the organization.
 
-To change the default model:
+To change the default model from the Models page:
 
 1. Navigate to **Admin settings** > **AI** > **Models**.
 1. Select the organization that owns the model.
 1. Open the model, or select **Add model** to create a new one.
 1. Select **Set as Coder Agents default model**.
 1. Select **Save**.
+
+To change it from the Coder Agents page, navigate to **Admin settings** > **AI** > **Coder Agents**, pick a model in the **Default model** row of **Organization settings**, and select **Save**.
+If the current default is disabled or its provider is unavailable, the row shows a warning and still lets you pick another model.
 
 ### Models with a missing or disabled provider
 
