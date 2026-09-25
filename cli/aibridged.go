@@ -18,16 +18,42 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
-// newAIBridgeDaemon constructs the in-memory aibridge daemon and wires
+// AIBridgeDaemonOptions configures [NewAIBridgeDaemon].
+type AIBridgeDaemonOptions struct {
+	// API is the coderd instance the daemon serves and dials over the
+	// in-memory RPC.
+	API *coderd.API
+	// Config supplies both the provider build settings and the pool's record
+	// policy.
+	Config codersdk.AIBridgeConfig
+	// Registerer receives the daemon's collectors, so it must not already
+	// hold them. Nil skips registration.
+	Registerer prometheus.Registerer
+	// BridgeMetrics is the metrics instance the bridge and key pools report
+	// to. Nil disables those metrics.
+	BridgeMetrics *aibridge.Metrics
+	// ProviderMetrics receives provider reload events. Nil builds one from
+	// Registerer; supply one to assert on reload metrics without owning the
+	// registerer.
+	ProviderMetrics *aibridged.Metrics
+	// Pubsub triggers provider hot reloads. Nil uses API.Pubsub.
+	Pubsub pubsub.Pubsub
+}
+
+// NewAIBridgeDaemon constructs the in-memory aibridge daemon and wires
 // up a subscription that hot-reloads providers over the in-memory
 // RPC on every ai_providers change event. The returned unsubscribe
 // function tears down the subscription; callers must invoke it
 // alongside Server.Close on shutdown.
+//
+// Tests reach this through [github.com/coder/coder/v2/coderd/aibridgedtest],
+// so a deployment option that does not reach the serving pool fails there too.
 //
 // Reloads fetch the provider set from coderd over the in-memory DRPC
 // (GetAIProviders) rather than reading the database directly, so embedded and
@@ -40,42 +66,40 @@ import (
 // context, so only the daemon lifecycle bounds the wait. That is acceptable
 // here: the embedded daemon's connection is an in-memory pipe that comes up
 // immediately.
-func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg prometheus.Registerer, metrics *aibridge.Metrics) (*aibridged.Server, func(), error) {
-	ctx := context.Background()
+func NewAIBridgeDaemon(ctx context.Context, opts AIBridgeDaemonOptions) (*aibridged.Server, func(), error) {
+	coderAPI, cfg, reg, metrics := opts.API, opts.Config, opts.Registerer, opts.BridgeMetrics
 	coderAPI.Logger.Debug(ctx, "starting in-memory aibridge daemon")
 
 	logger := coderAPI.Logger.Named("ai-gateway")
 
-	providerMetrics := aibridged.NewMetrics(reg)
-	tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
-
-	// Create an empty pool for reusable stateful [aibridge.RequestBridge]
-	// instances (one per user). The reloader populates it via the initial
-	// reload below.
-	pool, err := aibridged.NewCachedBridgePool(aibridged.PoolOptionsFromConfig(cfg), nil, logger.Named("pool"), metrics, tracer) // TODO: configurable size.
-	if err != nil {
-		return nil, nil, xerrors.Errorf("create request pool: %w", err)
+	providerMetrics := opts.ProviderMetrics
+	if providerMetrics == nil {
+		providerMetrics = aibridged.NewMetrics(reg)
 	}
-
-	// Report current key pool state per provider at scrape time.
-	reg.MustRegister(keypool.NewStateCollector(pool.KeyPools))
+	ps := opts.Pubsub
+	if ps == nil {
+		ps = coderAPI.Pubsub
+	}
+	tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
 
 	// Create daemon. Construct it before subscribing so the reloader can use
 	// srv.Client to fetch providers over the in-memory RPC.
 	srv, err := aibridged.New(ctx, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return coderAPI.CreateInMemoryAIBridgeServer(dialCtx)
-	}, logger, tracer, coderAPI.Experiments, metrics)
+	}, logger, tracer, coderAPI.Experiments, metrics, aibridged.WithPoolOptions(aibridged.PoolOptionsFromConfig(cfg)))
 	if err != nil {
 		return nil, nil, xerrors.Errorf("start in-memory aibridge daemon: %w", err)
 	}
 
-	reg.MustRegister(srv.KeyPoolStateCollector())
+	if reg != nil {
+		reg.MustRegister(srv.KeyPoolStateCollector())
+	}
 
 	// Subscribe to ai_providers change events so the backend tracks the database
 	// without a restart, and perform the initial reload. The reload data path
 	// is the in-memory RPC.
 	reloader := NewProviderRPCReloader(srv.ReplaceProviders, srv.Client, cfg, logger.Named("provider-loader"), metrics, providerMetrics)
-	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, coderAPI.Pubsub, reloader, logger.Named("provider-reload"))
+	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, ps, reloader, logger.Named("provider-reload"))
 	if err != nil {
 		// Without the subscription the backend cannot track provider changes,
 		// so fail startup rather than serve a permanently stale snapshot.

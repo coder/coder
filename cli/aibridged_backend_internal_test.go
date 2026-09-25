@@ -38,7 +38,11 @@ func TestNewAIBridgeDaemonBackend(t *testing.T) {
 			}
 			client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{DeploymentValues: dv})
 			firstUser := coderdtest.CreateFirstUser(t, client)
-			srv, unsubscribe, err := newAIBridgeDaemon(api, dv.AI.BridgeConfig, prometheus.NewRegistry(), nil)
+			srv, unsubscribe, err := NewAIBridgeDaemon(t.Context(), AIBridgeDaemonOptions{
+				API:        api,
+				Config:     dv.AI.BridgeConfig,
+				Registerer: prometheus.NewRegistry(),
+			})
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, srv.Close()) })
 			t.Cleanup(unsubscribe)

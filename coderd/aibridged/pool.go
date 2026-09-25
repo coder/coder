@@ -109,6 +109,11 @@ type CachedBridgePool struct {
 	cacheWG sync.WaitGroup
 }
 
+// Options reports the options the pool was built with.
+func (p *CachedBridgePool) Options() PoolOptions {
+	return p.options
+}
+
 func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, logger slog.Logger, metrics *aibridge.Metrics, tracer trace.Tracer) (*CachedBridgePool, error) {
 	cache, err := ristretto.NewCache(&ristretto.Config[string, *aibridge.RequestBridge]{
 		NumCounters:        options.MaxItems * 10,        // Docs suggest setting this 10x number of keys.

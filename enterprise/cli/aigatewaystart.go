@@ -24,7 +24,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
-	"github.com/coder/coder/v2/aibridge/keypool"
 	aibridgemetrics "github.com/coder/coder/v2/aibridge/metrics"
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -184,14 +183,6 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 
 			gatewayLogger := logger.Named("ai-gateway")
 
-			// Standalone Gateway starts with an empty pool. Providers are
-			// fetched later via GetAIProviders DRPC and pool is updated.
-			pool, err := aibridged.NewCachedBridgePool(aibridged.PoolOptionsFromConfig(vals.AI.BridgeConfig), nil, gatewayLogger.Named("pool"), metrics, tracer)
-			if err != nil {
-				return xerrors.Errorf("create request pool: %w", err)
-			}
-			gatewayRegisterer.MustRegister(keypool.NewStateCollector(pool.KeyPools))
-
 			return runStandaloneGateway(signalCtx, standaloneGatewayParams{
 				bridgeConfig: vals.AI.BridgeConfig,
 				coderURL:     serverURL.String(),
@@ -324,7 +315,8 @@ func runStandaloneGateway(ctx context.Context, params standaloneGatewayParams) e
 func newStandaloneGateway(params standaloneGatewayParams) (*standaloneGateway, error) {
 	// The aibridged daemon must outlive the serving context so in-flight HTTP
 	// requests retain their DRPC connection during graceful HTTP shutdown.
-	daemon, err := aibridged.New(context.Background(), params.dialer, params.logger.Named("aibridged"), params.tracer, params.experiments, params.metrics)
+	daemon, err := aibridged.New(context.Background(), params.dialer, params.logger.Named("aibridged"), params.tracer, params.experiments, params.metrics,
+		aibridged.WithPoolOptions(aibridged.PoolOptionsFromConfig(params.bridgeConfig)))
 	if err != nil {
 		return nil, xerrors.Errorf("start AI Gateway daemon: %w", err)
 	}
