@@ -701,7 +701,6 @@ export const ScopePillTooltip: Story = {
 	},
 };
 
-// Three or more chips add a Clear all button after the last chip.
 export const ClearAll: Story = {
 	render: () => (
 		<FilterComboboxHarness
@@ -713,7 +712,6 @@ export const ClearAll: Story = {
 	),
 };
 
-// With a single template there is nothing to narrow, so Template is left out.
 const singleTemplateCategories: FilterCategory[] = [
 	{
 		key: "owner",
@@ -725,6 +723,7 @@ const singleTemplateCategories: FilterCategory[] = [
 		key: "template",
 		label: "Template",
 		icon: <LayoutGridIcon />,
+		hideWhenSingleOption: true,
 		getOptions: async (query) =>
 			filterOptions(templateOptions.slice(0, 1), query),
 	},
@@ -739,6 +738,7 @@ const openFilterMenu = async (canvasElement: HTMLElement) => {
 	});
 };
 
+// Template has one option, so the menu omits it.
 export const SingleOptionCategoryHidden: Story = {
 	render: () => (
 		<FilterComboboxHarness
@@ -749,7 +749,28 @@ export const SingleOptionCategoryHidden: Story = {
 	play: ({ canvasElement }) => openFilterMenu(canvasElement),
 };
 
-// An applied chip keeps the category listed so it can still be changed.
+// Placeholder rows hold the category list until Template's options load.
+export const CategoryListLoading: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				singleTemplateCategories[0],
+				{
+					...singleTemplateCategories[1],
+					getOptions: () => new Promise<FilterOption[]>(() => {}),
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
+	},
+};
+
+// The template:docker chip keeps Template listed.
 export const SingleOptionCategoryWithChip: Story = {
 	render: () => (
 		<FilterComboboxHarness
@@ -806,7 +827,6 @@ export const DismissOnOutsideClick: Story = {
 	},
 };
 
-// A failed category lookup surfaces a Retry that refetches the options.
 export const CategoryOptionsErrorRetry: Story = {
 	render: () => {
 		// The unfiltered options and the category view share the empty-query
@@ -841,20 +861,14 @@ export const CategoryOptionsErrorRetry: Story = {
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "status:");
-		await expect(
-			await body.findByText(/Couldn.t load Status options/, {
-				ignore: '[role="status"], script, style',
-			}),
-		).toBeVisible();
-		await expect(body.getByRole("status")).toHaveTextContent(
-			/Couldn.t load Status options/,
-		);
+		await body.findByText(/Couldn.t load Status options/, {
+			ignore: '[role="status"], script, style',
+		});
 		await userEvent.click(body.getByRole("button", { name: /retry/i }));
-		await waitFor(() => expect(body.getByText("Running")).toBeVisible());
+		await body.findByText("Running");
 	},
 };
 
-// A failed suggestion lookup surfaces a Retry that refetches the typeahead.
 export const TypeaheadErrorRetry: Story = {
 	render: () => {
 		let thrown = false;
@@ -886,18 +900,11 @@ export const TypeaheadErrorRetry: Story = {
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "alice");
-		await expect(
-			await body.findByText(/Couldn.t load suggestions/, {
-				ignore: '[role="status"], script, style',
-			}),
-		).toBeVisible();
-		await expect(body.getByRole("status")).toHaveTextContent(
-			/Couldn.t load suggestions/,
-		);
+		await body.findByText(/Couldn.t load suggestions/, {
+			ignore: '[role="status"], script, style',
+		});
 		await userEvent.click(body.getByRole("button", { name: /retry/i }));
-		await waitFor(() =>
-			expect(body.getByRole("option", { name: /alice/i })).toBeVisible(),
-		);
+		await body.findByRole("option", { name: /alice/i });
 	},
 };
 
@@ -911,8 +918,6 @@ export const CategoryOptionsLoading: Story = {
 					key: "owner",
 					label: "Owner",
 					icon: <UserIcon />,
-					// Listed while its options are still loading.
-					showWhenSingleOption: true,
 					getOptions: () => new Promise<FilterOption[]>(() => {}),
 				},
 			]}

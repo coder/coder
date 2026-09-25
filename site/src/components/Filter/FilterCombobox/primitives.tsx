@@ -337,6 +337,9 @@ type FilterComboboxChipProps = ComponentProps<typeof Badge> & {
 	onRemove?: () => void;
 };
 
+/** Height shared by chips and controls that sit in the chip row. */
+export const chipRowItemHeightClassName = "h-7";
+
 export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 	className,
 	children,
@@ -354,6 +357,21 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 	const removeValue = value ?? childText;
 	const resolvedRemoveLabel =
 		removeLabel ?? (removeValue ? `Remove ${removeValue}` : "Remove filter");
+	// The button unmounts with its chip, so keyboard removal moves focus to the
+	// search input instead of the page body.
+	const remove = (button: HTMLElement, fromKeyboard: boolean) => {
+		if (fromKeyboard) {
+			button
+				.closest('[data-slot="combobox-chips"]')
+				?.querySelector("input")
+				?.focus();
+		}
+		if (onRemove) {
+			onRemove();
+		} else if (removeValue) {
+			onRemoveValue?.(removeValue);
+		}
+	};
 
 	return (
 		<Badge
@@ -361,6 +379,7 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 			svgSize="sm"
 			className={cn(
 				"group/chip pl-2 font-medium text-content-secondary hover:text-content-primary",
+				chipRowItemHeightClassName,
 				className,
 			)}
 			{...props}
@@ -375,13 +394,18 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 						"inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0",
 					)}
 					onMouseDown={(event) => event.preventDefault()}
+					// The cmdk root cancels Enter, so it is handled here.
+					onKeyDown={(event) => {
+						if (event.key !== "Enter") {
+							return;
+						}
+						event.preventDefault();
+						event.stopPropagation();
+						remove(event.currentTarget, true);
+					}}
 					onClick={(event) => {
 						event.stopPropagation();
-						if (onRemove) {
-							onRemove();
-						} else if (removeValue) {
-							onRemoveValue?.(removeValue);
-						}
+						remove(event.currentTarget, event.detail === 0);
 					}}
 				>
 					<XIcon aria-hidden />

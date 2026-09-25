@@ -56,7 +56,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				key: "owner",
 				label: "Owner",
 				icon: <UserIcon />,
-				showWhenSingleOption: true,
 				// `user:<name>` also matches workspaces shared with that user.
 				chipKeys: ["owner", "user"],
 				scopeToggle: {
@@ -99,6 +98,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			{
 				key: "template",
 				label: "Template",
+				hideWhenSingleOption: true,
 				icon: <LayoutPanelTopIcon />,
 				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
 			},
@@ -108,6 +108,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			next.push({
 				key: "organization",
 				label: "Organization",
+				hideWhenSingleOption: true,
 				icon: <Building2Icon />,
 				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
 			});

@@ -21,6 +21,7 @@ import {
 	InputGroupAddon,
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import {
@@ -41,6 +42,7 @@ import {
 	optionToken,
 } from "./filterQuery";
 import {
+	chipRowItemHeightClassName,
 	FilterComboboxChip,
 	FilterComboboxChips,
 	FilterComboboxChipsInput,
@@ -67,6 +69,10 @@ import {
  */
 const CATEGORY_HOVER_DELAY_MS = 300;
 
+/**
+ * Chip count at which Clear all appears. Fewer chips are quick to remove one
+ * at a time.
+ */
 const CLEAR_ALL_MIN_CHIPS = 3;
 
 const labelOnlyChipClassName =
@@ -121,6 +127,7 @@ export function FilterCombobox({
 		listedCategories,
 		categoriesNarrowedByText,
 		scopeMatchKey,
+		categoryPlaceholderCount,
 		unfilteredOptionsByKey,
 		unfilteredOptionsErroredKeys,
 		valueSuggestions,
@@ -274,12 +281,14 @@ export function FilterCombobox({
 	};
 	const mainPanelEmpty =
 		listedCategories.length === 0 &&
+		categoryPlaceholderCount === 0 &&
 		valueSuggestions.length === 0 &&
 		inlineOptionRows.length === 0 &&
 		!typeaheadError;
 
 	const mainPanelProps = {
 		listedCategories,
+		categoryPlaceholderCount,
 		valueSuggestions,
 		inlineOptionRows,
 		typeaheadError,
@@ -459,23 +468,6 @@ export function FilterCombobox({
 								</span>
 							);
 						})}
-						{chipValues.length >= CLEAR_ALL_MIN_CHIPS && (
-							<Badge
-								asChild
-								variant="outline"
-								hover
-								className="h-7 px-2 font-medium text-content-secondary hover:text-content-primary"
-							>
-								<button
-									type="button"
-									// Keep focus in the combobox input.
-									onMouseDown={(event) => event.preventDefault()}
-									onClick={actions.clearChips}
-								>
-									Clear all
-								</button>
-							</Badge>
-						)}
 						{activeCategory && typedFreeText.length > 0 && (
 							<Badge
 								variant="outline"
@@ -515,6 +507,43 @@ export function FilterCombobox({
 							onClick={actions.onInputFocus}
 							onKeyDown={actions.onInputKeyDown}
 						/>
+						{chipValues.length >= CLEAR_ALL_MIN_CHIPS && (
+							<Badge
+								asChild
+								variant="outline"
+								hover
+								className={cn(
+									chipRowItemHeightClassName,
+									"px-2 font-medium text-content-secondary hover:text-content-primary",
+								)}
+							>
+								<button
+									type="button"
+									// Keep focus in the combobox input.
+									onMouseDown={(event) => event.preventDefault()}
+									// The cmdk root cancels Enter, so it is handled here.
+									onKeyDown={(event) => {
+										if (event.key !== "Enter") {
+											return;
+										}
+										event.preventDefault();
+										event.stopPropagation();
+										actions.clearAll();
+										actions.focusInput();
+									}}
+									onClick={(event) => {
+										actions.clearAll();
+										// The button unmounts, so keyboard activation (detail 0)
+										// moves focus to the input instead of the page body.
+										if (event.detail === 0) {
+											actions.focusInput();
+										}
+									}}
+								>
+									Clear all
+								</button>
+							</Badge>
+						)}
 					</FilterComboboxChips>
 				</FilterComboboxInputGroup>
 				<FilterComboboxContent
@@ -714,6 +743,8 @@ const groupByCategoryLabel = <T extends { categoryLabel: string }>(
 
 type MainPanelProps = Readonly<{
 	listedCategories: readonly FilterCategory[];
+	/** Placeholder rows shown while the category list is still unknown. */
+	categoryPlaceholderCount: number;
 	valueSuggestions: readonly ValueSuggestion[];
 	inlineOptionRows: readonly InlineOptionRow[];
 	typeaheadError: boolean;
@@ -737,6 +768,7 @@ type MainPanelProps = Readonly<{
 
 function MainPanel({
 	listedCategories,
+	categoryPlaceholderCount,
 	valueSuggestions,
 	inlineOptionRows,
 	typeaheadError,
@@ -758,7 +790,19 @@ function MainPanel({
 				embedded &&
 					"w-full rounded-none border-0 bg-transparent p-0 shadow-none",
 			)}
+			aria-busy={categoryPlaceholderCount > 0 || undefined}
 		>
+			{Array.from({ length: categoryPlaceholderCount }, (_, index) => (
+				<div
+					key={`placeholder-${index}`}
+					aria-hidden
+					data-slot="category-placeholder"
+					className={cn(OPTION_ITEM_CLASS, "flex items-center")}
+				>
+					<Skeleton className="size-4 shrink-0" />
+					<Skeleton variant="text" className="w-24" />
+				</div>
+			))}
 			{listedCategories.map((category) => (
 				<FilterComboboxItem
 					ref={(element) => registerCategoryRow(category.key, element)}
