@@ -5,7 +5,7 @@ title: Install the Coder CLI
 A single CLI (`coder`) is used for both the control plane and the client.
 
 We support two release channels: mainline and stable - read the
-[Releases](./releases/index.md) page to learn more about which best suits your team.
+[Releases](../reference/releases.md) page to learn more about which best suits your team.
 
 ## Download the latest release from GitHub
 
@@ -16,7 +16,7 @@ We support two release channels: mainline and stable - read the
 Our install script is the fastest way to install Coder on Linux/macOS:
 
 ```sh
-curl -L https://coder.com/install.sh | sh
+curl -fsSL https://coder.com/install.sh | sh
 ```
 
 Refer to [GitHub releases](https://github.com/coder/coder/releases) for

@@ -192,7 +192,7 @@ Then make your changes and push normally. Don't use `git push --force` unless th
 
 ## Commit Style
 
-Format: `type(scope): message`. See [CONTRIBUTING.md](docs/about/contributing/CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
+Format: `type(scope): message`. See [CONTRIBUTING.md](CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
 
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
 - Scopes must be a real path (directory or file stem) containing all changed files

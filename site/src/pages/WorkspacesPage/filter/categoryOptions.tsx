@@ -1,4 +1,4 @@
-import { MoonIcon, RefreshCwOffIcon } from "lucide-react";
+import { MoonIcon, RefreshCwOffIcon, Share2Icon } from "lucide-react";
 import type { ReactNode } from "react";
 import type { QueryClient } from "react-query";
 import { permittedOrganizations } from "#/api/queries/organizations";
@@ -153,10 +153,16 @@ const ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
 		requiresDormantEntitlement: false,
 	},
 	{
-		label: "Deletion pending",
+		label: "Dormant",
 		value: "dormant",
 		icon: <MoonIcon />,
 		requiresDormantEntitlement: true,
+	},
+	{
+		label: "Shared",
+		value: "shared",
+		icon: <Share2Icon />,
+		requiresDormantEntitlement: false,
 	},
 ];
 

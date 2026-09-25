@@ -12,19 +12,6 @@ const ownerCategory: FilterCategory = {
 	getOptions: async () => [{ label: "alice", value: "alice" }],
 };
 
-const scopedOwnerCategory: FilterCategory = {
-	...ownerCategory,
-	chipKeys: ["owner", "user"],
-	scopeToggle: {
-		label: (owner) =>
-			owner
-				? `Include workspaces shared with ${owner}`
-				: "Include shared workspaces",
-		chipKey: "user",
-		pillLabel: "shared with owner",
-	},
-};
-
 const OWNER_NAMES = Array.from({ length: 12 }, (_, index) => `user-${index}`);
 
 // More owners than the flyout search threshold. `zed` is only returned by a
@@ -55,7 +42,7 @@ const attributesCategory: FilterCategory = {
 	inlineOptionsLabel: "Workspace is…",
 	getOptions: async () => [
 		{ label: "Outdated", value: "outdated", token: "outdated:true" },
-		{ label: "Deletion pending", value: "dormant", token: "dormant:true" },
+		{ label: "Dormant", value: "dormant", token: "dormant:true" },
 	],
 };
 
@@ -151,7 +138,7 @@ describe("FilterCombobox", () => {
 			expect(onChange).toHaveBeenLastCalledWith("outdated:true"),
 		);
 		await user.click(
-			await screen.findByRole("option", { name: "Deletion pending" }),
+			await screen.findByRole("option", { name: "Dormant" }),
 		);
 
 		await waitFor(() =>
@@ -304,97 +291,14 @@ describe("FilterCombobox", () => {
 		expect(search).toHaveFocus();
 	});
 
-	it("commits options under the scope toggle key by default", async () => {
-		const { user, onChange, filtersButton } = setup([scopedOwnerCategory]);
-
-		await user.click(filtersButton);
-		await user.keyboard("{ArrowRight}");
-		await user.click(await screen.findByRole("option", { name: "alice" }));
-
-		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
-		);
-	});
-
-	it("rewrites the applied chip when the scope toggle is switched off", async () => {
-		const { user, onChange, filtersButton } = setup([scopedOwnerCategory], {
-			initialValue: "user:alice",
-		});
-
-		await user.click(filtersButton);
-		await user.keyboard("{ArrowRight}");
-		await user.click(
-			await screen.findByRole("switch", {
-				name: "Include workspaces shared with alice",
-			}),
+	it("clears every chip and keeps the search text with Clear all", async () => {
+		const { user, onChange } = setup(
+			[ownerCategory, statusCategory, attributesCategory],
+			{ initialValue: "owner:alice status:running outdated:true dev" },
 		);
 
-		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
-		);
-	});
+		await user.click(screen.getByRole("button", { name: "Clear all" }));
 
-	it("removing the scope pill narrows the applied chip", async () => {
-		const { user, onChange } = setup([scopedOwnerCategory], {
-			initialValue: "user:alice",
-		});
-
-		await user.click(
-			screen.getByRole("button", { name: "Remove shared with owner" }),
-		);
-
-		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
-		);
-	});
-
-	it("removes the scope pill before its chip with Backspace", async () => {
-		const { user, onChange, input } = setup([scopedOwnerCategory], {
-			initialValue: "user:alice",
-		});
-
-		await user.click(input);
-		await user.keyboard("{Backspace}");
-		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
-		);
-
-		await user.keyboard("{Backspace}");
-		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
-	});
-
-	it("opens the Owner flyout with its toggle when typing shared", async () => {
-		const { user, onChange, input } = setup([scopedOwnerCategory], {
-			initialValue: "owner:alice",
-			skipHover: true,
-		});
-
-		await user.click(input);
-		await user.type(input, "shared");
-		await user.click(
-			await screen.findByRole("switch", {
-				name: "Include workspaces shared with alice",
-			}),
-		);
-
-		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
-		);
-		expect(input).toHaveValue("");
-	});
-
-	it("clears the typed text when picking an owner from the scope flyout", async () => {
-		const { user, onChange, input } = setup([scopedOwnerCategory], {
-			skipHover: true,
-		});
-
-		await user.click(input);
-		await user.type(input, "sha");
-		await user.click(await screen.findByRole("button", { name: "alice" }));
-
-		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
-		);
-		expect(input).toHaveValue("");
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("dev"));
 	});
 });

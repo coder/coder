@@ -77,7 +77,7 @@ assert_maps_to "docs/CHANGELOG.md" "CHANGELOG"
 
 # Additional coverage for edge cases and deeper nesting.
 assert_maps_to "docs/index.md" ""
-assert_maps_to "docs/about/contributing/CONTRIBUTING.md" "about/contributing/CONTRIBUTING"
+assert_maps_to "docs/admin/security/audit-logs.md" "admin/security/audit-logs"
 assert_maps_to "docs/admin/groups.md" "admin/groups"
 assert_maps_to "docs/tutorials/best-practices/index.md" "tutorials/best-practices"
 

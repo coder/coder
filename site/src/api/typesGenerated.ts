@@ -6773,6 +6773,11 @@ export interface OAuth2ProviderApp {
 	 */
 	readonly client_type: OAuth2ClientType;
 	/**
+	 * DynamicallyRegistered is true when the app registered itself through
+	 * Dynamic Client Registration rather than being created by an admin.
+	 */
+	readonly dynamically_registered: boolean;
+	/**
 	 * Endpoints are included in the app response for easier discovery. The OAuth2
 	 * spec does not have a defined place to find these (for comparison, OIDC has
 	 * a '/.well-known/openid-configuration' endpoint).

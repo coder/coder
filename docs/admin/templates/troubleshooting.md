@@ -176,7 +176,7 @@ to optimize your templates based on this data.
 If a Docker-based template fails to provision with an error like `Cannot connect to the Docker daemon at unix:///var/run/docker.sock`, the Coder host cannot reach the Docker socket.
 Confirm that Docker is installed and running on the host.
 If you run Docker through rootless Docker, [Colima](https://colima.run), Podman, or a similar tool, the daemon may expose its socket at a non-default path, so set `DOCKER_HOST` to point at it.
-Refer to [Cannot connect to the Docker daemon](../../install/docker.md#cannot-connect-to-the-docker-daemon) for the full steps.
+Refer to [Cannot connect to the Docker daemon](../../install/server/docker.md#cannot-connect-to-the-docker-daemon) for the full steps.
 
 ## Docker Workspaces on Raspberry Pi OS
 

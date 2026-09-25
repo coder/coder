@@ -8,10 +8,7 @@ import type { FilterCategory, FilterOption } from "./types";
 
 export const chipToken = (key: string, value: string) => `${key}:${value}`;
 
-type ChipDisplaySource = Pick<
-	FilterCategory,
-	"key" | "chipKeys" | "scopeToggle"
->;
+type ChipDisplaySource = Pick<FilterCategory, "key" | "chipKeys">;
 
 const PREVIEW_OPTION_LIMIT = 4;
 
@@ -75,9 +72,6 @@ export const chipDisplay = (
 			category.key !== key.toLowerCase() &&
 			category.chipKeys?.includes(key.toLowerCase()),
 	);
-	if (owner?.scopeToggle?.chipKey === key.toLowerCase()) {
-		return { key: owner.key, value };
-	}
 	if (owner) {
 		return { key: owner.key, value: key.toLowerCase() };
 	}
@@ -204,8 +198,6 @@ type CategoryMatchSource = {
 	key: string;
 	label: string;
 	aliases?: readonly string[];
-	/** Query key options commit under when it differs from `key`. */
-	chipKey?: string;
 };
 
 export const parseTypedCategoryPrefix = (
@@ -322,9 +314,7 @@ export const collectValueSuggestions = (
 				break;
 			}
 
-			const token =
-				option.token ??
-				chipToken(category.chipKey ?? category.key, option.value);
+			const token = option.token ?? chipToken(category.key, option.value);
 
 			if (
 				!option.label.toLowerCase().includes(normalized) &&
