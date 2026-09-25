@@ -42,11 +42,12 @@ export type FilterCategory = {
 	chipLabelOnly?: boolean;
 	/**
 	 * Leave the category out of the menu while `getOptions("")` returns at most
-	 * one option, since filtering by it would not narrow the results. Its
-	 * empty-query options are fetched when the filter renders, and the menu shows
-	 * placeholder rows until they load. An applied chip or a failed lookup keeps
-	 * it in the menu. Values that `getOptions("")` leaves out stay reachable only
-	 * by typing `key:value`. Does not apply to inline categories.
+	 * one option. When `getOptions("")` omits values the results can contain,
+	 * the row can hide while its one option would still narrow the results. Its
+	 * empty-query options are fetched when the filter renders. Until every
+	 * category with this flag has loaded them, the unnarrowed menu shows
+	 * placeholder rows in place of all submenu rows. An applied chip or a failed
+	 * lookup keeps it in the menu. Does not apply to inline categories.
 	 */
 	hideWhenSingleOption?: boolean;
 };

@@ -48,6 +48,7 @@ import {
 	FilterComboboxList,
 	FilterComboboxRoot,
 	FilterComboboxStatus,
+	isListNavigationKey,
 	menuMaxHeightClassName,
 } from "./primitives";
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
@@ -778,17 +779,6 @@ function MainPanel({
 	);
 }
 
-// Keys cmdk uses to move through and pick the highlighted option.
-const LIST_NAVIGATION_KEYS = new Set([
-	"ArrowUp",
-	"ArrowDown",
-	"Home",
-	"End",
-	"Enter",
-]);
-// cmdk's Ctrl bindings for next (`n`, `j`) and previous (`p`, `k`).
-const LIST_NAVIGATION_CTRL_KEYS = new Set(["n", "j", "p", "k"]);
-
 type FlyoutSearchProps = Readonly<{
 	label: string;
 	value: string;
@@ -816,8 +806,7 @@ function FlyoutSearch({
 				onChange={(event) => onChange(event.currentTarget.value)}
 				onKeyDown={(event) => {
 					const isListNavigation =
-						LIST_NAVIGATION_KEYS.has(event.key) ||
-						(event.ctrlKey && LIST_NAVIGATION_CTRL_KEYS.has(event.key));
+						event.key === "Enter" || isListNavigationKey(event);
 					if (navigatesList && isListNavigation) {
 						return;
 					}
