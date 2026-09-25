@@ -98,35 +98,16 @@ export const DeleteConfirmationField: FC<DeleteConfirmationFieldProps> = ({
 				aria-describedby={showError ? errorId : undefined}
 				data-testid="delete-dialog-name-confirmation"
 			/>
-			{/*
-			 * Always rendered at a fixed one-line height so showing the error never
-			 * moves the controls below it, for example when pressing Cancel blurs
-			 * the input. Visually only the typed value truncates, keeping its
-			 * whitespace so a stray space stays visible inside the quotes. The split
-			 * layout would add a space to the announced text, so assistive tech gets
-			 * the message as a single string instead.
-			 */}
-			<p
-				id={errorId}
-				role="alert"
-				className="m-0 h-4 text-xs leading-4 text-content-destructive"
-			>
-				{showError && (
-					<>
-						<span className="sr-only">
-							&ldquo;{value}&rdquo; does not match the name of this {entity}
-						</span>
-						<span aria-hidden className="flex min-w-0 overflow-hidden">
-							<span className="min-w-0 overflow-hidden text-ellipsis whitespace-pre">
-								&ldquo;{value}
-							</span>
-							<span className="shrink-0 whitespace-nowrap">
-								&rdquo; does not match the name of this {entity}
-							</span>
-						</span>
-					</>
-				)}
-			</p>
+			{showError && (
+				// pre-wrap keeps a stray space visible inside the quotes.
+				<span
+					id={errorId}
+					role="alert"
+					className="whitespace-pre-wrap text-xs text-content-destructive"
+				>
+					&ldquo;{value}&rdquo; does not match the name of this {entity}
+				</span>
+			)}
 		</div>
 	);
 };

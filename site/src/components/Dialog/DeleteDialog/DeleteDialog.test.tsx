@@ -81,7 +81,7 @@ describe("DeleteDialog", () => {
 		await user.type(input, "wrong-name{Enter}x");
 
 		expect(input).toHaveAttribute("aria-invalid", "false");
-		expect(screen.getByRole("alert")).toBeEmptyDOMElement();
+		expect(screen.queryByRole("alert")).toBeNull();
 	});
 
 	it("confirms on Enter when the name matches", async () => {

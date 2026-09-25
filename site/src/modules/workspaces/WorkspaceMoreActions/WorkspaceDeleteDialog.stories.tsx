@@ -93,8 +93,7 @@ export const FilledWrongSubmitted: Story = {
 	},
 };
 
-// A long wrong name truncates on one line instead of wrapping, so the error
-// never pushes the buttons down.
+// A long wrong name wraps under the input.
 export const FilledWrongLongName: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
