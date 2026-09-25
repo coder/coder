@@ -164,6 +164,7 @@ Send the token in the `Authorization` header instead, as shown under [Authorizat
 
 The rule applies to tokens the OAuth2 provider issued.
 Coder session tokens and API tokens created from the dashboard or the CLI are still accepted in the query string, because browsers cannot set headers on WebSocket connections.
+A dashboard page embedded in another application and authenticated with an OAuth2 access token cannot open WebSocket connections, because the page has no other way to send the token on a WebSocket.
 
 A token that also appears in the `Authorization` header, the `Coder-Session-Token` header, or the session cookie is accepted, and the query copy is ignored.
 
