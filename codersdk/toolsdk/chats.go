@@ -111,7 +111,7 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 				},
 				"title": map[string]any{
 					"type":        "string",
-					"description": fmt.Sprintf("Optional chat title, trimmed and kept as the user's title, at most %d characters. When omitted the server derives one from the prompt and later replaces it with a generated title.", codersdk.MaxChatTitleRunes),
+					"description": fmt.Sprintf("Optional chat title, trimmed and kept as the user's title, at most %d characters. When omitted the server derives one from the prompt and may later replace it with a generated title.", codersdk.MaxChatTitleRunes),
 				},
 				"labels": map[string]any{
 					"type":                 "object",
@@ -151,7 +151,7 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 			modelConfigID = &id
 		}
 		var title *string
-		if strings.TrimSpace(args.Title) != "" {
+		if args.Title != "" {
 			title = &args.Title
 		}
 		chat, err := codersdk.NewExperimentalClient(deps.coderClient).CreateChat(ctx, codersdk.CreateChatRequest{
