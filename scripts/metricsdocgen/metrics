@@ -16,6 +16,9 @@ coderd_agentstats_currently_reachable_peers{agent_name="main",connection_type="d
 # HELP coderd_agentstats_rx_bytes Agent Rx bytes
 # TYPE coderd_agentstats_rx_bytes gauge
 coderd_agentstats_rx_bytes{agent_name="main",username="admin",workspace_name="workspace1"} 7731
+# HELP coderd_agentstats_session_count The number of sessions established by app name
+# TYPE coderd_agentstats_session_count gauge
+coderd_agentstats_session_count{agent_name="main",app_name="cursor",username="admin",workspace_name="workspace1"} 1
 # HELP coderd_agentstats_session_count_jetbrains The number of session established by JetBrains
 # TYPE coderd_agentstats_session_count_jetbrains gauge
 coderd_agentstats_session_count_jetbrains{agent_name="main",username="admin",workspace_name="workspace1"} 0

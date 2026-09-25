@@ -235,4 +235,4 @@ DELETE FROM audit_logs WHERE time < CURRENT_TIMESTAMP - INTERVAL '1 year';
 
 ## How to Enable Audit Logs
 
-This feature is only available with a [Premium license](../licensing/index.md), and is automatically enabled.
+This feature is only available with a [Premium license](../../install/prepare/licensing.md), and is automatically enabled.

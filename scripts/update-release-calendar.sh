@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-# This script automatically updates the release calendar in docs/install/releases/index.md
+# This script automatically updates the release calendar in docs/reference/releases.md
 # It updates the status of each release (Not Supported, Security Support, Stable, Mainline,
 # Extended Support Release, Not Released) and gets the release dates from the first published
 # tag for each minor release.
@@ -14,7 +14,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-DOCS_FILE="docs/install/releases/index.md"
+DOCS_FILE="docs/reference/releases.md"
 ESR_VERSIONS_FILE="${SCRIPT_DIR}/release_channels/esr_versions.txt"
 
 CALENDAR_START_MARKER="<!-- RELEASE_CALENDAR_START -->"

@@ -2245,6 +2245,17 @@ func (q *querier) DeleteChatDebugDataByChatID(ctx context.Context, arg database.
 	return q.db.DeleteChatDebugDataByChatID(ctx, arg)
 }
 
+func (q *querier) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg database.DeleteChatMCPServersByChatIDExcludingSlugsParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.DeleteChatMCPServersByChatIDExcludingSlugs(ctx, arg)
+}
+
 func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	config, err := q.db.GetChatModelConfigByID(ctx, id)
 	if err != nil {
@@ -3462,6 +3473,23 @@ func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, 
 	return q.db.GetChatIncludeDefaultSystemPrompt(ctx)
 }
 
+func (q *querier) GetChatMCPServersByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMCPServer, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatMCPServersByChatID(ctx, chatID)
+}
+
+func (q *querier) GetChatMCPServersByChatOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatMCPServer, error) {
+	// Only used by the dbcrypt rotation, which operates on every row.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatMCPServersByChatOwnerID(ctx, ownerID)
+}
+
 func (q *querier) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
 	// ChatMessages are authorized through their parent Chat.
 	// We need to fetch the message first to get its chat_id.
@@ -4337,6 +4365,13 @@ func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (d
 		return database.OAuth2ProviderApp{}, err
 	}
 	return q.db.GetOAuth2ProviderAppByID(ctx, id)
+}
+
+func (q *querier) GetOAuth2ProviderAppByIDForUpdate(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+	return q.db.GetOAuth2ProviderAppByIDForUpdate(ctx, id)
 }
 
 func (q *querier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
@@ -7797,6 +7832,14 @@ func (q *querier) UpdateEncryptedAIProviderSettings(ctx context.Context, arg dat
 	return q.db.UpdateEncryptedAIProviderSettings(ctx, arg)
 }
 
+func (q *querier) UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg database.UpdateEncryptedChatMCPServerHeadersParams) error {
+	// Only used by the dbcrypt rotation, which operates on every row.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateEncryptedChatMCPServerHeaders(ctx, arg)
+}
+
 func (q *querier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	// Encrypted user-owned provider keys can be rewritten on any row so
 	// dbcrypt rotation can move every key to a new digest. This is a
@@ -9104,6 +9147,17 @@ func (q *querier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, incl
 		return err
 	}
 	return q.db.UpsertChatIncludeDefaultSystemPrompt(ctx, includeDefaultSystemPrompt)
+}
+
+func (q *querier) UpsertChatMCPServer(ctx context.Context, arg database.UpsertChatMCPServerParams) (database.ChatMCPServer, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatMCPServer{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatMCPServer{}, err
+	}
+	return q.db.UpsertChatMCPServer(ctx, arg)
 }
 
 func (q *querier) UpsertChatOrganizationModelOverride(ctx context.Context, arg database.UpsertChatOrganizationModelOverrideParams) error {

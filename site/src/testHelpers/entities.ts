@@ -1567,7 +1567,7 @@ export const MockFailedWorkspaceBuild = (
 ): TypesGen.WorkspaceBuild => ({
 	build_number: 1,
 	created_at: "2022-05-17T17:39:01.382927298Z",
-	id: "1",
+	id: "9f0e7d0e-4b2b-4ac9-8f1a-1a7a1f0c9d11",
 	initiator_id: MockUserOwner.id,
 	initiator_name: MockUserOwner.username,
 	job: MockFailedProvisionerJob,
@@ -3868,10 +3868,41 @@ export const MockDeploymentStats: TypesGen.DeploymentStats = {
 	collected_at: "2023-03-06T19:12:55.211625Z",
 	next_update_at: "2023-03-06T19:20:55.211625Z",
 	session_count: {
-		vscode: 128,
+		vscode: 152,
 		jetbrains: 5,
 		ssh: 32,
 		reconnecting_pty: 15,
+		apps: {
+			cursor: {
+				count: 24,
+				display_name: "Cursor",
+				icon: "/icon/cursor.svg",
+				family: "vscode",
+			},
+			vscode: {
+				count: 128,
+				display_name: "VS Code",
+				icon: "/icon/code.svg",
+				family: "vscode",
+			},
+			jetbrains: {
+				count: 5,
+				display_name: "JetBrains",
+				icon: "/icon/jetbrains.svg",
+				family: "jetbrains",
+			},
+			ssh: {
+				count: 32,
+				display_name: "SSH",
+				icon: "/icon/terminal.svg",
+				family: "ssh",
+			},
+			reconnecting_pty: {
+				count: 15,
+				display_name: "Web Terminal",
+				family: "reconnecting_pty",
+			},
+		},
 	},
 	workspaces: {
 		building: 15,
@@ -4974,10 +5005,12 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	{
 		id: "1",
 		name: "foo",
+		redirect_uris: ["http://127.0.0.1:3001"],
 		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
 		scope: "",
 		client_type: "confidential",
+		dynamically_registered: false,
 		endpoints: {
 			authorization: "http://127.0.0.1:3001/oauth2/authorize",
 			token: "http://127.0.0.1:3001/oauth2/token",
@@ -4990,16 +5023,23 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 export const MockOAuth2ProviderAppPublic: TypesGen.OAuth2ProviderApp = {
 	id: "2",
 	name: "bar (public)",
+	redirect_uris: ["http://127.0.0.1:3002"],
 	callback_url: "http://127.0.0.1:3002",
 	icon: "/icon/github.svg",
 	scope: "",
 	client_type: "public",
+	dynamically_registered: false,
 	endpoints: {
 		authorization: "http://127.0.0.1:3002/oauth2/authorize",
 		token: "http://127.0.0.1:3002/oauth2/token",
 		device_authorization: "",
 		token_revoke: "http://127.0.0.1:3002/oauth2/revoke",
 	},
+};
+
+export const MockOAuth2ProviderAppDynamic: TypesGen.OAuth2ProviderApp = {
+	...MockOAuth2ProviderApps[0],
+	dynamically_registered: true,
 };
 
 export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
@@ -5595,6 +5635,41 @@ export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	created_at: "2026-05-14T10:00:00Z",
 	updated_at: "2026-05-14T10:00:00Z",
 };
+
+export const MockOrganizationAISpendUser: TypesGen.OrganizationAISpendUser = {
+	user_id: MockUserOwner.id,
+	username: MockUserOwner.username,
+	name: "Test User",
+	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
+	cost_micros: 2_500_000,
+	unpriced_usage_count: 0,
+	providers: ["anthropic", "openai"],
+	clients: ["Claude Code", "Cursor"],
+	models: ["claude-opus-4-6", "gpt-5.4"],
+};
+
+export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
+	{
+		period_start: "2026-02-10T00:00:00Z",
+		period_end: "2026-03-12T00:00:00Z",
+		retention_start: "2026-01-11T15:30:00Z",
+		count: 2,
+		totals: { cost_micros: 3_500_000, unpriced_usage_count: 0 },
+		users: [
+			MockOrganizationAISpendUser,
+			{
+				...MockOrganizationAISpendUser,
+				user_id: "5e1a2b3c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
+				username: "alice",
+				name: "Alice Liddell",
+				avatar_url: "",
+				cost_micros: 1_000_000,
+				providers: ["anthropic"],
+				clients: ["Unknown"],
+				models: ["claude-opus-4-6"],
+			},
+		],
+	};
 
 export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderOpenAI,
