@@ -189,6 +189,8 @@ const baseChatFields = {
 	last_model_config_id: MODEL_CONFIG_ID,
 	mcp_server_ids: [],
 	labels: {},
+	title_source: "generated",
+	title_updated_at: "2026-02-18T00:00:00.000Z",
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	archived: false,

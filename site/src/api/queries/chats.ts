@@ -533,12 +533,29 @@ export const mergeWatchedChatSummary = (
 		cachedChat.updated_at,
 		watchedChat.updated_at,
 	);
-	const isFreshEnough = updatedAtComparison <= 0;
+	// A title event's row can be newer than a status_change that has not
+	// arrived yet, so a title event changes only the title fields, ordered
+	// by title_updated_at because title writes do not change updated_at.
+	const isFreshEnough = !isTitleEvent && updatedAtComparison <= 0;
 	const nextStatus =
 		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
-	// maybeGenerateChatTitle can publish a previously loaded chat snapshot, so
-	// apply title_change payloads even when the chat summary timestamp is older.
-	const nextTitle = isTitleEvent ? watchedChat.title : cachedChat.title;
+	// Servers from before title_updated_at existed omit it; apply their
+	// title events unordered.
+	const hasNewerTitle =
+		isTitleEvent &&
+		(!cachedChat.title_updated_at ||
+			!watchedChat.title_updated_at ||
+			compareUpdatedAtInstants(
+				cachedChat.title_updated_at,
+				watchedChat.title_updated_at,
+			) < 0);
+	const nextTitleFields = hasNewerTitle
+		? {
+				title: watchedChat.title,
+				title_source: watchedChat.title_source,
+				title_updated_at: watchedChat.title_updated_at,
+			}
+		: undefined;
 	// Diff status freshness is tracked outside chats.updated_at, so apply
 	// diff_status_change payloads even when the chat summary timestamp is older.
 	const nextDiffStatus = isDiffStatusEvent
@@ -586,15 +603,16 @@ export const mergeWatchedChatSummary = (
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true
 			: cachedChat.has_unread;
-	const nextUpdatedAt =
-		updatedAtComparison > 0 ? cachedChat.updated_at : watchedChat.updated_at;
+	const nextUpdatedAt = isFreshEnough
+		? watchedChat.updated_at
+		: cachedChat.updated_at;
 
 	// Keep updated_at in the no-op guard. This gives up the old streaming
 	// rerender shortcut so later stale events cannot pass isFreshEnough
 	// against a timestamp that should already have been superseded.
 	if (
+		!hasNewerTitle &&
 		nextStatus === cachedChat.status &&
-		nextTitle === cachedChat.title &&
 		diffStatusEqual(nextDiffStatus, cachedChat.diff_status) &&
 		nextWorkspaceId === cachedChat.workspace_id &&
 		nextBuildId === cachedChat.build_id &&
@@ -611,8 +629,8 @@ export const mergeWatchedChatSummary = (
 
 	return {
 		...cachedChat,
+		...nextTitleFields,
 		status: nextStatus,
-		title: nextTitle,
 		diff_status: nextDiffStatus,
 		workspace_id: nextWorkspaceId,
 		build_id: nextBuildId,
@@ -1610,15 +1628,9 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, title }: UpdateChatTitleVariables) =>
 		API.experimental.updateChat(chatId, { title }),
 
-	onSuccess: (_data: unknown, { chatId, title }: UpdateChatTitleVariables) => {
-		patchChatEntity(queryClient, chatId, (chat) =>
-			chat ? { ...chat, title } : chat,
-		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) => (chat.id === chatId ? { ...chat, title } : chat)),
-		);
-	},
-
+	// Invalidate instead of patching the cache: the server assigns
+	// title_updated_at, and a cached title without it cannot be ordered
+	// against title_change events.
 	onSettled: (
 		_data: unknown,
 		_error: unknown,

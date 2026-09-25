@@ -382,6 +382,14 @@ CREATE TYPE chat_status AS ENUM (
     'interrupting'
 );
 
+CREATE TYPE chat_title_source AS ENUM (
+    'fallback',
+    'generated',
+    'user'
+);
+
+COMMENT ON TYPE chat_title_source IS 'Where a chat title came from. fallback: derived from the first prompt. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.';
+
 CREATE TYPE connection_status AS ENUM (
     'connected',
     'disconnected'
@@ -2233,6 +2241,8 @@ CREATE TABLE chats (
     compaction_requested_at timestamp with time zone,
     summary text,
     summary_generated_at timestamp with time zone,
+    title_source chat_title_source DEFAULT 'fallback'::chat_title_source NOT NULL,
+    title_updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2257,6 +2267,10 @@ COMMENT ON COLUMN chats.context_error IS 'Snapshot-level error copied from the p
 COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message effort once per-turn selection is wired.';
 
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
+
+COMMENT ON COLUMN chats.title_source IS 'Only a user title may replace a generated or user title. Rows from before this column existed are fallback regardless of who set their title.';
+
+COMMENT ON COLUMN chats.title_updated_at IS 'Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2356,7 +2370,9 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_since,
     c.context_dirty_resources,
     c.context_error,
-    c.compaction_requested_at
+    c.compaction_requested_at,
+    c.title_source,
+    c.title_updated_at
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));

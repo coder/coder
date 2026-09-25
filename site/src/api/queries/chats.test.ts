@@ -196,6 +196,8 @@ const makeChat = (
 	mcp_server_ids: [],
 	labels: {},
 	title: `Chat ${id}`,
+	title_source: "generated",
+	title_updated_at: "2025-01-01T00:00:00.000Z",
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",
 	updated_at: "2025-01-01T00:00:00.000Z",
@@ -687,39 +689,6 @@ describe("updateChatPlanMode", () => {
 });
 
 describe("updateChatTitle cache update", () => {
-	it("patches chat detail and infinite chat list caches after success", () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		queryClient.setQueryData(
-			chatEntityKey(chatId),
-			makeChat(chatId, { title: "Old" }),
-		);
-		seedInfiniteChats(queryClient, [
-			makeChat(chatId, { title: "Old" }),
-			makeChat("chat-2", { title: "Other" }),
-		]);
-		seedInfiniteChats(
-			queryClient,
-			[makeChat(chatId, { archived: true, title: "Old" })],
-			{ archived: true },
-		);
-
-		const mutation = updateChatTitle(queryClient);
-		mutation.onSuccess(undefined, { chatId, title: "New" });
-
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.title,
-		).toBe("New");
-		expect(
-			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId),
-		).toMatchObject({ title: "New" });
-		expect(
-			readInfiniteChats(queryClient, { archived: true })?.find(
-				(chat) => chat.id === chatId,
-			),
-		).toMatchObject({ title: "New" });
-	});
-
 	it("does not return pending invalidation promises from settlement", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
@@ -3047,48 +3016,162 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
-	it("merges fresh title updates without clobbering a newer status snapshot", () => {
+	it.each<{
+		name: string;
+		cached?: Partial<TypesGen.Chat>;
+		watched: Partial<TypesGen.Chat>;
+		titleFrom: "watched" | "cached";
+	}>([
+		{
+			name: "applies a newer title even when updated_at is newer",
+			watched: {
+				title: "After",
+				title_updated_at: "2025-01-01T00:00:01.000Z",
+				updated_at: "2025-01-01T00:05:00.000Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "applies a newer title even when updated_at is older",
+			watched: {
+				title: "After",
+				title_updated_at: "2025-01-01T00:00:01.000Z",
+				updated_at: "2024-12-31T00:00:00.000Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "applies a newer title whose text is unchanged",
+			watched: {
+				title: "Before",
+				title_updated_at: "2025-01-01T00:00:01.000Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "ignores an older title",
+			watched: {
+				title: "After",
+				title_updated_at: "2024-12-31T23:59:59.000Z",
+			},
+			titleFrom: "cached",
+		},
+		{
+			name: "ignores a title with the same title_updated_at",
+			watched: {
+				title: "After",
+				title_updated_at: "2025-01-01T00:00:00.000Z",
+			},
+			titleFrom: "cached",
+		},
+		{
+			name: "applies a title when the cached chat has no title_updated_at",
+			cached: { title_updated_at: undefined },
+			watched: {
+				title: "After",
+				title_updated_at: "2024-12-31T23:59:59.000Z",
+			},
+			titleFrom: "watched",
+		},
+		{
+			name: "applies a title event that has no title_updated_at",
+			watched: { title: "After", title_updated_at: undefined },
+			titleFrom: "watched",
+		},
+	])("$name", ({ cached, watched, titleFrom }) => {
 		const cachedChat = makeChat("chat-1", {
 			status: "running",
-			title: "Fresh title",
+			title: "Before",
+			title_source: "user",
+			title_updated_at: "2025-01-01T00:00:00.000Z",
 			updated_at: "2025-01-01T00:00:00.000Z",
+			...cached,
 		});
 		const watchedChat = makeChat("chat-1", {
 			status: "waiting",
-			title: "Updated title",
-			updated_at: "2025-01-01T00:05:00.000Z",
+			title_source: "generated",
+			...watched,
+		});
+		const rows = { watched: watchedChat, cached: cachedChat };
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "title_change",
+		});
+
+		expect(merged).toMatchObject({
+			title: rows[titleFrom].title,
+			title_source: rows[titleFrom].title_source,
+			title_updated_at: rows[titleFrom].title_updated_at,
+			status: cachedChat.status,
+			updated_at: cachedChat.updated_at,
+		});
+		if (titleFrom === "cached") {
+			expect(merged).toBe(cachedChat);
+		}
+	});
+
+	it("changes only the title fields from a title event", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			last_model_config_id: "model-a",
+			updated_at: "2025-01-01T00:00:01.000Z",
+		});
+		const titleEvent = makeChat("chat-1", {
+			status: "waiting",
+			last_model_config_id: "model-b",
+			title: "New title",
+			title_updated_at: "2025-01-01T00:00:03.000Z",
+			updated_at: "2025-01-01T00:00:03.000Z",
+		});
+		const delayedStatus = makeChat("chat-1", {
+			status: "waiting",
+			updated_at: "2025-01-01T00:00:02.000Z",
+		});
+
+		const afterTitle = mergeWatchedChatSummary(cachedChat, titleEvent, {
+			eventKind: "title_change",
+		});
+		expect(afterTitle).toMatchObject({
+			status: "running",
+			last_model_config_id: "model-a",
+			title: "New title",
+			updated_at: "2025-01-01T00:00:01.000Z",
 		});
 
 		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "title_change",
+			mergeWatchedChatSummary(afterTitle, delayedStatus, {
+				eventKind: "status_change",
 			}),
 		).toMatchObject({
-			status: "running",
-			title: "Updated title",
+			status: "waiting",
+			updated_at: "2025-01-01T00:00:02.000Z",
 		});
 	});
 
-	it("merges title updates even when chat updated_at is older", () => {
+	it("does not let an older summary row revert fields a newer event set", () => {
 		const cachedChat = makeChat("chat-1", {
-			status: "running",
-			title: "Fresh title",
-			updated_at: "2025-01-01T00:10:00.000Z",
+			last_model_config_id: "model-a",
+			updated_at: "2025-01-01T00:00:00.000Z",
 		});
-		const watchedChat = makeChat("chat-1", {
-			status: "waiting",
-			title: "Newer generated title",
-			updated_at: "2025-01-01T00:05:00.000Z",
+		const newerSummary = makeChat("chat-1", {
+			last_model_config_id: "model-b",
+			updated_at: "2025-01-01T00:00:02.000Z",
+		});
+		const olderSummary = makeChat("chat-1", {
+			last_model_config_id: "model-a",
+			updated_at: "2025-01-01T00:00:01.000Z",
 		});
 
+		const afterNewer = mergeWatchedChatSummary(cachedChat, newerSummary, {
+			eventKind: "chat_summary_change",
+		});
 		expect(
-			mergeWatchedChatSummary(cachedChat, watchedChat, {
-				eventKind: "title_change",
+			mergeWatchedChatSummary(afterNewer, olderSummary, {
+				eventKind: "summary_change",
 			}),
 		).toMatchObject({
-			status: "running",
-			title: "Newer generated title",
-			updated_at: "2025-01-01T00:10:00.000Z",
+			last_model_config_id: "model-b",
+			updated_at: "2025-01-01T00:00:02.000Z",
 		});
 	});
 
