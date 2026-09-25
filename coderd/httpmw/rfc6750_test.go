@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -258,6 +259,26 @@ func TestOAuth2ProviderTokenInQueryString(t *testing.T) {
 
 	cfg := httpmw.ExtractAPIKeyConfig{DB: db}
 
+	// withSink gives a subtest its own logger so it can assert on the
+	// refusal warning without seeing entries from sibling subtests.
+	withSink := func(t *testing.T) (httpmw.ExtractAPIKeyConfig, *testutil.FakeSink) {
+		sink := testutil.NewFakeSink(t)
+		sinkCfg := cfg
+		sinkCfg.Logger = sink.Logger()
+		return sinkCfg, sink
+	}
+	warnings := func(sink *testutil.FakeSink) []slog.SinkEntry {
+		return sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelWarn })
+	}
+	fieldValue := func(e slog.SinkEntry, name string) any {
+		for _, f := range e.Fields {
+			if f.Name == name {
+				return f.Value
+			}
+		}
+		return nil
+	}
+
 	handlerExpecting := func(want database.APIKey) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			require.Equal(t, want.ID, httpmw.APIKey(r).ID)
@@ -277,15 +298,23 @@ func TestOAuth2ProviderTokenInQueryString(t *testing.T) {
 	}
 
 	t.Run("AccessTokenQuery", func(t *testing.T) {
+		sinkCfg, sink := withSink(t)
 		req := httptest.NewRequest("GET", "/test?access_token="+url.QueryEscape(oauthToken), nil)
 		rw := httptest.NewRecorder()
-		httpmw.ExtractAPIKeyMW(cfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
+		httpmw.ExtractAPIKeyMW(sinkCfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
 		requireIgnored(t, rw)
 
 		key, err := db.GetAPIKeyByID(ctx, oauthKey.ID)
 		require.NoError(t, err)
 		require.Equal(t, oauthKey.LastUsed, key.LastUsed)
 		require.Equal(t, oauthKey.ExpiresAt, key.ExpiresAt)
+
+		warns := warnings(sink)
+		require.Len(t, warns, 1)
+		require.Equal(t, "oauth2 access token refused: sent in the URL query string", warns[0].Message)
+		require.Equal(t, oauthKey.ID, fieldValue(warns[0], "api_key_id"))
+		require.Equal(t, user.ID, fieldValue(warns[0], "user_id"))
+		require.Equal(t, app.ID, fieldValue(warns[0], "app_id"))
 	})
 
 	t.Run("SessionTokenQuery", func(t *testing.T) {
@@ -319,11 +348,13 @@ func TestOAuth2ProviderTokenInQueryString(t *testing.T) {
 	})
 
 	t.Run("QueryAndBearerHeader", func(t *testing.T) {
+		sinkCfg, sink := withSink(t)
 		req := httptest.NewRequest("GET", "/test?access_token="+url.QueryEscape(oauthToken), nil)
 		req.Header.Set("Authorization", "Bearer "+oauthToken)
 		rw := httptest.NewRecorder()
-		httpmw.ExtractAPIKeyMW(cfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
+		httpmw.ExtractAPIKeyMW(sinkCfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
 		require.Equal(t, http.StatusOK, rw.Code)
+		require.Empty(t, warnings(sink))
 	})
 
 	t.Run("QueryAndSessionTokenHeader", func(t *testing.T) {
