@@ -52,14 +52,28 @@ func NewChatMachine(
 
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
 // callbacks. It carries the active context, the transactional store,
-// and the chat ID. Tx does not cache mutable chat state across calls:
-// every transition method reads the chat row and queue cardinality
-// from the database on entry, so a bundle of transitions inside one
-// Update callback always validates against the latest committed state.
+// and the chat ID.
+//
+// Tx does not cache chat state across writes. The only state it holds
+// is the row returned by the snapshot bump, and that is consumed by the
+// first loadState call in the transaction. Every transition validates
+// before it writes, so that first call always runs before any
+// execution-state mutation and sees exactly the locked row. Later
+// calls read the chat row and queue cardinality from the database, so
+// a bundle of transitions inside one Update callback always validates
+// against the latest state.
 type Tx struct {
 	ctx    context.Context
 	store  database.Store
 	chatID uuid.UUID
+
+	seed *txSeed
+}
+
+// txSeed is the chat row and queue flag returned by the snapshot bump.
+type txSeed struct {
+	chat      database.Chat
+	hasQueued bool
 }
 
 // Ctx returns the context the surrounding [ChatMachine.Update] call
@@ -81,11 +95,17 @@ func (tx *Tx) ChatID() uuid.UUID { return tx.chatID }
 // matrix.
 func (tx *Tx) Store() database.Store { return tx.store }
 
-// loadState reads the current chat row and queue cardinality from the
-// active transaction, classifies the execution state, and returns the
-// inputs every transition method needs. Returns ErrChatNotFound if
-// the chat row was deleted in this transaction (or never existed).
+// loadState returns the current chat row and execution state. The
+// first call in a transaction returns the row the snapshot bump
+// already returned, avoiding a round trip while the row lock is held;
+// subsequent calls read the chat row and queue cardinality from the
+// active transaction. Returns ErrChatNotFound if the chat row was
+// deleted in this transaction (or never existed).
 func (tx *Tx) loadState() (database.Chat, ExecutionState, error) {
+	if s := tx.seed; s != nil {
+		tx.seed = nil
+		return s.chat, ClassifyExecutionState(s.chat, s.hasQueued, true), nil
+	}
 	chat, err := tx.store.GetChatByID(tx.ctx, tx.chatID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -98,6 +118,17 @@ func (tx *Tx) loadState() (database.Chat, ExecutionState, error) {
 		return database.Chat{}, "", xerrors.Errorf("count queued messages: %w", err)
 	}
 	return chat, ClassifyExecutionState(chat, count > 0, true), nil
+}
+
+// Current returns the chat row and execution state without consuming
+// the bump seed, so a callback can inspect state and then call a
+// transition that still validates against the same row with no extra
+// round trip. Falls back to a database read once the seed is consumed.
+func (tx *Tx) Current() (database.Chat, ExecutionState, error) {
+	if s := tx.seed; s != nil {
+		return s.chat, ClassifyExecutionState(s.chat, s.hasQueued, true), nil
+	}
+	return tx.loadState()
 }
 
 // requireFromAllowed loads the current state and validates t against
@@ -159,7 +190,8 @@ func (m *ChatMachine) Update(
 	defer buffer.Discard()
 
 	err := m.store.InTx(func(store database.Store) error {
-		if _, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID); err != nil {
+		bumped, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID)
+		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
 			}
@@ -169,32 +201,36 @@ func (m *ChatMachine) Update(
 			ctx:    ctx,
 			store:  store,
 			chatID: m.chatID,
+			seed:   &txSeed{chat: bumped.Chat, hasQueued: bumped.HasQueued},
 		}
 		if err := fn(tx, store); err != nil {
 			return err
 		}
-		chat, state, err := tx.loadState()
+		// One lean read after the callback captures trigger-driven
+		// version changes and the ownership lease in a single round trip.
+		state, err := store.GetChatTransitionState(ctx, database.GetChatTransitionStateParams{
+			ID:           m.chatID,
+			StaleSeconds: HeartbeatStaleSeconds,
+		})
 		if err != nil {
-			return err
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrChatNotFound
+			}
+			return xerrors.Errorf("load chat transition state: %w", err)
 		}
+		snapshot := snapshotFromTransitionState(state)
 		if err := buffer.Publish(
-			coderdpubsub.ChatStateUpdateChannel(chat.ID),
-			buildChatUpdateMessage(chat),
+			coderdpubsub.ChatStateUpdateChannel(state.ID),
+			chatUpdateMessage(snapshot),
 		); err != nil {
 			return xerrors.Errorf("buffer chat update: %w", err)
 		}
-		if state.IsRunnable() {
-			stale, err := ownershipStaleOrMissing(ctx, store, chat, HeartbeatStaleSeconds)
-			if err != nil {
-				return xerrors.Errorf("evaluate ownership: %w", err)
-			}
-			if stale {
-				if err := buffer.Publish(
-					coderdpubsub.ChatStateOwnershipChannel,
-					buildChatOwnershipMessage(chat),
-				); err != nil {
-					return xerrors.Errorf("buffer ownership hint: %w", err)
-				}
+		if classifyExecutionState(state.Status, state.Archived, state.HasQueued, true).IsRunnable() && state.OwnershipStale {
+			if err := buffer.Publish(
+				coderdpubsub.ChatStateOwnershipChannel,
+				chatOwnershipMessage(snapshot),
+			); err != nil {
+				return xerrors.Errorf("buffer ownership hint: %w", err)
 			}
 		}
 		return nil
@@ -274,20 +310,5 @@ func (m *ChatMachine) ReadLock(
 	}, &database.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 		ReadOnly:  true,
-	})
-}
-
-// ownershipStaleOrMissing reports whether the chat's current
-// (chat_id, runner_id) lease is missing or stale. The staleSeconds
-// threshold is forwarded to [database.IsChatHeartbeatStale] so the
-// comparison runs against database time inside a single SQL query.
-func ownershipStaleOrMissing(ctx context.Context, store database.Store, chat database.Chat, staleSeconds int32) (bool, error) {
-	if !chat.WorkerID.Valid || !chat.RunnerID.Valid {
-		return true, nil
-	}
-	return store.IsChatHeartbeatStale(ctx, database.IsChatHeartbeatStaleParams{
-		ChatID:       chat.ID,
-		RunnerID:     chat.RunnerID.UUID,
-		StaleSeconds: staleSeconds,
 	})
 }

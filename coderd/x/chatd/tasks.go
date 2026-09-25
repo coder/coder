@@ -306,7 +306,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 
 	var committed database.Chat
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := loadChatForTask(ctx, store, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
+		chat, err := loadLockedChatForTask(tx, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
@@ -443,7 +443,7 @@ func (s *taskStarter) cancelRequiresAction(
 ) error {
 	var committed database.Chat
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := loadChatForTask(ctx, store, input, database.ChatStatusRequiresAction, taskFenceOptions{requireHistory: true})
+		chat, err := loadLockedChatForTask(tx, input, database.ChatStatusRequiresAction, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
@@ -477,10 +477,12 @@ func (s *taskStarter) cancelRequiresAction(
 func (s *taskStarter) StartAbandon(ctx context.Context, input chatWorkerTaskStartInput) error {
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	mismatch := false
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := store.GetChatByID(ctx, input.ChatID)
+	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		// The lock already returned the row; verify against it instead of
+		// re-reading while the lock is held.
+		chat, _, err := tx.Current()
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, chatstate.ErrChatNotFound) {
 				mismatch = true
 				return errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
 			}
@@ -607,6 +609,29 @@ func loadChatForTask(
 	chat, err := store.GetChatByID(ctx, input.ChatID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			return database.Chat{}, errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
+		}
+		return database.Chat{}, xerrors.Errorf("load chat: %w", err)
+	}
+	if err := verifyTaskFence(chat, input, status, opts); err != nil {
+		return database.Chat{}, xerrors.Errorf("verifyTaskFence: %w", err)
+	}
+	return chat, nil
+}
+
+// loadLockedChatForTask is loadChatForTask for Update callbacks. The
+// transition lock already returned the row, and nothing else can change it
+// while the lock is held, so the fence is verified against that row instead
+// of re-reading it under the lock.
+func loadLockedChatForTask(
+	tx *chatstate.Tx,
+	input chatWorkerTaskStartInput,
+	status database.ChatStatus,
+	opts taskFenceOptions,
+) (database.Chat, error) {
+	chat, _, err := tx.Current()
+	if err != nil {
+		if errors.Is(err, chatstate.ErrChatNotFound) {
 			return database.Chat{}, errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
 		}
 		return database.Chat{}, xerrors.Errorf("load chat: %w", err)

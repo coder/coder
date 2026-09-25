@@ -77,33 +77,38 @@ func (s ExecutionState) IsRunnable() bool {
 //
 //nolint:revive // queueNonEmpty/exists are simple classifier inputs.
 func ClassifyExecutionState(chat database.Chat, queueNonEmpty, exists bool) ExecutionState {
+	return classifyExecutionState(chat.Status, chat.Archived, queueNonEmpty, exists)
+}
+
+//nolint:revive // queueNonEmpty/exists are simple classifier inputs.
+func classifyExecutionState(status database.ChatStatus, archived, queueNonEmpty, exists bool) ExecutionState {
 	if !exists {
 		return StateN
 	}
 	switch {
-	case chat.Status == database.ChatStatusWaiting && !chat.Archived && !queueNonEmpty:
+	case status == database.ChatStatusWaiting && !archived && !queueNonEmpty:
 		return StateW
-	case chat.Status == database.ChatStatusWaiting && chat.Archived && !queueNonEmpty:
+	case status == database.ChatStatusWaiting && archived && !queueNonEmpty:
 		return StateXW
-	case chat.Status == database.ChatStatusError && !chat.Archived && !queueNonEmpty:
+	case status == database.ChatStatusError && !archived && !queueNonEmpty:
 		return StateE0
-	case chat.Status == database.ChatStatusError && !chat.Archived && queueNonEmpty:
+	case status == database.ChatStatusError && !archived && queueNonEmpty:
 		return StateE1
-	case chat.Status == database.ChatStatusError && chat.Archived && !queueNonEmpty:
+	case status == database.ChatStatusError && archived && !queueNonEmpty:
 		return StateXE0
-	case chat.Status == database.ChatStatusError && chat.Archived && queueNonEmpty:
+	case status == database.ChatStatusError && archived && queueNonEmpty:
 		return StateXE1
-	case chat.Status == database.ChatStatusRunning && !chat.Archived && !queueNonEmpty:
+	case status == database.ChatStatusRunning && !archived && !queueNonEmpty:
 		return StateR0
-	case chat.Status == database.ChatStatusRunning && !chat.Archived && queueNonEmpty:
+	case status == database.ChatStatusRunning && !archived && queueNonEmpty:
 		return StateR1
-	case chat.Status == database.ChatStatusInterrupting && !chat.Archived && !queueNonEmpty:
+	case status == database.ChatStatusInterrupting && !archived && !queueNonEmpty:
 		return StateI0
-	case chat.Status == database.ChatStatusInterrupting && !chat.Archived && queueNonEmpty:
+	case status == database.ChatStatusInterrupting && !archived && queueNonEmpty:
 		return StateI1
-	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && !queueNonEmpty:
+	case status == database.ChatStatusRequiresAction && !archived && !queueNonEmpty:
 		return StateA0
-	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && queueNonEmpty:
+	case status == database.ChatStatusRequiresAction && !archived && queueNonEmpty:
 		return StateA1
 	}
 	return StateInvalid
