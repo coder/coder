@@ -56,6 +56,24 @@ func TestHeadersFromActor(t *testing.T) {
 			want:  map[string]string{"X-Downstream-User-Id": "user-123"},
 		},
 		{
+			name:  "missing username",
+			actor: &context.Actor{ID: "user-123"},
+			names: map[string]string{"username": "X-Username"},
+			want:  map[string]string{},
+		},
+		{
+			name:  "empty username",
+			actor: &context.Actor{Metadata: recorder.Metadata{"Username": ""}},
+			names: map[string]string{"username": "X-Username"},
+			want:  map[string]string{},
+		},
+		{
+			name:  "non-string username",
+			actor: &context.Actor{Metadata: recorder.Metadata{"Username": 42}},
+			names: map[string]string{"username": "X-Username"},
+			want:  map[string]string{},
+		},
+		{
 			name: "empty map forwards no actor headers",
 			actor: &context.Actor{
 				ID: "user-123",
@@ -77,24 +95,4 @@ func TestHeadersFromActor(t *testing.T) {
 			require.Equal(t, tc.want, headersFromActor(tc.actor, tc.names))
 		})
 	}
-}
-
-func TestHeadersFromActorUsesConfiguredNames(t *testing.T) {
-	t.Parallel()
-
-	actor := &context.Actor{
-		ID: "user-123",
-		Metadata: recorder.Metadata{
-			"Username": "alice",
-			"Plan":     "pro",
-		},
-	}
-
-	require.Equal(t, map[string]string{
-		"X-Downstream-User-Id":  "user-123",
-		"X-Downstream-Username": "alice",
-	}, headersFromActor(actor, map[string]string{
-		"id":       "X-Downstream-User-Id",
-		"username": "X-Downstream-Username",
-	}))
 }
