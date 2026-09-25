@@ -443,9 +443,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	// needs a workspace to render; the agent arrives once the build runs.
 	const availableDesktopChatId = workspace ? desktopChatId : undefined;
 
-	const availableBrowserApp = workspace
-		? getAgentBrowserApp(workspaceAgent)
-		: undefined;
+	const availableBrowserApp = getAgentBrowserApp(workspaceAgent);
 
 	const singletonTabSupport: Record<SingletonRightPanelTabId, boolean> = {
 		browser: availableBrowserApp !== undefined,

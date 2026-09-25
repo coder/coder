@@ -1332,9 +1332,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			)}
 			{showAgentSetupNotice && (
 				<div className="relative z-0 -mb-10">
-					{(aiGatewayDisabled ||
-						(providerCount !== undefined && modelCount !== undefined)) &&
-					canConfigureAgentSetup ? (
+					{canConfigureAgentSetup ? (
 						<AgentSetupNotice
 							isAdmin
 							providerCount={providerCount ?? 0}
