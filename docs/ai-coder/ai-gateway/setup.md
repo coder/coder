@@ -98,6 +98,28 @@ Each [standalone gateway](./standalone.md) replica accepts the same API dump set
 > information such as prompts, completions, and tool inputs. Protect the target
 > directory and disable dumping when diagnostics are complete.
 
+## Send actor headers
+
+Enable `send_actor_headers` to add authenticated actor identity to intercepted upstream requests.
+The setting is disabled by default.
+
+```sh
+CODER_AI_GATEWAY_SEND_ACTOR_HEADERS=true
+```
+
+You can also enable the setting with `--ai-gateway-send-actor-headers` or `ai_gateway.send_actor_headers`.
+Configure the ID and username header names independently with `CODER_AI_GATEWAY_ACTOR_HEADER_ID` and `CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME`:
+
+```yaml
+ai_gateway:
+  send_actor_headers: true
+  actor_header_id: X-AI-Bridge-Actor-ID
+  actor_header_meta_username: X-AI-Bridge-Actor-Metadata-Username
+```
+
+The equivalent CLI options are `--ai-gateway-actor-header-id` and `--ai-gateway-actor-header-meta-username`.
+For defaults and precedence, refer to [Actor header forwarding](./reference.md#actor-header-forwarding).
+
 ## Data Retention
 
 AI Gateway records prompts, token usage, tool invocations, and model reasoning for auditing and

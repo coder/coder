@@ -19,6 +19,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
+	"golang.org/x/net/http/httpguts"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/xerrors"
@@ -2010,17 +2011,35 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "api_dump_dir",
 	}
+	aiGatewayActorHeaderID := serpent.Option{
+		Name:        "AI Gateway Actor Header ID",
+		Description: "Header name for the authenticated user's ID. Empty disables this header. Requires AI Gateway actor headers to be enabled.",
+		Flag:        "ai-gateway-actor-header-id",
+		Env:         "CODER_AI_GATEWAY_ACTOR_HEADER_ID",
+		Value:       &c.AI.BridgeConfig.ActorHeaderID,
+		Default:     "X-AI-Bridge-Actor-ID",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "actor_header_id",
+	}
+	aiGatewayActorHeaderMetaUsername := serpent.Option{
+		Name:        "AI Gateway Actor Header Metadata Username",
+		Description: "Header name for the authenticated user's username. Empty disables this header. Requires AI Gateway actor headers to be enabled.",
+		Flag:        "ai-gateway-actor-header-meta-username",
+		Env:         "CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME",
+		Value:       &c.AI.BridgeConfig.ActorHeaderMetaUsername,
+		Default:     "X-AI-Bridge-Actor-Metadata-Username",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "actor_header_meta_username",
+	}
 	aiGatewaySendActorHeaders := serpent.Option{
-		Name: "AI Gateway Send Actor Headers",
-		Description: "Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Gateway. " +
-			"This is only needed if you are using a proxy between AI Gateway and an upstream AI provider. " +
-			"This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).",
-		Flag:    "ai-gateway-send-actor-headers",
-		Env:     "CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
-		Value:   &c.AI.BridgeConfig.SendActorHeaders,
-		Default: "false",
-		Group:   &deploymentGroupAIGateway,
-		YAML:    "send_actor_headers",
+		Name:        "AI Gateway Send Actor Headers",
+		Description: "Add the authenticated user's ID and username to intercepted upstream requests. Requires AI Gateway actor headers to be enabled.",
+		Flag:        "ai-gateway-send-actor-headers",
+		Env:         "CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
+		Value:       &c.AI.BridgeConfig.SendActorHeaders,
+		Default:     "false",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "send_actor_headers",
 	}
 	aiGatewayAllowBYOK := serpent.Option{
 		Name:        "AI Gateway Allow BYOK",
@@ -4500,6 +4519,8 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead: serpent.OptionSet{aiGatewaySendActorHeaders},
 		},
 		aiGatewaySendActorHeaders,
+		aiGatewayActorHeaderID,
+		aiGatewayActorHeaderMetaUsername,
 		aiGatewayAPIDumpDir,
 		{
 			Name:        "AI Bridge Allow BYOK",
@@ -4844,13 +4865,15 @@ Write out the current server config as YAML to stdout.`,
 type AIBridgeConfig struct {
 	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
-	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
-	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
-	MaxConcurrency      serpent.Int64    `json:"max_concurrency" typescript:",notnull"`
-	RateLimit           serpent.Int64    `json:"rate_limit" typescript:",notnull"`
-	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
-	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
-	AllowBYOK           serpent.Bool     `json:"allow_byok" typescript:",notnull"`
+	InjectCoderMCPTools     serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
+	Retention               serpent.Duration `json:"retention" typescript:",notnull"`
+	MaxConcurrency          serpent.Int64    `json:"max_concurrency" typescript:",notnull"`
+	RateLimit               serpent.Int64    `json:"rate_limit" typescript:",notnull"`
+	StructuredLogging       serpent.Bool     `json:"structured_logging" typescript:",notnull"`
+	SendActorHeaders        serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
+	ActorHeaderID           serpent.String   `json:"actor_header_id" typescript:",notnull"`
+	ActorHeaderMetaUsername serpent.String   `json:"actor_header_meta_username" typescript:",notnull"`
+	AllowBYOK               serpent.Bool     `json:"allow_byok" typescript:",notnull"`
 	// Budget settings for AI Governance cost controls.
 	BudgetPolicy string `json:"budget_policy,omitempty" typescript:",notnull"`
 	BudgetPeriod string `json:"budget_period,omitempty" typescript:",notnull"`
@@ -4946,9 +4969,55 @@ type LinkConfig struct {
 	Location string `json:"location,omitempty" yaml:"location,omitempty" enums:"navbar,dropdown"`
 }
 
+// ValidateActorHeaderNames checks the configurable destinations for trusted
+// actor identity before any upstream requests can be sent.
+func (c AIBridgeConfig) ValidateActorHeaderNames() error {
+	headers := []struct {
+		attribute string
+		name      string
+		standard  string
+	}{
+		{"id", c.ActorHeaderID.Value(), "X-AI-Bridge-Actor-ID"},
+		{"username", c.ActorHeaderMetaUsername.Value(), "X-AI-Bridge-Actor-Metadata-Username"},
+	}
+	seen := make(map[string]string, len(headers))
+	for _, header := range headers {
+		if header.name == "" {
+			continue
+		}
+		if !httpguts.ValidHeaderFieldName(header.name) {
+			return xerrors.Errorf("invalid AI Gateway actor header name %q for %s", header.name, header.attribute)
+		}
+		canonical := http.CanonicalHeaderKey(header.name)
+		if prior, ok := seen[canonical]; ok {
+			return xerrors.Errorf("duplicate AI Gateway actor header name %q for %s and %s", header.name, prior, header.attribute)
+		}
+		seen[canonical] = header.attribute
+		if strings.EqualFold(header.name, header.standard) {
+			continue
+		}
+		switch canonical {
+		case "Authorization", "X-Api-Key", "Proxy-Authorization", "Proxy-Authenticate",
+			"Cookie", "Set-Cookie", "Host", "User-Agent", "Content-Length", "Content-Type", "Content-Encoding", "Accept-Encoding",
+			"Connection", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade",
+			"Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Port",
+			"Coder-Session-Token", "X-Coder-Ai-Governance-Token", "X-Coder-Ai-Governance-Request-Id",
+			"X-Coder-Agent-Firewall-Session-Id", "X-Coder-Agent-Firewall-Sequence-Number":
+			return xerrors.Errorf("reserved AI Gateway actor header name %q", header.name)
+		}
+		if strings.HasPrefix(canonical, "X-Ai-Bridge-Actor") {
+			return xerrors.Errorf("reserved AI Gateway actor header name %q", header.name)
+		}
+	}
+	return nil
+}
+
 // Validate checks cross-field constraints for deployment values.
 // It must be called after all values are loaded from flags/env/YAML.
 func (c *DeploymentValues) Validate() error {
+	if err := c.AI.BridgeConfig.ValidateActorHeaderNames(); err != nil {
+		return err
+	}
 	// For OAuth2, access tokens (API keys) issued via the authorization code/refresh flows
 	// use Sessions.DefaultDuration as their lifetime, while refresh tokens use
 	// Sessions.RefreshDefaultDuration (falling back to DefaultDuration when set to 0).

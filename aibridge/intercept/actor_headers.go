@@ -23,21 +23,21 @@ func IsActorHeader(name string) bool {
 	return strings.HasPrefix(strings.ToLower(name), strings.ToLower(prefix))
 }
 
-// headersFromActor produces a map of headers from a given [context.Actor].
-func headersFromActor(actor *context.Actor) map[string]string {
+func headersFromActor(actor *context.Actor, names map[string]string) map[string]string {
 	if actor == nil {
 		return nil
 	}
 
-	headers := make(map[string]string, len(actor.Metadata)+1)
-
-	// Add actor ID.
-	headers[ActorIDHeader()] = actor.ID
-
-	// Add headers for provided metadata.
-	for k, v := range actor.Metadata {
-		headers[ActorMetadataHeader(k)] = fmt.Sprintf("%v", v)
+	headers := make(map[string]string, len(names))
+	if name := names["id"]; name != "" {
+		headers[name] = actor.ID
 	}
-
+	if name := names["username"]; name != "" {
+		if value, ok := actor.Metadata["Username"]; ok {
+			if value := fmt.Sprint(value); value != "" {
+				headers[name] = value
+			}
+		}
+	}
 	return headers
 }

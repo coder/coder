@@ -94,10 +94,18 @@ func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, auth
 		headers.Set(authHeaderName, v)
 	}
 
-	if cfg.SendActorHeaders {
-		for name, value := range headersFromActor(actor) {
-			headers.Set(name, value)
-		}
+	if !cfg.SendActorHeaders {
+		return headers
+	}
+
+	for _, name := range []string{ActorIDHeader(), ActorMetadataHeader("Username")} {
+		headers.Del(name)
+	}
+	for _, name := range cfg.ActorHeaderNames {
+		headers.Del(name)
+	}
+	for name, value := range headersFromActor(actor, cfg.ActorHeaderNames) {
+		headers.Set(name, value)
 	}
 	return headers
 }
