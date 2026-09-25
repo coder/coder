@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +20,8 @@ const (
 	syntheticAPIKeyRenewMargin = 24 * time.Hour
 )
 
+var syntheticAPIKeyScopes = database.APIKeyScopes{database.ApiKeyScopeApiKeyRead}
+
 // GatewayTokenName returns the deterministic token name of the synthetic
 // gateway key for a user. The name is the lookup key: no mapping table exists,
 // so attribution resolves the key by (user_id, token_name, login_type !=
@@ -28,10 +31,10 @@ func GatewayTokenName(ownerID uuid.UUID) string {
 }
 
 // ensureSyntheticAPIKeyID returns the ID of the synthetic gateway key for the
-// given user, minting or extending it as needed. The key ID is stable for the
-// lifetime of the user: near-expiry keys are extended in place rather than
-// replaced, because an in-flight generation may have already delegated the
-// current key ID to the gateway.
+// given user, reconciling scopes, minting, or extending it as needed. The key
+// ID is stable for the lifetime of the user: near-expiry keys are extended in
+// place rather than replaced, because an in-flight generation may have
+// already delegated the current key ID to the gateway.
 func (p *Server) ensureSyntheticAPIKeyID(ctx context.Context, ownerID uuid.UUID) (string, error) {
 	ctx = dbauthz.AsChatdKeyMinter(ctx, ownerID)
 	key, err := p.db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
@@ -39,7 +42,7 @@ func (p *Server) ensureSyntheticAPIKeyID(ctx context.Context, ownerID uuid.UUID)
 		TokenName: GatewayTokenName(ownerID),
 	})
 	switch {
-	case err == nil && key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)):
+	case err == nil && slices.Equal(key.Scopes, syntheticAPIKeyScopes) && key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)):
 		return key.ID, nil
 	case err != nil && !xerrors.Is(err, sql.ErrNoRows):
 		return "", xerrors.Errorf("get synthetic API key: %w", err)
@@ -47,8 +50,8 @@ func (p *Server) ensureSyntheticAPIKeyID(ctx context.Context, ownerID uuid.UUID)
 	return p.mintSyntheticAPIKey(ctx, ownerID)
 }
 
-// mintSyntheticAPIKey extends or mints the synthetic gateway key under a
-// per-user advisory lock. The lock serializes concurrent mints because the
+// mintSyntheticAPIKey reconciles, extends, or mints the synthetic gateway key
+// under a per-user advisory lock. The lock serializes concurrent mints because the
 // partial unique index on token names only covers login_type 'token' rows, so
 // nothing else prevents duplicate synthetic keys.
 func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (string, error) {
@@ -64,6 +67,18 @@ func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (st
 			TokenName: tokenName,
 		})
 		if err == nil {
+			if !slices.Equal(key.Scopes, syntheticAPIKeyScopes) {
+				// In-flight requests may already hold this ID. Reconcile scopes
+				// in place without changing credentials or expiry.
+				key, err = tx.UpdateChatGatewayAPIKeyScopesByID(ctx, database.UpdateChatGatewayAPIKeyScopesByIDParams{
+					ID:     key.ID,
+					UserID: ownerID,
+					Scopes: syntheticAPIKeyScopes,
+				})
+				if err != nil {
+					return xerrors.Errorf("update synthetic API key scopes: %w", err)
+				}
+			}
 			keyID = key.ID
 			if key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)) {
 				return nil
@@ -96,7 +111,7 @@ func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (st
 			// The key only attributes gateway requests; the secret is
 			// discarded, so it is never usable as a bearer credential. The
 			// minimal scope is defense in depth on top of that.
-			Scopes: database.APIKeyScopes{database.ApiKeyScopeApiKeyRead},
+			Scopes: syntheticAPIKeyScopes,
 		})
 		if err != nil {
 			return xerrors.Errorf("generate synthetic API key: %w", err)
