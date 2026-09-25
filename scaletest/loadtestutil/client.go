@@ -61,6 +61,7 @@ func extractHeaderAndInnerTransport(rt http.RoundTripper) (codersdk.HeaderProvid
 	// We assume only one layer of nesting for HeaderTransports.
 	t, ok := rt.(*http.Transport)
 	if !ok {
+		// unrecognized RoundTripper. Just return a default transport, since we only care about preserving headers.
 		t, ok = http.DefaultTransport.(*http.Transport)
 		if !ok {
 			return nil, nil, xerrors.New("DefaultTransport is not *http.Transport")
