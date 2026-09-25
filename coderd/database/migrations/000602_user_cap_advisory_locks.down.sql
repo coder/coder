@@ -1,9 +1,4 @@
-DROP TRIGGER IF EXISTS trigger_zz_user_skills_per_user_limit_update ON user_skills;
-
-ALTER TRIGGER trigger_zz_user_secrets_per_user_limits ON user_secrets
-    RENAME TO trigger_user_secrets_per_user_limits;
-ALTER TRIGGER trigger_zz_user_skills_per_user_limit ON user_skills
-    RENAME TO trigger_user_skills_per_user_limit;
+DROP TRIGGER IF EXISTS trigger_user_skills_per_user_limit_update ON user_skills;
 
 -- Restore the users-row-locking bodies from migrations 000509 (user_secrets)
 -- and 000502 (user_skills).

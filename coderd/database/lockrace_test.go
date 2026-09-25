@@ -10,10 +10,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// This file owns the deterministic lock-race harness. On this branch its
-// consumer is the per-user cap tests in user_caps_test.go; the stacked
-// soft-delete-guard (#28546) and agent-memory (#28423) changes add more
-// consumers, which is why it lives in its own file.
+// This file owns the deterministic lock-race harness. It is split into its
+// own file so the cap tests in user_caps_test.go and future lock-race tests
+// can share it.
 
 // stmt pairs a SQL statement with its bound arguments for runLockRace.
 type stmt struct {

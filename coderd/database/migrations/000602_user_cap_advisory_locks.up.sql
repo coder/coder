@@ -10,17 +10,20 @@
 --     user inside the same statement that updated users), and
 --   * is a stronger lock than counting requires.
 --
--- Lock hygiene: the bodies are swapped with CREATE OR REPLACE FUNCTION and
--- the triggers renamed with ALTER TRIGGER ... RENAME, neither of which
--- takes ACCESS EXCLUSIVE on the tables; the one CREATE TRIGGER below takes
--- SHARE ROW EXCLUSIVE on user_skills only (blocks writes briefly, never
--- reads). No trigger is dropped.
+-- Lock hygiene: the bodies are swapped with CREATE OR REPLACE FUNCTION,
+-- which takes no lock on either table. The one CREATE TRIGGER below takes
+-- SHARE ROW EXCLUSIVE on user_skills only, which blocks writes to that
+-- table (not reads) until the migration transaction commits. No trigger is
+-- dropped or renamed.
 --
--- The zz_ name prefix reserves BEFORE-trigger firing order (name order) so
--- that later-added row-guard triggers on these tables fire before the caps
--- take their advisory locks; a stacked change adds soft-delete guards that
--- lock the users row and must do so before the advisory lock to keep one
--- global lock order.
+-- Lock order: each cap takes its own per-user advisory key and no users
+-- row lock. The insert still takes FOR KEY SHARE on the users row through
+-- the foreign key, so a transaction that locked the users row FOR UPDATE
+-- and then wrote a capped table could deadlock with a concurrent capped
+-- write; no current writer does that. Likewise, the two keys
+-- (user_secrets_cap, user_skills_cap) have no fixed order between them, so
+-- future code that writes both capped tables for one user in one
+-- transaction must pick a lock order. No current writer does either.
 --
 -- Isolation contract (stated, not enforced): the caps count committed
 -- sibling rows under the advisory lock, which is race-free at READ
@@ -53,9 +56,9 @@ DECLARE
 BEGIN
     -- Serialize cap checks per user so concurrent inserts or updates cannot
     -- all observe the same pre-statement aggregates and exceed the caps.
-    -- The advisory lock avoids the users row entirely: no writer of other
-    -- tables referencing users is affected, and no lock cycle through the
-    -- users row is possible. The key derivation is registered for
+    -- The advisory lock takes no users row lock, so writers of other tables
+    -- referencing users are not blocked by it; see the lock-order note at
+    -- the top of this migration. The key derivation is registered for
     -- discoverability in coderd/database/lock.go and pinned by
     -- TestUserCapAdvisoryLocks.
     PERFORM pg_advisory_xact_lock(hashtextextended('user_secrets_cap:' || NEW.user_id::text, 0));
@@ -129,11 +132,6 @@ BEGIN
 END;
 $$;
 
-ALTER TRIGGER trigger_user_secrets_per_user_limits ON user_secrets
-    RENAME TO trigger_zz_user_secrets_per_user_limits;
-ALTER TRIGGER trigger_user_skills_per_user_limit ON user_skills
-    RENAME TO trigger_zz_user_skills_per_user_limit;
-
 -- The skills cap previously fired on INSERT only, so
 -- UPDATE ... SET user_id could move a row onto an owner already at the
 -- cap without a recount. The WHEN clause keeps same-owner updates (which
@@ -148,7 +146,7 @@ ALTER TRIGGER trigger_user_skills_per_user_limit ON user_skills
 -- Update/Delete and none reassigns ownership), so this leg is defense in
 -- depth against direct SQL and future queries rather than a live bug fix;
 -- no handler currently maps the cap error this trigger can raise.
-CREATE TRIGGER trigger_zz_user_skills_per_user_limit_update
+CREATE TRIGGER trigger_user_skills_per_user_limit_update
     BEFORE UPDATE ON user_skills
     FOR EACH ROW
     WHEN (NEW.user_id IS DISTINCT FROM OLD.user_id)

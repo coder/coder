@@ -28,7 +28,7 @@ const (
 	// otherwise valid raw skill content.
 	maxPersonalSkillRequestBytes = skills.MaxPersonalSkillSizeBytes*personalSkillJSONEscapeExpansion + personalSkillRequestEnvelopeBytes
 
-	// Raised by the insert_user_skill_fail_if_user_deleted trigger with
+	// Raised by the insert_user_skill_fail_if_user_deleted trigger function with
 	// USING CONSTRAINT. Not a table CHECK constraint, so dbgen does not
 	// emit it in check_constraint.go. The cap constraint lives in
 	// database.CheckUserSkillsPerUserLimit.

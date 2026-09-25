@@ -1053,9 +1053,9 @@ DECLARE
 BEGIN
     -- Serialize cap checks per user so concurrent inserts or updates cannot
     -- all observe the same pre-statement aggregates and exceed the caps.
-    -- The advisory lock avoids the users row entirely: no writer of other
-    -- tables referencing users is affected, and no lock cycle through the
-    -- users row is possible. The key derivation is registered for
+    -- The advisory lock takes no users row lock, so writers of other tables
+    -- referencing users are not blocked by it; see the lock-order note at
+    -- the top of this migration. The key derivation is registered for
     -- discoverability in coderd/database/lock.go and pinned by
     -- TestUserCapAdvisoryLocks.
     PERFORM pg_advisory_xact_lock(hashtextextended('user_secrets_cap:' || NEW.user_id::text, 0));
@@ -5126,11 +5126,11 @@ CREATE TRIGGER trigger_upsert_user_secrets BEFORE INSERT OR UPDATE ON user_secre
 
 CREATE TRIGGER trigger_upsert_user_skills BEFORE INSERT OR UPDATE ON user_skills FOR EACH ROW EXECUTE FUNCTION insert_user_skill_fail_if_user_deleted();
 
-CREATE TRIGGER trigger_zz_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
+CREATE TRIGGER trigger_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
 
-CREATE TRIGGER trigger_zz_user_skills_per_user_limit BEFORE INSERT ON user_skills FOR EACH ROW EXECUTE FUNCTION enforce_user_skills_per_user_limit();
+CREATE TRIGGER trigger_user_skills_per_user_limit BEFORE INSERT ON user_skills FOR EACH ROW EXECUTE FUNCTION enforce_user_skills_per_user_limit();
 
-CREATE TRIGGER trigger_zz_user_skills_per_user_limit_update BEFORE UPDATE ON user_skills FOR EACH ROW WHEN ((new.user_id IS DISTINCT FROM old.user_id)) EXECUTE FUNCTION enforce_user_skills_per_user_limit();
+CREATE TRIGGER trigger_user_skills_per_user_limit_update BEFORE UPDATE ON user_skills FOR EACH ROW WHEN ((new.user_id IS DISTINCT FROM old.user_id)) EXECUTE FUNCTION enforce_user_skills_per_user_limit();
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
