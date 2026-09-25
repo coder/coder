@@ -331,10 +331,10 @@ export const useFilterCombobox = ({
 		? parseTypedCategoryPrefix(inputValue, inlineCategories)
 		: null;
 
-	// Categories without this flag fetch their empty-query options while the
-	// menu is closed to determine whether they have more than one option.
-	// Inline categories fetch while browsing; flagged categories do not fetch
-	// until browsing starts. Shares its cache key with the category view.
+	// Empty-query options load while browsing the category list. Inline
+	// categories, whose chips take their labels from them, and categories with
+	// `hideWhenSingleOption` load when the filter renders. Shares its cache key
+	// with the category view.
 	const unfilteredOptionsEnabled = isBrowsing && activeCategoryKey === null;
 	const unfilteredOptions = useQueries({
 		queries: categories.map((category) =>
@@ -343,7 +343,7 @@ export const useFilterCombobox = ({
 				category.getOptions,
 				"",
 				unfilteredOptionsEnabled ||
-					Boolean(category.inlineOptions || !category.showWhenSingleOption),
+					Boolean(category.inlineOptions || category.hideWhenSingleOption),
 			),
 		),
 		combine: (results) => {
@@ -370,21 +370,34 @@ export const useFilterCombobox = ({
 	});
 	// An applied chip keeps its category listed so the chip can be changed, and a
 	// failed lookup keeps it listed so its flyout can offer a retry.
-	const menuCategories = allSubmenuCategories.filter((category) => {
-		if (
-			category.showWhenSingleOption ||
-			unfilteredOptions.erroredKeys.has(category.key) ||
-			chipValues.some((token) => categoryForChip(token) === category)
-		) {
-			return true;
-		}
-		return (unfilteredOptions.optionsByKey.get(category.key)?.length ?? 0) > 1;
-	});
+	const isListed = (category: FilterCategory, chips = chipValues) =>
+		!category.hideWhenSingleOption ||
+		unfilteredOptions.erroredKeys.has(category.key) ||
+		(unfilteredOptions.optionsByKey.get(category.key)?.length ?? 0) > 1 ||
+		chips.some((token) => categoryForChip(token) === category);
+	const menuCategories = allSubmenuCategories.filter((category) =>
+		isListed(category),
+	);
+	// Until every hideable category's options load, the full list is unknown,
+	// so the menu shows placeholder rows instead of adding a row later.
+	const categoriesLoading = allSubmenuCategories.some(
+		(category) =>
+			category.hideWhenSingleOption &&
+			!unfilteredOptions.optionsByKey.has(category.key) &&
+			!unfilteredOptions.erroredKeys.has(category.key),
+	);
 
 	const categoryQuery =
 		activeCategoryKey !== null || browseAll ? "" : inputValue.trim();
+	const categoryPlaceholderCount =
+		open &&
+		typedInlinePrefix === null &&
+		categoryQuery.length === 0 &&
+		categoriesLoading
+			? allSubmenuCategories.length
+			: 0;
 	const listedCategories =
-		!open || typedInlinePrefix !== null
+		!open || typedInlinePrefix !== null || categoryPlaceholderCount > 0
 			? []
 			: categoryQuery.length === 0
 				? menuCategories
@@ -644,10 +657,7 @@ export const useFilterCombobox = ({
 			(category) => category.key === activeCategoryKey,
 		);
 		const remainsListed = (category: FilterCategory) =>
-			category.showWhenSingleOption ||
-			unfilteredOptions.erroredKeys.has(category.key) ||
-			(unfilteredOptions.optionsByKey.get(category.key)?.length ?? 0) > 1 ||
-			nextChips.some((token) => categoryForChip(token) === category);
+			isListed(category, nextChips);
 		const activeCategoryRemainsListed =
 			activeCategory !== undefined && remainsListed(activeCategory);
 		const nextHighlight = activeCategoryRemainsListed
@@ -1044,6 +1054,7 @@ export const useFilterCombobox = ({
 		statusMessage,
 		listedCategories,
 		categoriesNarrowedByText: categoryQuery.length > 0,
+		categoryPlaceholderCount,
 		unfilteredOptionsByKey: unfilteredOptions.optionsByKey,
 		unfilteredOptionsErroredKeys: unfilteredOptions.erroredKeys,
 		valueSuggestions,

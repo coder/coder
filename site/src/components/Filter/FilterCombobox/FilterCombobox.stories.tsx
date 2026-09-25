@@ -627,6 +627,7 @@ const singleTemplateCategories: FilterCategory[] = [
 		key: "template",
 		label: "Template",
 		icon: <LayoutGridIcon />,
+		hideWhenSingleOption: true,
 		getOptions: async (query) =>
 			filterOptions(templateOptions.slice(0, 1), query),
 	},
@@ -650,6 +651,27 @@ export const SingleOptionCategoryHidden: Story = {
 		/>
 	),
 	play: ({ canvasElement }) => openFilterMenu(canvasElement),
+};
+
+// Placeholder rows hold the category list until Template's options load.
+export const CategoryListLoading: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				singleTemplateCategories[0],
+				{
+					...singleTemplateCategories[1],
+					getOptions: () => new Promise<FilterOption[]>(() => {}),
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
+	},
 };
 
 // The template:docker chip keeps Template listed.
@@ -762,7 +784,6 @@ export const TypeaheadErrorRetry: Story = {
 						key: "owner",
 						label: "Owner",
 						icon: <UserIcon />,
-						showWhenSingleOption: true,
 						getOptions: async (query) => {
 							if (query === "alice" && !thrown) {
 								thrown = true;
@@ -801,8 +822,6 @@ export const CategoryOptionsLoading: Story = {
 					key: "owner",
 					label: "Owner",
 					icon: <UserIcon />,
-					// Listed while its options are still loading.
-					showWhenSingleOption: true,
 					getOptions: () => new Promise<FilterOption[]>(() => {}),
 				},
 			]}

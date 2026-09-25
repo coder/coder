@@ -21,6 +21,7 @@ import {
 	InputGroupAddon,
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
@@ -112,6 +113,7 @@ export function FilterCombobox({
 		statusMessage,
 		listedCategories,
 		categoriesNarrowedByText,
+		categoryPlaceholderCount,
 		unfilteredOptionsByKey,
 		unfilteredOptionsErroredKeys,
 		valueSuggestions,
@@ -228,12 +230,14 @@ export function FilterCombobox({
 
 	const mainPanelEmpty =
 		listedCategories.length === 0 &&
+		categoryPlaceholderCount === 0 &&
 		valueSuggestions.length === 0 &&
 		inlineOptionRows.length === 0 &&
 		!typeaheadError;
 
 	const mainPanelProps = {
 		listedCategories,
+		categoryPlaceholderCount,
 		valueSuggestions,
 		inlineOptionRows,
 		typeaheadError,
@@ -606,6 +610,8 @@ const groupByCategoryLabel = <T extends { categoryLabel: string }>(
 
 type MainPanelProps = Readonly<{
 	listedCategories: readonly FilterCategory[];
+	/** Placeholder rows shown while the category list is still unknown. */
+	categoryPlaceholderCount: number;
 	valueSuggestions: readonly ValueSuggestion[];
 	inlineOptionRows: readonly InlineOptionRow[];
 	typeaheadError: boolean;
@@ -629,6 +635,7 @@ type MainPanelProps = Readonly<{
 
 function MainPanel({
 	listedCategories,
+	categoryPlaceholderCount,
 	valueSuggestions,
 	inlineOptionRows,
 	typeaheadError,
@@ -650,7 +657,19 @@ function MainPanel({
 				embedded &&
 					"w-full rounded-none border-0 bg-transparent p-0 shadow-none",
 			)}
+			aria-busy={categoryPlaceholderCount > 0 || undefined}
 		>
+			{Array.from({ length: categoryPlaceholderCount }, (_, index) => (
+				<div
+					key={`placeholder-${index}`}
+					aria-hidden
+					data-slot="category-placeholder"
+					className={cn(OPTION_ITEM_CLASS, "flex items-center")}
+				>
+					<Skeleton className="size-4 shrink-0" />
+					<Skeleton variant="text" className="w-24" />
+				</div>
+			))}
 			{listedCategories.map((category) => (
 				<FilterComboboxItem
 					ref={(element) => registerCategoryRow(category.key, element)}

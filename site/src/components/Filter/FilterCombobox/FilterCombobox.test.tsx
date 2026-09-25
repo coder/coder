@@ -11,8 +11,6 @@ import { TYPED_TEXT_LOOKUP_TIMEOUT_MS } from "./useFilterCombobox";
 const ownerCategory: FilterCategory = {
 	key: "owner",
 	label: "Owner",
-	// Listed with one option and while loading, so these tests see the row.
-	showWhenSingleOption: true,
 	getOptions: async () => [{ label: "alice", value: "alice" }],
 };
 
@@ -143,26 +141,75 @@ describe("FilterCombobox", () => {
 		vi.useRealTimers();
 	});
 
-	it("fetches hidden categories before menu open and skips opted-out categories", async () => {
-		const fetchable = vi.fn(async () => [{ label: "Docker", value: "docker" }]);
-		const optedOut = vi.fn(async () => [{ label: "alice", value: "alice" }]);
+	it("fetches hideable categories before the menu opens and skips others", async () => {
+		const hideable = vi.fn(async () => [{ label: "Docker", value: "docker" }]);
+		const other = vi.fn(async () => [{ label: "alice", value: "alice" }]);
 		render(
 			<FilterComboboxHarness
 				categories={[
-					{ key: "template", label: "Template", getOptions: fetchable },
 					{
-						key: "owner",
-						label: "Owner",
-						showWhenSingleOption: true,
-						getOptions: optedOut,
+						key: "template",
+						label: "Template",
+						hideWhenSingleOption: true,
+						getOptions: hideable,
 					},
+					{ key: "owner", label: "Owner", getOptions: other },
 				]}
 				initialValue=""
 				onChange={vi.fn()}
 			/>,
 		);
-		await waitFor(() => expect(fetchable).toHaveBeenCalledWith(""));
-		expect(optedOut).not.toHaveBeenCalled();
+		await waitFor(() => expect(hideable).toHaveBeenCalledWith(""));
+		expect(other).not.toHaveBeenCalled();
+	});
+
+	it("shows placeholder rows until hideable categories load", async () => {
+		const templates = heldSearch(
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => [],
+			},
+			"",
+		);
+		const { user, filtersButton } = setup([ownerCategory, templates.category]);
+
+		await user.click(filtersButton);
+		expect(
+			screen.queryByRole("option", { name: "Owner" }),
+		).not.toBeInTheDocument();
+		await act(async () =>
+			templates.resolve([
+				{ label: "docker", value: "docker" },
+				{ label: "k8s", value: "k8s" },
+			]),
+		);
+
+		expect(
+			await screen.findByRole("option", { name: "Template" }),
+		).toBeInTheDocument();
+		expect(screen.getByRole("option", { name: "Owner" })).toBeInTheDocument();
+	});
+
+	it("lists a hideable category whose options failed to load", async () => {
+		const { user, filtersButton } = setup([
+			ownerCategory,
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => {
+					throw new Error("failed");
+				},
+			},
+		]);
+
+		await user.click(filtersButton);
+
+		expect(
+			await screen.findByRole("option", { name: "Template" }),
+		).toBeInTheDocument();
 	});
 
 	it("ignores hidden options for suggestions but keeps hidden keys prefix-searchable", async () => {
@@ -172,7 +219,14 @@ describe("FilterCombobox", () => {
 			),
 		);
 		const { user, input, onChange } = setup(
-			[{ key: "template", label: "Template", getOptions }],
+			[
+				{
+					key: "template",
+					label: "Template",
+					hideWhenSingleOption: true,
+					getOptions,
+				},
+			],
 			{ fakeTimers: true },
 		);
 		await user.click(input);
@@ -494,7 +548,6 @@ describe("FilterCombobox", () => {
 		const templateCategory: FilterCategory = {
 			key: "template",
 			label: "Template",
-			showWhenSingleOption: true,
 			getOptions: async (query) =>
 				query === "zed" ? [{ label: "zed", value: "zed" }] : [],
 		};
@@ -859,6 +912,7 @@ describe("FilterCombobox", () => {
 			{
 				key: "template",
 				label: "Template",
+				hideWhenSingleOption: true,
 				getOptions: async () => [{ label: "Docker", value: "docker" }],
 			},
 			{

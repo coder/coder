@@ -60,8 +60,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				key: "owner",
 				label: "Owner",
 				icon: <UserKeyIcon />,
-				// owner:me still narrows the list when this is the only option.
-				showWhenSingleOption: true,
 				getOptions: getUserOptions,
 			},
 			{
@@ -69,8 +67,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				key: "user",
 				label: "User",
 				icon: <UserIcon />,
-				// user:me still narrows the list when this is the only option.
-				showWhenSingleOption: true,
 				getOptions: getUserOptions,
 			},
 			{
@@ -99,6 +95,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			{
 				key: "template",
 				label: "Template",
+				hideWhenSingleOption: true,
 				icon: <LayoutPanelTopIcon />,
 				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
 			},
@@ -108,6 +105,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			next.push({
 				key: "organization",
 				label: "Organization",
+				hideWhenSingleOption: true,
 				icon: <Building2Icon />,
 				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
 			});
