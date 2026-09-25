@@ -196,10 +196,14 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	// recede until hovered or opened.
 	const isEmphasizedTitle = isStreaming || (chat.has_unread && !isActiveChat);
 
+	// Rows sit inside a section's guide-lined list, so the highlight
+	// bleeds left only to that line (the active border then overlays
+	// it) and fully to the right edge. Padding offsets the bleed so the
+	// content does not shift.
 	const hoverLayout =
-		"[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
+		"[@media(hover:hover)]:hover:-ml-[5px] [@media(hover:hover)]:hover:-mr-2 [@media(hover:hover)]:hover:pl-[9px] [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
 	const activeLayout =
-		"has-[[aria-current=page]]:-mx-2 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[11px]";
+		"has-[[aria-current=page]]:-ml-[5px] has-[[aria-current=page]]:-mr-2 has-[[aria-current=page]]:pl-2 has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-2";
 	const sharedMenuItemProps = {
 		chat,
 		canManage,

@@ -64,6 +64,11 @@ const UNREAD_SECTION_KEY = "Unread";
 const READ_SECTION_KEY = "Read";
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
+// Indents a section's chats under its header behind a guide line,
+// matching how project folders nest their chats.
+const sectionChatListClassName =
+	"ml-3 flex flex-col gap-0.5 border-0 border-l border-solid border-border-default pl-1";
+
 type ChatsPanelProps = {
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
@@ -484,7 +489,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						) : isLoading ? (
 							<>
 								<Skeleton className="ml-2.5 h-3.5 w-16" />
-								<div className="flex flex-col gap-0.5">
+								<div className={sectionChatListClassName}>
 									{Array.from({ length: 6 }, (_, i) => (
 										<div
 											key={i}
@@ -531,7 +536,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 													/>
 													{!collapsedSections[PINNED_SECTION_KEY] &&
 														(disablePinnedReordering ? (
-															<div className="flex flex-col gap-0.5">
+															<div className={sectionChatListClassName}>
 																{sortedPinnedChats.map((chat) => (
 																	<ChatTreeNode key={chat.id} chat={chat} />
 																))}
@@ -555,7 +560,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 																>
 																	<div
 																		ref={pinnedContainerRef}
-																		className="flex flex-col gap-0.5"
+																		className={sectionChatListClassName}
 																	>
 																		{sortedPinnedChats.map((chat) => (
 																			<SortableChatTreeNode
@@ -585,7 +590,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														)}
 													/>
 													{!collapsedSections[SHARED_WITH_YOU_SECTION_KEY] && (
-														<div className="flex flex-col gap-0.5">
+														<div className={sectionChatListClassName}>
 															{sharedWithYouChats.map((chat) => (
 																<ChatTreeNode key={chat.id} chat={chat} />
 															))}
@@ -606,7 +611,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 															testId={getSectionToggleTestId(section.key)}
 														/>
 														{isSectionExpanded && (
-															<div className="flex flex-col gap-0.5">
+															<div className={sectionChatListClassName}>
 																{section.chats.map((chat) => (
 																	<ChatTreeNode key={chat.id} chat={chat} />
 																))}
