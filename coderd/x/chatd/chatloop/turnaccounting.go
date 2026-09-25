@@ -61,8 +61,7 @@ var attributingStages = map[Stage]TurnCategory{
 }
 
 // recordedStageCategories categorizes the full duration of stages built
-// from timestamps; they have no attributing children. capacity_wait is
-// absent: its window lies inside acquisition.
+// from timestamps; they have no attributing children.
 var recordedStageCategories = map[Stage]TurnCategory{
 	StageAcquisition: TurnCategoryScheduling,
 }
@@ -159,9 +158,6 @@ type stageNode struct {
 	childTotal time.Duration
 	// action is set only on a generation_step.
 	action string
-	// failed marks a stream stage whose time_to_first_token child
-	// ended with an error.
-	failed bool
 }
 
 func (n *stageNode) setAction(action string) {
@@ -171,15 +167,6 @@ func (n *stageNode) setAction(action string) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.action = action
-}
-
-func (n *stageNode) markFailed() {
-	if n == nil {
-		return
-	}
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.failed = true
 }
 
 // addChild takes elapsed out of the parent's own time.
@@ -198,14 +185,13 @@ func (n *stageNode) state() nodeState {
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return nodeState{childTotal: n.childTotal, action: n.action, failed: n.failed}
+	return nodeState{childTotal: n.childTotal, action: n.action}
 }
 
 // nodeState is a stage's attribution state at the moment it ends.
 type nodeState struct {
 	childTotal time.Duration
 	action     string
-	failed     bool
 }
 
 // category returns the category of the stage's own time.
@@ -213,8 +199,7 @@ func (n *stageNode) category(state nodeState, err error) TurnCategory {
 	switch {
 	case n.stage == StageGenerationStep && state.action == GenerationActionExecuteLocalTools:
 		return TurnCategoryToolExecution
-	case n.stage == StageStream && (state.failed || err != nil),
-		n.stage == StageTimeToFirstToken && err != nil:
+	case (n.stage == StageStream || n.stage == StageTimeToFirstToken) && err != nil:
 		return TurnCategoryProviderError
 	default:
 		return attributingStages[n.stage]
@@ -230,9 +215,6 @@ func (s *StageSpan) report(elapsed time.Duration, err error) {
 	}
 	state := s.node.state()
 	s.acc.addCategory(s.node.category(state, err), elapsed-state.childTotal)
-	if s.stage == StageTimeToFirstToken && err != nil {
-		s.node.parent.markFailed()
-	}
 	s.node.parent.addChild(elapsed)
 }
 
@@ -257,13 +239,16 @@ func (s *StageSpan) EndTurn(outcome TurnOutcome, err error) {
 }
 
 // categorizeRecordedStage adds the full duration of a stage built from
-// timestamps to the turn on ctx.
+// timestamps to the turn on ctx, and takes it out of the own time of the
+// attributing stage on ctx, if any, so the categories stay disjoint.
 func categorizeRecordedStage(ctx context.Context, stage Stage, elapsed time.Duration) {
+	category, ok := recordedStageCategories[stage]
 	acc := turnAccumulatorFromContext(ctx)
-	if acc == nil {
+	if !ok || acc == nil {
 		return
 	}
-	acc.addCategory(recordedStageCategories[stage], elapsed)
+	acc.addCategory(category, elapsed)
+	stageNodeFromContext(ctx).addChild(elapsed)
 }
 
 // emitTurnAccounting counts a closed turn's outcome and records its

@@ -846,8 +846,8 @@ The turn's wall time is partitioned into disjoint categories that sum to the tur
 |----------|--------|
 | `scheduling` | `acquisition` |
 | `time_to_first_token` | `time_to_first_token`, when an output part closed the window, even if the stream later failed |
-| `streaming` | `stream` minus its `time_to_first_token`, when the stream succeeded |
-| `provider_error` | the rest of a failed `stream`, and a `time_to_first_token` window that ended without an output part |
+| `streaming` | `stream` minus its `time_to_first_token`, when the stream ended without an error, including one whose `time_to_first_token` window ended without an output part |
+| `provider_error` | the rest of a `stream` that ended with an error, and a `time_to_first_token` window that ended without an output part |
 | `retry_backoff` | `retry_backoff`, including the generation phase backoff between prepare and decide attempts |
 | `tool_execution` | `generation_step` own time when the step ran local tools |
 | `compaction` | `compaction` |
@@ -856,7 +856,7 @@ The turn's wall time is partitioned into disjoint categories that sum to the tur
 | `chatd_overhead` | `generation_step` own time for every other action: decision logic, transitions other than `CommitStep`, hook dispatch, and buffer bookkeeping |
 | `unattributed` | the remainder of the turn not covered by any stage above, including the task-level retry sleep in `runTaskWithRetry` |
 
-The partition is computed from the stage tree. A `TurnAccumulator` rides on the turn context and only sums category time. Each attributing stage reports its full duration to its parent when it ends, and the parent's category receives only the parent's own time, which keeps the categories disjoint. `provider_attempt`, `thinking`, and `tool_call` contribute to no category, because they overlap stages that are already categorized. `capacity_wait` is excluded for the same reason: its window lies inside `acquisition`. `queue_wait` is recorded outside any turn and never reaches a category. Only turn-scoped stages report to the accumulator, so background work never lands in a turn. Stages of one turn end on different goroutines (parallel `mcp_connect` stages, and `provider_attempt` stages setting the turn's model from the HTTP transport), so the accumulator is safe for concurrent use.
+The partition is computed from the stage tree. A `TurnAccumulator` rides on the turn context and only sums category time. Each attributing stage reports its full duration to its parent when it ends, and the parent's category receives only the parent's own time, which keeps the categories disjoint. `provider_attempt`, `thinking`, and `tool_call` contribute to no category, because they overlap stages that are already categorized. A stage recorded from timestamps (`acquisition`) adds its full duration to its category and, when it is recorded under an attributing stage, to that stage's child time. `queue_wait` is turn scoped but precedes its prompt's turn, so it is in no category. Only turn-scoped stages report to the accumulator, so background work never lands in a turn. Stages of one turn end on different goroutines (parallel `mcp_connect` stages, and `provider_attempt` stages setting the turn's model from the HTTP transport), so the accumulator is safe for concurrent use.
 
 A stage that ends after its turn has closed is not in the partition. When a stale task's `generation_step` outlives its turn (see [Turn span lifecycle](#turn-span-lifecycle)), that step's own time is not categorized and its share of the turn lands in `unattributed`. The time between a shutting-down runner closing a turn and the next owner's pickup is in no turn at all.
 

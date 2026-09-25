@@ -81,4 +81,22 @@ func TestStageSetsConsistent(t *testing.T) {
 		require.Equal(t, want, namesWord(modelHelp, string(stage)),
 			"model help naming %q", stage)
 	}
+
+	// A recorded stage takes its full duration and an attributing stage
+	// its own time, so no stage may be both.
+	for stage, category := range attributingStages {
+		require.Contains(t, knownStages, stage)
+		require.NotContains(t, recordedStageCategories, stage, "stage %q is both attributing and recorded", stage)
+		require.Contains(t, turnTimeCategories, category)
+	}
+	for stage, category := range recordedStageCategories {
+		require.Contains(t, knownStages, stage)
+		require.Contains(t, turnTimeCategories, category)
+	}
+
+	metrics.RecordTurnCategory(TurnCategoryStreaming, ChatKindRoot, TurnOutcomeCompleted, time.Second)
+	turnHelp := metricHelp(t, registry, "coderd_chatd_turn_time_seconds_total")
+	for _, category := range turnTimeCategories {
+		requireNamesWord(t, turnHelp, string(category))
+	}
 }
