@@ -30450,6 +30450,9 @@ const docTemplate = `{
                 "code_diff_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
+                "collapse_assistant_steps": {
+                    "type": "boolean"
+                },
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
@@ -31120,6 +31123,9 @@ const docTemplate = `{
                 },
                 "code_diff_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
+                },
+                "collapse_assistant_steps": {
+                    "type": "boolean"
                 },
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
