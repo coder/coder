@@ -67,10 +67,33 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 
 	if (templates && templates.length === 0 && !canCreateTemplate) {
 		return (
-			<EmptyState
-				message={defaultTitle}
-				description={`${defaultMessage} There are no templates available, but you will see them here once your admin adds them.`}
-			/>
+			<div className="flex flex-col items-center px-10 pt-12 pb-20 text-center">
+				<div className="relative mb-6 w-[360px] max-w-full aspect-[360/225]">
+					<div className="absolute inset-x-0 top-0 h-[88.9%] overflow-hidden rounded-[10px]">
+						<div
+							aria-hidden="true"
+							className="absolute inset-0 bg-(image:--supergraphic-square-url) bg-size-[190%_auto] bg-position-[14%_0%] bg-no-repeat"
+						/>
+						<div
+							aria-hidden="true"
+							className="absolute inset-0 bg-white/10 backdrop-blur-[2.64px]"
+						/>
+					</div>
+					<img
+						src="/media/waiting-on-templates.svg"
+						alt=""
+						className="absolute inset-0 h-full w-full"
+					/>
+				</div>
+				<h3 className="m-0 font-medium text-content-primary text-lg">
+					Waiting on templates
+				</h3>
+				<p className="mt-2 max-w-[360px] text-content-secondary text-sm">
+					Workspaces are personal, customizable environments built from
+					templates. Once your admin adds one, it'll show up here and you’ll be
+					ready to start.
+				</p>
+			</div>
 		);
 	}
 
