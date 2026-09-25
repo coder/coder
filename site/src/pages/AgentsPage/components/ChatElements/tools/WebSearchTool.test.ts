@@ -1,78 +1,180 @@
 import { describe, expect, it } from "vitest";
-import { getWebSearchToolData } from "./WebSearchTool";
+import { getSourcePillDisplay } from "./WebSearchSources";
+import {
+	getWebSearchAction,
+	getWebSearchLabel,
+	getWebSearchState,
+} from "./WebSearchTool";
 
-describe("getWebSearchToolData", () => {
-	it("reads OpenAI queries from the args and sources from the result", () => {
+describe("getWebSearchAction", () => {
+	it("reads OpenAI search queries, trimmed and deduplicated", () => {
 		expect(
-			getWebSearchToolData(
-				{ queries: [" tokyo population ", "tokyo census", "tokyo census", ""] },
-				{
-					sources: [
-						{ url: "https://www.metro.tokyo.lg.jp/" },
-						{ url: "http://example.com/tokyo" },
-						{ url: "https://www.metro.tokyo.lg.jp/" },
-					],
-				},
-			),
+			getWebSearchAction({
+				type: "search",
+				queries: [" tokyo population ", "tokyo census", "tokyo census", ""],
+			}),
 		).toEqual({
+			type: "search",
 			queries: ["tokyo population", "tokyo census"],
-			sourceUrls: [
-				"https://www.metro.tokyo.lg.jp/",
-				"http://example.com/tokyo",
-			],
-			searchFinished: true,
-		});
-	});
-
-	it("drops source URLs that are not http or https", () => {
-		expect(
-			getWebSearchToolData(
-				{ queries: [] },
-				{
-					sources: [
-						{ url: "data:text/html,unsafe" },
-						{ url: "ftp://example.com/file" },
-						{ url: "not a url" },
-						{ url: 42 },
-						"https://example.com/not-a-record",
-						{ url: "https://example.com/kept" },
-					],
-				},
-			).sourceUrls,
-		).toEqual(["https://example.com/kept"]);
-	});
-
-	it("marks an OpenAI search without queries as finished", () => {
-		expect(getWebSearchToolData({ queries: [] }, undefined)).toEqual({
-			queries: [],
-			sourceUrls: [],
-			searchFinished: true,
 		});
 	});
 
 	it("reads queries that fixtures pass JSON-encoded", () => {
 		expect(
-			getWebSearchToolData({ queries: JSON.stringify(["coder agents"]) }, {}),
-		).toEqual({
-			queries: ["coder agents"],
-			sourceUrls: [],
-			searchFinished: true,
-		});
+			getWebSearchAction({ queries: JSON.stringify(["coder agents"]) }),
+		).toEqual({ type: "search", queries: ["coder agents"] });
 	});
 
-	it("reads the Anthropic query from the args without marking it finished", () => {
-		expect(getWebSearchToolData({ query: "coder templates" }, {})).toEqual({
+	it("reads the Anthropic query", () => {
+		expect(getWebSearchAction({ query: "coder templates" })).toEqual({
+			type: "search",
 			queries: ["coder templates"],
-			sourceUrls: [],
-			searchFinished: false,
 		});
 	});
 
-	it("returns no queries for calls persisted without args", () => {
-		expect(getWebSearchToolData(undefined, {})).toEqual({
+	it("returns a search without queries for empty or missing args", () => {
+		expect(getWebSearchAction({ type: "search" })).toEqual({
+			type: "search",
 			queries: [],
-			sourceUrls: [],
-			searchFinished: false,
 		});
+		expect(getWebSearchAction({})).toEqual({ type: "search", queries: [] });
+		expect(getWebSearchAction(undefined)).toEqual({
+			type: "search",
+			queries: [],
+		});
+	});
+
+	it("reads open_page and find_in_page actions", () => {
+		expect(
+			getWebSearchAction({ type: "open_page", url: "https://coder.com/docs" }),
+		).toEqual({ type: "open_page", url: "https://coder.com/docs" });
+		expect(
+			getWebSearchAction({
+				type: "find_in_page",
+				url: "https://coder.com/docs",
+				pattern: "templates",
+			}),
+		).toEqual({
+			type: "find_in_page",
+			url: "https://coder.com/docs",
+			pattern: "templates",
+		});
+	});
+});
+
+describe("getWebSearchState", () => {
+	it("is running while the message streams without a result", () => {
+		expect(
+			getWebSearchState({
+				status: "running",
+				result: undefined,
+				isError: false,
+			}),
+		).toBe("running");
+	});
+
+	it("did not finish when the message ended without a result", () => {
+		expect(
+			getWebSearchState({
+				status: "completed",
+				result: undefined,
+				isError: false,
+			}),
+		).toBe("unfinished");
+	});
+
+	it("failed when the result is an error", () => {
+		expect(
+			getWebSearchState({
+				status: "error",
+				result: { error: "web search failed" },
+				isError: true,
+			}),
+		).toBe("failed");
+	});
+
+	it("finished when a result arrived, even without queries in the args", () => {
+		expect(
+			getWebSearchState({ status: "completed", result: {}, isError: false }),
+		).toBe("finished");
+	});
+});
+
+describe("getWebSearchLabel", () => {
+	const search = getWebSearchAction({ queries: ["q1", "q2"] });
+	const bareSearch = getWebSearchAction({ type: "search" });
+	const openPage = getWebSearchAction({
+		type: "open_page",
+		url: "https://coder.com/docs",
+	});
+	const findInPage = getWebSearchAction({
+		type: "find_in_page",
+		url: "https://coder.com/docs",
+		pattern: "templates",
+	});
+
+	it.each([
+		[search, "running", "Searching for q1, q2"],
+		[search, "finished", "Searched for q1, q2"],
+		[search, "failed", "Failed to search for q1, q2"],
+		[search, "unfinished", "Did not finish searching for q1, q2"],
+		[bareSearch, "running", "Searching the web"],
+		[bareSearch, "finished", "Searched the web"],
+		[openPage, "running", "Opening https://coder.com/docs"],
+		[openPage, "finished", "Opened https://coder.com/docs"],
+		[openPage, "failed", "Failed to open https://coder.com/docs"],
+		[openPage, "unfinished", "Did not finish opening https://coder.com/docs"],
+		[findInPage, "running", "Searching https://coder.com/docs for templates"],
+		[findInPage, "finished", "Searched https://coder.com/docs for templates"],
+		[
+			findInPage,
+			"failed",
+			"Failed to search https://coder.com/docs for templates",
+		],
+		[
+			findInPage,
+			"unfinished",
+			"Did not finish searching https://coder.com/docs for templates",
+		],
+	] as const)("labels %o as %s: %s", (action, state, label) => {
+		expect(getWebSearchLabel(action, state)).toBe(label);
+	});
+});
+
+describe("getSourcePillDisplay", () => {
+	it("links http and https URLs", () => {
+		expect(
+			getSourcePillDisplay({ url: "https://coder.com/changelog", title: "" })
+				.href,
+		).toBe("https://coder.com/changelog");
+		expect(
+			getSourcePillDisplay({ url: "http://example.com/", title: "" }).href,
+		).toBe("http://example.com/");
+	});
+
+	it.each([
+		"ftp://example.com/release.txt",
+		"data:text/html,unsafe",
+		"mailto:team@example.com",
+		"not a url",
+	])("does not link %s", (url) => {
+		expect(getSourcePillDisplay({ url, title: "" }).href).toBeUndefined();
+	});
+
+	it("labels a page by title, else hostname plus path, else the raw URL", () => {
+		expect(
+			getSourcePillDisplay({ url: "https://coder.com/docs", title: "Docs" })
+				.label,
+		).toBe("Docs");
+		expect(
+			getSourcePillDisplay({ url: "https://coder.com/docs/ai", title: "" })
+				.label,
+		).toBe("coder.com/docs/ai");
+		expect(
+			getSourcePillDisplay({ url: "https://coder.com/", title: "" }).label,
+		).toBe("coder.com");
+		expect(getSourcePillDisplay({ url: "not a url", title: "" }).label).toBe(
+			"not a url",
+		);
 	});
 });

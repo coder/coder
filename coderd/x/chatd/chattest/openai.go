@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -43,14 +44,21 @@ type OpenAIReasoningItem struct {
 // OpenAIWebSearchCall configures a streamed web_search_call output item for the
 // Responses API test server.
 type OpenAIWebSearchCall struct {
-	ID      string   `json:"id,omitempty"`
+	ID string `json:"id,omitempty"`
+	// Queries is action.queries.
 	Queries []string `json:"queries,omitempty"`
-	Query   string   `json:"query,omitempty"`
-	// Sources are the consulted URLs reported in action.sources. Like
-	// OpenAI, the server returns them only when the request includes
-	// web_search_call.action.sources. It lists them only in the
-	// response.completed output.
+	// Query is the deprecated action.query; OpenAI sends both.
+	Query string `json:"query,omitempty"`
+	// Sources are the pages the search found, reported in action.sources
+	// on the item's output_item.done. Like OpenAI, the server returns them
+	// only when the request includes web_search_call.action.sources.
 	Sources []string `json:"sources,omitempty"`
+	// SummaryOnlySources are added to the search's action.sources only in
+	// the response.completed output, as OpenAI does for pages the answer
+	// cited.
+	SummaryOnlySources []string `json:"summary_only_sources,omitempty"`
+	// Status is the finished item's status. It defaults to "completed".
+	Status string `json:"status,omitempty"`
 }
 
 // OpenAIRequest represents an OpenAI chat completion request.
@@ -372,12 +380,7 @@ func requestIncludes(rawBody []byte, value string) bool {
 	if err := json.Unmarshal(rawBody, &body); err != nil {
 		return false
 	}
-	for _, include := range body.Include {
-		if include == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(body.Include, value)
 }
 
 func writeChatCompletionsStreaming(w http.ResponseWriter, r *http.Request, chunks <-chan OpenAIChunk) {
@@ -676,13 +679,25 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAI
 		if itemID == "" {
 			itemID = fmt.Sprintf("ws_%s", uuid.New().String()[:8])
 		}
-		newAction := func() map[string]interface{} {
+		status := resp.WebSearch.Status
+		if status == "" {
+			status = "completed"
+		}
+		includeSources := requestIncludes(req.RawBody, "web_search_call.action.sources")
+		newAction := func(sourceURLs []string) map[string]interface{} {
 			action := map[string]interface{}{"type": "search"}
 			if len(resp.WebSearch.Queries) > 0 {
 				action["queries"] = resp.WebSearch.Queries
 			}
 			if resp.WebSearch.Query != "" {
 				action["query"] = resp.WebSearch.Query
+			}
+			if includeSources && len(sourceURLs) > 0 {
+				sources := make([]interface{}, 0, len(sourceURLs))
+				for _, source := range sourceURLs {
+					sources = append(sources, map[string]interface{}{"type": "url", "url": source})
+				}
+				action["sources"] = sources
 			}
 			return action
 		}
@@ -702,24 +717,17 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAI
 			"item": map[string]interface{}{
 				"type":   "web_search_call",
 				"id":     itemID,
-				"status": "completed",
-				"action": newAction(),
+				"status": status,
+				"action": newAction(resp.WebSearch.Sources),
 			},
 		}) {
 			return
 		}
-		completedAction := newAction()
-		if len(resp.WebSearch.Sources) > 0 && requestIncludes(req.RawBody, "web_search_call.action.sources") {
-			sources := make([]interface{}, 0, len(resp.WebSearch.Sources))
-			for _, source := range resp.WebSearch.Sources {
-				sources = append(sources, map[string]interface{}{"type": "url", "url": source})
-			}
-			completedAction["sources"] = sources
-		}
+		completedAction := newAction(append(slices.Clone(resp.WebSearch.Sources), resp.WebSearch.SummaryOnlySources...))
 		completedOutput = append(completedOutput, map[string]interface{}{
 			"type":   "web_search_call",
 			"id":     itemID,
-			"status": "completed",
+			"status": status,
 			"action": completedAction,
 		})
 		textOffset++

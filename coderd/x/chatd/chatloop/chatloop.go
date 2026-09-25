@@ -1085,6 +1085,7 @@ func processStepStream(
 				ID:               part.ID,
 				URL:              part.URL,
 				Title:            part.Title,
+				ToolCallID:       part.SourceToolCallID,
 				ProviderMetadata: part.ProviderMetadata,
 			}
 			result.content = append(result.content, sourceContent)
@@ -1104,6 +1105,9 @@ func processStepStream(
 					ToolName:         part.ToolCallName,
 					ProviderExecuted: part.ProviderExecuted,
 					ProviderMetadata: part.ProviderMetadata,
+				}
+				if err := providerToolResultError(part.ProviderMetadata); err != nil {
+					tr.Result = fantasy.ToolResultOutputContentError{Error: err}
 				}
 				result.content = append(result.content, tr)
 
@@ -1981,4 +1985,17 @@ func positiveInt64(value int64) (int64, bool) {
 		return 0, false
 	}
 	return value, true
+}
+
+// providerToolResultError returns the failure a provider reported for a
+// provider-executed web search, or nil. Anthropic reports an error code and
+// OpenAI a failed item status, both only in the result's metadata.
+func providerToolResultError(metadata fantasy.ProviderMetadata) error {
+	if meta, ok := metadata[fantasyanthropic.Name].(*fantasyanthropic.WebSearchResultMetadata); ok && meta != nil && meta.ErrorCode != "" {
+		return xerrors.Errorf("web search failed: %s", meta.ErrorCode)
+	}
+	if meta, ok := metadata[fantasyopenai.Name].(*fantasyopenai.WebSearchCallMetadata); ok && meta != nil && meta.Status == "failed" {
+		return xerrors.New("web search failed")
+	}
+	return nil
 }
