@@ -854,11 +854,19 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 					BaseURL:          upstreamSrv.URL,
 					KeyPool:          singleKeyPool(t, "openai", "test-key"),
 					SendActorHeaders: true,
+					ActorHeaderNames: map[string]string{
+						"id":       intercept.ActorIDHeader(),
+						"username": intercept.ActorMetadataHeader("Username"),
+					},
 				}),
 				aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{
 					BaseURL:          upstreamSrv.URL,
 					KeyPool:          singleKeyPool(t, "anthropic", "test-key"),
 					SendActorHeaders: true,
+					ActorHeaderNames: map[string]string{
+						"id":       intercept.ActorIDHeader(),
+						"username": intercept.ActorMetadataHeader("Username"),
+					},
 				}, nil),
 			}
 
