@@ -54,6 +54,7 @@ import {
 	FilterComboboxList,
 	FilterComboboxRoot,
 	FilterComboboxStatus,
+	isListNavigationKey,
 	menuMaxHeightClassName,
 } from "./primitives";
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
@@ -250,7 +251,7 @@ export function FilterCombobox({
 	const flyoutCategory =
 		activeCategoryKey === null &&
 		(!categoriesNarrowedByText || shownFlyoutKey === scopeMatchKey)
-			? categories.find((category) => category.key === shownFlyoutKey)
+			? listedCategories.find((category) => category.key === shownFlyoutKey)
 			: undefined;
 	// Toggling clears text typed to find the category, so the flyout is pinned
 	// open explicitly rather than through the scope match.
@@ -467,7 +468,7 @@ export function FilterCombobox({
 								variant="outline"
 								size="md"
 								data-slot="combobox-chip-search"
-								className="px-2 font-medium"
+								className={cn(chipRowItemHeightClassName, "px-2 font-medium")}
 							>
 								{typedFreeText}
 							</Badge>
@@ -479,7 +480,7 @@ export function FilterCombobox({
 								variant="dashed"
 								size="md"
 								data-slot="combobox-chip-draft"
-								className="px-2 font-medium"
+								className={cn(chipRowItemHeightClassName, "px-2 font-medium")}
 								aria-hidden
 							>
 								{`${activeCategory.key}:`}
@@ -729,7 +730,7 @@ const groupByCategoryLabel = <T extends { categoryLabel: string }>(
 
 type MainPanelProps = Readonly<{
 	listedCategories: readonly FilterCategory[];
-	/** Placeholder rows shown while the category list is still unknown. */
+	/** Nonzero while the category list is still unknown. */
 	categoryPlaceholderCount: number;
 	valueSuggestions: readonly ValueSuggestion[];
 	inlineOptionRows: readonly InlineOptionRow[];
@@ -867,17 +868,6 @@ function MainPanel({
 	);
 }
 
-// Keys cmdk uses to move through and pick the highlighted option.
-const LIST_NAVIGATION_KEYS = new Set([
-	"ArrowUp",
-	"ArrowDown",
-	"Home",
-	"End",
-	"Enter",
-]);
-// cmdk's Ctrl bindings for next (`n`, `j`) and previous (`p`, `k`).
-const LIST_NAVIGATION_CTRL_KEYS = new Set(["n", "j", "p", "k"]);
-
 type FlyoutSearchProps = Readonly<{
 	label: string;
 	value: string;
@@ -905,8 +895,7 @@ function FlyoutSearch({
 				onChange={(event) => onChange(event.currentTarget.value)}
 				onKeyDown={(event) => {
 					const isListNavigation =
-						LIST_NAVIGATION_KEYS.has(event.key) ||
-						(event.ctrlKey && LIST_NAVIGATION_CTRL_KEYS.has(event.key));
+						event.key === "Enter" || isListNavigationKey(event);
 					if (navigatesList && isListNavigation) {
 						return;
 					}

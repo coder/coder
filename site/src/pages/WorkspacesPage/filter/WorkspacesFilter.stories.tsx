@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
+import { templates } from "#/api/queries/templates";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	MockNoPermissions,
 	MockPermissions,
+	MockTemplate,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -102,11 +104,15 @@ export const WithFilterError: Story = {
 	},
 };
 
-// With no filter applied, an ordinary user still sees the Owner and User rows,
-// though each offers only themselves.
-export const OrdinaryUserSeesSelfCategories: Story = {
+// Owner and User each offer only the current user, and stay in the menu
+// because they do not set hideWhenSingleOption. Template has one option, so it
+// is hidden.
+export const OrdinaryUserSeesOwnerAndUser: Story = {
 	args: { initialQuery: "" },
-	parameters: { permissions: MockNoPermissions },
+	parameters: {
+		permissions: MockNoPermissions,
+		queries: [{ key: templates().queryKey, data: [MockTemplate] }],
+	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", { name: "Filters" }),

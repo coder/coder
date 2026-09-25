@@ -29,12 +29,20 @@ import {
 // `Command*` layer could remove the duplication.
 
 /**
- * Height cap for the popup, and for each menu inside it when the caller makes
- * the popup `overflow-visible` so flyouts can extend past it, as
- * `FilterCombobox` does.
+ * Height cap for the popup, bounded only by the space Radix reports to the
+ * viewport edge, and for each menu inside it when the caller makes the popup
+ * `overflow-visible` so flyouts can extend past it, as `FilterCombobox` does.
  */
-// Bounded only by the viewport, so the menu scrolls only when it cannot fit.
 export const menuMaxHeightClassName = "max-h-(--radix-popper-available-height)";
+
+const LIST_NAVIGATION_KEYS = new Set(["ArrowUp", "ArrowDown", "Home", "End"]);
+// cmdk's Ctrl bindings for next (`n`, `j`) and previous (`p`, `k`).
+const LIST_NAVIGATION_CTRL_KEYS = new Set(["n", "j", "p", "k"]);
+
+/** Whether cmdk moves the highlighted row for this key press. */
+export const isListNavigationKey = (event: { key: string; ctrlKey: boolean }) =>
+	LIST_NAVIGATION_KEYS.has(event.key) ||
+	(event.ctrlKey && LIST_NAVIGATION_CTRL_KEYS.has(event.key));
 
 const FilterComboboxAnchorContext =
 	createContext<RefObject<HTMLDivElement | null> | null>(null);
@@ -68,7 +76,8 @@ type FilterComboboxRootProps = {
 	open?: boolean;
 	/**
 	 * Whether cmdk highlights the first row on its own. When false, a row is
-	 * highlighted only by arrow keys, the pointer, or `highlightRef`.
+	 * highlighted only by Up, Down, Home, End, cmdk's Ctrl+N/J/P/K, the pointer,
+	 * or `highlightRef`.
 	 */
 	autoHighlight?: boolean;
 	/** Fired when Radix requests a close (escape / outside press). */
@@ -116,8 +125,8 @@ export function FilterComboboxRoot({
 	// cmdk only reports highlight changes when its value is controlled.
 	const [highlightedValue, setHighlightedValue] = useState("");
 	const highlightedValueRef = useRef("");
-	// Set by arrow keys and pointer moves just before cmdk handles them, so
-	// only those highlight a row while `autoHighlight` is off.
+	// Set by list navigation keys and pointer moves just before cmdk handles
+	// them, so only those highlight a row while `autoHighlight` is off.
 	const userNavigatingRef = useRef(false);
 	useImperativeHandle(
 		highlightRef,
@@ -159,15 +168,15 @@ export function FilterComboboxRoot({
 						}
 					}}
 					onKeyDownCapture={(event) => {
-						userNavigatingRef.current = [
-							"ArrowUp",
-							"ArrowDown",
-							"Home",
-							"End",
-						].includes(event.key);
+						userNavigatingRef.current = isListNavigationKey(event);
 					}}
 					onPointerMoveCapture={() => {
 						userNavigatingRef.current = true;
+					}}
+					// Runs after the row's own handler, so the flag covers only the
+					// highlight that pointer move causes.
+					onPointerMove={() => {
+						userNavigatingRef.current = false;
 					}}
 					onValueChange={(value) => {
 						const navigating = userNavigatingRef.current;

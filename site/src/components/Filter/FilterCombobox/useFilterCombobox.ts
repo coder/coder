@@ -165,6 +165,7 @@ type StatusMessageInput = {
 	activeOptionsLoading: boolean;
 	activeOptionsError: boolean;
 	activeOptionsEmpty: boolean;
+	categoryListLoading: boolean;
 	typeaheadLoading: boolean;
 	typeaheadError: boolean;
 	typeaheadEmpty: boolean;
@@ -187,6 +188,7 @@ const deriveStatusMessage = ({
 	activeOptionsLoading,
 	activeOptionsError,
 	activeOptionsEmpty,
+	categoryListLoading,
 	typeaheadLoading,
 	typeaheadError,
 	typeaheadEmpty,
@@ -202,6 +204,9 @@ const deriveStatusMessage = ({
 			return `No ${activeCategoryLabel} matches`;
 		}
 		return `Filtering by ${activeCategoryLabel}`;
+	}
+	if (categoryListLoading) {
+		return "Loading filters";
 	}
 	if (typeaheadLoading) {
 		return "Loading suggestions";
@@ -349,13 +354,15 @@ export const useFilterCombobox = ({
 			? category.scopeToggle.widenedKey
 			: category.key;
 	const categoryForChip = (token: string) => {
-		const key = chipKeyOf(token);
+		const key = parseChipToken(token, chipKeys)?.key;
 		return key === undefined
 			? undefined
 			: categories.find((category) => categoryChipKeys(category).includes(key));
 	};
 
-	// Every submenu category includes entries hidden by the option-count rule.
+	// Categories with a flyout or drill-in list, including those
+	// hideWhenSingleOption leaves out of the menu. Inline categories render their
+	// options directly in the main panel and never enter category mode.
 	const allSubmenuCategories = categories.filter(
 		(category) => !category.inlineOptions,
 	);
@@ -388,16 +395,28 @@ export const useFilterCombobox = ({
 		combine: (results) => {
 			const optionsByKey = new Map<string, readonly FilterOption[]>();
 			const erroredKeys = new Set<string>();
+			const failedKeys = new Set<string>();
+			const firstLoadKeys = new Set<string>();
 			results.forEach((result, index) => {
+				const { key } = categories[index];
 				if (result.data) {
-					optionsByKey.set(categories[index].key, result.data);
+					optionsByKey.set(key, result.data);
 				} else if (result.isError) {
-					erroredKeys.add(categories[index].key);
+					erroredKeys.add(key);
+				}
+				// A retry puts a failed query back to pending, so the failure
+				// count tells a retry from the first load.
+				if (!result.data && result.errorUpdateCount > 0) {
+					failedKeys.add(key);
+				} else if (result.isPending) {
+					firstLoadKeys.add(key);
 				}
 			});
 			return {
 				optionsByKey,
 				erroredKeys,
+				failedKeys,
+				firstLoadKeys,
 				refetch: (categoryKey: string) => {
 					const index = categories.findIndex(
 						(category) => category.key === categoryKey,
@@ -407,32 +426,35 @@ export const useFilterCombobox = ({
 			};
 		},
 	});
-	// An applied chip keeps its category listed so the chip can be changed, and a
-	// failed lookup keeps it listed so its flyout can offer a retry.
-	const isListed = (category: FilterCategory, chips = chipValues) =>
+	const isHideableLoading = (category: FilterCategory) =>
+		category.hideWhenSingleOption === true &&
+		unfilteredOptions.firstLoadKeys.has(category.key);
+	// A hideable category stays in the menu while its options first load, so
+	// typed text can match it; while it has an applied chip, so the chip can be
+	// changed; and after a failed lookup, including while its retry runs, so its
+	// flyout can offer a retry.
+	const isInMenu = (category: FilterCategory, chips = chipValues) =>
 		!category.hideWhenSingleOption ||
-		unfilteredOptions.erroredKeys.has(category.key) ||
+		isHideableLoading(category) ||
+		unfilteredOptions.failedKeys.has(category.key) ||
 		(unfilteredOptions.optionsByKey.get(category.key)?.length ?? 0) > 1 ||
 		chips.some((token) => categoryForChip(token) === category);
 	const menuCategories = allSubmenuCategories.filter((category) =>
-		isListed(category),
+		isInMenu(category),
 	);
 	// Until every hideable category's options load, the full list is unknown,
-	// so the menu shows placeholder rows instead of adding a row later.
-	const categoriesLoading = allSubmenuCategories.some(
-		(category) =>
-			category.hideWhenSingleOption &&
-			!unfilteredOptions.optionsByKey.has(category.key) &&
-			!unfilteredOptions.erroredKeys.has(category.key),
-	);
+	// so the unnarrowed category list shows one placeholder row per submenu
+	// category. The list that replaces them can be shorter.
+	const hideableOptionsLoading = allSubmenuCategories.some(isHideableLoading);
 
 	const categoryQuery =
 		activeCategoryKey !== null || browseAll ? "" : inputValue.trim();
 	const categoryPlaceholderCount =
 		open &&
+		activeCategoryKey === null &&
 		typedInlinePrefix === null &&
 		categoryQuery.length === 0 &&
-		categoriesLoading
+		hideableOptionsLoading
 			? allSubmenuCategories.length
 			: 0;
 	// A prefix of the whole search phrase, after three characters, finds its
@@ -659,6 +681,7 @@ export const useFilterCombobox = ({
 		activeOptionsLoading,
 		activeOptionsError,
 		activeOptionsEmpty,
+		categoryListLoading: categoryPlaceholderCount > 0,
 		typeaheadLoading,
 		typeaheadError,
 		typeaheadEmpty,
@@ -779,20 +802,20 @@ export const useFilterCombobox = ({
 	};
 
 	// Returning to the category list highlights the row that was open, so the
-	// keyboard position is never lost when the option rows unmount.
+	// keyboard position is never lost when the option rows unmount. When that
+	// row is not in the menu, because the picked option hid it or the category
+	// was entered by typing its hidden key, the first row in the menu is
+	// highlighted instead; cmdk keeps a highlight that names no row.
 	const returnToCategories = (nextChips = chipValues) => {
-		const activeCategory = categories.find(
-			(category) => category.key === activeCategoryKey,
-		);
-		const remainsListed = (category: FilterCategory) =>
-			isListed(category, nextChips);
-		const activeCategoryRemainsListed =
-			activeCategory !== undefined && remainsListed(activeCategory);
-		const nextHighlight = activeCategoryRemainsListed
+		const staysInMenu = (category: FilterCategory) =>
+			isInMenu(category, nextChips);
+		const activeCategoryStaysInMenu =
+			activeCategory !== undefined && staysInMenu(activeCategory);
+		const nextHighlight = activeCategoryStaysInMenu
 			? activeCategoryKey
-			: (categories.find(
+			: (allSubmenuCategories.find(
 					(category) =>
-						category.key !== activeCategoryKey && remainsListed(category),
+						category.key !== activeCategoryKey && staysInMenu(category),
 				)?.key ?? "");
 		setHighlightedValue(nextHighlight ?? "");
 		dispatch({ type: "leaveCategory" });
@@ -865,16 +888,16 @@ export const useFilterCombobox = ({
 		returnToCategories();
 	};
 
-	// Text is held when any category name matches, or when a listed category's
-	// loaded option matches or its lookup finds an option within
-	// TYPED_TEXT_LOOKUP_TIMEOUT_MS. Failed and pending lookups count as no match.
+	// True when text matches the name of any category, including one left out
+	// of the menu, or a loaded option or an option getOptions returns within
+	// TYPED_TEXT_LOOKUP_TIMEOUT_MS of a category in the menu or an inline
+	// category. Failed and pending lookups count as no match. Callers hold such
+	// text back from the search so results do not empty out mid-word.
 	const couldBeFilterSearch = (text: string): Promise<boolean> => {
 		if (text.length === 0) {
 			return Promise.resolve(false);
 		}
-		// Option matches are limited to listed categories. Category names still
-		// match across all submenu and inline categories so typed prefixes work.
-		const matchesLoadedOption = menuCategories.some(
+		const matchesLoadedOption = optionLookupCategories.some(
 			(category) =>
 				filterOptionsByText(
 					unfilteredOptions.optionsByKey.get(category.key) ?? [],
@@ -882,8 +905,8 @@ export const useFilterCombobox = ({
 				).length > 0,
 		);
 		const matchesCategory =
-			matchCategories(text, [...allSubmenuCategories, ...inlineCategories])
-				.length > 0 || findScopeMatch(text) !== undefined;
+			matchCategories(text, categories).length > 0 ||
+			findScopeMatch(text) !== undefined;
 		if (matchesCategory || matchesLoadedOption) {
 			return Promise.resolve(true);
 		}
@@ -1119,15 +1142,11 @@ export const useFilterCombobox = ({
 		);
 	};
 
-	// Free-typed text may be a workspace search, so no row is highlighted until
-	// the user moves to one. A typed `key:` prefix asks for a filter, so its
-	// first match stays highlighted.
-	const autoHighlight = !(
-		mode === "browsing" &&
-		!browseAll &&
-		typedInlinePrefix === null &&
-		inputValue.trim().length > 0
-	);
+	// Text typed in the main menu may be a free-text search, so no row is
+	// highlighted until the user moves to one. Inside a category, in the
+	// all-filters list, or after a typed key: prefix the text narrows filters, so
+	// the first match stays highlighted.
+	const typingFreeText = hasTypeaheadQuery && typedInlinePrefix === null;
 
 	const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
 		const isBackspaceOrDelete =
@@ -1225,12 +1244,20 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		// With free-typed text and no row chosen, Enter searches workspaces.
-		if (
-			event.key === "Enter" &&
-			!autoHighlight &&
-			getHighlightedValue() === ""
-		) {
+		// A highlighted row can unmount without cmdk reporting a new highlight,
+		// so only a value naming a rendered row counts.
+		const highlightedValue = getHighlightedValue();
+		const highlightedRow = [
+			...listedCategories.map((category) => category.key),
+			...inlineOptionRows.map((row) => row.token),
+			...valueSuggestions.map((suggestion) => suggestion.token),
+		].includes(highlightedValue)
+			? highlightedValue
+			: "";
+
+		// With free-typed text and no row highlighted, Enter applies the text as
+		// a free-text search and closes the menu.
+		if (event.key === "Enter" && typingFreeText && highlightedRow === "") {
 			event.preventDefault();
 			applyTypedSearch();
 			dispatch({ type: "close" });
@@ -1245,10 +1272,11 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		// Tab still completes the first match when no row is highlighted.
+		// With no row highlighted, Tab completes the top row. The order below
+		// must match the order MainPanel renders these lists.
 		const highlighted =
-			getHighlightedValue() ||
-			(event.key === "Tab" && !autoHighlight
+			highlightedRow ||
+			(event.key === "Tab" && typingFreeText
 				? (listedCategories[0]?.key ??
 					inlineOptionRows[0]?.token ??
 					valueSuggestions[0]?.token ??
@@ -1293,7 +1321,7 @@ export const useFilterCombobox = ({
 		// Category found through a prefix of its scope pill label.
 		scopeMatchKey: scopeMatchedCategory?.key ?? null,
 		categoryPlaceholderCount,
-		autoHighlight,
+		autoHighlight: !typingFreeText,
 		unfilteredOptionsByKey: unfilteredOptions.optionsByKey,
 		unfilteredOptionsErroredKeys: unfilteredOptions.erroredKeys,
 		valueSuggestions,

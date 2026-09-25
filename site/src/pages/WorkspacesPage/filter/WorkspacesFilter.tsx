@@ -98,6 +98,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			{
 				key: "template",
 				label: "Template",
+				// Deprecated templates are not offered, so the row can hide while
+				// its one active template would still narrow the results.
 				hideWhenSingleOption: true,
 				icon: <LayoutPanelTopIcon />,
 				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
@@ -108,6 +110,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			next.push({
 				key: "organization",
 				label: "Organization",
+				// Only organizations with `audit_log:read` are offered, so the row
+				// can hide while its one option would still narrow the results.
 				hideWhenSingleOption: true,
 				icon: <Building2Icon />,
 				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),

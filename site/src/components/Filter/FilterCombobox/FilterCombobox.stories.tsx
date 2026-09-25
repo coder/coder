@@ -791,6 +791,29 @@ export const CategoryListLoading: Story = {
 	},
 };
 
+// A category opened while Template's options load shows the category rows
+// beside its options, not placeholder rows.
+export const CategoryOpenWhileCategoryListLoads: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				singleTemplateCategories[0],
+				{
+					...singleTemplateCategories[1],
+					getOptions: () => new Promise<FilterOption[]>(() => {}),
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByRole("combobox", { name: "Search and filter…" });
+		await userEvent.click(input);
+		await userEvent.type(input, "owner:");
+	},
+};
+
 // The template:docker chip keeps Template listed.
 export const SingleOptionCategoryWithChip: Story = {
 	render: () => (
@@ -800,6 +823,52 @@ export const SingleOptionCategoryWithChip: Story = {
 		/>
 	),
 	play: ({ canvasElement }) => openFilterMenu(canvasElement),
+};
+
+// Template's options failed to load, so it stays in the menu to offer a retry.
+export const SingleOptionCategoryLoadFailed: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				singleTemplateCategories[0],
+				{
+					...singleTemplateCategories[1],
+					getOptions: async () => {
+						throw new Error("Failed to load templates");
+					},
+				},
+			]}
+		/>
+	),
+	play: ({ canvasElement }) => openFilterMenu(canvasElement),
+};
+
+// A Retry that returns one option hides Template and closes its flyout.
+export const SingleOptionCategoryRetried: Story = {
+	render: () => {
+		let thrown = false;
+		const categories: FilterCategory[] = [
+			singleTemplateCategories[0],
+			{
+				...singleTemplateCategories[1],
+				getOptions: async (query) => {
+					if (!thrown) {
+						thrown = true;
+						throw new Error("Failed to load templates");
+					}
+					return singleTemplateCategories[1].getOptions(query);
+				},
+			},
+		];
+		return <FilterComboboxHarness initialQuery="" categories={categories} />;
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openFilterMenu(canvasElement);
+		await userEvent.hover(body.getByRole("option", { name: "Template" }));
+		await userEvent.click(await body.findByRole("button", { name: "Retry" }));
+	},
 };
 
 // Escape closes the popup without clearing the committed chips.
@@ -848,6 +917,7 @@ export const DismissOnOutsideClick: Story = {
 	},
 };
 
+// A failed category lookup surfaces a Retry that refetches the options.
 export const CategoryOptionsErrorRetry: Story = {
 	render: () => {
 		// The unfiltered options and the category view share the empty-query
@@ -890,6 +960,7 @@ export const CategoryOptionsErrorRetry: Story = {
 	},
 };
 
+// A failed suggestion lookup surfaces a Retry that refetches the typeahead.
 export const TypeaheadErrorRetry: Story = {
 	render: () => {
 		let thrown = false;
