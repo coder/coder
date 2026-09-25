@@ -277,7 +277,7 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 								onSelect={keepMenuOpen}
 								className={cn(
 									"flex flex-1 cursor-default select-none items-center justify-center rounded-md py-1 text-sm text-content-secondary outline-hidden transition-colors",
-									"focus:text-content-primary focus-visible:ring-2 focus-visible:ring-content-link",
+									"focus:text-content-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 									"data-[state=checked]:bg-surface-tertiary data-[state=checked]:text-content-primary data-[state=checked]:shadow-sm",
 								)}
 							>
