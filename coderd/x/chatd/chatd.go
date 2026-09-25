@@ -2507,7 +2507,19 @@ func (p *Server) ReconcileInvalidStateChat(
 	var refreshed database.Chat
 	machine := p.newChatMachine(chat.ID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := tx.ReconcileInvalidState(chatstate.ReconcileInvalidStateInput{}); err != nil {
+		history, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+		if err != nil {
+			return xerrors.Errorf("load history for reconcile: %w", err)
+		}
+		// Queued requests stay open; only the latest turn's request closes.
+		receipts, err := activeRequestReceipt(ctx, p.logger, store, chat.ID, history, codersdk.ChatStructuredOutput{
+			Status: codersdk.ChatStructuredOutputStatusFailed,
+			Error:  &codersdk.ChatStructuredOutputError{Code: codersdk.ChatStructuredOutputErrorCodeGenerationFailed, Message: reconciledStructuredOutputMessage},
+		})
+		if err != nil {
+			return xerrors.Errorf("close structured output request on reconcile: %w", err)
+		}
+		if _, err := tx.ReconcileInvalidState(chatstate.ReconcileInvalidStateInput{TerminalMessages: receipts}); err != nil {
 			return err
 		}
 		// Capture the post-reconcile chat inside the transaction so

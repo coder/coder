@@ -1657,6 +1657,9 @@ func (tx *Tx) CancelRequiresAction(input CancelRequiresActionInput) (CancelRequi
 type ReconcileInvalidStateInput struct {
 	LastError          pqtype.NullRawMessage
 	CancellationReason string
+	// TerminalMessages are structured output receipt rows inserted after
+	// the synthesized tool cancellations. Anything else is rejected.
+	TerminalMessages []Message
 }
 
 // ReconcileInvalidStateResult is returned by [Tx.ReconcileInvalidState].
@@ -1678,6 +1681,9 @@ func (tx *Tx) ReconcileInvalidState(input ReconcileInvalidStateInput) (Reconcile
 			"reconcile is only valid for invalid states",
 		)
 	}
+	if err := requireReceipts(input.TerminalMessages); err != nil {
+		return ReconcileInvalidStateResult{}, err
+	}
 	reason := input.CancellationReason
 	if reason == "" {
 		reason = "Tool execution canceled due to invalid chat state"
@@ -1692,6 +1698,9 @@ func (tx *Tx) ReconcileInvalidState(input ReconcileInvalidStateInput) (Reconcile
 		if err != nil {
 			return ReconcileInvalidStateResult{}, xerrors.Errorf("insert invalid-state cancellations: %w", err)
 		}
+	}
+	if _, err := tx.insertMessages(input.TerminalMessages); err != nil {
+		return ReconcileInvalidStateResult{}, xerrors.Errorf("insert terminal messages: %w", err)
 	}
 	lastErr := input.LastError
 	if !lastErr.Valid {

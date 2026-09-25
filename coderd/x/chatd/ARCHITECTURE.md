@@ -272,6 +272,8 @@ Right after the refactor described in this document is complete, some chats may 
 5. Set `requires_action_deadline_at = null`.
 6. If the chat has pending dynamic tool calls, insert synthetic cancellation results for them.
 
+TODO: the reconcile endpoint also closes the latest user turn's open structured output request with a `failed`/`generation_failed` receipt inserted after the cancellations; queued requests stay open, and `ReconcileInvalidState` rejects terminal messages that are not receipts. Describe this here.
+
 This will land the chat in either `E0` or `E1`, depending on whether it has any queued messages.
 
 Users can reconcile a chat's state by calling the `POST /api/v2/chats/{chat}/reconcile-invalid` endpoint.
@@ -991,6 +993,8 @@ The goroutine does the following in order:
 2. It closes the episode corresponding to its history version and generation attempt by calling the `CloseEpisode` method on the [Message part buffer](#message-part-buffer).
 3. It reads the buffered parts for that episode by calling the `GetParts` method on the message part buffer.
 4. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
+
+TODO: when the latest user turn has an open structured output request, the interrupt goroutine appends a `canceled`/`interrupted` receipt as the last partial message (after buffered partials and committed tool cancellations, before any promotion). It never records a value. Unreadable or inconsistent structured metadata skips the receipt with a warning. Describe this here.
 
 #### Dynamic tools timeout goroutine
 
