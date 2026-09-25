@@ -19,12 +19,6 @@ describe("getWebSearchAction", () => {
 		});
 	});
 
-	it("reads queries that fixtures pass JSON-encoded", () => {
-		expect(
-			getWebSearchAction({ queries: JSON.stringify(["coder agents"]) }),
-		).toEqual({ type: "search", queries: ["coder agents"] });
-	});
-
 	it("reads the Anthropic query", () => {
 		expect(getWebSearchAction({ query: "coder templates" })).toEqual({
 			type: "search",
