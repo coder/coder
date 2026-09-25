@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
-	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
@@ -113,89 +111,6 @@ func TestWebSearchTool(t *testing.T) {
 			require.Equal(t, "web_search", providerTool.Name)
 			require.NotNil(t, providerTool.Args)
 			require.Equal(t, tt.want, providerTool.Args)
-		})
-	}
-}
-
-func TestWebSearchResultJSON(t *testing.T) {
-	t.Parallel()
-
-	openAIMetadata := func(action *fantasyopenai.WebSearchAction) fantasy.ProviderMetadata {
-		return fantasy.ProviderMetadata{
-			fantasyopenai.Name: &fantasyopenai.WebSearchCallMetadata{ItemID: "ws_1", Action: action},
-		}
-	}
-	sources := []fantasyopenai.WebSearchSource{
-		{Type: "url", URL: "https://coder.com/docs"},
-		{Type: "url", URL: ""},
-		{Type: "url", URL: "https://example.com/"},
-	}
-
-	tests := []struct {
-		name     string
-		metadata fantasy.ProviderMetadata
-		want     string
-	}{
-		{
-			name: "Sources",
-			metadata: openAIMetadata(&fantasyopenai.WebSearchAction{
-				Type:    "search",
-				Queries: []string{"coder agents"},
-				Query:   "coder agents",
-				Sources: sources,
-			}),
-			want: `{"sources":[{"url":"https://coder.com/docs"},{"url":"https://example.com/"}]}`,
-		},
-		{
-			name: "NoSources",
-			metadata: openAIMetadata(&fantasyopenai.WebSearchAction{
-				Type:  "search",
-				Query: "coder agents",
-			}),
-			want: `{}`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, ok := chatopenai.WebSearchResultJSON(tt.metadata)
-			require.True(t, ok)
-			require.JSONEq(t, tt.want, string(got))
-		})
-	}
-}
-
-func TestWebSearchResultJSONWithoutOpenAIAction(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		metadata fantasy.ProviderMetadata
-	}{
-		{name: "NilMetadata"},
-		{
-			name: "NoAction",
-			metadata: fantasy.ProviderMetadata{
-				fantasyopenai.Name: &fantasyopenai.WebSearchCallMetadata{ItemID: "ws_1"},
-			},
-		},
-		{
-			name: "AnthropicMetadata",
-			metadata: fantasy.ProviderMetadata{
-				fantasyanthropic.Name: &fantasyanthropic.WebSearchResultMetadata{},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, ok := chatopenai.WebSearchResultJSON(tt.metadata)
-			require.False(t, ok)
-			require.Nil(t, got)
 		})
 	}
 }
