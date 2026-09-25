@@ -14,6 +14,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -497,5 +498,103 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		require.Equal(t, codes.Error, stream.Status().Code)
 		require.Equal(t, streamErr.Error(), recordedErrorMessage(t, stream))
 		requireStreamObserved(t, fixture)
+	})
+}
+
+func TestExecuteLocalToolsToolCallStage(t *testing.T) {
+	t.Parallel()
+
+	stageModel := StageModel{Provider: "openai", ProviderType: "openai", Model: "gpt-test", Effort: "high"}
+	execute := func(t *testing.T, fixture stageMetricsFixture, tool fantasy.AgentTool) PersistedStep {
+		t.Helper()
+		ctx := ContextWithScope(t.Context(), ScopeTurn)
+		ctx, step := fixture.tracer.Start(ctx, StageGenerationStep)
+		defer step.End(nil)
+		result, err := ExecuteLocalTools(ctx, ExecuteLocalToolsOptions{
+			Tools:         []fantasy.AgentTool{tool},
+			ActiveTools:   []string{tool.Info().Name},
+			ToolCalls:     []fantasy.ToolCallContent{{ToolCallID: "call-1", ToolName: tool.Info().Name, Input: "{}"}},
+			ModelProvider: "openai",
+			ModelName:     "gpt-test",
+			Stages:        fixture.tracer,
+			StageModel:    stageModel,
+			Clock:         fixture.clock,
+		})
+		require.NoError(t, err)
+		return result
+	}
+
+	t.Run("RunsToolOnStageContext", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		var toolSpanID string
+		tool := fantasy.NewAgentTool("read_file", "reads a file",
+			func(ctx context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				toolSpanID = trace.SpanContextFromContext(ctx).SpanID().String()
+				return fantasy.NewTextResponse("ok"), nil
+			})
+
+		execute(t, fixture, tool)
+
+		toolCall := endedSpan(t, fixture.spans, StageToolCall)
+		step := endedSpan(t, fixture.spans, StageGenerationStep)
+		require.Equal(t, step.SpanContext().SpanID(), toolCall.Parent().SpanID())
+		require.Equal(t, toolCall.SpanContext().SpanID().String(), toolSpanID)
+		require.Equal(t, codes.Unset, toolCall.Status().Code)
+		require.Contains(t, toolCall.Attributes(), attribute.String(AttrToolName, "read_file"))
+		require.Contains(t, toolCall.Attributes(), attribute.String(AttrProvider, "openai"))
+		require.Contains(t, toolCall.Attributes(), attribute.String(AttrModel, "gpt-test"))
+		require.Contains(t, toolCall.Attributes(), attribute.String(AttrScope, string(ScopeTurn)))
+		count, ok := stageSampleCount(t, fixture.registry, StageToolCall)
+		require.True(t, ok)
+		require.Equal(t, uint64(1), count)
+	})
+
+	t.Run("ErrorResultEndsWithoutError", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		tool := fantasy.NewAgentTool("read_file", "reads a file",
+			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.NewTextErrorResponse("file not found"), nil
+			})
+
+		result := execute(t, fixture, tool)
+
+		require.Len(t, result.Content, 1)
+		toolResult, ok := result.Content[0].(fantasy.ToolResultContent)
+		require.True(t, ok)
+		require.IsType(t, fantasy.ToolResultOutputContentError{}, toolResult.Result)
+		require.Equal(t, codes.Unset, endedSpan(t, fixture.spans, StageToolCall).Status().Code)
+	})
+
+	t.Run("ExecutionFailureEndsWithError", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		runErr := xerrors.New("workspace agent unreachable")
+		tool := fantasy.NewAgentTool("read_file", "reads a file",
+			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{}, runErr
+			})
+
+		execute(t, fixture, tool)
+
+		toolCall := endedSpan(t, fixture.spans, StageToolCall)
+		require.Equal(t, codes.Error, toolCall.Status().Code)
+		require.Equal(t, runErr.Error(), recordedErrorMessage(t, toolCall))
+	})
+
+	t.Run("PanicEndsWithError", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		tool := fantasy.NewAgentTool("read_file", "reads a file",
+			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				panic("boom")
+			})
+
+		execute(t, fixture, tool)
+
+		toolCall := endedSpan(t, fixture.spans, StageToolCall)
+		require.Equal(t, codes.Error, toolCall.Status().Code)
+		require.Contains(t, recordedErrorMessage(t, toolCall), "boom")
 	})
 }

@@ -1,4 +1,4 @@
-package chatd //nolint:testpackage // Tests unexported chat worker internals.
+package chatd
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -349,5 +350,53 @@ func requireTaskCanceled(t *testing.T, call taskCall) {
 		require.True(t, errors.Is(call.ctx.Err(), context.Canceled))
 	case <-time.After(testutil.WaitLong):
 		t.Fatal("task context was not canceled")
+	}
+}
+
+// TestWorkerRunnerTurnSpan acquires a chat through a real worker and
+// drives the turn span its runner hands to tasks. A chat taken from a
+// stale owner opens its first turn without an acquisition stage, and
+// runner shutdown closes a turn that never finished as abandoned.
+func TestWorkerRunnerTurnSpan(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		staleOwner       bool
+		wantAcquisitions int
+	}{
+		{name: "Unowned", wantAcquisitions: 1},
+		{name: "StaleOwner", staleOwner: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			f := newWorkerTestFixture(t)
+			chat := f.createRunningChat(t)
+			if tt.staleOwner {
+				deadRunner := uuid.New()
+				acquireChat(t, f, chat.ID, uuid.New(), deadRunner)
+				makeHeartbeatStale(t, f, chat.ID, deadRunner)
+			}
+			tracer, recorder := newStageTestTracer(t)
+			server := newUnstartedServer(t, f.pubsub, f.db)
+			server.stages = tracer
+			starter := newBlockingTaskStarter(false)
+			worker, err := newChatWorker(server, testOptions(t, f, starter))
+			require.NoError(t, err)
+			require.NoError(t, worker.Start(context.Background()))
+
+			call := starter.waitCall(t, taskKindGeneration, chat.ID)
+			require.NotNil(t, call.input.TurnSpan)
+			call.input.TurnSpan.Ensure(ctx, chat, chat.CreatedAt)
+			require.NoError(t, worker.Close())
+
+			turns := turnSpansByStart(t, recorder)
+			require.Len(t, turns, 1)
+			outcome, _ := spanAttribute(t, turns[0], chatloop.AttrTurnOutcome)
+			require.Equal(t, chatloop.TurnOutcomeAbandoned, chatloop.TurnOutcome(outcome.AsString()))
+			require.Len(t, stageSpansByStart(t, recorder, chatloop.StageAcquisition), tt.wantAcquisitions)
+		})
 	}
 }

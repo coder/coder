@@ -10,6 +10,7 @@ import (
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -66,6 +67,8 @@ type generationPrepared struct {
 	// ResolvedProvider is the configured provider identity used to label
 	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
 	ResolvedProvider string
+
+	StageModel chatloop.StageModel
 
 	ModelConfigID        uuid.UUID
 	CallTemplate         fantasy.Call
@@ -437,12 +440,42 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
+		var turnCtx context.Context
+		turnCtx, input.TurnToken = input.TurnSpan.Ensure(ctx, chat, turnTriggerTime(chat, messages))
 		var again bool
-		input, again, err = s.runGenerationStep(ctx, machine, input, chat, messages)
+		input, again, err = s.runGenerationStep(turnCtx, machine, input, chat, messages)
 		if again {
 			continue
 		}
+		if err != nil && !turnContinues(ctx, err) {
+			input.TurnSpan.Invalidate(input.TurnToken, turnOutcomeForError(ctx, err), err)
+		}
+		// The step's stage has ended by now, so a turn the step finished
+		// or invalidated closes with that stage counted.
+		input.TurnSpan.Settle(input.TurnToken)
 		return err
+	}
+}
+
+// turnContinues reports whether a failed generation step leads to a
+// retry of the same turn rather than closing it: a retryable task
+// error, or an attempt canceled by the task timeout, which the task
+// runner retries.
+func turnContinues(ctx context.Context, err error) bool {
+	return errors.Is(err, errTaskRetryable) || errors.Is(context.Cause(ctx), errTaskTimeout)
+}
+
+// turnOutcomeForError classifies a failed generation step: a done task
+// context is interrupted, an expected exit without cancellation (a
+// fence or history mismatch) is abandoned, and anything else is error.
+func turnOutcomeForError(ctx context.Context, err error) chatloop.TurnOutcome {
+	switch {
+	case ctx.Err() != nil:
+		return chatloop.TurnOutcomeInterrupted
+	case errors.Is(err, errTaskExpectedExit):
+		return chatloop.TurnOutcomeAbandoned
+	default:
+		return chatloop.TurnOutcomeError
 	}
 }
 
@@ -457,6 +490,11 @@ func (s *taskStarter) runGenerationStep(
 	chat database.Chat,
 	messages []database.ChatMessage,
 ) (next chatWorkerTaskStartInput, again bool, err error) {
+	ctx, stepSpan := s.server.stages.Start(ctx, chatloop.StageGenerationStep,
+		attribute.String(chatloop.AttrChatID, input.ChatID.String()),
+	)
+	defer func() { stepSpan.End(err) }()
+
 	if s.server.hooks.Enabled() {
 		result, dispatched, err := s.startGenerationSession(ctx, machine, input, chat, messages)
 		if err != nil {
@@ -475,9 +513,15 @@ func (s *taskStarter) runGenerationStep(
 		Messages:                  messages,
 		RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
 	}
-	prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (generationPrepared, error) {
-		return s.server.prepareGeneration(ctx, prepareInput)
+	prepareCtx, prepareSpan := s.server.stages.Start(ctx, chatloop.StagePrepare)
+	prepared, err := retryGenerationPhase(prepareCtx, s, "prepare", func() (generationPrepared, error) {
+		return s.server.prepareGeneration(prepareCtx, prepareInput)
 	})
+	if err == nil {
+		prepareSpan.SetModel(prepared.StageModel)
+		stepSpan.SetModel(prepared.StageModel)
+	}
+	prepareSpan.End(err)
 	if err != nil {
 		if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
 			return input, false, xerrors.Errorf("prepare generation: %w", err)
@@ -521,6 +565,7 @@ func (s *taskStarter) runGenerationStep(
 		return input, false, s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
 
+	stepSpan.SetAttributes(attribute.String(chatloop.AttrGenerationAction, string(decision.kind)))
 	var actionErr error
 	switch decision.kind {
 	case generationActionEnterRequiresAction:
@@ -660,13 +705,17 @@ func (*taskStarter) recordGenerationRetry(
 }
 
 func (s *taskStarter) waitGenerationRetry(ctx context.Context, delay time.Duration) error {
+	_, span := s.server.stages.Start(ctx, chatloop.StageRetryBackoff)
 	timer := s.opts.Clock.NewTimer(delay, "chatworker", "generation-retry")
 	defer timer.Stop()
 	select {
 	case <-timer.C:
+		span.End(nil)
 		return nil
 	case <-ctx.Done():
-		return errors.Join(errTaskExpectedExit, xerrors.Errorf("wait generation retry: %w", ctx.Err()))
+		err := errors.Join(errTaskExpectedExit, xerrors.Errorf("wait generation retry: %w", ctx.Err()))
+		span.End(err)
+		return err
 	}
 }
 
@@ -766,10 +815,13 @@ func (s *taskStarter) generateAssistant(
 		Logger:               s.opts.Logger,
 		Clock:                s.opts.Clock,
 		Metrics:              s.server.metrics,
+		Stages:               s.server.stages,
+		StageModel:           prepared.StageModel,
 	})
 	if err != nil {
 		return xerrors.Errorf("generate assistant: %w", err)
 	}
+	s.recordThinkingStages(runCtx, prepared, outcome.Step)
 	if len(outcome.Step.Content) == 0 {
 		return s.finishGenerationTurn(ctx, machine, input, requireGenerationAttempt(attempt.number))
 	}
@@ -794,6 +846,30 @@ func (s *taskStarter) generateAssistant(
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, generationCommitHooks{})
+}
+
+// recordThinkingStages emits one thinking stage per reasoning part of
+// a step, bounded by the part's own start and completion timestamps.
+// Parts are paired by index; a part without a completion timestamp
+// ends the sweep because later indexes cannot be paired either.
+func (s *taskStarter) recordThinkingStages(
+	ctx context.Context,
+	prepared generationPrepared,
+	step chatloop.PersistedStep,
+) {
+	for index, startedAt := range step.ReasoningStartedAt {
+		if index >= len(step.ReasoningCompletedAt) {
+			return
+		}
+		s.server.stages.Record(
+			ctx,
+			chatloop.StageThinking,
+			prepared.StageModel,
+			startedAt,
+			step.ReasoningCompletedAt[index],
+			nil,
+		)
+	}
 }
 
 func (s *taskStarter) admitStepToolCalls(
@@ -936,6 +1012,8 @@ func (s *taskStarter) executeLocalTools(
 			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,
 			BillingRecorder:    billingRecorder,
+			Stages:             s.server.stages,
+			StageModel:         prepared.StageModel,
 			PublishMessagePart: attempt.publish,
 			Logger:             s.opts.Logger,
 			Metrics:            s.server.metrics,
@@ -1020,6 +1098,9 @@ func (s *taskStarter) generateCompaction(
 	}
 	compactionOpts := prepared.Compaction.Options
 	metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
+	// The compaction stage is labeled with the model that runs the
+	// summary: the chat model unless an override is configured.
+	compactionModel := prepared.StageModel
 	if override := prepared.Compaction.Override; override != nil {
 		// A usable override that fails to build is a hard generation failure.
 		overrideModel, err := s.server.resolveModelCall(ctx, modelCallSpec{
@@ -1037,6 +1118,7 @@ func (s *taskStarter) generateCompaction(
 			slog.F("chat_id", prepared.Chat.ID),
 			slog.F("owner_id", prepared.Chat.OwnerID),
 		)
+		compactionModel = overrideModel.stageModel()
 		compactionOpts.Model = overrideModel.model.LanguageModel()
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
@@ -1074,7 +1156,12 @@ func (s *taskStarter) generateCompaction(
 	// debug run; without it startCompactionDebugRun finds no parent and
 	// skips debug instrumentation entirely.
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
-	outcome, err := chatloop.GenerateCompaction(runCtx, compactionOpts)
+	compactionCtx, compactionSpan := s.server.stages.Start(runCtx, chatloop.StageCompaction,
+		attribute.String(chatloop.AttrCompactionSource, string(source)),
+	)
+	compactionSpan.SetModel(compactionModel)
+	outcome, err := chatloop.GenerateCompaction(compactionCtx, compactionOpts)
+	compactionSpan.End(err)
 	if err != nil {
 		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
 		return xerrors.Errorf("generate compaction: %w", err)
@@ -1267,7 +1354,11 @@ func (s *taskStarter) commitGenerationStep(
 		postCommitLastError, postCommitMessage = generationLastError(commitHooks.PostCommitError)
 	}
 	var committed database.Chat
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	commitCtx, commitSpan := s.server.stages.Start(ctx, chatloop.StageCommit,
+		attribute.String(chatloop.AttrGenerationAction, string(kind)),
+		attribute.Int64(chatloop.AttrGenerationAttempt, attempt),
+	)
+	err := machine.Update(commitCtx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
@@ -1292,10 +1383,12 @@ func (s *taskStarter) commitGenerationStep(
 		committed = loadedChat
 		return nil
 	})
+	commitSpan.End(err)
 	if err != nil {
 		return normalizeTaskTransitionError(err, "commit generation step")
 	}
 	if failClosed {
+		input.TurnSpan.Invalidate(input.TurnToken, chatloop.TurnOutcomeError, commitHooks.PostCommitError)
 		input.DebugTurn.RecordOutcome(chatdebug.StatusError)
 		postCommitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
 		defer cancel()
@@ -1338,6 +1431,9 @@ func (s *taskStarter) enterRequiresAction(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "enter requires action")
 	}
+	// The turn ends while the chat waits for the client; the submitted
+	// tool results open the next one.
+	input.TurnSpan.Complete(input.TurnToken)
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindActionRequired); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
@@ -1424,6 +1520,7 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 	fence generationAttemptFence,
 ) error {
 	var committed database.Chat
+	var promotedQueuedAt time.Time
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
@@ -1432,6 +1529,7 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 		if err != nil {
 			return xerrors.Errorf("tx.FinishTurn: %w", err)
 		}
+		promotedQueuedAt = finishResult.PromotedQueuedAt
 		committed = finishResult.Chat
 		return nil
 	})
@@ -1440,6 +1538,8 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 		recordGenerationFinishFailure(input.DebugTurn, err)
 		return err
 	}
+	input.TurnSpan.Complete(input.TurnToken)
+	s.server.recordQueueWait(ctx, committed, promotedQueuedAt)
 	return s.completeGenerationTurn(ctx, input, committed)
 }
 
@@ -1487,6 +1587,7 @@ func (s *taskStarter) finishGenerationTurn(
 	continueTurn := strings.TrimSpace(response.GetModelContext()) != "" && input.StopNudges.claim(nudgeKey)
 
 	var committed database.Chat
+	var promotedQueuedAt time.Time
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
@@ -1501,6 +1602,7 @@ func (s *taskStarter) finishGenerationTurn(
 			if err != nil {
 				return xerrors.Errorf("tx.FinishTurn: %w", err)
 			}
+			promotedQueuedAt = finishResult.PromotedQueuedAt
 			committed = finishResult.Chat
 			return nil
 		}
@@ -1526,6 +1628,8 @@ func (s *taskStarter) finishGenerationTurn(
 			Kind: runnerActionKind(generationActionGenerateAssistant),
 		})
 	}
+	input.TurnSpan.Complete(input.TurnToken)
+	s.server.recordQueueWait(ctx, committed, promotedQueuedAt)
 	return s.completeGenerationTurn(ctx, input, committed)
 }
 
@@ -1551,6 +1655,9 @@ func (s *taskStarter) finishGenerationError(
 		slog.Error(cause),
 	)
 	lastError, message := generationLastError(cause)
+	// Committing the status change cancels ctx, so the outcome is
+	// classified before the commit.
+	outcome := turnOutcomeForError(ctx, cause)
 	var committed database.Chat
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
@@ -1571,6 +1678,7 @@ func (s *taskStarter) finishGenerationError(
 		recordGenerationFinishFailure(input.DebugTurn, err)
 		return err
 	}
+	input.TurnSpan.Invalidate(input.TurnToken, outcome, cause)
 	input.DebugTurn.RecordOutcome(chatdebug.StatusError)
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)

@@ -8,6 +8,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -391,8 +392,9 @@ func (server *Server) prepareGeneration(
 				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
 			}
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
+			connectCtx, connectSpan := server.stages.Start(ctx, chatloop.StageMCPConnect)
 			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
-				ctx,
+				connectCtx,
 				logger,
 				mcpConnectConfigs,
 				mcpTokens,
@@ -401,6 +403,12 @@ func (server *Server) prepareGeneration(
 				chatprovider.CoderHeaders(chat),
 				server.mcpHTTPClient,
 			)
+			connected, failed, connectErr := mcpConnectOutcome(mcpSummaries)
+			connectSpan.SetAttributes(
+				attribute.Int(chatloop.AttrMCPServersConnected, connected),
+				attribute.Int(chatloop.AttrMCPServersFailed, failed),
+			)
+			connectSpan.End(connectErr)
 			return nil
 		})
 	}
@@ -782,6 +790,7 @@ func (server *Server) prepareGeneration(
 		ProviderTools:        providerTools,
 		ModelBuildOptions:    modelOpts,
 		ResolvedProvider:     resolved.resolvedProvider,
+		StageModel:           resolved.stageModel(),
 		ModelConfigID:        modelConfig.ID,
 		CallTemplate:         resolved.newCall(),
 		ContextLimitFallback: modelConfig.ContextLimit,
@@ -801,6 +810,31 @@ func (server *Server) prepareGeneration(
 		Cleanup: cleanup,
 		Debug:   debug,
 	}, nil
+}
+
+// mcpConnectOutcome counts the MCP servers that connected and that
+// failed, and returns an error naming each failed server when servers
+// were configured but none connected. A server that connected with no
+// tools counts as connected. Partial failures return a nil error.
+func mcpConnectOutcome(summaries []mcpclient.ConnectSummary) (connected, failed int, err error) {
+	var failures []string
+	for _, summary := range summaries {
+		switch summary.Outcome {
+		case mcpclient.ConnectOutcomeConnected, mcpclient.ConnectOutcomeNoTools:
+			connected++
+		default:
+			failed++
+			reason := summary.Error
+			if reason == "" {
+				reason = string(summary.Outcome)
+			}
+			failures = append(failures, summary.Slug+": "+reason)
+		}
+	}
+	if failed > 0 && connected == 0 {
+		return connected, failed, xerrors.Errorf("no MCP server connected: %s", strings.Join(failures, "; "))
+	}
+	return connected, failed, nil
 }
 
 func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {

@@ -39,14 +39,18 @@ type spawnRunnerRequest struct {
 	ChatID   uuid.UUID
 	WorkerID uuid.UUID
 	RunnerID uuid.UUID
+	// TakenOver reports that the chat was acquired from a previous owner
+	// whose heartbeat went stale, rather than while unowned.
+	TakenOver bool
 }
 
 type runnerRecord struct {
-	key      runnerKey
-	workerID uuid.UUID
-	cancel   context.CancelFunc
-	done     <-chan struct{}
-	stateCh  chan runnerStateUpdate
+	key       runnerKey
+	workerID  uuid.UUID
+	takenOver bool
+	cancel    context.CancelFunc
+	done      <-chan struct{}
+	stateCh   chan runnerStateUpdate
 
 	mu             sync.Mutex
 	unsubscribe    func()
@@ -221,11 +225,12 @@ func (m *runnerManager) handleSpawn(req spawnRunnerRequest) {
 	runnerCtx, cancel := context.WithCancel(m.ctx)
 	done := make(chan struct{})
 	rec := &runnerRecord{
-		key:      key,
-		workerID: req.WorkerID,
-		cancel:   cancel,
-		done:     done,
-		stateCh:  make(chan runnerStateUpdate, m.opts.StateChannelSize),
+		key:       key,
+		workerID:  req.WorkerID,
+		takenOver: req.TakenOver,
+		cancel:    cancel,
+		done:      done,
+		stateCh:   make(chan runnerStateUpdate, m.opts.StateChannelSize),
 	}
 	m.runners[key] = rec
 	if m.runnersByChat[req.ChatID] == nil {

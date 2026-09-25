@@ -37,20 +37,42 @@ const (
 // Span attribute keys. Keys are lowercase snake_case and shared by
 // every stage that carries the value.
 const (
-	AttrProvider          = "provider"
-	AttrProviderType      = "provider_type"
-	AttrModel             = "model"
-	AttrReasoningEffort   = "reasoning_effort"
-	AttrChatID            = "chat_id"
-	AttrChatKind          = "chat_kind"
-	AttrOrganizationName  = "organization_name"
-	AttrGenerationAttempt = "generation_attempt"
-	AttrGenerationAction  = "generation_action"
-	AttrToolName          = "tool_name"
-	AttrHTTPStatusCode    = "http_status_code"
-	AttrHTTPMethod        = "http_method"
-	AttrCompactionSource  = "compaction_source"
-	AttrScope             = "scope"
+	AttrProvider            = "provider"
+	AttrProviderType        = "provider_type"
+	AttrModel               = "model"
+	AttrReasoningEffort     = "reasoning_effort"
+	AttrChatID              = "chat_id"
+	AttrChatKind            = "chat_kind"
+	AttrOrganizationName    = "organization_name"
+	AttrGenerationAttempt   = "generation_attempt"
+	AttrGenerationAction    = "generation_action"
+	AttrToolName            = "tool_name"
+	AttrHTTPStatusCode      = "http_status_code"
+	AttrHTTPMethod          = "http_method"
+	AttrCompactionSource    = "compaction_source"
+	AttrScope               = "scope"
+	AttrTurnOutcome         = "turn_outcome"
+	AttrMCPServersConnected = "mcp_servers_connected"
+	AttrMCPServersFailed    = "mcp_servers_failed"
+)
+
+// TurnOutcome is how a chat turn closed, set as the turn_outcome
+// attribute on the chat_turn span.
+type TurnOutcome string
+
+// TurnOutcome values.
+const (
+	// TurnOutcomeCompleted is a turn that finished normally.
+	TurnOutcomeCompleted TurnOutcome = "completed"
+	// TurnOutcomeInterrupted is a turn stopped by cancellation of the
+	// task running it.
+	TurnOutcomeInterrupted TurnOutcome = "interrupted"
+	// TurnOutcomeError is a turn stopped by a failure.
+	TurnOutcomeError TurnOutcome = "error"
+	// TurnOutcomeAbandoned is a turn closed before it finished by an
+	// expected exit such as a fence mismatch, by a newer prompt, or by
+	// runner shutdown. An expected exit ends the span with its error.
+	TurnOutcomeAbandoned TurnOutcome = "abandoned"
 )
 
 // Scope is the `scope` label and span attribute of a stage. A stage is

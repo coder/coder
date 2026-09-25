@@ -2,9 +2,11 @@ package chatd //nolint:testpackage // Exercises unexported generation helpers.
 
 import (
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
@@ -120,4 +122,54 @@ func TestRecordGenerationFinishFailure(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRecordThinkingStages(t *testing.T) {
+	t.Parallel()
+
+	// The provider attribute is the model's wire protocol, which differs
+	// from the configured provider type for bedrock.
+	prepared := generationPrepared{
+		StageModel: chatloop.StageModel{Provider: "anthropic", ProviderType: "bedrock", Model: "claude", Effort: "high"},
+	}
+
+	t.Run("PairsByIndex", func(t *testing.T) {
+		t.Parallel()
+		tracer, recorder := newStageTestTracer(t)
+		starter := &taskStarter{server: &Server{stages: tracer}}
+		base := time.Now().Add(-time.Minute)
+
+		starter.recordThinkingStages(t.Context(), prepared, chatloop.PersistedStep{
+			ReasoningStartedAt:   []time.Time{base, base.Add(10 * time.Second)},
+			ReasoningCompletedAt: []time.Time{base.Add(2 * time.Second), base.Add(15 * time.Second)},
+		})
+
+		ended := recorder.Ended()
+		require.Len(t, ended, 2)
+		require.Equal(t, base.UTC(), ended[0].StartTime().UTC())
+		require.Equal(t, base.Add(2*time.Second).UTC(), ended[0].EndTime().UTC())
+		require.Equal(t, base.Add(10*time.Second).UTC(), ended[1].StartTime().UTC())
+		require.Equal(t, base.Add(15*time.Second).UTC(), ended[1].EndTime().UTC())
+		for _, span := range ended {
+			require.Equal(t, string(chatloop.StageThinking), span.Name())
+			require.Contains(t, span.Attributes(), attribute.String(chatloop.AttrProvider, "anthropic"))
+			require.Contains(t, span.Attributes(), attribute.String(chatloop.AttrProviderType, "bedrock"))
+			require.Contains(t, span.Attributes(), attribute.String(chatloop.AttrModel, "claude"))
+			require.Contains(t, span.Attributes(), attribute.String(chatloop.AttrReasoningEffort, "high"))
+		}
+	})
+
+	t.Run("StopsAtFirstUnpairedStart", func(t *testing.T) {
+		t.Parallel()
+		tracer, recorder := newStageTestTracer(t)
+		starter := &taskStarter{server: &Server{stages: tracer}}
+		base := time.Now().Add(-time.Minute)
+
+		starter.recordThinkingStages(t.Context(), prepared, chatloop.PersistedStep{
+			ReasoningStartedAt:   []time.Time{base, base.Add(10 * time.Second), base.Add(20 * time.Second)},
+			ReasoningCompletedAt: []time.Time{base.Add(2 * time.Second)},
+		})
+
+		require.Len(t, recorder.Ended(), 1)
+	})
 }
