@@ -3076,6 +3076,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
   "id": 0,
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "queued_message_id": 0,
   "role": "system",
   "usage": {
     "cache_creation_tokens": 0,
@@ -3091,16 +3092,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                          | Required | Restrictions | Description |
-|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `chat_id`         | string                                                        | false    |              |             |
-| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `created_at`      | string                                                        | false    |              |             |
-| `created_by`      | string                                                        | false    |              |             |
-| `id`              | integer                                                       | false    |              |             |
-| `model_config_id` | string                                                        | false    |              |             |
-| `role`            | [codersdk.ChatMessageRole](#codersdkchatmessagerole)          | false    |              |             |
-| `usage`           | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)        | false    |              |             |
+| Name                | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                     |
+|---------------------|---------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id`           | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `content`           | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `created_at`        | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `created_by`        | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `id`                | integer                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `model_config_id`   | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `queued_message_id` | integer                                                       | false    |              | Queued message ID is the ID of the queued message this message was promoted from. It matches ChatQueuedMessage.ID in the response that queued the message. It is nil when the message was not promoted from the queue (edits create a new message without it) or when a server version that did not record the link created it. |
+| `role`              | [codersdk.ChatMessageRole](#codersdkchatmessagerole)          | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `usage`             | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
 
 ## codersdk.ChatMessagePart
 
@@ -3328,6 +3330,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -4877,6 +4880,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "queued_message_id": 0,
     "role": "system",
     "usage": {
       "cache_creation_tokens": 0,
@@ -5849,6 +5853,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "queued_message_id": 0,
     "role": "system",
     "usage": {
       "cache_creation_tokens": 0,
@@ -5923,6 +5928,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -8808,6 +8814,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "queued_message_id": 0,
     "role": "system",
     "usage": {
       "cache_creation_tokens": 0,
@@ -8882,6 +8889,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,

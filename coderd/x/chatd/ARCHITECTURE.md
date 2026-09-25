@@ -137,6 +137,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `CancelRequiresAction(reason)` closes pending dynamic tool calls with synthetic cancellation tool results, satisfies the pending-action projection, clears `requires_action_deadline_at`, and lands in `running`.
 - `ReconcileInvalidState` reconciles a chat in an invalid state by setting it to a valid state. Defined in the [Invalid states](#invalid-states) section.
 
+Every transition that promotes a queued message into history stores the queue row's ID in `chat_messages.queued_message_id`, and fails if deleting that queue row doesn't remove exactly one row. Other messages leave it NULL.
+
 ### Execution state transition diagram
 
 Now comes maybe the densest part of this document. It's a diagram that shows all the possible transitions between all the execution states. Again, I don't recommend reading the diagram thoroughly at first. Take a quick look to get a sense of what it's about and treat is as a reference you can return to later. I recommend reading the diagram as text and not looking at the rendered visual. The text is clearer.
@@ -471,9 +473,9 @@ For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 - `W -> SendMessage(m, queue) -> R0`
 - `E0 -> SendMessage(m, queue) -> R0`
 - `E1 -> SendMessage(m, queue) -> R1`: this appends `m` to the end of the queue, promotes the current queue head, and clears the error. The scenario where this happens is:
-    - the user queued some messages
-    - the chat ran into an error and stopped, for example because of an unretriable problem with the LLM provider
-    - the user then sends a new message, but there is a non-empty queue. As defined here, the UX will be “add the new message to the end of the queue and promote the queue head.” Arguably, a better UX could be “add the new message to the chat immediately and start running it, even though there's a non-empty queue.” I think the former is better because it's more consistent with the behavior of the endpoint in other cases.
+  - the user queued some messages
+  - the chat ran into an error and stopped, for example because of an unretriable problem with the LLM provider
+  - the user then sends a new message, but there is a non-empty queue. As defined here, the UX will be “add the new message to the end of the queue and promote the queue head.” Arguably, a better UX could be “add the new message to the chat immediately and start running it, even though there's a non-empty queue.” I think the former is better because it's more consistent with the behavior of the endpoint in other cases.
 - `R0 -> SendMessage(m, queue) -> R1`
 - `R1 -> SendMessage(m, queue) -> R1`
 - `I0 -> SendMessage(m, queue) -> I1`
@@ -494,6 +496,8 @@ For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
 - `A1 -> SendMessage(m, interrupt) -> R1`
 
 When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized.
+
+The promoted head in `messages` carries the old head's queue ID in `queued_message_id`. `queued_message` is the new tail, so the two IDs differ.
 
 Other input states are not supported.
 
@@ -542,6 +546,8 @@ This endpoint uses `PromoteQueuedMessage(qid)`:
 - `A1 -> PromoteQueuedMessage(qid) -> R1` if the queue remains non-empty
 
 `PromoteQueuedMessage` reorders `qid` to the queue head internally when needed. From `E1` and `A1`, it removes the queued message and inserts it into history immediately. From `R1` and `I1`, it leaves the message queued at the head so `FinishInterruption(partial?)` can promote it after finalizing the interrupted suffix.
+
+Either way, the resulting history message has `queued_message_id = qid`.
 
 No other input states are supported.
 
@@ -597,22 +603,21 @@ As with the transitions section, I don't recommend reading the rest of this sect
 There are 2 notification channels:
 
 - `chat:ownership` is a global channel consumed by chat workers. Its payload is:
-    - `chat_id`
-    - `snapshot_version`
+  - `chat_id`
+  - `snapshot_version`
     It notifies chat workers about chats that need processing by a chat worker, but aren't owned by a chat worker. A worker then picks the chat up.
 - `chat:update:{chat_id}` is a per-chat channel consumed by a chat worker that owns the chat and by active stream loops. Its payload is:
-    - `snapshot_version`
-    - `worker_id`
-    - `runner_id`
-    - `history_version`
-    - `queue_version`
-    - `retry_state_version`
-    - `generation_attempt`
-    - `status`
-    - `archived`
-    
+  - `snapshot_version`
+  - `worker_id`
+  - `runner_id`
+  - `history_version`
+  - `queue_version`
+  - `retry_state_version`
+  - `generation_attempt`
+  - `status`
+  - `archived`
+
     It notifies receivers that a chat's execution state changed. Receivers use the payload as a hint to decide whether they should fetch the latest state from the database.
-    
 
 ### Notification emission rules
 
@@ -883,7 +888,7 @@ The generation goroutine supports:
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
-    - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
+  - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
 - file links
 - workspace binding
 - plan mode
@@ -1049,7 +1054,7 @@ The stream loop powers the `GET /api/v2/chats/{chat}/stream` endpoint. It is sco
 The following chat stream events, delivered to the client over WebSocket, are supported:
 
 - `message_part`: a streaming message part emitted by the chat worker. Each carries the `history_version` and `generation_attempt` of the episode it belongs to, so a client knows which episode a message part comes from.
-- `message`: a committed chat message present in the database.
+- `message`: a committed chat message present in the database. Messages promoted from the queue carry `queued_message_id`, so clients can match them to the queued entry without comparing content. A missing field means unknown, since older servers don't write it.
 - `status`: the chat's status.
 - `error`: the chat's persisted error payload.
 - `queue_update`: the full current queued-message list.
@@ -1082,8 +1087,8 @@ The stream loop stores:
 - latest synchronized `queue_version`;
 - latest synchronized `retry_state_version`;
 - known committed messages:
-    - message ID;
-    - latest message revision sent to the client;
+  - message ID;
+  - latest message revision sent to the client;
 - latest status sent to the client;
 - `history_version` for the last sent error;
 - latest `history_version` for which `action_required` was sent;
@@ -1352,8 +1357,8 @@ Control message shape:
 
 ```json
 {
-	"history_version": 12,
-	"generation_attempt": 3
+    "history_version": 12,
+    "generation_attempt": 3
 }
 ```
 

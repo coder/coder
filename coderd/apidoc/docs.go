@@ -20351,6 +20351,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "queued_message_id": {
+                    "description": "QueuedMessageID is the ID of the queued message this message was\npromoted from. It matches ChatQueuedMessage.ID in the response that\nqueued the message. It is nil when the message was not promoted from\nthe queue (edits create a new message without it) or when a server\nversion that did not record the link created it.",
+                    "type": "integer"
+                },
                 "role": {
                     "$ref": "#/definitions/codersdk.ChatMessageRole"
                 },

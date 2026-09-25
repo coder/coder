@@ -257,6 +257,12 @@ type ChatMessage struct {
 	Role          ChatMessageRole   `json:"role"`
 	Content       []ChatMessagePart `json:"content,omitempty"`
 	Usage         *ChatMessageUsage `json:"usage,omitempty"`
+	// QueuedMessageID is the ID of the queued message this message was
+	// promoted from. It matches ChatQueuedMessage.ID in the response that
+	// queued the message. It is nil when the message was not promoted from
+	// the queue (edits create a new message without it) or when a server
+	// version that did not record the link created it.
+	QueuedMessageID *int64 `json:"queued_message_id,omitempty"`
 }
 
 // ChatMessageUsage contains token usage information for a chat message.

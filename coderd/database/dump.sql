@@ -2046,7 +2046,8 @@ CREATE TABLE chat_messages (
     revision bigint NOT NULL,
     reasoning_effort chat_reasoning_effort,
     search_tsv tsvector,
-    search_tsv_config chat_message_search_tsv_config
+    search_tsv_config chat_message_search_tsv_config,
+    queued_message_id bigint
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
@@ -2054,6 +2055,8 @@ COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort 
 COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
 
 COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.';
+
+COMMENT ON COLUMN chat_messages.queued_message_id IS 'ID of the chat_queued_messages row this message was promoted from. NULL when the message was not promoted from the queue, or when a version that did not record the link wrote it. Not a foreign key: promotion deletes the queued row in the same transaction.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
