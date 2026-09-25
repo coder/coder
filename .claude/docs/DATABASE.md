@@ -41,40 +41,78 @@
   dimension.
 - Avoid `ByX` names for grouped queries.
 
-### Enum Changes Run in a Single Transaction
+### How Migrations Run
 
-All migrations run inside one transaction (`pgTxnDriver`). Postgres forbids
-*using* an enum value added by `ALTER TYPE ... ADD VALUE` within the same
-transaction that added it, so it fails with `unsafe use of new value`.
+`migrations.Up` (`coderd/database/migrations/driver.go`) takes a session-level
+advisory lock so concurrent coderd replicas serialize, then applies each
+pending migration in its own transaction. The `schema_migrations` row is
+written in that same transaction, so the recorded version and the applied
+schema cannot diverge: a migration either fully commits or leaves no trace.
 
-Adding the value is fine; using it in the same batch is not. "Using it"
-includes a later migration that casts to it (`col::my_enum`), inserts or
-updates a row with it, or sets it as a column default. This only fails when a
-row actually materializes the new value, so fresh databases and CI pass while
-deployments with existing data break.
+Every statement runs under a Postgres `lock_timeout` (default 3s, override
+with `CODER_PG_MIGRATION_LOCK_TIMEOUT`, `0` waits forever). A migration that
+loses a lock race is rolled back and the remaining migrations are retried from
+the last committed version, up to five times with backoff. Any other error
+stops the run immediately.
 
-**MUST DO**: If any migration uses a newly added enum value, recreate the type
-instead of using `ADD VALUE`. A freshly created enum's values are usable
-immediately in the same transaction. Precedent: `000144_user_status_dormant`.
+#### Recovery after a failed batch
+
+A failure partway through a batch leaves the earlier migrations committed and
+`schema_migrations` at the last completed version with `dirty = false`. No
+operator action is needed: the next `coder server` start (or `Up()` call)
+resumes from that version. Ship a fixed build and restart.
+
+`dirty = true` now means exactly one thing: a `-- coder:no-transaction`
+migration (see below) started and did not finish. Transactional migrations
+can never produce it. `Up()` refuses to run while the row is dirty, and
+`EnsureClean` reports the database as not cleanly migrated. To recover:
+
+1. Inspect the effect the migration was supposed to have. For
+   `CREATE INDEX CONCURRENTLY`, check `pg_index.indisvalid`; a failed build
+   leaves an `INVALID` index that `IF NOT EXISTS` would silently keep, so drop
+   it with `DROP INDEX CONCURRENTLY IF EXISTS`.
+2. Fix whatever made the statement fail (for example duplicate rows blocking a
+   unique index).
+3. Rewind so the migration runs again in full:
+   `UPDATE schema_migrations SET version = <version - 1>, dirty = false;`
+4. Start the server. Only set `dirty = false` without rewinding if you have
+   verified by hand that the migration's effect is fully present.
+
+### Migrations That Cannot Run in a Transaction
+
+`CREATE INDEX CONCURRENTLY` and `DROP INDEX CONCURRENTLY` are rejected inside
+a transaction block. Opt a migration out by putting this comment before any
+SQL:
 
 ```sql
-CREATE TYPE new_my_enum AS ENUM ('existing', 'value', 'new_value');
-
-ALTER TABLE my_table
-    ALTER COLUMN col TYPE new_my_enum USING (col::text::new_my_enum);
-
-DROP TYPE my_enum;
-
-ALTER TYPE new_my_enum RENAME TO my_enum;
+-- coder:no-transaction
+CREATE INDEX CONCURRENTLY IF NOT EXISTS workspaces_owner_id_idx
+    ON workspaces (owner_id);
 ```
 
-Recreating produces an identical schema, so `make gen` yields no `dump.sql`
-diff and databases that already applied the migration see no drift.
+The statement then runs in autocommit mode on the locked connection, with the
+`schema_migrations` row marked dirty before it starts and clean after it
+succeeds. Postgres cannot roll it back, so these rules are enforced in review
+and by `TestNoTransactionMigrationsAreIdempotent`:
 
-**Testing**: `migrations.Stepper` commits each migration separately, so tests
-built on it cannot surface this. To catch it, seed a row using the new value,
-then apply the affected migrations in a single transaction (see
-`TestMigration000504AIProvidersBackfillEnumInSingleTxn`).
+- **Exactly one statement per file.** Postgres runs a multi-statement string
+  in an implicit transaction block, which rejects `CONCURRENTLY` just like an
+  explicit one. Put a `DROP INDEX CONCURRENTLY IF EXISTS` cleanup in its own
+  preceding migration if you need one.
+- **Idempotent.** Use `IF NOT EXISTS` / `IF EXISTS` so a rerun after a crash
+  is harmless.
+- **Only for `CONCURRENTLY`.** Anything that can run in a transaction must.
+- Both the up and down file need the marker if both use `CONCURRENTLY`.
+
+### Enum Changes
+
+Because each migration commits on its own, a value added with
+`ALTER TYPE ... ADD VALUE` in one migration is usable by the next migration.
+The old "unsafe use of new value" restriction from the single-transaction
+driver no longer applies across files. Within a single file it still does: do
+not add an enum value and use it in the same migration. Either split the use
+into the next migration or recreate the type (precedent:
+`000144_user_status_dormant`).
 
 ## Handling Nullable Fields
 

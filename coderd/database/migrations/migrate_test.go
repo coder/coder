@@ -365,14 +365,17 @@ func TestMigrateLockTimeout(t *testing.T) {
 		require.NotContains(t, err.Error(), "lost lock race")
 		require.Empty(t, sink.Entries(), "a genuine migration bug must fail on the first attempt")
 
-		// The single transaction rolled back, so the first migration was not
-		// left behind.
+		// Migrations commit one at a time, so the first one stays applied and
+		// the version is left clean at 1 for a later Up to resume from.
 		var exists bool
 		err = db.QueryRowContext(ctx, `SELECT EXISTS (
 			SELECT 1 FROM information_schema.tables WHERE table_name = 'lock_test'
 		)`).Scan(&exists)
 		require.NoError(t, err)
-		require.False(t, exists)
+		require.True(t, exists)
+		version, dirty := schemaVersion(ctx, t, db)
+		require.Equal(t, 1, version)
+		require.False(t, dirty)
 	})
 }
 
@@ -392,6 +395,279 @@ func TestMigrateLockTimeoutEnv(t *testing.T) {
 	err := migrations.UpWithFS(db, lockTestMigrations())
 	require.Error(t, err)
 	require.ErrorContains(t, err, migrations.LockTimeoutEnv)
+}
+
+// TestMigratePerMigrationTransactions covers the recovery story for batches
+// that fail partway: each migration commits on its own, so an interrupted
+// batch leaves the database at the last completed version and a later Up
+// resumes from there.
+func TestMigratePerMigrationTransactions(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.SkipNow()
+		return
+	}
+
+	const createTable = "CREATE TABLE per_txn_test (id int);"
+
+	t.Run("ResumesFromLastCommittedVersion", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db := testSQLDB(t)
+		logger := testutil.Logger(t)
+
+		migs := fstest.MapFS{
+			"000001_create.up.sql":   {Data: []byte(createTable)},
+			"000001_create.down.sql": {Data: []byte("DROP TABLE per_txn_test;")},
+			"000002_seed.up.sql":     {Data: []byte("INSERT INTO per_txn_test VALUES (1);")},
+			"000002_seed.down.sql":   {Data: []byte("DELETE FROM per_txn_test;")},
+			"000003_broken.up.sql":   {Data: []byte("ALTER TABLE does_not_exist ADD COLUMN name text;")},
+			"000003_broken.down.sql": {Data: []byte("SELECT 1;")},
+		}
+
+		// The batch dies on migration 3. Migrations 1 and 2 stay committed
+		// and the version is left clean at 2, not dirty and not rolled back
+		// to 0.
+		err := migrations.UpWithFS(db, migs, migrations.WithContext(ctx), migrations.WithLogger(logger))
+		require.Error(t, err)
+		require.ErrorContains(t, err, `relation "does_not_exist" does not exist`)
+		version, dirty := schemaVersion(ctx, t, db)
+		require.Equal(t, 2, version)
+		require.False(t, dirty)
+		require.Equal(t, 1, rowCount(ctx, t, db, "per_txn_test"))
+
+		// Ship the fix. Up picks up at 3 without re-running 1 or 2.
+		migs["000003_broken.up.sql"] = &fstest.MapFile{Data: []byte("ALTER TABLE per_txn_test ADD COLUMN name text;")}
+		err = migrations.UpWithFS(db, migs, migrations.WithContext(ctx), migrations.WithLogger(logger))
+		require.NoError(t, err)
+		version, dirty = schemaVersion(ctx, t, db)
+		require.Equal(t, 3, version)
+		require.False(t, dirty)
+		require.Equal(t, 1, rowCount(ctx, t, db, "per_txn_test"), "migration 2 must not run twice")
+		require.True(t, columnExists(ctx, t, db, "per_txn_test", "name"))
+	})
+
+	t.Run("FailedMigrationRollsBackOnlyItself", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db := testSQLDB(t)
+		logger := testutil.Logger(t)
+
+		migs := fstest.MapFS{
+			"000001_create.up.sql":   {Data: []byte(createTable)},
+			"000001_create.down.sql": {Data: []byte("DROP TABLE per_txn_test;")},
+			// The insert succeeds and the second statement fails, so the
+			// migration's own transaction must roll the insert back too.
+			"000002_partial.up.sql":   {Data: []byte("INSERT INTO per_txn_test VALUES (1); SELECT 1/0;")},
+			"000002_partial.down.sql": {Data: []byte("DELETE FROM per_txn_test;")},
+		}
+
+		err := migrations.UpWithFS(db, migs, migrations.WithContext(ctx), migrations.WithLogger(logger))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "division by zero")
+		version, dirty := schemaVersion(ctx, t, db)
+		require.Equal(t, 1, version)
+		require.False(t, dirty, "a transactional migration can never leave the version dirty")
+		require.Equal(t, 0, rowCount(ctx, t, db, "per_txn_test"), "schema and version must not diverge")
+	})
+
+	t.Run("NoTransactionMarker", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db := testSQLDB(t)
+		logger := testutil.Logger(t)
+
+		const createIndex = "CREATE INDEX CONCURRENTLY IF NOT EXISTS per_txn_test_id_idx ON per_txn_test (id);"
+		migs := fstest.MapFS{
+			"000001_create.up.sql":   {Data: []byte(createTable)},
+			"000001_create.down.sql": {Data: []byte("DROP TABLE per_txn_test;")},
+			"000002_index.up.sql":    {Data: []byte(createIndex)},
+			"000002_index.down.sql":  {Data: []byte("DROP INDEX IF EXISTS per_txn_test_id_idx;")},
+		}
+
+		// Without the marker the statement runs inside the migration
+		// transaction, which Postgres rejects.
+		err := migrations.UpWithFS(db, migs, migrations.WithContext(ctx), migrations.WithLogger(logger))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "cannot run inside a transaction block")
+		version, dirty := schemaVersion(ctx, t, db)
+		require.Equal(t, 1, version)
+		require.False(t, dirty)
+
+		migs["000002_index.up.sql"] = &fstest.MapFile{Data: []byte(
+			"-- Build the index without blocking writers.\n" +
+				migrations.NoTransactionMarker + "\n" +
+				createIndex,
+		)}
+		err = migrations.UpWithFS(db, migs, migrations.WithContext(ctx), migrations.WithLogger(logger))
+		require.NoError(t, err)
+		version, dirty = schemaVersion(ctx, t, db)
+		require.Equal(t, 2, version)
+		require.False(t, dirty)
+		valid, exists := indexValid(ctx, t, db, "per_txn_test_id_idx")
+		require.True(t, exists)
+		require.True(t, valid)
+
+		// Re-running is a no-op.
+		require.NoError(t, migrations.UpWithFS(db, migs, migrations.WithContext(ctx), migrations.WithLogger(logger)))
+	})
+
+	t.Run("SessionStateDoesNotLeakToPool", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db := testSQLDB(t)
+		// Force every query onto the one connection the migration used so
+		// leaked session state would be visible.
+		db.SetMaxOpenConns(1)
+
+		err := migrations.UpWithFS(db, lockTestMigrations(),
+			migrations.WithContext(ctx),
+			migrations.WithLogger(testutil.Logger(t)),
+			migrations.WithLockTimeout(time.Second),
+		)
+		require.NoError(t, err)
+
+		var lockTimeout string
+		require.NoError(t, db.QueryRowContext(ctx, "SHOW lock_timeout").Scan(&lockTimeout))
+		require.Equal(t, "0", lockTimeout, "lock_timeout must be reset before the connection is pooled")
+
+		var advisoryLocks int
+		require.NoError(t, db.QueryRowContext(ctx,
+			"SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()",
+		).Scan(&advisoryLocks))
+		require.Zero(t, advisoryLocks, "advisory lock must be released before the connection is pooled")
+	})
+
+	t.Run("FailedNoTransactionMigrationLeavesDirty", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db := testSQLDB(t)
+		logger := testutil.Logger(t)
+
+		migs := fstest.MapFS{
+			"000001_create.up.sql":   {Data: []byte(createTable + " INSERT INTO per_txn_test VALUES (1), (1);")},
+			"000001_create.down.sql": {Data: []byte("DROP TABLE per_txn_test;")},
+			// Duplicate rows make the unique build fail after the index has
+			// been registered, which is exactly the case a transaction would
+			// have rolled back and a no-transaction migration cannot.
+			"000002_index.up.sql": {Data: []byte(
+				migrations.NoTransactionMarker + "\n" +
+					"CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS per_txn_test_id_idx ON per_txn_test (id);",
+			)},
+			"000002_index.down.sql": {Data: []byte(
+				migrations.NoTransactionMarker + "\n" +
+					"DROP INDEX CONCURRENTLY IF EXISTS per_txn_test_id_idx;",
+			)},
+		}
+
+		err := migrations.UpWithFS(db, migs, migrations.WithContext(ctx), migrations.WithLogger(logger))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "could not create unique index")
+
+		// The version records that 2 started and did not finish, and the
+		// half-built index is left behind as INVALID.
+		version, dirty := schemaVersion(ctx, t, db)
+		require.Equal(t, 2, version)
+		require.True(t, dirty)
+		valid, exists := indexValid(ctx, t, db, "per_txn_test_id_idx")
+		require.True(t, exists)
+		require.False(t, valid)
+
+		// Nothing runs until an operator intervenes.
+		err = migrations.UpWithFS(db, migs, migrations.WithContext(ctx), migrations.WithLogger(logger))
+		require.Error(t, err)
+		require.ErrorAs(t, err, &migrate.ErrDirty{})
+
+		// Documented recovery: undo the partial effect, fix the data, and
+		// rewind the version so the migration runs again in full.
+		_, err = db.ExecContext(ctx, "DROP INDEX CONCURRENTLY IF EXISTS per_txn_test_id_idx")
+		require.NoError(t, err)
+		_, err = db.ExecContext(ctx, "DELETE FROM per_txn_test")
+		require.NoError(t, err)
+		_, err = db.ExecContext(ctx, "UPDATE schema_migrations SET version = 1, dirty = false")
+		require.NoError(t, err)
+
+		err = migrations.UpWithFS(db, migs, migrations.WithContext(ctx), migrations.WithLogger(logger))
+		require.NoError(t, err)
+		version, dirty = schemaVersion(ctx, t, db)
+		require.Equal(t, 2, version)
+		require.False(t, dirty)
+		valid, exists = indexValid(ctx, t, db, "per_txn_test_id_idx")
+		require.True(t, exists)
+		require.True(t, valid)
+	})
+}
+
+// TestNoTransactionMigrationsAreIdempotent enforces the review rules for
+// migrations that opt out of a transaction. Postgres cannot roll them back, so
+// a rerun after a failure must be harmless: exactly one statement, guarded by
+// IF [NOT] EXISTS, and using CONCURRENTLY, which is the only reason to opt out.
+func TestNoTransactionMigrationsAreIdempotent(t *testing.T) {
+	t.Parallel()
+
+	entries, err := os.ReadDir(".")
+	require.NoError(t, err)
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".sql") {
+			continue
+		}
+		content, err := os.ReadFile(name)
+		require.NoError(t, err)
+		if !strings.Contains(string(content), migrations.NoTransactionMarker) {
+			continue
+		}
+
+		var statements []string
+		for _, line := range strings.Split(string(content), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "--") {
+				continue
+			}
+			statements = append(statements, line)
+		}
+		stmt := strings.Join(statements, " ")
+		require.Equalf(t, 1, strings.Count(stmt, ";"), "%s: no-transaction migrations must contain exactly one statement", name)
+		require.Containsf(t, stmt, "CONCURRENTLY", "%s: no-transaction migrations exist for CONCURRENTLY index operations", name)
+		require.Truef(t, strings.Contains(stmt, "IF NOT EXISTS") || strings.Contains(stmt, "IF EXISTS"),
+			"%s: no-transaction migrations must be idempotent", name)
+	}
+}
+
+func rowCount(ctx context.Context, t *testing.T, db *sql.DB, table string) int {
+	t.Helper()
+	var n int
+	require.NoError(t, db.QueryRowContext(ctx, "SELECT count(*) FROM "+table).Scan(&n))
+	return n
+}
+
+func columnExists(ctx context.Context, t *testing.T, db *sql.DB, table, column string) bool {
+	t.Helper()
+	var exists bool
+	err := db.QueryRowContext(ctx, `SELECT EXISTS (
+		SELECT 1 FROM information_schema.columns WHERE table_name = $1 AND column_name = $2
+	)`, table, column).Scan(&exists)
+	require.NoError(t, err)
+	return exists
+}
+
+func indexValid(ctx context.Context, t *testing.T, db *sql.DB, index string) (valid, exists bool) {
+	t.Helper()
+	err := db.QueryRowContext(ctx, `
+		SELECT indisvalid FROM pg_index WHERE indexrelid = to_regclass($1)
+	`, index).Scan(&valid)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, false
+	}
+	require.NoError(t, err)
+	return valid, true
 }
 
 // migrationPQError finds the *pq.Error inside an error returned by the
@@ -2295,14 +2571,17 @@ func TestMigration000504AIProvidersBackfillOverridesNameConflict(t *testing.T) {
 }
 
 // TestMigration000504AIProvidersBackfillEnumInSingleTxn reproduces the
-// production migration path, where every pending migration runs inside a
-// single transaction (see pgTxnDriver). Migration 000499 widens
+// migration path Coder used until migrations started committing one at a
+// time, where every pending migration ran inside a single transaction.
+// Migration 000499 widens
 // ai_provider_type with ALTER TYPE ... ADD VALUE, and 000504 casts existing
 // chat_providers rows to that enum. Postgres forbids using an enum value
 // added by ADD VALUE within the same transaction, so when a legacy provider
 // uses one of the new values (for example openai-compat) the batch fails with
 // "unsafe use of new value". The per-step Stepper used by the other tests
-// commits each migration separately and cannot surface this.
+// commits each migration separately and cannot surface this. Deployments that
+// upgraded under the single-transaction driver relied on these migrations
+// coexisting in one transaction, so the test stays as a regression guard.
 func TestMigration000504AIProvidersBackfillEnumInSingleTxn(t *testing.T) {
 	t.Parallel()
 
@@ -2324,7 +2603,8 @@ func TestMigration000504AIProvidersBackfillEnumInSingleTxn(t *testing.T) {
 	`, providerID, now)
 	require.NoError(t, err)
 
-	// Apply 000499 through 000504 in a single transaction, as production does.
+	// Apply 000499 through 000504 in a single transaction, as the
+	// single-transaction driver did.
 	applyMigrationsInTxn(ctx, t, sqlDB, 499, 504)
 
 	var typ string
@@ -2336,8 +2616,8 @@ func TestMigration000504AIProvidersBackfillEnumInSingleTxn(t *testing.T) {
 }
 
 // applyMigrationsInTxn executes the up SQL for every migration whose version is
-// in [from, to] inside a single transaction, mirroring pgTxnDriver. The whole
-// batch commits or rolls back together.
+// in [from, to] inside a single transaction, mirroring the retired
+// single-transaction driver. The whole batch commits or rolls back together.
 func applyMigrationsInTxn(ctx context.Context, t *testing.T, sqlDB *sql.DB, from, to int) {
 	t.Helper()
 
@@ -2575,8 +2855,9 @@ func TestMigration000555LegacyNoneLoginToPassword(t *testing.T) {
 }
 
 // TestMigration000558AuditOAuth2ProviderSettingsEnumInSingleTxn reproduces
-// the production upgrade path, where every pending migration in a deploy
-// runs inside a single transaction (see pgTxnDriver). 000558 adds
+// the upgrade path Coder used until migrations started committing one at a
+// time, where every pending migration in a deploy ran inside a single
+// transaction. 000558 adds
 // 'oauth2_provider_settings' to the resource_type enum via ALTER TYPE ...
 // ADD VALUE. Postgres forbids using an enum value added by ADD VALUE within
 // the same transaction that added it, so this confirms the audit write path
@@ -2610,8 +2891,8 @@ func TestMigration000558AuditOAuth2ProviderSettingsEnumInSingleTxn(t *testing.T)
 	)
 	require.NoError(t, err)
 
-	// Apply 558 in the same single transaction production uses for the
-	// whole pending batch.
+	// Apply 558 in the same single transaction the single-transaction driver
+	// used for the whole pending batch.
 	applyMigrationsInTxn(ctx, t, sqlDB, 558, 558)
 
 	// Pre-existing audit data survives the upgrade untouched.
