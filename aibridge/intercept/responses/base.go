@@ -150,7 +150,7 @@ func (i *responsesInterceptionBase) Setup(logger slog.Logger, rec recorder.Recor
 }
 
 func (i *responsesInterceptionBase) Model() string {
-	return i.reqPayload.model()
+	return i.reqPayload.Model()
 }
 
 func (i *responsesInterceptionBase) CorrelatingToolCallID() *string {

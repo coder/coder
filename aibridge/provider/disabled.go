@@ -14,8 +14,7 @@ import (
 )
 
 // DisabledStub is a Provider placeholder for a configured-but-disabled
-// provider. Only Name and Enabled return meaningful values; all other
-// methods return empty/nil so the stub never influences routing.
+// provider. It exposes no routes, interceptors, or upstream credentials.
 type DisabledStub struct {
 	name         string
 	providerType string
@@ -37,7 +36,13 @@ func (d *DisabledStub) RoutePrefix() string {
 func (*DisabledStub) BridgedRoutes() []string     { return nil }
 func (*DisabledStub) PassthroughRoutes() []string { return nil }
 func (*DisabledStub) AuthHeader() string          { return "" }
-func (*DisabledStub) KeyPool() *keypool.Pool      { return nil }
+
+// ResolveCredential returns ErrNoCredential for a disabled provider.
+func (*DisabledStub) ResolveCredential(*http.Request) (intercept.Credential, error) {
+	return nil, ErrNoCredential
+}
+
+func (*DisabledStub) KeyPool() *keypool.Pool { return nil }
 func (*DisabledStub) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig {
 	return keypool.KeyFailoverConfig{}
 }

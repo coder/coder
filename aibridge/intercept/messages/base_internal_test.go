@@ -322,7 +322,10 @@ func TestSmallFastModelCapturedAtConstruction(t *testing.T) {
 			t.Run(c.name+" "+tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				i := c.newInterception(mustMessagesPayload(t, tt.payload))
+				payload := mustMessagesPayload(t, tt.payload)
+				require.Equal(t, tt.expectConfigured, payload.InvocationModel(runtime))
+				require.Equal(t, tt.payload, string(payload))
+				i := c.newInterception(payload)
 				require.Equal(t, tt.expectModel, i.Model())
 				require.Equal(t, tt.expectConfigured, i.upstreamModel())
 			})

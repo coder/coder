@@ -133,10 +133,10 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 	defer tracing.EndSpanErr(span, &outErr)
 
 	// Extract the per-user Copilot key from the Authorization header.
-	key := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization))
-	if key == "" {
+	cred, err := p.ResolveCredential(r)
+	if err != nil {
 		span.SetStatus(codes.Error, "missing authorization")
-		return nil, xerrors.New("missing Copilot authorization: Authorization header not found or invalid")
+		return nil, err
 	}
 
 	id := uuid.New()
@@ -148,8 +148,6 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		BaseURL:      p.cfg.BaseURL,
 		APIDumpDir:   p.cfg.APIDumpDir,
 	}
-	cred := intercept.BYOK{Secret: key, Header: intercept.AuthHeaderAuthorization}
-
 	var interceptor intercept.Interceptor
 
 	path := strings.TrimPrefix(r.URL.Path, p.RoutePrefix())
@@ -205,4 +203,15 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
+}
+
+// ResolveCredential resolves Copilot's per-request BYOK token.
+// Coder authentication credentials must already have been removed from the
+// request.
+func (*Copilot) ResolveCredential(r *http.Request) (intercept.Credential, error) {
+	key := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization))
+	if key == "" {
+		return nil, xerrors.New("missing Copilot authorization: Authorization header not found or invalid")
+	}
+	return intercept.BYOK{Secret: key, Header: intercept.AuthHeaderAuthorization}, nil
 }
