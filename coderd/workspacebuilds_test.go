@@ -602,8 +602,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 	t.Run("User is not allowed to cancel", func(t *testing.T) {
 		t.Parallel()
 
-		// need to include our own logger because the provisioner (rightly) drops error logs when we shut down the
-		// test with a build in progress.
+		// Cancellation can emit expected provisioner errors.
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Logger: &logger})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -638,6 +637,9 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+
+		require.NoError(t, client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{}))
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 	})
 
 	t.Run("Cancel with expect_state=pending", func(t *testing.T) {
@@ -737,6 +739,9 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+
+		require.NoError(t, client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{}))
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 	})
 
 	t.Run("Cancel with expect_state=running when job is pending - should fail with 412", func(t *testing.T) {
@@ -798,21 +803,9 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 	t.Run("Cancel with expect_state - invalid status", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: a coderd instance with a provisioner daemon
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionInit:  echo.InitComplete,
-			ProvisionGraph: echo.GraphComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			// Echo will never applying
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Log{
-					Log: &proto.Log{},
-				},
-			}},
-		})
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
