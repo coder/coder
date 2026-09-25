@@ -41,6 +41,8 @@ type ProjectFoldersProps = {
 	readonly onCreate: () => void;
 	readonly onEdit: (project: ChatProject) => void;
 	readonly onDelete: (project: ChatProject) => void;
+	/** True when sidebar filters or the archived view may be hiding chats. */
+	readonly isFiltered: boolean;
 	readonly error?: unknown;
 	readonly onRetry: () => void;
 };
@@ -58,6 +60,7 @@ export const ProjectFolders: FC<ProjectFoldersProps> = ({
 	onCreate,
 	onEdit,
 	onDelete,
+	isFiltered,
 	error,
 	onRetry,
 }) => {
@@ -97,6 +100,7 @@ export const ProjectFolders: FC<ProjectFoldersProps> = ({
 							onToggle={() => onToggle(project.id)}
 							onEdit={() => onEdit(project)}
 							onDelete={() => onDelete(project)}
+							isFiltered={isFiltered}
 						/>
 					))}
 				</div>
@@ -136,6 +140,7 @@ type ProjectFolderProps = {
 	readonly onToggle: () => void;
 	readonly onEdit: () => void;
 	readonly onDelete: () => void;
+	readonly isFiltered: boolean;
 };
 
 /** Most recent activity in the folder: its newest chat, else the project. */
@@ -160,6 +165,7 @@ const ProjectFolder: FC<ProjectFolderProps> = ({
 	onToggle,
 	onEdit,
 	onDelete,
+	isFiltered,
 }) => {
 	const projectPath = {
 		pathname: buildAgentProjectPath(project.id),
@@ -256,7 +262,7 @@ const ProjectFolder: FC<ProjectFolderProps> = ({
 				<div className="ml-3.5 mt-0.5 flex flex-col gap-0.5 border-0 border-l border-solid border-border-default pl-1.5">
 					{chats.length === 0 ? (
 						<p className="m-0 px-2 py-1.5 text-xs text-content-secondary">
-							No chats yet
+							{isFiltered ? "No matches for this filter" : "No chats yet"}
 						</p>
 					) : (
 						chats.map((chat) => <ChatTreeNode key={chat.id} chat={chat} />)

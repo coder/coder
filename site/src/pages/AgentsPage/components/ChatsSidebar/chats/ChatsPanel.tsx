@@ -574,6 +574,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 											onCreate={() => onOpenProjectDialog(null)}
 											onEdit={onOpenProjectDialog}
 											onDelete={onDeleteProject}
+											isFiltered={hasAppliedResultFilters || isViewingArchived}
 											error={projectsError}
 											onRetry={onRetryProjects}
 										/>
