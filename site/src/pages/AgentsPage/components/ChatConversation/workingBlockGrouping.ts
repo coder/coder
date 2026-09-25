@@ -27,6 +27,12 @@ export type WorkingBlock = {
 	liveKey: string;
 	/** Indices into the timeline rows the block was computed from. */
 	rowIndices: number[];
+	/**
+	 * Persisted member message IDs, oldest first. A merged read_file row
+	 * contributes every message it merged, so unlike row keys the list grows
+	 * at the front when history is prepended into that row.
+	 */
+	memberIds: number[];
 	/** Distinct visible tools across the block. */
 	stepCount: number;
 	failedCount: number;
@@ -69,6 +75,23 @@ const parseTimestamp = (value: string | undefined): number | undefined => {
 	}
 	const time = Date.parse(value);
 	return Number.isFinite(time) ? time : undefined;
+};
+
+/**
+ * Whether older history joined the front of a block between two renders. A
+ * block that only had its live row has no previous member, so the live row
+ * becoming its persisted step is not a prepend.
+ */
+export const didPrependIntoBlock = (
+	previousMemberIds: readonly number[],
+	memberIds: readonly number[],
+): boolean => {
+	const previousFirst = previousMemberIds[0];
+	return (
+		previousFirst !== undefined &&
+		memberIds[0] < previousFirst &&
+		memberIds.includes(previousFirst)
+	);
 };
 
 export const formatWorkingDuration = (milliseconds: number): string => {
@@ -338,6 +361,7 @@ export const groupWorkingBlocks = (
 			key,
 			liveKey,
 			rowIndices: draft.rowIndices,
+			memberIds,
 			stepCount: tools.length,
 			failedCount: tools.filter(
 				(tool) => tool.isError || tool.status === "error",
