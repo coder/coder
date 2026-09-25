@@ -541,9 +541,6 @@ func TestOAuth2ClientNameValidation(t *testing.T) {
 	}
 }
 
-// Registration stores the scope verbatim and only bounds its size, so every
-// name below is accepted. The catalog is enforced at authorization: see
-// TestOAuth2AuthorizeDCRScopeCompatibility.
 func TestOAuth2ClientScopeValidation(t *testing.T) {
 	t.Parallel()
 
@@ -553,74 +550,62 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 	oauth2providertest.EnableDCR(t, client)
 
 	tests := []struct {
-		name        string
-		scope       string
-		expectError bool
+		name      string
+		scope     string
+		wantError string
+		wantName  string
 	}{
 		{
-			name:        "DefaultEmpty",
-			scope:       "",
-			expectError: false,
+			name:  "DefaultEmpty",
+			scope: "",
 		},
 		{
-			name:        "ValidRead",
-			scope:       "read",
-			expectError: false,
+			name:  "ValidLowLevel",
+			scope: "workspace:read",
 		},
 		{
-			name:        "ValidWrite",
-			scope:       "write",
-			expectError: false,
+			name:  "ValidComposite",
+			scope: "coder:workspaces.access",
 		},
 		{
-			name:        "ValidMultiple",
-			scope:       "read write",
-			expectError: false,
+			name:  "ValidMultiple",
+			scope: "workspace:read template:read coder:all",
 		},
 		{
-			name:        "ValidOpenID",
-			scope:       "openid",
-			expectError: false,
+			name:  "ValidAliases",
+			scope: "all application_connect",
 		},
 		{
-			name:        "ValidProfile",
-			scope:       "profile",
-			expectError: false,
+			name:  "AtNameLimit",
+			scope: strings.Repeat("workspace:read ", codersdk.OAuth2ScopeListMaxNames),
 		},
 		{
-			name:        "ValidEmail",
-			scope:       "email",
-			expectError: false,
+			name:      "UnknownName",
+			scope:     "workspace:read nosuch:scope",
+			wantError: "unknown scope",
+			wantName:  "nosuch:scope",
 		},
 		{
-			name:        "ValidCombined",
-			scope:       "openid profile email read write",
-			expectError: false,
+			name:      "OIDCNames",
+			scope:     "openid profile email",
+			wantError: "unknown scope",
+			wantName:  "openid",
 		},
 		{
-			name:        "InvalidAdmin",
-			scope:       "admin",
-			expectError: false, // Rejected at authorization, not registration.
+			name:      "InternalOnlyName",
+			scope:     "debug_info:read",
+			wantError: "unknown scope",
+			wantName:  "debug_info:read",
 		},
 		{
-			name:        "ValidCustom",
-			scope:       "custom:scope",
-			expectError: false,
+			name:      "TooManyNames",
+			scope:     strings.Repeat("workspace:read ", codersdk.OAuth2ScopeListMaxNames+1),
+			wantError: "must list at most",
 		},
 		{
-			name:        "AtNameLimit",
-			scope:       strings.Repeat("s ", codersdk.OAuth2ScopeListMaxNames),
-			expectError: false,
-		},
-		{
-			name:        "TooManyNames",
-			scope:       strings.Repeat("s ", codersdk.OAuth2ScopeListMaxNames+1),
-			expectError: true,
-		},
-		{
-			name:        "TooLong",
-			scope:       strings.Repeat("a", codersdk.OAuth2ScopeListMaxBytes+1),
-			expectError: true,
+			name:      "TooLong",
+			scope:     strings.Repeat("a", codersdk.OAuth2ScopeListMaxBytes+1),
+			wantError: "must be at most",
 		},
 	}
 
@@ -638,10 +623,14 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 
 			_, err := client.PostOAuth2ClientRegistration(ctx, req)
 
-			if test.expectError {
-				require.Error(t, err)
-			} else {
+			if test.wantError == "" {
 				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, "invalid_client_metadata")
+			require.ErrorContains(t, err, test.wantError)
+			if test.wantName != "" {
+				require.ErrorContains(t, err, test.wantName)
 			}
 		})
 	}

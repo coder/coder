@@ -220,26 +220,26 @@ func TestOAuth2PrivilegeEscalation(t *testing.T) {
 		regReq := codersdk.OAuth2ClientRegistrationRequest{
 			RedirectURIs: []string{"https://example.com/callback"},
 			ClientName:   clientName,
-			Scope:        "read", // Limited scope
+			Scope:        "workspace:read",
 		}
 		regResp, err := client.PostOAuth2ClientRegistration(ctx, regReq)
 		require.NoError(t, err)
 
-		// Try to escalate scope through update
+		// An update that adds a scope name outside the catalog is rejected and
+		// the stored scope is left as it was.
 		updateReq := codersdk.OAuth2ClientRegistrationRequest{
 			RedirectURIs: []string{"https://example.com/callback"},
 			ClientName:   clientName,
-			Scope:        "read write admin", // Trying to escalate to admin
+			Scope:        "workspace:read nosuch:admin",
 		}
+		_, err = client.PutOAuth2ClientConfiguration(ctx, regResp.ClientID, regResp.RegistrationAccessToken, updateReq)
+		require.ErrorContains(t, err, "invalid_client_metadata")
+		require.ErrorContains(t, err, "unknown scope")
+		require.ErrorContains(t, err, "nosuch:admin")
 
-		// This should succeed (scope changes are allowed in updates)
-		// but the system should validate scope permissions appropriately
-		updatedConfig, err := client.PutOAuth2ClientConfiguration(ctx, regResp.ClientID, regResp.RegistrationAccessToken, updateReq)
-		if err == nil {
-			// If update succeeds, verify the scope was set appropriately
-			// (The actual scope validation would happen during token issuance)
-			require.Contains(t, updatedConfig.Scope, "read")
-		}
+		config, err := client.GetOAuth2ClientConfiguration(ctx, regResp.ClientID, regResp.RegistrationAccessToken)
+		require.NoError(t, err)
+		require.Equal(t, "workspace:read", config.Scope)
 	})
 
 	t.Run("CustomSchemeRedirectURIs", func(t *testing.T) {

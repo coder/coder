@@ -541,9 +541,6 @@ func TestOAuth2ClientNameValidation(t *testing.T) {
 	}
 }
 
-// Registration stores the scope verbatim, so every value below is accepted.
-// The catalog is enforced at authorization: see
-// TestOAuth2AuthorizeDCRScopeCompatibility in coderd/oauth2provider.
 func TestOAuth2ClientScopeValidation(t *testing.T) {
 	t.Parallel()
 
@@ -553,59 +550,45 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 	oauth2providertest.EnableDCR(t, client)
 
 	tests := []struct {
-		name        string
-		scope       string
-		expectError bool
+		name  string
+		scope string
+		// The unknown name the error must report. Empty means the request is accepted.
+		wantUnknown string
 	}{
 		{
-			name:        "DefaultEmpty",
-			scope:       "",
-			expectError: false,
+			name:  "DefaultEmpty",
+			scope: "",
 		},
 		{
-			name:        "ValidRead",
-			scope:       "read",
-			expectError: false,
+			name:  "ValidLowLevel",
+			scope: "workspace:read",
 		},
 		{
-			name:        "ValidWrite",
-			scope:       "write",
-			expectError: false,
+			name:  "ValidComposite",
+			scope: "coder:workspaces.access",
 		},
 		{
-			name:        "ValidMultiple",
-			scope:       "read write",
-			expectError: false,
+			name:  "ValidMultiple",
+			scope: "workspace:read template:read coder:all",
 		},
 		{
-			name:        "ValidOpenID",
-			scope:       "openid",
-			expectError: false,
+			name:  "ValidAliases",
+			scope: "all application_connect",
 		},
 		{
-			name:        "ValidProfile",
-			scope:       "profile",
-			expectError: false,
+			name:        "UnknownName",
+			scope:       "workspace:read nosuch:scope",
+			wantUnknown: "nosuch:scope",
 		},
 		{
-			name:        "ValidEmail",
-			scope:       "email",
-			expectError: false,
+			name:        "OIDCNames",
+			scope:       "openid profile email",
+			wantUnknown: "openid",
 		},
 		{
-			name:        "ValidCombined",
-			scope:       "openid profile email read write",
-			expectError: false,
-		},
-		{
-			name:        "InvalidAdmin",
-			scope:       "admin",
-			expectError: false, // Rejected at authorization, not registration.
-		},
-		{
-			name:        "ValidCustom",
-			scope:       "custom:scope",
-			expectError: false,
+			name:        "InternalOnlyName",
+			scope:       "debug_info:read",
+			wantUnknown: "debug_info:read",
 		},
 	}
 
@@ -623,11 +606,13 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 
 			_, err := client.PostOAuth2ClientRegistration(ctx, req)
 
-			if test.expectError {
-				require.Error(t, err)
-			} else {
+			if test.wantUnknown == "" {
 				require.NoError(t, err)
+				return
 			}
+			require.ErrorContains(t, err, "invalid_client_metadata")
+			require.ErrorContains(t, err, "unknown scope")
+			require.ErrorContains(t, err, test.wantUnknown)
 		})
 	}
 }

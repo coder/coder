@@ -592,29 +592,30 @@ func TestOAuth2AuthorizeAdminCreatedAppAllowlist(t *testing.T) {
 	})
 }
 
-// Registration performs no catalog validation, so an app can register an
-// allowlist this server cannot grant from. Authorization then rejects it rather
-// than granting a scope dbauthz cannot evaluate.
 func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
-	oauth2providertest.EnableDCR(t, client)
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	registration, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
-		RedirectURIs: []string{appCallbackURL},
-		ClientName:   testutil.GetRandomName(t),
-		Scope:        "openid profile email",
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
 	})
-	require.NoError(t, err, "registration performs no catalog check")
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	legacy := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+		Name:                  testutil.GetRandomName(t),
+		CallbackURL:           appCallbackURL,
+		RedirectUris:          []string{appCallbackURL},
+		DynamicallyRegistered: sql.NullBool{Bool: true, Valid: true},
+		Scope:                 sql.NullString{String: "openid profile email", Valid: true},
+	})
+	clientID := legacy.ID.String()
 
 	t.Run("RequestingRegisteredScopeRejected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		resp := authorizeRequest(ctx, t, client, http.MethodPost, registration.ClientID, "openid")
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, clientID, "openid")
 		defer resp.Body.Close()
 
 		requireInvalidScope(t, resp, reasonUnknownScope)
@@ -624,7 +625,7 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		resp := authorizeRequest(ctx, t, client, http.MethodPost, registration.ClientID, "")
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, clientID, "")
 		defer resp.Body.Close()
 
 		requireInvalidScope(t, resp, reasonNoGrantableScope)
@@ -634,14 +635,14 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		resp := authorizeRequest(ctx, t, client, http.MethodGet, registration.ClientID, "")
+		resp := authorizeRequest(ctx, t, client, http.MethodGet, clientID, "")
 		defer resp.Body.Close()
 		requireInvalidScope(t, resp, reasonNoGrantableScope)
 
 		location, err := url.Parse(resp.Header.Get("Location"))
 		require.NoError(t, err)
 		require.NotContains(t, location.Query().Get("error_description"), "openid profile email",
-			"registration metadata is unvalidated and stays server-side; the reason alone tells the client what to change")
+			"a stored allowlist may predate validation and stays server-side; the reason alone tells the client what to change")
 	})
 }
 

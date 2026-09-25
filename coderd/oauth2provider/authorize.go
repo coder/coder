@@ -68,6 +68,13 @@ func firstUnknownScope(names []string) (string, bool) {
 	return "", false
 }
 
+// firstUnknownRegisteredScope returns the first name in a raw scope list that is
+// not in the external scope catalog, and whether there was one. Names are
+// canonicalized first so the `all` and `application_connect` aliases pass.
+func firstUnknownRegisteredScope(raw string) (string, bool) {
+	return firstUnknownScope(canonicalScopes(strings.Fields(raw)))
+}
+
 // noScopeAllowlist reports whether an app has no scope allowlist. NULL and ""
 // are the same state: apps created before the scope column existed store
 // NULL, and every write path since stores a possibly empty string.

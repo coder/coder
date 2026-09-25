@@ -74,6 +74,11 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 				"invalid_client_metadata", "invalid scope: "+err.Error())
 			return
 		}
+		if unknown, ok := firstUnknownRegisteredScope(req.Scope); ok {
+			writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
+				"invalid_client_metadata", fmt.Sprintf("invalid scope: unknown scope %q", unknown))
+			return
+		}
 
 		// Apply defaults
 		req = req.ApplyDefaults()
@@ -341,14 +346,19 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			return
 		}
 
-		// Apps registered before the size limit existed may already store a
-		// scope list that exceeds it. Skip the check when the request resends
+		// Apps registered before these checks existed may already store a
+		// scope list that fails them. Skip the checks when the request resends
 		// the stored value unchanged, so those apps can still update other
 		// fields.
 		if req.Scope != existingApp.Scope.String {
 			if err := codersdk.ValidateOAuth2ScopeList(req.Scope); err != nil {
 				writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
 					"invalid_client_metadata", "invalid scope: "+err.Error())
+				return
+			}
+			if unknown, ok := firstUnknownRegisteredScope(req.Scope); ok {
+				writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
+					"invalid_client_metadata", fmt.Sprintf("invalid scope: unknown scope %q", unknown))
 				return
 			}
 		}
