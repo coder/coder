@@ -9,7 +9,7 @@ import (
 var _ Recorder = &WrappedRecorder{}
 
 // WrappedRecorder is a convenience struct which implements Recorder and resolves a client before calling each method.
-// Records are stamped with their time by [LogRecorder], above this recorder in the chain.
+// Records carry the time they were created, set where the recorded event occurred.
 type WrappedRecorder struct {
 	clientFn func(context.Context) (Recorder, error)
 }

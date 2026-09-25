@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
@@ -269,6 +270,7 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, u
 	}
 
 	_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
+		CreatedAt:             time.Now().UTC(),
 		InterceptionID:        i.ID().String(),
 		MsgID:                 msgID,
 		Input:                 calculateActualInputTokenUsage(usage),

@@ -1482,6 +1482,11 @@ func TestRecordTokenUsage(t *testing.T) {
 
 			usages := rec.RecordedTokenUsages()
 			require.Len(t, usages, 1)
+
+			// The record carries the time it was created; the rest of the
+			// record is compared verbatim.
+			require.False(t, usages[0].CreatedAt.IsZero(), "token usage was not stamped")
+			usages[0].CreatedAt = time.Time{}
 			require.Equal(t, tc.expected, usages[0])
 		})
 	}
