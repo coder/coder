@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -31,8 +32,20 @@ func TestScaleTestChat(t *testing.T) {
 	values := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
 		require.NoError(t, dv.AI.BridgeConfig.Enabled.Set("true"))
 	})
+	chatHeaders := make(chan http.Header, 1)
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		DeploymentValues: values,
+		APIMiddleware: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost && r.URL.Path == "/api/v2/chats" {
+					select {
+					case chatHeaders <- r.Header.Clone():
+					default:
+					}
+				}
+				next.ServeHTTP(w, r)
+			})
+		},
 	})
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	coderdtest.CreateFirstUser(t, client)
@@ -49,6 +62,8 @@ func TestScaleTestChat(t *testing.T) {
 
 	inv, root := clitest.New(t,
 		"exp", "scaletest", "chat",
+		"--header", "X-Static-Auth=static-value",
+		"--header-command", "echo X-Command-Auth=command-value",
 		"--chats-per-workspace", "1",
 		"--turns", "1",
 		"--prompt", scaletestChatPrompt,
@@ -71,6 +86,10 @@ func TestScaleTestChat(t *testing.T) {
 	err := inv.WithContext(ctx).Run()
 	require.NoError(t, err, stderr.String())
 	require.Contains(t, stderr.String(), "Scale test passed: 1/1 runs succeeded")
+	headers := testutil.TryReceive(ctx, t, chatHeaders)
+	require.Equal(t, "static-value", headers.Get("X-Static-Auth"))
+	require.Equal(t, "command-value", headers.Get("X-Command-Auth"))
+	require.Equal(t, "true", headers.Get(codersdk.BypassRatelimitHeader))
 
 	provider, err := client.AIProvider(ctx, "coder-scaletest-mock")
 	require.NoError(t, err)

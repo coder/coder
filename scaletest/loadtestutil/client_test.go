@@ -63,17 +63,12 @@ func TestDupClientCopyingHeaders(t *testing.T) {
 	t.Parallel()
 	httpClient := &http.Client{
 		Transport: &codersdk.HeaderTransport{
-			Transport: &codersdk.HeaderTransport{
-				Transport: http.DefaultTransport,
-				Provider: codersdk.StaticHeaderProvider{Header: http.Header{
-					"X-Coder-Test":  {"foo"},
-					"X-Coder-Test3": {"socks"},
-					"X-Coder-Test5": {"ninjas"},
-				}},
-			},
+			Transport: http.DefaultTransport,
 			Provider: codersdk.StaticHeaderProvider{Header: http.Header{
 				"X-Coder-Test":  {"bar"},
 				"X-Coder-Test2": {"baz"},
+				"X-Coder-Test3": {"socks"},
+				"X-Coder-Test5": {"ninjas"},
 			}},
 		},
 	}

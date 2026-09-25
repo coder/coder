@@ -54,17 +54,17 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				return xerrors.Errorf("--chats-per-workspace must be at least 1")
 			}
 
+			// Keep bypass and custom headers in the same provider for runner copies.
+			headers := r.header
+			r.header = append([]string{codersdk.BypassRatelimitHeader + "=true"}, headers...)
 			client, err := r.InitClient(inv)
+			r.header = headers
 			if err != nil {
 				return err
 			}
 			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
-			}
-			client.HTTPClient.Transport = &codersdk.HeaderTransport{
-				Transport: client.HTTPClient.Transport,
-				Provider:  codersdk.StaticHeaderProvider{Header: BypassHeader},
 			}
 
 			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, inv.Stdout)
