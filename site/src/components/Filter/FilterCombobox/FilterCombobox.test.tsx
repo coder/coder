@@ -384,13 +384,7 @@ describe("FilterCombobox", () => {
 
 	it("applies typed text as a search when its option lookup does not settle", async () => {
 		const { user, onChange, input } = setup(
-			[
-				{
-					...ownerCategory,
-					getOptions: (query) =>
-						query ? neverResolves() : ownerCategory.getOptions(query),
-				},
-			],
+			[heldSearch(ownerCategory, "zzz").category],
 			{ fakeTimers: true },
 		);
 
@@ -458,14 +452,7 @@ describe("FilterCombobox", () => {
 				query === "zed" ? [{ label: "zed", value: "zed" }] : [],
 		};
 		const { user, onChange, input } = setup(
-			[
-				{
-					...ownerCategory,
-					getOptions: (query) =>
-						query ? neverResolves() : ownerCategory.getOptions(query),
-				},
-				templateCategory,
-			],
+			[heldSearch(ownerCategory, "zed").category, templateCategory],
 			{ fakeTimers: true },
 		);
 
@@ -488,6 +475,24 @@ describe("FilterCombobox", () => {
 		await settleTypedText();
 
 		expect(onChange).toHaveBeenLastCalledWith("");
+	});
+
+	it("drops a cleared search when a flyout option is picked during the debounce", async () => {
+		const { user, onChange, input } = setup([ownerCategory], {
+			initialValue: "zzz",
+			skipHover: true,
+			fakeTimers: true,
+		});
+
+		await user.click(input);
+		await user.clear(input);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		await user.click(await screen.findByRole("button", { name: "alice" }));
+		await settleTypedText();
+
+		expect(onChange).toHaveBeenLastCalledWith("owner:alice");
+		expect(onChange).not.toHaveBeenCalledWith("owner:alice zzz");
+		expect(input).toHaveValue("");
 	});
 
 	it("applies unmatched typed text with the remaining chips after a chip is removed during its lookup", async () => {
