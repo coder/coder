@@ -790,6 +790,31 @@ export const CategoryListLoading: Story = {
 	},
 };
 
+// Template settled at one option while Organization still loads, so the
+// placeholders keep one row per submenu category.
+export const CategoryListLoadingAfterOneSettles: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				...singleTemplateCategories,
+				{
+					key: "organization",
+					label: "Organization",
+					icon: <UserIcon />,
+					hideWhenSingleOption: true,
+					getOptions: () => new Promise<FilterOption[]>(() => {}),
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
+	},
+};
+
 // A category opened while Template's options load shows the category rows
 // beside its options, not placeholder rows.
 export const CategoryOpenWhileCategoryListLoads: Story = {

@@ -212,6 +212,40 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	it("highlights the first category once placeholder rows are replaced", async () => {
+		const templates = heldSearch(
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => [],
+			},
+			"",
+		);
+		const { user, onChange, filtersButton } = setup([
+			ownerCategory,
+			templates.category,
+			statusCategory,
+		]);
+
+		await user.click(filtersButton);
+		await screen.findByRole("option", { name: /Running/ });
+		await act(async () =>
+			templates.resolve([
+				{ label: "docker", value: "docker" },
+				{ label: "k8s", value: "k8s" },
+			]),
+		);
+		await screen.findByRole("option", { name: "Template" });
+		await user.keyboard("{Enter}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{ArrowDown}{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
 	it("matches typed text to a hideable category while its options load", async () => {
 		const templates = heldSearch(
 			{
@@ -293,6 +327,7 @@ describe("FilterCombobox", () => {
 		await user.hover(await screen.findByRole("option", { name: "Template" }));
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 		expect(screen.getByRole("status")).not.toHaveTextContent("Loading filters");
+		await user.hover(screen.getByRole("option", { name: "Template" }));
 		await act(async () =>
 			retry.resolve([
 				{ label: "docker", value: "docker" },
@@ -829,6 +864,24 @@ describe("FilterCombobox", () => {
 		expect(input).toHaveValue("");
 	});
 
+	it.each(["{Enter}", "{Escape}"])(
+		"applies a typed chip token once with %s",
+		async (key) => {
+			const { user, onChange, input } = setup([attributesCategory], {
+				initialValue: "dormant:true",
+			});
+
+			await user.click(input);
+			await user.type(input, "dormant:true");
+			await user.keyboard(key);
+
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("dormant:true"),
+			);
+			expect(onChange).not.toHaveBeenCalledWith("dormant:true dormant:true");
+		},
+	);
+
 	it("announces loading suggestions while typing", async () => {
 		const getOptions = vi.fn(neverResolves);
 		const { user, input } = setup([{ ...ownerCategory, getOptions }]);
@@ -1089,6 +1142,54 @@ describe("FilterCombobox", () => {
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
 		);
+	});
+
+	it("completes the top row with Tab when a category and an inline option match", async () => {
+		const { user, onChange, input } = setup([
+			ownerCategory,
+			{
+				...statusCategory,
+				getOptions: async () => [{ label: "Offline", value: "offline" }],
+			},
+		]);
+
+		await user.click(input);
+		await user.type(input, "o");
+		await screen.findByRole("option", { name: /Offline/ });
+		await user.keyboard("{Tab}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
+	it("searches free-typed text with Enter after a highlighted row mounts again", async () => {
+		let failed = false;
+		const { user, onChange, input } = setup([
+			{
+				...ownerCategory,
+				getOptions: async (query) => {
+					if (query !== "" && !failed) {
+						failed = true;
+						throw new Error("failed");
+					}
+					return [{ label: "alice", value: "alice" }];
+				},
+			},
+		]);
+
+		await user.click(input);
+		await user.type(input, "ali");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{ArrowDown}");
+		await user.click(await screen.findByRole("button", { name: /retry/i }));
+		await screen.findByRole("option", { name: "alice" });
+		await user.click(input);
+		await user.keyboard("{Enter}");
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("ali"));
 	});
 
 	it("completes an inline option with Tab for free-typed text", async () => {
@@ -1629,6 +1730,20 @@ describe("FilterCombobox", () => {
 		expect(onChange).toHaveBeenLastCalledWith("owner:alice xyz");
 	});
 
+	it("keeps a second Owner token as search text when typed text is applied", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			initialValue: "owner:bob user:carol",
+		});
+
+		await user.click(input);
+		await user.type(input, " dev");
+		await user.keyboard("{Escape}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:bob user:carol dev"),
+		);
+	});
+
 	it("keeps a second Owner token as search text when selecting an option", async () => {
 		const { user, onChange, input, filtersButton } = setup(
 			[scopedOwnerCategory],
@@ -1841,6 +1956,34 @@ describe("FilterCombobox", () => {
 		await user.keyboard("{Enter}");
 
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("dev"));
+	});
+
+	it("highlights a category row after Clear all from a category its chip listed", async () => {
+		const { user, onChange, input } = setup(
+			[
+				ownerCategory,
+				{
+					key: "template",
+					label: "Template",
+					hideWhenSingleOption: true,
+					getOptions: async () => [{ label: "docker", value: "docker" }],
+				},
+				statusCategory,
+			],
+			{ initialValue: "template:docker owner:alice status:running" },
+		);
+
+		await user.click(input);
+		await user.type(input, "template:");
+		await screen.findByRole("option", { name: "docker" });
+		await user.click(screen.getByRole("button", { name: "Clear all" }));
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		await user.keyboard("{Enter}");
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
 	});
 
 	it("moves focus to the input when a focused Clear all is clicked", async () => {

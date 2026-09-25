@@ -186,6 +186,7 @@ export function FilterComboboxRoot({
 							// a controlled value when it changes. It trims the value, so
 							// switching between "" and " " resets it to nothing.
 							setHighlightedValue((previous) => (previous === "" ? " " : ""));
+							highlightedValueRef.current = "";
 							return;
 						}
 						highlightedValueRef.current = value;
