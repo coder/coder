@@ -3,6 +3,7 @@ package experiments
 import (
 	"context"
 	"database/sql"
+	"slices"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -67,11 +68,23 @@ func (s dbStore) UserAttributes(ctx context.Context, userID uuid.UUID) (User, er
 		Organizations: make([]string, 0, len(orgs)),
 		Groups:        make([]string, 0, len(groups)),
 	}
+	activeOrgs := make(map[uuid.UUID]struct{}, len(orgs))
 	for _, org := range orgs {
+		activeOrgs[org.ID] = struct{}{}
 		attrs.Organizations = append(attrs.Organizations, org.Name)
 	}
 	for _, group := range groups {
+		// GetGroups also returns groups of soft-deleted organizations,
+		// whose names can be reused by new organizations.
+		if _, ok := activeOrgs[group.Group.OrganizationID]; !ok {
+			continue
+		}
 		attrs.Groups = append(attrs.Groups, group.OrganizationName+"/"+group.Group.Name)
 	}
+	// Queries return rows in no guaranteed order. Sort so that conditions
+	// indexing or comparing whole lists decide the same way every time.
+	slices.Sort(attrs.Roles)
+	slices.Sort(attrs.Organizations)
+	slices.Sort(attrs.Groups)
 	return attrs, nil
 }

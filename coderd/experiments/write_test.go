@@ -202,6 +202,40 @@ func TestWriteRule(t *testing.T) {
 		require.Empty(t, rows)
 	})
 
+	// A stored value the Evaluator treats as malformed must stay
+	// replaceable through WriteRule as long as its revision is readable.
+	t.Run("MalformedRuleReplaceable", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+		actor := uuid.New()
+
+		for i, value := range []string{
+			`{"revision":2,"updated_by":7}`,
+			`{"revision":3,"mode":"percent"}`,
+			`{"revision":4,"mode":["on"],"condition":{}}`,
+		} {
+			require.NoError(t, db.UpsertExperimentRule(ctx, database.UpsertExperimentRuleParams{Experiment: string(scoped), Value: value}))
+			revision := int64(i + 2)
+
+			_, _, _, err := experiments.WriteRule(ctx, db, actor, scoped, ruleOn, revision-1)
+			requireConflict(t, err, revision-1, revision)
+
+			oldRule, newRule, changed := writeRule(ctx, t, db, actor, ruleOn, revision)
+			require.True(t, changed, value)
+			require.Equal(t, revision, oldRule.Revision, value)
+			require.Equal(t, revision+1, newRule.Revision, value)
+			require.Equal(t, experiments.ModeOn, newRule.Mode, value)
+		}
+
+		// A value without a readable revision still fails, so a bad row
+		// can never be overwritten without its revision being checked.
+		require.NoError(t, db.UpsertExperimentRule(ctx, database.UpsertExperimentRuleParams{Experiment: string(scoped), Value: `{not json`}))
+		_, _, _, err := experiments.WriteRule(ctx, db, actor, scoped, ruleOff, 5)
+		require.Error(t, err)
+		require.Equal(t, `{not json`, storedValue(ctx, t, db))
+	})
+
 	// The Evaluator reads what WriteRule stores, through NewDBStore.
 	t.Run("EvaluatorReadsWrittenRule", func(t *testing.T) {
 		t.Parallel()

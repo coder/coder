@@ -1,6 +1,7 @@
 package experiments_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -12,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -82,6 +84,17 @@ func TestDBStore(t *testing.T) {
 		devs := dbgen.Group(t, db, database.Group{OrganizationID: orgB.ID})
 		dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: user.ID, GroupID: devs.ID})
 		dbgen.Group(t, db, database.Group{OrganizationID: orgC.ID})
+		// A soft-deleted organization keeps its last member and its
+		// Everyone group. Its name can be reused, so neither may reach
+		// conditions.
+		orgGone := dbgen.Organization(t, db, database.Organization{})
+		_, err := db.InsertAllUsersGroup(ctx, orgGone.ID)
+		require.NoError(t, err)
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: orgGone.ID})
+		require.NoError(t, db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+			ID:        orgGone.ID,
+			UpdatedAt: dbtime.Now(),
+		}))
 
 		got, err := newAuthzDBStore(t, db).UserAttributes(ctx, user.ID)
 		require.NoError(t, err)
@@ -95,5 +108,20 @@ func TestDBStore(t *testing.T) {
 			orgB.Name + "/Everyone",
 			orgB.Name + "/" + devs.Name,
 		}, got.Groups)
+		// Lists are sorted so conditions that index or compare whole lists
+		// do not depend on query row order.
+		require.True(t, slices.IsSorted(got.Organizations), got.Organizations)
+		require.True(t, slices.IsSorted(got.Groups), got.Groups)
+	})
+
+	t.Run("SortedRoles", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{RBACRoles: []string{rbac.RoleTemplateAdmin().String(), rbac.RoleAuditor().String()}})
+
+		got, err := newAuthzDBStore(t, db).UserAttributes(ctx, user.ID)
+		require.NoError(t, err)
+		require.Equal(t, []string{rbac.RoleAuditor().String(), rbac.RoleTemplateAdmin().String()}, got.Roles)
 	})
 }
