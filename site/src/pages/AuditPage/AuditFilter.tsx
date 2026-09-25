@@ -163,6 +163,10 @@ export const useResourceTypeFilterMenu = ({
 			label = "Chat Operational Settings";
 		}
 
+		if (type === "experiment_rule") {
+			label = "Experiment Rule";
+		}
+
 		return {
 			value: type,
 			label,

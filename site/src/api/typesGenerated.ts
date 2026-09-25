@@ -8496,6 +8496,7 @@ export type ResourceType =
 	| "chat_operational_settings"
 	| "convert_login"
 	| "custom_role"
+	| "experiment_rule"
 	| "git_ssh_key"
 	| "group"
 	| "group_ai_budget"
@@ -8538,6 +8539,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_operational_settings",
 	"convert_login",
 	"custom_role",
+	"experiment_rule",
 	"git_ssh_key",
 	"group",
 	"group_ai_budget",
