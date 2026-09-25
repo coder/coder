@@ -10,6 +10,7 @@ import {
 	Streamdown,
 	type UrlTransform,
 } from "streamdown";
+import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { MarkdownImage } from "./MarkdownImage";
@@ -232,31 +233,42 @@ const createComponents = (
 					const viewerLang: SupportedLanguages = isMermaid
 						? "text"
 						: (lang as SupportedLanguages);
+					// MermaidDiagram's error fallback strips the margin, border
+					// and rounding from its direct child, so the frame must stay
+					// on the outermost element rather than the ScrollArea.
 					const codeBlock = (
-						<ScrollArea
-							orientation="both"
-							className="my-4 rounded-md border border-solid border-border-default bg-surface-primary"
-							scrollBarClassName="w-1.5"
-							horizontalScrollBarClassName="h-1.5"
-						>
-							<FileViewer
-								file={{
-									name: `block.${viewerLang}`,
-									lang: viewerLang,
-									contents: content,
-									cacheKey: content,
-								}}
-								options={{
-									overflow: "scroll",
-									themeType: fileViewerThemeType,
-									disableFileHeader: true,
-									disableLineNumbers: true,
-									theme: viewerTheme,
-									unsafeCSS: markdownFileViewerCSS,
-								}}
-								style={markdownFileViewerStyle}
-							/>
-						</ScrollArea>
+						<div className="group/code-block relative my-4 overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
+							<ScrollArea
+								orientation="both"
+								scrollBarClassName="w-1.5"
+								horizontalScrollBarClassName="h-1.5"
+							>
+								<FileViewer
+									file={{
+										name: `block.${viewerLang}`,
+										lang: viewerLang,
+										contents: content,
+										cacheKey: content,
+									}}
+									options={{
+										overflow: "scroll",
+										themeType: fileViewerThemeType,
+										disableFileHeader: true,
+										disableLineNumbers: true,
+										theme: viewerTheme,
+										unsafeCSS: markdownFileViewerCSS,
+									}}
+									style={markdownFileViewerStyle}
+								/>
+							</ScrollArea>
+							{!isMermaid && (
+								<CopyButton
+									text={content}
+									label="Copy code"
+									className="absolute right-1.5 top-1.5 z-20 size-6 bg-surface-primary p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/code-block:opacity-100 focus-visible:opacity-100"
+								/>
+							)}
+						</div>
 					);
 					if (isMermaid) {
 						return <MermaidDiagram source={content} fallback={codeBlock} />;
