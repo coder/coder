@@ -48,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -6604,8 +6605,10 @@ func TestWorkspaceByOwnerAndNameIncludeRelated(t *testing.T) {
 	t.Run("TemplateOnly", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		w, code := get(ctx, t, "template")
-		require.Equal(t, http.StatusOK, code)
+		cfg, err := wsrelated.Parse("template")
+		require.NoError(t, err)
+		w, err := client.WorkspaceByOwnerAndName(ctx, codersdk.Me, workspace.Name, codersdk.WorkspaceOptions{IncludeRelated: &cfg})
+		require.NoError(t, err)
 		require.Equal(t, workspace.ID, w.ID)
 		// The build was not requested, so it is omitted (zero value).
 		require.Equal(t, uuid.Nil, w.LatestBuild.ID)
@@ -6616,8 +6619,10 @@ func TestWorkspaceByOwnerAndNameIncludeRelated(t *testing.T) {
 	t.Run("LatestBuildOnly", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		w, code := get(ctx, t, "latest_build.*")
-		require.Equal(t, http.StatusOK, code)
+		cfg, err := wsrelated.Parse("latest_build.*")
+		require.NoError(t, err)
+		w, err := client.WorkspaceByOwnerAndName(ctx, codersdk.Me, workspace.Name, codersdk.WorkspaceOptions{IncludeRelated: &cfg})
+		require.NoError(t, err)
 		require.Equal(t, workspace.ID, w.ID)
 		// The build was requested, so it is populated.
 		require.Equal(t, workspace.LatestBuild.ID, w.LatestBuild.ID)
