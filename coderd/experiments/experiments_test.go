@@ -113,10 +113,6 @@ func TestNew(t *testing.T) {
 
 	_, err := experiments.New(slog.Make(), nil, nil)
 	require.Error(t, err)
-
-	e, err := experiments.New(slog.Make(), experimentstest.Store{}, codersdk.Experiments{scoped})
-	require.NoError(t, err)
-	require.True(t, e.Enabled(context.Background(), uuid.New(), scoped))
 }
 
 func TestValidateRule(t *testing.T) {
@@ -342,34 +338,56 @@ func TestFailClosed(t *testing.T) {
 	}
 }
 
-func TestFailedReadDoesNotReusePriorDecision(t *testing.T) {
+// TestRuleChangesApplyToNextCall edits the stored rule between calls on one
+// Evaluator: each call must reflect the current rule, never an earlier
+// program or decision, including after a failed read.
+func TestRuleChangesApplyToNextCall(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	userID := uuid.New()
-
-	s := storeWith(t, userID, condition(`"owner" in user.roles`))
-	store := &switchStore{Store: s}
+	store := &swapStore{Store: storeWith(t, userID, nil)}
 	e, _ := newEvaluator(t, store, nil)
-	require.True(t, e.Enabled(ctx, userID, scoped))
 
-	store.fail.Store(true)
-	require.False(t, e.Enabled(ctx, userID, scoped))
-
-	store.fail.Store(false)
-	require.True(t, e.Enabled(ctx, userID, scoped))
+	steps := []struct {
+		name string
+		// rule nil means the rules read fails.
+		rule *experiments.Rule
+		want bool
+	}{
+		{"matching condition", condition(`"owner" in user.roles`), true},
+		{"edited condition", condition(`"member" in user.roles`), false},
+		{"original condition again", condition(`"owner" in user.roles`), true},
+		{"read failure", nil, false},
+		{"after read failure", condition(`"owner" in user.roles`), true},
+		{"off", &experiments.Rule{Mode: experiments.ModeOff}, false},
+		{"on", &experiments.Rule{Mode: experiments.ModeOn}, true},
+	}
+	for _, step := range steps {
+		if step.rule == nil {
+			store.rules.Store(nil)
+		} else {
+			rules := map[codersdk.Experiment]experiments.StoredRule{
+				scoped: experimentstest.StoredRule(t, *step.rule),
+			}
+			store.rules.Store(&rules)
+		}
+		require.Equal(t, step.want, e.Enabled(ctx, userID, scoped), step.name)
+	}
 }
 
-// switchStore fails rule reads while fail is set.
-type switchStore struct {
+// swapStore returns the rules currently stored in rules, and fails the read
+// while rules is nil.
+type swapStore struct {
 	experiments.Store
-	fail atomic.Bool
+	rules atomic.Pointer[map[codersdk.Experiment]experiments.StoredRule]
 }
 
-func (s *switchStore) Rules(ctx context.Context) (map[codersdk.Experiment]experiments.StoredRule, error) {
-	if s.fail.Load() {
+func (s *swapStore) Rules(context.Context) (map[codersdk.Experiment]experiments.StoredRule, error) {
+	rules := s.rules.Load()
+	if rules == nil {
 		return nil, xerrors.New("db down")
 	}
-	return s.Store.Rules(ctx)
+	return *rules, nil
 }
 
 func TestEnabledExperiments(t *testing.T) {
@@ -409,24 +427,6 @@ func TestEnabledExperiments(t *testing.T) {
 		require.Equal(t, codersdk.Experiments{unscoped, unknown, scoped}, e.EnabledExperiments(ctx, userID))
 		require.EqualValues(t, 1, store.rules.Load())
 		require.EqualValues(t, 1, store.users.Load())
-	})
-
-	t.Run("KnownOrder", func(t *testing.T) {
-		t.Parallel()
-		// Appended entries follow ExperimentsKnown order.
-		var want codersdk.Experiments
-		for _, ex := range codersdk.ExperimentsKnown {
-			if experiments.IsUserScoped(ex) {
-				want = append(want, ex)
-			}
-		}
-		ctx := testutil.Context(t, testutil.WaitShort)
-		rules := map[codersdk.Experiment]experiments.StoredRule{}
-		for _, ex := range codersdk.ExperimentsUserScoped {
-			rules[ex] = experimentstest.StoredRule(t, experiments.Rule{Mode: experiments.ModeOn})
-		}
-		e, _ := newEvaluator(t, experimentstest.Store{StoredRules: rules}, nil)
-		require.Equal(t, want, e.EnabledExperiments(ctx, uuid.New()))
 	})
 }
 

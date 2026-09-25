@@ -149,8 +149,6 @@ type compiled struct {
 type programCache struct {
 	mu       sync.Mutex
 	programs map[string]compiled
-	// compiles counts compileCondition calls, for tests.
-	compiles int
 }
 
 func newProgramCache() *programCache {
@@ -171,7 +169,6 @@ func (c *programCache) get(source string) (cel.Program, error) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.compiles++
 	if _, ok := c.programs[source]; !ok && len(c.programs) >= maxCachedPrograms {
 		// Evict an arbitrary entry to stay within the bound.
 		for k := range c.programs {
