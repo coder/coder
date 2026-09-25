@@ -24,7 +24,10 @@ import {
 	FilterComboboxStatus,
 } from "./primitives";
 import type { FilterCategory, FilterOption } from "./types";
-import { useFilterCombobox } from "./useFilterCombobox";
+import {
+	SUGGESTIONS_ERROR_MESSAGE,
+	useFilterCombobox,
+} from "./useFilterCombobox";
 
 /**
  * Unified workspace filter input: renders committed chips plus a cmdk-driven
@@ -187,7 +190,6 @@ export function FilterCombobox({
 							valueSuggestions={valueSuggestions}
 							typeaheadLoading={typeahead.loading}
 							typeaheadError={typeahead.error}
-							typeaheadErrorLabel={typeahead.errorLabel}
 							onSelectCategory={actions.selectCategory}
 							onSelectSuggestion={actions.selectValueSuggestion}
 							onRetry={actions.retryTypeahead}
@@ -292,7 +294,6 @@ type TypeaheadListProps = Readonly<{
 	valueSuggestions: readonly ValueSuggestion[];
 	typeaheadLoading: boolean;
 	typeaheadError: boolean;
-	typeaheadErrorLabel: string;
 	onSelectCategory: (categoryKey: string) => void;
 	onSelectSuggestion: (token: string) => void;
 	onRetry: () => void;
@@ -304,7 +305,6 @@ function TypeaheadList({
 	valueSuggestions,
 	typeaheadLoading,
 	typeaheadError,
-	typeaheadErrorLabel,
 	onSelectCategory,
 	onSelectSuggestion,
 	onRetry,
@@ -370,7 +370,7 @@ function TypeaheadList({
 				)}
 				{typeaheadError && !typeaheadLoading && (
 					<div className="flex flex-col items-center gap-2 px-2 py-2.5 text-center text-sm text-content-secondary">
-						<span>{typeaheadErrorLabel}</span>
+						<span>{SUGGESTIONS_ERROR_MESSAGE}</span>
 						<Button size="sm" variant="outline" onClick={onRetry}>
 							Retry
 						</Button>

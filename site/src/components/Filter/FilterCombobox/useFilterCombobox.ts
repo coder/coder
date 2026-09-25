@@ -51,14 +51,14 @@ type Action =
 	| { type: "typeFreeText"; value: string }
 	| { type: "setCommittedFreeText"; value: string }
 	| { type: "leaveCategory" }
-	| { type: "close"; input: "restore" | "clear" }
+	| { type: "close" }
 	| { type: "reconcile"; freeText: string };
 
-const closeState = (state: State, input: "restore" | "clear"): State => ({
+const closeState = (state: State): State => ({
 	mode: "closed",
 	activeCategoryKey: null,
 	committedFreeText: state.committedFreeText,
-	inputValue: input === "restore" ? state.committedFreeText : "",
+	inputValue: state.committedFreeText,
 });
 
 const reducer = (state: State, action: Action): State => {
@@ -91,7 +91,7 @@ const reducer = (state: State, action: Action): State => {
 				inputValue: state.committedFreeText,
 			};
 		case "close":
-			return closeState(state, action.input);
+			return closeState(state);
 		case "reconcile":
 			return {
 				...state,
@@ -110,9 +110,11 @@ type StatusMessageInput = {
 	activeOptionsError: boolean;
 	activeOptionsEmpty: boolean;
 	typeaheadError: boolean;
-	typeaheadErrorLabel: string;
 	typeaheadEmpty: boolean;
 };
+
+/** Shown and announced when the typeahead suggestion queries fail. */
+export const SUGGESTIONS_ERROR_MESSAGE = "Couldn't load suggestions.";
 
 // Live-region text for each terminal state so screen readers hear loading,
 // failures, and empty results rather than silence. Typeahead loading is voiced
@@ -123,7 +125,6 @@ const deriveStatusMessage = ({
 	activeOptionsError,
 	activeOptionsEmpty,
 	typeaheadError,
-	typeaheadErrorLabel,
 	typeaheadEmpty,
 }: StatusMessageInput): string => {
 	if (activeCategoryLabel !== undefined) {
@@ -139,7 +140,7 @@ const deriveStatusMessage = ({
 		return `Filtering by ${activeCategoryLabel}`;
 	}
 	if (typeaheadError) {
-		return typeaheadErrorLabel;
+		return SUGGESTIONS_ERROR_MESSAGE;
 	}
 	if (typeaheadEmpty) {
 		return "No filters found";
@@ -370,16 +371,8 @@ export const useFilterCombobox = ({
 
 	// A rejected suggestion query must not leave the popup spinning forever;
 	// treat an error as "done loading" and surface it instead.
-	const suggestionsError =
+	const typeaheadError =
 		activeCategoryKey === null && isBrowsing && suggestionOptions.isError;
-	const valueSuggestionsLoading =
-		activeCategoryKey === null &&
-		isBrowsing &&
-		inputValue.trim().length > 0 &&
-		!suggestionsError &&
-		(typeaheadQueryPending || suggestionOptions.isFetching);
-
-	const typeaheadError = suggestionsError;
 
 	const typeaheadActive = activeCategoryKey === null && isBrowsing;
 	const hasTypeaheadQuery = typeaheadActive && inputValue.trim().length > 0;
@@ -387,7 +380,8 @@ export const useFilterCombobox = ({
 	// query never leaves an empty gap.
 	const typeaheadLoading =
 		hasTypeaheadQuery &&
-		valueSuggestionsLoading &&
+		!typeaheadError &&
+		(typeaheadQueryPending || suggestionOptions.isFetching) &&
 		valueSuggestions.length === 0;
 
 	const typeaheadEmpty =
@@ -396,10 +390,6 @@ export const useFilterCombobox = ({
 		!typeaheadError &&
 		listedCategories.length === 0 &&
 		valueSuggestions.length === 0;
-
-	const typeaheadErrorLabel = suggestionsError
-		? "Couldn't load suggestions."
-		: "";
 
 	const activeOptionsEmpty =
 		activeCategoryKey !== null &&
@@ -416,7 +406,6 @@ export const useFilterCombobox = ({
 		activeOptionsError,
 		activeOptionsEmpty,
 		typeaheadError,
-		typeaheadErrorLabel,
 		typeaheadEmpty,
 	});
 
@@ -444,14 +433,14 @@ export const useFilterCombobox = ({
 
 	const selectValueSuggestion = (token: string) => {
 		updateFromChips([...chipValues, token], "");
-		dispatch({ type: "close", input: "clear" });
+		dispatch({ type: "close" });
 	};
 
 	// In category mode, choosing an option commits its chip while preserving the
 	// free-text name search that preceded the category prefix.
 	const selectCategoryOption = (token: string) => {
 		updateFromChips([...chipValues, token]);
-		dispatch({ type: "close", input: "restore" });
+		dispatch({ type: "close" });
 	};
 
 	// From inside a category the toggle steps back to the category list rather
@@ -462,7 +451,7 @@ export const useFilterCombobox = ({
 			return;
 		}
 		if (open) {
-			dispatch({ type: "close", input: "restore" });
+			dispatch({ type: "close" });
 			return;
 		}
 		dispatch({ type: "openBrowsing" });
@@ -541,7 +530,7 @@ export const useFilterCombobox = ({
 	// Radix only originates close requests (escape / outside press); opens flow
 	// from the caller, so a dismissal simply restores the free-text input.
 	const handleDismiss = () => {
-		dispatch({ type: "close", input: "restore" });
+		dispatch({ type: "close" });
 	};
 
 	// Chip removal mirrors Backspace: drop the token and keep the current popup
@@ -598,9 +587,8 @@ export const useFilterCombobox = ({
 			}
 		}
 
-		// Tab completes the highlighted filter only. A highlighted resource
-		// preview has no chip token, so Tab falls through to the default focus
-		// move rather than navigating.
+		// Tab completes the highlighted category or value suggestion and
+		// otherwise moves focus.
 		const isTabComplete = event.key === "Tab" && !event.shiftKey;
 		if (!isTabComplete || mode !== "browsing") {
 			return;
@@ -646,7 +634,6 @@ export const useFilterCombobox = ({
 			active: typeaheadActive,
 			loading: typeaheadLoading,
 			error: typeaheadError,
-			errorLabel: typeaheadErrorLabel,
 		},
 		actions: {
 			setInputRef: (node: HTMLInputElement | null) => {
