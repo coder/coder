@@ -602,7 +602,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 																{section.sharedWithMe.length > 0 && (
 																	<div
 																		data-testid={`agents-shared-with-me-group-${section.key}`}
-																		className="flex flex-col gap-0.5 border-l border-dotted border-border-default"
+																		className="flex flex-col gap-0.5 border-l border-dotted border-border-secondary"
 																	>
 																		{section.sharedWithMe.map((chat) => (
 																			<ChatTreeNode key={chat.id} chat={chat} />
