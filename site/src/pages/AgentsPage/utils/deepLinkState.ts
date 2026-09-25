@@ -5,6 +5,11 @@
  */
 export type DeepLinkState = { debugWorkspaceBuildId?: string; prompt?: string };
 
+/**
+ * Reads deep link values from a history entry's state. Returns only the
+ * fields that are strings; anything else, including a missing or non-object
+ * state, reads as absent.
+ */
 export const readDeepLinkState = (state: unknown): DeepLinkState => {
 	if (typeof state !== "object" || state === null) {
 		return {};
