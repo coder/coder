@@ -1643,21 +1643,21 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		sdkChat.Children = db2sdk.ChildChatRows(childRows, childDiffStatuses)
 	}
 
-	if api.Experiments.Enabled(codersdk.ExperimentChatInlineMCPServers) {
-		servers, err := api.chatInlineMCPServers(ctx, chat.ID)
-		if err != nil {
-			api.Logger.Error(ctx, "failed to get inline MCP servers",
-				slog.F("chat_id", chat.ID),
-				slog.Error(err),
-			)
-		} else {
-			if chat.OwnerID != httpmw.APIKey(r).UserID {
-				for i := range servers {
-					servers[i].URL = ""
-				}
+	// Declared servers outlive the gates that let a caller declare them:
+	// internal servers load with the experiment off, and [] detaches any
+	// server with the gates closed. So report every row.
+	if servers, err := api.chatInlineMCPServers(ctx, chat.ID); err != nil {
+		api.Logger.Error(ctx, "failed to get inline MCP servers",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+	} else {
+		if chat.OwnerID != httpmw.APIKey(r).UserID {
+			for i := range servers {
+				servers[i].URL = ""
 			}
-			sdkChat.InlineMCPServers = servers
 		}
+		sdkChat.InlineMCPServers = servers
 	}
 
 	enriched := []codersdk.Chat{sdkChat}
