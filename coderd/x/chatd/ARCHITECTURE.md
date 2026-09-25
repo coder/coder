@@ -451,7 +451,7 @@ This endpoint uses `Create(initialMessages)`:
 
 No other input states are supported.
 
-If the request sets `title`, the chat is created with a `user` title and automatic title generation does not run. Otherwise the chat is created with a `fallback` title derived from the prompt, after any `UserPromptSubmit` override, and automatic title generation runs after the response is sent.
+If the request sets `title`, the chat is created with a `user` title and automatic title generation does not run. Otherwise the chat is created with a `fallback` title derived from the prompt, after any `UserPromptSubmit` override, and automatic title generation starts; the response does not wait for the title model call.
 
 ### `PATCH /api/v2/chats/{chat}`
 
