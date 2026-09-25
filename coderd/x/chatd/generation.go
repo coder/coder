@@ -1669,6 +1669,9 @@ func (s *taskStarter) finishGenerationError(
 		slog.Error(cause),
 	)
 	lastError, message := generationLastError(cause)
+	// Committing the status change cancels ctx, so the outcome is
+	// classified before the commit.
+	outcome := turnOutcomeForError(ctx, cause)
 	var committed database.Chat
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
@@ -1689,7 +1692,7 @@ func (s *taskStarter) finishGenerationError(
 		recordGenerationFinishFailure(input.DebugTurn, err)
 		return err
 	}
-	input.TurnSpan.Invalidate(input.TurnToken, turnOutcomeForError(ctx, cause), cause)
+	input.TurnSpan.Invalidate(input.TurnToken, outcome, cause)
 	input.DebugTurn.RecordOutcome(chatdebug.StatusError)
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)
