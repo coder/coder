@@ -883,6 +883,8 @@ export const useFilterCombobox = ({
 			returnToCategories();
 			return;
 		}
+		// Focus fires no event on an input that already has it.
+		highlightCategoryListRow(chipValues, getHighlightedValue());
 		applyTypedSearch();
 		dispatch({ type: "showAllFilters" });
 	};
