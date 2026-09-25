@@ -10,11 +10,15 @@ const TITLE_KEY = `${BOARD_LABEL_PREFIX}title`;
 const COLOR_KEY = `${BOARD_LABEL_PREFIX}color`;
 const POSITION_KEY = `${BOARD_LABEL_PREFIX}pos`;
 const COMMENT_PREFIX = `${BOARD_LABEL_PREFIX}comment.`;
-/** On a card's assistant chat: the card id. Such chats are not cards themselves. */
+// One piece of work spread over several cards, or an ad hoc set like
+// "This week". A card can belong to many.
+const EFFORT_PREFIX = `${BOARD_LABEL_PREFIX}effort.`;
+/** On an assistant chat: its card's id, or `board` for the board assistant. Such chats are not cards themselves. */
 export const ASSISTANT_KEY = `${BOARD_LABEL_PREFIX}assistant`;
 
-// Server limit on a label value, see coderd/httpapi/chatlabels.go.
-const MAX_LABEL_VALUE_BYTES = 256;
+// Server limits on a chat's labels, see coderd/httpapi/chatlabels.go.
+export const MAX_LABEL_VALUE_BYTES = 256;
+export const MAX_LABELS_PER_CHAT = 50;
 
 export const INBOX_COLUMN = "Inbox";
 
@@ -81,6 +85,7 @@ export type BoardCard = Readonly<{
 	/** Primary first, then the rest by creation. */
 	members: readonly Chat[];
 	comments: readonly BoardComment[];
+	efforts: readonly string[];
 }>;
 
 export type BoardColumn = Readonly<{
@@ -273,6 +278,37 @@ const stripCommentLabels = (
 ): Record<string, string> =>
 	withoutKeys(labels, (k) => k.startsWith(COMMENT_PREFIX));
 
+// Writes clear every key under the prefix, so a stray key cannot outlive a
+// rewrite or ride a handoff; reads skip keys without a numeric index.
+const isEffortKey = (key: string) => key.startsWith(EFFORT_PREFIX);
+
+/** Effort names on a primary, by index, trimmed, without blanks or repeats. */
+export const parseEfforts = (labels: Record<string, string>): string[] => {
+	const byIndex: [number, string][] = [];
+	for (const [key, value] of Object.entries(labels)) {
+		if (!isEffortKey(key)) continue;
+		const index = key.slice(EFFORT_PREFIX.length);
+		if (/^\d+$/.test(index)) byIndex.push([Number(index), value]);
+	}
+	return cleanEfforts(byIndex.sort(([a], [b]) => a - b).map(([, v]) => v));
+};
+
+const cleanEfforts = (names: readonly string[]): string[] => [
+	...new Set(names.map((name) => name.trim()).filter(Boolean)),
+];
+
+/** Replaces a card's efforts with `names`, cleaned and renumbered from 0. */
+export const setEffortsLabels = (
+	labels: Record<string, string>,
+	names: readonly string[],
+): Record<string, string> => {
+	const out = withoutKeys(labels, isEffortKey);
+	for (const [index, name] of cleanEfforts(names).entries()) {
+		out[`${EFFORT_PREFIX}${index}`] = name;
+	}
+	return out;
+};
+
 /** Replaces a card's notes with `notes` in the given order, renumbered from 0. Index is display order. */
 export const setCommentsLabels = (
 	labels: Record<string, string>,
@@ -285,7 +321,7 @@ export const setCommentsLabels = (
 	return out;
 };
 
-/** Removes card-level data (title, comments) from a chat that stops being a primary. */
+/** Removes card-level data (title, color, position, comments, efforts) and the group link from a chat that stops being a primary. */
 export const stripCardLabels = (
 	labels: Record<string, string>,
 ): Record<string, string> =>
@@ -295,10 +331,11 @@ export const stripCardLabels = (
 			k === TITLE_KEY ||
 			k === GROUP_KEY ||
 			k === COLOR_KEY ||
-			k === POSITION_KEY,
+			k === POSITION_KEY ||
+			isEffortKey(k),
 	);
 
-/** The card-level data a primary carries (title, color, position, comments), for handing to a new primary. */
+/** The card-level data a primary carries (title, color, position, comments, efforts), for handing to a new primary. */
 export const takeCardLabels = (
 	labels: Record<string, string>,
 ): Record<string, string> =>
@@ -308,7 +345,8 @@ export const takeCardLabels = (
 				k === TITLE_KEY ||
 				k === COLOR_KEY ||
 				k === POSITION_KEY ||
-				k.startsWith(COMMENT_PREFIX),
+				k.startsWith(COMMENT_PREFIX) ||
+				isEffortKey(k),
 		),
 	);
 
@@ -344,6 +382,7 @@ export const buildCards = (chats: readonly Chat[]): BoardCard[] => {
 			primary,
 			members: [primary, ...others],
 			comments: parseComments(primary.labels),
+			efforts: parseEfforts(primary.labels),
 		});
 	}
 	// Newest placement first, so a card the user just moved lands at the top

@@ -66,18 +66,36 @@ Notes
 - Notes carry the human's reading of the work. When cards merge or a chat
   leaves a group, the notes follow the card.
 
+Efforts
+
+- I can tag a card with one or more efforts, a piece of work whose units
+  sit in different columns or an ad hoc set like "This week", from the
+  card's menu. The header has an effort filter that narrows the board to
+  one effort, and a card's effort tag does the same; the selected effort
+  can be renamed from the filter. The filter survives a reload and
+  combines with search. A chat started in a column while the filter is set
+  takes that effort, so it does not vanish as it lands.
+
 Status at a glance
 
-- Each chat shows its status icon, last turn, age, unread mark and linked
-  pull request with line counts.
-- Resting on the info icon shows the chat's summary and cost without
-  reflowing the card; clicking pins it.
+- Each chat shows its status icon, last turn and linked pull request, and,
+  once it has settled, its age at the end of that line. The age is the
+  chat's last change (`updated_at`), which board label writes also reset,
+  as in the sidebar. Unread is a dot on the chat icon; while the chat works
+  the spinner says enough, so neither is shown.
+- Resting on the info icon shows the chat's summary, cost and line counts
+  without reflowing the card; clicking pins it.
 
 Working without leaving the board
 
 - Resting on a chat's icon previews the full chat in a floating window
   beside the card; clicking it, or dragging it, keeps the window. Windows
-  move, resize, stack and survive a reload.
+  move, resize, stack and survive a reload; a chat window has a button for
+  its card's assistant.
+- I can start a new chat in a column from its header, or in a card from its
+  menu, with the regular create form in a floating window. The chat lands
+  where it was started, and a card's chat can carry the card's title, notes
+  and chats as context for its first message.
 - I can filter the board with the same search the sidebar uses; whole cards
   stay or go, groups are never split by a filter.
 
@@ -88,6 +106,18 @@ Assistant
   told to verify against the live chats before answering. It uses a shared
   workspace so it can read transcripts, send follow-ups and check pull
   requests on my behalf when I ask.
+- A card that has an assistant shows it as an icon in its header: resting
+  previews it, clicking pins it, it pulses while the assistant works and
+  carries the unread dot when it has replied. Archiving the assistant
+  removes the icon; the card's menu creates a new one.
+- The board has one assistant of its own, opened from the header. It gets
+  a snapshot of every card with its primary chat id and is told how to read
+  and edit board labels; it proposes changes and acts only on a yes. When
+  any assistant finishes a turn the board refetches the chat list.
+- When the Coder MCP is connected it is attached to assistants created
+  after that; an older assistant keeps its prompt, so archive it to get a
+  new one. The workspace is then needed only for label and title writes, a
+  few fields the tools lack, and GitHub checks through gh.
 
 Sidebar
 
@@ -97,16 +127,8 @@ Sidebar
 
 ## Data model
 
-| Label                       | On        | Meaning                                    |
-| --------------------------- | --------- | ------------------------------------------ |
-| `board/column`              | members   | column name; absent means Inbox            |
-| `board/group`               | members   | id of the chat that carries the card data  |
-| `board/title`               | primary   | topic title; absent means the chat's title |
-| `board/color`               | primary   | one of the theme accent names              |
-| `board/pos`                 | primary   | placement key; higher sorts first          |
-| `board/comment.N.timestamp` | primary   | note N, Unix milliseconds                  |
-| `board/comment.N.M`         | primary   | note N, chunk M (256 byte label limit)     |
-| `board/assistant`           | assistant | id of the card the assistant belongs to    |
+The label table is `LABEL_SCHEMA` in `assistantSpecs.ts`. The board
+assistant gets it in its prompt, so it lives there and not here.
 
 Writes replace the whole label map of a chat. Regrouping and note moves
 snapshot the previous maps of every touched chat so they can be undone.
@@ -132,8 +154,27 @@ snapshot the previous maps of every touched chat so they can be undone.
   `NotesSection.tsx` translate gestures into one command call each; the
   page filters the rendered columns but always hands the full model to the
   commands. `BoardCard.tsx` composes `CardColorPicker.tsx`,
-  `EditableTitle.tsx`, `ChatStatusLine.tsx` and `ChatInfo.tsx`;
+  `EditableTitle.tsx`, `ChatStatusLine.tsx`, `ChatInfo.tsx` and the chat
+  and assistant openers in `Openers.tsx`;
   `DragGhost.tsx` is the overlay drawn for whatever is being dragged.
+- `assistantSpecs.ts` writes the prompts and snapshots for the card and
+  board assistants; `assistants.ts` finds or creates the chat for a spec.
+  `refreshChatList.ts` refetches the list after an assistant turn,
+  retrying while watch events cancel it. `DraftChat.tsx` is the regular
+  create form inside a board window.
+
+## Coder MCP gaps
+
+Seen while a board assistant worked, as of this experiment:
+
+- No tool writes labels or titles; label edits need the API.
+- `coder_get_chat` and `coder_list_chats` lack `created_at`, `summary`,
+  `diff_status` and cost.
+- `coder_get_chat_messages` applies `limit` before dropping tool-only
+  messages, so busy chats return empty pages, and it omits tool calls, so a
+  running chat's activity is invisible.
+- `coder_list_chats` caps at 100 with no cursor.
+- `coder_get_chat` returns the chat's full file list.
 
 ## Not done
 
@@ -145,6 +186,13 @@ snapshot the previous maps of every touched chat so they can be undone.
   transferred data.
 - Notes have no id of their own: the list keys them by timestamp, so notes
   stored without one fall back to display order.
+- Deleting an effort; drop it from every card instead.
+- An assistant stays with the chat it was created on. After that chat
+  leaves its group, or its card is merged into another, open a new
+  assistant from the card's menu.
+- Creating a chat with a title: the server titles a chat from its first
+  message and can overwrite a rename, so assistant snapshots start with
+  words close to their title.
 - No Storybook stories: the experiment is off by default and not a Pixel
   target. FE1 exception: the page's loading, error and search-failure states
   and the route guard are asserted through DOM presence in Vitest, because

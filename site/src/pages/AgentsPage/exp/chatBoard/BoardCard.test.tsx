@@ -15,14 +15,17 @@ const chat = (id: string, labels: Record<string, string> = {}): Chat => ({
 	labels,
 });
 
-const renderCard = (chats: readonly Chat[]) => {
+const renderCard = (chats: readonly Chat[], assistant?: Chat) => {
 	const [card] = buildCards(chats);
 	if (!card) throw new Error("card missing");
 	const handlers = {
 		onSetTitle: vi.fn(),
 		onSetColor: vi.fn(),
 		onRenameChat: vi.fn(),
-		onAssistant: vi.fn(),
+		onCardAssistant: vi.fn(),
+		onNewChat: vi.fn(),
+		onSetEfforts: vi.fn(),
+		onFilterEffort: vi.fn(),
 		onRemoveFromGroup: vi.fn(),
 		onOpen: vi.fn(),
 		onPreview: vi.fn(),
@@ -38,9 +41,11 @@ const renderCard = (chats: readonly Chat[]) => {
 	renderComponent(
 		<BoardCard
 			card={card}
+			assistant={assistant}
 			openChatIds={new Set()}
 			isDropTarget={false}
 			noteDrop={undefined}
+			knownEfforts={["Q3", "This week"]}
 			{...handlers}
 		/>,
 	);
@@ -80,7 +85,7 @@ describe("BoardCard", () => {
 
 	it("opens the assistant from the actions menu", async () => {
 		const user = userEvent.setup();
-		const { onAssistant } = renderCard([chat("p")]);
+		const { onCardAssistant } = renderCard([chat("p")]);
 
 		await user.click(
 			screen.getByRole("button", { name: "Actions for Chat p" }),
@@ -89,7 +94,67 @@ describe("BoardCard", () => {
 			await screen.findByRole("menuitem", { name: "Assistant" }),
 		);
 
-		expect(onAssistant).toHaveBeenCalledTimes(1);
+		expect(onCardAssistant).toHaveBeenCalledTimes(1);
+	});
+
+	it("starts a new chat in the card from the actions menu", async () => {
+		const user = userEvent.setup();
+		const { onNewChat } = renderCard([chat("p")]);
+
+		await user.click(
+			screen.getByRole("button", { name: "Actions for Chat p" }),
+		);
+		await user.click(
+			await screen.findByRole("menuitem", { name: "New chat in card" }),
+		);
+
+		expect(onNewChat).toHaveBeenCalledTimes(1);
+	});
+
+	it("edits its efforts from the menu, toggling known ones and coining new ones", async () => {
+		const user = userEvent.setup();
+		const { onSetEfforts } = renderCard([
+			chat("p", { "board/effort.0": "Q3" }),
+		]);
+
+		await user.click(
+			screen.getByRole("button", { name: "Actions for Chat p" }),
+		);
+		// Opened from the keyboard: without layout, jsdom cannot tell a pointer
+		// heading into the sub menu from one leaving it, and would close it.
+		(await screen.findByRole("menuitem", { name: "Efforts" })).focus();
+		await user.keyboard("{ArrowRight}");
+		await user.click(
+			await screen.findByRole("menuitemcheckbox", { name: "This week" }),
+		);
+		expect(onSetEfforts).toHaveBeenCalledWith(["Q3", "This week"]);
+
+		// The sub menu stayed open.
+		await user.click(screen.getByRole("menuitemcheckbox", { name: "Q3" }));
+		expect(onSetEfforts).toHaveBeenLastCalledWith([]);
+
+		// Blur must not save the partial name.
+		const field = screen.getByRole("textbox", { name: "New effort" });
+		await user.type(field, "Lau");
+		await user.hover(screen.getByRole("menuitemcheckbox", { name: "Q3" }));
+		expect(field).not.toHaveFocus();
+		await user.type(field, "nch{Enter}");
+		expect(onSetEfforts).toHaveBeenCalledTimes(3);
+		expect(onSetEfforts).toHaveBeenLastCalledWith(["Q3", "Launch"]);
+		expect(field).toHaveValue("");
+		await user.type(field, "Beta{Enter}");
+		expect(onSetEfforts).toHaveBeenLastCalledWith(["Q3", "Beta"]);
+	});
+
+	it("filters the board by an effort from its tag", async () => {
+		const user = userEvent.setup();
+		const { onFilterEffort } = renderCard([
+			chat("p", { "board/effort.0": "Q3" }),
+		]);
+
+		await user.click(screen.getByRole("button", { name: "Filter by Q3" }));
+
+		expect(onFilterEffort).toHaveBeenCalledWith("Q3");
 	});
 
 	it("opens the chat from its icon with the card as anchor", async () => {
@@ -125,5 +190,23 @@ describe("BoardCard", () => {
 
 		expect(onPreview).toHaveBeenCalledWith(card.members[1], rect(120));
 		expect(onOpen).toHaveBeenCalledWith(card.members[1], rect(120));
+	});
+
+	it("previews and opens the assistant from its icon, anchored to the card", async () => {
+		const user = userEvent.setup();
+		const assistant = chat("a", { "board/assistant": "p" });
+		const { onOpen, onPreview } = renderCard([chat("p")], assistant);
+		const rect = new DOMRect(0, 10, 0, 0);
+		vi.spyOn(
+			screen.getByRole("article"),
+			"getBoundingClientRect",
+		).mockReturnValue(rect);
+
+		const opener = screen.getByRole("button", { name: "Assistant" });
+		await user.hover(opener);
+		await user.click(opener);
+
+		expect(onPreview).toHaveBeenCalledWith(assistant, rect);
+		expect(onOpen).toHaveBeenCalledWith(assistant, rect);
 	});
 });

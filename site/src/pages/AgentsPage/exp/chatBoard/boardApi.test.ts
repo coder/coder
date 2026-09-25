@@ -5,19 +5,24 @@ import {
 	addColumn,
 	addNote,
 	type BoardState,
+	cardContext,
 	deleteColumn,
 	detachChat,
+	effortCounts,
 	joinCard,
 	mergeCards,
 	moveCard,
 	moveColumn,
 	moveNote,
+	newChatLabels,
 	type Plan,
 	removeFromGroup,
 	renameCard,
 	renameChat,
 	renameColumn,
+	renameEffort,
 	setCardColor,
+	setCardEfforts,
 } from "./boardApi";
 import { addCommentLabels, buildCards, buildColumns } from "./boardLabels";
 import type { BoardStorage } from "./boardStorage";
@@ -38,6 +43,7 @@ const stateOf = (
 		columnOrder: [],
 		emptyColumns: [],
 		windows: [],
+		effortFilter: null,
 		...storage,
 	};
 	return {
@@ -415,5 +421,187 @@ describe("boardApi", () => {
 			columnOrder: ["Inbox", "B", "C", "A"],
 		});
 		expect(moveColumn(state, "A", { name: "A", side: "after" })).toBeNull();
+	});
+
+	it("newChatLabels for a column places the chat above the first card", () => {
+		const state = stateOf([
+			chat("a", { "board/column": "Doing", "board/pos": "300000" }),
+			chat("b", { "board/column": "Doing", "board/pos": "100000" }),
+			chat("i", { "board/pos": "500000" }),
+		]);
+
+		expect(newChatLabels(state, { column: "Doing" })).toEqual({
+			"board/column": "Doing",
+			"board/pos": "360000",
+		});
+		// Absent column label means Inbox.
+		expect(newChatLabels(state, { column: "Inbox" })).toEqual({
+			"board/pos": "560000",
+		});
+		const filtered = {
+			...state,
+			storage: { ...state.storage, effortFilter: "Q3" },
+		};
+		expect(newChatLabels(filtered, { column: "Doing" })).toEqual({
+			"board/column": "Doing",
+			"board/effort.0": "Q3",
+			"board/pos": "360000",
+		});
+		// A card draft joins the group's efforts, so the filter adds none.
+		expect(newChatLabels(filtered, { cardId: "a" })).toEqual({
+			"board/group": "a",
+			"board/column": "Doing",
+		});
+	});
+
+	it("newChatLabels for a card joins the group without a position", () => {
+		const state = stateOf([
+			chat("p", { "board/column": "Doing", "board/pos": "300000" }),
+			chat("i", { "board/pos": "500000" }),
+		]);
+
+		expect(newChatLabels(state, { cardId: "p" })).toEqual({
+			"board/group": "p",
+			"board/column": "Doing",
+		});
+		expect(newChatLabels(state, { cardId: "i" })).toEqual({
+			"board/group": "i",
+		});
+		expect(newChatLabels(state, { cardId: "nope" })).toBeNull();
+	});
+
+	it("cardContext lists title, notes in order and every chat", () => {
+		const [card] = buildCards([
+			{
+				...chat("p", {
+					"board/title": "Epic",
+					...addCommentLabels(addCommentLabels({}, "first", 1), "second", 2),
+				}),
+				status: "running",
+				last_turn_summary: "Fixed the build",
+			},
+			{
+				...chat("m", { "board/group": "p" }),
+				status: "waiting",
+				last_turn_summary: null,
+			},
+		]);
+		if (!card) throw new Error("card missing");
+
+		expect(cardContext(card)).toBe(
+			[
+				"Card context",
+				"Title: Epic",
+				"Notes:",
+				"- first",
+				"- second",
+				"Chats:",
+				"- Chat p (p) status: running; last turn: Fixed the build",
+				"- Chat m (m) status: waiting; last turn: none",
+			].join("\n"),
+		);
+		const [bare] = buildCards([chat("s")]);
+		if (!bare) throw new Error("card missing");
+		expect(cardContext(bare)).toContain("Notes: none\n");
+	});
+
+	it("setCardEfforts writes the renumbered list on the primary", () => {
+		const state = stateOf([
+			chat("p", { "board/effort.3": "old", "board/title": "T" }),
+		]);
+
+		expect(written(setCardEfforts(state, "p", ["Q3", "This week"]))).toEqual({
+			p: {
+				"board/title": "T",
+				"board/effort.0": "Q3",
+				"board/effort.1": "This week",
+			},
+		});
+		expect(setCardEfforts(state, "nope", [])).toBeNull();
+	});
+
+	it("renameEffort relabels every card carrying it, dedupes into an existing name and follows the filter", () => {
+		const state = stateOf(
+			[
+				chat("a", { "board/effort.0": "Q3", "board/title": "A" }),
+				chat("b", { "board/effort.0": "Q3", "board/effort.1": "Launch" }),
+				chat("c", { "board/effort.0": "Launch" }),
+				chat("d"),
+			],
+			{ effortFilter: "Q3" },
+		);
+
+		const plan = renameEffort(state, "Q3", " Q4 ");
+		expect(written(plan)).toEqual({
+			a: { "board/title": "A", "board/effort.0": "Q4" },
+			b: { "board/effort.0": "Q4", "board/effort.1": "Launch" },
+		});
+		expect(plan?.storage).toEqual({ effortFilter: "Q4" });
+
+		// Renaming onto an existing effort merges: b keeps one Launch.
+		expect(written(renameEffort(state, "Q3", "Launch"))).toEqual({
+			a: { "board/title": "A", "board/effort.0": "Launch" },
+			b: { "board/effort.0": "Launch" },
+		});
+
+		// The filter only follows when it pointed at the renamed effort.
+		expect(renameEffort(state, "Launch", "Ship")?.storage).toBeUndefined();
+	});
+
+	it("renameEffort refuses blank, unchanged and unknown names", () => {
+		const state = stateOf([chat("a", { "board/effort.0": "Q3" })]);
+
+		expect(renameEffort(state, "Q3", "  ")).toBeNull();
+		expect(renameEffort(state, "Q3", "Q3")).toBeNull();
+		expect(renameEffort(state, "Q3", " Q3 ")).toBeNull();
+		expect(renameEffort(state, "Nope", "Q4")).toBeNull();
+	});
+
+	it("mergeCards unions efforts, kept primary first, without repeats", () => {
+		const state = stateOf([
+			chat("t", { "board/pos": "200", "board/effort.0": "Q3" }),
+			chat("s", {
+				"board/pos": "100",
+				"board/effort.0": "This week",
+				"board/effort.1": "Q3",
+			}),
+		]);
+
+		expect(written(mergeCards(state, "s", "t")).t).toMatchObject({
+			"board/effort.0": "Q3",
+			"board/effort.1": "This week",
+		});
+		expect(written(mergeCards(state, "s", "t")).s).not.toHaveProperty(
+			"board/effort.0",
+		);
+	});
+
+	it("a primary handing off its card passes the efforts on", () => {
+		const state = stateOf([
+			chat("p", { "board/effort.0": "Q3", "board/pos": "400000" }),
+			chat("a", { "board/group": "p" }),
+		]);
+
+		const plan = written(detachChat(state, "p", "Inbox", null));
+		expect(plan.a).toMatchObject({ "board/effort.0": "Q3" });
+		expect(plan.p).not.toHaveProperty("board/effort.0");
+	});
+
+	it("effortCounts counts cards per effort in order of first appearance", () => {
+		const cards = buildCards([
+			chat("a", { "board/pos": "300", "board/effort.0": "Q3" }),
+			chat("b", {
+				"board/pos": "200",
+				"board/effort.0": "This week",
+				"board/effort.1": "Q3",
+			}),
+			chat("c", { "board/pos": "100" }),
+		]);
+
+		expect(effortCounts(cards)).toEqual([
+			{ name: "Q3", count: 2 },
+			{ name: "This week", count: 1 },
+		]);
+		expect(effortCounts([])).toEqual([]);
 	});
 });

@@ -59,6 +59,7 @@ const stateOf = (
 		columnOrder: [],
 		emptyColumns: [],
 		windows: [],
+		effortFilter: null,
 		...storage,
 	};
 	return {

@@ -9,11 +9,17 @@ type InlineEditProps = {
 	readonly className?: string;
 	readonly ariaLabel: string;
 	readonly placeholder?: string;
+	/**
+	 * Defaults to true. False keeps the typed text on blur, for a field in a
+	 * menu whose items take focus as the pointer passes over them.
+	 */
+	readonly saveOnBlur?: boolean;
 };
 
 /**
  * Edits text where it stands: no box, the same font, sized by its content.
- * Enter or blur saves a changed non-empty value, Escape cancels.
+ * Enter, or blur unless `saveOnBlur` is false, saves a changed non-empty
+ * value. Escape cancels.
  */
 export const InlineEdit: FC<InlineEditProps> = ({
 	value,
@@ -22,15 +28,19 @@ export const InlineEdit: FC<InlineEditProps> = ({
 	className,
 	ariaLabel,
 	placeholder,
+	saveOnBlur = true,
 }) => {
 	const [draft, setDraft] = useState(value);
-	// Enter and blur commit; Escape only reports done. The parent unmounts
-	// the field on done, and React fires no blur for an unmounted field, so
-	// nothing commits after a cancel.
+	// Escape only reports done. The parent unmounts the field on done, and
+	// React fires no blur for an unmounted field, so nothing commits after a
+	// cancel.
 	const commit = () => {
 		const next = draft.trim();
 		onDone();
 		if (next && next !== value) onSave(next);
+		// A parent that keeps the field mounted for the next entry, like the
+		// new-effort line, gets it back blank without remounting it.
+		setDraft(value);
 	};
 
 	return (
@@ -51,7 +61,7 @@ export const InlineEdit: FC<InlineEditProps> = ({
 				const end = e.currentTarget.value.length;
 				e.currentTarget.setSelectionRange(end, end);
 			}}
-			onBlur={commit}
+			onBlur={saveOnBlur ? commit : undefined}
 			// Typing must not start a drag on the surrounding card.
 			onPointerDown={(e) => e.stopPropagation()}
 			onKeyDown={(e) => {

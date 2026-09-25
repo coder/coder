@@ -4,20 +4,24 @@ import {
 	EllipsisVerticalIcon,
 	type LucideIcon,
 } from "lucide-react";
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { IconButton } from "./IconButton";
 
-type MenuAction = {
-	readonly label: string;
-	readonly icon: LucideIcon;
-	readonly onSelect: () => void;
-	readonly destructive?: boolean;
-};
+/** An item runs an action, or opens a sub menu holding `children`. */
+type MenuAction = Readonly<{ label: string; icon: LucideIcon }> &
+	(
+		| Readonly<{ onSelect: () => void; destructive?: boolean }>
+		| Readonly<{ children: ReactNode }>
+	);
 
 type ActionsMenuProps = {
 	readonly label: string;
@@ -39,30 +43,40 @@ export const ActionsMenu: FC<ActionsMenuProps> = ({
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<button
-					type="button"
+				<IconButton
 					aria-label={`Actions for ${label}`}
 					className={cn(
-						"relative z-[1] grid size-4 shrink-0 place-items-center rounded border-0 bg-transparent p-0 text-content-secondary/60 hover:text-content-primary focus-visible:opacity-100 data-[state=open]:text-content-primary",
+						"focus-visible:opacity-100 data-[state=open]:text-content-primary",
 						!permanent &&
 							"opacity-0 group-hover/column:opacity-100 data-[state=open]:opacity-100",
 					)}
-					onPointerDown={(e) => e.stopPropagation()}
 				>
 					<Icon className="size-3.5" />
-				</button>
+				</IconButton>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="min-w-40 text-xs">
-				{items.map((item) => (
-					<DropdownMenuItem
-						key={item.label}
-						className={cn(item.destructive && "text-content-destructive")}
-						onSelect={item.onSelect}
-					>
-						<item.icon className="size-3.5" />
-						{item.label}
-					</DropdownMenuItem>
-				))}
+				{items.map((item) =>
+					"children" in item ? (
+						<DropdownMenuSub key={item.label}>
+							<DropdownMenuSubTrigger>
+								<item.icon className="size-3.5" />
+								{item.label}
+							</DropdownMenuSubTrigger>
+							<DropdownMenuSubContent className="min-w-44 text-xs">
+								{item.children}
+							</DropdownMenuSubContent>
+						</DropdownMenuSub>
+					) : (
+						<DropdownMenuItem
+							key={item.label}
+							className={cn(item.destructive && "text-content-destructive")}
+							onSelect={item.onSelect}
+						>
+							<item.icon className="size-3.5" />
+							{item.label}
+						</DropdownMenuItem>
+					),
+				)}
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

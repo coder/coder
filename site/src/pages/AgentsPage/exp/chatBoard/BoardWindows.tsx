@@ -1,32 +1,50 @@
-import { type FC, useEffect, useEffectEvent } from "react";
+import { type FC, lazy, Suspense, useEffect, useEffectEvent } from "react";
 import type { Chat } from "#/api/typesGenerated";
-import type { CardColor } from "./boardLabels";
-import type { ChatWindow } from "./boardStorage";
+import { AgentChatPageSkeleton } from "../../components/AgentsSkeletons";
+import {
+	type BoardState,
+	cardContext,
+	cardOfChat,
+	newChatLabels,
+} from "./boardApi";
+import type { BoardCard, CardColor } from "./boardLabels";
+import { type ChatWindow, type DraftTarget, windowKey } from "./boardStorage";
 import { FloatingChat } from "./ChatWindows";
+import { DraftChat } from "./DraftChat";
+
+// Lazy so the board loads without the chat page.
+const AgentChatPage = lazy(() => import("../../AgentChatPage"));
 
 type BoardWindowsProps = {
 	readonly windows: readonly ChatWindow[];
 	readonly chatsById: ReadonlyMap<string, Chat>;
 	readonly colorByChatId: ReadonlyMap<string, CardColor>;
+	/** The unfiltered model a draft is born into. */
+	readonly board: BoardState;
 	readonly onChange: (next: ChatWindow) => void;
-	readonly onClose: (chatId: string) => void;
-	readonly onRaise: (chatId: string) => void;
+	readonly onClose: (key: string) => void;
+	readonly onRaise: (key: string) => void;
 	readonly onPreviewEnter: () => void;
 	readonly onPreviewLeave: () => void;
 	/** Escape outside a text field: the preview goes, else the frontmost window. */
 	readonly onDismissTop: () => void;
+	readonly onDraftCreated: (target: DraftTarget, chatId: string) => void;
+	readonly onCardAssistant: (card: BoardCard) => void;
 };
 
 export const BoardWindows: FC<BoardWindowsProps> = ({
 	windows,
 	chatsById,
 	colorByChatId,
+	board,
 	onChange,
 	onClose,
 	onRaise,
 	onPreviewEnter,
 	onPreviewLeave,
 	onDismissTop,
+	onDraftCreated,
+	onCardAssistant,
 }) => {
 	const hasWindows = windows.length > 0;
 	const dismissTop = useEffectEvent(onDismissTop);
@@ -44,17 +62,64 @@ export const BoardWindows: FC<BoardWindowsProps> = ({
 		return () => window.removeEventListener("keydown", onKey);
 	}, [hasWindows]);
 
-	return windows.map((win) => (
-		<FloatingChat
-			key={win.chatId}
-			window={win}
-			chat={chatsById.get(win.chatId)}
-			color={colorByChatId.get(win.chatId)}
-			onChange={onChange}
-			onClose={() => onClose(win.chatId)}
-			onInteract={() => onRaise(win.chatId)}
-			onPreviewEnter={onPreviewEnter}
-			onPreviewLeave={onPreviewLeave}
-		/>
-	));
+	return windows.map((win) => {
+		const key = windowKey(win);
+		const frame = {
+			window: win,
+			onChange,
+			onClose: () => onClose(key),
+			onInteract: () => onRaise(key),
+			onPreviewEnter,
+			onPreviewLeave,
+		};
+		if (win.kind === "chat") {
+			// Assistant chats are on no card, so they get no assistant button.
+			const card = cardOfChat(board, win.chatId);
+			return (
+				<FloatingChat
+					key={key}
+					{...frame}
+					title={chatsById.get(win.chatId)?.title ?? "Chat"}
+					color={colorByChatId.get(win.chatId)}
+					cardAssistant={
+						card && {
+							cardTitle: card.title,
+							open: () => onCardAssistant(card),
+						}
+					}
+				>
+					<Suspense fallback={<AgentChatPageSkeleton />}>
+						<AgentChatPage chatId={win.chatId} />
+					</Suspense>
+				</FloatingChat>
+			);
+		}
+		const { target } = win;
+		const labels = newChatLabels(board, target);
+		// The page closes a draft whose card is gone; until that commits there
+		// is nothing to draw.
+		if (!labels) return null;
+		const card =
+			"cardId" in target
+				? board.cards.find((c) => c.id === target.cardId)
+				: undefined;
+		return (
+			<FloatingChat
+				// Keyed by target so a new target gets a fresh form, not the pending
+				// request, text or error of the draft it replaced.
+				key={`${key}:${JSON.stringify(target)}`}
+				{...frame}
+				title={`New chat in ${"column" in target ? target.column : (card?.title ?? "card")}`}
+				color={card?.color}
+			>
+				<DraftChat
+					labels={labels}
+					context={
+						card && win.includeCardContext ? cardContext(card) : undefined
+					}
+					onCreated={(chatId) => onDraftCreated(target, chatId)}
+				/>
+			</FloatingChat>
+		);
+	});
 };

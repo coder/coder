@@ -13,10 +13,10 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { shortRelativeTime } from "#/utils/time";
 import type { DragData, DropData } from "./BoardCard";
 import type { NoteSlot } from "./boardApi";
 import type { BoardCard, BoardNote } from "./boardLabels";
+import { RelativeAge } from "./ChatStatusLine";
 import { CompactMarkdown } from "./CompactMarkdown";
 import { dragHandleListeners } from "./dragHandle";
 
@@ -142,7 +142,9 @@ const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
 			</CompactMarkdown>
 			<span className="relative h-[17px] w-12 shrink-0">
 				<span className="absolute inset-0 flex items-center justify-end text-[11px] tabular-nums text-content-secondary/70 group-hover/note:hidden group-focus-within/note:hidden group-has-[[data-state=open]]/note:hidden">
-					{note.timestamp ? shortRelativeTime(note.timestamp) : ""}
+					{note.timestamp ? (
+						<RelativeAge key={note.timestamp} date={note.timestamp} />
+					) : null}
 				</span>
 				<span className="-mr-1 absolute inset-0 flex items-center justify-end opacity-0 group-hover/note:opacity-100 focus-within:opacity-100 group-has-[[data-state=open]]/note:opacity-100">
 					<button
