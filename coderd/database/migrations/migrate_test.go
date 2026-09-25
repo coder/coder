@@ -403,6 +403,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000587RemoveAgentsAccessRole", 587, testMigration000587RemoveAgentsAccessRole},
 		{"Migration000590WorkspaceAgentSessionCounts", 590, testMigration000590WorkspaceAgentSessionCounts},
 		{"Migration000595RemoveTaskPermissions", 595, testMigration000595RemoveTaskPermissions},
+		{"Migration000598DiscoveredRowsRemovedOnDown", 598, testMigration000598DiscoveredRowsRemovedOnDown},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -1626,6 +1627,65 @@ func testMigration000595RemoveTaskPermissions(t *testing.T, sqlDB *sql.DB, next 
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
 	assertMigrated()
+}
+
+// testMigration000598DiscoveredRowsRemovedOnDown checks that the down
+// migration deletes the rows chatd pinned from tool-touched directories along
+// with the column that marks them, since the previous release would read them
+// as snapshot copies.
+func testMigration000598DiscoveredRowsRemovedOnDown(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 598
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	orgID, userID, modelConfigID, chatID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	for _, fixture := range []struct {
+		query string
+		args  []any
+	}{
+		{
+			"INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, '', '', $3, $3, '{}')",
+			[]any{orgID, orgID.String(), now},
+		},
+		{
+			"INSERT INTO users (id, username, email, hashed_password, created_at, updated_at) VALUES ($1, $2, $3, '', $4, $4)",
+			[]any{userID, userID.String(), userID.String() + "@test.com", now},
+		},
+		{
+			"INSERT INTO chat_model_configs (id, model, context_limit, compression_threshold, organization_id, deleted) VALUES ($1, 'model', 1000, 50, $2, true)",
+			[]any{modelConfigID, orgID},
+		},
+		{
+			"INSERT INTO chats (id, owner_id, organization_id, last_model_config_id) VALUES ($1, $2, $3, $4)",
+			[]any{chatID, userID, orgID, modelConfigID},
+		},
+		{
+			"INSERT INTO chat_context_resources (chat_id, source, body_kind, body, content_hash, size_bytes, status, discovered) VALUES ($1, '/home/coder/AGENTS.md', 'instruction_file', '{}', $2, 1, 'ok', false), ($1, '/home/coder/site/AGENTS.md', 'instruction_file', '{}', $2, 1, 'ok', true)",
+			[]any{chatID, []byte{0x01}},
+		},
+	} {
+		_, err := sqlDB.ExecContext(ctx, fixture.query, fixture.args...)
+		require.NoError(t, err)
+	}
+
+	downSQL, err := os.ReadFile("000598_chat_context_resources_discovered.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	var sources pq.StringArray
+	err = sqlDB.QueryRowContext(ctx, "SELECT array_agg(source ORDER BY source) FROM chat_context_resources WHERE chat_id = $1", chatID).Scan(&sources)
+	require.NoError(t, err)
+	require.Equal(t, pq.StringArray{"/home/coder/AGENTS.md"}, sources, "only the snapshot copy survives the downgrade")
+
+	upSQL, err := os.ReadFile("000598_chat_context_resources_discovered.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
 }
 
 func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {

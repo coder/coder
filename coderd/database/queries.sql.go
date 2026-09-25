@@ -8181,6 +8181,26 @@ func (q *sqlQuerier) DeleteAllChatQueuedMessagesReturningCount(ctx context.Conte
 	return result.RowsAffected()
 }
 
+const deleteChatContextDiscoveredResource = `-- name: DeleteChatContextDiscoveredResource :exec
+DELETE FROM chat_context_resources
+WHERE chat_id = $1::uuid
+    AND source = $2
+    AND discovered = true
+`
+
+type DeleteChatContextDiscoveredResourceParams struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	Source string    `db:"source" json:"source"`
+}
+
+// Drops a discovered row whose file a later probe of its directory no
+// longer returned. A snapshot row under the same source is left to the
+// agent push that owns it.
+func (q *sqlQuerier) DeleteChatContextDiscoveredResource(ctx context.Context, arg DeleteChatContextDiscoveredResourceParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatContextDiscoveredResource, arg.ChatID, arg.Source)
+	return err
+}
+
 const deleteChatContextResourcesByChatID = `-- name: DeleteChatContextResourcesByChatID :exec
 DELETE FROM chat_context_resources
 WHERE chat_id = $1::uuid
@@ -10976,6 +10996,7 @@ copied AS (
         status = EXCLUDED.status,
         error = EXCLUDED.error,
         source_path = EXCLUDED.source_path,
+        discovered = false,
         updated_at = now()
 )
 SELECT id FROM hydrated
@@ -10993,8 +11014,9 @@ type HydrateAgentChatsContextParams struct {
 // a chat's pinned hash and pinned bodies are always written together.
 // Runs as a side effect of an agent push and of chat-create hydration,
 // so chats created before the agent was ready pick up the snapshot
-// without a dirty marker. The ON CONFLICT upsert is defensive: a
-// not-yet-hydrated chat has no pinned rows, so it normally inserts.
+// without a dirty marker. The ON CONFLICT upsert covers rows chatd
+// discovered from tool-touched directories before the agent's first push;
+// the snapshot copy replaces them and clears the discovered flag.
 // Does not bump chats.updated_at; the resource upsert's ON CONFLICT branch
 // sets chat_context_resources.updated_at on the rows it rewrites.
 // Returns the hydrated chat IDs so callers can notify watchers of every
@@ -11046,6 +11068,16 @@ SELECT
     r.size_bytes, r.status, r.error, r.source_path
 FROM workspace_agent_context_resources r
 WHERE r.workspace_agent_id = $2::uuid
+ON CONFLICT (chat_id, source) DO UPDATE SET
+    body_kind = EXCLUDED.body_kind,
+    body = EXCLUDED.body,
+    content_hash = EXCLUDED.content_hash,
+    size_bytes = EXCLUDED.size_bytes,
+    status = EXCLUDED.status,
+    error = EXCLUDED.error,
+    source_path = EXCLUDED.source_path,
+    discovered = false,
+    updated_at = now()
 `
 
 type InsertAgentContextResourcesIntoChatParams struct {
@@ -11056,7 +11088,11 @@ type InsertAgentContextResourcesIntoChatParams struct {
 // Copies an agent's current context resources onto a single chat. Pair
 // with DeleteChatContextResourcesByChatID (clear-then-copy, in a
 // transaction) to re-pin a chat to its agent's latest snapshot from the
-// refresh endpoint and on agent rebinding.
+// refresh endpoint and on agent rebinding. The clear sees only rows in the
+// caller's repeatable-read snapshot, so a row chatd discovered for one of
+// these sources after that snapshot was taken survives it; the conflict
+// path turns that into a serialization failure the caller retries instead
+// of a unique violation, and the retry's clear removes the row.
 func (q *sqlQuerier) InsertAgentContextResourcesIntoChat(ctx context.Context, arg InsertAgentContextResourcesIntoChatParams) error {
 	_, err := q.db.ExecContext(ctx, insertAgentContextResourcesIntoChat, arg.ChatID, arg.AgentID)
 	return err
@@ -11657,7 +11693,7 @@ func (q *sqlQuerier) LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFil
 }
 
 const listChatContextResourcesByChatID = `-- name: ListChatContextResourcesByChatID :many
-SELECT chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, created_at, updated_at FROM chat_context_resources
+SELECT chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, created_at, updated_at, discovered FROM chat_context_resources
 WHERE chat_id = $1::uuid
 ORDER BY source ASC
 `
@@ -11685,6 +11721,7 @@ func (q *sqlQuerier) ListChatContextResourcesByChatID(ctx context.Context, chatI
 			&i.SourcePath,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Discovered,
 		); err != nil {
 			return nil, err
 		}
@@ -12155,6 +12192,7 @@ changed AS (
                         SELECT 1 FROM chat_context_resources ccr
                         WHERE ccr.chat_id = chats.id
                             AND ccr.source = p.source
+                            AND ccr.discovered = false
                     )
                 )
             )
@@ -12164,6 +12202,7 @@ changed AS (
                     SELECT 1 FROM chat_context_resources ccr
                     WHERE ccr.chat_id = chats.id
                         AND ccr.body_kind NOT IN ('mcp_config', 'mcp_server')
+                        AND ccr.discovered = false
                         AND NOT EXISTS (
                             SELECT 1 FROM agent_prompt p
                             WHERE p.source = ccr.source
@@ -12194,6 +12233,7 @@ added AS (
         SELECT 1 FROM chat_context_resources ccr
         WHERE ccr.chat_id = locked.id
             AND ccr.source = p.source
+            AND ccr.discovered = false
     )
     -- A skill whose name the chat already holds under another source is
     -- the agent's deduplication winner replacing the pinned one, so it is
@@ -12204,7 +12244,16 @@ added AS (
             AND ccr.body_kind = 'skill'
             AND ccr.body->>'name' = p.body->>'name'
     ))
-    ON CONFLICT (chat_id, source) DO NOTHING
+    ON CONFLICT (chat_id, source) DO UPDATE SET
+        body_kind = EXCLUDED.body_kind,
+        body = EXCLUDED.body,
+        content_hash = EXCLUDED.content_hash,
+        size_bytes = EXCLUDED.size_bytes,
+        status = EXCLUDED.status,
+        error = EXCLUDED.error,
+        source_path = EXCLUDED.source_path,
+        discovered = false,
+        updated_at = now()
 ),
 divergent AS (
     SELECT locked.id
@@ -12213,6 +12262,7 @@ divergent AS (
         SELECT 1 FROM chat_context_resources ccr
         WHERE ccr.chat_id = locked.id
             AND ccr.body_kind NOT IN ('mcp_config', 'mcp_server')
+            AND ccr.discovered = false
             AND NOT EXISTS (
                 SELECT 1 FROM agent_prompt p
                 WHERE p.source = ccr.source
@@ -12259,8 +12309,11 @@ type SyncAgentChatsContextAddedResourcesParams struct {
 // either way so a concurrent refresh cannot overwrite the additions. An
 // out-of-date chat whose pinned prompts have come level with the snapshot
 // again (a changed file changed back) settles the same way with nothing to
-// add, since nothing else clears the marker. Changed chats are locked in ID
-// order like the MCP sync.
+// add, since nothing else clears the marker. Rows chatd discovered from
+// tool-touched directories are not part of the pinned snapshot: they do not
+// count as already pinned or as divergent, and the snapshot copy replaces
+// them once the agent publishes the same source. Changed chats are locked
+// in ID order like the MCP sync.
 // A divergent chat keeps its hash, but its row is still written: an
 // already-dirty chat would otherwise gain rows with no chats version
 // change, and a refresh that read the previous snapshot under repeatable
@@ -12361,7 +12414,9 @@ upserted AS (
     CROSS JOIN agent_mcp m
     -- A prompt row the chat pinned at the same source is left in place: the
     -- model has read it, so its replacement by a server is a change that
-    -- marks the chat out of date and lands on refresh, not a live sync.
+    -- marks the chat out of date and lands on refresh, not a live sync. A
+    -- row chatd discovered from a tool-touched directory is not part of the
+    -- pin, so the snapshot's server takes it over like any snapshot copy.
     ON CONFLICT (chat_id, source) DO UPDATE SET
         body_kind = EXCLUDED.body_kind,
         body = EXCLUDED.body,
@@ -12370,8 +12425,10 @@ upserted AS (
         status = EXCLUDED.status,
         error = EXCLUDED.error,
         source_path = EXCLUDED.source_path,
+        discovered = false,
         updated_at = now()
     WHERE chat_context_resources.body_kind IN ('mcp_config', 'mcp_server')
+        OR chat_context_resources.discovered = true
 )
 SELECT id FROM locked
 `
@@ -14305,6 +14362,52 @@ func (q *sqlQuerier) UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateC
 		&i.CompactionRequestedAt,
 	)
 	return i, err
+}
+
+const upsertChatContextDiscoveredResource = `-- name: UpsertChatContextDiscoveredResource :exec
+INSERT INTO chat_context_resources (
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, discovered
+)
+VALUES (
+    $1::uuid, $2, $3, $4, $5, $6, $7, $8, true
+)
+ON CONFLICT (chat_id, source) DO UPDATE SET
+    body = EXCLUDED.body,
+    content_hash = EXCLUDED.content_hash,
+    size_bytes = EXCLUDED.size_bytes,
+    status = EXCLUDED.status,
+    error = EXCLUDED.error,
+    updated_at = now()
+WHERE chat_context_resources.discovered = true
+`
+
+type UpsertChatContextDiscoveredResourceParams struct {
+	ChatID      uuid.UUID                           `db:"chat_id" json:"chat_id"`
+	Source      string                              `db:"source" json:"source"`
+	BodyKind    WorkspaceAgentContextBodyKind       `db:"body_kind" json:"body_kind"`
+	Body        json.RawMessage                     `db:"body" json:"body"`
+	ContentHash []byte                              `db:"content_hash" json:"content_hash"`
+	SizeBytes   int64                               `db:"size_bytes" json:"size_bytes"`
+	Status      WorkspaceAgentContextResourceStatus `db:"status" json:"status"`
+	Error       string                              `db:"error" json:"error"`
+}
+
+// Pins an instruction file chatd resolved from a directory a tool touched
+// during the chat. A row the snapshot already covers is left alone, so a
+// discovered copy never shadows the watched one; a discovered row that
+// exists is refreshed with the latest read.
+func (q *sqlQuerier) UpsertChatContextDiscoveredResource(ctx context.Context, arg UpsertChatContextDiscoveredResourceParams) error {
+	_, err := q.db.ExecContext(ctx, upsertChatContextDiscoveredResource,
+		arg.ChatID,
+		arg.Source,
+		arg.BodyKind,
+		arg.Body,
+		arg.ContentHash,
+		arg.SizeBytes,
+		arg.Status,
+		arg.Error,
+	)
+	return err
 }
 
 const upsertChatDiffStatus = `-- name: UpsertChatDiffStatus :one
