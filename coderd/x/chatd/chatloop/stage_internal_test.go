@@ -534,7 +534,7 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 	t.Parallel()
 
-	stageModel := StageModel{ProviderType: "openai", Model: "gpt-test", Effort: "high"}
+	stageModel := StageModel{Provider: "openai", ProviderType: "openai", Model: "gpt-test", Effort: "high"}
 	execute := func(t *testing.T, fixture stageMetricsFixture, tool fantasy.AgentTool) PersistedStep {
 		t.Helper()
 		ctx := ContextWithScope(t.Context(), ScopeTurn)
