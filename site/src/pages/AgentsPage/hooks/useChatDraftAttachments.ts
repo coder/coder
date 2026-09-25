@@ -312,6 +312,28 @@ const viewsFromRestored = (
 		};
 	});
 
+// Views keep status and fileId/error as separate fields because the registry
+// mutates them independently. Every producer assigns fileId together with the
+// "uploaded" status and error together with the "error" status, so the
+// fallbacks below only guard that invariant.
+const uploadStateFromView = (view: DraftAttachmentView): UploadState => {
+	const { draftWarning } = view;
+	switch (view.status) {
+		case "uploaded":
+			return view.fileId
+				? { status: "uploaded", fileId: view.fileId, draftWarning }
+				: { status: "error", error: "Upload failed", draftWarning };
+		case "error":
+			return {
+				status: "error",
+				error: view.error ?? "Upload failed",
+				draftWarning,
+			};
+		default:
+			return { status: view.status, draftWarning };
+	}
+};
+
 const viewFromSnapshot = (
 	snapshot: UploadRegistrySnapshot,
 ): DraftAttachmentView => ({
@@ -838,12 +860,7 @@ export function useChatDraftAttachments(
 	const previewUrls = new Map<File, string>();
 	const textContents = new Map<File, string>();
 	for (const view of views) {
-		uploadStates.set(view.file, {
-			status: view.status,
-			fileId: view.fileId,
-			error: view.error,
-			draftWarning: view.draftWarning,
-		});
+		uploadStates.set(view.file, uploadStateFromView(view));
 		if (view.previewUrl) {
 			previewUrls.set(view.file, view.previewUrl);
 		}
