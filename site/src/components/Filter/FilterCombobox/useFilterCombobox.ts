@@ -750,7 +750,14 @@ export const useFilterCombobox = ({
 			updateFromChips(rewritten, "");
 			dispatch({ type: "typeFreeText", value: "" });
 		} else if (rewritten.some((token, index) => token !== chipValues[index])) {
-			emitChipsKeepingLookup(rewritten);
+			emitQueryKeepingLookup(
+				composeFilterQuery(
+					rewritten,
+					chipKeys,
+					extractFreeText(lastEmittedRef.current, chipKeys),
+					categories,
+				),
+			);
 		}
 	};
 
@@ -1091,23 +1098,20 @@ export const useFilterCombobox = ({
 		dispatch({ type: "close" });
 	};
 
-	// Empties the query, chips and search text alike, as the page's empty-state
-	// Clear all does.
+	// Empties the query, chips and search text alike. Unlike chip removal, it
+	// cancels a pending typed-text lookup, and an open category returns to the
+	// full list while the popup stays open.
 	const clearAll = () => {
 		dispatch({ type: "clear" });
 		emitQuery("");
 	};
 
+	// Chip removal leaves the popup, the input, and a pending typed-text lookup
+	// untouched.
 	const handleRemoveChip = (token: string) => {
-		emitChipsKeepingLookup(chipValues.filter((entry) => entry !== token));
-	};
-
-	// Chip removal emits the remaining chips with the applied free text, leaving
-	// the popup, the input, and a pending typed-text lookup untouched.
-	const emitChipsKeepingLookup = (tokens: string[]) => {
 		emitQueryKeepingLookup(
 			composeFilterQuery(
-				tokens,
+				chipValues.filter((entry) => entry !== token),
 				chipKeys,
 				extractFreeText(lastEmittedRef.current, chipKeys),
 				categories,

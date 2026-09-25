@@ -146,6 +146,18 @@ export function FilterComboboxRoot({
 					label={label}
 					className={cn("flex w-full flex-col", className)}
 					value={highlightedValue}
+					onKeyDown={(event) => {
+						// On Enter the cmdk root selects the highlighted row and cancels
+						// the focused button's click. A button takes Enter as a click
+						// instead; preventDefault makes the root skip the key.
+						if (
+							event.key === "Enter" &&
+							event.target instanceof HTMLButtonElement
+						) {
+							event.preventDefault();
+							event.target.click();
+						}
+					}}
 					onKeyDownCapture={(event) => {
 						userNavigatingRef.current = [
 							"ArrowUp",
@@ -423,15 +435,6 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 						"inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0",
 					)}
 					onMouseDown={(event) => event.preventDefault()}
-					// The cmdk root cancels Enter, so it is handled here.
-					onKeyDown={(event) => {
-						if (event.key !== "Enter") {
-							return;
-						}
-						event.preventDefault();
-						event.stopPropagation();
-						remove(event.currentTarget, true);
-					}}
 					onClick={(event) => {
 						event.stopPropagation();
 						remove(event.currentTarget, event.detail === 0);
@@ -467,7 +470,8 @@ export const FilterComboboxChipsInput: FC<FilterComboboxChipsInputProps> = ({
 			// without chips.
 			size={1}
 			className={cn(
-				"h-7 min-w-1 flex-auto field-sizing-content border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
+				chipRowItemHeightClassName,
+				"min-w-1 flex-auto field-sizing-content border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
 				className,
 			)}
 			{...props}

@@ -809,25 +809,31 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it.each([
-		["Enter", "{Enter}"],
-		["Space", " "],
-	])(
-		"removes a chip with %s on its remove button and focuses the input",
-		async (_, key) => {
-			const { user, onChange, input } = setup([ownerCategory, statusCategory], {
-				initialValue: "owner:alice status:running",
-			});
+	it("activates flyout option buttons and Retry with Enter", async () => {
+		let failed = false;
+		const getOptions = vi.fn(async (query: string) => {
+			if (query === "" && !failed) {
+				failed = true;
+				throw new Error("boom");
+			}
+			return ownerCategory.getOptions(query);
+		});
+		const { user, onChange, filtersButton } = setup(
+			[{ ...ownerCategory, getOptions }],
+			{ skipHover: true },
+		);
 
-			screen.getByRole("button", { name: "Remove owner:alice" }).focus();
-			await user.keyboard(key);
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		(await screen.findByRole("button", { name: "Retry" })).focus();
+		await user.keyboard("{Enter}");
+		(await screen.findByRole("button", { name: "alice" })).focus();
+		await user.keyboard("{Enter}");
 
-			await waitFor(() =>
-				expect(onChange).toHaveBeenLastCalledWith("status:running"),
-			);
-			expect(input).toHaveFocus();
-		},
-	);
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
 
 	it("keeps matching rows selectable while typed text is debounced", async () => {
 		const { user, onChange, input } = setup([ownerCategory, statusCategory]);
@@ -1287,14 +1293,19 @@ describe("FilterCombobox", () => {
 	it("clears every chip and the search text with Clear all", async () => {
 		const { user, onChange, input } = setup(
 			[ownerCategory, statusCategory, attributesCategory],
-			{ initialValue: "owner:alice status:running outdated:true dev" },
+			{
+				initialValue: "owner:alice status:running outdated:true dev",
+				fakeTimers: true,
+			},
 		);
 
 		await user.click(input);
 		await user.type(input, " ali");
 		await user.click(screen.getByRole("button", { name: "Clear all" }));
+		await settleTypedText();
 
-		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		expect(onChange).toHaveBeenLastCalledWith("");
+		expect(onChange).not.toHaveBeenCalledWith("dev ali");
 		expect(input).toHaveValue("");
 		expect(input).toHaveFocus();
 	});
@@ -1495,6 +1506,34 @@ describe("FilterCombobox", () => {
 		expect(
 			screen.queryByRole("button", { name: "Clear all" }),
 		).not.toBeInTheDocument();
+	});
+
+	it("clears every chip with Clear all while a category is open", async () => {
+		const { user, onChange, input, filtersButton } = setup(
+			[ownerCategory, statusCategory, attributesCategory],
+			{ initialValue: "owner:alice status:running outdated:true" },
+		);
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowRight}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.click(screen.getByRole("button", { name: "Clear all" }));
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		expect(input).toHaveValue("");
+	});
+
+	it("moves focus to the input when a focused Clear all is clicked", async () => {
+		const { user, input } = setup(
+			[ownerCategory, statusCategory, attributesCategory],
+			{ initialValue: "owner:alice status:running outdated:true" },
+		);
+
+		const clearAll = screen.getByRole("button", { name: "Clear all" });
+		clearAll.focus();
+		await user.click(clearAll);
+
+		expect(input).toHaveFocus();
 	});
 
 	it.each([
