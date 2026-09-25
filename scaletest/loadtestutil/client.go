@@ -58,6 +58,7 @@ func extractHeaderAndInnerTransport(rt http.RoundTripper) (codersdk.HeaderProvid
 		}
 		rt = ht.Transport
 	}
+	// We assume only one layer of nesting for HeaderTransports.
 	t, ok := rt.(*http.Transport)
 	if !ok {
 		t, ok = http.DefaultTransport.(*http.Transport)
