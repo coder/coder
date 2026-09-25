@@ -97,6 +97,10 @@ export const PortPreviewPanel: FC<{
 	// inside the app keeps the overlay; a full navigation drops it until
 	// the user presses Annotate again.
 	const [overlayRequests, setOverlayRequests] = useState(0);
+	// A preview popped out into its own tab by the dashboard. While open it
+	// hosts the overlay instead of the iframe so annotations still reach
+	// this chat; closing it hands control back to the frame.
+	const [popout, setPopout] = useState<{ window: Window; key: number }>();
 	// Elements from annotations sent this turn, highlighted in the preview
 	// until the agent's turn ends. `started` guards against a send resolving
 	// before the chat reports the turn as running; further annotations sent
@@ -134,13 +138,61 @@ export const PortPreviewPanel: FC<{
 		? undefined
 		: withAnnotatorParam(url, overlayRequests > 0);
 	const bridge = useAnnotatorBridge({
-		frameRef,
-		frameKey: overlayRequests,
-		frameOrigin: frameUrl ? new URL(frameUrl).origin : undefined,
-		enabled: overlayRequests > 0,
+		getTargetWindow: () => popout?.window ?? frameRef.current?.contentWindow,
+		targetKey: popout ? popout.key : overlayRequests,
+		targetOrigin: frameUrl ? new URL(frameUrl).origin : undefined,
+		targetIsFrame: popout === undefined,
+		enabled: popout !== undefined || overlayRequests > 0,
 		readyTimeoutMs: annotatorReadyTimeoutMs,
 		onSubmit: handleSubmit,
 	});
+
+	// window.close() is not observable across origins, so poll for it.
+	useEffect(() => {
+		if (!popout) {
+			return;
+		}
+		const timer = setInterval(() => {
+			if (popout.window.closed) {
+				setPopout(undefined);
+			}
+		}, 500);
+		return () => clearInterval(timer);
+	}, [popout]);
+
+	// A popout whose opener the app severed (COOP, `window.opener = null`)
+	// can never reach us. Hand control back to the frame rather than sit
+	// in a takeover that will not resolve.
+	useEffect(() => {
+		if (popout && bridge.unavailable) {
+			toast.error(
+				"The popped out preview cannot talk to this chat. Annotate from the panel instead.",
+			);
+			setPopout(undefined);
+		}
+	}, [popout, bridge.unavailable]);
+
+	const handlePopout = () => {
+		if (!frameUrl) {
+			return;
+		}
+		// Opened with the marker so the overlay is injected; the popout can
+		// reach us through window.opener.
+		const opened = window.open(withAnnotatorParam(url, true), "_blank");
+		if (!opened) {
+			toast.error(
+				"The browser blocked the popout. Allow popups and try again.",
+			);
+			return;
+		}
+		// Switch the frame's overlay off before the popout takes over so the
+		// two never show annotate mode at once. The bridge asks the popout to
+		// pick once it is ready; asking here would reach the frame, which is
+		// still the target until the popout is committed.
+		bridge.setPicking(false);
+		bridge.clearHighlights();
+		setPopout({ window: opened, key: Date.now() });
+	};
 
 	// The overlay is requested at most once per attempt: while it is still
 	// loading, further clicks only toggle the desired picking state instead
@@ -150,7 +202,7 @@ export const PortPreviewPanel: FC<{
 		if (bridge.unavailable) {
 			return;
 		}
-		if (!bridge.ready && !bridge.loading) {
+		if (!bridge.ready && !bridge.loading && !popout) {
 			setOverlayRequests((count) => count + 1);
 		}
 		bridge.setPicking(!bridge.requested);
@@ -194,7 +246,11 @@ export const PortPreviewPanel: FC<{
 		if (!bridge.picking) {
 			return;
 		}
-		frameRef.current?.focus();
+		if (popout) {
+			popout.window.focus();
+		} else {
+			frameRef.current?.focus();
+		}
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key === "Escape" && !event.defaultPrevented) {
 				bridge.setPicking(false);
@@ -202,7 +258,7 @@ export const PortPreviewPanel: FC<{
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [bridge.picking, bridge.setPicking]);
+	}, [bridge.picking, bridge.setPicking, popout]);
 
 	const showAnnotate =
 		canAnnotate && composer !== undefined && frameUrl !== undefined;
@@ -267,6 +323,30 @@ export const PortPreviewPanel: FC<{
 					>
 						<ExternalLinkIcon />
 					</Button>
+				) : showAnnotate ? (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								aria-label="Open port in new tab"
+								aria-pressed={popout !== undefined}
+								onClick={handlePopout}
+								className={
+									popout
+										? "bg-surface-tertiary text-content-primary"
+										: undefined
+								}
+							>
+								<ExternalLinkIcon />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">
+							{popout
+								? "Annotations from the popped out tab are sent to this chat"
+								: "Open in a new tab; annotations there are sent to this chat"}
+						</TooltipContent>
+					</Tooltip>
 				) : (
 					<Button size="icon" variant="subtle" asChild>
 						<a

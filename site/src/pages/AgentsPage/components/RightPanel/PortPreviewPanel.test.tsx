@@ -392,6 +392,103 @@ describe("PortPreviewPanel annotations", () => {
 		);
 	});
 
+	it("hands annotate mode to a popout opened while the frame is ready", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const { frame, frameOrigin, receive, onSend } = renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		const framePost = vi.spyOn(frameWindow(frame()), "postMessage");
+
+		// A stand-in popout window. jsdom never sets `closed`, so it is
+		// defined here and flipped by hand below.
+		const holder = document.createElement("iframe");
+		document.body.appendChild(holder);
+		const popoutWindow = frameWindow(holder);
+		let closed = false;
+		Object.defineProperty(popoutWindow, "closed", { get: () => closed });
+		const open = vi.spyOn(window, "open").mockReturnValue(popoutWindow);
+		const popoutPost = vi.spyOn(popoutWindow, "postMessage");
+
+		await userEvent.click(
+			screen.getByRole("button", { name: "Open port in new tab" }),
+		);
+		const [openedUrl] = open.mock.calls[0];
+		expect(new URL(String(openedUrl)).searchParams.get("coder_annotate")).toBe(
+			"1",
+		);
+		// The frame's overlay is switched off, not left picking alongside.
+		expect(framePost).toHaveBeenCalledWith(
+			{ type: "coder-annotator:set-picking", picking: false },
+			frameOrigin,
+		);
+		expect(framePost).not.toHaveBeenCalledWith(
+			{ type: "coder-annotator:set-picking", picking: true },
+			frameOrigin,
+		);
+
+		const fromPopout = (data: AnnotatorToHostMessage) =>
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data,
+					origin: frameOrigin,
+					source: popoutWindow,
+				}),
+			);
+		fromPopout({ type: "coder-annotator:ready" });
+		expect(popoutPost).toHaveBeenCalledWith(
+			{ type: "coder-annotator:set-picking", picking: true },
+			frameOrigin,
+		);
+		fromPopout(submission);
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+
+		// Closing hands control back; the popout can no longer submit, and
+		// the panel is idle rather than waiting on an overlay that will not
+		// announce itself again. Asking again reloads the frame.
+		closed = true;
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(600);
+		});
+		fromPopout(submission);
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(50);
+		});
+		expect(onSend).toHaveBeenCalledTimes(1);
+		expect(annotateButton()).not.toHaveAttribute("aria-busy", "true");
+		const idleFrame = frame();
+		await userEvent.click(annotateButton());
+		expect(frame()).not.toBe(idleFrame);
+		vi.useRealTimers();
+		open.mockRestore();
+		holder.remove();
+	});
+
+	it("gives up on a popout whose overlay never reports in", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		renderPanel(sent(), 100);
+		const holder = document.createElement("iframe");
+		document.body.appendChild(holder);
+		const popoutWindow = frameWindow(holder);
+		Object.defineProperty(popoutWindow, "closed", { get: () => false });
+		const open = vi.spyOn(window, "open").mockReturnValue(popoutWindow);
+
+		await userEvent.click(
+			screen.getByRole("button", { name: "Open port in new tab" }),
+		);
+		expect(
+			screen.getByRole("button", { name: "Open port in new tab" }),
+		).toHaveAttribute("aria-pressed", "true");
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(200);
+		});
+		expect(
+			screen.getByRole("button", { name: "Open port in new tab" }),
+		).toHaveAttribute("aria-pressed", "false");
+		vi.useRealTimers();
+		open.mockRestore();
+		holder.remove();
+	});
+
 	it("stops requesting the overlay once it failed to load", async () => {
 		const { frame, frameOrigin, receive } = renderPanel(sent(), 0);
 		await requestOverlay();
