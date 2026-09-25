@@ -82,11 +82,9 @@ export const FilledWrong: Story = {
 		// visibility instead of asserting it once.
 		await waitFor(
 			() =>
-				expect(
-					body.getByText(
-						"“wrong-name” does not match the name of this workspace",
-					),
-				).toBeVisible(),
+				expect(confirm).toHaveAccessibleDescription(
+					"“wrong-name” does not match the name of this workspace",
+				),
 			{ timeout: 5_000 },
 		);
 		await expect(body.getByRole("button", { name: "Delete" })).toBeDisabled();
@@ -100,6 +98,18 @@ export const FilledWrongSubmitted: Story = {
 		await userEvent.type(
 			body.getByTestId("delete-dialog-name-confirmation"),
 			"wrong name{Enter}",
+		);
+	},
+};
+
+// A long wrong name truncates on one line instead of wrapping, so the error
+// never pushes the buttons down.
+export const FilledWrongLongName: Story = {
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.type(
+			body.getByTestId("delete-dialog-name-confirmation"),
+			"this-is-a-very-long-workspace-name-that-does-not-match-anything{Enter}",
 		);
 	},
 };

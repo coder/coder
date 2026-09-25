@@ -50,9 +50,9 @@ export const FilledWrong: Story = {
 		await user.tab();
 
 		await expect(body.getByRole("button", { name: "Delete" })).toBeDisabled();
-		await expect(
-			body.getByText("“InvalidFooName” does not match the name of this foo"),
-		).toBeVisible();
+		await expect(input).toHaveAccessibleDescription(
+			"“InvalidFooName” does not match the name of this foo",
+		);
 	},
 };
 

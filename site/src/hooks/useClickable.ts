@@ -2,6 +2,7 @@ import {
 	type KeyboardEventHandler,
 	type MouseEventHandler,
 	type RefObject,
+	type SyntheticEvent,
 	useRef,
 } from "react";
 
@@ -32,6 +33,16 @@ export type UseClickableResult<
 }>;
 
 /**
+ * React bubbles events from portaled content (dialogs, menus, popovers) through
+ * the component tree, so a handler can receive events whose target is not
+ * inside its element in the DOM. Those belong to the portaled content.
+ */
+export const isFromPortal = (event: SyntheticEvent<unknown>): boolean =>
+	event.currentTarget instanceof Node &&
+	event.target instanceof Node &&
+	!event.currentTarget.contains(event.target);
+
+/**
  * Exposes props that let you turn traditionally non-interactive elements into
  * buttons.
  */
@@ -46,7 +57,11 @@ export const useClickable = <
 
 	return {
 		ref,
-		onClick,
+		onClick: (event) => {
+			if (!isFromPortal(event)) {
+				onClick(event);
+			}
+		},
 		tabIndex: 0,
 		role: (role ?? "button") as TRole,
 
