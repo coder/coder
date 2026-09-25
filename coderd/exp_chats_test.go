@@ -10078,40 +10078,51 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 	t.Parallel()
 
 	const answer = "Tokyo has about 14 million residents."
-	sources := []string{"https://www.metro.tokyo.lg.jp/", "https://example.com/tokyo"}
+	found := []string{"https://www.metro.tokyo.lg.jp/", "https://example.com/tokyo"}
+	// Live OpenAI streams add pages the answer cited to the search's
+	// sources only in response.completed; they are not found pages.
+	cited := []string{"https://example.com/cited"}
 
 	tests := []struct {
 		name       string
 		webSearch  chattest.OpenAIWebSearchCall
 		wantArgs   string
 		wantResult string
+		wantError  bool
+		wantFound  []string
 	}{
 		{
 			name: "QueriesAndSources",
 			webSearch: chattest.OpenAIWebSearchCall{
 				Queries: []string{"tokyo population", "tokyo census 2025"},
 				Query:   "tokyo population",
-				Sources: sources,
 			},
-			wantArgs:   `{"queries":["tokyo population","tokyo census 2025"]}`,
-			wantResult: `{"sources":[{"url":"https://www.metro.tokyo.lg.jp/"},{"url":"https://example.com/tokyo"}]}`,
+			wantArgs:   `{"type":"search","queries":["tokyo population","tokyo census 2025"]}`,
+			wantResult: `{}`,
+			wantFound:  found,
 		},
 		{
-			name: "DeprecatedQuery",
-			webSearch: chattest.OpenAIWebSearchCall{
-				Query:   "tokyo population",
-				Sources: sources,
-			},
-			wantArgs:   `{"queries":["tokyo population"]}`,
-			wantResult: `{"sources":[{"url":"https://www.metro.tokyo.lg.jp/"},{"url":"https://example.com/tokyo"}]}`,
+			name:       "DeprecatedQuery",
+			webSearch:  chattest.OpenAIWebSearchCall{Query: "tokyo population"},
+			wantArgs:   `{"type":"search","queries":["tokyo population"]}`,
+			wantResult: `{}`,
+			wantFound:  found,
 		},
 		{
-			name: "NoQueries",
+			name:       "NoQueries",
+			wantArgs:   `{"type":"search"}`,
+			wantResult: `{}`,
+			wantFound:  found,
+		},
+		{
+			name: "Failed",
 			webSearch: chattest.OpenAIWebSearchCall{
-				Sources: sources,
+				Queries: []string{"tokyo population"},
+				Status:  "failed",
 			},
-			wantArgs:   `{"queries":[]}`,
-			wantResult: `{"sources":[{"url":"https://www.metro.tokyo.lg.jp/"},{"url":"https://example.com/tokyo"}]}`,
+			wantArgs:   `{"type":"search","queries":["tokyo population"]}`,
+			wantResult: `{"error":"web search failed"}`,
+			wantError:  true,
 		},
 	}
 
@@ -10143,6 +10154,8 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 				resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks(answer)...)
 				webSearch := tt.webSearch
 				webSearch.ID = webSearchID
+				webSearch.Sources = tt.wantFound
+				webSearch.SummaryOnlySources = cited
 				resp.WebSearch = &webSearch
 				return resp
 			})
@@ -10186,24 +10199,35 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			defer closer.Close()
 			close(streamReady)
 
-			// requireWebSearchParts checks the provider-executed pair the UI
-			// renders: the call carrying the queries, and the result carrying
-			// the consulted sources.
-			requireWebSearchParts := func(t *testing.T, call, result *codersdk.ChatMessagePart) {
+			// requireWebSearchParts checks what the UI renders for the
+			// search: the call with its action, the result that finishes
+			// it, and its found pages as sources tagged with the search.
+			requireWebSearchParts := func(t *testing.T, call, result *codersdk.ChatMessagePart, foundURLs []string) {
 				t.Helper()
 				require.NotNil(t, call, "missing web_search tool-call part")
 				require.True(t, call.ProviderExecuted)
 				require.JSONEq(t, tt.wantArgs, string(call.Args))
 				require.NotNil(t, result, "missing web_search tool-result part")
 				require.True(t, result.ProviderExecuted)
-				require.False(t, result.IsError)
+				require.Equal(t, tt.wantError, result.IsError)
 				require.JSONEq(t, tt.wantResult, string(result.Result))
+				require.Equal(t, tt.wantFound, foundURLs)
 			}
 			isWebSearchPart := func(part codersdk.ChatMessagePart, partType codersdk.ChatMessagePartType) bool {
 				return part.Type == partType && part.ToolName == "web_search" && part.ToolCallID == webSearchID
 			}
+			foundURL := func(t *testing.T, part codersdk.ChatMessagePart) (string, bool) {
+				t.Helper()
+				if part.Type != codersdk.ChatMessagePartTypeSource {
+					return "", false
+				}
+				require.Equal(t, webSearchID, part.ToolCallID, "source %q should be tagged with the search", part.URL)
+				require.NotContains(t, cited, part.URL, "a cited page must not become a found page")
+				return part.URL, true
+			}
 
 			var streamedCall, streamedResult *codersdk.ChatMessagePart
+			var streamedFound []string
 			for streamedResult == nil {
 				select {
 				case <-ctx.Done():
@@ -10215,6 +10239,9 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 						continue
 					}
 					part := event.MessagePart.Part
+					if url, ok := foundURL(t, part); ok {
+						streamedFound = append(streamedFound, url)
+					}
 					switch {
 					case isWebSearchPart(part, codersdk.ChatMessagePartTypeToolCall):
 						streamedCall = &part
@@ -10223,7 +10250,8 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 					}
 				}
 			}
-			requireWebSearchParts(t, streamedCall, streamedResult)
+			// The search's found pages arrive before its result.
+			requireWebSearchParts(t, streamedCall, streamedResult, streamedFound)
 
 			settled := coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 			require.Equal(t, database.ChatStatusWaiting, settled.Status)
@@ -10236,6 +10264,7 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			messages, err := client.GetChatMessages(ctx, chat.ID, nil)
 			require.NoError(t, err)
 			var reloadedCall, reloadedResult *codersdk.ChatMessagePart
+			var reloadedFound []string
 			var reloadedText string
 			for _, message := range messages.Messages {
 				if message.Role != codersdk.ChatMessageRoleAssistant {
@@ -10243,9 +10272,9 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 				}
 				for _, part := range message.Content {
 					require.Empty(t, part.ProviderMetadata, "API responses must strip provider metadata")
-					// Consulted sources stay in the tool result; only
-					// url_citation annotations become source parts.
-					require.NotEqual(t, codersdk.ChatMessagePartTypeSource, part.Type)
+					if url, ok := foundURL(t, part); ok {
+						reloadedFound = append(reloadedFound, url)
+					}
 					switch {
 					case isWebSearchPart(part, codersdk.ChatMessagePartTypeToolCall):
 						reloadedCall = &part
@@ -10256,7 +10285,7 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 					}
 				}
 			}
-			requireWebSearchParts(t, reloadedCall, reloadedResult)
+			requireWebSearchParts(t, reloadedCall, reloadedResult, reloadedFound)
 			require.Equal(t, answer, reloadedText)
 		})
 	}

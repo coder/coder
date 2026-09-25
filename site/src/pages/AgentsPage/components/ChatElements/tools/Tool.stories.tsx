@@ -57,6 +57,8 @@ type ToolShowcaseItem = {
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	subagentVariants?: Map<string, "general" | "explore" | "computer_use">;
+	providerExecuted?: boolean;
+	foundPages?: React.ComponentProps<typeof Tool>["foundPages"];
 };
 
 const allToolShowcaseItems: ToolShowcaseItem[] = [
@@ -291,10 +293,10 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 	},
 	{
 		name: "web_search",
-		args: { queries: ["coder agents release notes"] },
-		result: {
-			sources: [{ url: "https://coder.com/changelog" }],
-		},
+		args: { type: "search", queries: ["coder agents release notes"] },
+		result: {},
+		providerExecuted: true,
+		foundPages: [{ url: "https://coder.com/changelog", title: "" }],
 	},
 	{
 		name: "unknown_tool",
@@ -2079,7 +2081,7 @@ export const GenericToolFailed: Story = {
 
 export const GenericToolStringError: Story = {
 	args: {
-		name: "web_search",
+		name: "search_docs",
 		status: "error",
 		isError: true,
 		result: "Network unreachable",
@@ -2356,34 +2358,29 @@ export const WaitAgentComputerUseTimedOutNoRecording: Story = {
 export const WebSearchRunning: Story = {
 	args: {
 		name: "web_search",
+		providerExecuted: true,
 		status: "running",
 		args: { query: "coder workspace templates" },
 	},
 };
 
-// OpenAI emits the call once its search finished, and the sources only
-// arrive with the completed response.
-export const WebSearchAwaitingSources: Story = {
+// OpenAI found pages carry no titles, so pills show hostname plus path. The
+// ftp page renders as text, not a link.
+export const WebSearchQueriesAndFoundPages: Story = {
 	args: {
 		name: "web_search",
-		status: "running",
-		args: { queries: ["coder agents release notes"] },
-	},
-};
-
-export const WebSearchQueriesAndSources: Story = {
-	args: {
-		name: "web_search",
+		providerExecuted: true,
 		status: "completed",
 		args: {
+			type: "search",
 			queries: ["coder agents release notes", "coder ai gateway docs"],
 		},
-		result: {
-			sources: [
-				{ url: "https://coder.com/changelog" },
-				{ url: "https://coder.com/docs/ai-coder/ai-gateway" },
-			],
-		},
+		result: {},
+		foundPages: [
+			{ url: "https://coder.com/changelog", title: "" },
+			{ url: "https://coder.com/docs/ai-coder/ai-gateway", title: "" },
+			{ url: "ftp://example.com/release.txt", title: "" },
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -2396,19 +2393,90 @@ export const WebSearchQueriesAndSources: Story = {
 export const WebSearchNoQueries: Story = {
 	args: {
 		name: "web_search",
+		providerExecuted: true,
 		status: "completed",
-		args: { queries: [] },
+		args: { type: "search" },
 		result: {},
 	},
 };
 
-// Anthropic persists an empty result and keeps the query in the call args.
+// Anthropic keeps the query in the call args and titles its found pages.
+// A single query is listed too because the header truncates long ones.
 export const WebSearchAnthropicQuery: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { query: "coder workspace templates" },
+		result: {},
+		foundPages: [
+			{
+				url: "https://coder.com/docs/admin/templates",
+				title: "Templates | Coder Docs",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /searched for coder workspace/i }),
+		);
+	},
+};
+
+export const WebSearchOpenPage: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { type: "open_page", url: "https://coder.com/docs" },
+		result: {},
+	},
+};
+
+export const WebSearchFindInPage: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: {
+			type: "find_in_page",
+			url: "https://coder.com/docs",
+			pattern: "templates",
+		},
+		result: {},
+	},
+};
+
+// The message stopped streaming before the search sent its result.
+export const WebSearchUnfinished: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "completed",
+		args: { type: "search", queries: ["coder release notes"] },
+	},
+};
+
+export const WebSearchError: Story = {
+	args: {
+		name: "web_search",
+		providerExecuted: true,
+		status: "error",
+		isError: true,
+		args: { type: "search", queries: ["coder release notes"] },
+		result: { error: "web search failed: upstream timeout" },
+	},
+};
+
+// A client dynamic tool may share the name; only provider-executed calls
+// get the web search row.
+export const WebSearchClientTool: Story = {
 	args: {
 		name: "web_search",
 		status: "completed",
 		args: { query: "coder workspace templates" },
-		result: {},
+		result: { results: [] },
 	},
 };
 
@@ -2862,6 +2930,8 @@ export const AllToolIconsTranscript: Story = {
 							modelIntent={tool.modelIntent}
 							parsedCommands={tool.parsedCommands}
 							subagentVariants={tool.subagentVariants}
+							providerExecuted={tool.providerExecuted}
+							foundPages={tool.foundPages}
 							shellToolDisplayMode="always_collapsed"
 							codeDiffDisplayMode="always_collapsed"
 							showDesktopPreviews={false}
@@ -2935,6 +3005,8 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 								modelIntent={tool.modelIntent}
 								parsedCommands={tool.parsedCommands}
 								subagentVariants={tool.subagentVariants}
+								providerExecuted={tool.providerExecuted}
+								foundPages={tool.foundPages}
 								hookRewritten
 								shellToolDisplayMode="always_collapsed"
 								codeDiffDisplayMode="always_collapsed"

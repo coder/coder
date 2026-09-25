@@ -1,13 +1,14 @@
 import { cn } from "cn";
 import { ExternalLinkIcon, GlobeIcon } from "lucide-react";
 import type { FC } from "react";
+import type { SourceLink } from "../../ChatConversation/types";
 import { ToolCall } from "./ToolCall";
 
 type WebSearchSourcesProps = {
-	sources: Array<{ url: string; title: string }>;
+	sources: SourceLink[];
 };
 
-/** Collapsible web-search result pills, styled as a ToolCall row. */
+/** Collapsible row of the answer's source pills, styled as a ToolCall row. */
 const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 	// Deduplicate sources by URL, keeping the first occurrence.
 	const unique = (() => {
@@ -25,8 +26,6 @@ const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 		return null;
 	}
 
-	const detail = unique.length === 1 ? "1 result" : `${unique.length} results`;
-
 	return (
 		<ToolCall.Root status="completed" hasContent={unique.length > 0}>
 			<ToolCall.HeaderButton>
@@ -34,7 +33,7 @@ const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 					<GlobeIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
 				</ToolCall.LeadingIcon>
 				<ToolCall.Label>
-					Searched <span className="text-content-secondary/60">{detail}</span>
+					{unique.length === 1 ? "1 source" : `${unique.length} sources`}
 				</ToolCall.Label>
 				<ToolCall.Chevron />
 			</ToolCall.HeaderButton>
@@ -50,52 +49,75 @@ const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 };
 
 /**
- * A single source URL pill. Shows a favicon from Google's S2
- * service, a truncated title, and an external-link icon on hover.
+ * Derives what a source pill shows: the title, or the hostname plus path
+ * when there is no title, so pages from one site stay distinguishable.
+ * href is set only for http and https URLs, because provider URLs with
+ * other schemes must not become links.
  */
-export const SourcePill: FC<{ source: { url: string; title: string } }> = ({
-	source,
-}) => {
-	let hostname: string;
+export const getSourcePillDisplay = (
+	source: SourceLink,
+): { label: string; href: string | undefined; hostname: string } => {
+	let url: URL | undefined;
 	try {
-		hostname = new URL(source.url).hostname;
+		url = new URL(source.url);
 	} catch {
-		hostname = "";
+		url = undefined;
 	}
+	const isWebUrl = url?.protocol === "http:" || url?.protocol === "https:";
+	const hostname = url?.hostname ?? "";
+	const path = url && url.pathname !== "/" ? url.pathname : "";
+	return {
+		label: source.title || (hostname ? `${hostname}${path}` : source.url),
+		href: isWebUrl ? source.url : undefined,
+		hostname,
+	};
+};
 
-	const faviconUrl = hostname
-		? `https://www.google.com/s2/favicons?domain=${hostname}&sz=16`
-		: undefined;
+/**
+ * A source URL pill with a favicon from Google's S2 service and a
+ * truncated label from getSourcePillDisplay. URLs without an http or https
+ * scheme render as text instead of a link.
+ */
+export const SourcePill: FC<{ source: SourceLink }> = ({ source }) => {
+	const { label, href, hostname } = getSourcePillDisplay(source);
+	const className = cn(
+		"inline-flex items-center gap-1.5 rounded-full",
+		"border border-solid border-border-default bg-surface-secondary",
+		"px-2.5 py-1 text-xs leading-none text-content-secondary",
+		"max-w-[200px]",
+	);
 
-	// Use the title if available, otherwise fall back to the hostname.
-	const label = source.title || hostname || source.url;
+	if (!href) {
+		return (
+			<span title={source.url} className={className}>
+				<span className="truncate">{label}</span>
+			</span>
+		);
+	}
 
 	return (
 		<a
-			href={source.url}
+			href={href}
 			target="_blank"
 			rel="noopener noreferrer"
 			title={source.title || source.url}
 			className={cn(
-				"group inline-flex items-center gap-1.5 rounded-full",
-				"border border-solid border-border-default bg-surface-secondary",
-				"px-2.5 py-1 text-xs leading-none text-content-secondary",
-				"no-underline transition-colors",
+				className,
+				"group no-underline transition-colors",
 				"hover:bg-surface-tertiary hover:text-content-primary",
 				"hover:border-border-secondary",
-				"max-w-[200px]",
 			)}
 		>
-			{faviconUrl && (
+			{hostname && (
 				<img
-					src={faviconUrl}
+					src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=16`}
 					alt=""
 					width={14}
 					height={14}
 					className="shrink-0 rounded-sm"
 					// Hide the broken-image icon if the favicon fails to load.
 					onError={(e) => {
-						(e.target as HTMLImageElement).style.display = "none";
+						e.currentTarget.style.display = "none";
 					}}
 				/>
 			)}

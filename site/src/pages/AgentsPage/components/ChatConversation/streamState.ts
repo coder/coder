@@ -87,6 +87,9 @@ export const applyMessagePartToStreamState = (
 						modelIntent,
 						parsedCommands: part.parsed_commands ?? existing?.parsedCommands,
 						startedAt: part.created_at ?? existing?.startedAt,
+						providerExecuted:
+							part.provider_executed ?? existing?.providerExecuted,
+						foundPages: existing?.foundPages,
 					},
 				},
 			};
@@ -177,6 +180,30 @@ export const applyMessagePartToStreamState = (
 			if (!part.url) {
 				return prev;
 			}
+			// A tagged page whose call has not streamed falls through to
+			// the source row instead of being dropped.
+			const call = part.tool_call_id
+				? nextState.toolCalls[part.tool_call_id]
+				: undefined;
+			if (call) {
+				const foundPages = call.foundPages ?? [];
+				if (foundPages.some(({ url }) => url === part.url)) {
+					return prev;
+				}
+				return {
+					...nextState,
+					toolCalls: {
+						...nextState.toolCalls,
+						[call.id]: {
+							...call,
+							foundPages: [
+								...foundPages,
+								{ url: part.url, title: part.title ?? "" },
+							],
+						},
+					},
+				};
+			}
 			const source = { url: part.url, title: part.title || part.url };
 			// Still populate the flat list for backward compat.
 			if (nextState.sources.some((s) => s.url === part.url)) {
@@ -259,6 +286,8 @@ export const buildStreamTools = (
 			modelIntent: call.modelIntent,
 			parsedCommands: call.parsedCommands,
 			startedAt: call.startedAt,
+			providerExecuted: call.providerExecuted,
+			foundPages: call.foundPages,
 		});
 	}
 

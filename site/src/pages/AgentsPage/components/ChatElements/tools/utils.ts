@@ -198,6 +198,43 @@ export const parseArgs = (args: unknown): Record<string, unknown> | null => {
 	return asRecord(args);
 };
 
+/**
+ * Parses an array whose items all pass parseItem, or null. The generated
+ * tool-call args type is a string map, so typed fixtures pass arrays
+ * JSON-encoded; both forms are accepted.
+ */
+export const parseArray = <T>(
+	value: unknown,
+	parseItem: (item: unknown) => T | null,
+): T[] | null => {
+	let array = value;
+	if (typeof array === "string") {
+		try {
+			array = JSON.parse(array);
+		} catch {
+			return null;
+		}
+	}
+	if (!Array.isArray(array)) {
+		return null;
+	}
+	const items: T[] = [];
+	for (const item of array) {
+		const parsed = parseItem(item);
+		if (parsed === null) {
+			return null;
+		}
+		items.push(parsed);
+	}
+	return items;
+};
+
+/** Trimmed, non-empty strings of a string array, or null for other values. */
+export const parseStringList = (value: unknown): string[] | null =>
+	parseArray(value, (item) =>
+		typeof item === "string" ? item.trim() : null,
+	)?.filter(Boolean) ?? null;
+
 const getToolInputPayload = (args: unknown): unknown => {
 	const rec = asRecord(args);
 	if (!rec || typeof rec.model_intent !== "string") {

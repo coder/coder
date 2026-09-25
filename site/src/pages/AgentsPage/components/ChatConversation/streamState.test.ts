@@ -716,32 +716,94 @@ describe("applyMessagePartToStreamState", () => {
 		expect(prev.toolResults).toEqual({});
 	});
 
-	it("streams provider_executed web_search parts as a tool", () => {
-		const webSearchResult = {
-			sources: [{ url: "https://coder.com/changelog" }],
-		};
+	it("streams tagged sources under their web_search call, untagged ones in the source row", () => {
 		let state = applyMessagePartToStreamState(null, {
 			type: "tool-call",
 			tool_name: "web_search",
 			tool_call_id: "ws-1",
-			args: { queries: JSON.stringify(["coder release notes"]) },
+			args: { type: "search", queries: JSON.stringify(["coder"]) },
 			provider_executed: true,
 		});
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			tool_call_id: "ws-1",
+			url: "https://coder.com/changelog",
+		});
+		const afterFirstPage = state;
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			tool_call_id: "ws-1",
+			url: "https://coder.com/changelog",
+		});
+		expect(state).toBe(afterFirstPage);
+
+		expect(buildStreamTools(state?.toolCalls, state?.toolResults)).toEqual([
+			expect.objectContaining({
+				id: "ws-1",
+				status: "running",
+				providerExecuted: true,
+				foundPages: [{ url: "https://coder.com/changelog", title: "" }],
+			}),
+		]);
+
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-result",
 			tool_name: "web_search",
 			tool_call_id: "ws-1",
 			provider_executed: true,
-			result: webSearchResult,
+			result: {},
 		});
-		expect(state?.blocks).toEqual([{ type: "tool", id: "ws-1" }]);
-		expect(state?.toolCalls["ws-1"]?.name).toBe("web_search");
-		expect(state?.toolCalls["ws-1"]?.args).toEqual({
-			queries: JSON.stringify(["coder release notes"]),
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			url: "https://coder.com/changelog",
+			title: "Coder changelog",
 		});
-		expect(state?.toolResults["ws-1"]?.result).toEqual(webSearchResult);
-		// Consulted sources are not answer citations.
-		expect(state?.sources).toEqual([]);
+		expect(buildStreamTools(state?.toolCalls, state?.toolResults)).toEqual([
+			expect.objectContaining({
+				id: "ws-1",
+				result: {},
+				status: "completed",
+				foundPages: [{ url: "https://coder.com/changelog", title: "" }],
+			}),
+		]);
+		expect(state?.blocks).toEqual([
+			{ type: "tool", id: "ws-1" },
+			{
+				type: "sources",
+				sources: [
+					{ url: "https://coder.com/changelog", title: "Coder changelog" },
+				],
+			},
+		]);
+		expect(state?.sources).toEqual([
+			{ url: "https://coder.com/changelog", title: "Coder changelog" },
+		]);
+	});
+
+	it("keeps found pages when later tool-call deltas arrive", () => {
+		let state = applyMessagePartToStreamState(null, {
+			type: "tool-call",
+			tool_name: "web_search",
+			tool_call_id: "ws-1",
+			provider_executed: true,
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			tool_call_id: "ws-1",
+			url: "https://coder.com",
+			title: "Coder",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "web_search",
+			tool_call_id: "ws-1",
+			args: { query: "coder" },
+		});
+		expect(state?.toolCalls["ws-1"]).toMatchObject({
+			args: { query: "coder" },
+			providerExecuted: true,
+			foundPages: [{ url: "https://coder.com", title: "Coder" }],
+		});
 	});
 
 	it("adds a file block from a file part with data", () => {

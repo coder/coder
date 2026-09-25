@@ -1,119 +1,150 @@
 import type { FC } from "react";
+import type { SourceLink } from "../../ChatConversation/types";
 import { ToolCall } from "./ToolCall";
-import { asRecord, asString, parseArgs, type ToolStatus } from "./utils";
+import { asString, parseArgs, parseStringList, type ToolStatus } from "./utils";
 import { SourcePill } from "./WebSearchSources";
 
-const isHttpUrl = (value: string): boolean => {
-	try {
-		const { protocol } = new URL(value);
-		return protocol === "http:" || protocol === "https:";
-	} catch {
-		return false;
-	}
-};
-
-// The generated tool-call args type is a string map, so fixtures pass
-// arrays JSON-encoded, as find_tools args do. Accept both forms.
-const parseQueryList = (value: unknown): string[] | undefined => {
-	let list = value;
-	if (typeof list === "string") {
-		try {
-			list = JSON.parse(list);
-		} catch {
-			return undefined;
-		}
-	}
-	return Array.isArray(list)
-		? list.map((query) => asString(query).trim())
-		: undefined;
-};
+type WebSearchAction =
+	| { type: "search"; queries: string[] }
+	| { type: "open_page"; url: string }
+	| { type: "find_in_page"; url: string; pattern: string };
 
 /**
- * Reads a provider-executed web_search call. OpenAI Responses calls carry
- * {queries: [...]} once the search has finished, but their result,
- * {sources?: [{url}]}, arrives only when the whole response completes, so
- * searchFinished marks them done before the result exists. Anthropic calls
- * carry {query} before the search runs and persist an empty result.
+ * Reads the action from provider-executed web_search args. OpenAI sends
+ * {type, queries | url | pattern}, Anthropic sends {query}, and older
+ * OpenAI rows persisted {} or {queries} without a type.
  */
-export const getWebSearchToolData = (
-	args: unknown,
-	result: unknown,
-): { queries: string[]; sourceUrls: string[]; searchFinished: boolean } => {
+export const getWebSearchAction = (args: unknown): WebSearchAction => {
 	const parsedArgs = parseArgs(args);
-	const argQueries = parseQueryList(parsedArgs?.queries);
-	const queries = argQueries ?? [asString(parsedArgs?.query).trim()];
-	// Source URLs come from the provider and become links, so only
-	// web schemes are allowed.
-	const sources = asRecord(result)?.sources;
-	const sourceUrls = Array.isArray(sources)
-		? sources.map((source) => asString(asRecord(source)?.url)).filter(isHttpUrl)
-		: [];
-	return {
-		queries: [...new Set(queries.filter(Boolean))],
-		sourceUrls: [...new Set(sourceUrls)],
-		searchFinished: argQueries !== undefined,
-	};
+	const url = asString(parsedArgs?.url).trim();
+	const type = asString(parsedArgs?.type);
+	if (type === "open_page" && url) {
+		return { type, url };
+	}
+	if (type === "find_in_page" && url) {
+		return { type, url, pattern: asString(parsedArgs?.pattern).trim() };
+	}
+	const queries = parseStringList(parsedArgs?.queries) ?? [
+		asString(parsedArgs?.query).trim(),
+	];
+	return { type: "search", queries: [...new Set(queries.filter(Boolean))] };
+};
+
+type WebSearchState = "running" | "unfinished" | "failed" | "finished";
+
+/**
+ * Both providers end a search with its tool-result, so a call without one
+ * is still running while the message streams and did not finish after.
+ */
+export const getWebSearchState = ({
+	status,
+	result,
+	isError,
+}: {
+	status: ToolStatus;
+	result: unknown;
+	isError: boolean;
+}): WebSearchState => {
+	if (isError) {
+		return "failed";
+	}
+	if (status === "running") {
+		return "running";
+	}
+	return result === undefined ? "unfinished" : "finished";
+};
+
+export const getWebSearchLabel = (
+	action: WebSearchAction,
+	state: WebSearchState,
+): string => {
+	let verb = { running: "Searching", finished: "Searched", base: "search" };
+	let object: string;
+	switch (action.type) {
+		case "search":
+			object =
+				action.queries.length > 0
+					? `for ${action.queries.join(", ")}`
+					: "the web";
+			break;
+		case "open_page":
+			verb = { running: "Opening", finished: "Opened", base: "open" };
+			object = action.url;
+			break;
+		case "find_in_page":
+			object = action.pattern
+				? `${action.url} for ${action.pattern}`
+				: action.url;
+			break;
+	}
+	switch (state) {
+		case "running":
+			return `${verb.running} ${object}`;
+		case "finished":
+			return `${verb.finished} ${object}`;
+		case "failed":
+			return `Failed to ${verb.base} ${object}`;
+		case "unfinished":
+			return `Did not finish ${verb.running.toLowerCase()} ${object}`;
+	}
 };
 
 type WebSearchToolProps = {
-	queries: readonly string[];
-	/** URLs the search consulted, which are not answer citations. */
-	sourceUrls: readonly string[];
-	status: ToolStatus;
-	isError: boolean;
+	action: WebSearchAction;
+	state: WebSearchState;
+	/** Pages this search returned, which are not answer citations. */
+	foundPages: readonly SourceLink[];
+	errorMessage?: string;
 };
 
 export const WebSearchTool: FC<WebSearchToolProps> = ({
-	queries,
-	sourceUrls,
-	status,
-	isError,
+	action,
+	state,
+	foundPages,
+	errorMessage,
 }) => {
-	const target = queries.length > 0 ? `for ${queries.join(", ")}` : "the web";
-	let label: string;
-	if (status === "running") {
-		label = `Searching ${target}`;
-	} else if (isError) {
-		label = `Failed to search ${target}`;
-	} else {
-		label = `Searched ${target}`;
+	// The header truncates, so queries are also listed in full.
+	const queries = action.type === "search" ? action.queries : [];
+	let status: ToolStatus = "completed";
+	if (state === "running") {
+		status = "running";
+	} else if (state === "failed") {
+		status = "error";
 	}
-	// The header truncates, so several queries are also listed in full.
-	const listedQueries = queries.length > 1 ? queries : [];
-	const sourceCount =
-		sourceUrls.length === 1 ? "1 source" : `${sourceUrls.length} sources`;
 
 	return (
 		<ToolCall.Root
 			className="w-full"
 			status={status}
-			isError={isError}
-			errorMessage="Web search failed"
-			hasContent={listedQueries.length > 0 || sourceUrls.length > 0}
+			isError={state === "failed"}
+			errorMessage={errorMessage || "Web search failed"}
+			hasContent={queries.length > 0 || foundPages.length > 0}
 		>
 			<ToolCall.Header
 				iconName="web_search"
-				label={label}
+				label={getWebSearchLabel(action, state)}
 				secondaryLabel={
-					sourceUrls.length > 0 ? (
+					foundPages.length > 0 ? (
 						<span className="shrink-0 text-[13px] text-content-secondary/60">
-							{sourceCount}
+							{foundPages.length === 1
+								? "1 page"
+								: `${foundPages.length} pages`}
 						</span>
 					) : undefined
 				}
 			/>
 			<ToolCall.Content>
-				{listedQueries.length > 0 && (
+				{queries.length > 0 && (
 					<ul className="mt-1.5 space-y-1 pl-6 text-[13px] text-content-secondary">
-						{listedQueries.map((query) => (
+						{queries.map((query) => (
 							<li key={query}>{query}</li>
 						))}
 					</ul>
 				)}
-				{sourceUrls.length > 0 && (
+				{foundPages.length > 0 && (
 					<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-						{sourceUrls.map((url) => (
-							<SourcePill key={url} source={{ url, title: "" }} />
+						{foundPages.map((page) => (
+							<SourcePill key={page.url} source={page} />
 						))}
 					</div>
 				)}

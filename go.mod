@@ -107,12 +107,13 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 10) coder/fantasy#58, keep media tool results in the Gemini prompt.
 // 11) coder/fantasy mike/mcp-tool-media-batch-order (unmerged), keep OpenAI
 //    tool-result batches contiguous before attaching user media.
-// 12) coder/fantasy mafredri/responses-web-search-queries (unmerged),
-//    request OpenAI web_search_call sources, keep action.queries, report
-//    the queries in the tool call input, and take streamed web search
-//    results from the terminal response.
-// See: https://github.com/coder/fantasy/commits/eac1a8f7323a
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260924164541-eac1a8f7323a
+// 12) coder/fantasy#62 (unmerged), request OpenAI web_search_call
+//    sources, report the search action in the tool call input, and tag
+//    web search sources with the search that found them. Pinned as
+//    branch mafredri/responses-web-search-queries-pin, which merges it
+//    with patch 11.
+// See: https://github.com/coder/fantasy/commits/0c24225a1c0a
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260925154427-0c24225a1c0a
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.

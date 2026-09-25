@@ -18,7 +18,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/shellparse"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
@@ -697,6 +696,7 @@ func sdkPartFromContent(
 			SourceID:         value.ID,
 			URL:              value.URL,
 			Title:            value.Title,
+			ToolCallID:       value.ToolCallID,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case *fantasy.SourceContent:
@@ -705,6 +705,7 @@ func sdkPartFromContent(
 			SourceID:         value.ID,
 			URL:              value.URL,
 			Title:            value.Title,
+			ToolCallID:       value.ToolCallID,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.FileContent:
@@ -801,16 +802,6 @@ func toolResultContentToPart(
 		result, _ = json.Marshal(persisted)
 	default:
 		result = []byte(`{}`)
-		// Fantasy reports the consulted URLs of a provider-executed
-		// OpenAI web search only in metadata, which API responses strip,
-		// so persist them as the result the UI renders. The Responses
-		// prompt builder skips provider-executed results, so this does
-		// not change what OpenAI receives on replay.
-		if content.ProviderExecuted && content.ToolName == "web_search" {
-			if display, ok := chatopenai.WebSearchResultJSON(content.ProviderMetadata); ok {
-				result = display
-			}
-		}
 	}
 
 	part := codersdk.ChatMessageToolResult(content.ToolCallID, content.ToolName, result, isError, isMedia)

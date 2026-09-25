@@ -1,6 +1,9 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ReconnectSchedule } from "#/utils/reconnectingWebSocket";
 
+/** A URL shown as a pill, either a found page or an answer citation. */
+export type SourceLink = { url: string; title: string };
+
 export type ParsedToolCall = {
 	id: string;
 	name: string;
@@ -9,6 +12,9 @@ export type ParsedToolCall = {
 	mcpServerConfigId?: string;
 	hookRewritten?: boolean;
 	startedAt?: string;
+	providerExecuted?: boolean;
+	/** Pages a provider-executed web search returned, from tagged source parts. */
+	foundPages?: SourceLink[];
 };
 
 export type ParsedToolResult = {
@@ -38,6 +44,8 @@ export type MergedTool = {
 	killedBySignal?: "kill" | "terminate";
 	/** When the model emitted the call, from the tool-call part's created_at. */
 	startedAt?: string;
+	providerExecuted?: boolean;
+	foundPages?: readonly SourceLink[];
 };
 
 export type RenderBlock =
@@ -98,6 +106,8 @@ type StreamToolCall = {
 	mcpServerConfigId?: string;
 	modelIntent?: string;
 	startedAt?: string;
+	providerExecuted?: boolean;
+	foundPages?: readonly SourceLink[];
 };
 
 type StreamToolResult = {
