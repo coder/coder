@@ -101,7 +101,6 @@ const meta: Meta<typeof GitPanel> = {
 	component: GitPanel,
 	args: {
 		onRefresh: fn().mockReturnValue(true),
-		onCommit: fn(),
 		repositories: new Map(),
 	},
 	decorators: [
