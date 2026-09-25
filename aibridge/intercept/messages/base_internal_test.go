@@ -225,20 +225,17 @@ func TestModelForBedrockInvokeModel(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		requestBody      string
 		smallFast        bool
 		expectModel      string
 		expectConfigured string
 	}{
 		{
 			name:             "primary model",
-			requestBody:      `{"model":"claude-opus-4-8","max_tokens":10000}`,
 			expectModel:      "anthropic.claude-opus-4-8",
 			expectConfigured: profileARN,
 		},
 		{
 			name:             "small fast model",
-			requestBody:      `{"model":"claude-haiku-4-5","max_tokens":10000}`,
 			smallFast:        true,
 			expectModel:      "anthropic.claude-haiku-4-5",
 			expectConfigured: smallFastProfileARN,
@@ -250,15 +247,13 @@ func TestModelForBedrockInvokeModel(t *testing.T) {
 			t.Parallel()
 
 			i := &interceptionBase{
-				reqPayload:       mustMessagesPayload(t, tt.requestBody),
+				reqPayload:       mustMessagesPayload(t, `{"model":"claude-opus-4-8","max_tokens":10000}`),
 				bedrock:          runtime,
 				isSmallFastModel: tt.smallFast,
 				logger:           slog.Make(),
 			}
 
 			require.Equal(t, tt.expectModel, i.Model())
-			require.Equal(t, tt.expectConfigured, i.reqPayload.InvocationModel(runtime))
-			require.Equal(t, tt.requestBody, string(i.reqPayload))
 
 			i.augmentRequestForBedrockInvokeModel()
 			require.Equal(t, tt.expectConfigured, gjson.GetBytes(i.reqPayload, "model").String())
@@ -327,7 +322,10 @@ func TestSmallFastModelCapturedAtConstruction(t *testing.T) {
 			t.Run(c.name+" "+tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				i := c.newInterception(mustMessagesPayload(t, tt.payload))
+				payload := mustMessagesPayload(t, tt.payload)
+				require.Equal(t, tt.expectConfigured, payload.InvocationModel(runtime))
+				require.Equal(t, tt.payload, string(payload))
+				i := c.newInterception(payload)
 				require.Equal(t, tt.expectModel, i.Model())
 				require.Equal(t, tt.expectConfigured, i.upstreamModel())
 			})

@@ -70,6 +70,8 @@ type Provider interface {
 	CreateInterceptor(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error)
 
 	// ResolveCredential determines the upstream credential for a request.
+	// Coder authentication credentials must already have been removed from it.
+	// Remaining provider authentication headers are interpreted as BYOK credentials.
 	ResolveCredential(*http.Request) (intercept.Credential, error)
 
 	// RoutePrefix returns a prefix on which the provider's bridged and passthroguh routes will be registered.

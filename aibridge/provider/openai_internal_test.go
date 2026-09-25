@@ -283,7 +283,7 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 		{
 			name:        "Responses_NoCredential",
 			route:       routeResponses,
-			requestBody: `{"model": "gpt-5", "input": "hello", "stream": true}`,
+			requestBody: `{`,
 			wantErr:     ErrNoCredential,
 		},
 	}

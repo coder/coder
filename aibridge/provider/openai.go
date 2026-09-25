@@ -154,11 +154,11 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 	return interceptor, nil
 }
 
-// ResolveCredential determines the upstream credential for a request. At this
-// point the request contains only LLM provider headers. Any Coder-specific
-// authentication has already been stripped. A BYOK token, if present, arrives
-// in the Authorization header. Otherwise the request uses the provider's
-// centralized key pool with failover, which must be configured.
+// ResolveCredential determines the upstream credential for a request.
+// Coder authentication credentials must already have been removed from it.
+// A remaining Authorization header is interpreted as a BYOK token. Otherwise
+// the request uses the provider's centralized key pool with failover, which
+// must be configured.
 func (p *OpenAI) ResolveCredential(r *http.Request) (intercept.Credential, error) {
 	if token := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization)); token != "" {
 		return intercept.BYOK{Secret: token, Header: intercept.AuthHeaderAuthorization}, nil
