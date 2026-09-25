@@ -755,7 +755,7 @@ export const useFilterCombobox = ({
 		if (normalized.length === 0) {
 			return false;
 		}
-		if (matchCategories(normalized, submenuCategories).length > 0) {
+		if (matchCategories(normalized, menuCategories).length > 0) {
 			return true;
 		}
 		return categories.some((category) =>
