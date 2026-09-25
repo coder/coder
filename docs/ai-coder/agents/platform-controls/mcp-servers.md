@@ -374,7 +374,7 @@ A server can use it to deduplicate side effects.
 `--disable-chat-caller-supplied-tools` (`CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS`) rejects chat requests that include `unsafe_dynamic_tools` or `inline_mcp_servers` with `403`, and runs existing chats without either.
 The flag takes effect on `coder server` restart.
 Turning off the `chat-inline-mcp-servers` experiment has the same effect on existing chats: declared servers stay stored and are not connected.
-`GET /api/v2/chats/{chat}` still returns declared servers while the flag is set, and a message with `"inline_mcp_servers": []` still removes them.
+In both cases, `GET /api/v2/chats/{chat}` still returns declared servers, and a message with `"inline_mcp_servers": []` still removes them.
 
 ### Read back
 
