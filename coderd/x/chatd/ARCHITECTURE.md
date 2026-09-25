@@ -878,6 +878,8 @@ Tool calls have at least once semantics: if the goroutine executes a tool call, 
 
 Parallel tool call results must be inserted in bulk after all parallel tool calls finish in a single `CommitStep` transition so that the generation goroutine only increments `history_version` once, since a change to the `history_version` interrupts the gorotuine. This is consistent with the existing chatd implementation.
 
+TODO(human): describe the post-tool instruction discovery step. After the local tools of a step execute and before `CommitStep`, the goroutine asks the workspace agent for instruction files in the directories the tools touched and pins them as discovered `chat_context_resources` rows for this chat, so the next preparation renders them in `<workspace-context>`. Any agent error is ignored and never fails the step.
+
 The generation goroutine supports:
 
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))

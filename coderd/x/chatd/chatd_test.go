@@ -7332,13 +7332,11 @@ func setupToolExecutionAgentConn(
 	mockConn *agentconnmock.MockAgentConn,
 ) {
 	t.Helper()
-	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
-	mockConn.EXPECT().ContextConfig(gomock.Any()).
-		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
-	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
-	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
+	setupDiscoveryAgentConn(mockConn)
+	// Tool steps probe touched directories for nested instruction files;
+	// an agent that reports none leaves the step unchanged.
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), gomock.Any()).
+		Return(workspacesdk.ResolveContextInstructionsResponse{}, nil).AnyTimes()
 }
 
 func dynamicToolJSON(t *testing.T, name string) []byte {
@@ -8244,8 +8242,10 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-		setupToolExecutionAgentConn(t, mockConn)
+		// The rejected read never ran, so its path must not seed discovery.
+		setupDiscoveryAgentConn(mockConn)
 		mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+		mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), gomock.Any()).Times(0)
 
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
