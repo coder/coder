@@ -28,7 +28,12 @@ import {
 	coarsePointerMediaQuery,
 	mobileViewportMediaQuery,
 } from "#/utils/mobile";
-import { chipDisplay, chipToken, optionToken } from "./filterQuery";
+import {
+	chipDisplay,
+	chipToken,
+	filterOptionsByText,
+	optionToken,
+} from "./filterQuery";
 import {
 	FilterComboboxChip,
 	FilterComboboxChips,
@@ -79,9 +84,11 @@ type FilterComboboxProps = Readonly<{
 }>;
 
 /**
- * Unified workspace filter input: renders committed chips plus a cmdk-driven
- * popup that browses categories and surfaces cross-category value suggestions.
- * State lives in `useFilterCombobox`.
+ * Filter input that shows applied filters as chips and opens a cmdk menu. The
+ * menu lists categories, which open as pointer flyouts or as keyboard and
+ * mobile drill-ins; option rows for categories with `inlineOptions`; and
+ * cross-category value suggestions for typed text. State lives in
+ * `useFilterCombobox`.
  */
 export function FilterCombobox({
 	value,
@@ -105,8 +112,8 @@ export function FilterCombobox({
 		unfilteredOptionsByKey,
 		unfilteredOptionsErroredKeys,
 		valueSuggestions,
-		inlineOptions,
-		allInlineOptions,
+		inlineOptionRows,
+		allInlineOptionRows,
 		chipValues,
 		highlightRef,
 		typeaheadError,
@@ -129,14 +136,14 @@ export function FilterCombobox({
 	// reappear next time.
 	const [flyout, setFlyout] = useState<{
 		categoryKey: string | null;
-		menuOpen: boolean;
-	}>({ categoryKey: null, menuOpen: open });
-	if (flyout.menuOpen !== open) {
-		setFlyout({ categoryKey: null, menuOpen: open });
+		openAtReset: boolean;
+	}>({ categoryKey: null, openAtReset: open });
+	if (flyout.openAtReset !== open) {
+		setFlyout({ categoryKey: null, openAtReset: open });
 	}
 	const flyoutCategoryKey = flyout.categoryKey;
 	const setFlyoutCategoryKey = (categoryKey: string | null) =>
-		setFlyout({ categoryKey, menuOpen: open });
+		setFlyout({ categoryKey, openAtReset: open });
 	const categoryRows = useRef(new Map<string, HTMLDivElement>());
 	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const cancelHoverSwitch = () => {
@@ -192,10 +199,9 @@ export function FilterCombobox({
 			0;
 		setPanelOffset(row ? Math.max(0, row.offsetTop - scrollTop) : 0);
 	}, [panelCategoryKey]);
-	// cmdk owns the highlighted row for both pointer and keyboard, so the flyout
-	// follows it: it closes when the highlight leaves the category rows and
-	// switches when it lands on another category.
-	const handleItemHighlighted = (highlighted: string) => {
+	// The flyout follows cmdk's highlight, which pointer and keyboard both move.
+	// A highlight never opens a closed flyout.
+	const handleHighlightedValueChange = (highlighted: string) => {
 		if (flyoutCategoryKey === null || highlighted === flyoutCategoryKey) {
 			return;
 		}
@@ -211,7 +217,7 @@ export function FilterCombobox({
 			? categories.find((category) => category.key === flyoutCategoryKey)
 			: undefined;
 	const selectFlyoutOption = (token: string) => {
-		actions.selectCategoryOption(token);
+		actions.toggleCategoryOption(token);
 		updateFlyoutCategory(null);
 		actions.focusInput();
 	};
@@ -223,23 +229,19 @@ export function FilterCombobox({
 	const mainPanelEmpty =
 		listedCategories.length === 0 &&
 		valueSuggestions.length === 0 &&
-		inlineOptions.length === 0 &&
+		inlineOptionRows.length === 0 &&
 		!typeaheadError;
-	// Mirrors the embedded `CategoryOptionsList`, which renders nothing for an
-	// empty result.
-	const mobileCategoryOptionsEmpty =
-		!activeOptionsError && activeOptions?.length === 0;
 
 	const mainPanelProps = {
 		listedCategories,
 		valueSuggestions,
-		inlineOptions,
+		inlineOptionRows,
 		typeaheadError,
 		registerCategoryRow,
 		onSelectCategory: selectCategory,
 		onOpenFlyout: updateFlyoutCategory,
 		onToggleInlineOption: actions.toggleInlineOption,
-		onSelectSuggestion: actions.selectValueSuggestion,
+		onSelectSuggestion: actions.toggleValueSuggestion,
 		onRetry: actions.retryTypeahead,
 	};
 	const categoryOptionsList =
@@ -259,7 +261,7 @@ export function FilterCombobox({
 				onSearchChange={actions.onInputValueChange}
 				onRetry={actions.retryActiveOptions}
 				onSelectOption={(token) => {
-					actions.selectCategoryOption(token);
+					actions.toggleCategoryOption(token);
 					// The search field or a clicked row may hold focus and unmount
 					// with the list. On mobile, refocusing would reopen the keyboard.
 					if (!isMobile) {
@@ -268,9 +270,6 @@ export function FilterCombobox({
 				}}
 			/>
 		);
-	const mobilePanelEmpty = categoryOptionsList
-		? mobileCategoryOptionsEmpty
-		: mainPanelEmpty;
 
 	return (
 		<>
@@ -281,7 +280,7 @@ export function FilterCombobox({
 				inputValue={inputValue}
 				onInputValueChange={actions.onInputValueChange}
 				highlightRef={highlightRef}
-				onHighlightedValueChange={handleItemHighlighted}
+				onHighlightedValueChange={handleHighlightedValueChange}
 				label={placeholder}
 				className={cn(mobileOverlay && "min-h-10")}
 			>
@@ -347,7 +346,7 @@ export function FilterCombobox({
 							);
 							const labelOnly = category?.chipLabelOnly === true;
 							const inlineOption = labelOnly
-								? allInlineOptions.find(
+								? allInlineOptionRows.find(
 										({ categoryKey, option }) =>
 											optionToken(categoryKey, option) === token,
 									)
@@ -439,10 +438,9 @@ export function FilterCombobox({
 					{/* Keep mounted so polite status announcements stay consistent. */}
 					<FilterComboboxStatus>{statusMessage}</FilterComboboxStatus>
 					{isMobile ? (
-						!mobilePanelEmpty && (
+						(activeCategoryKey !== null || !mainPanelEmpty) && (
 							<div
 								data-slot="filter-mobile-panel"
-								data-testid="filter-mobile-panel"
 								className="flex max-h-[min(24rem,var(--radix-popper-available-height))] w-(--radix-popover-trigger-width) max-w-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-surface-primary p-2 shadow-md"
 							>
 								{categoryOptionsList ?? (
@@ -455,7 +453,7 @@ export function FilterCombobox({
 							className="relative flex items-start gap-1 overflow-visible"
 							onMouseLeave={() => {
 								updateFlyoutCategory(null);
-								actions.setHighlightedItem("");
+								actions.setHighlightedValue("");
 							}}
 						>
 							{!mainPanelEmpty && (
@@ -470,7 +468,7 @@ export function FilterCombobox({
 							)}
 							{categoryOptionsList ??
 								(flyoutCategory && (
-									<HoverCategoryPanel
+									<FlyoutCategoryPanel
 										key={flyoutCategory.key}
 										category={flyoutCategory}
 										offset={panelOffset}
@@ -588,7 +586,7 @@ function ChipLabel({
 	);
 }
 
-type InlineOption = {
+type InlineOptionRow = {
 	categoryKey: string;
 	categoryLabel: string;
 	selected: boolean;
@@ -621,7 +619,7 @@ const groupByCategoryLabel = <T extends { categoryLabel: string }>(
 type MainPanelProps = Readonly<{
 	listedCategories: readonly FilterCategory[];
 	valueSuggestions: readonly ValueSuggestion[];
-	inlineOptions: readonly InlineOption[];
+	inlineOptionRows: readonly InlineOptionRow[];
 	typeaheadError: boolean;
 	embedded?: boolean;
 	/** Clicking a category enters it instead of opening its pointer flyout. */
@@ -631,7 +629,10 @@ type MainPanelProps = Readonly<{
 		element: HTMLDivElement | null,
 	) => (() => void) | undefined;
 	onSelectCategory: (categoryKey: string) => void;
-	/** Opens a category's flyout, after a delay unless `immediate`. */
+	/**
+	 * Opens a category's flyout. Switching from another open flyout waits
+	 * `CATEGORY_HOVER_DELAY_MS` unless `immediate`.
+	 */
 	onOpenFlyout: (categoryKey: string, immediate?: boolean) => void;
 	onToggleInlineOption: (token: string) => void;
 	onSelectSuggestion: (token: string) => void;
@@ -641,7 +642,7 @@ type MainPanelProps = Readonly<{
 function MainPanel({
 	listedCategories,
 	valueSuggestions,
-	inlineOptions,
+	inlineOptionRows,
 	typeaheadError,
 	embedded = false,
 	drillIn,
@@ -683,7 +684,7 @@ function MainPanel({
 					<ChevronRightIcon aria-hidden className="ml-auto shrink-0" />
 				</FilterComboboxItem>
 			))}
-			{groupByCategoryLabel(inlineOptions).map(([label, options]) => (
+			{groupByCategoryLabel(inlineOptionRows).map(([label, rows]) => (
 				<FilterComboboxGroup
 					className="mt-2 border-t border-border pt-2 first:mt-0 first:border-t-0 first:pt-0"
 					key={label}
@@ -691,7 +692,7 @@ function MainPanel({
 					<FilterComboboxLabel className="pt-0 opacity-80">
 						{label}
 					</FilterComboboxLabel>
-					{options.map(({ categoryKey, option, selected, showIcon }) => {
+					{rows.map(({ categoryKey, option, selected, showIcon }) => {
 						const token = optionToken(categoryKey, option);
 						return (
 							<FilterComboboxItem
@@ -850,7 +851,7 @@ function OptionsPanel({
 	);
 }
 
-type HoverCategoryPanelProps = Readonly<{
+type FlyoutCategoryPanelProps = Readonly<{
 	category: FilterCategory;
 	offset: number;
 	/** The category's unfiltered options, or `undefined` while loading. */
@@ -862,7 +863,7 @@ type HoverCategoryPanelProps = Readonly<{
 	onSelectOption: (token: string) => void;
 }>;
 
-function HoverCategoryPanel({
+function FlyoutCategoryPanel({
 	category,
 	offset,
 	options,
@@ -871,11 +872,12 @@ function HoverCategoryPanel({
 	onMouseEnter,
 	onRetry,
 	onSelectOption,
-}: HoverCategoryPanelProps) {
+}: FlyoutCategoryPanelProps) {
 	const [query, setQuery] = useState("");
 	const trimmedQuery = query.trim();
-	// The unfiltered list may be truncated by the loader, so searches go through
-	// it. The unfiltered list is filtered locally meanwhile.
+	// `getOptions` may return only the first page for an empty query, so a
+	// typed search calls `getOptions(query)` after the debounce. Until those
+	// results arrive, the unfiltered list is filtered locally.
 	const debouncedQuery = useDebouncedValue(trimmedQuery, SEARCH_DEBOUNCE_MS);
 	const searchResults = useQuery(
 		filterComboboxOptions(
@@ -897,11 +899,7 @@ function HoverCategoryPanel({
 				? options
 				: debouncedQuery === trimmedQuery && searchResults.data
 					? searchResults.data
-					: options.filter(
-							(option) =>
-								option.label.toLowerCase().includes(normalized) ||
-								option.value.toLowerCase().includes(normalized),
-						);
+					: filterOptionsByText(options, normalized);
 	const searchable = (options?.length ?? 0) > SEARCHABLE_OPTION_COUNT;
 	const loading = options === undefined && !optionsError;
 	const failed = optionsError || searchFailed;
@@ -1010,9 +1008,6 @@ function CategoryOptionsList({
 	const searchable =
 		!embedded &&
 		(unfilteredOptionCount ?? options?.length ?? 0) > SEARCHABLE_OPTION_COUNT;
-	if (options?.length === 0 && !searchable) {
-		return null;
-	}
 
 	return (
 		<OptionsPanel
@@ -1025,7 +1020,13 @@ function CategoryOptionsList({
 					: undefined
 			}
 			navigatesList
-			emptyMessage={options?.length === 0 ? "No matching options" : undefined}
+			emptyMessage={
+				options?.length !== 0
+					? undefined
+					: searchValue.trim().length > 0
+						? "No matching options"
+						: "No options"
+			}
 		>
 			{options === undefined && <LoadingOptions />}
 			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
