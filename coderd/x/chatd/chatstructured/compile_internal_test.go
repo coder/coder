@@ -142,11 +142,7 @@ func TestSchemaValidate(t *testing.T) {
 		accept, reject []string
 	}
 	cases := []vcase{
-		{
-			`{"type":"object","properties":{"a":{"type":"array","items":{"type":["string","null"]}}},"required":["a"],"additionalProperties":false}`,
-			[]string{`{"a":[]}`, `{"a":["x",null]}`},
-			[]string{`{}`, `{"a":[1]}`, `{"a":[],"b":1}`, `null`},
-		},
+		{`{"type":"object","properties":{"a":{"type":"array","items":{"type":["string","null"]}}},"required":["a"],"additionalProperties":false}`, []string{`{"a":[]}`, `{"a":["x",null]}`}, []string{`{}`, `{"a":[1]}`, `{"a":[],"b":1}`, `null`}},
 		{`{"type":"null"}`, []string{`null`}, []string{`0`}},
 		{`{"enum":["a",1]}`, []string{`"a"`, `1`}, []string{`"b"`}},
 		{`{"const":{"a":[1]}}`, []string{`{"a":[1]}`}, []string{`{"a":[2]}`}},
