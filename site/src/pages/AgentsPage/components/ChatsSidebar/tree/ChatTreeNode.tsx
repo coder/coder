@@ -192,6 +192,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	// (working, error, needs action) keep their icon.
 	const showUnreadDot =
 		chat.has_unread && !isActiveChat && chat.status === "waiting";
+	// Titles that need attention (working or unread) stand out; the rest
+	// recede until hovered or opened.
+	const isEmphasizedTitle = isStreaming || (chat.has_unread && !isActiveChat);
 
 	const hoverLayout =
 		"[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
@@ -238,9 +241,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 					<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
 						<span
 							className={cn(
-								"block flex-1 truncate text-[13px] text-content-primary",
-								!isActive &&
-									"opacity-85 [@media(hover:hover)]:group-hover:opacity-100",
+								"block flex-1 truncate text-[13px]",
+								isActive || isEmphasizedTitle
+									? "text-content-primary"
+									: "text-content-secondary [@media(hover:hover)]:group-hover:text-content-primary",
 							)}
 						>
 							{chat.title}
