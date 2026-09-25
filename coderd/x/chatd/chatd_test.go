@@ -4668,10 +4668,11 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 	}
 	_, err = api.Database.UpsertWorkspaceAgentContextSnapshot(systemCtx, database.UpsertWorkspaceAgentContextSnapshotParams{
-		WorkspaceAgentID: workspaceAgentID,
-		Version:          1,
-		AggregateHash:    []byte("created-workspace-context"),
-		ReceivedAt:       now,
+		WorkspaceAgentID:  workspaceAgentID,
+		Version:           1,
+		AggregateHash:     []byte("created-workspace-context"),
+		ReceivedAt:        now,
+		McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseUnspecified,
 	})
 	require.NoError(t, err)
 	_ = agenttest.New(t, client.URL, agentToken)
