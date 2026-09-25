@@ -87,9 +87,12 @@ func metadataWithUserAgent(metadata Metadata, userAgent string) Metadata {
 
 // marshalToolArgs renders tool call arguments the way [DRPCRecorder] sends
 // them, so that both emitters report an identical input field.
-func marshalToolArgs(args ToolArgs) string {
+func (r *LogRecorder) marshalToolArgs(ctx context.Context, args ToolArgs) string {
 	serialized, err := json.Marshal(args)
 	if err != nil {
+		// An empty input field is indistinguishable from a tool called with
+		// no arguments, so the difference is reported here.
+		r.logger.Warn(ctx, "failed to marshal tool call arguments, reporting empty input", slog.Error(err))
 		return ""
 	}
 	return string(serialized)
@@ -242,7 +245,7 @@ func (r *LogRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord)
 		slog.F("tool_call_id", req.ToolCallID),
 		slog.F("item_id", req.ItemID),
 		slog.F("tool", req.Tool),
-		slog.F("input", marshalToolArgs(req.Args)),
+		slog.F("input", r.marshalToolArgs(ctx, req.Args)),
 		slog.F("server_url", ptr.NilToEmpty(req.ServerURL)),
 		slog.F("injected", req.Injected),
 		slog.F("invocation_error", structuredInvocationErr),

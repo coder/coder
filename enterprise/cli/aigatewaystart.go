@@ -316,7 +316,7 @@ func newStandaloneGateway(params standaloneGatewayParams) (*standaloneGateway, e
 	// The aibridged daemon must outlive the serving context so in-flight HTTP
 	// requests retain their DRPC connection during graceful HTTP shutdown.
 	daemon, err := aibridged.New(context.Background(), params.dialer, params.logger.Named("aibridged"), params.tracer, params.experiments, params.metrics,
-		aibridged.WithPoolOptions(aibridged.PoolOptionsFromConfig(params.bridgeConfig)))
+		aibridged.WithPoolOptions(aibridged.PoolOptionsFromConfig(context.Background(), params.logger, params.bridgeConfig)))
 	if err != nil {
 		return nil, xerrors.Errorf("start AI Gateway daemon: %w", err)
 	}

@@ -1,10 +1,14 @@
 package aibridged_test
 
 import (
+	"context"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
@@ -18,7 +22,9 @@ func TestPoolOptionsFromConfig(t *testing.T) {
 		cfg                         codersdk.AIBridgeConfig
 		wantStructuredLogging       bool
 		wantDisableContentRecording bool
-		wantWarnContentNotExported  bool
+		// wantWarning is true when the deployment drops content records
+		// without exporting them anywhere, which nothing else reports.
+		wantWarning bool
 	}{
 		{
 			name: "Defaults",
@@ -62,7 +68,7 @@ func TestPoolOptionsFromConfig(t *testing.T) {
 			name:                        "ContentRecordingDisabledWithoutGatewayLogs",
 			cfg:                         codersdk.AIBridgeConfig{DisableContentRecording: serpent.Bool(true)},
 			wantDisableContentRecording: true,
-			wantWarnContentNotExported:  true,
+			wantWarning:                 true,
 		},
 		{
 			name: "ContentRecordingDisabledWithGatewayLogs",
@@ -78,11 +84,13 @@ func TestPoolOptionsFromConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			options := aibridged.PoolOptionsFromConfig(tc.cfg)
+			sink := &warningSink{}
+			logger := slog.Make(sink)
+			options := aibridged.PoolOptionsFromConfig(t.Context(), logger, tc.cfg)
 
 			require.Equal(t, tc.wantStructuredLogging, options.StructuredLogging, "StructuredLogging")
 			require.Equal(t, tc.wantDisableContentRecording, options.DisableContentRecording, "DisableContentRecording")
-			require.Equal(t, tc.wantWarnContentNotExported, options.WarnContentNotExported, "WarnContentNotExported")
+			require.Equal(t, tc.wantWarning, sink.warned("content recording is disabled"), "startup warning")
 
 			// The record policy must not disturb the cache sizing the
 			// deployment relies on.
@@ -90,4 +98,32 @@ func TestPoolOptionsFromConfig(t *testing.T) {
 			require.Equal(t, aibridged.DefaultPoolOptions.TTL, options.TTL, "TTL")
 		})
 	}
+}
+
+// warningSink collects log entries so a test can assert on what the derivation
+// reported.
+type warningSink struct {
+	mu      sync.Mutex
+	entries []slog.SinkEntry
+}
+
+func (s *warningSink) LogEntry(_ context.Context, e slog.SinkEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entries = append(s.entries, e)
+}
+
+func (*warningSink) Sync() {}
+
+// warned reports whether a warning containing substr was logged.
+func (s *warningSink) warned(substr string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, entry := range s.entries {
+		if entry.Level == slog.LevelWarn && strings.Contains(entry.Message, substr) {
+			return true
+		}
+	}
+	return false
 }

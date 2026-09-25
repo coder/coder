@@ -134,7 +134,7 @@ func TestNewAIBridgeDaemonAppliesRecordPolicy(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, srv.Close()) })
 			t.Cleanup(unsubscribe)
 
-			require.Equal(t, aibridged.PoolOptionsFromConfig(dv.AI.BridgeConfig), srv.PoolOptions())
+			require.Equal(t, aibridged.PoolOptionsFromConfig(t.Context(), testutil.Logger(t), dv.AI.BridgeConfig), srv.PoolOptions())
 		})
 	}
 }

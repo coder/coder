@@ -14,11 +14,6 @@ type DisabledRecords struct {
 	ModelThought      bool
 }
 
-func (d DisabledRecords) Disabled() bool {
-	return d.Interception && d.InterceptionEnded && d.TokenUsage &&
-		d.PromptUsage && d.ToolUsage && d.ModelThought
-}
-
 // FilterRecorder wraps another [Recorder] and drops the records selected by a
 // [DisabledRecords], so that a deployment can keep some record types out of its
 // database while the rest of the chain keeps working.
