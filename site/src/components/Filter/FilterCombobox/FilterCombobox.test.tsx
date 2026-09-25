@@ -651,6 +651,50 @@ describe("FilterCombobox", () => {
 		},
 	);
 
+	it.each(["{Enter}", "{Escape}"])(
+		"applies a typed chip token as a chip and keeps the rest as text with %s",
+		async (key) => {
+			const { user, onChange, input } = setup([attributesCategory]);
+
+			await user.click(input);
+			await user.type(input, "ali outdated:true");
+			await user.keyboard(key);
+
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("outdated:true ali"),
+			);
+			expect(input).toHaveValue("ali");
+		},
+	);
+
+	it("does not send an applied typed chip token again with the next pick", async () => {
+		const { user, onChange, input, filtersButton } = setup([
+			statusCategory,
+			attributesCategory,
+		]);
+
+		await user.click(input);
+		await user.type(input, "outdated:true");
+		await user.keyboard("{Enter}");
+		await user.click(filtersButton);
+		await user.click(await screen.findByRole("option", { name: /Running/ }));
+
+		expect(onChange).toHaveBeenLastCalledWith("outdated:true status:running");
+	});
+
+	it("does not restore a removed typed chip token on Escape", async () => {
+		const { user, onChange, input } = setup([attributesCategory]);
+
+		await user.click(input);
+		await user.type(input, "outdated:true");
+		await user.keyboard("{Enter}");
+		await user.click(screen.getByRole("button", { name: "Remove outdated" }));
+		await user.click(input);
+		await user.keyboard("{Escape}");
+
+		expect(onChange).toHaveBeenLastCalledWith("");
+	});
+
 	it("announces loading suggestions while typing", async () => {
 		const getOptions = vi.fn(neverResolves);
 		const { user, input } = setup([{ ...ownerCategory, getOptions }]);
@@ -935,16 +979,18 @@ describe("FilterCombobox", () => {
 	});
 
 	it("searches free-typed text with Enter after a highlighted row mounts again", async () => {
-		let failed = false;
+		const failFirstSearch = Promise.withResolvers<undefined>();
+		let searched = false;
 		const { user, onChange, input } = setup([
 			{
 				...ownerCategory,
 				getOptions: async (query) => {
-					if (query !== "" && !failed) {
-						failed = true;
+					if (query !== "" && !searched) {
+						searched = true;
+						await failFirstSearch.promise;
 						throw new Error("failed");
 					}
-					return [{ label: "alice", value: "alice" }];
+					return ownerCategory.getOptions(query);
 				},
 			},
 		]);
@@ -953,6 +999,11 @@ describe("FilterCombobox", () => {
 		await user.type(input, "ali");
 		await screen.findByRole("option", { name: "alice" });
 		await user.keyboard("{ArrowDown}");
+		expect(screen.getByRole("option", { name: "alice" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+		await act(async () => failFirstSearch.resolve(undefined));
 		await user.click(await screen.findByRole("button", { name: /retry/i }));
 		await screen.findByRole("option", { name: "alice" });
 		await user.click(input);
