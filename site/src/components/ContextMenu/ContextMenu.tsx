@@ -7,7 +7,6 @@
  */
 
 import { cn } from "cn";
-import { ChevronRightIcon } from "lucide-react";
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui";
 import {
 	menuContentClass,
@@ -54,35 +53,6 @@ export const ContextMenuItem: React.FC<ContextMenuItemProps> = ({
 			className={cn(menuItemClass, inset && "pl-8", className)}
 			{...props}
 		/>
-	);
-};
-
-export const ContextMenuSub = ContextMenuPrimitive.Sub;
-
-export const ContextMenuSubTrigger: React.FC<
-	React.ComponentProps<typeof ContextMenuPrimitive.SubTrigger>
-> = ({ className, children, ...props }) => {
-	return (
-		<ContextMenuPrimitive.SubTrigger
-			className={cn(menuItemClass, className)}
-			{...props}
-		>
-			{children}
-			<ChevronRightIcon className="ml-auto" />
-		</ContextMenuPrimitive.SubTrigger>
-	);
-};
-
-export const ContextMenuSubContent: React.FC<
-	React.ComponentProps<typeof ContextMenuPrimitive.SubContent>
-> = ({ className, ...props }) => {
-	return (
-		<ContextMenuPrimitive.Portal>
-			<ContextMenuPrimitive.SubContent
-				className={cn(menuContentClass, className)}
-				{...props}
-			/>
-		</ContextMenuPrimitive.Portal>
 	);
 };
 

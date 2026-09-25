@@ -1756,14 +1756,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateChatProjectMemoryByID(gomock.Any(), arg).Return(updated, nil).AnyTimes()
 		check.Args(arg).Asserts(memory.ChatProjectMemory.RBACObject(project), policy.ActionUpdate).Returns(updated)
 	}))
-	s.Run("UpdateChatProjectBinding", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := database.UpdateChatProjectBindingParams{ID: chat.ID}
-		updated := testutil.Fake(s.T(), faker, database.ChatTable{ID: chat.ID})
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().UpdateChatProjectBinding(gomock.Any(), arg).Return(updated, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(updated)
-	}))
 	s.Run("UpdateChatProjectByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
 		arg := database.UpdateChatProjectByIDParams{ID: project.ID, Name: "updated"}
