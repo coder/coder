@@ -4545,6 +4545,7 @@ type UpdateChatGatewayAPIKeyScopesByIDParams struct {
 
 // Preserve delegated IDs and credentials when reconciling synthetic key scopes.
 // User-created tokens with colliding names must never be updated.
+// The token_name predicate must match chatd.GatewayTokenName.
 func (q *sqlQuerier) UpdateChatGatewayAPIKeyScopesByID(ctx context.Context, arg UpdateChatGatewayAPIKeyScopesByIDParams) (APIKey, error) {
 	row := q.db.QueryRowContext(ctx, updateChatGatewayAPIKeyScopesByID, arg.Scopes, arg.ID, arg.UserID)
 	var i APIKey

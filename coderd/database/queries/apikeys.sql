@@ -89,6 +89,7 @@ WHERE
 -- name: UpdateChatGatewayAPIKeyScopesByID :one
 -- Preserve delegated IDs and credentials when reconciling synthetic key scopes.
 -- User-created tokens with colliding names must never be updated.
+-- The token_name predicate must match chatd.GatewayTokenName.
 UPDATE
 	api_keys
 SET

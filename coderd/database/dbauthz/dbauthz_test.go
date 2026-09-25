@@ -473,7 +473,8 @@ func defaultIPAddress() pqtype.Inet {
 func (s *MethodTestSuite) TestChatGatewayAPIKey() {
 	s.Run("UpdateChatGatewayAPIKeyScopesByID", s.Mocked(func(_ *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		// Even an owner actor cannot use the synthetic-only scope update.
-		// The minter and SQL selector are exercised with real RBAC below.
+		// The minter and SQL selector are covered by
+		// TestUpdateChatGatewayAPIKeyScopesByID.
 		check.Args(database.UpdateChatGatewayAPIKeyScopesByIDParams{
 			ID: "synthetic", UserID: testActorID, Scopes: database.APIKeyScopes{database.ApiKeyScopeApiKeyRead},
 		}).Asserts().Errors(errMatchAny)
@@ -7772,7 +7773,7 @@ func TestUpdateChatGatewayAPIKeyScopesByID(t *testing.T) {
 	}{
 		{name: "synthetic", actor: "minter"},
 		{name: "user_token_collision", actor: "minter", loginType: database.LoginTypeToken, wantNoRows: true},
-		{name: "ordinary_session", actor: "minter", wrongName: true, wantNoRows: true},
+		{name: "other_user_token_name", actor: "minter", wrongName: true, wantNoRows: true},
 		{name: "other_owner_selector", actor: "minter", wrongOwner: true, wantNoRows: true},
 		{name: "missing_key", actor: "minter", missing: true, wantNoRows: true},
 		{name: "other_user_minter", actor: "other_minter", wantDenied: true},

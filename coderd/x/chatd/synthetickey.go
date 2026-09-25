@@ -20,12 +20,25 @@ const (
 	syntheticAPIKeyRenewMargin = 24 * time.Hour
 )
 
+// syntheticAPIKeyScopes is the minimum scope set required by Chatd.
+// Reconciliation adds missing scopes without removing existing ones.
 var syntheticAPIKeyScopes = database.APIKeyScopes{database.ApiKeyScopeApiKeyRead}
+
+func hasSyntheticAPIKeyScopes(scopes database.APIKeyScopes) bool {
+	for _, scope := range syntheticAPIKeyScopes {
+		if !slices.Contains(scopes, scope) {
+			return false
+		}
+	}
+	return true
+}
 
 // GatewayTokenName returns the deterministic token name of the synthetic
 // gateway key for a user. The name is the lookup key: no mapping table exists,
 // so attribution resolves the key by (user_id, token_name, login_type !=
 // 'token').
+// The token_name predicate in UpdateChatGatewayAPIKeyScopesByID must match this
+// format.
 func GatewayTokenName(ownerID uuid.UUID) string {
 	return fmt.Sprintf("chatd_%s_session_token", ownerID)
 }
@@ -42,7 +55,7 @@ func (p *Server) ensureSyntheticAPIKeyID(ctx context.Context, ownerID uuid.UUID)
 		TokenName: GatewayTokenName(ownerID),
 	})
 	switch {
-	case err == nil && slices.Equal(key.Scopes, syntheticAPIKeyScopes) && key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)):
+	case err == nil && hasSyntheticAPIKeyScopes(key.Scopes) && key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)):
 		return key.ID, nil
 	case err != nil && !xerrors.Is(err, sql.ErrNoRows):
 		return "", xerrors.Errorf("get synthetic API key: %w", err)
@@ -67,13 +80,18 @@ func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (st
 			TokenName: tokenName,
 		})
 		if err == nil {
-			if !slices.Equal(key.Scopes, syntheticAPIKeyScopes) {
-				// In-flight requests may already hold this ID. Reconcile scopes
-				// in place without changing credentials or expiry.
+			if !hasSyntheticAPIKeyScopes(key.Scopes) {
+				scopes := slices.Clone(key.Scopes)
+				for _, scope := range syntheticAPIKeyScopes {
+					if !slices.Contains(scopes, scope) {
+						scopes = append(scopes, scope)
+					}
+				}
+				// Update in place: in-flight requests may already hold this key ID.
 				key, err = tx.UpdateChatGatewayAPIKeyScopesByID(ctx, database.UpdateChatGatewayAPIKeyScopesByIDParams{
 					ID:     key.ID,
 					UserID: ownerID,
-					Scopes: syntheticAPIKeyScopes,
+					Scopes: scopes,
 				})
 				if err != nil {
 					return xerrors.Errorf("update synthetic API key scopes: %w", err)
@@ -109,8 +127,7 @@ func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (st
 			LifetimeSeconds: int64(syntheticAPIKeyLifetime.Seconds()),
 			TokenName:       tokenName,
 			// The key only attributes gateway requests; the secret is
-			// discarded, so it is never usable as a bearer credential. The
-			// minimal scope is defense in depth on top of that.
+			// discarded, so it is never usable as a bearer credential.
 			Scopes: syntheticAPIKeyScopes,
 		})
 		if err != nil {
