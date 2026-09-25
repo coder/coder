@@ -45,10 +45,25 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 	const displayErrorMessage =
 		hasError && (!isFocused || hasSubmittedInvalidConfirmation);
 
+	// This component stays mounted while closed, so clear the confirmation on
+	// close and on confirm. Otherwise reopening (for example after a failed
+	// delete) would show the name already typed and an enabled Delete button.
+	const resetConfirmation = () => {
+		setUserConfirmationText("");
+		setOrphanWorkspace(false);
+		setIsFocused(false);
+		setHasSubmittedInvalidConfirmation(false);
+	};
+
+	const confirm = () => {
+		resetConfirmation();
+		onConfirm(orphanWorkspace);
+	};
+
 	const onSubmit = (event: FormEvent) => {
 		event.preventDefault();
 		if (deletionConfirmed) {
-			onConfirm(orphanWorkspace);
+			confirm();
 			return;
 		}
 		setHasSubmittedInvalidConfirmation(true);
@@ -73,9 +88,9 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 			hideCancel={false}
 			open={isOpen}
 			title="Delete Workspace"
-			onConfirm={() => onConfirm(orphanWorkspace)}
+			onConfirm={confirm}
 			onClose={() => {
-				setHasSubmittedInvalidConfirmation(false);
+				resetConfirmation();
 				onCancel();
 			}}
 			disabled={!deletionConfirmed}
