@@ -1,0 +1,192 @@
+import {
+	screen,
+	render as testingLibraryRender,
+	waitFor,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
+import { QueryClientProvider } from "react-query";
+import { MemoryRouter } from "react-router";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as ApiModule from "#/api/api";
+import { API, watchChatDesktop } from "#/api/api";
+import {
+	MockFailedWorkspace,
+	MockOutdatedStoppedWorkspaceRequireActiveVersion,
+	MockStoppedWorkspace,
+	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceAgentConnecting,
+	MockWorkspaceBuild,
+} from "#/testHelpers/entities";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { MockResizeObserver } from "#/testHelpers/resizeObserver";
+import { DesktopPanel } from "./DesktopPanel";
+
+vi.mock("#/api/api", async (importOriginal) => ({
+	...(await importOriginal<typeof ApiModule>()),
+	watchChatDesktop: vi.fn(),
+}));
+
+// The panel is driven through the real useDesktopConnection hook; only
+// the noVNC client and the browser socket are replaced so no canvas or
+// network is needed.
+const { rfbDisconnect } = vi.hoisted(() => ({ rfbDisconnect: vi.fn() }));
+vi.mock("@novnc/novnc/lib/rfb", () => ({
+	default: class FakeRFB {
+		scaleViewport = false;
+		resizeSession = false;
+		focusOnClick = false;
+		background = "";
+		disconnect = rfbDisconnect;
+		addEventListener = vi.fn();
+	},
+}));
+
+class FakeWebSocket {
+	binaryType = "blob";
+	close = vi.fn();
+}
+
+const mockWatchChatDesktop = vi.mocked(watchChatDesktop);
+
+// A bare query client keeps `rerender` inside the same provider so prop
+// changes reach the mounted panel instead of remounting it.
+const render = (element: ReactNode) => {
+	const queryClient = createTestQueryClient();
+	return testingLibraryRender(element, {
+		wrapper: ({ children }) => (
+			<MemoryRouter>
+				<QueryClientProvider client={queryClient}>
+					{children}
+				</QueryClientProvider>
+			</MemoryRouter>
+		),
+	});
+};
+
+describe("DesktopPanel", () => {
+	beforeEach(() => {
+		vi.stubGlobal("ResizeObserver", MockResizeObserver);
+		vi.stubGlobal("WebSocket", FakeWebSocket);
+		mockWatchChatDesktop.mockReset();
+		mockWatchChatDesktop.mockImplementation(() => new WebSocket("ws://test"));
+		rfbDisconnect.mockClear();
+	});
+
+	it("starts the workspace when it is stopped", async () => {
+		const startWorkspace = vi
+			.spyOn(API, "startWorkspace")
+			.mockResolvedValue(MockWorkspaceBuild);
+
+		render(
+			<DesktopPanel
+				chatId="chat-1"
+				workspace={MockStoppedWorkspace}
+				workspaceAgent={undefined}
+				isVisible
+			/>,
+		);
+
+		await userEvent.click(
+			screen.getByRole("button", { name: /start workspace/i }),
+		);
+
+		await waitFor(() => {
+			expect(startWorkspace).toHaveBeenCalledWith(
+				MockStoppedWorkspace.id,
+				MockStoppedWorkspace.latest_build.template_version_id,
+			);
+		});
+		expect(mockWatchChatDesktop).not.toHaveBeenCalled();
+	});
+
+	it("updates to the active version when the template requires it", async () => {
+		const startWorkspace = vi.spyOn(API, "startWorkspace");
+		const updateWorkspace = vi
+			.spyOn(API, "updateWorkspace")
+			.mockResolvedValue(MockWorkspaceBuild);
+
+		render(
+			<DesktopPanel
+				chatId="chat-1"
+				workspace={MockOutdatedStoppedWorkspaceRequireActiveVersion}
+				workspaceAgent={undefined}
+				isVisible
+			/>,
+		);
+
+		await userEvent.click(
+			screen.getByRole("button", { name: /update and start/i }),
+		);
+
+		await waitFor(() => {
+			expect(updateWorkspace).toHaveBeenCalledWith(
+				MockOutdatedStoppedWorkspaceRequireActiveVersion,
+			);
+		});
+		expect(startWorkspace).not.toHaveBeenCalled();
+	});
+
+	it("retries a failed start with a cleanup stop", async () => {
+		const retryWorkspace = vi
+			.spyOn(API, "retryWorkspace")
+			.mockResolvedValue(MockWorkspaceBuild);
+
+		render(
+			<DesktopPanel
+				chatId="chat-1"
+				workspace={MockFailedWorkspace}
+				workspaceAgent={undefined}
+				isVisible
+			/>,
+		);
+
+		await userEvent.click(
+			screen.getByRole("button", { name: /start workspace/i }),
+		);
+
+		await waitFor(() => {
+			expect(retryWorkspace).toHaveBeenCalledWith(
+				MockFailedWorkspace,
+				MockFailedWorkspace.latest_build.template_version_id,
+			);
+		});
+	});
+
+	it("dials the desktop only once the agent is connected", async () => {
+		const { rerender } = render(
+			<DesktopPanel
+				chatId="chat-1"
+				workspace={MockWorkspace}
+				workspaceAgent={MockWorkspaceAgentConnecting}
+				isVisible
+			/>,
+		);
+		expect(mockWatchChatDesktop).not.toHaveBeenCalled();
+
+		rerender(
+			<DesktopPanel
+				chatId="chat-1"
+				workspace={MockWorkspace}
+				workspaceAgent={MockWorkspaceAgent}
+				isVisible
+			/>,
+		);
+		await waitFor(() => {
+			expect(mockWatchChatDesktop).toHaveBeenCalledWith("chat-1");
+		});
+
+		rerender(
+			<DesktopPanel
+				chatId="chat-1"
+				workspace={MockStoppedWorkspace}
+				workspaceAgent={undefined}
+				isVisible
+			/>,
+		);
+		await waitFor(() => {
+			expect(rfbDisconnect).toHaveBeenCalled();
+		});
+	});
+});

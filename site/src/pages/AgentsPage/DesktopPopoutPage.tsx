@@ -1,12 +1,25 @@
 import type { FC } from "react";
 import { useEffect, useState } from "react";
+import { useQuery } from "react-query";
 import { useParams } from "react-router";
+import { chat } from "#/api/queries/chats";
+import { workspaceById } from "#/api/queries/workspaces";
+import type { Workspace, WorkspaceAgentStatus } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
+import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import {
 	DesktopToolbar,
 	type ScaleMode,
 } from "./components/RightPanel/DesktopToolbar";
+import {
+	DesktopWorkspaceState,
+	type DesktopWorkspaceStateProps,
+	isDesktopReachable,
+	useStartDesktopWorkspace,
+} from "./components/RightPanel/DesktopWorkspaceState";
 import {
 	type DesktopConnectionStatus,
 	useDesktopConnection,
@@ -18,9 +31,29 @@ export default function DesktopPopoutPage() {
 	const [scaleMode, setScaleMode] = useState<ScaleMode>("fit");
 	const [isControlling, setIsControlling] = useState(false);
 
+	// The pop-out renders outside the chat page, so it resolves the
+	// chat's workspace itself and keeps it live through the same watch.
+	const chatQuery = useQuery(chat(agentId));
+	const workspaceId = chatQuery.data?.workspace_id;
+	const chatAgentId = chatQuery.data?.agent_id;
+	const workspaceQuery = useQuery({
+		...workspaceById(workspaceId ?? ""),
+		enabled: Boolean(workspaceId),
+	});
+	useWorkspaceWatch({ workspaceId, agentId, chatAgentId });
+	const workspace = workspaceQuery.data;
+	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
+	const { startWorkspace, isStartingWorkspace } =
+		useStartDesktopWorkspace(workspace);
+
+	// Same gating as DesktopPanel: dial only while the agent is connected
+	// so a stopped workspace tears the session down and a restarted one
+	// reconnects on its own.
 	const { status, reconnect, attach } = useDesktopConnection({
 		chatId: agentId,
-		activated: true,
+		activated:
+			workspace !== undefined &&
+			isDesktopReachable(workspace.latest_build.status, workspaceAgent?.status),
 		scaleViewport: scaleMode === "fit",
 	});
 
@@ -59,6 +92,17 @@ export default function DesktopPopoutPage() {
 	return (
 		<DesktopPopoutPageView
 			status={status}
+			workspace={workspace}
+			workspaceError={
+				chatQuery.error ??
+				workspaceQuery.error ??
+				(chatQuery.isSuccess && !workspaceId
+					? new Error("This chat has no workspace.")
+					: undefined)
+			}
+			agentStatus={workspaceAgent?.status}
+			onStartWorkspace={startWorkspace}
+			isStartingWorkspace={isStartingWorkspace}
 			reconnect={reconnect}
 			attach={attach}
 			scaleMode={scaleMode}
@@ -70,8 +114,16 @@ export default function DesktopPopoutPage() {
 	);
 }
 
-export type DesktopPopoutPageViewProps = {
+export type DesktopPopoutPageViewProps = Omit<
+	DesktopWorkspaceStateProps,
+	"workspace"
+> & {
 	status: DesktopConnectionStatus;
+	/** Undefined until the chat's workspace has loaded. */
+	workspace: Workspace | undefined;
+	/** Set when the chat or its workspace could not be loaded. */
+	workspaceError?: unknown;
+	agentStatus: WorkspaceAgentStatus | undefined;
 	reconnect: () => void;
 	attach: (container: HTMLElement) => void;
 	scaleMode: ScaleMode;
@@ -83,6 +135,11 @@ export type DesktopPopoutPageViewProps = {
 
 export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
 	status,
+	workspace,
+	workspaceError,
+	agentStatus,
+	onStartWorkspace,
+	isStartingWorkspace,
 	reconnect,
 	attach,
 	scaleMode,
@@ -91,6 +148,29 @@ export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
 	onTakeControl,
 	onReleaseControl,
 }) => {
+	if (workspaceError) {
+		return (
+			<div className="flex h-screen w-screen items-center justify-center bg-surface-primary p-6">
+				<ErrorAlert error={workspaceError} />
+			</div>
+		);
+	}
+
+	if (
+		workspace !== undefined &&
+		!isDesktopReachable(workspace.latest_build.status, agentStatus)
+	) {
+		return (
+			<div className="h-screen w-screen bg-surface-primary">
+				<DesktopWorkspaceState
+					workspace={workspace}
+					onStartWorkspace={onStartWorkspace}
+					isStartingWorkspace={isStartingWorkspace}
+				/>
+			</div>
+		);
+	}
+
 	if (status === "idle" || status === "connecting") {
 		return (
 			<div className="flex h-screen w-screen items-center justify-center bg-surface-primary">
