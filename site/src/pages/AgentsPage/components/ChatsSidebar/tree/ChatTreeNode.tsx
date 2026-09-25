@@ -270,7 +270,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 					>
 						<span
 							className={cn(
-								"block flex-1 truncate text-[13px] leading-4",
+								"block flex-1 truncate text-(length:--agent-font-size) leading-4",
 								isActive || isEmphasizedTitle
 									? "text-content-primary"
 									: cn(
@@ -297,7 +297,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 								hasLinkedDiffStatus &&
 								hasLineStats && (
 									<span
-										className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+										className="inline-flex shrink-0 items-center gap-0.5 text-(length:--agent-font-size) leading-4 tabular-nums"
 										title={`${filesChangedLabel}, +${additions} -${deletions}`}
 									>
 										<span className="text-git-added-bright">+{additions}</span>
@@ -308,7 +308,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 								)}
 							<div
 								className={cn(
-									"min-w-0 overflow-hidden text-[13px] leading-4",
+									"min-w-0 overflow-hidden text-(length:--agent-font-size) leading-4",
 									errorReason
 										? "line-clamp-1 whitespace-normal text-content-destructive wrap-anywhere"
 										: "truncate text-content-secondary",
@@ -460,7 +460,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 									</DropdownMenuTrigger>
 									<DropdownMenuContent
 										align="end"
-										className="[&_[role=menuitem]]:text-[13px]"
+										className="[&_[role=menuitem]]:text-(length:--agent-font-size)"
 										// The dropdown is portaled to the body, but React
 										// portals bubble events through the React tree, so a
 										// right-click inside the menu would still reach the
@@ -482,7 +482,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 						</div>
 					</div>
 				</ContextMenuTrigger>
-				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
+				<ContextMenuContent className="[&_[role=menuitem]]:text-(length:--agent-font-size)">
 					<ChatActionsMenuItems
 						{...sharedMenuItemProps}
 						submenu={contextSubmenu}

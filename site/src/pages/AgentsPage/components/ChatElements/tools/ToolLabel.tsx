@@ -26,14 +26,18 @@ const ProcessSignalLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 			: isTerminate
 				? "Terminating process…"
 				: "Sending signal…";
-		return <span className="truncate text-[13px]">{inFlightVerb}</span>;
+		return (
+			<span className="truncate text-(length:--agent-font-size)">
+				{inFlightVerb}
+			</span>
+		);
 	}
 
 	const success = parsedResult ? Boolean(parsedResult.success) : false;
 	if (success) {
 		const verb = isKill ? "Killed" : "Terminated";
 		return (
-			<span className="truncate text-[13px]">
+			<span className="truncate text-(length:--agent-font-size)">
 				{verb} process{suffix}
 			</span>
 		);
@@ -41,7 +45,7 @@ const ProcessSignalLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 
 	const failedVerb = isKill ? "kill" : isTerminate ? "terminate" : "signal";
 	return (
-		<span className="truncate text-[13px]">
+		<span className="truncate text-(length:--agent-font-size)">
 			Failed to {failedVerb} process{suffix}
 		</span>
 	);
@@ -56,7 +60,7 @@ const AttachFileLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 	const attachedName =
 		resultName || argName || getPathBasename(argPath) || "file";
 	return (
-		<span className="truncate text-[13px]">{`Attached ${attachedName}`}</span>
+		<span className="truncate text-(length:--agent-font-size)">{`Attached ${attachedName}`}</span>
 	);
 };
 
@@ -65,11 +69,13 @@ export const genericToolLabels: Partial<
 > = {
 	process_signal: ProcessSignalLabel,
 	process_list: () => (
-		<span className="truncate text-[13px]">Listing processes</span>
+		<span className="truncate text-(length:--agent-font-size)">
+			Listing processes
+		</span>
 	),
 	attach_file: AttachFileLabel,
 	advisor: () => (
-		<span className="truncate text-[13px] leading-4 text-content-secondary">
+		<span className="truncate text-(length:--agent-font-size) leading-4 text-content-secondary">
 			Advisor
 		</span>
 	),
@@ -83,5 +89,9 @@ export const ToolLabel: React.FC<ToolLabelProps> = (props) => {
 	const displayName = props.mcpSlug
 		? humanizeMCPToolName(props.mcpSlug, props.name)
 		: props.name;
-	return <span className="truncate text-[13px]">{displayName}</span>;
+	return (
+		<span className="truncate text-(length:--agent-font-size)">
+			{displayName}
+		</span>
+	);
 };

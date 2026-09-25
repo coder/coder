@@ -288,7 +288,7 @@ const Label: FC<ToolCallLabelProps> = ({
 }) => {
 	const { active } = useToolCallContext();
 	const labelClassName = cn(
-		"min-w-0 truncate text-[13px] leading-6",
+		"min-w-0 truncate text-(length:--agent-font-size) leading-6",
 		className,
 	);
 	if (active && shimmerWhenActive && typeof children === "string") {

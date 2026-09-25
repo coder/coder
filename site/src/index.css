@@ -722,6 +722,10 @@
 	on every container (even when content does not overflow). */
 	:root {
 		scrollbar-color: hsl(var(--surface-quaternary)) transparent;
+		/* Base text size for the agents UI, applied with
+		`text-(length:--agent-font-size)` so cn() treats it as a font size.
+		The personal font size setting overrides it on the document element. */
+		--agent-font-size: 14px;
 	}
 
 	/* Prevent layout shift when modals open by maintaining scrollbar width.

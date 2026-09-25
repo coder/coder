@@ -368,7 +368,7 @@ const PullRequestMenuItems: FC<PullRequestMenuItemsProps> = ({
 				<GitPullRequestIcon className="size-3.5" />
 				{pullRequests.length} PRs
 			</SubTrigger>
-			<SubContent className="w-72 [&_[role=menuitem]]:text-[13px]">
+			<SubContent className="w-72 [&_[role=menuitem]]:text-(length:--agent-font-size)">
 				{items}
 			</SubContent>
 		</Sub>

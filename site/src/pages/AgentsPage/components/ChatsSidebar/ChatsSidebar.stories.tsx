@@ -2015,6 +2015,15 @@ export const TwoLineLayoutActiveWithSubagents: Story = {
 	},
 };
 
+export const TwoLineLayoutSmallFont: Story = {
+	args: { chats: layoutShowcaseChats },
+	beforeEach: () => {
+		document.documentElement.style.setProperty("--agent-font-size", "13px");
+		return () =>
+			document.documentElement.style.removeProperty("--agent-font-size");
+	},
+};
+
 export const RowMenuWithPullRequest: Story = {
 	args: { chats: layoutShowcaseChats },
 	beforeEach: allowChatSharing,

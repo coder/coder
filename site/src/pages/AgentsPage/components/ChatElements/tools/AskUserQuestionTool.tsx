@@ -166,10 +166,10 @@ const SelectableAnswerOption: FC<SelectableAnswerOptionProps> = ({
 				id={id}
 				value={value}
 			/>
-			<span className="text-[13px] font-medium text-content-primary">
+			<span className="text-(length:--agent-font-size) font-medium text-content-primary">
 				{label}
 			</span>
-			<p className="col-start-2 m-0 whitespace-pre-wrap text-[13px] text-content-secondary">
+			<p className="col-start-2 m-0 whitespace-pre-wrap text-(length:--agent-font-size) text-content-secondary">
 				{description}
 			</p>
 		</label>
@@ -296,7 +296,7 @@ const QuestionStep: FC<QuestionStepProps> = ({
 				/>
 				<p
 					id={questionTextId}
-					className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-[13px]"
+					className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-(length:--agent-font-size)"
 				>
 					<span className="sr-only" id={questionHeaderId}>
 						{questionHeader}
@@ -359,7 +359,7 @@ const AnsweredQuestionText: FC<AnsweredQuestionTextProps> = ({
 			/>
 			<p
 				id={`${idPrefix}-question-${questionIndex}-text`}
-				className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-[13px]"
+				className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-(length:--agent-font-size)"
 			>
 				<span aria-hidden="true">Asked: </span>
 				<span>{getQuestionText(question)}</span>
@@ -564,7 +564,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 						/>
 					</ToolCall.Root>
 				) : (
-					<p className="text-[13px] italic text-content-secondary">
+					<p className="text-(length:--agent-font-size) italic text-content-secondary">
 						No questions available.
 					</p>
 				)}
@@ -617,7 +617,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 					<p className="text-xs font-medium text-content-secondary">
 						Submitted answer
 					</p>
-					<p className="mt-1 whitespace-pre-wrap text-[13px] text-content-primary">
+					<p className="mt-1 whitespace-pre-wrap text-(length:--agent-font-size) text-content-primary">
 						{displayedSubmittedResponseText || "No answer recorded."}
 					</p>
 				</div>
@@ -626,7 +626,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 			{submitError && (
 				<div
 					role="alert"
-					className="mt-3 flex items-center gap-1.5 text-[13px] text-content-destructive"
+					className="mt-3 flex items-center gap-1.5 text-(length:--agent-font-size) text-content-destructive"
 				>
 					<TriangleAlertIcon className="size-3.5 shrink-0" />
 					<span>{submitError}</span>
