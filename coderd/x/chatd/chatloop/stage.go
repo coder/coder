@@ -20,7 +20,6 @@ type Stage string
 const (
 	StageChatTurn         Stage = "chat_turn"
 	StageQueueWait        Stage = "queue_wait"
-	StageCapacityWait     Stage = "capacity_wait"
 	StageAcquisition      Stage = "acquisition"
 	StageGenerationStep   Stage = "generation_step"
 	StagePrepare          Stage = "prepare"
@@ -56,7 +55,9 @@ const (
 )
 
 // Scope is the `scope` label and span attribute of a stage. A stage is
-// turn scoped when it runs inside a chat turn's trace, and background
+// turn scoped when its latency is attributable to a prompt: it runs
+// inside a chat turn's trace, or it is a wait such as queue_wait that
+// is recorded before the prompt's turn opens. A stage is background
 // scoped when it runs on work detached from the turn.
 type Scope string
 
@@ -145,12 +146,14 @@ func (t *StageTracer) Now() time.Time {
 
 // StageModel identifies the model a stage ran against. All fields are
 // empty for stages that run before a model is resolved, such as the
-// queue and capacity waits. ProviderType is the configured type of the
-// AI provider the model config points at, such as "bedrock"; it is not
-// the wire protocol the client speaks. Effort is the effective
-// reasoning effort sent to the provider, empty when the model config
-// sets none.
+// queue wait. Provider is the wire protocol the model client speaks
+// (Model.Provider()). ProviderType is the configured type of the AI
+// provider the model config points at, such as "bedrock"; it differs
+// from Provider for Bedrock and the OpenAI-compatible provider types.
+// Effort is the effective reasoning effort sent to the provider, empty
+// when the model config sets none.
 type StageModel struct {
+	Provider     string
 	ProviderType string
 	Model        string
 	Effort       string
@@ -159,7 +162,10 @@ type StageModel struct {
 // attributes returns the span attributes for the identity, omitting
 // the ones that are unknown.
 func (m StageModel) attributes() []attribute.KeyValue {
-	attrs := make([]attribute.KeyValue, 0, 3)
+	attrs := make([]attribute.KeyValue, 0, 4)
+	if m.Provider != "" {
+		attrs = append(attrs, attribute.String(AttrProvider, m.Provider))
+	}
 	if m.ProviderType != "" {
 		attrs = append(attrs, attribute.String(AttrProviderType, m.ProviderType))
 	}
@@ -256,36 +262,22 @@ func (t *StageTracer) Start(
 		[]trace.SpanStartOption{trace.WithAttributes(attrs...)})
 }
 
-// StartRoot begins a stage span in its own trace, ignoring any span
-// in ctx. links records the relationship to the originating span
-// context instead of making that span the parent, so the stage's
-// trace stays scoped to the chat turn. The span opens a turn, so it
-// is turn scoped regardless of what ctx carries.
-func (t *StageTracer) StartRoot(
-	ctx context.Context,
-	stage Stage,
-	links []trace.Link,
-	attrs ...attribute.KeyValue,
-) (context.Context, *StageSpan) {
-	return t.StartRootAt(ctx, stage, time.Time{}, links, attrs...)
-}
-
-// StartRootAt begins a root stage span that started at an earlier,
-// already known instant. The span timestamp and the recorded duration
-// both run from start, so stages reconstructed inside the span still
-// fall within it. A zero start means the span begins now. A start
-// after the tracer's current time is replaced by now and, for observed
-// stages, counted as a future_start anomaly.
+// StartRootAt begins a stage span in its own trace, ignoring any span
+// in ctx, that started at an earlier, already known instant. The span
+// opens a turn, so it is turn scoped regardless of what ctx carries.
+// The span timestamp and the recorded duration both run from start,
+// so stages reconstructed inside the span still fall within it. A zero
+// start means the span begins now. A start after the tracer's current
+// time is replaced by now and, for observed stages, counted as a
+// future_start anomaly.
 func (t *StageTracer) StartRootAt(
 	ctx context.Context,
 	stage Stage,
 	start time.Time,
-	links []trace.Link,
 	attrs ...attribute.KeyValue,
 ) (context.Context, *StageSpan) {
 	return t.startSpan(ctx, stage, ScopeTurn, start, []trace.SpanStartOption{
 		trace.WithNewRoot(),
-		trace.WithLinks(links...),
 		trace.WithAttributes(attrs...),
 	})
 }
