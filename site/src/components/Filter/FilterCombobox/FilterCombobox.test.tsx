@@ -286,17 +286,31 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it("emits typed text that matches an applied option as a search", async () => {
-		const { user, onChange, input } = setup([ownerCategory, statusCategory], {
-			initialValue: "status:running",
-		});
+	it("applies typed text that could be a filter only when the menu is dismissed", async () => {
+		const { user, onChange, input } = setup([ownerCategory, statusCategory]);
 
 		await user.click(input);
+		await screen.findByRole("option", { name: "Running" });
 		await user.type(input, "run");
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		expect(onChange).not.toHaveBeenCalledWith("run");
 
-		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith("status:running run"),
-		);
+		await user.keyboard("{Escape}");
+		expect(onChange).toHaveBeenLastCalledWith("run");
+	});
+
+	it("applies typed text that could be a filter when switching to the full filter list", async () => {
+		const { user, onChange, input, filtersButton } = setup([
+			ownerCategory,
+			statusCategory,
+		]);
+
+		await user.click(input);
+		await screen.findByRole("option", { name: "Running" });
+		await user.type(input, "ali");
+		await user.click(filtersButton);
+
+		expect(onChange).toHaveBeenLastCalledWith("ali");
 	});
 
 	it("keeps every applied Workspace attribute when another filter changes", async () => {
