@@ -409,7 +409,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		})
 		.filter(isChatMessage);
 	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
-	const { data: promptsData } = useQuery(chatPromptsQuery(chatId ?? ""));
+	const { data: promptsData } = useQuery(chatPromptsQuery(chatId));
 	const userPromptHistory: readonly string[] =
 		promptsData?.prompts.map((prompt) => prompt.text) ?? [];
 
@@ -427,15 +427,13 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			: rawUsage;
 	const queryClient = useQueryClient();
 	const refreshContextMutation = useMutation(
-		refreshChatContext(queryClient, chatId ?? ""),
+		refreshChatContext(queryClient, chatId),
 	);
-	const handleRefreshContext = chatId
-		? () =>
-				refreshContextMutation.mutate(undefined, {
-					onSuccess: () => toast.success("Context refreshed."),
-					onError: () => toast.error("Failed to refresh context."),
-				})
-		: undefined;
+	const handleRefreshContext = () =>
+		refreshContextMutation.mutate(undefined, {
+			onSuccess: () => toast.success("Context refreshed."),
+			onError: () => toast.error("Failed to refresh context."),
+		});
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
