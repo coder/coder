@@ -22,9 +22,9 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 ## What the tooling checks, and what it doesn't
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
-The guide documents 77 rules.
-Automated tooling checks 8 of them, and 1 of those 8 doesn't run on published pages.
-The other 69 are yours to apply by reading, 70 on published pages, where the one-sentence-per-line rule is off.
+The guide documents 79 rules.
+Automated tooling checks 9 of them, and 1 of those 9 doesn't run on published pages.
+The other 70 are yours to apply by reading, 71 on published pages, where the one-sentence-per-line rule is off.
 
 Open the section that matches what you're writing and work through it.
 The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
