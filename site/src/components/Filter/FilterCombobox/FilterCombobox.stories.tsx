@@ -653,8 +653,8 @@ export const ScopeToggle: Story = {
 	},
 };
 
-// Typing part of the toggle's pill label opens the Owner flyout, so the toggle
-// is visible.
+// Typing the start of the toggle's search phrase opens the Owner flyout, so
+// the toggle is visible.
 export const ScopeToggleTypedMatch: Story = {
 	...ScopeToggle,
 	play: async ({ canvasElement }) => {
@@ -678,6 +678,18 @@ export const ScopePillFullLabel: Story = {
 			categories={scopedOwnerCategories}
 		/>
 	),
+};
+
+// A second Owner token stays a plain chip under its own key. Toggling would
+// repeat `owner`, so the pill has no remove button and the switch is disabled.
+export const ScopeToggleWithSecondOwner: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alice owner:bob"
+			categories={scopedOwnerCategories}
+		/>
+	),
+	play: ScopeToggle.play,
 };
 
 // On a phone the pill truncates so the chip pair stays inside the field.

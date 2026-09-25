@@ -107,40 +107,19 @@ describe("filterQuery", () => {
 		).toEqual(["owner:alice", "status:running"]);
 	});
 
-	it("keeps the first Owner token as the chip and the rest as free text", () => {
-		const categories = [
-			{
-				key: "owner",
-				chipKeys: ["owner", "user"],
-				scopeToggle: {
-					label: () => "Include shared workspaces",
-					widenedKey: "user",
-					pillPrefix: "+ shared with",
-					pillRemoveLabel: (owner: string) =>
-						`Hide workspaces shared with ${owner}`,
-					searchPhrase: "shared with owner",
-				},
-			},
-		];
-		const chipKeys = ["owner", "user"];
+	it("keeps owner and user tokens as separate chips", () => {
+		const chipKeys = ["owner", "user", "status"];
+		const query = "user:me owner:alice status:running";
 
-		expect(queryToChips("owner:alice user:bob", chipKeys, categories)).toEqual([
+		expect(queryToChips(query, chipKeys)).toEqual([
+			"user:me",
 			"owner:alice",
+			"status:running",
 		]);
-		expect(queryToChips("user:bob owner:alice", chipKeys, categories)).toEqual([
-			"user:bob",
-		]);
+		expect(extractFreeText(query, chipKeys)).toBe("");
 		expect(
-			extractFreeText("user:me dev owner:alice", chipKeys, categories),
-		).toBe("dev owner:alice");
-		expect(
-			composeFilterQuery(
-				["owner:bob", "user:carol", "user:alice"],
-				chipKeys,
-				"",
-				categories,
-			),
-		).toBe("user:alice");
+			composeFilterQuery(["user:me", "owner:alice"], chipKeys, "dev"),
+		).toBe("user:me owner:alice dev");
 	});
 
 	it("matches typed category prefixes by key, label, and alias", () => {

@@ -138,6 +138,9 @@ export function FilterCombobox({
 		highlightRef,
 		scopeWidened,
 		scopeValue,
+		scopeToggleDisabled,
+		scopePillCategoryKey,
+		isPlainScopeChip,
 		optionChipKey,
 		typeaheadError,
 		actions,
@@ -278,7 +281,7 @@ export function FilterCombobox({
 			? {
 					widened: scopeWidened(categoryKey),
 					label: toggle.label(scopeValue(categoryKey)),
-					disabled: scopeValue(categoryKey) === undefined,
+					disabled: scopeToggleDisabled(categoryKey),
 				}
 			: undefined;
 	};
@@ -392,13 +395,15 @@ export function FilterCombobox({
 					</InputGroupAddon>
 					<FilterComboboxChips>
 						{chipValues.map((token) => {
-							const display = chipDisplay(token, categories);
+							const display = chipDisplay(
+								token,
+								isPlainScopeChip(token) ? [] : categories,
+							);
 							const category = categories.find(
 								(entry) => entry.key === display.key,
 							);
-							// The scope pill follows its category's chip.
-							const scopeToggle =
-								category?.scopeToggle && scopeWidened(category.key)
+							const pillToggle =
+								category && scopePillCategoryKey(token) === category.key
 									? category.scopeToggle
 									: undefined;
 							const labelOnly = category?.chipLabelOnly === true;
@@ -426,23 +431,31 @@ export function FilterCombobox({
 										removeLabel={`Remove ${displayText}`}
 										className={cn(
 											labelOnly && labelOnlyChipClassName,
-											scopeToggle && "rounded-r-none",
+											pillToggle && "rounded-r-none",
 										)}
 									>
 										<ChipLabel prefix={prefix} value={value} />
 									</FilterComboboxChip>
 									{/* Joined to its chip, since it widens that chip's filter. */}
-									{category && scopeToggle && (
+									{category && pillToggle && (
 										<FilterComboboxChip
-											removeLabel={scopeToggle.pillRemoveLabel(value)}
-											onRemove={() => actions.toggleScope(category.key)}
+											showRemove={!scopeToggleDisabled(category.key)}
+											removeLabel={pillToggle.pillRemoveLabel(value)}
+											onRemove={(event) => {
+												// The pill unmounts, so keyboard removal keeps focus
+												// in the search input.
+												if (event.detail === 0) {
+													actions.focusInput();
+												}
+												actions.removeScopePill(category.key);
+											}}
 											// Only the pill shrinks, so the pair never overflows the field.
 											className="min-w-0 rounded-l-none border-l-surface-primary"
 										>
 											<Tooltip>
 												<TooltipTrigger asChild>
 													<span className="min-w-0 truncate">
-														{`${scopeToggle.pillPrefix} `}
+														{`${pillToggle.pillPrefix} `}
 														<span className="text-content-primary">
 															{value}
 														</span>

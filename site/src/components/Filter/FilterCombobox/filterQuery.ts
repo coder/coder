@@ -54,36 +54,20 @@ export const chipDisplay = (
 	return { key, value };
 };
 
-// Collapses a stream of key/value pairs to one chip per group, keeping each
-// group's first-seen position and its last pair, key and value alike. Shared by
-// `queryToChips` (pairs from a query string) and `dedupeChips` (pairs from
-// existing tokens).
+// Collapses a stream of key/value pairs to one chip per key, keeping each key's
+// first-seen position and its last-seen value. Shared by `queryToChips` (pairs
+// from a query string) and `dedupeChips` (pairs from existing tokens).
 const dedupeInOrder = (
 	pairs: Iterable<{ key: string; value: string }>,
-	groupKey: (key: string) => string = (key) => key,
 ): string[] => {
-	const byGroup = new Map<string, { key: string; value: string }>();
-	for (const pair of pairs) {
-		byGroup.set(groupKey(pair.key), pair);
+	// Map keeps first-seen insertion order and updating a key does not move it,
+	// which is exactly "first-seen position, last-seen value".
+	const byKey = new Map<string, string>();
+	for (const { key, value } of pairs) {
+		byKey.set(key, value);
 	}
-	return [...byGroup.values()].map(({ key, value }) => chipToken(key, value));
+	return [...byKey].map(([key, value]) => chipToken(key, value));
 };
-
-// The key of the scope-toggle category that owns `key`, or undefined when no
-// such category owns it.
-const scopeCategoryKey = (
-	key: string,
-	categories: readonly ChipDisplaySource[],
-) =>
-	categories.find(
-		(category) =>
-			category.scopeToggle && categoryChipKeys(category).includes(key),
-	)?.key;
-
-// Keys of one scope-toggle category (`owner` and `user`) form one group;
-// every other key is its own group.
-const scopeGroupKey = (key: string, categories: readonly ChipDisplaySource[]) =>
-	scopeCategoryKey(key, categories) ?? key;
 
 export const parseChipToken = (
 	token: string,
@@ -107,44 +91,30 @@ export const parseChipToken = (
 
 /**
  * Chip tokens from a query string for known chip categories, in the order they
- * appear. One chip per key; if a key repeats, the last value wins but the chip
- * keeps its first-seen position. The keys of a scope-toggle category in
- * `categories` share one chip, taken from the category's first token; its
- * other tokens stay in `extractFreeText` so the query keeps applying them.
+ * appear. One chip per category; if a category repeats, the last value wins but
+ * the chip keeps its first-seen position.
  */
 export const queryToChips = (
 	query: string,
 	chipKeys: readonly string[],
-	categories: readonly ChipDisplaySource[] = [],
 ): string[] => {
 	const pairs: { key: string; value: string }[] = [];
-	const seenScopeCategories = new Set<string>();
 	for (const { key, value } of parseFilterTokens(query)) {
 		const normalizedKey = key.toLowerCase();
-		if (!chipKeys.includes(normalizedKey)) {
-			continue;
+		if (chipKeys.includes(normalizedKey)) {
+			pairs.push({ key: normalizedKey, value });
 		}
-		const scopeKey = scopeCategoryKey(normalizedKey, categories);
-		if (scopeKey !== undefined) {
-			if (seenScopeCategories.has(scopeKey)) {
-				continue;
-			}
-			seenScopeCategories.add(scopeKey);
-		}
-		pairs.push({ key: normalizedKey, value });
 	}
 	return dedupeInOrder(pairs);
 };
 
 /**
- * De-duplicates chip tokens, preserving each group's first-seen position and
- * taking its last token. Each key is its own group, except that the keys of a
- * scope-toggle category in `categories` form one.
+ * De-duplicates chip tokens by category, preserving the first-seen position of
+ * each category and taking the last value provided for it.
  */
 export const dedupeChips = (
 	tokens: readonly string[],
 	chipKeys: readonly string[],
-	categories: readonly ChipDisplaySource[] = [],
 ): string[] => {
 	const pairs: { key: string; value: string }[] = [];
 	for (const token of tokens) {
@@ -153,7 +123,7 @@ export const dedupeChips = (
 			pairs.push(parsed);
 		}
 	}
-	return dedupeInOrder(pairs, (key) => scopeGroupKey(key, categories));
+	return dedupeInOrder(pairs);
 };
 
 /**
@@ -162,30 +132,16 @@ export const dedupeChips = (
  * Only `key:value` tokens whose key is a known chip category are stripped; bare
  * words and unrecognized `key:value` tokens (documented backend filters such as
  * `dormant:true` or `has-agent:connected`) are carried through unchanged so the
- * query round-trips instead of being silently dropped or corrupted. A
- * scope-toggle category's tokens after its first are kept too, matching
- * `queryToChips`.
+ * query round-trips instead of being silently dropped or corrupted.
  */
 export const extractFreeText = (
 	query: string,
 	chipKeys: readonly string[],
-	categories: readonly ChipDisplaySource[] = [],
 ): string => {
-	const seenScopeCategories = new Set<string>();
 	return query
 		.replace(FILTER_TOKEN_RE, (match, quotedKey, _quoted, bareKey) => {
 			const key = (quotedKey ?? bareKey)?.toLowerCase();
-			if (!key || !chipKeys.includes(key)) {
-				return match;
-			}
-			const scopeKey = scopeCategoryKey(key, categories);
-			if (scopeKey !== undefined) {
-				if (seenScopeCategories.has(scopeKey)) {
-					return match;
-				}
-				seenScopeCategories.add(scopeKey);
-			}
-			return " ";
+			return key && chipKeys.includes(key) ? " " : match;
 		})
 		.replace(/\s+/g, " ")
 		.trim();
@@ -199,9 +155,8 @@ export const composeFilterQuery = (
 	tokens: readonly string[],
 	chipKeys: readonly string[],
 	freeText: string,
-	categories: readonly ChipDisplaySource[] = [],
 ): string => {
-	const parts = dedupeChips(tokens, chipKeys, categories).map((token) => {
+	const parts = dedupeChips(tokens, chipKeys).map((token) => {
 		const separatorIndex = token.indexOf(":");
 		const key = token.slice(0, separatorIndex);
 		const value = token.slice(separatorIndex + 1);

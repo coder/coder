@@ -5,6 +5,7 @@ import {
 	type ComponentProps,
 	createContext,
 	type FC,
+	type MouseEvent,
 	type ReactNode,
 	type Ref,
 	type RefObject,
@@ -385,7 +386,7 @@ type FilterComboboxChipProps = ComponentProps<typeof Badge> & {
 	/** Accessible name for the remove control. Defaults to `Remove ${value}`. */
 	removeLabel?: string;
 	/** Replaces the root's `onRemoveValue` for chips that are not query tokens. */
-	onRemove?: () => void;
+	onRemove?: (event: MouseEvent<HTMLButtonElement>) => void;
 };
 
 /** Height shared by chips and controls that sit in the chip row. */
@@ -408,21 +409,6 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 	const removeValue = value ?? childText;
 	const resolvedRemoveLabel =
 		removeLabel ?? (removeValue ? `Remove ${removeValue}` : "Remove filter");
-	// The button unmounts with its chip, so keyboard removal moves focus to the
-	// search input instead of the page body.
-	const remove = (button: HTMLElement, fromKeyboard: boolean) => {
-		if (fromKeyboard) {
-			button
-				.closest('[data-slot="combobox-chips"]')
-				?.querySelector("input")
-				?.focus();
-		}
-		if (onRemove) {
-			onRemove();
-		} else if (removeValue) {
-			onRemoveValue?.(removeValue);
-		}
-	};
 
 	return (
 		<Badge
@@ -447,7 +433,11 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 					onMouseDown={(event) => event.preventDefault()}
 					onClick={(event) => {
 						event.stopPropagation();
-						remove(event.currentTarget, event.detail === 0);
+						if (onRemove) {
+							onRemove(event);
+						} else if (removeValue) {
+							onRemoveValue?.(removeValue);
+						}
 					}}
 				>
 					<XIcon aria-hidden />

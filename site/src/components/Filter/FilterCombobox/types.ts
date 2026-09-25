@@ -52,12 +52,14 @@ export type FilterCategory = {
 	 */
 	hideWhenSingleOption?: boolean;
 	/**
-	 * Switch shown below the category's options. It is disabled until the
-	 * category has a chip, and each pick turns it on: options commit under
-	 * `widenedKey` instead of the category key, e.g. Owner committing
-	 * `user:alice` (owned by or shared with alice) instead of `owner:alice`.
-	 * While it is on, a pill after the chip reads `pillPrefix` and the chip's
-	 * value, and removing the pill turns the switch off. Applies only to
+	 * Switch shown below the category's options. While it is on, options
+	 * commit under `widenedKey` instead of the category key, e.g. Owner
+	 * committing `user:alice` (owned by or shared with alice) instead of
+	 * `owner:alice`. It acts on the category's first chip, and is disabled until
+	 * there is one or while another chip uses the key it would write. The first
+	 * pick, made with no chip, turns it on; later picks keep the applied chip's
+	 * key. While it is on, a pill after the chip reads `pillPrefix` and the
+	 * chip's value, and removing the pill turns the switch off. Applies only to
 	 * submenu categories, not inline ones.
 	 */
 	scopeToggle?: {
@@ -76,6 +78,7 @@ export type FilterCategory = {
 	};
 };
 
+/** Query keys the category owns: `chipKeys` (default `[key]`) plus `scopeToggle.widenedKey`. */
 export const categoryChipKeys = (
 	category: Pick<FilterCategory, "key" | "chipKeys" | "scopeToggle">,
 ): readonly string[] => [

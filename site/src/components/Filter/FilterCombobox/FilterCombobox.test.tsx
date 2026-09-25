@@ -1730,26 +1730,41 @@ describe("FilterCombobox", () => {
 		expect(onChange).toHaveBeenLastCalledWith("owner:alice xyz");
 	});
 
-	it("keeps a second Owner token as search text when typed text is applied", async () => {
+	it("keeps a second Owner token as a plain chip while typing", async () => {
 		const { user, onChange, input } = setup([scopedOwnerCategory], {
 			initialValue: "owner:bob user:carol",
 		});
+		expect(input).toHaveValue("");
 
 		await user.click(input);
-		await user.type(input, " dev");
-		await user.keyboard("{Escape}");
+		await user.type(input, "dev ");
+		await user.keyboard("{Backspace}{Escape}");
 
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("owner:bob user:carol dev"),
 		);
+		expect(onChange).not.toHaveBeenCalledWith("owner:bob");
+
+		await user.click(screen.getByRole("button", { name: "Remove user:carol" }));
+		expect(onChange).toHaveBeenLastCalledWith("owner:bob dev");
 	});
 
-	it("keeps a second Owner token as search text when selecting an option", async () => {
-		const { user, onChange, input, filtersButton } = setup(
-			[scopedOwnerCategory],
-			{ initialValue: "owner:bob user:carol" },
+	it("keeps a second Owner token when another chip is removed", async () => {
+		const { user, onChange } = setup([scopedOwnerCategory, statusCategory], {
+			initialValue: "owner:bob user:carol status:running",
+		});
+
+		await user.click(
+			screen.getByRole("button", { name: "Remove status:running" }),
 		);
-		expect(input).toHaveValue("user:carol");
+
+		expect(onChange).toHaveBeenLastCalledWith("owner:bob user:carol");
+	});
+
+	it("replaces only the first Owner chip when selecting an option", async () => {
+		const { user, onChange, filtersButton } = setup([scopedOwnerCategory], {
+			initialValue: "owner:bob user:carol",
+		});
 
 		await user.click(filtersButton);
 		await user.keyboard("{ArrowRight}");
@@ -1758,6 +1773,80 @@ describe("FilterCombobox", () => {
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("owner:alice user:carol"),
 		);
+	});
+
+	it("drops a second Owner chip under the key a typed prefix picks", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			initialValue: "user:me owner:carol",
+		});
+
+		await user.click(input);
+		await user.type(input, "owner:");
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
+	it.each([
+		["user:me owner:carol", "me", "owner:me owner:carol"],
+		["owner:bob user:carol", "bob", "user:bob user:carol"],
+	])(
+		"disables the scope switch when toggling %s would repeat a key",
+		async (initialValue, owner, repeatedKeyQuery) => {
+			const { user, onChange, input, filtersButton } = setup(
+				[scopedOwnerCategory],
+				{ initialValue },
+			);
+			await user.click(filtersButton);
+			await user.keyboard("{ArrowRight}");
+			await user.click(
+				await screen.findByRole("switch", {
+					name: `Include workspaces shared with ${owner}`,
+				}),
+			);
+
+			await user.click(input);
+			await user.keyboard("{Escape}{Backspace}");
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith(initialValue.split(" ")[0]),
+			);
+			expect(onChange).not.toHaveBeenCalledWith(repeatedKeyQuery);
+		},
+	);
+
+	it("keeps the scope pill of the applied chip while owner: is typed", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			initialValue: "user:alice",
+		});
+
+		await user.click(input);
+		await user.type(input, "owner:");
+		await screen.findByRole("option", { name: "alice" });
+		await user.click(
+			screen.getByRole("button", { name: "Hide workspaces shared with alice" }),
+		);
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
+	it("focuses the input when the scope pill is removed with the keyboard", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			initialValue: "user:alice",
+		});
+
+		screen
+			.getByRole("button", { name: "Hide workspaces shared with alice" })
+			.focus();
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+		expect(input).toHaveFocus();
 	});
 
 	it("commits an owner value suggestion under the category key when narrowed", async () => {
