@@ -588,16 +588,6 @@ export const TypedInlinePrefix: Story = {
 	},
 };
 
-// Three or more chips add a Clear all button after the last chip.
-export const ClearAll: Story = {
-	render: () => (
-		<FilterComboboxHarness
-			initialQuery="owner:me template:docker status:running outdated:true"
-			categories={categoriesWithAttributes}
-		/>
-	),
-};
-
 // With a single template there is nothing to narrow, so Template is left out.
 const singleTemplateCategories: FilterCategory[] = [
 	{

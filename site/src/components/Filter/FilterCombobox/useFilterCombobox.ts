@@ -896,8 +896,6 @@ export const useFilterCombobox = ({
 			showMenu: showFilterMenu,
 			dismiss: handleDismiss,
 			removeChip: handleRemoveChip,
-			// Removes every chip and keeps the typed search text.
-			clearChips: () => updateFromChips([]),
 			retryActiveOptions,
 			retryTypeahead,
 			selectCategory,
