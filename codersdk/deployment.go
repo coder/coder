@@ -5325,6 +5325,11 @@ var ExperimentsKnown = Experiments{
 // not be included here and will be essentially hidden.
 var ExperimentsSafe = Experiments{}
 
+// ExperimentsUserScoped lists the experiments that accept runtime rules
+// evaluated per user. Experiments not listed here are read only from the
+// startup list and need a restart to change.
+var ExperimentsUserScoped = Experiments{ExperimentExample}
+
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
 // Experiments are not safe for production use, and are not guaranteed to

@@ -565,6 +565,11 @@ require (
 )
 
 require (
+	cel.dev/cel-go v0.32.0
+	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
+)
+
+require (
 	cel.dev/expr v0.25.2 // indirect
 	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/iam v1.12.0 // indirect
