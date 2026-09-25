@@ -54,9 +54,17 @@ import {
 	useFilterCombobox,
 } from "./useFilterCombobox";
 
+/**
+ * Delay before hovering another category swaps an open flyout, so a diagonal
+ * move into the current flyout does not switch panels.
+ */
 const CATEGORY_HOVER_DELAY_MS = 300;
 
 const CLEAR_ALL_MIN_CHIPS = 3;
+
+// The popup lets flyouts overflow, so the menu caps its own height and scrolls.
+const menuMaxHeightClassName =
+	"max-h-[min(24rem,var(--radix-popper-available-height))]";
 
 const labelOnlyChipClassName =
 	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
@@ -101,14 +109,14 @@ export function FilterCombobox({
 	const {
 		open,
 		inputValue,
-		committedFreeText,
+		typedFreeText,
 		activeCategoryKey,
 		activeCategory,
 		activeOptions,
 		activeOptionsError,
 		statusMessage,
 		listedCategories,
-		filteringCategories,
+		categoriesNarrowedByText,
 		unfilteredOptionsByKey,
 		unfilteredOptionsErroredKeys,
 		valueSuggestions,
@@ -153,8 +161,6 @@ export function FilterCombobox({
 		}
 	};
 	useEffect(() => cancelHoverSwitch, []);
-	// Switching between open flyouts is delayed so a diagonal move through a
-	// neighboring category into the current flyout does not swap panels.
 	const updateFlyoutCategory = (
 		categoryKey: string | null,
 		immediate = false,
@@ -213,7 +219,7 @@ export function FilterCombobox({
 	// Typed text narrows the category rows, so a click enters the category like
 	// Enter does instead of opening a flyout.
 	const flyoutCategory =
-		activeCategoryKey === null && !filteringCategories
+		activeCategoryKey === null && !categoriesNarrowedByText
 			? categories.find((category) => category.key === flyoutCategoryKey)
 			: undefined;
 	const selectFlyoutOption = (token: string) => {
@@ -299,9 +305,8 @@ export function FilterCombobox({
 								chipValues.length > 0 && "text-content-primary",
 							)}
 							onMouseDown={(event) => {
-								// Prevent the button from taking focus on pointer open.
-								// toggleFilterMenu focuses the combobox input next so
-								// aria-activedescendant keyboard navigation still works.
+								// Keeps focus in the combobox input, which both menu
+								// actions focus, so aria-activedescendant navigation works.
 								event.preventDefault();
 							}}
 							onKeyDown={(event) => {
@@ -310,13 +315,13 @@ export function FilterCombobox({
 								}
 								event.preventDefault();
 								event.stopPropagation();
-								actions.showMenu();
+								actions.showAllFilters();
 							}}
 							onClick={(event) => {
 								// Keyboard and assistive-technology activation (detail 0)
 								// only opens the menu; pointer clicks toggle it.
 								if (event.detail === 0) {
-									actions.showMenu();
+									actions.showAllFilters();
 									return;
 								}
 								actions.toggleMenu();
@@ -388,14 +393,14 @@ export function FilterCombobox({
 								</button>
 							</Badge>
 						)}
-						{activeCategory && committedFreeText.length > 0 && (
+						{activeCategory && typedFreeText.length > 0 && (
 							<Badge
 								variant="outline"
 								size="md"
 								data-slot="combobox-chip-search"
 								className="px-2 font-medium"
 							>
-								{committedFreeText}
+								{typedFreeText}
 							</Badge>
 						)}
 						{/* Decorative draft prefix: the live region already announces
@@ -441,7 +446,10 @@ export function FilterCombobox({
 						(activeCategoryKey !== null || !mainPanelEmpty) && (
 							<div
 								data-slot="filter-mobile-panel"
-								className="flex max-h-[min(24rem,var(--radix-popper-available-height))] w-(--radix-popover-trigger-width) max-w-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-surface-primary p-2 shadow-md"
+								className={cn(
+									menuMaxHeightClassName,
+									"flex w-(--radix-popover-trigger-width) max-w-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-surface-primary p-2 shadow-md",
+								)}
 							>
 								{categoryOptionsList ?? (
 									<MainPanel embedded drillIn {...mainPanelProps} />
@@ -461,7 +469,7 @@ export function FilterCombobox({
 									drillIn={
 										isCoarsePointer ||
 										activeCategoryKey !== null ||
-										filteringCategories
+										categoriesNarrowedByText
 									}
 									{...mainPanelProps}
 								/>
@@ -504,7 +512,7 @@ export function FilterCombobox({
 const OPTION_ITEM_CLASS = "min-h-8.5 gap-2 px-2 py-1.25";
 
 // Categories with more options than this get a search field in their panel.
-const SEARCHABLE_OPTION_COUNT = 10;
+export const SEARCHABLE_OPTION_COUNT = 10;
 
 const optionsLoadErrorMessage = (category: FilterCategory | undefined) =>
 	`Couldn’t load ${category ? category.label : "filter"} options.`;
@@ -657,9 +665,8 @@ function MainPanel({
 		<FilterComboboxList
 			data-slot="filter-main-panel"
 			className={cn(
-				// The popup itself lets flyouts overflow, so the menu caps its own
-				// height and scrolls.
-				"max-h-[min(24rem,var(--radix-popper-available-height))] w-(--radix-popover-trigger-width) max-w-full shrink-0 rounded-md border border-border bg-surface-primary p-2 shadow-md sm:w-64",
+				menuMaxHeightClassName,
+				"w-(--radix-popover-trigger-width) max-w-full shrink-0 rounded-md border border-border bg-surface-primary p-2 shadow-md sm:w-64",
 				embedded &&
 					"w-full rounded-none border-0 bg-transparent p-0 shadow-none",
 			)}
@@ -753,6 +760,8 @@ const LIST_NAVIGATION_KEYS = new Set([
 	"End",
 	"Enter",
 ]);
+// cmdk's Ctrl bindings for next (`n`, `j`) and previous (`p`, `k`).
+const LIST_NAVIGATION_CTRL_KEYS = new Set(["n", "j", "p", "k"]);
 
 type FlyoutSearchProps = Readonly<{
 	label: string;
@@ -780,7 +789,10 @@ function FlyoutSearch({
 				value={value}
 				onChange={(event) => onChange(event.currentTarget.value)}
 				onKeyDown={(event) => {
-					if (navigatesList && LIST_NAVIGATION_KEYS.has(event.key)) {
+					const isListNavigation =
+						LIST_NAVIGATION_KEYS.has(event.key) ||
+						(event.ctrlKey && LIST_NAVIGATION_CTRL_KEYS.has(event.key));
+					if (navigatesList && isListNavigation) {
 						return;
 					}
 					event.stopPropagation();

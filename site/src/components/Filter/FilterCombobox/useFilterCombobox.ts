@@ -5,7 +5,7 @@ import {
 	useReducer,
 	useRef,
 } from "react";
-import { useQueries, useQuery } from "react-query";
+import { useQueries, useQuery, useQueryClient } from "react-query";
 import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
 import {
 	chipToken,
@@ -37,13 +37,19 @@ type State = {
 	mode: Mode;
 	/**
 	 * True when the menu was opened from the filter button or by stepping back
-	 * out of a category. The full category list is shown and typed text stays a
-	 * workspace search instead of narrowing filters.
+	 * out of a category. The full category list is shown, and free text typed
+	 * before that stays a free-text search instead of narrowing filters.
+	 * Typing leaves browse-all.
 	 */
 	browseAll: boolean;
 	activeCategoryKey: string | null;
 	inputValue: string;
-	committedFreeText: string;
+	/**
+	 * Free text typed outside chips and category prefixes. While it could still
+	 * be a filter being searched for, it is withheld from the emitted query
+	 * until `applyTypedSearch` runs.
+	 */
+	typedFreeText: string;
 };
 
 type Action =
@@ -53,12 +59,12 @@ type Action =
 			type: "enterCategory";
 			categoryKey: string;
 			query: string;
-			committedFreeText: string;
+			typedFreeText: string;
 	  }
 	| { type: "typeInCategory"; value: string }
 	| { type: "typeFilterSearch"; value: string }
 	| { type: "typeFreeText"; value: string }
-	| { type: "setCommittedFreeText"; value: string }
+	| { type: "setTypedFreeText"; value: string }
 	| { type: "leaveCategory" }
 	| { type: "close"; input: "restore" | "clear" }
 	| { type: "reconcile"; freeText: string };
@@ -67,8 +73,8 @@ const closeState = (state: State, input: "restore" | "clear"): State => ({
 	mode: "closed",
 	browseAll: false,
 	activeCategoryKey: null,
-	committedFreeText: state.committedFreeText,
-	inputValue: input === "restore" ? state.committedFreeText : "",
+	typedFreeText: state.typedFreeText,
+	inputValue: input === "restore" ? state.typedFreeText : "",
 });
 
 const reducer = (state: State, action: Action): State => {
@@ -93,7 +99,7 @@ const reducer = (state: State, action: Action): State => {
 				browseAll: false,
 				activeCategoryKey: action.categoryKey,
 				inputValue: action.query,
-				committedFreeText: action.committedFreeText.trim(),
+				typedFreeText: action.typedFreeText.trim(),
 			};
 		case "typeInCategory":
 			return { ...state, mode: "category", inputValue: action.value };
@@ -111,17 +117,17 @@ const reducer = (state: State, action: Action): State => {
 				browseAll: false,
 				activeCategoryKey: null,
 				inputValue: action.value,
-				committedFreeText: action.value.trim(),
+				typedFreeText: action.value.trim(),
 			};
-		case "setCommittedFreeText":
-			return { ...state, committedFreeText: action.value.trim() };
+		case "setTypedFreeText":
+			return { ...state, typedFreeText: action.value.trim() };
 		case "leaveCategory":
 			return {
 				...state,
 				mode: "browsing",
 				browseAll: true,
 				activeCategoryKey: null,
-				inputValue: state.committedFreeText,
+				inputValue: state.typedFreeText,
 			};
 		case "close":
 			return closeState(state, action.input);
@@ -129,7 +135,7 @@ const reducer = (state: State, action: Action): State => {
 			return {
 				...state,
 				browseAll: false,
-				committedFreeText: action.freeText,
+				typedFreeText: action.freeText,
 				// A pending category selection owns the input, so only the free-text
 				// view mirrors an external value.
 				inputValue:
@@ -194,7 +200,7 @@ type UseFilterComboboxOptions = {
 };
 
 /**
- * Drives the unified workspace filter combobox: a `mode` state machine for the
+ * Drives `FilterCombobox`: a `mode` state machine for the
  * popup, debounced query emission back to the caller, and the react-query
  * lookups for category options and cross-category suggestions.
  * Local state is reconciled against the caller-owned `value` so an external
@@ -217,10 +223,10 @@ export const useFilterCombobox = ({
 			browseAll: false,
 			activeCategoryKey: null,
 			inputValue: freeText,
-			committedFreeText: freeText,
+			typedFreeText: freeText,
 		};
 	});
-	const { mode, browseAll, activeCategoryKey, inputValue, committedFreeText } =
+	const { mode, browseAll, activeCategoryKey, inputValue, typedFreeText } =
 		state;
 	const open = mode !== "closed";
 	const isBrowsing = mode === "browsing";
@@ -234,23 +240,28 @@ export const useFilterCombobox = ({
 	};
 	const inputRef = useRef<HTMLInputElement | null>(null);
 
-	const { debounced: debouncedOnChange, cancelDebounce } = useDebouncedFunction(
-		(query: string) => {
-			lastEmittedRef.current = query;
-			onChange(query);
-		},
-		SEARCH_DEBOUNCE_MS,
-	);
-
-	const emitQuery = (query: string, immediate = false) => {
-		if (immediate) {
-			cancelDebounce();
-			lastEmittedRef.current = query;
-			onChange(query);
-			return;
-		}
-		debouncedOnChange(query);
+	const queryClient = useQueryClient();
+	// Bumped by every input change and emit, so a typed search whose filter
+	// lookup resolves late cannot replace a newer query.
+	const typedSearchGenerationRef = useRef(0);
+	const { debounced: scheduleTypedSearch, cancelDebounce: cancelTypedSearch } =
+		useDebouncedFunction(
+			(text: string, generation: number) =>
+				applyTypedTextUnlessFilter(text, generation),
+			SEARCH_DEBOUNCE_MS,
+		);
+	const cancelPendingTypedSearch = () => {
+		cancelTypedSearch();
+		typedSearchGenerationRef.current += 1;
 	};
+
+	const emitQuery = (query: string) => {
+		cancelPendingTypedSearch();
+		lastEmittedRef.current = query;
+		onChange(query);
+	};
+	const appliedFreeText = () =>
+		extractFreeText(lastEmittedRef.current, chipKeys);
 
 	// Reconcile local state with the caller-owned `value`. Reparse whenever the
 	// value changes externally or the chip categories change, so renaming or
@@ -266,11 +277,12 @@ export const useFilterCombobox = ({
 		if (isExternal) {
 			// An authoritative external value must win, so drop any pending local
 			// write before adopting it.
-			cancelDebounce();
+			cancelTypedSearch();
+			typedSearchGenerationRef.current += 1;
 			lastEmittedRef.current = value;
 		}
 		dispatch({ type: "reconcile", freeText: extractFreeText(value, chipKeys) });
-	}, [value, chipKeys, cancelDebounce]);
+	}, [value, chipKeys, cancelTypedSearch]);
 
 	const activeCategory = categories.find(
 		(category) => category.key === activeCategoryKey,
@@ -451,7 +463,8 @@ export const useFilterCombobox = ({
 	});
 
 	// Until a category's results for the typed text arrive, its unfiltered
-	// options are filtered locally so matching rows stay visible.
+	// options are filtered locally so matching rows stay visible. A category
+	// whose query failed shows no rows; the retry row replaces them.
 	const typeaheadOptionsByKey = new Map<string, readonly FilterOption[]>(
 		typeaheadQuerySource.length === 0 || typeaheadQueryPending
 			? []
@@ -516,7 +529,7 @@ export const useFilterCombobox = ({
 
 	// A failed suggestion query for the current input ends loading, so the live
 	// region announces the failure instead of repeating "Loading suggestions".
-	const suggestionsError =
+	const typeaheadError =
 		typeaheadQuerySource.length > 0 &&
 		!typeaheadQueryPending &&
 		suggestionOptions.isError;
@@ -524,10 +537,8 @@ export const useFilterCombobox = ({
 	// empty result before the request starts.
 	const valueSuggestionsLoading =
 		typeaheadQuerySource.length > 0 &&
-		!suggestionsError &&
+		!typeaheadError &&
 		(typeaheadQueryPending || suggestionOptions.isFetching);
-
-	const typeaheadError = suggestionsError;
 
 	const hasTypeaheadQuery = typeaheadActive && inputValue.trim().length > 0;
 	const typeaheadLoading =
@@ -565,11 +576,11 @@ export const useFilterCombobox = ({
 	};
 
 	const updateFromChips = (tokens: string[], freeText?: string) => {
-		const nextFreeText = freeText ?? committedFreeText;
+		const nextFreeText = freeText ?? appliedFreeText();
 		if (freeText !== undefined) {
-			dispatch({ type: "setCommittedFreeText", value: freeText });
+			dispatch({ type: "setTypedFreeText", value: freeText });
 		}
-		emitQuery(composeFilterQuery(tokens, chipKeys, nextFreeText), true);
+		emitQuery(composeFilterQuery(tokens, chipKeys, nextFreeText));
 	};
 
 	// Adding an option from an exclusive category replaces that category's
@@ -596,13 +607,13 @@ export const useFilterCombobox = ({
 		if (!category || category.inlineOptions) {
 			return;
 		}
-		const freeText = browseAll ? committedFreeText : "";
-		emitQuery(composeFilterQuery(chipValues, chipKeys, freeText), true);
+		const freeText = browseAll ? typedFreeText : "";
+		emitQuery(composeFilterQuery(chipValues, chipKeys, freeText));
 		dispatch({
 			type: "enterCategory",
 			categoryKey,
 			query: "",
-			committedFreeText: freeText,
+			typedFreeText: freeText,
 		});
 	};
 
@@ -638,12 +649,12 @@ export const useFilterCombobox = ({
 		returnToCategories();
 	};
 
-	// Typed filter text is dropped once an option is picked. Workspace search
+	// Typed filter text is dropped once an option is picked. Free-text search
 	// text is kept: text typed ahead of a `status:` prefix, and all text in
 	// browse-all mode.
 	const applyInlineChips = (tokens: string[]) => {
 		const freeText =
-			browseAll || typedInlinePrefix !== null ? committedFreeText : "";
+			browseAll || typedInlinePrefix !== null ? typedFreeText : "";
 		updateFromChips(tokens, freeText);
 		if (!browseAll) {
 			dispatch({ type: "typeFreeText", value: freeText });
@@ -658,9 +669,9 @@ export const useFilterCombobox = ({
 		);
 	};
 
-	// Typed text located the highlighted row, so completing it from the
-	// keyboard keeps an applied option instead of removing it. A click on the
-	// row still removes it. Returns false when the token is not an option row.
+	// Enter or Tab on a highlighted inline option row or value suggestion. When
+	// typed text located an applied option, keeps it and clears the text;
+	// otherwise toggles it as a click does. Returns false for any other token.
 	const completeHighlightedOption = (token: string) => {
 		const isInlineRow = inlineOptionRows.some(
 			({ categoryKey, option }) => optionToken(categoryKey, option) === token,
@@ -688,39 +699,75 @@ export const useFilterCombobox = ({
 		return true;
 	};
 
-	const leaveCategory = () => {
+	const focusAndLeaveCategory = () => {
 		inputRef.current?.focus();
 		returnToCategories();
 	};
 
 	// Typed text that could still be a filter being searched for (a category
-	// name or a loaded option) is not applied to the results yet, so they do
-	// not empty out mid-word. It applies once it matches no filter, or when the
-	// menu is dismissed or switched to the full filter list.
-	const couldBeFilterSearch = (text: string) => {
-		const normalized = text.trim().toLowerCase();
-		if (normalized.length === 0) {
+	// name, or an option the menu lists for it) is not applied to the results
+	// yet, so they do not empty out mid-word. Options are looked up with the
+	// same queries as the suggestions, so one beyond a category's first page
+	// counts, and a failed lookup also holds the text back. Held text applies
+	// when the menu is dismissed or switched to all filters.
+	const couldBeFilterSearch = async (text: string) => {
+		if (text.length === 0) {
 			return false;
 		}
-		if (matchCategories(normalized, menuCategories).length > 0) {
+		const matchesLoadedOption = [
+			...unfilteredOptions.optionsByKey.values(),
+		].some((options) => filterOptionsByText(options, text).length > 0);
+		const matchesCategory =
+			matchCategories(text, [...menuCategories, ...inlineCategories]).length >
+			0;
+		if (matchesCategory || matchesLoadedOption) {
 			return true;
 		}
-		return [...unfilteredOptions.optionsByKey.values()].some(
-			(options) => filterOptionsByText(options, normalized).length > 0,
+		const results = await Promise.allSettled(
+			categories.map((category) =>
+				queryClient.fetchQuery(
+					filterComboboxOptions(category.key, category.getOptions, text, true),
+				),
+			),
+		);
+		return results.some(
+			(result) =>
+				result.status === "rejected" ||
+				filterOptionsByText(result.value, text).length > 0,
+		);
+	};
+
+	const applyTypedTextUnlessFilter = async (
+		text: string,
+		generation: number,
+	) => {
+		const couldBeFilter = await couldBeFilterSearch(text);
+		if (generation !== typedSearchGenerationRef.current) {
+			return;
+		}
+		emitQuery(
+			composeFilterQuery(
+				queryToChips(lastEmittedRef.current, chipKeys),
+				chipKeys,
+				couldBeFilter ? "" : text,
+			),
 		);
 	};
 
 	const applyTypedSearch = () => {
-		const query = composeFilterQuery(chipValues, chipKeys, committedFreeText);
+		cancelPendingTypedSearch();
+		const query = composeFilterQuery(chipValues, chipKeys, typedFreeText);
 		if (query !== lastEmittedRef.current) {
-			emitQuery(query, true);
+			emitQuery(query);
 		}
 	};
 
-	const showFilterMenu = () => {
+	// Also applies typed text as a free-text search, or steps back out of an
+	// open category.
+	const showAllFilters = () => {
 		inputRef.current?.focus();
 		if (mode === "category") {
-			leaveCategory();
+			focusAndLeaveCategory();
 			return;
 		}
 		applyTypedSearch();
@@ -732,19 +779,18 @@ export const useFilterCombobox = ({
 	// With typed text narrowing the menu, it shows all filters instead of closing.
 	const toggleFilterMenu = () => {
 		if (mode === "category") {
-			leaveCategory();
+			focusAndLeaveCategory();
 			return;
 		}
 		if (open) {
 			if (!browseAll && inputValue.trim().length > 0) {
-				showFilterMenu();
+				showAllFilters();
 				return;
 			}
 			dispatch({ type: "close", input: "restore" });
 			return;
 		}
-		inputRef.current?.focus();
-		showFilterMenu();
+		showAllFilters();
 	};
 
 	const handleInputFocus = () => {
@@ -761,11 +807,12 @@ export const useFilterCombobox = ({
 		const priorChips = queryToChips(text, chipKeys);
 		const mergedChips = dedupeChips([...chipValues, ...priorChips], chipKeys);
 		const freeText = extractFreeText(text, chipKeys);
-		emitQuery(composeFilterQuery(mergedChips, chipKeys, freeText), true);
+		emitQuery(composeFilterQuery(mergedChips, chipKeys, freeText));
 		return freeText;
 	};
 
 	const handleInputValueChange = (nextValue: string) => {
+		cancelPendingTypedSearch();
 		const typedCategory = parseTypedCategoryPrefix(
 			nextValue,
 			submenuCategories,
@@ -775,7 +822,7 @@ export const useFilterCombobox = ({
 				type: "enterCategory",
 				categoryKey: typedCategory.categoryKey,
 				query: typedCategory.query,
-				committedFreeText: commitTextBeforePrefix(typedCategory.freeText),
+				typedFreeText: commitTextBeforePrefix(typedCategory.freeText),
 			});
 			return;
 		}
@@ -785,12 +832,12 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		// Inline category prefixes are filter search, never workspace search, so
+		// Inline category prefixes are filter search, never free-text search, so
 		// the prefix itself is withheld until an option is picked.
 		const typedInline = parseTypedCategoryPrefix(nextValue, inlineCategories);
 		if (typedInline) {
 			dispatch({
-				type: "setCommittedFreeText",
+				type: "setTypedFreeText",
 				value: commitTextBeforePrefix(typedInline.freeText),
 			});
 			dispatch({ type: "typeFilterSearch", value: nextValue });
@@ -818,17 +865,13 @@ export const useFilterCombobox = ({
 			const inputFreeText = inProgressIsPartialChip
 				? [settledFreeText, inProgress].filter(Boolean).join(" ")
 				: settledFreeText;
-			emitQuery(
-				composeFilterQuery(mergedChips, chipKeys, settledFreeText),
-				true,
-			);
+			emitQuery(composeFilterQuery(mergedChips, chipKeys, settledFreeText));
 			dispatch({ type: "typeFreeText", value: inputFreeText });
 			return;
 		}
 
-		const searchText = couldBeFilterSearch(nextValue) ? "" : nextValue;
-		emitQuery(composeFilterQuery(chipValues, chipKeys, searchText), false);
 		dispatch({ type: "typeFreeText", value: nextValue });
+		scheduleTypedSearch(nextValue.trim(), typedSearchGenerationRef.current);
 	};
 
 	// Radix only originates close requests (escape / outside press); opens flow
@@ -844,7 +887,22 @@ export const useFilterCombobox = ({
 	// Chip removal mirrors Backspace: drop the token and keep the current popup
 	// and input state untouched.
 	const handleRemoveChip = (token: string) => {
-		updateFromChips(chipValues.filter((entry) => entry !== token));
+		updateChipsKeepingTypedText(chipValues.filter((entry) => entry !== token));
+	};
+
+	const updateChipsKeepingTypedText = (tokens: string[]) => {
+		updateFromChips(tokens);
+		// The emit cancels a pending typed search, so typed text that is not
+		// applied yet is looked up again.
+		const text = inputValue.trim();
+		if (
+			typeaheadActive &&
+			typedInlinePrefix === null &&
+			text !== appliedFreeText() &&
+			queryToChips(text, chipKeys).length === 0
+		) {
+			scheduleTypedSearch(text, typedSearchGenerationRef.current);
+		}
 	};
 
 	const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -853,13 +911,13 @@ export const useFilterCombobox = ({
 
 		if (event.key === "ArrowLeft" && mode === "category") {
 			event.preventDefault();
-			leaveCategory();
+			focusAndLeaveCategory();
 			return;
 		}
 
 		if (isBackspaceOrDelete && inputValue === "" && mode === "category") {
 			event.preventDefault();
-			leaveCategory();
+			focusAndLeaveCategory();
 			return;
 		}
 
@@ -959,15 +1017,14 @@ export const useFilterCombobox = ({
 	return {
 		open,
 		inputValue,
-		committedFreeText,
+		typedFreeText,
 		activeCategoryKey,
 		activeCategory,
 		activeOptions,
 		activeOptionsError,
 		statusMessage,
 		listedCategories,
-		// Typed text is narrowing the category rows.
-		filteringCategories: categoryQuery.length > 0,
+		categoriesNarrowedByText: categoryQuery.length > 0,
 		unfilteredOptionsByKey: unfilteredOptions.optionsByKey,
 		unfilteredOptionsErroredKeys: unfilteredOptions.erroredKeys,
 		valueSuggestions,
@@ -982,11 +1039,11 @@ export const useFilterCombobox = ({
 			},
 			focusInput: () => inputRef.current?.focus(),
 			toggleMenu: toggleFilterMenu,
-			showMenu: showFilterMenu,
+			showAllFilters,
 			dismiss: handleDismiss,
 			removeChip: handleRemoveChip,
 			// Removes every chip and keeps the typed search text.
-			clearChips: () => updateFromChips([]),
+			clearChips: () => updateChipsKeepingTypedText([]),
 			retryActiveOptions,
 			retryTypeahead,
 			retryUnfilteredOptions: unfilteredOptions.refetch,
