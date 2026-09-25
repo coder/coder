@@ -278,6 +278,8 @@ export const useFilterCombobox = ({
 
 	// A pending typed-text lookup reads the chips of the last sent query when
 	// it resolves.
+	// A row the query drops from the menu while it is closed must not stay
+	// highlighted.
 	const emitQueryKeepingLookup = (query: string) => {
 		highlightCategoryListRow(
 			queryToChips(query, chipKeys),
@@ -689,9 +691,8 @@ export const useFilterCombobox = ({
 	// produce. When that row is not in it, because the picked option hid it, a
 	// removed chip no longer lists it, or the category was entered by typing
 	// its hidden key, the first row in the menu is highlighted instead; cmdk
-	// keeps a highlight that names no row. Every emitted query runs this for
-	// the current highlight, so a row that leaves the menu while it is closed
-	// is not left highlighted.
+	// keeps a highlight that names no row. Leaves the highlight unchanged when
+	// `rowKey` names no category row.
 	const highlightCategoryListRow = (
 		nextChips: string[],
 		rowKey = activeCategoryKey,
@@ -906,6 +907,8 @@ export const useFilterCombobox = ({
 		if (mode === "category") {
 			return;
 		}
+		// A `value` change from the caller can drop the highlighted row.
+		highlightCategoryListRow(chipValues, getHighlightedValue());
 		dispatch({ type: "openBrowsing" });
 	};
 
