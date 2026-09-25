@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	MockNoPermissions,
@@ -54,6 +54,8 @@ const meta: Meta<typeof WorkspacesFilterHarness> = {
 export default meta;
 type Story = StoryObj<typeof WorkspacesFilterHarness>;
 
+const PLACEHOLDER = "Search and filter workspaces…";
+
 export const Default: Story = {
 	args: { initialQuery: "user:me" },
 };
@@ -90,5 +92,12 @@ export const WithFilterError: Story = {
 				{ field: "q", detail: 'Query param "q" has an invalid value.' },
 			],
 		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByRole("combobox", { name: PLACEHOLDER });
+		await expect(input).toHaveAttribute("aria-invalid", "true");
+		const alert = await canvas.findByRole("alert");
+		await expect(input).toHaveAttribute("aria-errormessage", alert.id);
 	},
 };
