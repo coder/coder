@@ -139,14 +139,7 @@ const reducer = (state: State, action: Action): State => {
 		case "close":
 			return closeState(state);
 		case "clear":
-			return {
-				...state,
-				mode: state.mode === "category" ? "browsing" : state.mode,
-				browseAll: state.mode === "category" || state.browseAll,
-				activeCategoryKey: null,
-				inputValue: "",
-				typedFreeText: "",
-			};
+			return { ...state, inputValue: "", typedFreeText: "" };
 		case "reconcile":
 			return {
 				...state,
@@ -465,9 +458,8 @@ export const useFilterCombobox = ({
 		unfilteredOptions.hideableFirstLoadKeys.has(category.key);
 	// A hideable category stays in the menu while its options first load, so
 	// typed text can match it; while it has an applied chip, so the chip can be
-	// changed; and after a failed lookup, including while its retry runs, so its
-	// flyout can offer a retry. A retry that returns at most one option removes
-	// it.
+	// changed. After a failed lookup, including while its retry runs, it stays
+	// so its flyout can offer a retry, until a retry returns at most one option.
 	const isInMenu = (category: FilterCategory, chips = chipValues) =>
 		!category.hideWhenSingleOption ||
 		isHideableFirstLoad(category) ||
@@ -520,19 +512,9 @@ export const useFilterCombobox = ({
 					? [...matchedCategories, scopeMatchedCategory]
 					: matchedCategories;
 
-	// Placeholder rows are not cmdk items, so an inline row takes the highlight
-	// while they show. Once they are replaced, the first category row takes it,
-	// as it would in a menu that opened without placeholders.
+	// Placeholder rows are not cmdk items, so an inline row would take the
+	// automatic highlight while they show.
 	const placeholdersShown = categoryPlaceholderCount > 0;
-	const firstListedCategoryKey = listedCategories[0]?.key;
-	const placeholdersShownRef = useRef(placeholdersShown);
-	useEffect(() => {
-		const wereShown = placeholdersShownRef.current;
-		placeholdersShownRef.current = placeholdersShown;
-		if (wereShown && !placeholdersShown && firstListedCategoryKey) {
-			highlightRef.current?.set(firstListedCategoryKey);
-		}
-	}, [placeholdersShown, firstListedCategoryKey]);
 
 	const activeOptionsQuerySource = activeCategoryKey !== null ? inputValue : "";
 	const debouncedActiveOptionsQuery = useDebouncedValue(
@@ -859,21 +841,28 @@ export const useFilterCombobox = ({
 	};
 
 	// Returning to the category list highlights the row that was open, so the
-	// keyboard position is never lost when the option rows unmount. When that
-	// row is not in the menu, because the picked option hid it or the category
-	// was entered by typing its hidden key, the first row in the menu is
-	// highlighted instead; cmdk keeps a highlight that names no row.
-	const highlightCategoryListRow = (nextChips: string[]) => {
+	// keyboard position is never lost when the option rows unmount. When the
+	// open or highlighted category row is not in the menu, because the picked
+	// option hid it, a removed chip or Clear all no longer lists it, or the
+	// category was entered by typing its hidden key, the first row in the menu
+	// is highlighted instead; cmdk keeps a highlight that names no row.
+	const highlightCategoryListRow = (
+		nextChips: string[],
+		rowKey = activeCategoryKey,
+	) => {
+		const row = allSubmenuCategories.find(
+			(category) => category.key === rowKey,
+		);
+		if (row === undefined) {
+			return;
+		}
 		const staysInMenu = (category: FilterCategory) =>
 			isInMenu(category, nextChips);
-		const activeCategoryStaysInMenu =
-			activeCategory !== undefined && staysInMenu(activeCategory);
-		const nextHighlight = activeCategoryStaysInMenu
-			? activeCategoryKey
-			: (allSubmenuCategories.find(
-					(category) =>
-						category.key !== activeCategoryKey && staysInMenu(category),
-				)?.key ?? "");
+		const nextHighlight = staysInMenu(row)
+			? row.key
+			: allSubmenuCategories.find(
+					(category) => category !== row && staysInMenu(category),
+				)?.key;
 		setHighlightedValue(nextHighlight ?? "");
 	};
 	const returnToCategories = (nextChips = chipValues) => {
@@ -1172,7 +1161,9 @@ export const useFilterCombobox = ({
 	// full list while the popup stays open.
 	const clearAll = () => {
 		if (activeCategoryKey !== null) {
-			highlightCategoryListRow([]);
+			returnToCategories([]);
+		} else {
+			highlightCategoryListRow([], getHighlightedValue());
 		}
 		dispatch({ type: "clear" });
 		emitQuery("");
@@ -1181,9 +1172,11 @@ export const useFilterCombobox = ({
 	// Chip removal leaves the popup, the input, and a pending typed-text lookup
 	// untouched.
 	const handleRemoveChip = (token: string) => {
+		const nextChips = chipValues.filter((entry) => entry !== token);
+		highlightCategoryListRow(nextChips, getHighlightedValue());
 		emitQueryKeepingLookup(
 			composeFilterQuery(
-				chipValues.filter((entry) => entry !== token),
+				nextChips,
 				chipKeys,
 				extractFreeText(lastEmittedRef.current, chipKeys),
 			),
@@ -1368,7 +1361,7 @@ export const useFilterCombobox = ({
 		// Category whose scopeToggle.searchPhrase starts with the typed text.
 		scopeMatchKey: scopeMatchedCategory?.key ?? null,
 		categoryPlaceholderCount,
-		autoHighlight: !typingFreeText,
+		autoHighlight: !typingFreeText && !placeholdersShown,
 		unfilteredOptionsByKey: unfilteredOptions.optionsByKey,
 		unfilteredOptionsErroredKeys: unfilteredOptions.erroredKeys,
 		valueSuggestions,
