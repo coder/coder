@@ -23423,6 +23423,13 @@ const docTemplate = `{
                 "agent_name": {
                     "type": "string"
                 },
+                "app_display_name": {
+                    "type": "string"
+                },
+                "app_name": {
+                    "description": "AppName is the agent-reported app, such as \"cursor\", or a workspace app\nslug. Empty for port forwarding and tunnels.",
+                    "type": "string"
+                },
                 "connect_time": {
                     "type": "string",
                     "format": "date-time"
@@ -23438,7 +23445,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.MinimalOrganization"
                 },
                 "ssh_info": {
-                    "description": "SSHInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypeSSH` + "`" + `\n- ` + "`" + `ConnectionTypeReconnectingPTY` + "`" + `\n- ` + "`" + `ConnectionTypeVSCode` + "`" + `\n- ` + "`" + `ConnectionTypeJetBrains` + "`" + `",
+                    "description": "SSHInfo is set for every other ` + "`" + `type` + "`" + `.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ConnectionLogSSHInfo"
@@ -23541,6 +23548,7 @@ const docTemplate = `{
                 "vscode",
                 "jetbrains",
                 "reconnecting_pty",
+                "unknown",
                 "workspace_app",
                 "port_forwarding",
                 "tunnel"
@@ -23550,6 +23558,7 @@ const docTemplate = `{
                 "ConnectionTypeVSCode",
                 "ConnectionTypeJetBrains",
                 "ConnectionTypeReconnectingPTY",
+                "ConnectionTypeUnknown",
                 "ConnectionTypeWorkspaceApp",
                 "ConnectionTypePortForwarding",
                 "ConnectionTypeTunnel"

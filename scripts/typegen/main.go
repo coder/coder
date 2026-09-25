@@ -39,11 +39,15 @@ var scopenamesTemplate string
 //go:embed countries.tstmpl
 var countriesTemplate string
 
+//go:embed connectiontypes.tstmpl
+var connectionTypesTemplate string
+
 func usage() {
 	_, _ = fmt.Println("Usage: typegen <type> [template]")
 	_, _ = fmt.Println("Types:")
 	_, _ = fmt.Println("  rbac <object|codersdk|typescript> - Generate RBAC related files")
 	_, _ = fmt.Println("  countries              - Generate countries TypeScript")
+	_, _ = fmt.Println("  connectiontypes        - Generate connection type labels TypeScript")
 }
 
 // main will generate a file based on the type and template specified.
@@ -74,6 +78,8 @@ func main() {
 		out, err = generateRBAC(flag.Args()[1])
 	case "countries":
 		out, err = generateCountries()
+	case "connectiontypes":
+		out, err = generateConnectionTypes()
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "%q is not a valid type\n", flag.Args()[0])
 		usage()
@@ -126,6 +132,20 @@ func generateCountries() ([]byte, error) {
 		return nil, xerrors.Errorf("execute template: %w", err)
 	}
 
+	return out.Bytes(), nil
+}
+
+// generateConnectionTypes renders the `type` filter labels.
+func generateConnectionTypes() ([]byte, error) {
+	tmpl, err := template.New("connectiontypes.tstmpl").Parse(connectionTypesTemplate)
+	if err != nil {
+		return nil, xerrors.Errorf("parse template: %w", err)
+	}
+
+	var out bytes.Buffer
+	if err := tmpl.Execute(&out, codersdk.FilterableConnectionTypes()); err != nil {
+		return nil, xerrors.Errorf("execute template: %w", err)
+	}
 	return out.Bytes(), nil
 }
 

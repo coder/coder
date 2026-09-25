@@ -4122,6 +4122,12 @@ export interface ConnectionLog {
 	readonly ip?: string;
 	readonly type: ConnectionType;
 	/**
+	 * AppName is the agent-reported app, such as "cursor", or a workspace app
+	 * slug. Empty for port forwarding and tunnels.
+	 */
+	readonly app_name: string;
+	readonly app_display_name: string;
+	/**
 	 * WebInfo is only set when `type` is one of:
 	 * - `ConnectionTypePortForwarding`
 	 * - `ConnectionTypeWorkspaceApp`
@@ -4129,11 +4135,7 @@ export interface ConnectionLog {
 	 */
 	readonly web_info?: ConnectionLogWebInfo;
 	/**
-	 * SSHInfo is only set when `type` is one of:
-	 * - `ConnectionTypeSSH`
-	 * - `ConnectionTypeReconnectingPTY`
-	 * - `ConnectionTypeVSCode`
-	 * - `ConnectionTypeJetBrains`
+	 * SSHInfo is set for every other `type`.
 	 */
 	readonly ssh_info?: ConnectionLogSSHInfo;
 }
@@ -4204,6 +4206,7 @@ export type ConnectionType =
 	| "reconnecting_pty"
 	| "ssh"
 	| "tunnel"
+	| "unknown"
 	| "vscode"
 	| "workspace_app";
 
@@ -4213,6 +4216,7 @@ export const ConnectionTypes: ConnectionType[] = [
 	"reconnecting_pty",
 	"ssh",
 	"tunnel",
+	"unknown",
 	"vscode",
 	"workspace_app",
 ];
