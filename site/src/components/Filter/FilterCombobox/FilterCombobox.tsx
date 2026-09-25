@@ -35,6 +35,7 @@ import {
 	optionToken,
 } from "./filterQuery";
 import {
+	chipRowItemHeightClassName,
 	FilterComboboxChip,
 	FilterComboboxChips,
 	FilterComboboxChipsInput,
@@ -378,40 +379,6 @@ export function FilterCombobox({
 								</FilterComboboxChip>
 							);
 						})}
-						{chipValues.length >= CLEAR_ALL_MIN_CHIPS && (
-							<Badge
-								asChild
-								variant="outline"
-								hover
-								className="h-7 px-2 font-medium text-content-secondary hover:text-content-primary"
-							>
-								<button
-									type="button"
-									// Keep focus in the combobox input.
-									onMouseDown={(event) => event.preventDefault()}
-									// The cmdk root cancels Enter, so it is handled here.
-									onKeyDown={(event) => {
-										if (event.key !== "Enter") {
-											return;
-										}
-										event.preventDefault();
-										event.stopPropagation();
-										actions.clearChips();
-										actions.focusInput();
-									}}
-									onClick={(event) => {
-										actions.clearChips();
-										// The button unmounts, so keyboard activation (detail 0)
-										// moves focus to the input instead of the page body.
-										if (event.detail === 0) {
-											actions.focusInput();
-										}
-									}}
-								>
-									Clear all
-								</button>
-							</Badge>
-						)}
 						{activeCategory && typedFreeText.length > 0 && (
 							<Badge
 								variant="outline"
@@ -451,6 +418,43 @@ export function FilterCombobox({
 							onClick={actions.onInputFocus}
 							onKeyDown={actions.onInputKeyDown}
 						/>
+						{chipValues.length >= CLEAR_ALL_MIN_CHIPS && (
+							<Badge
+								asChild
+								variant="outline"
+								hover
+								className={cn(
+									chipRowItemHeightClassName,
+									"px-2 font-medium text-content-secondary hover:text-content-primary",
+								)}
+							>
+								<button
+									type="button"
+									// Keep focus in the combobox input.
+									onMouseDown={(event) => event.preventDefault()}
+									// The cmdk root cancels Enter, so it is handled here.
+									onKeyDown={(event) => {
+										if (event.key !== "Enter") {
+											return;
+										}
+										event.preventDefault();
+										event.stopPropagation();
+										actions.clearAll();
+										actions.focusInput();
+									}}
+									onClick={(event) => {
+										actions.clearAll();
+										// The button unmounts, so keyboard activation (detail 0)
+										// moves focus to the input instead of the page body.
+										if (event.detail === 0) {
+											actions.focusInput();
+										}
+									}}
+								>
+									Clear all
+								</button>
+							</Badge>
+						)}
 					</FilterComboboxChips>
 				</FilterComboboxInputGroup>
 				<FilterComboboxContent

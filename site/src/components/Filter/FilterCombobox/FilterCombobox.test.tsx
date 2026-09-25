@@ -880,17 +880,18 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(search).toHaveFocus());
 	});
 
-	it("clears every chip and keeps the search text with Clear all", async () => {
+	it("clears every chip and the search text with Clear all", async () => {
 		const { user, onChange, input } = setup(
 			[ownerCategory, statusCategory, attributesCategory],
 			{ initialValue: "owner:alice status:running outdated:true dev" },
 		);
 
 		await user.click(input);
+		await user.type(input, " ali");
 		await user.click(screen.getByRole("button", { name: "Clear all" }));
 
-		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("dev"));
-		expect(input).toHaveValue("dev");
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		expect(input).toHaveValue("");
 		expect(input).toHaveFocus();
 	});
 
@@ -918,7 +919,7 @@ describe("FilterCombobox", () => {
 			screen.getByRole("button", { name: "Clear all" }).focus();
 			await user.keyboard(key);
 
-			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("dev"));
+			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
 			expect(input).toHaveFocus();
 		},
 	);

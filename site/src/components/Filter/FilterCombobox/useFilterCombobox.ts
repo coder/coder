@@ -68,6 +68,7 @@ type Action =
 	| { type: "setTypedFreeText"; value: string }
 	| { type: "leaveCategory" }
 	| { type: "close" }
+	| { type: "clear" }
 	| { type: "reconcile"; freeText: string };
 
 const closeState = (state: State): State => ({
@@ -132,6 +133,15 @@ const reducer = (state: State, action: Action): State => {
 			};
 		case "close":
 			return closeState(state);
+		case "clear":
+			return {
+				...state,
+				mode: state.mode === "category" ? "browsing" : state.mode,
+				browseAll: state.mode === "category" || state.browseAll,
+				activeCategoryKey: null,
+				inputValue: "",
+				typedFreeText: "",
+			};
 		case "reconcile":
 			return {
 				...state,
@@ -894,12 +904,19 @@ export const useFilterCombobox = ({
 		dispatch({ type: "close" });
 	};
 
+	// Empties the query, chips and search text alike, as the page's empty-state
+	// Clear all does.
+	const clearAll = () => {
+		dispatch({ type: "clear" });
+		emitQuery("");
+	};
+
 	const handleRemoveChip = (token: string) => {
 		emitChipsKeepingLookup(chipValues.filter((entry) => entry !== token));
 	};
 
-	// Emits the given chips with the applied free text, leaving the popup, the
-	// input, and a pending typed-text lookup untouched.
+	// Chip removal emits the remaining chips with the applied free text, leaving
+	// the popup, the input, and a pending typed-text lookup untouched.
 	const emitChipsKeepingLookup = (tokens: string[]) => {
 		emitQueryKeepingLookup(
 			composeFilterQuery(tokens, chipKeys, appliedFreeText()),
@@ -1042,7 +1059,7 @@ export const useFilterCombobox = ({
 			showAllFilters,
 			dismiss: handleDismiss,
 			removeChip: handleRemoveChip,
-			clearChips: () => emitChipsKeepingLookup([]),
+			clearAll,
 			retryActiveOptions,
 			retryTypeahead,
 			retryUnfilteredOptions: unfilteredOptions.refetch,

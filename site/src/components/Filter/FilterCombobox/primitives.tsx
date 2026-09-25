@@ -335,6 +335,9 @@ type FilterComboboxChipProps = ComponentProps<typeof Badge> & {
 	removeLabel?: string;
 };
 
+/** Height shared by chips and controls that sit in the chip row. */
+export const chipRowItemHeightClassName = "h-7";
+
 export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 	className,
 	children,
@@ -358,6 +361,7 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 			svgSize="sm"
 			className={cn(
 				"group/chip pl-2 font-medium text-content-secondary hover:text-content-primary",
+				chipRowItemHeightClassName,
 				className,
 			)}
 			{...props}
