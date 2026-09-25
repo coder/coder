@@ -2,7 +2,12 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
+import {
+	MockAIProviderClaudePlatformAWS,
+	MockAIProviderClaudePlatformAWSAPIKey,
+} from "#/testHelpers/entities";
 import { ProviderForm, SAVED_CREDENTIAL_MASK } from "./ProviderForm";
+import { aiProviderToFormValues } from "./providerFormApiMap";
 
 const meta: Meta<typeof ProviderForm> = {
 	title: "pages/AISettingsPage/ProviderForm",
@@ -297,7 +302,9 @@ export const AddBedrockWithoutStaticCredentials: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const accessKeyInput = await canvas.findByLabelText(/^access key\s*$/i);
+		const accessKeyInput = await canvas.findByRole("textbox", {
+			name: /^access key$/i,
+		});
 		const accessKeySecretInput =
 			await canvas.findByLabelText(/access key secret/i);
 
@@ -343,7 +350,9 @@ export const AddBedrockHalfCredentialPairBlocked: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const accessKeyInput = await canvas.findByLabelText(/^access key\s*$/i);
+		const accessKeyInput = await canvas.findByRole("textbox", {
+			name: /^access key$/i,
+		});
 
 		await userEvent.type(accessKeyInput, "AKIAIOSFODNN7EXAMPLE");
 
@@ -390,7 +399,7 @@ export const EditBedrockKeepCredentials: Story = {
 	},
 	args: {
 		editing: true,
-		bedrockSavedAccessCredentials: true,
+		awsSavedAccessCredentials: true,
 		initialValues: {
 			type: "bedrock",
 			name: "bedrock",
@@ -464,8 +473,8 @@ export const EditBedrockKeepCredentials: Story = {
 export const EditBedrockWithExternalId: Story = {
 	args: {
 		editing: true,
-		bedrockSavedAccessCredentials: true,
-		bedrockExternalId: "7QF3ZK2MLP4RS6TUVWXY2ABCDE",
+		awsSavedAccessCredentials: true,
+		awsExternalId: "7QF3ZK2MLP4RS6TUVWXY2ABCDE",
 		initialValues: {
 			type: "bedrock",
 			name: "bedrock",
@@ -501,7 +510,9 @@ export const AddCopilot: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByLabelText(/endpoint/i);
-		expect(canvas.queryByLabelText(/api key/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("textbox", { name: /api key/i }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -520,15 +531,17 @@ export const EditCopilot: Story = {
 		const canvas = within(canvasElement);
 		const name = await canvas.findByLabelText(/^name/i);
 		expect(name).toBeDisabled();
-		expect(canvas.queryByLabelText(/api key/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("textbox", { name: /api key/i }),
+		).not.toBeInTheDocument();
 	},
 };
 
 export const EditProvider: Story = {
 	args: {
 		editing: true,
-		openAiAnthropicSavedApiKey: true,
-		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
+		hasSavedApiKey: true,
+		savedApiKeyMask: "sk-ant-***\u2026***ABCD",
 		initialValues: {
 			type: "anthropic",
 			name: "production-anthropic",
@@ -543,7 +556,7 @@ export const EditProvider: Story = {
 export const EditOpenAiAnthropicNoSavedKey: Story = {
 	args: {
 		editing: true,
-		openAiAnthropicSavedApiKey: false,
+		hasSavedApiKey: false,
 		initialValues: {
 			type: "anthropic",
 			name: "production-anthropic",
@@ -580,8 +593,8 @@ export const CredentialFocusClear: Story = {
 	},
 	args: {
 		editing: true,
-		openAiAnthropicSavedApiKey: true,
-		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
+		hasSavedApiKey: true,
+		savedApiKeyMask: "sk-ant-***\u2026***ABCD",
 		initialValues: {
 			type: "anthropic",
 			name: "production-anthropic",
@@ -593,7 +606,9 @@ export const CredentialFocusClear: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		const apiKeyInput = await canvas.findByRole("textbox", {
+			name: /api key/i,
+		});
 
 		expect(apiKeyInput).toHaveProperty("type", "text");
 		expect(apiKeyInput).toHaveValue("sk-ant-***\u2026***ABCD");
@@ -644,8 +659,8 @@ export const FailedSubmitKeepsCredential: Story = {
 	},
 	args: {
 		editing: true,
-		openAiAnthropicSavedApiKey: true,
-		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
+		hasSavedApiKey: true,
+		savedApiKeyMask: "sk-ant-***\u2026***ABCD",
 		initialValues: {
 			type: "anthropic",
 			name: "production-anthropic",
@@ -657,7 +672,9 @@ export const FailedSubmitKeepsCredential: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		const apiKeyInput = await canvas.findByRole("textbox", {
+			name: /api key/i,
+		});
 
 		await userEvent.click(apiKeyInput);
 		await waitFor(() => expect(apiKeyInput).toHaveValue(""));
@@ -699,8 +716,8 @@ export const ExternalLoadingKeepsCredential: Story = {
 	},
 	args: {
 		editing: true,
-		openAiAnthropicSavedApiKey: true,
-		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
+		hasSavedApiKey: true,
+		savedApiKeyMask: "sk-ant-***\u2026***ABCD",
 		initialValues: {
 			type: "anthropic",
 			name: "production-anthropic",
@@ -712,7 +729,9 @@ export const ExternalLoadingKeepsCredential: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		const apiKeyInput = await canvas.findByRole("textbox", {
+			name: /api key/i,
+		});
 		const submitButton = canvas.getByRole("button", {
 			name: /update provider/i,
 		});
@@ -776,7 +795,9 @@ export const AddOpenAICompatSingleLabelHost: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		const apiKeyInput = await canvas.findByRole("textbox", {
+			name: /api key/i,
+		});
 		await userEvent.type(apiKeyInput, "sk-local");
 
 		const submitButton = canvas.getByRole("button", { name: /add provider/i });
@@ -803,11 +824,72 @@ export const AddOpenAICompatEmptyEndpointBlocked: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		const apiKeyInput = await canvas.findByRole("textbox", {
+			name: /api key/i,
+		});
 		await userEvent.type(apiKeyInput, "sk-local");
 
 		const submitButton = canvas.getByRole("button", { name: /add provider/i });
 
 		await waitFor(() => expect(submitButton).toBeDisabled());
+	},
+};
+
+const claudePlatformCreateValues = {
+	type: "anthropic" as const,
+	authMethod: "claude_platform_aws" as const,
+	name: "claude-platform",
+	displayName: "Claude Platform",
+	baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+	claudePlatformRegion: "us-east-1",
+	claudePlatformWorkspaceId: "wrkspc_123",
+	enabled: true,
+};
+
+export const AddClaudePlatformKeyless: Story = {
+	args: { initialValues: claudePlatformCreateValues },
+};
+
+export const AddClaudePlatformWithWorkspaceKey: Story = {
+	args: {
+		initialValues: {
+			...claudePlatformCreateValues,
+			apiKey: "sk-ant-workspace",
+		},
+	},
+};
+
+export const EditClaudePlatformSavedKey: Story = {
+	args: {
+		editing: true,
+		hasSavedApiKey: true,
+		savedApiKeyMask: MockAIProviderClaudePlatformAWSAPIKey.api_keys[0].masked,
+		initialValues: aiProviderToFormValues(
+			MockAIProviderClaudePlatformAWSAPIKey,
+		),
+	},
+};
+
+export const ClaudePlatformValidationError: Story = {
+	args: {
+		initialValues: {
+			...claudePlatformCreateValues,
+			claudePlatformRegion: "",
+			claudePlatformWorkspaceId: "",
+			baseUrl: "",
+		},
+	},
+};
+
+export const ClaudePlatformSubmitError: Story = {
+	render: (args) => (
+		<ProviderForm
+			{...args}
+			submitError={new Error(errorSubmitMessage)}
+			onSubmit={fn()}
+		/>
+	),
+	args: {
+		initialValues: aiProviderToFormValues(MockAIProviderClaudePlatformAWS),
 	},
 };

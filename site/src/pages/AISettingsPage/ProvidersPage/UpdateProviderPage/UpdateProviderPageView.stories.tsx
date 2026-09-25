@@ -5,6 +5,8 @@ import type { AIProvider } from "#/api/typesGenerated";
 import {
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
+	MockAIProviderClaudePlatformAWS,
+	MockAIProviderClaudePlatformAWSAPIKey,
 	MockAIProviderCopilot,
 	MockAIProviderOpenAI,
 } from "#/testHelpers/entities";
@@ -74,6 +76,24 @@ export const Copilot: Story = {
 		const name = await canvas.findByLabelText(/^name/i);
 		expect(name).toBeDisabled();
 		expect(canvas.queryByLabelText(/api key/i)).not.toBeInTheDocument();
+	},
+};
+
+export const ClaudePlatformKeyless: Story = {
+	parameters: {
+		reactRouter: routingFor(
+			`/ai/settings/providers/${MockAIProviderClaudePlatformAWS.name}`,
+		),
+		...seed(MockAIProviderClaudePlatformAWS),
+	},
+};
+
+export const ClaudePlatformSavedWorkspaceKey: Story = {
+	parameters: {
+		reactRouter: routingFor(
+			`/ai/settings/providers/${MockAIProviderClaudePlatformAWSAPIKey.name}`,
+		),
+		...seed(MockAIProviderClaudePlatformAWSAPIKey),
 	},
 };
 

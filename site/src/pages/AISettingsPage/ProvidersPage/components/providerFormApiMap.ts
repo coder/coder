@@ -2,13 +2,19 @@ import type {
 	AIProvider,
 	AIProviderBedrockProtocol,
 	AIProviderBedrockSettings,
+	AIProviderClaudePlatformAWSSettings,
 	AIProviderKeyMutation,
 	AIProviderSettings,
 	AIProviderType,
 	CreateAIProviderRequest,
 	UpdateAIProviderRequest,
 } from "#/api/typesGenerated";
+import {
+	AIProviderClaudePlatformAWSSettingsVersion,
+	AIProviderSettingsTypeClaudePlatformAWS,
+} from "#/api/typesGenerated";
 import { getProviderIcon } from "#/modules/aiModels/ProviderIcon";
+import { CLAUDE_PLATFORM_DISPLAY_TYPE } from "./claudePlatform";
 import {
 	type ProviderFormValues,
 	parseBedrockRegionFromBaseUrl,
@@ -35,13 +41,21 @@ const sanitizeCredential = (
 const BEDROCK_SETTINGS_TYPE = "bedrock";
 const BEDROCK_SETTINGS_VERSION = 1;
 
+type ProviderDisplayType = AIProviderType | typeof CLAUDE_PLATFORM_DISPLAY_TYPE;
+
 type BedrockSettingsWire = AIProviderBedrockSettings & {
 	_type: typeof BEDROCK_SETTINGS_TYPE;
 	_version: typeof BEDROCK_SETTINGS_VERSION;
 };
 
+type ClaudePlatformSettingsWire = AIProviderClaudePlatformAWSSettings & {
+	_type: typeof AIProviderSettingsTypeClaudePlatformAWS;
+	_version: typeof AIProviderClaudePlatformAWSSettingsVersion;
+};
+
 type SettingsWire = AIProviderSettings &
-	Partial<AIProviderBedrockSettings> & {
+	Partial<AIProviderBedrockSettings> &
+	Partial<AIProviderClaudePlatformAWSSettings> & {
 		_type?: string;
 		_version?: number;
 	};
@@ -57,7 +71,17 @@ export const isBedrockProvider = (provider: AIProvider): boolean => {
 	return s !== null && s._type === BEDROCK_SETTINGS_TYPE;
 };
 
-// Server-generated STS external ID; read-only.
+// Claude Platform is only valid on `anthropic`; the server rejects the
+// settings on any other type.
+export const isClaudePlatformProvider = (provider: AIProvider): boolean => {
+	if (provider.type !== "anthropic") {
+		return false;
+	}
+	const s = provider.settings as SettingsWire | null;
+	return s !== null && s._type === AIProviderSettingsTypeClaudePlatformAWS;
+};
+
+// Server-generated STS external ID; read-only for Bedrock providers.
 export const bedrockExternalId = (provider: AIProvider): string | undefined => {
 	if (!isBedrockProvider(provider)) {
 		return undefined;
@@ -96,15 +120,18 @@ const displayTypeHosts: ReadonlyArray<[string, AIProviderType]> = [
 const matchesHost = (host: string, suffix: string): boolean =>
 	host === suffix || host.endsWith(`.${suffix}`);
 
-// Determines which UI provider type to show for a saved provider. Bedrock is
-// detected via settings. Explicit stored types are authoritative. Generic
-// `openai` rows fall back to host inference from known preset endpoints;
-// unrecognized hosts stay as `openai`.
+// Determines which UI provider type to show for a saved provider. Bedrock and
+// Claude Platform are detected via settings. Explicit stored types are
+// authoritative. Generic `openai` rows fall back to host inference from known
+// preset endpoints; unrecognized hosts stay as `openai`.
 export const getProviderDisplayType = (
 	provider: AIProvider,
-): AIProviderType => {
+): ProviderDisplayType => {
 	if (isBedrockProvider(provider)) {
 		return "bedrock";
+	}
+	if (isClaudePlatformProvider(provider)) {
+		return CLAUDE_PLATFORM_DISPLAY_TYPE;
 	}
 	if (provider.type !== "openai") {
 		return provider.type;
@@ -139,6 +166,15 @@ const buildBedrockSettings = (
 		...(roleArn ? { role_arn: roleArn } : {}),
 	};
 };
+
+const claudePlatformSettingsFromValues = (
+	values: ProviderFormValues,
+): ClaudePlatformSettingsWire => ({
+	_type: AIProviderSettingsTypeClaudePlatformAWS,
+	_version: AIProviderClaudePlatformAWSSettingsVersion,
+	region: values.claudePlatformRegion.trim(),
+	workspace_id: values.claudePlatformWorkspaceId.trim(),
+});
 
 // Bedrock credentials live in `settings`; openai/anthropic keys go in
 // `api_keys`. `display_name` is omitted when blank so the server stores
@@ -184,10 +220,15 @@ export const providerFormValuesToCreate = (
 	if (values.type === "") {
 		throw new Error("provider type is required");
 	}
+	const settings =
+		values.authMethod === "claude_platform_aws"
+			? claudePlatformSettingsFromValues(values)
+			: undefined;
 	return {
 		type: values.type,
 		...base,
 		...(apiKey ? { api_keys: [apiKey] } : {}),
+		...(settings ? { settings } : {}),
 	};
 };
 
@@ -222,7 +263,15 @@ export const providerFormValuesToUpdate = (
 			newApiKey === ""
 				? existingProvider.api_keys.map((k) => ({ id: k.id }))
 				: [{ api_key: newApiKey }];
-		return { ...base, api_keys: apiKeys };
+		const settings =
+			values.authMethod === "claude_platform_aws"
+				? claudePlatformSettingsFromValues(values)
+				: undefined;
+		return {
+			...base,
+			api_keys: apiKeys,
+			...(settings ? { settings } : {}),
+		};
 	}
 
 	const newAccessKey = sanitizeCredential(values.accessKey);
@@ -289,9 +338,33 @@ export const aiProviderToFormValues = (
 		};
 	}
 
+	if (isClaudePlatformProvider(provider)) {
+		const s = (provider.settings as SettingsWire | null) ?? {};
+		return {
+			type: "anthropic",
+			authMethod: "claude_platform_aws",
+			name: provider.name,
+			displayName,
+			icon:
+				provider.icon || (getProviderIcon(CLAUDE_PLATFORM_DISPLAY_TYPE) ?? ""),
+			baseUrl: provider.base_url,
+			claudePlatformRegion: s.region ?? "",
+			claudePlatformWorkspaceId: s.workspace_id ?? "",
+			accessKey: "",
+			accessKeySecret: "",
+			roleArn: "",
+			apiKey: "",
+			enabled: provider.enabled,
+		};
+	}
+
 	const displayType = getProviderDisplayType(provider);
+	// The synthetic Claude Platform display type maps back to the provider type
+	// it is an authentication method on.
+	const type: AIProviderType =
+		displayType === CLAUDE_PLATFORM_DISPLAY_TYPE ? "anthropic" : displayType;
 	return {
-		type: displayType,
+		type,
 		name: provider.name,
 		displayName,
 		icon: provider.icon || (getProviderIcon(displayType) ?? ""),

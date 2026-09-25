@@ -45,8 +45,8 @@ const UpdateProviderPageView: React.FC = () => {
 	});
 
 	const provider = providerQuery.data;
-	// Copilot has no stored credential, and Bedrock keeps its secrets in
-	// settings, so only the remaining types surface the api_keys UI.
+	// Claude Platform has no stored AWS credential fields. Its API key pool
+	// is the only optional persisted credential and is detected directly.
 	const providerUsesApiKeys =
 		provider !== undefined &&
 		!isBedrockProvider(provider) &&
@@ -114,9 +114,8 @@ const UpdateProviderPageView: React.FC = () => {
 		return <Navigate to={BACK_HREF} replace />;
 	}
 
-	const openAiAnthropicSavedApiKey =
-		providerUsesApiKeys && provider.api_keys.length > 0;
-	const openAiAnthropicMaskedApiKey = providerUsesApiKeys
+	const hasSavedApiKey = providerUsesApiKeys && provider.api_keys.length > 0;
+	const savedApiKeyMask = hasSavedApiKey
 		? provider.api_keys[0]?.masked
 		: undefined;
 
@@ -196,12 +195,10 @@ const UpdateProviderPageView: React.FC = () => {
 					<ProviderForm
 						editing
 						key={provider.id}
-						bedrockSavedAccessCredentials={hasBedrockStoredCredentials(
-							provider,
-						)}
-						bedrockExternalId={bedrockExternalId(provider)}
-						openAiAnthropicSavedApiKey={openAiAnthropicSavedApiKey}
-						openAiAnthropicMaskedApiKey={openAiAnthropicMaskedApiKey}
+						awsSavedAccessCredentials={hasBedrockStoredCredentials(provider)}
+						awsExternalId={bedrockExternalId(provider)}
+						hasSavedApiKey={hasSavedApiKey}
+						savedApiKeyMask={savedApiKeyMask}
 						initialValues={aiProviderToFormValues(provider)}
 						isLoading={updateMutation.isPending}
 						submitError={updateMutation.error}

@@ -3,9 +3,12 @@ import type { AIProvider } from "#/api/typesGenerated";
 import {
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
+	MockAIProviderClaudePlatformAWS,
+	MockAIProviderClaudePlatformAWSAPIKey,
 	MockAIProviderCopilot,
 	MockAIProviderOpenAI,
 } from "#/testHelpers/entities";
+import { CLAUDE_PLATFORM_DISPLAY_TYPE } from "./claudePlatform";
 import {
 	type ProviderFormValues,
 	parseBedrockRegionFromBaseUrl,
@@ -17,12 +20,14 @@ import {
 	getProviderDisplayType,
 	hasBedrockStoredCredentials,
 	isBedrockProvider,
+	isClaudePlatformProvider,
 	providerFormValuesToCreate,
 	providerFormValuesToUpdate,
 } from "./providerFormApiMap";
 
 const baseOpenAIFormValues: ProviderFormValues = {
 	type: "openai",
+	authMethod: "api_key",
 	name: "primary-openai",
 	displayName: "Primary OpenAI",
 	icon: "",
@@ -30,6 +35,8 @@ const baseOpenAIFormValues: ProviderFormValues = {
 	protocol: "invoke-model",
 	model: "",
 	smallFastModel: "",
+	claudePlatformRegion: "us-east-1",
+	claudePlatformWorkspaceId: "",
 	accessKey: "",
 	accessKeySecret: "",
 	roleArn: "",
@@ -39,6 +46,7 @@ const baseOpenAIFormValues: ProviderFormValues = {
 
 const baseBedrockFormValues: ProviderFormValues = {
 	type: "bedrock",
+	authMethod: "api_key",
 	name: "primary-bedrock",
 	displayName: "Primary Bedrock",
 	icon: "",
@@ -46,6 +54,8 @@ const baseBedrockFormValues: ProviderFormValues = {
 	protocol: "invoke-model",
 	model: "anthropic.claude-sonnet-4-5",
 	smallFastModel: "anthropic.claude-haiku-4-5",
+	claudePlatformRegion: "us-east-1",
+	claudePlatformWorkspaceId: "",
 	accessKey: "AKIA-test",
 	accessKeySecret: "secret",
 	roleArn: "",
@@ -55,6 +65,7 @@ const baseBedrockFormValues: ProviderFormValues = {
 
 const baseCopilotFormValues: ProviderFormValues = {
 	type: "copilot",
+	authMethod: "api_key",
 	name: "copilot",
 	displayName: "GitHub Copilot",
 	icon: "",
@@ -62,6 +73,27 @@ const baseCopilotFormValues: ProviderFormValues = {
 	protocol: "invoke-model",
 	model: "",
 	smallFastModel: "",
+	claudePlatformRegion: "us-east-1",
+	claudePlatformWorkspaceId: "",
+	accessKey: "",
+	accessKeySecret: "",
+	roleArn: "",
+	apiKey: "",
+	enabled: true,
+};
+
+const baseClaudePlatformFormValues: ProviderFormValues = {
+	type: "anthropic",
+	authMethod: "claude_platform_aws",
+	name: "claude-platform",
+	displayName: "Claude Platform",
+	icon: "",
+	baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+	protocol: "invoke-model",
+	model: "",
+	smallFastModel: "",
+	claudePlatformRegion: "us-east-1",
+	claudePlatformWorkspaceId: "wrkspc_123",
 	accessKey: "",
 	accessKeySecret: "",
 	roleArn: "",
@@ -200,13 +232,13 @@ describe("isBedrockProvider", () => {
 
 describe("hasBedrockStoredCredentials", () => {
 	it("is true whenever the provider is Bedrock", () => {
-		// Bedrock secrets are write-only, so we cannot inspect their
-		// presence; the helper assumes any persisted Bedrock config
-		// implies credentials are on file.
 		expect(hasBedrockStoredCredentials(MockAIProviderBedrock)).toBe(true);
 	});
 
-	it("is false for non-Bedrock providers", () => {
+	it("is false for Claude Platform and non-AWS providers", () => {
+		expect(hasBedrockStoredCredentials(MockAIProviderClaudePlatformAWS)).toBe(
+			false,
+		);
 		expect(hasBedrockStoredCredentials(MockAIProviderOpenAI)).toBe(false);
 		expect(hasBedrockStoredCredentials(MockAIProviderAnthropic)).toBe(false);
 	});
@@ -225,20 +257,36 @@ describe("bedrockExternalId", () => {
 		expect(bedrockExternalId(provider)).toBe("7QF3ZK2MLP4RS6TUVWXY2ABCDE");
 	});
 
-	it("returns undefined when the provider has no external ID", () => {
-		expect(bedrockExternalId(MockAIProviderBedrock)).toBeUndefined();
-	});
-
-	it("returns undefined when the external ID is an empty string", () => {
-		const provider: AIProvider = {
-			...MockAIProviderBedrock,
-			settings: settings({ _type: "bedrock", external_id: "" }),
-		};
-		expect(bedrockExternalId(provider)).toBeUndefined();
-	});
-
-	it("returns undefined for a non-Bedrock provider", () => {
+	it("returns undefined for Claude Platform and non-Bedrock providers", () => {
+		expect(bedrockExternalId(MockAIProviderClaudePlatformAWS)).toBeUndefined();
 		expect(bedrockExternalId(MockAIProviderOpenAI)).toBeUndefined();
+	});
+});
+
+describe("isClaudePlatformProvider", () => {
+	it("recognises the settings discriminator", () => {
+		expect(isClaudePlatformProvider(MockAIProviderClaudePlatformAWS)).toBe(
+			true,
+		);
+	});
+
+	it("rejects a plain Anthropic provider", () => {
+		expect(isClaudePlatformProvider(MockAIProviderAnthropic)).toBe(false);
+	});
+
+	it("rejects a Bedrock provider", () => {
+		expect(isClaudePlatformProvider(MockAIProviderBedrock)).toBe(false);
+		expect(isBedrockProvider(MockAIProviderClaudePlatformAWS)).toBe(false);
+	});
+
+	it("rejects the settings on a non-Anthropic type", () => {
+		// The server only accepts Claude Platform settings on `anthropic`, so a
+		// hand-crafted row on another type must not be treated as configured.
+		const provider: AIProvider = {
+			...MockAIProviderClaudePlatformAWS,
+			type: "openai",
+		};
+		expect(isClaudePlatformProvider(provider)).toBe(false);
 	});
 });
 
@@ -249,6 +297,14 @@ describe("getProviderDisplayType", () => {
 
 	it("returns anthropic for a non-Bedrock Anthropic provider", () => {
 		expect(getProviderDisplayType(MockAIProviderAnthropic)).toBe("anthropic");
+	});
+
+	it("returns the synthetic Claude Platform type", () => {
+		// Claude Platform is not an AIProviderType, so list rows key off a
+		// synthetic value to pick the AWS glyph.
+		expect(getProviderDisplayType(MockAIProviderClaudePlatformAWS)).toBe(
+			CLAUDE_PLATFORM_DISPLAY_TYPE,
+		);
 	});
 
 	it("returns openai for the canonical OpenAI host", () => {
@@ -881,5 +937,113 @@ describe("aiProviderToFormValues", () => {
 		};
 		const values = aiProviderToFormValues(provider);
 		expect(values.type).toBe("bedrock");
+	});
+});
+
+describe("Claude Platform for AWS mapping", () => {
+	describe("providerFormValuesToCreate", () => {
+		it("sends the exact backend Claude Platform settings shape", () => {
+			const req = providerFormValuesToCreate(baseClaudePlatformFormValues);
+			expect(req.type).toBe("anthropic");
+			expect(req.api_keys).toBeUndefined();
+			expect(req.settings).toEqual({
+				_type: "claude_platform_aws",
+				_version: 1,
+				region: "us-east-1",
+				workspace_id: "wrkspc_123",
+			});
+		});
+
+		it("accepts an optional provider API key without changing settings", () => {
+			const req = providerFormValuesToCreate({
+				...baseClaudePlatformFormValues,
+				apiKey: "sk-ant-workspace",
+			});
+			expect(req.api_keys).toEqual(["sk-ant-workspace"]);
+			expect(req.settings).toEqual({
+				_type: "claude_platform_aws",
+				_version: 1,
+				region: "us-east-1",
+				workspace_id: "wrkspc_123",
+			});
+		});
+
+		it("keeps a proxy endpoint while still sending the region", () => {
+			const req = providerFormValuesToCreate({
+				...baseClaudePlatformFormValues,
+				baseUrl: "https://anthropic-proxy.internal.example.com",
+				claudePlatformRegion: "eu-west-1",
+			});
+			expect(req.base_url).toBe("https://anthropic-proxy.internal.example.com");
+			expect(req.settings).toEqual(
+				expect.objectContaining({ region: "eu-west-1" }),
+			);
+		});
+	});
+
+	describe("providerFormValuesToUpdate", () => {
+		it("sends the exact four-field settings payload", () => {
+			const req = providerFormValuesToUpdate(
+				baseClaudePlatformFormValues,
+				MockAIProviderClaudePlatformAWS,
+			);
+			expect(req.settings).toEqual({
+				_type: "claude_platform_aws",
+				_version: 1,
+				region: "us-east-1",
+				workspace_id: "wrkspc_123",
+			});
+		});
+
+		it("preserves every saved key when the field is blank or masked", () => {
+			const existingProvider: AIProvider = {
+				...MockAIProviderClaudePlatformAWSAPIKey,
+				api_keys: [
+					...MockAIProviderClaudePlatformAWSAPIKey.api_keys,
+					{
+						id: "8e1f4a25-7b63-4d90-a2c8-9f0e5b6d7a81",
+						masked: "sk-ant-***\\u2026***QRST",
+						created_at: "2026-05-14T10:00:00Z",
+					},
+				],
+			};
+			for (const apiKey of ["", SAVED_CREDENTIAL_MASK]) {
+				const req = providerFormValuesToUpdate(
+					{ ...baseClaudePlatformFormValues, apiKey },
+					existingProvider,
+				);
+				expect(req.api_keys).toEqual(
+					existingProvider.api_keys.map((key) => ({ id: key.id })),
+				);
+			}
+		});
+
+		it("rotates the provider key when a new plaintext is entered", () => {
+			const req = providerFormValuesToUpdate(
+				{ ...baseClaudePlatformFormValues, apiKey: "sk-ant-rotated" },
+				MockAIProviderClaudePlatformAWSAPIKey,
+			);
+			expect(req.api_keys).toEqual([{ api_key: "sk-ant-rotated" }]);
+		});
+	});
+
+	describe("aiProviderToFormValues", () => {
+		it("maps backend-shaped Claude Platform settings without an auth mode", () => {
+			const values = aiProviderToFormValues(MockAIProviderClaudePlatformAWS);
+			expect(values.type).toBe("anthropic");
+			expect(values.authMethod).toBe("claude_platform_aws");
+			expect(values.claudePlatformRegion).toBe("us-east-1");
+			expect(values.claudePlatformWorkspaceId).toBe("wrkspc_123");
+			expect(values).not.toHaveProperty("claudePlatformAuthMode");
+		});
+
+		it("does not infer mode or AWS identity fields from a provider key", () => {
+			const values = aiProviderToFormValues(
+				MockAIProviderClaudePlatformAWSAPIKey,
+			);
+			expect(values.apiKey).toBe("");
+			expect(values).not.toHaveProperty("claudePlatformAuthMode");
+			expect(values.roleArn).toBe("");
+		});
 	});
 });

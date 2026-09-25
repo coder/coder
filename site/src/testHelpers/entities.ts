@@ -5622,6 +5622,46 @@ export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	updated_at: "2026-05-14T10:00:00Z",
 };
 
+/**
+ * Claude Platform for AWS is an authentication method on the `anthropic`
+ * provider type, identified by the `claude_platform_aws` settings
+ * discriminator. Authentication is inferred from the provider key pool,
+ * falling back to ambient AWS credentials when the pool is empty.
+ */
+export const MockAIProviderClaudePlatformAWS: TypesGen.AIProvider = {
+	id: "5b8c1d92-4e7a-4f38-9b21-6d3c0a7e5f42",
+	type: "anthropic",
+	name: "claude-platform",
+	display_name: "Claude Platform",
+	icon: "",
+	base_url: "https://aws-external-anthropic.us-east-1.api.aws",
+	enabled: true,
+	api_keys: [],
+	settings: {
+		_type: "claude_platform_aws",
+		_version: 1,
+		region: "us-east-1",
+		workspace_id: "wrkspc_123",
+	},
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
+/** The same provider with a workspace key in its provider key pool. */
+export const MockAIProviderClaudePlatformAWSAPIKey: TypesGen.AIProvider = {
+	...MockAIProviderClaudePlatformAWS,
+	id: "6c9d2e03-5f8b-4a49-8c32-7e4d1b8f6a53",
+	name: "claude-platform-key",
+	display_name: "Claude Platform (workspace key)",
+	api_keys: [
+		{
+			id: "7d0e3f14-6a9c-4b5a-9d43-8f5e2c9a7b64",
+			masked: "sk-ant-***\u2026***WXYZ",
+			created_at: "2026-05-14T10:00:00Z",
+		},
+	],
+};
+
 export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	id: "b3f0d2c8-6a4e-4d11-8c2f-1e9a7c5b4d31",
 	type: "copilot",
@@ -5675,6 +5715,7 @@ export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderOpenAI,
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
+	MockAIProviderClaudePlatformAWS,
 	MockAIProviderCopilot,
 ];
 
