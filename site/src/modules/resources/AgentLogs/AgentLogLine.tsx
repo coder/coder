@@ -11,18 +11,27 @@ type AgentLogLineProps = {
 	sourceIcon: ReactNode;
 };
 
+/** Agent log output with ANSI colors. */
+export const AgentLogOutput: FC<{ output: string }> = ({ output }) => {
+	// Only render the text after the last carriage return so progress-bar style
+	// output that redraws a single line shows its final state.
+	const lastCarriageReturn = output.lastIndexOf("\r");
+	return (
+		<AnsiHtml
+			text={
+				lastCarriageReturn === -1
+					? output
+					: output.slice(lastCarriageReturn + 1)
+			}
+		/>
+	);
+};
+
 export const AgentLogLine: FC<AgentLogLineProps> = ({
 	line,
 	sourceIcon,
 	style,
 }) => {
-	// Only render the text after the last carriage return so progress-bar style
-	// output that redraws a single line shows its final state.
-	const lastCarriageReturn = line.output.lastIndexOf("\r");
-	const output =
-		lastCarriageReturn === -1
-			? line.output
-			: line.output.slice(lastCarriageReturn + 1);
 	const timestamp = useMemo(() => {
 		return dayjs(line.time).format("HH:mm:ss.SSS");
 	}, [line.time]);
@@ -31,7 +40,7 @@ export const AgentLogLine: FC<AgentLogLineProps> = ({
 		<LogLine className="pl-4 min-h-5" level={line.level} style={style}>
 			{sourceIcon}
 			<LogLinePrefix>{timestamp}</LogLinePrefix>
-			<AnsiHtml text={output} />
+			<AgentLogOutput output={line.output} />
 		</LogLine>
 	);
 };

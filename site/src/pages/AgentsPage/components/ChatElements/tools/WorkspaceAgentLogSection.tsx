@@ -1,11 +1,12 @@
 import { LoaderIcon } from "lucide-react";
-import { type FC, memo, type ReactNode, useLayoutEffect, useRef } from "react";
+import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
 import { useQuery } from "react-query";
 import { workspaceById } from "#/api/queries/workspaces";
-import type { WorkspaceAgent, WorkspaceAgentLog } from "#/api/typesGenerated";
-import { DEFAULT_LOG_LINE_SIDE_PADDING } from "#/components/Logs/Logs";
+import type { WorkspaceAgent } from "#/api/typesGenerated";
+import type { Line } from "#/components/Logs/LogLine";
+import { Logs, LogsHeader } from "#/components/Logs/Logs";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import { AgentLogLine } from "#/modules/resources/AgentLogs/AgentLogLine";
+import { AgentLogOutput } from "#/modules/resources/AgentLogs/AgentLogLine";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
 import { findWorkspaceAgent } from "#/utils/workspace";
 import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
@@ -85,6 +86,14 @@ const AgentStartupLogs: FC<AgentStartupLogsProps> = ({ agent, isRunning }) => {
 		) : null;
 	}
 
+	const lines = logs.map<Line>((log) => ({
+		id: log.id,
+		time: log.created_at,
+		output: log.output,
+		level: log.level,
+		sourceId: log.source_id,
+	}));
+
 	return (
 		<ScrollArea
 			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
@@ -94,41 +103,13 @@ const AgentStartupLogs: FC<AgentStartupLogsProps> = ({ agent, isRunning }) => {
 			scrollBarClassName="w-1.5"
 		>
 			<div className="font-mono">
-				<div
-					className="flex items-center bg-surface-primary font-sans text-xs font-semibold leading-none"
-					style={{
-						padding: `12px var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
-					}}
-				>
-					<div>Agent startup</div>
-					<div className="ml-auto text-xs text-content-secondary">
-						{agent.name}
-					</div>
-				</div>
-				<div className="py-2 bg-surface-primary">
-					{logs.map((log) => (
-						<AgentLogRow key={log.id} log={log} />
-					))}
-				</div>
+				<LogsHeader title="Agent startup" detail={agent.name} />
+				<Logs lines={lines} LineOutput={AgentLogOutput} className="min-h-0" />
 				<div ref={endRef} />
 			</div>
 		</ScrollArea>
 	);
 };
-
-// Memoized so a streamed batch renders only its new lines.
-const AgentLogRow = memo<{ log: WorkspaceAgentLog }>(({ log }) => (
-	<AgentLogLine
-		line={{
-			id: log.id,
-			time: log.created_at,
-			output: log.output,
-			level: log.level,
-			sourceId: log.source_id,
-		}}
-		sourceIcon={null}
-	/>
-));
 
 const WaitingNotice: FC<{ children: ReactNode }> = ({ children }) => (
 	<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
