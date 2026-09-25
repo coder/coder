@@ -397,6 +397,40 @@ export const TypeaheadMatchingCategories: Story = {
 	},
 };
 
+// Many matching suggestions scroll inside the capped menu.
+export const LongTypeaheadResults: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={categoriesWithAttributes.map((category) =>
+				category.key === "owner" || category.key === "template"
+					? {
+							...category,
+							getOptions: async (query) =>
+								filterOptions(
+									Array.from({ length: 20 }, (_, index) => ({
+										label: `${category.key}-alpha-${index + 1}`,
+										value: `${category.key}-alpha-${index + 1}`,
+									})),
+									query,
+								),
+						}
+					: category,
+			)}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "a");
+		await within(canvasElement.ownerDocument.body).findByRole("option", {
+			name: "template-alpha-1",
+		});
+	},
+};
+
 // Typed text that matches no filter opens no dropdown.
 export const NoFilterMatches: Story = {
 	render: () => (
