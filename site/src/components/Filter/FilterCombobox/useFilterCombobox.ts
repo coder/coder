@@ -12,7 +12,6 @@ import {
 	chipToken,
 	collectValueSuggestions,
 	composeFilterQuery,
-	dedupeChips,
 	extractFreeText,
 	filterOptionsByText,
 	matchCategories,
@@ -46,9 +45,10 @@ type State = {
 	activeCategoryKey: string | null;
 	inputValue: string;
 	/**
-	 * Free text typed outside chips and category prefixes. While it could still
-	 * be a filter being searched for, it is withheld from the emitted query
-	 * until `applyTypedSearch` runs.
+	 * Text typed outside chips and category prefixes; its last token can be a
+	 * chip token still being typed. While it could still be a filter being
+	 * searched for, it is withheld from the emitted query until
+	 * `applyTypedSearch` runs.
 	 */
 	typedFreeText: string;
 };
@@ -814,20 +814,36 @@ export const useFilterCombobox = ({
 		}
 	};
 
-	// Chip tokens in the typed text become chips, so a token the menu held back
-	// while it was typed is not sent as search text or repeated.
+	// Chip tokens in typed text become chips rather than search text that
+	// would repeat them, whether the menu held one back while it was typed or
+	// it was pasted (`owner:me template:docker`).
+	const splitTypedChips = (text: string) => {
+		const freeText = extractFreeText(text, chipKeys);
+		const query = composeFilterQuery(
+			[...chipValues, ...queryToChips(text, chipKeys)],
+			chipKeys,
+			freeText,
+		);
+		return { query, freeText };
+	};
+	// Commits text on the spot, such as text typed ahead of a `key:` prefix,
+	// and returns the text left after its chip tokens.
+	const commitTypedChips = (text: string) => {
+		const { query, freeText } = splitTypedChips(text);
+		emitQuery(query);
+		return freeText;
+	};
+
+	// The input drops committed chip tokens, so a later pick or dismissal does
+	// not send them again.
 	const applyTypedSearch = () => {
 		cancelTypedTextLookup();
-		const query = composeFilterQuery(
-			dedupeChips(
-				[...chipValues, ...queryToChips(typedFreeText, chipKeys)],
-				chipKeys,
-			),
-			chipKeys,
-			extractFreeText(typedFreeText, chipKeys),
-		);
+		const { query, freeText } = splitTypedChips(typedFreeText);
 		if (query !== lastEmittedRef.current) {
 			emitQuery(query);
+		}
+		if (queryToChips(typedFreeText, chipKeys).length > 0) {
+			dispatch({ type: "typeFreeText", value: freeText });
 		}
 	};
 
@@ -869,17 +885,6 @@ export const useFilterCombobox = ({
 		dispatch({ type: "openBrowsing" });
 	};
 
-	// Text typed ahead of a `key:` prefix is committed on the spot. Chip tokens
-	// in it (e.g. a pasted `owner:me template:docker`) become chips rather than
-	// free text that would duplicate the token on the next commit.
-	const commitTextBeforePrefix = (text: string) => {
-		const priorChips = queryToChips(text, chipKeys);
-		const mergedChips = dedupeChips([...chipValues, ...priorChips], chipKeys);
-		const freeText = extractFreeText(text, chipKeys);
-		emitQuery(composeFilterQuery(mergedChips, chipKeys, freeText));
-		return freeText;
-	};
-
 	const handleInputValueChange = (nextValue: string) => {
 		cancelTypedTextLookup();
 		const typedCategory = parseTypedCategoryPrefix(
@@ -891,7 +896,7 @@ export const useFilterCombobox = ({
 				type: "enterCategory",
 				categoryKey: typedCategory.categoryKey,
 				query: typedCategory.query,
-				typedFreeText: commitTextBeforePrefix(typedCategory.freeText),
+				typedFreeText: commitTypedChips(typedCategory.freeText),
 			});
 			return;
 		}
@@ -907,7 +912,7 @@ export const useFilterCombobox = ({
 		if (typedInline) {
 			dispatch({
 				type: "setTypedFreeText",
-				value: commitTextBeforePrefix(typedInline.freeText),
+				value: commitTypedChips(typedInline.freeText),
 			});
 			dispatch({ type: "typeFilterSearch", value: nextValue });
 			return;
@@ -926,15 +931,10 @@ export const useFilterCombobox = ({
 			inProgress.length > 0 && queryToChips(inProgress, chipKeys).length > 0;
 
 		if (settledChips.length > 0 || inProgressIsPartialChip) {
-			const mergedChips = dedupeChips(
-				[...chipValues, ...settledChips],
-				chipKeys,
-			);
-			const settledFreeText = extractFreeText(settledText, chipKeys);
+			const settledFreeText = commitTypedChips(settledText);
 			const inputFreeText = inProgressIsPartialChip
 				? [settledFreeText, inProgress].filter(Boolean).join(" ")
 				: settledFreeText;
-			emitQuery(composeFilterQuery(mergedChips, chipKeys, settledFreeText));
 			dispatch({ type: "typeFreeText", value: inputFreeText });
 			return;
 		}
