@@ -474,6 +474,30 @@ func seedStateMultiQueued(t *testing.T, f *testFixture, state chatstate.Executio
 	return seededChat{}
 }
 
+// seedRunningWithQueue seeds a running chat and sends one message for
+// each busy behavior, in order. Only queue and steer keep the chat
+// running, so behaviors must hold only those two values.
+func seedRunningWithQueue(t *testing.T, f *testFixture, behaviors []database.ChatBusyBehavior) seededChat {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	seeded := seededChat{
+		chatID:               created.Chat.ID,
+		exists:               true,
+		initialUserMessageID: firstUserMessageID(ctx, t, f, created.Chat.ID),
+	}
+	for i, behavior := range behaviors {
+		require.Contains(t, []database.ChatBusyBehavior{database.ChatBusyBehaviorQueue, database.ChatBusyBehaviorSteer}, behavior)
+		body := fmt.Sprintf("queued-%s-%d", behavior, i)
+		sent := sendMessageWithBehavior(t, f, m, body, behavior)
+		require.NotNil(t, sent.QueuedMessage)
+		seeded.queuedMessageIDs = append(seeded.queuedMessageIDs, sent.QueuedMessage.ID)
+		seeded.queuedMessageBodies = append(seeded.queuedMessageBodies, body)
+	}
+	return seeded
+}
+
 // seedA1WithMixedOutstandingToolCalls seeds A1 with one queued message
 // and one assistant message carrying both a dynamic and non-dynamic
 // outstanding tool call. It is used by PromoteQueuedMessage(A1) to

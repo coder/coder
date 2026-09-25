@@ -1439,7 +1439,7 @@ func (p *Server) SendMessage(
 		busyBehavior = database.ChatBusyBehaviorQueue
 	}
 	switch busyBehavior {
-	case database.ChatBusyBehaviorQueue, database.ChatBusyBehaviorInterrupt:
+	case database.ChatBusyBehaviorQueue, database.ChatBusyBehaviorSteer, database.ChatBusyBehaviorInterrupt:
 	default:
 		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
 	}

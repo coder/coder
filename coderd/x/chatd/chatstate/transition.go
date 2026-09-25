@@ -25,6 +25,7 @@ const (
 	TransitionEnterRequiresAction     Transition = "EnterRequiresAction"
 	TransitionFinishInterruption      Transition = "FinishInterruption"
 	TransitionFinishTurn              Transition = "FinishTurn"
+	TransitionPromoteQueuedBeforeStep Transition = "PromoteQueuedBeforeStep"
 	TransitionFinishError             Transition = "FinishError"
 	TransitionCancelRequiresAction    Transition = "CancelRequiresAction"
 	TransitionReconcileInvalidState   Transition = "ReconcileInvalidState"
@@ -81,6 +82,10 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionEnterRequiresAction:     {StateA0},
 		TransitionFinishTurn:              {StateW},
 		TransitionFinishError:             {StateE0},
+		// R0 is allowed because a user can delete the queued rows
+		// after the generation loop decides to promote. The
+		// transition then writes nothing.
+		TransitionPromoteQueuedBeforeStep: {StateR0},
 	},
 	StateR1: {
 		TransitionSendMessage:             {StateR1, StateI1},
@@ -94,6 +99,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionEnterRequiresAction:     {StateA1},
 		TransitionFinishTurn:              {StateR0, StateR1},
 		TransitionFinishError:             {StateE1},
+		TransitionPromoteQueuedBeforeStep: {StateR0, StateR1},
 	},
 	StateI0: {
 		TransitionSendMessage:        {StateI1},

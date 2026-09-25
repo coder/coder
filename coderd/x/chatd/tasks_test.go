@@ -1251,6 +1251,88 @@ func TestGenerationTask_RecordRetryStateStaleFenceExits(t *testing.T) {
 	require.Equal(t, otherRunnerID, latest.RunnerID.UUID)
 }
 
+func TestGenerationTask_BeginAssistantAttemptPromotesDueRows(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	f.queueMessage(t, chat.ID, "queued one", database.ChatBusyBehaviorQueue)
+	f.queueMessage(t, chat.ID, "steer message", database.ChatBusyBehaviorSteer)
+	queuedTwo := f.queueMessage(t, chat.ID, "queued two", database.ChatBusyBehaviorQueue)
+	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
+	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
+
+	_, promoted, err := starter.beginAssistantAttempt(testutil.Context(t, testutil.WaitLong), machine, chatWorkerTaskStartInput{
+		ChatID:         chat.ID,
+		WorkerID:       workerID,
+		RunnerID:       runnerID,
+		HistoryVersion: acquired.HistoryVersion,
+		Status:         database.ChatStatusRunning,
+	})
+	require.NoError(t, err)
+	require.True(t, promoted)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	latest, err := f.db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Zero(t, latest.GenerationAttempt)
+	require.Greater(t, latest.HistoryVersion, acquired.HistoryVersion)
+
+	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(messages), 2)
+	for i, want := range []string{"queued one", "steer message"} {
+		msg := messages[len(messages)-2+i]
+		require.Equal(t, database.ChatMessageRoleUser, msg.Role)
+		parts, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText(want)}, parts)
+	}
+
+	queue, err := f.db.GetChatQueuedMessagesByPosition(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, queue, 1)
+	require.Equal(t, queuedTwo.ID, queue[0].ID)
+}
+
+func TestGenerationTask_BeginAssistantAttemptWithoutDueRows(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	f.queueMessage(t, chat.ID, "queued one", database.ChatBusyBehaviorQueue)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	queueBefore, err := f.db.GetChatQueuedMessagesByPosition(ctx, chat.ID)
+	require.NoError(t, err)
+	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
+	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
+
+	attempt, promoted, err := starter.beginAssistantAttempt(testutil.Context(t, testutil.WaitLong), machine, chatWorkerTaskStartInput{
+		ChatID:         chat.ID,
+		WorkerID:       workerID,
+		RunnerID:       runnerID,
+		HistoryVersion: acquired.HistoryVersion,
+		Status:         database.ChatStatusRunning,
+	})
+	require.NoError(t, err)
+	attempt.closeEpisode()
+	require.False(t, promoted)
+	require.Equal(t, int64(1), attempt.number)
+
+	latest, err := f.db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, acquired.HistoryVersion, latest.HistoryVersion)
+	queueAfter, err := f.db.GetChatQueuedMessagesByPosition(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, queueBefore, queueAfter)
+}
+
 func TestRunner_StartsRealInterruptTask(t *testing.T) {
 	t.Parallel()
 
@@ -1394,6 +1476,21 @@ func (f *taskTestFixture) acquireChat(t *testing.T, chatID uuid.UUID, workerID u
 	require.NoError(t, err)
 	f.pubsub.clear()
 	return chat
+}
+
+func (f *taskTestFixture) queueMessage(t *testing.T, chatID uuid.UUID, text string, behavior database.ChatBusyBehavior) database.ChatQueuedMessage {
+	t.Helper()
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
+	require.NoError(t, err)
+	queued, err := f.db.InsertChatQueuedMessageWithCreator(testutil.Context(t, testutil.WaitShort), database.InsertChatQueuedMessageWithCreatorParams{
+		ChatID:        chatID,
+		Content:       content.RawMessage,
+		ModelConfigID: uuid.NullUUID{UUID: f.model.ID, Valid: true},
+		CreatedBy:     f.user.ID,
+		BusyBehavior:  behavior,
+	})
+	require.NoError(t, err)
+	return queued
 }
 
 func (f *taskTestFixture) interruptChat(t *testing.T, chatID uuid.UUID) database.Chat {

@@ -114,7 +114,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 
 - `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
-- `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
+- `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be `queue`, `steer`, or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
 - `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state.
@@ -131,6 +131,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `EnterRequiresAction` records a pending-action episode by relying on the committed assistant tool-call messages as the durable call set, sets `requires_action_deadline_at`, which is a timestamp 5 minutes in the future, and lands in `requires_action`.
 - `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and lands in `waiting` if no queued message is promoted. If interrupt finalization also promotes the queue head, it inserts the promoted queued message into history and lands in `running`.
 - `RecordGenerationAttempt` verifies the chat is still `running`, increments `generation_attempt`, and returns the updated chat snapshot.
+- `PromoteQueuedBeforeStep` verifies the chat is still `running`, removes the due queued messages from the queue, inserts them into history in queue order, and stays in `running`. A queued message is due if it is a `steer` or `interrupt` message, or if a `steer` or `interrupt` message is behind it in the queue.
 - `RecordRetryState(payload)` verifies the chat is still `running`, stores the retry payload sent to clients as `retry_state`, and returns the updated chat snapshot.
 - `FinishTurn` completes the current generation turn atomically. If the queue is empty, it lands in `waiting`. If the queue is non-empty, it removes the queue head, inserts it into history as a user turn, and lands in `running`.
 - `FinishError(err)` parks the chat in `error` and persists `last_error = err`, replacing any previously stored error. It is allowed when an unarchived chat is waiting or running.
@@ -183,6 +184,8 @@ stateDiagram-v2
     R0 --> W: FinishTurn / queue empty
     R0 --> E0: FinishError
     R0 --> R1: SendMessage(queue)
+    R0 --> R1: SendMessage(steer)
+    R0 --> R0: PromoteQueuedBeforeStep
 
     R1 --> R1: RecordGenerationAttempt
     R1 --> R1: RecordRetryState
@@ -193,6 +196,9 @@ stateDiagram-v2
     R1 --> R0: EditMessage
     R1 --> E1: FinishError
     R1 --> R1: SendMessage(queue)
+    R1 --> R1: SendMessage(steer)
+    R1 --> R0: PromoteQueuedBeforeStep / promoted last queued
+    R1 --> R1: PromoteQueuedBeforeStep / queue still non-empty
     R1 --> R0: DeleteQueuedMessage / removed last queued
     R1 --> R1: DeleteQueuedMessage / queue still non-empty
     R1 --> I1: PromoteQueuedMessage
@@ -215,6 +221,7 @@ stateDiagram-v2
     A0 --> R0: Interrupt
     A0 --> R0: CancelRequiresAction
     A0 --> A1: SendMessage(queue)
+    A0 --> A1: SendMessage(steer)
     A0 --> R1: SendMessage(interrupt)
     A0 --> R0: EditMessage
 
@@ -222,6 +229,7 @@ stateDiagram-v2
     A1 --> R1: Interrupt
     A1 --> R1: CancelRequiresAction
     A1 --> A1: SendMessage(queue)
+    A1 --> A1: SendMessage(steer)
     A1 --> R1: SendMessage(interrupt)
     A1 --> R0: EditMessage
     A1 --> A0: DeleteQueuedMessage / removed last queued
@@ -493,7 +501,7 @@ For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
 - `A0 -> SendMessage(m, interrupt) -> R1`
 - `A1 -> SendMessage(m, interrupt) -> R1`
 
-When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized.
+When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized. `FinishInterruption` promotes only the queue head, so if other queued messages were ahead of `m`, the chat worker promotes `m` with `PromoteQueuedBeforeStep` before its next LLM API call. When `SendMessage(m, interrupt)` lands in `R1` from `A0` or `A1`, `m` stays queued, and the chat worker promotes it the same way.
 
 Other input states are not supported.
 

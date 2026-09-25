@@ -307,7 +307,6 @@ func setArchivedWrongDirectionCases() []setArchivedWrongDirectionCase {
 var invalidBusyBehaviors = []database.ChatBusyBehavior{
 	database.ChatBusyBehavior(""),
 	database.ChatBusyBehavior("not-a-real-mode"),
-	database.ChatBusyBehaviorSteer,
 }
 
 func runSetArchivedWrongDirectionCase(t *testing.T, tc setArchivedWrongDirectionCase) {
@@ -1022,6 +1021,55 @@ func TestTransitionAcquire_ExecutionStateOrthogonal(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, queueBefore, queueAfter, "queue cardinality preserved")
 			require.Equal(t, historyBefore, historyMessageIDs(ctx, t, f, chatID), "history preserved")
+		})
+	}
+}
+
+// TestPromoteQueuedBeforeStep_OutstandingToolCalls verifies that
+// outstanding tool calls block PromoteQueuedBeforeStep only when a
+// queued row is due.
+func TestPromoteQueuedBeforeStep_OutstandingToolCalls(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		behavior database.ChatBusyBehavior
+		wantErr  string
+	}{
+		{name: "queue rows only", behavior: database.ChatBusyBehaviorQueue},
+		{name: "due steer row", behavior: database.ChatBusyBehaviorSteer, wantErr: "outstanding tool calls block queued promotion"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			toolName := "tool_" + uuid.NewString()
+			created := createTestChatWithDynamicTools(t, f, toolName)
+			chatID := created.Chat.ID
+			m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
+			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				_, err := tx.CommitStep(chatstate.CommitStepInput{
+					Messages: []chatstate.Message{
+						assistantToolCallMessage(t, f.Model.ID, toolName, "call_"+uuid.NewString()),
+					},
+				})
+				return err
+			}))
+			sendMessageWithBehavior(t, f, m, "queued "+string(tc.behavior), tc.behavior)
+			historyBefore := historyMessageIDs(ctx, t, f, chatID)
+			queueBefore := queuedIDsByPosition(ctx, t, f, chatID)
+
+			err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+				_, err := tx.PromoteQueuedBeforeStep(chatstate.PromoteQueuedBeforeStepInput{})
+				return err
+			})
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tc.wantErr)
+			}
+			require.Equal(t, historyBefore, historyMessageIDs(ctx, t, f, chatID))
+			require.Equal(t, queueBefore, queuedIDsByPosition(ctx, t, f, chatID))
 		})
 	}
 }
