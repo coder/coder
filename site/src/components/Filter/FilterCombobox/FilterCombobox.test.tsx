@@ -8,7 +8,6 @@ import type { FilterCategory } from "./types";
 const ownerCategory: FilterCategory = {
 	key: "owner",
 	label: "Owner",
-	showWhenSingleOption: true,
 	getOptions: async () => [{ label: "alice", value: "alice" }],
 };
 

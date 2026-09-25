@@ -588,53 +588,6 @@ export const TypedInlinePrefix: Story = {
 	},
 };
 
-// With a single template there is nothing to narrow, so Template is left out.
-const singleTemplateCategories: FilterCategory[] = [
-	{
-		key: "owner",
-		label: "Owner",
-		icon: <UserIcon />,
-		getOptions: async (query) => filterOptions(ownerOptions, query),
-	},
-	{
-		key: "template",
-		label: "Template",
-		icon: <LayoutGridIcon />,
-		getOptions: async (query) =>
-			filterOptions(templateOptions.slice(0, 1), query),
-	},
-];
-
-const openFilterMenu = async (canvasElement: HTMLElement) => {
-	await userEvent.click(
-		within(canvasElement).getByRole("button", { name: "Toggle filters" }),
-	);
-	await within(canvasElement.ownerDocument.body).findByRole("option", {
-		name: "Owner",
-	});
-};
-
-export const SingleOptionCategoryHidden: Story = {
-	render: () => (
-		<FilterComboboxHarness
-			initialQuery=""
-			categories={singleTemplateCategories}
-		/>
-	),
-	play: ({ canvasElement }) => openFilterMenu(canvasElement),
-};
-
-// An applied chip keeps the category listed so it can still be changed.
-export const SingleOptionCategoryWithChip: Story = {
-	render: () => (
-		<FilterComboboxHarness
-			initialQuery="template:docker"
-			categories={singleTemplateCategories}
-		/>
-	),
-	play: ({ canvasElement }) => openFilterMenu(canvasElement),
-};
-
 // Escape closes the popup without clearing the committed chips.
 export const DismissOnEscape: Story = {
 	render: () => <FilterComboboxHarness initialQuery="owner:me" />,
