@@ -1,5 +1,5 @@
 import { act, waitFor } from "@testing-library/react";
-import { useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { renderHookWithAuth } from "#/testHelpers/hooks";
 import {
 	type AgentSidebarFilters,
@@ -26,7 +26,14 @@ const renderFilters = (route = "/agents") => {
 	return renderHookWithAuth(
 		() => {
 			const [searchParams, setSearchParams] = useSearchParams();
-			return getAgentSidebarFilters(searchParams, setSearchParams);
+			const location = useLocation();
+			const navigate = useNavigate();
+			const [filters, setFilters] = getAgentSidebarFilters(
+				searchParams,
+				setSearchParams,
+				location.state,
+			);
+			return [filters, setFilters, navigate] as const;
 		},
 		{
 			routingOptions: { path: "/agents", route },
@@ -123,5 +130,20 @@ describe(getAgentSidebarFilters.name, () => {
 		expect(search.get("pr_status")).toBe("draft,merged");
 		expect(search.get("chat_status")).toBe("unread");
 		expect(search.get("source")).toBe("created_by_me,shared_with_me");
+	});
+
+	it("keeps the history state when writing filters", async () => {
+		const { result, getLocationSnapshot } = await renderFilters();
+		// A prompt link leaves its text in history state for the composer.
+		await act(() =>
+			result.current[2]("/agents", { replace: true, state: { prompt: "hi" } }),
+		);
+
+		act(() => {
+			result.current[1](archivedFilters);
+		});
+		await waitFor(() => expect(result.current[0]).toEqual(archivedFilters));
+
+		expect(getLocationSnapshot().state).toEqual({ prompt: "hi" });
 	});
 });

@@ -65,13 +65,13 @@ export type CreateChatOptions = {
 
 /**
  * Prefilled content for a chat opened from a deep link. The form reads it on
- * mount (remount with a new `key` to change it), uploads the attachment
+ * mount (remount with a new `key` to change it), uploads any attachment
  * without sending, and neither reads nor writes the saved draft or
  * attachments.
  */
 export type AgentCreatePrefill = {
 	message: string;
-	attachment: {
+	attachment?: {
 		name: string;
 		text: string;
 	};
@@ -579,7 +579,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	};
 
 	const [prefillFile] = useState(() =>
-		prefill
+		prefill?.attachment
 			? new File([prefill.attachment.text], prefill.attachment.name, {
 					type: "text/plain",
 				})

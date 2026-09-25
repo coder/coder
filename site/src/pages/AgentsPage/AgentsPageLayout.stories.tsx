@@ -1097,6 +1097,20 @@ const debugWorkspaceBuildRouter = (buildId: string) =>
 		routing: [agentsRouting, aiSettingsRouting],
 	});
 
+export const PromptLink: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: {
+					prompt: "Fix the flaky test in site/src/api\nand explain the cause.",
+				},
+			},
+			routing: [agentsRouting, aiSettingsRouting],
+		}),
+	},
+};
+
 export const DebugWorkspaceBuildLoading: Story = {
 	parameters: {
 		experiments: ["enable-ai-workspace-debug"],
