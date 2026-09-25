@@ -135,8 +135,6 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailure(t *testing.T)
 		ProviderID: providerID,
 		APIKey:     "test-key",
 	}}, nil).AnyTimes()
-	// The failed call still publishes the current row.
-	db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
 
 	generated := &generatedChatTitle{}
 	server := titleOverrideTestServer(db, logger)

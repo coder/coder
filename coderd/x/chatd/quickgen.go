@@ -449,7 +449,6 @@ func (p *Server) maybeGenerateChatTitle(
 			slog.F("model", resolved.resolvedModel),
 			slog.Error(err),
 		)
-		p.publishCurrentChatTitle(ctx, chat.ID, logger)
 		return
 	}
 
@@ -458,40 +457,17 @@ func (p *Server) maybeGenerateChatTitle(
 		Title:       title,
 		TitleSource: database.ChatTitleSourceGenerated,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
-		p.publishCurrentChatTitle(ctx, chat.ID, logger)
-		return
-	}
 	if err != nil {
-		logger.Warn(ctx, "failed to update generated chat title",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		p.publishCurrentChatTitle(ctx, chat.ID, logger)
+		if !errors.Is(err, sql.ErrNoRows) {
+			logger.Warn(ctx, "failed to update generated chat title",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		}
 		return
 	}
 	generatedTitle.Store(title)
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindTitleChange, nil)
-}
-
-// publishCurrentChatTitle publishes the chat's current row after a title
-// model call that wrote no title, so watchers refetch the call's cost.
-// The row is re-read because another source may have written the title
-// during the call.
-func (p *Server) publishCurrentChatTitle(ctx context.Context, chatID uuid.UUID, logger slog.Logger) {
-	chat, err := p.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		logger.Warn(ctx, "failed to load chat after title generation",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return
-	}
-	logger.Debug(ctx, "title generation wrote no title",
-		slog.F("chat_id", chatID),
-		slog.F("title_source", chat.TitleSource),
-	)
-	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
 }
 
 const titleMaxOutputTokens = int64(256)

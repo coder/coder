@@ -539,7 +539,7 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 	t.Parallel()
 
 	const userPrompt = "summarize failed workspace build logs"
-	fallback := chatprompt.FallbackTitle(userPrompt)
+	fallbackTitle := chatprompt.FallbackTitle(userPrompt)
 
 	newFakeModel := func(t *testing.T, beforeReturn func(), title string, err error) *chattest.FakeModel {
 		return &chattest.FakeModel{
@@ -586,7 +586,7 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 			title string
 		}{
 			{name: "new text", title: "Failed workspace logs"},
-			{name: "same text as fallback", title: fallback},
+			{name: "same text as fallback", title: fallbackTitle},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -594,7 +594,7 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 
 				db, _ := dbtestutil.NewDB(t)
 				ctx := testutil.Context(t, testutil.WaitMedium)
-				owner, chat := seedTitleChat(t, db, fallback, database.ChatTitleSourceFallback)
+				owner, chat := seedTitleChat(t, db, fallbackTitle, database.ChatTitleSourceFallback)
 				ps := dbpubsub.NewInMemory()
 				events := subscribeChatWatchEvents(t, ps, owner.ID)
 
@@ -619,7 +619,7 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 		}
 	})
 
-	t.Run("PublishesCurrentRowWhenNoTitleIsWritten", func(t *testing.T) {
+	t.Run("KeepsCurrentTitleWhenNoTitleIsWritten", func(t *testing.T) {
 		t.Parallel()
 
 		const renamed = "My build investigation"
@@ -636,23 +636,15 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 
 				db, _ := dbtestutil.NewDB(t)
 				ctx := testutil.Context(t, testutil.WaitMedium)
-				owner, chat := seedTitleChat(t, db, fallback, database.ChatTitleSourceFallback)
+				owner, chat := seedTitleChat(t, db, fallbackTitle, database.ChatTitleSourceFallback)
 				ps := dbpubsub.NewInMemory()
 				events := subscribeChatWatchEvents(t, ps, owner.ID)
 
-				switchedModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "switched-model"})
-				var renamedChat database.Chat
 				model := newFakeModel(t, func() {
-					var err error
-					renamedChat, err = db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+					_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
 						ID:          chat.ID,
 						Title:       renamed,
 						TitleSource: database.ChatTitleSourceUser,
-					})
-					assert.NoError(t, err)
-					_, err = db.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
-						ID:                chat.ID,
-						LastModelConfigID: switchedModel.ID,
 					})
 					assert.NoError(t, err)
 				}, "Generated title", tc.modelErr)
@@ -667,17 +659,9 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 				_, ok := generated.Load()
 				require.False(t, ok)
 
-				// The event must be the current row, not the row read
-				// before the model call.
-				event := testutil.RequireReceive(ctx, t, events)
-				require.Equal(t, codersdk.ChatWatchEventKindTitleChange, event.Kind)
-				require.Equal(t, renamed, event.Chat.Title)
-				require.Equal(t, codersdk.ChatTitleSourceUser, event.Chat.TitleSource)
-				require.Equal(t, switchedModel.ID, event.Chat.LastModelConfigID)
-				require.True(t, event.Chat.TitleUpdatedAt.Equal(renamedChat.TitleUpdatedAt))
 				select {
-				case extra := <-events:
-					t.Fatalf("unexpected second event %q", extra.Kind)
+				case event := <-events:
+					t.Fatalf("unexpected %q event", event.Kind)
 				default:
 				}
 			})
