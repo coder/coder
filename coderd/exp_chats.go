@@ -2944,8 +2944,22 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req codersdk.EditChatMessageRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	// The raw response_format shadows the typed one, as in postChats. An
+	// absent or null member preserves the edited message's format.
+	var body struct {
+		codersdk.EditChatMessageRequest
+		ResponseFormat json.RawMessage `json:"response_format"`
+	}
+	if !httpapi.Read(ctx, rw, r, &body) {
+		return
+	}
+	req := body.EditChatMessageRequest
+	structuredEnabled := api.Experiments.Enabled(codersdk.ExperimentChatStructuredOutput)
+	structuredRequest, rejection := chatd.ParseResponseFormat(body.ResponseFormat, structuredEnabled)
+	if rejection != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid response_format.", Validations: []codersdk.ValidationError{*rejection},
+		})
 		return
 	}
 
@@ -2987,8 +3001,13 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		ModelConfigID:   editModelConfigID,
 		ReasoningEffort: editReasoningEffort,
 		MCPServerIDs:    editMCPServerIDs,
+		// Formats resolve against the target read under the chat lock.
+		StructuredOutputRequest:  structuredRequest,
+		PreserveStructuredOutput: len(body.ResponseFormat) == 0 || string(body.ResponseFormat) == "null",
+		StructuredOutputEnabled:  structuredEnabled,
 	})
 	if editErr != nil {
+		var formatErr *chatd.StructuredOutputFormatError
 		if writeChatHookErr(ctx, rw, editErr, "Chat message denied by lifecycle hook.") {
 			return
 		}
@@ -3010,10 +3029,14 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Only user messages can be edited.",
 			})
-		case xerrors.Is(editErr, chatd.ErrEditedMessageStructured):
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Messages that ask for a structured output cannot be edited.",
-			})
+		case errors.As(editErr, &formatErr):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid response_format.", Validations: []codersdk.ValidationError{
+				{Field: "response_format", Detail: formatErr.Detail},
+			}})
+		case xerrors.Is(editErr, chatd.ErrStructuredOutputMode):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid response_format.", Validations: []codersdk.ValidationError{
+				{Field: "response_format", Detail: "Structured output requires a root chat outside plan mode."},
+			}})
 		case xerrors.Is(editErr, chatd.ErrInvalidModelConfigID):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid model config ID.",

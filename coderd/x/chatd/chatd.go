@@ -1064,9 +1064,6 @@ var (
 	ErrEditedMessageNotFound = xerrors.New("edited message not found")
 	// ErrEditedMessageNotUser indicates a non-user message edit attempt.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")
-	// ErrEditedMessageStructured indicates an edit of a message that asked
-	// for a structured output, which is not supported.
-	ErrEditedMessageStructured = xerrors.New("messages that ask for a structured output cannot be edited")
 	// ErrStructuredOutputPending indicates plan mode cannot be enabled
 	// while a structured output request is open or queued.
 	ErrStructuredOutputPending = xerrors.New("plan mode cannot be enabled while a structured output request is pending")
@@ -1173,6 +1170,13 @@ type EditMessageOptions struct {
 	// selection before the replacement turn runs. When nil the
 	// current selection is preserved.
 	MCPServerIDs *[]uuid.UUID
+	// StructuredOutputRequest replaces the target's format with a
+	// ParseResponseFormat part. When nil, PreserveStructuredOutput copies
+	// the target's request under a new ID; otherwise the replacement is
+	// ordinary. StructuredOutputEnabled reports the experiment.
+	StructuredOutputRequest  *codersdk.ChatMessagePart
+	PreserveStructuredOutput bool
+	StructuredOutputEnabled  bool
 }
 
 // EditMessageResult contains the replacement user message and chat status.
@@ -1762,24 +1766,22 @@ func validateModelConfigOverride(
 	return uuid.NullUUID{UUID: requested, Valid: true}, nil
 }
 
-func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.UUID, messageID int64) error {
-	target, err := store.GetChatMessageByID(ctx, messageID)
+func validateEditTarget(ctx context.Context, store database.Store, chat database.Chat, opts EditMessageOptions) error {
+	target, err := store.GetChatMessageByID(ctx, opts.EditedMessageID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrEditedMessageNotFound
 		}
 		return xerrors.Errorf("get edited message: %w", err)
 	}
-	if target.ChatID != chatID || target.Deleted {
+	if target.ChatID != chat.ID || target.Deleted {
 		return ErrEditedMessageNotFound
 	}
 	if target.Role != database.ChatMessageRoleUser {
 		return ErrEditedMessageNotUser
 	}
-	if hasStructuredRequestPart(target) {
-		return ErrEditedMessageStructured
-	}
-	return nil
+	_, err = editStructuredRequest(chat, target, opts)
+	return err
 }
 
 func loadEffectiveChatModelConfigs(
@@ -1852,7 +1854,7 @@ func (p *Server) EditMessage(
 		if chat.Archived {
 			return EditMessageResult{}, ErrChatArchived
 		}
-		if err := validateEditTarget(ctx, p.db, opts.ChatID, opts.EditedMessageID); err != nil {
+		if err := validateEditTarget(ctx, p.db, chat, opts); err != nil {
 			return EditMessageResult{}, err
 		}
 		if _, err := validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID); err != nil {
@@ -1913,8 +1915,17 @@ func (p *Server) EditMessage(
 		if target.Role != database.ChatMessageRoleUser {
 			return ErrEditedMessageNotUser
 		}
-		if hasStructuredRequestPart(target) {
-			return ErrEditedMessageStructured
+		// The replacement's format is decided from the target read under
+		// the lock.
+		structuredRequest, err := editStructuredRequest(lockedChat, target, opts)
+		if err != nil {
+			return err
+		}
+		editContent := content
+		if structuredRequest != nil {
+			if editContent, err = chatprompt.MarshalParts(append(slices.Clone(contentParts), *structuredRequest)); err != nil {
+				return xerrors.Errorf("marshal message content: %w", err)
+			}
 		}
 		editedMsg = target
 
@@ -1981,7 +1992,7 @@ func (p *Server) EditMessage(
 			Receipts:                receipts,
 			SuffixMessages:          suffixMessages,
 			CreatedBy:               opts.CreatedBy,
-			Content:                 content,
+			Content:                 editContent,
 			ModelConfigIDOverride:   modelOverride,
 			ReasoningEffortOverride: reasoningEffortOverride,
 		})

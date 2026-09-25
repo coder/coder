@@ -48,6 +48,19 @@ Add the same `response_format` to the body of `POST /api/v2/chats/{chat}/message
 
 A format returns HTTP 400 on child chats, chats with a mode, chats in plan mode, and sends that set `plan_mode` to `plan`.
 
+## Edit a message that returns structured output
+
+`PATCH /api/v2/chats/{chat}/messages/{message}` also accepts `response_format`:
+
+- Omitted or JSON `null` keeps the edited message's format under a new request ID; the server compiles the stored schema again under the current limits.
+- `{"type": "text"}` makes the replacement ordinary text.
+- A `json_schema` format replaces the format under a new request ID.
+
+An edit discards the edited message, every later message, and the queue.
+Each discarded request that is still open gets a `canceled` receipt with `error.code` `superseded`.
+With the experiment off, a `json_schema` format returns HTTP 400, and so does keeping the format of a message that asks for structured output; send `{"type": "text"}` instead.
+The chat rules for sending apply to a kept or new format.
+
 ## Read the result
 
 The user message that asks for structured output carries `structured_output_request_id`.
@@ -69,5 +82,5 @@ After a reconnect, upsert messages by `id` and match receipts by request ID, not
 | Number in the stored output | 128 characters as a plain decimal, so `1e200` is rejected                               |
 | Rejected attempts           | 3: the first attempt and two repairs, then the request fails                            |
 
-Editing a message that asks for structured output, or enabling plan mode while a request is pending, returns HTTP 409.
+Enabling plan mode while a structured output request is pending returns HTTP 409.
 The `regex` format isn't supported, and `const`, `enum`, and `uniqueItems` compare numbers at float64 precision.

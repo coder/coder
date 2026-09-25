@@ -161,3 +161,44 @@ func (p *Server) UpdatePlanMode(ctx context.Context, chatID uuid.UUID, mode data
 	})
 	return chat, err
 }
+
+// StructuredOutputFormatError rejects the response format of an edit.
+// Detail is a fixed message for the client.
+type StructuredOutputFormatError struct{ Detail string }
+
+func (e *StructuredOutputFormatError) Error() string { return e.Detail }
+
+// editStructuredRequest returns the request part of an edit's replacement:
+// the caller's new part, a copy of the target's request under a new ID when
+// preserving (its schema recompiled under the current limits), or nil.
+func editStructuredRequest(chat database.Chat, target database.ChatMessage, opts EditMessageOptions) (*codersdk.ChatMessagePart, error) {
+	part := opts.StructuredOutputRequest
+	if part == nil && opts.PreserveStructuredOutput && hasStructuredRequestPart(target) {
+		if !opts.StructuredOutputEnabled {
+			return nil, &StructuredOutputFormatError{Detail: `Structured output is disabled. Send {"type":"text"} to edit this message into ordinary text.`}
+		}
+		parts, err := chatprompt.ParseContent(target)
+		var request chatstructured.Request
+		if i := slices.IndexFunc(parts, func(p codersdk.ChatMessagePart) bool {
+			return p.Type == codersdk.ChatMessagePartTypeStructuredOutputRequest
+		}); err == nil && i >= 0 {
+			request, err = chatstructured.DecodeRequestPart(parts[i])
+		}
+		if err == nil {
+			_, err = chatstructured.CompileSchema(request.Schema)
+		}
+		var preserved codersdk.ChatMessagePart
+		if err == nil {
+			request.RequestID = uuid.New()
+			preserved, err = chatstructured.EncodeRequestPart(request)
+		}
+		if err != nil {
+			return nil, &StructuredOutputFormatError{Detail: `The stored response format is no longer valid. Send a new response_format or {"type":"text"}.`}
+		}
+		part = &preserved
+	}
+	if part != nil && (chat.PlanMode.Valid || chat.Mode.Valid || chat.ParentChatID.Valid) {
+		return nil, ErrStructuredOutputMode
+	}
+	return part, nil
+}
