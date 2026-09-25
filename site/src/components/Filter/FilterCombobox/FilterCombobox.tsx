@@ -217,7 +217,7 @@ export function FilterCombobox({
 	// Enter does instead of opening a flyout.
 	const flyoutCategory =
 		activeCategoryKey === null && !categoriesNarrowedByText
-			? categories.find((category) => category.key === flyoutCategoryKey)
+			? listedCategories.find((category) => category.key === flyoutCategoryKey)
 			: undefined;
 	const selectFlyoutOption = (token: string) => {
 		actions.toggleCategoryOption(token);
@@ -604,7 +604,7 @@ const groupByCategoryLabel = <T extends { categoryLabel: string }>(
 
 type MainPanelProps = Readonly<{
 	listedCategories: readonly FilterCategory[];
-	/** Placeholder rows shown while the category list is still unknown. */
+	/** Nonzero while the category list is still unknown. */
 	categoryPlaceholderCount: number;
 	valueSuggestions: readonly ValueSuggestion[];
 	inlineOptionRows: readonly InlineOptionRow[];

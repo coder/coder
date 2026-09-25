@@ -95,6 +95,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			{
 				key: "template",
 				label: "Template",
+				// Deprecated templates are not offered, so hiding the row leaves
+				// them reachable only by typing `template:name`.
 				hideWhenSingleOption: true,
 				icon: <LayoutPanelTopIcon />,
 				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
@@ -105,6 +107,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			next.push({
 				key: "organization",
 				label: "Organization",
+				// Only permitted organizations are offered, so hiding the row leaves
+				// the others reachable only by typing `organization:name`.
 				hideWhenSingleOption: true,
 				icon: <Building2Icon />,
 				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
