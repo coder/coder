@@ -116,7 +116,7 @@ const categoriesWithAttributes: FilterCategory[] = [
 		inlineOptions: true,
 		inlineOptionsLabel: "Workspace is…",
 		inlineOptionsExclusive: true,
-		inlineOptionsLabelOnly: true,
+		chipLabelOnly: true,
 		getOptions: async (query) => filterOptions(attributeOptions, query),
 	},
 ];
@@ -167,20 +167,24 @@ export const CompactMainMenu: Story = {
 
 export const MobileCategoryNavigation: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
-	play: async ({ canvasElement }) => {
-		const media = setupMatchMedia({
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	beforeEach: () =>
+		setupMatchMedia({
 			[belowLgViewportMediaQuery]: true,
 			[mobileViewportMediaQuery]: true,
-		});
-		try {
-			await userEvent.click(
-				within(canvasElement).getByRole("combobox", {
-					name: "Search and filter…",
-				}),
-			);
-		} finally {
-			media.restore();
-		}
+		}).restore,
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: "Search and filter…",
+			}),
+		);
+		await userEvent.click(await body.findByRole("option", { name: "Owner" }));
+		await body.findByRole("option", { name: "alice" });
 	},
 };
 
@@ -238,16 +242,12 @@ export const ToggleLeavesCategory: Story = {
 		await waitFor(() =>
 			expect(body.getByRole("option", { name: "Running" })).toBeVisible(),
 		);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
 		await waitFor(() =>
 			expect(body.getByRole("option", { name: /^Status/ })).toBeVisible(),
 		);
 		await expect(canvas.queryByText("status:")).not.toBeInTheDocument();
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
 		await waitFor(() =>
 			expect(body.queryByRole("option")).not.toBeInTheDocument(),
 		);
@@ -315,9 +315,7 @@ export const OpenFilterMenu: Story = {
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
 		// Wait for the popup animation before asserting its options.
 		await waitFor(() =>
 			expect(body.getByRole("option", { name: /Status/i })).toBeVisible(),
@@ -400,8 +398,7 @@ export const TypeaheadMatchingCategories: Story = {
 	},
 };
 
-// Typed text filters filter items only. With no matching filter items, the
-// popup does not render a dropdown.
+// Typed text that matches no filter opens no dropdown.
 export const NoFilterMatches: Story = {
 	render: () => (
 		<FilterComboboxHarness
@@ -607,7 +604,7 @@ const singleTemplateCategories: FilterCategory[] = [
 
 const openFilterMenu = async (canvasElement: HTMLElement) => {
 	await userEvent.click(
-		within(canvasElement).getByRole("button", { name: "Toggle filters" }),
+		within(canvasElement).getByRole("button", { name: "Filters" }),
 	);
 	await within(canvasElement.ownerDocument.body).findByRole("option", {
 		name: "Owner",
@@ -684,8 +681,9 @@ export const DismissOnOutsideClick: Story = {
 // A failed category lookup surfaces a Retry that refetches the options.
 export const CategoryOptionsErrorRetry: Story = {
 	render: () => {
-		// The row preview and the category view share the empty-query lookup, so
-		// both of their initial fetches fail; the Retry click is the next call.
+		// The unfiltered options and the category view share the empty-query
+		// lookup, so both of their initial fetches fail; the Retry click is the
+		// next call.
 		let failuresLeft = 2;
 		return (
 			<FilterComboboxHarness
@@ -794,7 +792,7 @@ export const CategoryOptionsLoading: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "Toggle filters" }),
+			within(canvasElement).getByRole("button", { name: "Filters" }),
 		);
 		await within(canvasElement.ownerDocument.body).findByRole("option", {
 			name: "Owner",

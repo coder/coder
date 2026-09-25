@@ -34,9 +34,7 @@ describe("WorkspacesFilter", () => {
 		const onUpdate = vi.fn();
 		renderWithAuth(<WorkspacesFilterHarness onUpdate={onUpdate} />);
 
-		await user.click(
-			await screen.findByRole("button", { name: "Toggle filters" }),
-		);
+		await user.click(await screen.findByRole("button", { name: "Filters" }));
 		await user.click(await screen.findByRole("option", { name: /running/i }));
 
 		await waitFor(() =>
