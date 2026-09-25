@@ -625,6 +625,27 @@ export const ClearAll: Story = {
 	),
 };
 
+// Two chips are below the Clear all threshold.
+export const ClearAllBelowThreshold: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="owner:me status:running"
+			categories={categoriesWithAttributes}
+		/>
+	),
+};
+
+// Clear all from an open category returns the menu to the full filter list.
+export const ClearAllFromCategory: Story = {
+	...ClearAll,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
+		await userEvent.keyboard("{ArrowRight}");
+		await userEvent.click(canvas.getByRole("button", { name: "Clear all" }));
+	},
+};
+
 const singleTemplateCategories: FilterCategory[] = [
 	{
 		key: "owner",

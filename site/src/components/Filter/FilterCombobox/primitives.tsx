@@ -454,7 +454,8 @@ export const FilterComboboxChipsInput: FC<FilterComboboxChipsInputProps> = ({
 			// without chips.
 			size={1}
 			className={cn(
-				"h-7 min-w-1 flex-auto field-sizing-content border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
+				chipRowItemHeightClassName,
+				"min-w-1 flex-auto field-sizing-content border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
 				className,
 			)}
 			{...props}

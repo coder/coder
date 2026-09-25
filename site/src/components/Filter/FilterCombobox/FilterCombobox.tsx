@@ -430,21 +430,13 @@ export function FilterCombobox({
 									type="button"
 									// Keep focus in the combobox input.
 									onMouseDown={(event) => event.preventDefault()}
-									// The cmdk root cancels Enter, so it is handled here.
-									onKeyDown={(event) => {
-										if (event.key !== "Enter") {
-											return;
-										}
-										event.preventDefault();
-										event.stopPropagation();
-										actions.clearAll();
-										actions.focusInput();
-									}}
 									onClick={(event) => {
+										// The button unmounts, so focus it held moves to the
+										// input instead of the page body.
+										const hadFocus =
+											document.activeElement === event.currentTarget;
 										actions.clearAll();
-										// The button unmounts, so keyboard activation (detail 0)
-										// moves focus to the input instead of the page body.
-										if (event.detail === 0) {
+										if (hadFocus) {
 											actions.focusInput();
 										}
 									}}
