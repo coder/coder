@@ -153,7 +153,7 @@ const ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
 		requiresDormantEntitlement: false,
 	},
 	{
-		label: "Deletion pending",
+		label: "Dormant",
 		value: "dormant",
 		icon: <MoonIcon />,
 		requiresDormantEntitlement: true,

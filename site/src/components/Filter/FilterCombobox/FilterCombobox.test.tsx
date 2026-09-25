@@ -42,7 +42,7 @@ const attributesCategory: FilterCategory = {
 	inlineOptionsLabel: "Workspace is…",
 	getOptions: async () => [
 		{ label: "Outdated", value: "outdated", token: "outdated:true" },
-		{ label: "Deletion pending", value: "dormant", token: "dormant:true" },
+		{ label: "Dormant", value: "dormant", token: "dormant:true" },
 	],
 };
 
@@ -138,7 +138,7 @@ describe("FilterCombobox", () => {
 			expect(onChange).toHaveBeenLastCalledWith("outdated:true"),
 		);
 		await user.click(
-			await screen.findByRole("option", { name: "Deletion pending" }),
+			await screen.findByRole("option", { name: "Dormant" }),
 		);
 
 		await waitFor(() =>
