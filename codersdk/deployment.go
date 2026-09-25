@@ -2031,9 +2031,19 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "actor_header_meta_username",
 	}
+	aiGatewayActorHeaderMetaEmail := serpent.Option{
+		Name:        "AI Gateway Actor Header Metadata Email",
+		Description: "Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Email is personal information; opt in only for trusted upstream providers.",
+		Flag:        "ai-gateway-actor-header-meta-email",
+		Env:         "CODER_AI_GATEWAY_ACTOR_HEADER_META_EMAIL",
+		Value:       &c.AI.BridgeConfig.ActorHeaderMetaEmail,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "actor_header_meta_email",
+	}
 	aiGatewaySendActorHeaders := serpent.Option{
 		Name:        "AI Gateway Send Actor Headers",
-		Description: "Add the authenticated user's ID and username to intercepted upstream requests. Requires AI Gateway actor headers to be enabled.",
+		Description: "Add configured actor identity headers to intercepted upstream requests. ID and username use their standard defaults; email requires an explicit header name. Requires AI Gateway actor headers to be enabled.",
 		Flag:        "ai-gateway-send-actor-headers",
 		Env:         "CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
 		Value:       &c.AI.BridgeConfig.SendActorHeaders,
@@ -4521,6 +4531,7 @@ Write out the current server config as YAML to stdout.`,
 		aiGatewaySendActorHeaders,
 		aiGatewayActorHeaderID,
 		aiGatewayActorHeaderMetaUsername,
+		aiGatewayActorHeaderMetaEmail,
 		aiGatewayAPIDumpDir,
 		{
 			Name:        "AI Bridge Allow BYOK",
@@ -4873,6 +4884,7 @@ type AIBridgeConfig struct {
 	SendActorHeaders        serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
 	ActorHeaderID           serpent.String   `json:"actor_header_id" typescript:",notnull"`
 	ActorHeaderMetaUsername serpent.String   `json:"actor_header_meta_username" typescript:",notnull"`
+	ActorHeaderMetaEmail    serpent.String   `json:"actor_header_meta_email" typescript:",notnull"`
 	AllowBYOK               serpent.Bool     `json:"allow_byok" typescript:",notnull"`
 	// Budget settings for AI Governance cost controls.
 	BudgetPolicy string `json:"budget_policy,omitempty" typescript:",notnull"`
@@ -4979,6 +4991,7 @@ func (c AIBridgeConfig) ValidateActorHeaderNames() error {
 	}{
 		{"id", c.ActorHeaderID.Value(), "X-AI-Bridge-Actor-ID"},
 		{"username", c.ActorHeaderMetaUsername.Value(), "X-AI-Bridge-Actor-Metadata-Username"},
+		{"email", c.ActorHeaderMetaEmail.Value(), "X-AI-Bridge-Actor-Metadata-Email"},
 	}
 	seen := make(map[string]string, len(headers))
 	for _, header := range headers {

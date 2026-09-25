@@ -17688,6 +17688,9 @@ const docTemplate = `{
                 "actor_header_id": {
                     "type": "string"
                 },
+                "actor_header_meta_email": {
+                    "type": "string"
+                },
                 "actor_header_meta_username": {
                     "type": "string"
                 },

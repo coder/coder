@@ -16,7 +16,7 @@ type Config struct {
 	// SendActorHeaders reports whether actor identity headers should be
 	// forwarded to the upstream provider.
 	SendActorHeaders bool
-	// ActorHeaderNames selects the destinations for id and username.
+	// ActorHeaderNames selects the destinations for id, username, and email.
 	// Attributes without a destination are not forwarded.
 	ActorHeaderNames map[string]string
 }

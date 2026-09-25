@@ -1705,11 +1705,13 @@ func TestAIBridgeActorHeaderNames(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		actorID   string
-		actorName string
-		wantID    string
-		wantName  string
+		name       string
+		actorID    string
+		actorName  string
+		actorEmail string
+		wantID     string
+		wantName   string
+		wantEmail  string
 	}{
 		{
 			name:      "defaults",
@@ -1739,6 +1741,29 @@ func TestAIBridgeActorHeaderNames(t *testing.T) {
 		},
 		{
 			name: "all disabled",
+		},
+		{
+			name:       "email standard",
+			actorEmail: "X-AI-Bridge-Actor-Metadata-Email",
+			wantID:     "X-AI-Bridge-Actor-ID",
+			wantName:   "X-AI-Bridge-Actor-Metadata-Username",
+			wantEmail:  "X-AI-Bridge-Actor-Metadata-Email",
+		},
+		{
+			name:       "email custom",
+			actorID:    "X-AI-Bridge-Actor-ID",
+			actorName:  "X-AI-Bridge-Actor-Metadata-Username",
+			actorEmail: "X-Downstream-Email",
+			wantID:     "X-AI-Bridge-Actor-ID",
+			wantName:   "X-AI-Bridge-Actor-Metadata-Username",
+			wantEmail:  "X-Downstream-Email",
+		},
+		{
+			name:      "email disabled",
+			actorID:   "X-AI-Bridge-Actor-ID",
+			actorName: "X-AI-Bridge-Actor-Metadata-Username",
+			wantID:    "X-AI-Bridge-Actor-ID",
+			wantName:  "X-AI-Bridge-Actor-Metadata-Username",
 		},
 	}
 
@@ -1793,9 +1818,12 @@ func TestAIBridgeActorHeaderNames(t *testing.T) {
 			dv := coderdtest.DeploymentValues(t)
 			dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 			dv.AI.BridgeConfig.SendActorHeaders = serpent.Bool(true)
-			if tt.name != "defaults" {
+			if tt.name != "defaults" && tt.name != "email standard" {
 				dv.AI.BridgeConfig.ActorHeaderID = serpent.String(tt.actorID)
 				dv.AI.BridgeConfig.ActorHeaderMetaUsername = serpent.String(tt.actorName)
+			}
+			if tt.name != "defaults" {
+				dv.AI.BridgeConfig.ActorHeaderMetaEmail = serpent.String(tt.actorEmail)
 			}
 
 			firstClient, _, api, firstUserResponse := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -1833,6 +1861,10 @@ func TestAIBridgeActorHeaderNames(t *testing.T) {
 				}
 				if tt.actorName != "" {
 					req.Header.Set(tt.actorName, "spoofed-username")
+				}
+				req.Header.Set("X-AI-Bridge-Actor-Metadata-Email", "spoofed-email")
+				if tt.actorEmail != "" {
+					req.Header.Set(tt.actorEmail, "spoofed-email")
 				}
 
 				resp, err := client.HTTPClient.Do(req)
@@ -1873,6 +1905,14 @@ func TestAIBridgeActorHeaderNames(t *testing.T) {
 					require.Empty(t, request.header.Get("X-Downstream-Username"))
 				} else {
 					require.Equal(t, expectedUsers[i].Username, request.header.Get(tt.wantName))
+				}
+				if tt.wantEmail == "X-AI-Bridge-Actor-Metadata-Email" {
+					require.Equal(t, expectedUsers[i].Email, request.header.Get(tt.wantEmail))
+				} else {
+					require.Empty(t, request.header.Get("X-AI-Bridge-Actor-Metadata-Email"))
+				}
+				if tt.wantEmail != "" && tt.wantEmail != "X-AI-Bridge-Actor-Metadata-Email" {
+					require.Equal(t, expectedUsers[i].Email, request.header.Get(tt.wantEmail))
 				}
 				for _, header := range []string{
 					"X-AI-Bridge-Actor-ID",

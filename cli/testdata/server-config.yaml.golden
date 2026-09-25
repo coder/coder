@@ -956,7 +956,8 @@ ai_gateway:
   # these records to external SIEM or observability systems.
   # (default: false, type: bool)
   structured_logging: false
-  # Add the authenticated user's ID and username to intercepted upstream requests.
+  # Add configured actor identity headers to intercepted upstream requests. ID and
+  # username use their standard defaults; email requires an explicit header name.
   # Requires AI Gateway actor headers to be enabled.
   # (default: false, type: bool)
   send_actor_headers: false
@@ -968,6 +969,11 @@ ai_gateway:
   # Requires AI Gateway actor headers to be enabled.
   # (default: X-AI-Bridge-Actor-Metadata-Username, type: string)
   actor_header_meta_username: X-AI-Bridge-Actor-Metadata-Username
+  # Header name for the authenticated user's email address. Empty disables this
+  # header. Requires AI Gateway actor headers to be enabled. Email is personal
+  # information; opt in only for trusted upstream providers.
+  # (default: <unset>, type: string)
+  actor_header_meta_email: ""
   # Base directory for dumping AI Gateway request/response pairs to disk for
   # debugging. When set, each provider writes under a subdirectory named after the
   # provider. Sensitive headers are redacted. Leave empty to disable.

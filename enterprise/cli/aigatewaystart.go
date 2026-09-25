@@ -83,6 +83,7 @@ var aiGatewayInheritedEnvs = map[string]struct{}{
 	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT":           {},
 	"CODER_AI_GATEWAY_ACTOR_HEADER_ID":                   {},
 	"CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME":        {},
+	"CODER_AI_GATEWAY_ACTOR_HEADER_META_EMAIL":           {},
 	"CODER_AI_GATEWAY_DUMP_DIR":                          {},
 	"CODER_AI_GATEWAY_MAX_CONCURRENCY":                   {},
 	"CODER_AI_GATEWAY_RATE_LIMIT":                        {},

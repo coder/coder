@@ -1865,7 +1865,7 @@ Emit structured logs for AI Gateway interception records. Use this for exporting
 | YAML        | <code>ai_gateway.send_actor_headers</code>        |
 | Default     | <code>false</code>                                |
 
-Add the authenticated user's ID and username to intercepted upstream requests. Requires AI Gateway actor headers to be enabled.
+Add configured actor identity headers to intercepted upstream requests. ID and username use their standard defaults; email requires an explicit header name. Requires AI Gateway actor headers to be enabled.
 
 ### --ai-gateway-actor-header-id
 
@@ -1888,6 +1888,16 @@ Header name for the authenticated user's ID. Empty disables this header. Require
 | Default     | <code>X-AI-Bridge-Actor-Metadata-Username</code>          |
 
 Header name for the authenticated user's username. Empty disables this header. Requires AI Gateway actor headers to be enabled.
+
+### --ai-gateway-actor-header-meta-email
+
+|             |                                                        |
+|-------------|--------------------------------------------------------|
+| Type        | <code>string</code>                                    |
+| Environment | <code>$CODER_AI_GATEWAY_ACTOR_HEADER_META_EMAIL</code> |
+| YAML        | <code>ai_gateway.actor_header_meta_email</code>        |
+
+Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Email is personal information; opt in only for trusted upstream providers.
 
 ### --ai-gateway-dump-dir
 

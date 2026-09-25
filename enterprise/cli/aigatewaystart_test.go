@@ -826,7 +826,8 @@ func TestAIGatewayStart_ConfigYAML(t *testing.T) {
 	coderURL := startUnreachableCoderd(t)
 	configFile := filepath.Join(t.TempDir(), "config.yaml")
 	err := os.WriteFile(configFile, []byte(
-		"introspection:\n  prometheus:\n    enable: true\n    address: 127.0.0.1:0\n",
+		"introspection:\n  prometheus:\n    enable: true\n    address: 127.0.0.1:0\n"+
+			"ai_gateway:\n  actor_header_meta_email: Authorization\n",
 	), 0o600)
 	require.NoError(t, err)
 
@@ -837,8 +838,13 @@ func TestAIGatewayStart_ConfigYAML(t *testing.T) {
 		"--key", "test-key",
 		"--http-address", "127.0.0.1:0",
 		"--config", configFile,
+		"--ai-gateway-actor-header-meta-email", "",
 	)
 	inv = inv.WithContext(ctx)
+	inv.Environ = append(inv.Environ, serpent.EnvVar{
+		Name:  "CODER_AI_GATEWAY_ACTOR_HEADER_META_EMAIL",
+		Value: "Content-Type",
+	})
 	pty := ptytest.New(t).Attach(inv)
 	waiter := clitest.StartWithWaiter(t, inv)
 
@@ -867,6 +873,7 @@ func TestAIGatewayStart_ConfigYAML_Invalid(t *testing.T) {
 		{"unknown option", "introspection:\n  prometheus:\n    unknown_field: true\n", `unknown option "introspection.prometheus.unknown_field"`},
 		{"reserved actor header", "ai_gateway:\n  actor_header_id: Authorization\n", "reserved AI Gateway actor header name"},
 		{"reserved actor username header", "ai_gateway:\n  actor_header_meta_username: Content-Type\n", "reserved AI Gateway actor header name"},
+		{"reserved actor email header", "ai_gateway:\n  actor_header_meta_email: User-Agent\n", "reserved AI Gateway actor header name"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

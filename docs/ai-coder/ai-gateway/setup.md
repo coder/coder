@@ -108,17 +108,20 @@ CODER_AI_GATEWAY_SEND_ACTOR_HEADERS=true
 ```
 
 You can also enable the setting with `--ai-gateway-send-actor-headers` or `ai_gateway.send_actor_headers`.
-Configure the ID and username header names independently with `CODER_AI_GATEWAY_ACTOR_HEADER_ID` and `CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME`:
+Configure the ID, username, and email header names independently with `CODER_AI_GATEWAY_ACTOR_HEADER_ID`, `CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME`, and `CODER_AI_GATEWAY_ACTOR_HEADER_META_EMAIL`:
 
 ```yaml
 ai_gateway:
   send_actor_headers: true
   actor_header_id: X-AI-Bridge-Actor-ID
   actor_header_meta_username: X-AI-Bridge-Actor-Metadata-Username
+  actor_header_meta_email: ""
 ```
 
-The equivalent CLI options are `--ai-gateway-actor-header-id` and `--ai-gateway-actor-header-meta-username`.
-For defaults and precedence, refer to [Actor header forwarding](./reference.md#actor-header-forwarding).
+The equivalent CLI options are `--ai-gateway-actor-header-id`, `--ai-gateway-actor-header-meta-username`, and `--ai-gateway-actor-header-meta-email`.
+The email header is empty by default.
+To forward email, set `actor_header_meta_email` to `X-AI-Bridge-Actor-Metadata-Email` only for trusted upstream providers.
+For defaults, precedence, and privacy considerations, refer to [Actor header forwarding](./reference.md#actor-header-forwarding).
 
 ## Data Retention
 

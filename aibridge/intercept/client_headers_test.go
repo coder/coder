@@ -245,16 +245,19 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		sdkHeaders.Set("Authorization", "Bearer provider-key")
 		sdkHeaders.Set(intercept.ActorIDHeader(), "sdk-id")
 		sdkHeaders.Set(intercept.ActorMetadataHeader("Username"), "sdk-name")
+		sdkHeaders.Set(intercept.ActorMetadataHeader("Email"), "sdk-email")
 		clientHeaders := http.Header{}
 		clientHeaders.Set("Authorization", "Bearer client-key")
 		clientHeaders.Set(intercept.ActorIDHeader(), "client-id")
 		clientHeaders.Set(intercept.ActorMetadataHeader("Username"), "client-name")
+		clientHeaders.Set(intercept.ActorMetadataHeader("Email"), "client-email")
 		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
 
 		result := intercept.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", intercept.Config{}, nil)
 
 		require.Equal(t, "client-id", result.Get(intercept.ActorIDHeader()))
 		require.Equal(t, "client-name", result.Get(intercept.ActorMetadataHeader("Username")))
+		require.Equal(t, "client-email", result.Get(intercept.ActorMetadataHeader("Email")))
 		require.Equal(t, "Bearer provider-key", result.Get("Authorization"))
 		require.Equal(t, sdkCopy, sdkHeaders)
 		require.Equal(t, clientCopy, clientHeaders)
@@ -270,8 +273,12 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		}{
 			{
 				name:  "configured actor",
-				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}},
-				want:  map[string]string{"X-Downstream-User-Id": "user-123", "X-Downstream-Username": "alice"},
+				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice", "Email": "alice@example.com"}},
+				want: map[string]string{
+					"X-Downstream-User-Id":  "user-123",
+					"X-Downstream-Username": "alice",
+					"X-Downstream-Email":    "alice@example.com",
+				},
 			},
 			{name: "nil actor", want: map[string]string{}},
 		} {
@@ -284,6 +291,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 				clientHeaders := http.Header{}
 				clientHeaders.Set("X-Downstream-User-Id", "client-id")
 				clientHeaders.Set("X-Downstream-Username", "client-name")
+				clientHeaders.Set("X-Downstream-Email", "client-email")
 				sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
 
 				result := intercept.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", intercept.Config{
@@ -291,16 +299,19 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 					ActorHeaderNames: map[string]string{
 						"id":       "X-Downstream-User-Id",
 						"username": "X-Downstream-Username",
+						"email":    "X-Downstream-Email",
 					},
 				}, tc.actor)
 
 				if tc.actor == nil {
 					require.NotContains(t, result, "X-Downstream-User-Id")
 					require.NotContains(t, result, "X-Downstream-Username")
+					require.NotContains(t, result, "X-Downstream-Email")
 				} else {
 					require.Equal(t, tc.want, map[string]string{
 						"X-Downstream-User-Id":  result.Get("X-Downstream-User-Id"),
 						"X-Downstream-Username": result.Get("X-Downstream-Username"),
+						"X-Downstream-Email":    result.Get("X-Downstream-Email"),
 					})
 				}
 				require.Equal(t, sdkCopy, sdkHeaders)
@@ -309,27 +320,40 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		}
 	})
 
+	t.Run("missing actor email does not reuse stale headers", func(t *testing.T) {
+		t.Parallel()
+
+		result := intercept.BuildUpstreamHeaders(http.Header{"X-Email": {"sdk-email"}}, http.Header{"X-Email": {"client-email"}}, "Authorization", intercept.Config{
+			SendActorHeaders: true,
+			ActorHeaderNames: map[string]string{"email": "X-Email"},
+		}, &context.Actor{ID: "user-123"})
+		require.NotContains(t, result, "X-Email")
+	})
+
 	t.Run("actor forwarding on strips standard destinations with custom mapping", func(t *testing.T) {
 		t.Parallel()
 
 		sdkHeaders := http.Header{}
 		sdkHeaders.Set(intercept.ActorIDHeader(), "sdk-id")
 		sdkHeaders.Set(intercept.ActorMetadataHeader("Username"), "sdk-name")
+		sdkHeaders.Set(intercept.ActorMetadataHeader("Email"), "sdk-email")
 		sdkHeaders.Set("Authorization", "Bearer provider-key")
 		clientHeaders := http.Header{}
 		clientHeaders.Set(intercept.ActorIDHeader(), "client-id")
 		clientHeaders.Set(intercept.ActorMetadataHeader("Username"), "client-name")
+		clientHeaders.Set(intercept.ActorMetadataHeader("Email"), "client-email")
 		clientHeaders.Set("X-Unrelated", "preserved")
 		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
 
 		result := intercept.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", intercept.Config{
 			SendActorHeaders: true,
 			ActorHeaderNames: map[string]string{"id": "X-Downstream-User-Id"},
-		}, &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}})
+		}, &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice", "Email": "alice@example.com"}})
 
 		require.Equal(t, "user-123", result.Get("X-Downstream-User-Id"))
 		require.NotContains(t, result, http.CanonicalHeaderKey(intercept.ActorIDHeader()))
 		require.NotContains(t, result, http.CanonicalHeaderKey(intercept.ActorMetadataHeader("Username")))
+		require.NotContains(t, result, http.CanonicalHeaderKey(intercept.ActorMetadataHeader("Email")))
 		require.Equal(t, "Bearer provider-key", result.Get("Authorization"))
 		require.Equal(t, "preserved", result.Get("X-Unrelated"))
 		require.Equal(t, sdkCopy, sdkHeaders)

@@ -234,6 +234,7 @@ func TestAuthorization(t *testing.T) {
 					OwnerId:  user.ID.String(),
 					ApiKeyId: keyID,
 					Username: user.Username,
+					Email:    user.Email,
 				}
 				require.NoError(t, err)
 				require.Equal(t, &expected, resp)
@@ -411,6 +412,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 				OwnerId:  user.ID.String(),
 				ApiKeyId: keyID,
 				Username: user.Username,
+				Email:    user.Email,
 			}, resp)
 		})
 	}
