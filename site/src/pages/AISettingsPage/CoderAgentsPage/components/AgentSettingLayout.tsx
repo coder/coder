@@ -51,7 +51,7 @@ export const AgentSettingLayout: FC<AgentSettingLayoutProps> = ({
 					{children}
 					<div className="flex min-h-10 items-center">
 						{(showSave || isSavedVisible || isSaving) &&
-							(isSavedVisible ? (
+							(isSavedVisible && !showSave ? (
 								<TemporarySavedState />
 							) : (
 								<Button

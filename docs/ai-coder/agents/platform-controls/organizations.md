@@ -15,6 +15,7 @@ Running more than 1 organization requires a [Premium license](../../../admin/use
 |---------------------------------|------------------------|----------------------------------------------------------------------------|
 | AI providers and credentials    | Deployment             | **Admin settings** > **AI** > **Providers**                                |
 | Chat models                     | Organization           | **Admin settings** > **AI** > **Models**                                   |
+| Default model                   | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
 | Admin model overrides           | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
 | Personal model overrides        | User, per organization | **Agents** > **Settings** > **Agents**                                     |
 | Personal override toggle        | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
