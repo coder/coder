@@ -1529,6 +1529,8 @@ type taskRecordingPubsub struct {
 	inner dbpubsub.Pubsub
 	mu    sync.Mutex
 	sent  []taskPublishedEvent
+	// onPublish, when set, runs before each event is forwarded.
+	onPublish func(channel string)
 }
 
 func newTaskRecordingPubsub(inner dbpubsub.Pubsub) *taskRecordingPubsub {
@@ -1538,7 +1540,11 @@ func newTaskRecordingPubsub(inner dbpubsub.Pubsub) *taskRecordingPubsub {
 func (p *taskRecordingPubsub) Publish(channel string, payload []byte) error {
 	p.mu.Lock()
 	p.sent = append(p.sent, taskPublishedEvent{channel: channel, payload: append([]byte(nil), payload...)})
+	onPublish := p.onPublish
 	p.mu.Unlock()
+	if onPublish != nil {
+		onPublish(channel)
+	}
 	return p.inner.Publish(channel, payload)
 }
 
