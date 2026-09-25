@@ -299,7 +299,8 @@ func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, 
 // (hash, error, and resource bodies) and clears the dirty marker. It backs
 // PUT /chats/{chat}/context (no body). A chat with no bound agent, or whose
 // agent has no snapshot, simply has its pinned hash, dirty marker, and
-// resources cleared.
+// resources cleared. Discovered instruction files are kept and re-read
+// through the agent afterwards; a failed re-read leaves them as they were.
 //
 // The snapshot read and the re-pin run in one repeatable-read transaction so a
 // concurrent push cannot land between them and leave the chat pinned to a
@@ -308,7 +309,10 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 	//nolint:gocritic // Chatd re-pins the chat as the daemon subject.
 	ctx = dbauthz.AsChatd(ctx)
 
-	var updated database.Chat
+	var (
+		updated    database.Chat
+		discovered []database.ChatContextResource
+	)
 	err := database.ReadModifyUpdate(p.db, func(tx database.Store) error {
 		// Re-read the chat inside the transaction so a serialization-conflict
 		// retry re-pins against the chat's current agent. Using the AgentID
@@ -318,8 +322,35 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 		if err != nil {
 			return xerrors.Errorf("get chat for refresh: %w", err)
 		}
+		// Capture the discovered rows on the snapshot the clear-then-copy
+		// deletes from, so a row a step discovers meanwhile is either listed
+		// here or survives the delete.
+		rows, err := tx.ListChatContextResourcesByChatID(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("list chat context resources for refresh: %w", err)
+		}
+		discovered = discoveredInstructionRows(rows)
 		if err := repinChatContext(ctx, tx, current.ID, current.AgentID); err != nil {
 			return err
+		}
+		// Put the discovered rows back as they were, so a failed re-read
+		// leaves the last known nested files rather than none. A snapshot row
+		// now covering the same source wins.
+		if current.AgentID.Valid {
+			for _, row := range discovered {
+				if err := tx.UpsertChatContextDiscoveredResource(ctx, database.UpsertChatContextDiscoveredResourceParams{
+					ChatID:      current.ID,
+					Source:      row.Source,
+					BodyKind:    row.BodyKind,
+					Body:        row.Body,
+					ContentHash: row.ContentHash,
+					SizeBytes:   row.SizeBytes,
+					Status:      row.Status,
+					Error:       row.Error,
+				}); err != nil {
+					return xerrors.Errorf("keep discovered context resource: %w", err)
+				}
+			}
 		}
 		got, err := tx.GetChatByID(ctx, chat.ID)
 		if err != nil {
@@ -331,5 +362,6 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 	if err != nil {
 		return database.Chat{}, err
 	}
+	p.rediscoverInstructionContext(ctx, updated, discovered)
 	return updated, nil
 }
