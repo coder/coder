@@ -1,9 +1,12 @@
 import { describeElement } from "./describeElement";
 import { outlineInset, viewportBox } from "./geometry";
+import { createHighlightLayer } from "./highlights";
 import pickingCursorStyles from "./pickingCursor.css?inline";
 import {
 	type Annotation,
 	type AnnotationSubmission,
+	annotationIdAttribute,
+	type HighlightItem,
 	maxFieldLength,
 } from "./protocol";
 import { randomId } from "./randomId";
@@ -15,6 +18,7 @@ type AnnotatorState = {
 
 type AnnotatorHandle = {
 	setPicking(picking: boolean): void;
+	setHighlights(items: HighlightItem[]): void;
 	getState(): AnnotatorState;
 	destroy(): void;
 };
@@ -127,7 +131,11 @@ export function mountAnnotator(
 	highlightBadge.innerHTML = sparklesIcon;
 	highlight.append(highlightLabel, highlightBadge);
 
-	shadow.append(toolbar, highlight);
+	const highlightsContainer = el(doc, "div", "highlights", {
+		"aria-hidden": "true",
+	});
+	shadow.append(toolbar, highlight, highlightsContainer);
+	const highlights = createHighlightLayer(doc, win, highlightsContainer);
 	doc.body.append(host);
 
 	const cursorStyle = el(doc, "style");
@@ -166,6 +174,9 @@ export function mountAnnotator(
 			selectedText: session.selectedText,
 			element: describeElement(session.target),
 		};
+		// Stamped after describing so the marker never leaks into the
+		// captured selector or opening tag.
+		session.target.setAttribute(annotationIdAttribute, annotation.id);
 		options.onSubmit({ page: pageInfo(), annotations: [annotation] });
 	};
 
@@ -394,9 +405,11 @@ export function mountAnnotator(
 
 	return {
 		setPicking,
+		setHighlights: highlights.set,
 		getState: () => ({ picking }),
 		destroy: () => {
 			setPicking(false);
+			highlights.destroy();
 			win.removeEventListener("scroll", scheduleLayout, true);
 			win.removeEventListener("resize", scheduleLayout);
 			if (frame !== 0) {

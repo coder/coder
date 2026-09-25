@@ -44,6 +44,12 @@ function bootstrap() {
 				case "coder-annotator:set-picking":
 					annotator.setPicking(event.data.picking);
 					break;
+				case "coder-annotator:highlight":
+					annotator.setHighlights(event.data.items);
+					break;
+				case "coder-annotator:clear-highlights":
+					annotator.setHighlights([]);
+					break;
 			}
 		});
 
