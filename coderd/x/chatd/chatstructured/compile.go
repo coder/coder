@@ -46,6 +46,7 @@ const (
 type Schema struct {
 	compiled          *gojsonschema.Schema
 	patternProperties bool
+	document          map[string]any // the caller's parsed schema; read-only
 }
 
 // ValidationIssue locates one violation by path and rule name only.
@@ -153,7 +154,7 @@ func CompileSchema(raw []byte) (*Schema, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Schema{compiled: compiled, patternProperties: screened.patternProperties}, nil
+	return &Schema{compiled: compiled, patternProperties: screened.patternProperties, document: screened.document}, nil
 }
 
 // Validate parses raw under the output caps, with at most 256 nodes when the
