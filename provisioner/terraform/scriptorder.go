@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"slices"
@@ -11,6 +12,8 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
+
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 )
 
 type scriptOrderSelectorKind int
@@ -387,18 +390,22 @@ func walkStateModuleTree(module *tfjson.StateModule, visit func(*tfjson.StateMod
 	return nil
 }
 
-type scriptOrderRequirement string
+// ScriptOrderRequirement describes the prerequisite outcome required
+// by a dependency.
+type ScriptOrderRequirement string
 
 const (
-	scriptOrderRequirementSuccess    scriptOrderRequirement = "success"
-	scriptOrderRequirementCompletion scriptOrderRequirement = "completion"
+	ScriptOrderRequirementSuccess    ScriptOrderRequirement = "success"
+	ScriptOrderRequirementCompletion ScriptOrderRequirement = "completion"
 )
 
-type scriptOrderPhase string
+// ScriptOrderPhase identifies the lifecycle phase, start or stop,
+// containing a graph.
+type ScriptOrderPhase string
 
 const (
-	scriptOrderPhaseStart scriptOrderPhase = "start"
-	scriptOrderPhaseStop  scriptOrderPhase = "stop"
+	ScriptOrderPhaseStart ScriptOrderPhase = "start"
+	ScriptOrderPhaseStop  ScriptOrderPhase = "stop"
 )
 
 type scriptOrderAttributes struct {
@@ -434,11 +441,12 @@ type resolvedScriptOrderSelector struct {
 // selectors before phase filtering.
 type scriptOrderRuleDeclaration struct {
 	dataSourceAddress string
-	ruleIndex         int
-	declaredPhase     scriptOrderPhase
-	requirement       scriptOrderRequirement
-	run               []resolvedScriptOrderSelector
-	after             []resolvedScriptOrderSelector
+	// Rule's zero-based index in the data source, used for diagnostics.
+	ruleIndex     int
+	declaredPhase ScriptOrderPhase
+	requirement   ScriptOrderRequirement
+	run           []resolvedScriptOrderSelector
+	after         []resolvedScriptOrderSelector
 }
 
 // collectScriptOrderRuleDeclarations decodes coder_script_order data
@@ -539,32 +547,32 @@ func collectScriptOrderDataSources(
 	return srcs, nil
 }
 
-func parseScriptOrderRequirement(raw string) (scriptOrderRequirement, error) {
-	switch scriptOrderRequirement(raw) {
-	case "", scriptOrderRequirementSuccess:
-		return scriptOrderRequirementSuccess, nil
-	case scriptOrderRequirementCompletion:
-		return scriptOrderRequirementCompletion, nil
+func parseScriptOrderRequirement(raw string) (ScriptOrderRequirement, error) {
+	switch ScriptOrderRequirement(raw) {
+	case "", ScriptOrderRequirementSuccess:
+		return ScriptOrderRequirementSuccess, nil
+	case ScriptOrderRequirementCompletion:
+		return ScriptOrderRequirementCompletion, nil
 	default:
 		return "", xerrors.Errorf(
 			"requires must be %q or %q, got %q",
-			scriptOrderRequirementSuccess, scriptOrderRequirementCompletion, raw,
+			ScriptOrderRequirementSuccess, ScriptOrderRequirementCompletion, raw,
 		)
 	}
 }
 
-func parseScriptOrderPhase(raw string) (scriptOrderPhase, error) {
-	switch scriptOrderPhase(raw) {
+func parseScriptOrderPhase(raw string) (ScriptOrderPhase, error) {
+	switch ScriptOrderPhase(raw) {
 	case "":
 		return "", nil
-	case scriptOrderPhaseStart:
-		return scriptOrderPhaseStart, nil
-	case scriptOrderPhaseStop:
-		return scriptOrderPhaseStop, nil
+	case ScriptOrderPhaseStart:
+		return ScriptOrderPhaseStart, nil
+	case ScriptOrderPhaseStop:
+		return ScriptOrderPhaseStop, nil
 	default:
 		return "", xerrors.Errorf(
 			"phase must be %q or %q, got %q",
-			scriptOrderPhaseStart, scriptOrderPhaseStop, raw,
+			ScriptOrderPhaseStart, ScriptOrderPhaseStop, raw,
 		)
 	}
 }
@@ -667,7 +675,7 @@ func resolveScriptOrderSelectors(
 func scriptOrderRuleError(dataSourceAddress string, ruleIndex int, err error) error {
 	return xerrors.Errorf(
 		"script order data source %q rule %d: %w",
-		dataSourceAddress, ruleIndex, err,
+		truncateScriptOrderDiagnosticValue(dataSourceAddress), ruleIndex, err,
 	)
 }
 
@@ -693,8 +701,8 @@ type resolvedScriptOrderRule struct {
 	dataSourceAddress string
 	ruleIndex         int
 	runtimeAddress    string
-	phase             scriptOrderPhase
-	requirement       scriptOrderRequirement
+	phase             ScriptOrderPhase
+	requirement       ScriptOrderRequirement
 	run               []resolvedScriptOrderSelector
 	after             []resolvedScriptOrderSelector
 }
@@ -702,7 +710,7 @@ type resolvedScriptOrderRule struct {
 type scriptOrderPhaseFilterWarning struct {
 	dataSourceAddress            string
 	ruleIndex                    int
-	inferredPhase                scriptOrderPhase
+	inferredPhase                ScriptOrderPhase
 	moduleSelectorsWithOmissions []string
 }
 
@@ -726,6 +734,29 @@ func (w scriptOrderPhaseFilterWarning) String() string {
 type resolvedScriptOrder struct {
 	rules    []resolvedScriptOrderRule
 	warnings []scriptOrderPhaseFilterWarning
+}
+
+// ScriptOrder contains one deterministic dependency graph per runtime
+// and lifecycle phase. Independent groups within the same runtime and
+// phase are disconnected components of the same graph.
+type ScriptOrder struct {
+	Graphs []ScriptOrderGraph
+}
+
+// ScriptOrderGraph contains dependencies for one runtime and
+// lifecycle phase. Scripts in the graph are identified by the
+// dependent and prerequisite addresses in Dependencies.
+type ScriptOrderGraph struct {
+	RuntimeAddress string
+	Phase          ScriptOrderPhase
+	Dependencies   []ScriptOrderDependency
+}
+
+// ScriptOrderDependency makes DependentAddress wait for PrerequisiteAddress.
+type ScriptOrderDependency struct {
+	DependentAddress    string
+	PrerequisiteAddress string
+	Requirement         ScriptOrderRequirement
 }
 
 // resolveScriptOrder collects rule declarations and resolves their
@@ -884,7 +915,7 @@ func validateScriptOrderSelectedScripts(
 func determineScriptOrderRulePhase(
 	declaration scriptOrderRuleDeclaration,
 	scripts map[string]scriptOrderScript,
-) (scriptOrderPhase, bool, error) {
+) (ScriptOrderPhase, bool, error) {
 	if declaration.declaredPhase != "" {
 		return declaration.declaredPhase, false, nil
 	}
@@ -930,7 +961,7 @@ func determineScriptOrderRulePhase(
 					"expand to both start and stop scripts; set phase to %q or %q",
 				one.selector.field, one.selector.raw, one.phase, one.address,
 				two.selector.field, two.selector.raw, two.phase, two.address,
-				scriptOrderPhaseStart, scriptOrderPhaseStop,
+				ScriptOrderPhaseStart, ScriptOrderPhaseStop,
 			),
 		)
 	}
@@ -946,7 +977,7 @@ func determineScriptOrderRulePhase(
 // scriptOrderObservedPhase records the first selector and script
 // address observed for a lifecycle phase.
 type scriptOrderObservedPhase struct {
-	phase    scriptOrderPhase
+	phase    ScriptOrderPhase
 	selector resolvedScriptOrderSelector
 	address  string
 }
@@ -962,7 +993,7 @@ func collectScriptOrderObservedPhases(
 	scripts map[string]scriptOrderScript,
 	kind scriptOrderSelectorKind,
 ) []scriptOrderObservedPhase {
-	observed := map[scriptOrderPhase]scriptOrderObservedPhase{}
+	observed := map[ScriptOrderPhase]scriptOrderObservedPhase{}
 	for _, selector := range slices.Concat(run, after) {
 		if selector.kind != kind {
 			continue
@@ -988,7 +1019,7 @@ func collectScriptOrderObservedPhases(
 
 func validateScriptOrderResourceSelectorPhases(
 	declaration scriptOrderRuleDeclaration,
-	phase scriptOrderPhase,
+	phase ScriptOrderPhase,
 	scripts map[string]scriptOrderScript,
 ) error {
 	for _, selector := range slices.Concat(declaration.run, declaration.after) {
@@ -1019,7 +1050,7 @@ func validateScriptOrderResourceSelectorPhases(
 // were omitted.
 func filterScriptOrderModuleSelectorAddressesByPhase(
 	selectors []resolvedScriptOrderSelector,
-	phase scriptOrderPhase,
+	phase ScriptOrderPhase,
 	scripts map[string]scriptOrderScript,
 ) ([]resolvedScriptOrderSelector, []string) {
 	result := make([]resolvedScriptOrderSelector, 0, len(selectors))
@@ -1112,12 +1143,12 @@ func validateScriptOrderNoSelfDependency(
 	after []resolvedScriptOrderSelector,
 ) error {
 	afterSelectorsByAddress := map[string]string{}
-	for _, selection := range scriptOrderAddressSelections(after) {
+	for _, selection := range uniqueScriptOrderAddressSelections(after) {
 		if _, ok := afterSelectorsByAddress[selection.address]; !ok {
 			afterSelectorsByAddress[selection.address] = selection.selector
 		}
 	}
-	for _, runSelection := range scriptOrderAddressSelections(run) {
+	for _, runSelection := range uniqueScriptOrderAddressSelections(run) {
 		afterSelector, ok := afterSelectorsByAddress[runSelection.address]
 		if ok {
 			return scriptOrderRuleError(
@@ -1156,12 +1187,19 @@ func hasResolvedScriptOrderAddresses(selectors []resolvedScriptOrderSelector) bo
 	return false
 }
 
-func scriptOrderAddressSelections(
+// uniqueScriptOrderAddressSelections retains the first selector that
+// expands to each address so diagnostics remain deterministic.
+func uniqueScriptOrderAddressSelections(
 	selectors []resolvedScriptOrderSelector,
 ) []scriptOrderAddressSelection {
+	seen := map[string]struct{}{}
 	var result []scriptOrderAddressSelection
 	for _, selector := range selectors {
 		for _, addr := range selector.addresses {
+			if _, ok := seen[addr]; ok {
+				continue
+			}
+			seen[addr] = struct{}{}
 			result = append(result, scriptOrderAddressSelection{
 				selector: selector.raw,
 				address:  addr,
@@ -1171,12 +1209,12 @@ func scriptOrderAddressSelections(
 	return result
 }
 
-func scriptOrderScriptPhase(script scriptOrderScript) scriptOrderPhase {
+func scriptOrderScriptPhase(script scriptOrderScript) ScriptOrderPhase {
 	switch {
 	case script.runOnStart && !script.runOnStop:
-		return scriptOrderPhaseStart
+		return ScriptOrderPhaseStart
 	case script.runOnStop && !script.runOnStart:
-		return scriptOrderPhaseStop
+		return ScriptOrderPhaseStop
 	default:
 		// Validation rejects scripts configured for both phases or neither.
 		return ""
@@ -1195,4 +1233,355 @@ func findResolvedScriptOrderSelector(
 		}
 	}
 	return resolvedScriptOrderSelector{}
+}
+
+// scriptOrderGraphKey contains only graph identity fields so it
+// remains comparable for use as a map key.
+type scriptOrderGraphKey struct {
+	runtimeAddress string
+	phase          ScriptOrderPhase
+}
+
+// scriptOrderEdge stores the dependency requirement and the Terraform
+// declaration retained for validation diagnostics.
+type scriptOrderEdge struct {
+	requirement       ScriptOrderRequirement
+	dataSourceAddress string
+	ruleIndex         int
+	runSelector       string
+	afterSelector     string
+}
+
+type scriptOrderCycleEdge struct {
+	dependentAddress    string
+	prerequisiteAddress string
+	edge                scriptOrderEdge
+}
+
+// scriptOrderGraphAccumulator holds mutable construction state for
+// one runtime-and-phase graph before it is validated and converted to
+// ScriptOrderGraph.
+type scriptOrderGraphAccumulator struct {
+	// Dependent address -> prerequisite address -> scriptOrderEdge
+	dependencies map[string]map[string]scriptOrderEdge
+	// Tracks unique edges for preallocating ScriptOrderGraph.Dependencies.
+	dependencyCount int
+}
+
+type scriptOrderCombinationBudget struct {
+	used  int
+	limit int
+}
+
+const (
+	// Diagnostic values are template-controlled, so bound their length
+	// to keep provisioner diagnostics well below the dRPC message limit.
+	maxScriptOrderDiagnosticValueRunes = 256
+	// A cycle can contain many edges, so bound their count as well.
+	maxScriptOrderCycleDiagnosticEdges = 20
+)
+
+// maxScriptOrderCandidateDependencies bounds the number of run/after
+// script combinations before graph construction can exhaust provisioner
+// CPU or memory. It applies across all runtime and phase graphs in one
+// conversion and remains well above typical script counts.
+// TODO(PLAT-554): Benchmark large script-order graphs and tune this limit.
+const maxScriptOrderCandidateDependencies = 100_000
+
+// buildScriptOrderGraphs combines resolved rules into deterministic
+// graphs scoped by runtime and lifecycle phase. It deduplicates
+// identical edges, enforces the dependency-combination limit, and
+// rejects conflicting requirements and cycles.
+func buildScriptOrderGraphs(rules []resolvedScriptOrderRule) (ScriptOrder, error) {
+	return buildScriptOrderGraphsWithCombinationLimit(
+		rules,
+		maxScriptOrderCandidateDependencies,
+	)
+}
+
+func buildScriptOrderGraphsWithCombinationLimit(
+	rules []resolvedScriptOrderRule,
+	combinationLimit int,
+) (ScriptOrder, error) {
+	graphs := map[scriptOrderGraphKey]*scriptOrderGraphAccumulator{}
+	budget := scriptOrderCombinationBudget{limit: combinationLimit}
+	for _, rule := range rules {
+		key := scriptOrderGraphKey{
+			runtimeAddress: rule.runtimeAddress,
+			phase:          rule.phase,
+		}
+		graph := graphs[key]
+		if graph == nil {
+			graph = &scriptOrderGraphAccumulator{
+				dependencies: map[string]map[string]scriptOrderEdge{},
+			}
+			graphs[key] = graph
+		}
+
+		if err := addScriptOrderRuleEdges(graph, rule, &budget); err != nil {
+			return ScriptOrder{}, err
+		}
+	}
+
+	keys := slices.SortedFunc(maps.Keys(graphs), func(a, b scriptOrderGraphKey) int {
+		return cmp.Or(
+			cmp.Compare(a.runtimeAddress, b.runtimeAddress),
+			cmp.Compare(a.phase, b.phase),
+		)
+	})
+	var result ScriptOrder
+	for _, key := range keys {
+		graph := graphs[key]
+		if cycle := findScriptOrderCycle(graph); cycle != nil {
+			return ScriptOrder{}, scriptOrderCycleError(cycle)
+		}
+		result.Graphs = append(result.Graphs, scriptOrderGraphResult(key, graph))
+	}
+	return result, nil
+}
+
+func addScriptOrderRuleEdges(
+	graph *scriptOrderGraphAccumulator,
+	rule resolvedScriptOrderRule,
+	budget *scriptOrderCombinationBudget,
+) error {
+	runSelections := uniqueScriptOrderAddressSelections(rule.run)
+	afterSelections := uniqueScriptOrderAddressSelections(rule.after)
+	// Check the rule against the full limit before multiplying to
+	// avoid integer overflow. The cumulative budget check follows
+	// once the product is safe to calculate.
+	if len(afterSelections) > 0 &&
+		len(runSelections) > budget.limit/len(afterSelections) {
+		return scriptOrderRuleError(
+			rule.dataSourceAddress,
+			rule.ruleIndex,
+			xerrors.Errorf(
+				"run selectors resolve to %d scripts and after selectors resolve to %d scripts; the rule creates one dependency for each run/after script combination, exceeding the overall limit of %d combinations across all script ordering rules",
+				len(runSelections), len(afterSelections), budget.limit,
+			),
+		)
+	}
+	comboCount := len(runSelections) * len(afterSelections)
+	if comboCount > budget.limit-budget.used {
+		return scriptOrderRuleError(
+			rule.dataSourceAddress,
+			rule.ruleIndex,
+			xerrors.Errorf(
+				"script ordering rules are limited to %d run/after script combinations in total; %d from earlier rules together with %d from this rule exceed the limit",
+				budget.limit, budget.used, comboCount,
+			),
+		)
+	}
+	budget.used += comboCount
+
+	// A rule declares a dependency for every run/after selection
+	// pair. Explicit transitive edges are retained because
+	// requirements are evaluated independently for each edge.
+	for _, run := range runSelections {
+		prerequisites := graph.dependencies[run.address]
+		if prerequisites == nil {
+			prerequisites = map[string]scriptOrderEdge{}
+			graph.dependencies[run.address] = prerequisites
+		}
+		for _, after := range afterSelections {
+			if existing, ok := prerequisites[after.address]; ok {
+				if existing.requirement != rule.requirement {
+					return scriptOrderRuleError(
+						rule.dataSourceAddress,
+						rule.ruleIndex,
+						xerrors.Errorf(
+							"run selector %q and after selector %q declare script %q after %q with requires %q, conflicting with requires %q from data source %q rule %d",
+							truncateScriptOrderDiagnosticValue(run.selector),
+							truncateScriptOrderDiagnosticValue(after.selector),
+							truncateScriptOrderDiagnosticValue(run.address),
+							truncateScriptOrderDiagnosticValue(after.address),
+							rule.requirement, existing.requirement,
+							truncateScriptOrderDiagnosticValue(existing.dataSourceAddress),
+							existing.ruleIndex,
+						),
+					)
+				}
+				continue
+			}
+			prerequisites[after.address] = scriptOrderEdge{
+				requirement:       rule.requirement,
+				dataSourceAddress: rule.dataSourceAddress,
+				ruleIndex:         rule.ruleIndex,
+				runSelector:       run.selector,
+				afterSelector:     after.selector,
+			}
+			graph.dependencyCount++
+		}
+	}
+	return nil
+}
+
+func scriptOrderGraphResult(
+	key scriptOrderGraphKey,
+	graph *scriptOrderGraphAccumulator,
+) ScriptOrderGraph {
+	dependencies := make([]ScriptOrderDependency, 0, graph.dependencyCount)
+	for dependentAddr, prereq := range graph.dependencies {
+		for prereqAddr, edge := range prereq {
+			dependencies = append(dependencies, ScriptOrderDependency{
+				DependentAddress:    dependentAddr,
+				PrerequisiteAddress: prereqAddr,
+				Requirement:         edge.requirement,
+			})
+		}
+	}
+	// Dependency order has no runtime semantics; sort it for deterministic output.
+	slices.SortFunc(dependencies, func(a, b ScriptOrderDependency) int {
+		return cmp.Or(
+			cmp.Compare(a.DependentAddress, b.DependentAddress),
+			cmp.Compare(a.PrerequisiteAddress, b.PrerequisiteAddress),
+			cmp.Compare(a.Requirement, b.Requirement),
+		)
+	})
+	return ScriptOrderGraph{
+		RuntimeAddress: key.runtimeAddress,
+		Phase:          key.phase,
+		Dependencies:   dependencies,
+	}
+}
+
+// findScriptOrderCycle returns the edges of one deterministic cycle
+// in traversal order. It returns nil when the graph is acyclic.
+func findScriptOrderCycle(
+	graph *scriptOrderGraphAccumulator,
+) []scriptOrderCycleEdge {
+	// A valid graph can contain a chain as long as the overall
+	// dependency limit permits, so use an explicit traversal stack
+	// instead of recursion.
+	const (
+		unvisited = iota
+		visiting
+		visited
+	)
+	visitStates := map[string]int{}
+	stackPositions := map[string]int{}
+	type stackFrame struct {
+		address       string
+		prerequisites []string
+		nextPrereqIdx int
+	}
+
+	// Sort roots and prerequisites so the same graph produces the
+	// same cycle diagnostic.
+	for _, rootAddr := range slices.Sorted(maps.Keys(graph.dependencies)) {
+		if visitStates[rootAddr] != unvisited {
+			continue
+		}
+
+		visitStates[rootAddr] = visiting
+		stackPositions[rootAddr] = 0
+		stack := []stackFrame{{
+			address: rootAddr,
+			prerequisites: slices.Sorted(
+				maps.Keys(graph.dependencies[rootAddr]),
+			),
+		}}
+		for len(stack) > 0 {
+			frame := &stack[len(stack)-1]
+			if frame.nextPrereqIdx == len(frame.prerequisites) {
+				visitStates[frame.address] = visited
+				delete(stackPositions, frame.address)
+				stack = stack[:len(stack)-1]
+				continue
+			}
+
+			prereq := frame.prerequisites[frame.nextPrereqIdx]
+			frame.nextPrereqIdx++
+			switch visitStates[prereq] {
+			case unvisited:
+				visitStates[prereq] = visiting
+				stackPositions[prereq] = len(stack)
+				stack = append(stack, stackFrame{
+					address: prereq,
+					prerequisites: slices.Sorted(
+						maps.Keys(graph.dependencies[prereq]),
+					),
+				})
+			case visiting:
+				cycleStart := stackPositions[prereq]
+				cycle := make([]scriptOrderCycleEdge, 0, len(stack)-cycleStart)
+				for i := cycleStart; i < len(stack)-1; i++ {
+					dependent := stack[i].address
+					nextPrereq := stack[i+1].address
+					cycle = append(cycle, scriptOrderCycleEdge{
+						dependentAddress:    dependent,
+						prerequisiteAddress: nextPrereq,
+						edge:                graph.dependencies[dependent][nextPrereq],
+					})
+				}
+				// Include the closing edge so diagnostics describe
+				// the complete cycle.
+				dependent := stack[len(stack)-1].address
+				cycle = append(cycle, scriptOrderCycleEdge{
+					dependentAddress:    dependent,
+					prerequisiteAddress: prereq,
+					edge:                graph.dependencies[dependent][prereq],
+				})
+				return cycle
+			}
+		}
+	}
+	return nil
+}
+
+func scriptOrderCycleError(cycle []scriptOrderCycleEdge) error {
+	renderedEdges := min(len(cycle), maxScriptOrderCycleDiagnosticEdges)
+	path := make([]string, 1, renderedEdges+1)
+	path[0] = truncateScriptOrderDiagnosticValue(cycle[0].dependentAddress)
+	details := make([]string, 0, renderedEdges)
+	// Cycle detection follows dependent-to-prerequisite edges.
+	// Present them in reverse so the arrows match execution order.
+	for _, cycleEdge := range slices.Backward(cycle) {
+		if len(details) == renderedEdges {
+			break
+		}
+		dependentAddr := truncateScriptOrderDiagnosticValue(
+			cycleEdge.dependentAddress,
+		)
+		prereqAddr := truncateScriptOrderDiagnosticValue(
+			cycleEdge.prerequisiteAddress,
+		)
+		dataSourceAddr := truncateScriptOrderDiagnosticValue(
+			cycleEdge.edge.dataSourceAddress,
+		)
+		runSelector := truncateScriptOrderDiagnosticValue(
+			cycleEdge.edge.runSelector,
+		)
+		afterSelector := truncateScriptOrderDiagnosticValue(
+			cycleEdge.edge.afterSelector,
+		)
+		path = append(path, dependentAddr)
+		details = append(details, fmt.Sprintf(
+			"%q after %q from run selector %q and after selector %q "+
+				"(data source %q rule %d)",
+			dependentAddr, prereqAddr, runSelector, afterSelector,
+			dataSourceAddr, cycleEdge.edge.ruleIndex,
+		))
+	}
+	omitted := len(cycle) - renderedEdges
+	if omitted > 0 {
+		path = append(path, "…", path[0])
+	}
+	message := fmt.Sprintf(
+		"script order dependency cycle: %s; cycle edges: %s",
+		strings.Join(path, " -> "),
+		strings.Join(details, "; "),
+	)
+	if omitted > 0 {
+		message += fmt.Sprintf("; %d cycle edges omitted", omitted)
+	}
+	return xerrors.New(message)
+}
+
+func truncateScriptOrderDiagnosticValue(value string) string {
+	return stringutil.Truncate(
+		value,
+		maxScriptOrderDiagnosticValueRunes,
+		stringutil.TruncateWithEllipsis,
+	)
 }
