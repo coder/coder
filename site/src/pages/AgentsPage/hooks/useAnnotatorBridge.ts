@@ -30,6 +30,25 @@ type UseAnnotatorBridgeOptions = {
 	onSubmit: (submission: AnnotationSubmission) => void;
 };
 
+// Remembered across chats and sessions; the hint only needs to land once.
+const hintDismissedKey = "coder.annotator.hint-dismissed";
+
+function hintDismissed(): boolean {
+	try {
+		return window.localStorage.getItem(hintDismissedKey) === "1";
+	} catch {
+		return true;
+	}
+}
+
+function rememberHintDismissed() {
+	try {
+		window.localStorage.setItem(hintDismissedKey, "1");
+	} catch {
+		// Storage unavailable; the hint simply shows again next time.
+	}
+}
+
 type BridgeState = {
 	// The overlay in the target's current document announced itself.
 	ready: boolean;
@@ -201,8 +220,15 @@ export function useAnnotatorBridge({
 					if (pendingPickingRef.current) {
 						pendingPickingRef.current = false;
 						authorizedRef.current = true;
-						send({ type: "coder-annotator:set-picking", picking: true });
+						send({
+							type: "coder-annotator:set-picking",
+							picking: true,
+							hint: !hintDismissed(),
+						});
 					}
+					break;
+				case "coder-annotator:hint-dismissed":
+					rememberHintDismissed();
 					break;
 				case "coder-annotator:state":
 					if (message.picking) {
@@ -251,7 +277,11 @@ export function useAnnotatorBridge({
 			if (stateRef.current.ready) {
 				authorizedRef.current = next;
 				update({ requested: next });
-				post({ type: "coder-annotator:set-picking", picking: next });
+				post({
+					type: "coder-annotator:set-picking",
+					picking: next,
+					hint: !hintDismissed(),
+				});
 				return;
 			}
 			pendingPickingRef.current = next;
