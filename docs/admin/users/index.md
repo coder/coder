@@ -247,7 +247,7 @@ coder users list --output json | \
   jq -r '["username","email","created_at","status"], (.[] | [.username, .email, .created_at, .status]) | @csv' > users.csv
 ```
 
-Visit the [users list](../../reference/cli/users_list.md) documentation for more options.
+Visit the [users list](../../reference/cli/users/list.md) documentation for more options.
 
 ### API
 

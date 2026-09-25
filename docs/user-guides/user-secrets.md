@@ -239,7 +239,7 @@ coder secret import - --input-format yaml < ./secrets.yaml
 The import is all or nothing and never overwrites existing secrets. Keys that
 are valid environment variable names are injected under the same name; other
 keys are imported without an environment variable target. For details, see
-[`coder secret import`](../reference/cli/secret_import.md).
+[`coder secret import`](../reference/cli/secret/import.md).
 
 ### Create a disabled secret
 
@@ -348,5 +348,5 @@ variable or file target.
 To import secrets programmatically, use the
 [Secrets API](../reference/api/secrets.md#import-user-secrets-from-a-file).
 
-For full command details, see [`coder secret`](../reference/cli/secret.md) and
+For full command details, see [`coder secret`](../reference/cli/secret/index.md) and
 the [Secrets API reference](../reference/api/secrets.md).

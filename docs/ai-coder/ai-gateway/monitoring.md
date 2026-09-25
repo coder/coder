@@ -183,7 +183,7 @@ The startup probe is disabled by default.
 
 Standalone replicas use the standard Coder logging options.
 Configure them on every replica or through `coder.env` in the AI Gateway Helm chart.
-Refer to the [`coder ai-gateway start` logging options](../../reference/cli/ai-gateway_start.md#-l---log-filter) for configuration details.
+Refer to the [`coder ai-gateway start` logging options](../../reference/cli/ai-gateway/start.md#-l---log-filter) for configuration details.
 
 ### Structured interception logs
 
@@ -263,7 +263,7 @@ The exporter always dials without TLS, so an `https://` endpoint is still contac
 Set only the Honeycomb key to export to Honeycomb alone, or set both to export to Honeycomb and an OTLP collector.
 
 The embedded and standalone gateways support the same tracing configuration options, but each standalone replica must be configured separately.
-Refer to the [`coder server` tracing options](../../reference/cli/server.md#--trace) for the embedded gateway and the [`coder ai-gateway start` tracing options](../../reference/cli/ai-gateway_start.md#--trace) for standalone replicas.
+Refer to the [`coder server` tracing options](../../reference/cli/server/index.md#--trace) for the embedded gateway and the [`coder ai-gateway start` tracing options](../../reference/cli/ai-gateway/start.md#--trace) for standalone replicas.
 Configure tracing on every standalone process or through `coder.env` in the AI Gateway Helm chart.
 
 The following minimal configuration enables tracing and exports spans over OTLP/gRPC:

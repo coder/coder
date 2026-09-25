@@ -63,7 +63,7 @@ Configure at least one [AI provider](./providers.md) in Coder before sending pro
 
 The listener uses HTTP by default.
 Set both `CODER_AI_GATEWAY_TLS_CERT_FILE` and `CODER_AI_GATEWAY_TLS_KEY_FILE` to terminate TLS in the process.
-For all command options, refer to [`coder ai-gateway start`](../../reference/cli/ai-gateway_start.md).
+For all command options, refer to [`coder ai-gateway start`](../../reference/cli/ai-gateway/start.md).
 
 ## Run AI Gateway in Kubernetes
 

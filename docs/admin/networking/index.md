@@ -53,7 +53,7 @@ In order for clients to be able to establish direct connections:
   communicate with each other using their locally assigned IP addresses, then a
   direct connection can be established immediately. Otherwise, the client and
   agent will contact
-  [the configured STUN servers](../../reference/cli/server.md#--derp-server-stun-addresses)
+  [the configured STUN servers](../../reference/cli/server/index.md#--derp-server-stun-addresses)
   to try and determine which `ip:port` can be used to communicate with their
   counterpart. See [STUN and NAT](./stun.md) for more details on how this
   process works.
@@ -61,7 +61,7 @@ In order for clients to be able to establish direct connections:
   **all ports** to each others' respective networks.
   - To establish a direct connection, both agent and client use STUN. This
     involves sending UDP packets outbound on `udp/3478` to the configured
-    [STUN server](../../reference/cli/server.md#--derp-server-stun-addresses).
+    [STUN server](../../reference/cli/server/index.md#--derp-server-stun-addresses).
     If either the agent or the client are unable to send and receive UDP packets
     to a STUN server, then direct connections will not be possible.
   - Both agents and clients will then establish a
@@ -116,7 +116,7 @@ for more information on how this process works.
 
 If a direct connection is not available (e.g. client or server is behind NAT),
 Coder will use a relayed connection. By default,
-[Coder uses Google's public STUN server](../../reference/cli/server.md#--derp-server-stun-addresses),
+[Coder uses Google's public STUN server](../../reference/cli/server/index.md#--derp-server-stun-addresses),
 but this can be disabled or changed for
 [Air-gapped deployments](../../install/prepare/airgap.md).
 

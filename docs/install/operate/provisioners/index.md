@@ -3,7 +3,7 @@ title: External provisioners
 ---
 
 By default, the control plane runs
-[built-in provisioner daemons](../../../reference/cli/server.md#--provisioner-daemons),
+[built-in provisioner daemons](../../../reference/cli/server/index.md#--provisioner-daemons),
 which execute `terraform` during workspace and template builds. However, there
 are often benefits to running external provisioner daemons:
 
@@ -30,7 +30,7 @@ For example, running 30 provisioner containers will allow 30 users to start
 workspaces at the same time.
 
 Provisioners are started with the
-[`coder provisioner start`](../../../reference/cli/provisioner_start.md) command in
+[`coder provisioner start`](../../../reference/cli/provisioner/start.md) command in
 the [full Coder binary](https://github.com/coder/coder/releases). Keep reading
 to learn how to start provisioners via Docker, Kubernetes, Systemd, etc.
 
@@ -114,7 +114,7 @@ Global pre-shared keys (PSK) make it difficult to rotate keys or isolate provisi
 
 A deployment-wide PSK can be used to authenticate any provisioner. To use a
 global PSK, set a
-[provisioner daemon pre-shared key (PSK)](../../../reference/cli/server.md#--provisioner-daemon-psk)
+[provisioner daemon pre-shared key (PSK)](../../../reference/cli/server/index.md#--provisioner-daemon-psk)
 on the control plane.
 
 Next, start the provisioner:
@@ -241,17 +241,17 @@ This is illustrated in the below table:
 
 Provisioners can broadly be categorized by scope: `organization` or `user`. The
 scope of a provisioner can be specified with
-[`-tag=scope=<scope>`](../../../reference/cli/provisioner_start.md#-t---tag) when
+[`-tag=scope=<scope>`](../../../reference/cli/provisioner/start.md#-t---tag) when
 starting the provisioner daemon. Only users with at least the
 [Template Admin](../../../admin/users/index.md#roles) role or higher may create
 organization-scoped provisioner daemons.
 
 There are two exceptions:
 
-- [Built-in provisioners](../../../reference/cli/server.md#--provisioner-daemons) are
+- [Built-in provisioners](../../../reference/cli/server/index.md#--provisioner-daemons) are
   always organization-scoped.
 - External provisioners started using a
-  [pre-shared key (PSK)](../../../reference/cli/provisioner_start.md#--psk) are always
+  [pre-shared key (PSK)](../../../reference/cli/provisioner/start.md#--psk) are always
   organization-scoped.
 
 ### Organization-Scoped Provisioners
@@ -375,7 +375,7 @@ docker run --rm -it \
 
 As mentioned above, the control plane will run built-in provisioners by default.
 This can be disabled with a server-wide
-[flag or environment variable](../../../reference/cli/server.md#--provisioner-daemons).
+[flag or environment variable](../../../reference/cli/server/index.md#--provisioner-daemons).
 
 ```sh
 coder server --provisioner-daemons=0
