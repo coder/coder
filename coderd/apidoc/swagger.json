@@ -17882,6 +17882,30 @@
 				"hook_url": {
 					"$ref": "#/definitions/serpent.URL"
 				},
+				"max_attachments_per_chat": {
+					"description": "MaxAttachmentsPerChat is the maximum number of files linked to a\nchat.",
+					"type": "integer"
+				},
+				"max_concurrent_recording_uploads": {
+					"description": "MaxConcurrentRecordingUploads is the maximum number of virtual\ndesktop recordings that each Coder server stores at the same time.",
+					"type": "integer"
+				},
+				"max_generation_retries": {
+					"description": "MaxGenerationRetries is the maximum number of consecutive retries\nafter a model generation fails with a transient error.",
+					"type": "integer"
+				},
+				"max_prompt_bytes": {
+					"description": "MaxPromptBytes is the maximum size in bytes of the deployment system\nprompt, the plan mode instructions, and each user's custom prompt.",
+					"type": "integer"
+				},
+				"max_queued_messages_per_chat": {
+					"description": "MaxQueuedMessagesPerChat is the maximum number of messages that can\nbe queued in a chat.",
+					"type": "integer"
+				},
+				"max_steps_per_turn": {
+					"description": "MaxStepsPerTurn is the maximum number of steps in a chat turn.",
+					"type": "integer"
+				},
 				"stream_silence_timeout": {
 					"type": "integer"
 				}

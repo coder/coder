@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -84,6 +84,7 @@ func TestRequestCompaction_PreservedByAcquireAndQueueAppend(t *testing.T) {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("queued while compacting", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))
@@ -220,9 +221,9 @@ func TestRequestCompaction_FreshHistoryEpoch(t *testing.T) {
 		name     string
 		attempts int
 	}{
-		{name: "unspent budget", attempts: 0},
-		{name: "one below the cap", attempts: chatretry.MaxAttempts - 1},
-		{name: "exhausted budget", attempts: chatretry.MaxAttempts},
+		{name: "no attempts", attempts: 0},
+		{name: "one attempt", attempts: 1},
+		{name: "several attempts", attempts: 5},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

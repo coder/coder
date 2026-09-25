@@ -27,10 +27,30 @@ import (
 // threshold settings.
 const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 
-// MaxChatFileIDs is the number of most recent attachments a chat
-// keeps. Linking a new file past this cap deletes the oldest files
-// on the chat. A single batch larger than the cap is rejected.
-const MaxChatFileIDs = 50
+// Defaults for the chat limits in [ChatConfig].
+const (
+	// DefaultChatMaxStepsPerTurn is the default maximum number of steps in
+	// a chat turn.
+	DefaultChatMaxStepsPerTurn = 1200
+	// DefaultChatMaxGenerationRetries is the default maximum number of
+	// consecutive retries after a model generation fails with a transient
+	// error.
+	DefaultChatMaxGenerationRetries = 25
+	// DefaultChatMaxQueuedMessagesPerChat is the default maximum number of
+	// messages that can be queued in a chat.
+	DefaultChatMaxQueuedMessagesPerChat = 20
+	// DefaultChatMaxAttachmentsPerChat is the default maximum number of
+	// files linked to a chat.
+	DefaultChatMaxAttachmentsPerChat = 50
+	// DefaultChatMaxPromptBytes is the default maximum size in bytes of the
+	// deployment system prompt, the plan mode instructions, and each
+	// user's custom prompt.
+	DefaultChatMaxPromptBytes = 128 * 1024
+	// DefaultChatMaxConcurrentRecordingUploads is the default maximum
+	// number of virtual desktop recordings that each Coder server stores
+	// at the same time.
+	DefaultChatMaxConcurrentRecordingUploads = 25
+)
 
 // MaxChatFileSizeBytes is the upload-endpoint cap for chat
 // attachments.

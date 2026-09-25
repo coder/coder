@@ -1149,6 +1149,59 @@ func TestGenerationTask_RecordRetryStateUsesDurableGenerationAttempt(t *testing.
 	require.Equal(t, chatretry.Delay(2).Milliseconds(), retryPayload.DelayMs)
 }
 
+func TestGenerationTask_RecordRetryStateHonorsConfiguredRetries(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		limits     Limits
+		maxRetries int
+	}{
+		{name: "Default", maxRetries: codersdk.DefaultChatMaxGenerationRetries},
+		{name: "ConfiguredOne", limits: Limits{MaxGenerationRetries: 1}, maxRetries: 1},
+		{name: "ConfiguredThree", limits: Limits{MaxGenerationRetries: 3}, maxRetries: 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newTaskTestFixture(t)
+			chat := f.createRunningChat(t)
+			workerID := uuid.New()
+			runnerID := uuid.New()
+			acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+			starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder(), withInternalTestServerLimits(tt.limits))
+			machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
+			input := chatWorkerTaskStartInput{
+				ChatID:         chat.ID,
+				WorkerID:       workerID,
+				RunnerID:       runnerID,
+				HistoryVersion: acquired.HistoryVersion,
+				Status:         database.ChatStatusRunning,
+			}
+			classified := chaterror.ClassifiedError{
+				Message:   "OpenAI is temporarily unavailable.",
+				Kind:      codersdk.ChatErrorKindTimeout,
+				Provider:  "openai",
+				Retryable: true,
+			}
+
+			// The configured value is a retry count, so every failure up to
+			// it is retried and the next failure is not.
+			ctx := testutil.Context(t, testutil.WaitLong)
+			for failure := 1; failure <= tt.maxRetries+1; failure++ {
+				attempt, err := starter.beginGenerationAttempt(ctx, machine, input)
+				require.NoError(t, err)
+				attempt.closeEpisode()
+				decision, err := starter.recordGenerationRetry(ctx, machine, input, classified)
+				require.NoError(t, err)
+				require.Equal(t, failure <= tt.maxRetries, decision.retry, "failure %d", failure)
+				require.EqualValues(t, failure, decision.generationAttempt)
+			}
+		})
+	}
+}
+
 func TestGenerationTask_RecordRetryStateClearedByNextAttempt(t *testing.T) {
 	t.Parallel()
 
@@ -1404,6 +1457,7 @@ func (f *taskTestFixture) interruptChat(t *testing.T, chatID uuid.UUID) database
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      taskUserTextMessage(t, "interrupt", f.user.ID, f.model.ID, f.apiKey.ID),
 			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))
@@ -1697,18 +1751,24 @@ func (r *taskSideEffectRecorder) requireInterruptionOutcome(t *testing.T, chatID
 	t.Fatalf("missing interruption outcome chat_id=%s status=%s outcomes=%v", chatID, status, r.interrupts)
 }
 
-func newTestTaskStarter(t *testing.T, f *taskTestFixture, recorder *taskSideEffectRecorder) *taskStarter {
+func newTestTaskStarter(t *testing.T, f *taskTestFixture, recorder *taskSideEffectRecorder, serverOpts ...internalTestServerOpt) *taskStarter {
 	t.Helper()
-	return newTestTaskStarterWithClock(t, f, recorder, quartz.NewReal())
+	return newTestTaskStarterWithClock(t, f, recorder, quartz.NewReal(), serverOpts...)
 }
 
 // newTestTaskStarterWithClock shares the clock between the starter and its
 // message part buffer, mirroring production wiring.
-func newTestTaskStarterWithClock(t *testing.T, f *taskTestFixture, recorder *taskSideEffectRecorder, clock quartz.Clock) *taskStarter {
+func newTestTaskStarterWithClock(
+	t *testing.T,
+	f *taskTestFixture,
+	recorder *taskSideEffectRecorder,
+	clock quartz.Clock,
+	serverOpts ...internalTestServerOpt,
+) *taskStarter {
 	t.Helper()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
 	t.Cleanup(buffer.Close)
-	starter, err := newTaskStarter(newUnstartedServer(t, f.rawPS, f.db), chatWorkerOptions{
+	starter, err := newTaskStarter(newUnstartedServer(t, f.rawPS, f.db, serverOpts...), chatWorkerOptions{
 		Store:                   f.db,
 		Pubsub:                  f.pubsub,
 		Logger:                  slog.Make(),

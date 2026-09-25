@@ -70,10 +70,11 @@ func generateQuickgenObject[T any](
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 ) (*fantasy.ObjectResult[T], error) {
 	call.Temperature = new(quickgenTemperature)
 	var result *fantasy.ObjectResult[T]
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+	err := chatretry.Retry(ctx, maxRetries, func(retryCtx context.Context) error {
 		var genErr error
 		result, genErr = object.Generate[T](retryCtx, model, call)
 		if call.Temperature != nil && isTemperatureRejectedError(genErr) {
@@ -439,7 +440,7 @@ func (p *Server) maybeGenerateChatTitle(
 		)
 	}
 
-	title, err := generateTitle(candidateCtx, candidate.resolved.model.LanguageModel(), titleObjectCall(candidate.resolved), input)
+	title, err := generateTitle(candidateCtx, candidate.resolved.model.LanguageModel(), titleObjectCall(candidate.resolved), p.chatLimits.MaxGenerationRetries, input)
 	finishDebugRun(err)
 	if err != nil {
 		logger.Warn(ctx, "title model candidate failed",
@@ -564,9 +565,10 @@ func generateTitle(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	input string,
 ) (string, error) {
-	title, err := generateStructuredTitle(ctx, model, call, titleGenerationPrompt, input)
+	title, err := generateStructuredTitle(ctx, model, call, maxRetries, titleGenerationPrompt, input)
 	if err != nil {
 		return "", err
 	}
@@ -577,6 +579,7 @@ func generateStructuredTitle(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	systemPrompt string,
 	userInput string,
 ) (string, error) {
@@ -584,6 +587,7 @@ func generateStructuredTitle(
 		ctx,
 		model,
 		call,
+		maxRetries,
 		systemPrompt,
 		userInput,
 	)
@@ -597,6 +601,7 @@ func generateStructuredTitleWithUsage(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	systemPrompt string,
 	userInput string,
 ) (string, fantasy.Usage, error) {
@@ -606,7 +611,7 @@ func generateStructuredTitleWithUsage(
 	}
 
 	call.Prompt = quickgenPrompt(systemPrompt, userInput)
-	result, err := generateQuickgenObject[generatedTitle](ctx, model, call)
+	result, err := generateQuickgenObject[generatedTitle](ctx, model, call, maxRetries)
 	if err != nil {
 		var usage fantasy.Usage
 		var noObjErr *fantasy.NoObjectGeneratedError
@@ -941,6 +946,7 @@ func generateManualTitle(
 	pasteText map[uuid.UUID]string,
 	fallbackModel fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 ) (string, error) {
 	turns := extractManualTitleTurns(messages, pasteText)
 	selected := selectManualTitleTurnIndexes(turns)
@@ -972,6 +978,7 @@ func generateManualTitle(
 		titleCtx,
 		fallbackModel,
 		call,
+		maxRetries,
 		systemPrompt,
 		userInput,
 	)
@@ -1143,6 +1150,7 @@ func generateChatSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	transcript string,
 ) (string, fantasy.Usage, error) {
 	transcript = strings.TrimSpace(transcript)
@@ -1152,7 +1160,7 @@ func generateChatSummary(
 
 	call.Prompt = quickgenPrompt(chatSummaryGenerationPrompt, transcript)
 	var result *fantasy.ObjectResult[generatedChatSummary]
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+	err := chatretry.Retry(ctx, maxRetries, func(retryCtx context.Context) error {
 		var genErr error
 		result, genErr = object.Generate[generatedChatSummary](retryCtx, model, call)
 		return genErr
@@ -1417,6 +1425,7 @@ func generateTurnStatusLabel(
 	status database.ChatStatus,
 	assistantText string,
 	resolved resolvedModelCall,
+	maxRetries int,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
 	triggerMessageID int64,
@@ -1460,6 +1469,7 @@ func generateTurnStatusLabel(
 		candidateCtx,
 		candidate.resolved.model.LanguageModel(),
 		turnStatusLabelObjectCall(resolved),
+		maxRetries,
 		turnStatusLabelPrompt,
 		input,
 	)
@@ -1479,6 +1489,7 @@ func generateStructuredTurnStatusLabel(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	systemPrompt string,
 	userInput string,
 ) (string, error) {
@@ -1488,7 +1499,7 @@ func generateStructuredTurnStatusLabel(
 	}
 
 	call.Prompt = quickgenPrompt(systemPrompt, userInput)
-	result, err := generateQuickgenObject[generatedTurnStatusLabel](ctx, model, call)
+	result, err := generateQuickgenObject[generatedTurnStatusLabel](ctx, model, call, maxRetries)
 	if err != nil {
 		return "", xerrors.Errorf("generate structured turn status label: %w", err)
 	}

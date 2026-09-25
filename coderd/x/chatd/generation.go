@@ -200,6 +200,9 @@ type generationDecisionInput struct {
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
+	if input.maxSteps < 1 {
+		return generationDecision{}, terminalGeneration(xerrors.Errorf("max steps must be positive, got %d", input.maxSteps))
+	}
 	localCalls, dynamicCalls, err := unresolvedToolCallsFromHistory(input.messages, input.dynamicToolNames)
 	if err != nil {
 		return generationDecision{}, err
@@ -248,7 +251,7 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	if complete {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, nil
 	}
-	if input.maxSteps > 0 && currentTurnStepCount(input.messages) >= input.maxSteps {
+	if currentTurnStepCount(input.messages) >= input.maxSteps {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonMaxSteps}, nil
 	}
 	compactionRequirement := compactionRequirementNotNeeded
@@ -588,7 +591,7 @@ func loadGenerationState(
 	return chat, messages, nil
 }
 
-func (*taskStarter) recordGenerationRetry(
+func (s *taskStarter) recordGenerationRetry(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
@@ -602,7 +605,7 @@ func (*taskStarter) recordGenerationRetry(
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
 		decision.generationAttempt = chat.GenerationAttempt
-		if chat.GenerationAttempt <= 0 || chat.GenerationAttempt >= int64(chatretry.MaxAttempts) {
+		if chat.GenerationAttempt <= 0 || chat.GenerationAttempt > int64(s.server.chatLimits.MaxGenerationRetries) {
 			decision.retry = false
 			return errRetryStateDecisionOnly
 		}

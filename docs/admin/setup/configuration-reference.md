@@ -430,6 +430,60 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 - YAML key: `chat.debugLoggingEnabled`
 - Default value: `false`
 
+### Max attachments per chat
+
+Maximum number of files linked to a chat, including user uploads, files the agent attaches, and desktop recordings and their thumbnails. Linking a file beyond the limit permanently deletes the chat's earliest-uploaded files, and earlier messages show them as expired. A message that includes more files than the limit is rejected with HTTP 400. Must be at least 1.
+
+- Environment variable: `CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`
+- CLI flag: [`--chat-max-attachments-per-chat`](../../reference/cli/server.md#--chat-max-attachments-per-chat)
+- YAML key: `chat.maxAttachmentsPerChat`
+- Default value: `50`
+
+### Max concurrent recording uploads
+
+Maximum number of virtual desktop recordings that each Coder server stores at the same time. Each upload holds the recording and its thumbnail in memory, up to 110 MB. Additional recordings wait for a free slot and are discarded if none frees up within 90 seconds. Must be at least 1.
+
+- Environment variable: `CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS`
+- CLI flag: [`--chat-max-concurrent-recording-uploads`](../../reference/cli/server.md#--chat-max-concurrent-recording-uploads)
+- YAML key: `chat.maxConcurrentRecordingUploads`
+- Default value: `25`
+
+### Max generation retries
+
+Maximum number of consecutive retries after a model generation fails with a transient error, such as a rate limit, an overloaded provider, or a stream that stops sending data. The count resets after each successful step. When the retries run out, the chat moves to the error state and shows the provider error. Advisor calls and the generation of chat titles, summaries, and turn status labels use the same limit. Must be at least 1.
+
+- Environment variable: `CODER_CHAT_MAX_GENERATION_RETRIES`
+- CLI flag: [`--chat-max-generation-retries`](../../reference/cli/server.md#--chat-max-generation-retries)
+- YAML key: `chat.maxGenerationRetries`
+- Default value: `25`
+
+### Max prompt bytes
+
+Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. Saving a longer prompt fails with HTTP 400. Lowering the limit does not affect prompts that are already saved. Must be at least 1.
+
+- Environment variable: `CODER_CHAT_MAX_PROMPT_BYTES`
+- CLI flag: [`--chat-max-prompt-bytes`](../../reference/cli/server.md#--chat-max-prompt-bytes)
+- YAML key: `chat.maxPromptBytes`
+- Default value: `131072`
+
+### Max queued messages per chat
+
+Maximum number of messages that can be queued in a chat. Sending a message to a chat whose queue is full fails with HTTP 429. Must be at least 1.
+
+- Environment variable: `CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT`
+- CLI flag: [`--chat-max-queued-messages-per-chat`](../../reference/cli/server.md#--chat-max-queued-messages-per-chat)
+- YAML key: `chat.maxQueuedMessagesPerChat`
+- Default value: `20`
+
+### Max steps per turn
+
+Maximum number of steps in a chat turn. Each model response is one step; compaction summaries, advisor calls, and retried attempts do not count. A turn that reaches the limit runs the tools from the last response, then ends without an error. Must be at least 1.
+
+- Environment variable: `CODER_CHAT_MAX_STEPS_PER_TURN`
+- CLI flag: [`--chat-max-steps-per-turn`](../../reference/cli/server.md#--chat-max-steps-per-turn)
+- YAML key: `chat.maxStepsPerTurn`
+- Default value: `1200`
+
 ### Stream silence timeout
 
 Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Set to 0 to disable. Must be no more than 24h.

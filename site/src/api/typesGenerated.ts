@@ -2095,6 +2095,9 @@ export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 ];
 
 // From codersdk/deployment.go
+/**
+ * ChatConfig configures Coder Agents chats.
+ */
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
@@ -2104,6 +2107,35 @@ export interface ChatConfig {
 	readonly hook_enabled: boolean;
 	readonly hook_allow_insecure: boolean;
 	readonly stream_silence_timeout: number;
+	/**
+	 * MaxStepsPerTurn is the maximum number of steps in a chat turn.
+	 */
+	readonly max_steps_per_turn: number;
+	/**
+	 * MaxGenerationRetries is the maximum number of consecutive retries
+	 * after a model generation fails with a transient error.
+	 */
+	readonly max_generation_retries: number;
+	/**
+	 * MaxQueuedMessagesPerChat is the maximum number of messages that can
+	 * be queued in a chat.
+	 */
+	readonly max_queued_messages_per_chat: number;
+	/**
+	 * MaxAttachmentsPerChat is the maximum number of files linked to a
+	 * chat.
+	 */
+	readonly max_attachments_per_chat: number;
+	/**
+	 * MaxPromptBytes is the maximum size in bytes of the deployment system
+	 * prompt, the plan mode instructions, and each user's custom prompt.
+	 */
+	readonly max_prompt_bytes: number;
+	/**
+	 * MaxConcurrentRecordingUploads is the maximum number of virtual
+	 * desktop recordings that each Coder server stores at the same time.
+	 */
+	readonly max_concurrent_recording_uploads: number;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
@@ -4718,6 +4750,57 @@ export const DefaultChatDebugRetentionDays = 30;
 
 // From codersdk/chats.go
 /**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxAttachmentsPerChat is the default maximum number of
+ * files linked to a chat.
+ */
+export const DefaultChatMaxAttachmentsPerChat = 50;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxConcurrentRecordingUploads is the default maximum
+ * number of virtual desktop recordings that each Coder server stores
+ * at the same time.
+ */
+export const DefaultChatMaxConcurrentRecordingUploads = 25;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxGenerationRetries is the default maximum number of
+ * consecutive retries after a model generation fails with a transient
+ * error.
+ */
+export const DefaultChatMaxGenerationRetries = 25;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxPromptBytes is the default maximum size in bytes of the
+ * deployment system prompt, the plan mode instructions, and each
+ * user's custom prompt.
+ */
+export const DefaultChatMaxPromptBytes = 131072;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxQueuedMessagesPerChat is the default maximum number of
+ * messages that can be queued in a chat.
+ */
+export const DefaultChatMaxQueuedMessagesPerChat = 20;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxStepsPerTurn is the default maximum number of steps in
+ * a chat turn.
+ */
+export const DefaultChatMaxStepsPerTurn = 1200;
+
+// From codersdk/chats.go
+/**
  * DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
  * Zero means disabled; the template's own autostop setting applies.
  */
@@ -6227,14 +6310,6 @@ export const MaxAISpendLimitMicros = 1000000000000;
  * MaxAISpendPeriodDays bounds explicit AI spend reporting windows.
  */
 export const MaxAISpendPeriodDays = 31;
-
-// From codersdk/chats.go
-/**
- * MaxChatFileIDs is the number of most recent attachments a chat
- * keeps. Linking a new file past this cap deletes the oldest files
- * on the chat. A single batch larger than the cap is rejected.
- */
-export const MaxChatFileIDs = 50;
 
 // From codersdk/chats.go
 /**

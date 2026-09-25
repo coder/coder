@@ -1800,6 +1800,72 @@ How often to reconcile workspace prebuilds state.
 
 Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
 
+### --chat-max-steps-per-turn
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>int</code>                            |
+| Environment | <code>$CODER_CHAT_MAX_STEPS_PER_TURN</code> |
+| YAML        | <code>chat.maxStepsPerTurn</code>           |
+| Default     | <code>1200</code>                           |
+
+Maximum number of steps in a chat turn. Each model response is one step; compaction summaries, advisor calls, and retried attempts do not count. A turn that reaches the limit runs the tools from the last response, then ends without an error. Must be at least 1.
+
+### --chat-max-generation-retries
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>int</code>                                |
+| Environment | <code>$CODER_CHAT_MAX_GENERATION_RETRIES</code> |
+| YAML        | <code>chat.maxGenerationRetries</code>          |
+| Default     | <code>25</code>                                 |
+
+Maximum number of consecutive retries after a model generation fails with a transient error, such as a rate limit, an overloaded provider, or a stream that stops sending data. The count resets after each successful step. When the retries run out, the chat moves to the error state and shows the provider error. Advisor calls and the generation of chat titles, summaries, and turn status labels use the same limit. Must be at least 1.
+
+### --chat-max-queued-messages-per-chat
+
+|             |                                                       |
+|-------------|-------------------------------------------------------|
+| Type        | <code>int</code>                                      |
+| Environment | <code>$CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT</code> |
+| YAML        | <code>chat.maxQueuedMessagesPerChat</code>            |
+| Default     | <code>20</code>                                       |
+
+Maximum number of messages that can be queued in a chat. Sending a message to a chat whose queue is full fails with HTTP 429. Must be at least 1.
+
+### --chat-max-attachments-per-chat
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>int</code>                                  |
+| Environment | <code>$CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT</code> |
+| YAML        | <code>chat.maxAttachmentsPerChat</code>           |
+| Default     | <code>50</code>                                   |
+
+Maximum number of files linked to a chat, including user uploads, files the agent attaches, and desktop recordings and their thumbnails. Linking a file beyond the limit permanently deletes the chat's earliest-uploaded files, and earlier messages show them as expired. A message that includes more files than the limit is rejected with HTTP 400. Must be at least 1.
+
+### --chat-max-prompt-bytes
+
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>int</code>                          |
+| Environment | <code>$CODER_CHAT_MAX_PROMPT_BYTES</code> |
+| YAML        | <code>chat.maxPromptBytes</code>          |
+| Default     | <code>131072</code>                       |
+
+Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. Saving a longer prompt fails with HTTP 400. Lowering the limit does not affect prompts that are already saved. Must be at least 1.
+
+### --chat-max-concurrent-recording-uploads
+
+|             |                                                           |
+|-------------|-----------------------------------------------------------|
+| Type        | <code>int</code>                                          |
+| Environment | <code>$CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS</code> |
+| YAML        | <code>chat.maxConcurrentRecordingUploads</code>           |
+| Default     | <code>25</code>                                           |
+
+Maximum number of virtual desktop recordings that each Coder server stores at the same time. Each upload holds the recording and its thumbnail in memory, up to 110 MB. Additional recordings wait for a free slot and are discarded if none frees up within 90 seconds. Must be at least 1.
+
 ### --chat-stream-silence-timeout
 
 |             |                                                 |
