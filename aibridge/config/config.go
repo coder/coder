@@ -6,6 +6,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/keypool"
 )
 
@@ -60,6 +61,8 @@ func (c AWSClaudePlatform) Validate() error {
 
 // Anthropic carries configuration for an Anthropic provider.
 type Anthropic struct {
+	// Logger records provider transport diagnostics.
+	Logger slog.Logger
 	// Name is the provider instance name. If empty, defaults to "anthropic".
 	Name    string
 	BaseURL string

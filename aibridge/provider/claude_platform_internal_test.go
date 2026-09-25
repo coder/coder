@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -13,8 +14,11 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
@@ -173,7 +177,10 @@ func TestAnthropic_ClaudePlatformCredentialInitializationRetries(t *testing.T) {
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
 
 	_, err = p.claudePlatform.creds.Retrieve(context.Background())
-	require.Error(t, err)
+	require.ErrorContains(t, err, "build claude platform AWS credentials:")
+	var profileErr awsconfig.SharedConfigProfileNotExistError
+	require.ErrorAs(t, err, &profileErr)
+	require.Equal(t, "missing-profile", profileErr.Profile)
 
 	t.Setenv("AWS_PROFILE", "")
 	t.Setenv("AWS_ACCESS_KEY_ID", "test-access-key")
@@ -408,20 +415,54 @@ func TestAnthropic_WrapPassthroughTransport(t *testing.T) {
 		require.Equal(t, "wrkspc_config", inner.req.Header.Get(intercept.HeaderAnthropicWorkspaceID))
 	})
 
-	t.Run("ambient IAM sets the workspace header", func(t *testing.T) {
-		t.Parallel()
+	for _, transport := range []string{"messages", "passthrough"} {
+		for _, tt := range []struct {
+			name, header, credential, authPath string
+		}{
+			{name: "ambient IAM", authPath: "aws_sigv4"},
+			{name: "API key", header: intercept.AuthHeaderXAPIKey, credential: "test-api-key", authPath: "existing_credential"},
+			{name: "bearer token", header: intercept.AuthHeaderAuthorization, credential: "Bearer test-bearer-token", authPath: "existing_credential"},
+		} {
+			for _, level := range []slog.Level{slog.LevelDebug, slog.LevelInfo} {
+				t.Run(transport+"/"+tt.name+"/"+level.String(), func(t *testing.T) {
+					t.Parallel()
+					var logs bytes.Buffer
+					logger := slog.Make(sloghuman.Sink(&logs)).Leveled(level)
+					p := newTestClaudePlatform(t, config.Anthropic{Logger: logger}, claudePlatformIAMCfg())
+					inner := &captureTransport{}
+					p.claudePlatform.inner = inner
+					var wrapped http.RoundTripper = p.claudePlatform
+					if transport == "passthrough" {
+						wrapped = p.WrapPassthroughTransport(inner)
+					}
 
-		p := newTestClaudePlatform(t, config.Anthropic{}, claudePlatformIAMCfg())
-		inner := &captureTransport{}
+					ctx := slog.With(t.Context(), slog.F("request_id", "test-request-id"))
+					req := httptest.NewRequestWithContext(ctx, http.MethodGet, p.BaseURL()+"/v1/models", nil)
+					if tt.header != "" {
+						req.Header.Set(tt.header, tt.credential)
+					}
+					resp, err := wrapped.RoundTrip(req)
+					require.NoError(t, err)
+					require.NoError(t, resp.Body.Close())
+					require.Equal(t, "wrkspc_config", inner.req.Header.Get(intercept.HeaderAnthropicWorkspaceID))
+					if tt.header == "" {
+						require.True(t, strings.HasPrefix(inner.req.Header.Get(intercept.AuthHeaderAuthorization), "AWS4-HMAC-SHA256"))
+					} else {
+						require.Equal(t, tt.credential, inner.req.Header.Get(tt.header))
+					}
 
-		req := httptest.NewRequest(http.MethodGet, "https://aws-external-anthropic.us-west-2.api.aws/v1/models", nil)
-
-		resp, err := p.WrapPassthroughTransport(inner).RoundTrip(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		require.NotNil(t, inner.req)
-		require.Equal(t, "wrkspc_config", inner.req.Header.Get(intercept.HeaderAnthropicWorkspaceID))
-		require.True(t, strings.HasPrefix(inner.req.Header.Get(intercept.AuthHeaderAuthorization), "AWS4-HMAC-SHA256"))
-	})
+					if level == slog.LevelInfo {
+						require.Empty(t, logs.String(), "authentication diagnostics must be debug-only")
+						return
+					}
+					require.Contains(t, logs.String(), "claude platform authentication")
+					require.Contains(t, logs.String(), "auth_path="+tt.authPath)
+					require.Contains(t, logs.String(), "request_id=test-request-id")
+					for _, secret := range []string{"test-api-key", "test-bearer-token", "test-access-key", "test-secret-key", "test-session-token", "Signature="} {
+						require.NotContains(t, logs.String(), secret)
+					}
+				})
+			}
+		}
+	}
 }

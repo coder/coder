@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
@@ -15,8 +17,9 @@ import (
 // claudePlatformTransport authenticates both Messages SDK and passthrough
 // requests after client-header sanitization and key selection.
 type claudePlatformTransport struct {
-	inner http.RoundTripper
-	cfg   config.AWSClaudePlatform
+	inner  http.RoundTripper
+	cfg    config.AWSClaudePlatform
+	logger slog.Logger
 	// creds is loaded lazily so BYOK and pooled requests do not consult AWS.
 	creds aws.CredentialsProvider
 }
@@ -31,7 +34,7 @@ func newLazyAWSCredentials(region string) aws.CredentialsProvider {
 		defer cancel()
 		cfg, err := buildAWSCredentials(ctx, awsCredentialSpec{Region: region})
 		if err != nil {
-			return aws.Credentials{}, err
+			return aws.Credentials{}, xerrors.Errorf("build claude platform AWS credentials: %w", err)
 		}
 		return cfg.Credentials.Retrieve(ctx)
 	}))
@@ -49,8 +52,11 @@ func (t *claudePlatformTransport) RoundTrip(req *http.Request) (*http.Response, 
 	// top would produce two credentials on one request.
 	if req.Header.Get(intercept.AuthHeaderXAPIKey) != "" ||
 		req.Header.Get(intercept.AuthHeaderAuthorization) != "" {
+		t.logger.Debug(req.Context(), "claude platform authentication", slog.F("auth_path", "existing_credential"))
 		return t.inner.RoundTrip(req)
 	}
+
+	t.logger.Debug(req.Context(), "claude platform authentication", slog.F("auth_path", "aws_sigv4"))
 
 	// Bound credential retrieval without imposing a deadline on the response stream.
 	creds := aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
