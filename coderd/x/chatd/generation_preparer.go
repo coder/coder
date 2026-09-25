@@ -317,11 +317,12 @@ func (server *Server) prepareGeneration(
 		// bound agent's pushed snapshot now if it is still unpinned, so the
 		// first turn reads workspace context instead of waiting for the
 		// agent's next push. Idempotent and snapshot-gated; runs before the
-		// pinned context is read below.
-		server.ensureChatContextPinnedOnFirstTurn(ctx, workspaceCtx.currentChatSnapshot())
+		// pinned context is read below, which needs the pinned row so a
+		// snapshot without files reads as "no files", not "unpublished".
+		pinnedChat := server.ensureChatContextPinnedOnFirstTurn(ctx, workspaceCtx.currentChatSnapshot())
 
 		var resolveErr error
-		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
+		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, pinnedChat, agent)
 		if resolveErr != nil {
 			cleanup()
 			return generationPrepared{}, resolveErr

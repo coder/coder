@@ -1396,7 +1396,9 @@ type sqlcQuerier interface {
 	// Pins a single chat to the supplied context snapshot hash and error
 	// and clears any dirty marker. Used by chat-create hydration and the
 	// refresh endpoint. Does not bump updated_at: context pinning is
-	// background state and must not reorder chat lists.
+	// background state and must not reorder chat lists. An empty hash
+	// unpins the chat: a nil Go []byte reaches the driver as an empty
+	// bytea, not NULL, and only NULL reads as "never pinned" elsewhere.
 	SetChatContextSnapshot(ctx context.Context, arg SetChatContextSnapshotParams) error
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
