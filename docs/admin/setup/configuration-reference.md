@@ -53,6 +53,14 @@ The default lifetime duration for API tokens. This value is used when creating a
 - YAML key: `defaultTokenLifetime`
 - Default value: `168h0m0s`
 
+### Disable chat caller-supplied tools
+
+Disable caller-supplied tools in chats. Chat creation requests that include unsafe_dynamic_tools are rejected, and existing chats run without their dynamic tools.
+
+- Environment variable: `CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS`
+- CLI flag: [`--disable-chat-caller-supplied-tools`](../../reference/cli/server.md#--disable-chat-caller-supplied-tools)
+- YAML key: `disableChatCallerSuppliedTools`
+
 ### Disable chat sharing
 
 Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.
