@@ -272,6 +272,12 @@ type Options struct {
 	ChatStreamPartsDialer chatd.StreamPartsDialer
 	// Nil keeps the default chat agent caps active.
 	ChatAgentCapacityUnlock chatd.AgentCapacityUnlock
+	// ChatInternalMCPServers maps hosts to MCP handlers that chats reach
+	// in process at mcpclient.InternalURL(host). Attach one to a chat
+	// through chatd.CreateOptions.InlineMCPServers with
+	// ForwardCoderHeaders set. New starts the chat worker, so each handler
+	// must be able to serve before New returns.
+	ChatInternalMCPServers map[string]http.Handler
 	// ChatProviderAPIKeys supplies fallback provider keys for chat execution.
 	// Test harnesses use this to route chat models to local providers.
 	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
@@ -951,6 +957,7 @@ func New(options *Options) *API {
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				MCPHTTPClient:                  api.mcpHTTPClient,
+				InternalMCPServers:             options.ChatInternalMCPServers,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
 			})
