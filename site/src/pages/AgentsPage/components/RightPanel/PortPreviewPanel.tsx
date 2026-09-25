@@ -14,6 +14,7 @@ import {
 import { getErrorMessage } from "#/api/errors";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
@@ -296,15 +297,19 @@ export const PortPreviewPanel: FC<{
 											: "aria-disabled:cursor-not-allowed aria-disabled:text-content-disabled aria-disabled:hover:text-content-disabled"
 									}
 								>
-									<MessageSquarePlusIcon />
+									<Spinner loading={bridge.loading} size="sm">
+										<MessageSquarePlusIcon />
+									</Spinner>
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent side="bottom">
 								{bridge.unavailable
 									? overlayUnavailableReason
-									: bridge.picking
-										? "Click elements in the preview to annotate them"
-										: "Annotate elements in the preview; each comment is sent to the agent"}
+									: bridge.loading
+										? "Loading the annotation overlay"
+										: bridge.picking
+											? "Click elements in the preview to annotate them"
+											: "Annotate elements in the preview; each comment is sent to the agent"}
 							</TooltipContent>
 						</Tooltip>
 						{bridge.unavailable && (
