@@ -58,12 +58,12 @@ func TestWriteFile(t *testing.T) {
 		mockConn.EXPECT().ResolvePath(gomock.Any(), planPath).Return(planPath, nil)
 		mockConn.EXPECT().
 			WriteFile(gomock.Any(), planPath, gomock.Any()).
-			DoAndReturn(func(_ context.Context, path string, reader io.Reader) error {
+			DoAndReturn(func(_ context.Context, path string, reader io.Reader) (workspacesdk.WriteFileResponse, error) {
 				data, err := io.ReadAll(reader)
 				require.NoError(t, err)
 				require.Equal(t, planPath, path)
 				require.Equal(t, "# Plan", string(data))
-				return nil
+				return workspacesdk.WriteFileResponse{}, nil
 			})
 
 		tool := chattool.WriteFile(chattool.WriteFileOptions{
@@ -98,12 +98,12 @@ func TestWriteFile(t *testing.T) {
 			Return("", statusError{statusCode: http.StatusNotFound, message: "missing resolve-path endpoint"})
 		mockConn.EXPECT().
 			WriteFile(gomock.Any(), planPath, gomock.Any()).
-			DoAndReturn(func(_ context.Context, path string, reader io.Reader) error {
+			DoAndReturn(func(_ context.Context, path string, reader io.Reader) (workspacesdk.WriteFileResponse, error) {
 				data, err := io.ReadAll(reader)
 				require.NoError(t, err)
 				require.Equal(t, planPath, path)
 				require.Equal(t, "# Plan", string(data))
-				return nil
+				return workspacesdk.WriteFileResponse{}, nil
 			})
 		tool := chattool.WriteFile(chattool.WriteFileOptions{
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
@@ -287,12 +287,12 @@ func TestWriteFile(t *testing.T) {
 		chatPlanPath := "/home/coder/.coder/plans/PLAN-123e4567-e89b-12d3-a456-426614174000.md"
 		mockConn.EXPECT().
 			WriteFile(gomock.Any(), chatPlanPath, gomock.Any()).
-			DoAndReturn(func(_ context.Context, path string, reader io.Reader) error {
+			DoAndReturn(func(_ context.Context, path string, reader io.Reader) (workspacesdk.WriteFileResponse, error) {
 				data, err := io.ReadAll(reader)
 				require.NoError(t, err)
 				require.Equal(t, chatPlanPath, path)
 				require.Equal(t, "# Plan", string(data))
-				return nil
+				return workspacesdk.WriteFileResponse{}, nil
 			})
 
 		resolvePlanPathCalled := false
@@ -323,12 +323,12 @@ func TestWriteFile(t *testing.T) {
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		mockConn.EXPECT().
 			WriteFile(gomock.Any(), "/home/coder/myproject/plan.md", gomock.Any()).
-			DoAndReturn(func(_ context.Context, path string, reader io.Reader) error {
+			DoAndReturn(func(_ context.Context, path string, reader io.Reader) (workspacesdk.WriteFileResponse, error) {
 				data, err := io.ReadAll(reader)
 				require.NoError(t, err)
 				require.Equal(t, "/home/coder/myproject/plan.md", path)
 				require.Equal(t, "# Plan", string(data))
-				return nil
+				return workspacesdk.WriteFileResponse{}, nil
 			})
 
 		tool := chattool.WriteFile(chattool.WriteFileOptions{
@@ -356,12 +356,12 @@ func TestWriteFile(t *testing.T) {
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		mockConn.EXPECT().
 			WriteFile(gomock.Any(), "/home/coder/myproject/plan.md", gomock.Any()).
-			DoAndReturn(func(_ context.Context, path string, reader io.Reader) error {
+			DoAndReturn(func(_ context.Context, path string, reader io.Reader) (workspacesdk.WriteFileResponse, error) {
 				data, err := io.ReadAll(reader)
 				require.NoError(t, err)
 				require.Equal(t, "/home/coder/myproject/plan.md", path)
 				require.Equal(t, "# Plan", string(data))
-				return nil
+				return workspacesdk.WriteFileResponse{}, nil
 			})
 
 		planPathCalled := false
@@ -392,12 +392,12 @@ func TestWriteFile(t *testing.T) {
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		mockConn.EXPECT().
 			WriteFile(gomock.Any(), "/home/dev/my-plan.md", gomock.Any()).
-			DoAndReturn(func(_ context.Context, path string, reader io.Reader) error {
+			DoAndReturn(func(_ context.Context, path string, reader io.Reader) (workspacesdk.WriteFileResponse, error) {
 				data, err := io.ReadAll(reader)
 				require.NoError(t, err)
 				require.Equal(t, "/home/dev/my-plan.md", path)
 				require.Equal(t, "# Plan", string(data))
-				return nil
+				return workspacesdk.WriteFileResponse{}, nil
 			})
 
 		resolvePlanPathCalled := false
@@ -428,11 +428,11 @@ func TestWriteFile(t *testing.T) {
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		mockConn.EXPECT().
 			WriteFile(gomock.Any(), chattool.LegacySharedPlanPath, gomock.Any()).
-			DoAndReturn(func(_ context.Context, _ string, reader io.Reader) error {
+			DoAndReturn(func(_ context.Context, _ string, reader io.Reader) (workspacesdk.WriteFileResponse, error) {
 				data, err := io.ReadAll(reader)
 				require.NoError(t, err)
 				require.Equal(t, "# Plan", string(data))
-				return nil
+				return workspacesdk.WriteFileResponse{}, nil
 			})
 
 		tool := chattool.WriteFile(chattool.WriteFileOptions{

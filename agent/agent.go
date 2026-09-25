@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agenthooks"
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
@@ -119,6 +120,11 @@ type Options struct {
 	SocketPath                      string // Path for the agent socket server socket
 	AgentFirewallLogProxySocketPath string
 	ContextConfig                   agentcontextconfig.Config
+	// WorkspaceHooksFile, when non-empty, enables the CODAGT-1083
+	// prototype: workspace hooks declared in this file (relative to
+	// the working directory and the user's home) run before chat
+	// tools execute.
+	WorkspaceHooksFile string
 	// DERPTLSConfig is an optional TLS config for DERP connections.
 	DERPTLSConfig *tls.Config
 	// StatsReportInterval is the interval for the connstats callback
@@ -247,6 +253,7 @@ func New(options Options) Agent {
 		socketServerEnabled:             options.SocketServerEnabled,
 		agentFirewallLogProxySocketPath: options.AgentFirewallLogProxySocketPath,
 		contextConfig:                   options.ContextConfig,
+		workspaceHooksFile:              options.WorkspaceHooksFile,
 		derpTLSConfig:                   options.DERPTLSConfig,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
@@ -329,6 +336,7 @@ type agent struct {
 	agentFirewallLogProxy           *boundarylogproxy.Server
 	agentFirewallLogProxySocketPath string
 	contextConfig                   agentcontextconfig.Config
+	workspaceHooksFile              string
 
 	prometheusRegistry *prometheus.Registry
 	// metrics are prometheus registered metrics that will be collected and
@@ -461,7 +469,6 @@ func (a *agent) init() {
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	pathStore := agentgit.NewPathStore()
-	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo))
 	// workingDirFn reports the workspace directory ("" before the first manifest).
 	workingDirFn := func() string {
 		if m := a.manifest.Load(); m != nil {
@@ -469,7 +476,13 @@ func (a *agent) init() {
 		}
 		return ""
 	}
+	var preToolHook agenthooks.PreToolHook
+	if a.workspaceHooksFile != "" {
+		preToolHook = agenthooks.New(a.logger.Named("hooks"), a.execer, a.filesystem, a.envInfo, workingDirFn, a.workspaceHooksFile).PreToolUse
+	}
+	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo), agentfiles.WithPreToolHook(preToolHook))
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn)
+	a.processAPI.SetPreToolHook(preToolHook)
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(

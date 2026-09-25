@@ -675,11 +675,12 @@ func (mr *MockAgentConnMockRecorder) WatchGit(ctx, logger, chatID any) *gomock.C
 }
 
 // WriteFile mocks base method.
-func (m *MockAgentConn) WriteFile(ctx context.Context, path string, reader io.Reader) error {
+func (m *MockAgentConn) WriteFile(ctx context.Context, path string, reader io.Reader) (workspacesdk.WriteFileResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteFile", ctx, path, reader)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(workspacesdk.WriteFileResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // WriteFile indicates an expected call of WriteFile.

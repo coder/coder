@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agenthooks"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
@@ -35,6 +36,24 @@ type API struct {
 	logger    slog.Logger
 	manager   *manager
 	pathStore *agentgit.PathStore
+	// preToolHook, when set, runs workspace hooks before a command
+	// starts. PROTOTYPE (CODAGT-1083).
+	preToolHook agenthooks.PreToolHook
+}
+
+// executeHookInput is the execute tool input as hooks see it and as an
+// input_override must be shaped. Env is chatd-managed and stays out of
+// reach of hooks.
+type executeHookInput struct {
+	Command    string `json:"command"`
+	WorkDir    string `json:"workdir,omitempty"`
+	Background bool   `json:"background,omitempty"`
+}
+
+// SetPreToolHook installs the workspace hook runner. Passing nil
+// disables hooks.
+func (api *API) SetPreToolHook(fn agenthooks.PreToolHook) {
+	api.preToolHook = fn
 }
 
 // NewAPI creates a new process API handler.
@@ -87,6 +106,29 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 		chatID = chatContext.ID.String()
 	}
 
+	hooks, ok := agenthooks.Gate(rw, r, api.preToolHook, "execute", executeHookInput{
+		Command:    req.Command,
+		WorkDir:    req.WorkDir,
+		Background: req.Background,
+	})
+	if !ok {
+		return
+	}
+	if hooks.Rewritten() {
+		var rewritten executeHookInput
+		if err := json.Unmarshal(hooks.Input, &rewritten); err != nil || rewritten.Command == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Workspace hook returned an unusable input_override for execute.",
+				Detail:  fmt.Sprintf("override %s: %v", hooks.Input, err),
+			})
+			return
+		}
+		req.Command = rewritten.Command
+		req.WorkDir = rewritten.WorkDir
+		req.Background = rewritten.Background
+	}
+	decisions := hooks.Decisions
+
 	proc, err := api.manager.start(req, chatID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -116,6 +158,7 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.StartProcessResponse{
 		ID:      proc.id,
 		Started: true,
+		Hooks:   decisions,
 	})
 }
 

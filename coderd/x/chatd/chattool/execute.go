@@ -125,7 +125,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		ExecuteToolName,
 		"Execute a shell command in the workspace. Runs under \"sh -c\" (POSIX). Waits for completion up to the timeout (default 10s, override with the timeout parameter e.g. '30s', '5m'). If the command exceeds the timeout, the response includes a background_process_id; use process_output with that ID to re-attach and wait for the result. Use run_in_background=true for persistent processes (dev servers, file watchers) or when you want to continue other work while the command runs. Never use shell '&' for backgrounding.",
-		func(ctx context.Context, args ExecuteArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		func(ctx context.Context, args ExecuteArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}
@@ -133,7 +133,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeTool(ctx, conn, args, options), nil
+			return executeTool(workspacesdk.WithToolCallID(ctx, call.ID), conn, args, options), nil
 		},
 	)
 }
@@ -197,6 +197,9 @@ func executeBackground(
 		Background: true,
 	})
 	if err != nil {
+		if message, hooks, denied := workspaceHookDenial(err, "command"); denied {
+			return withWorkspaceHooks(errorResult(message), hooks)
+		}
 		return errorResult(enrichStartError(fmt.Sprintf("start background process: %v", err)))
 	}
 
@@ -209,7 +212,7 @@ func executeBackground(
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error())
 	}
-	return fantasy.NewTextResponse(string(data))
+	return withWorkspaceHooks(fantasy.NewTextResponse(string(data)), resp.Hooks)
 }
 
 // executeForeground starts a process and waits for its
@@ -248,6 +251,9 @@ func executeForeground(
 		Background: false,
 	})
 	if err != nil {
+		if message, hooks, denied := workspaceHookDenial(err, "command"); denied {
+			return withWorkspaceHooks(errorResult(message), hooks)
+		}
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
 	}
 
@@ -263,7 +269,7 @@ func executeForeground(
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error())
 	}
-	return fantasy.NewTextResponse(string(data))
+	return withWorkspaceHooks(fantasy.NewTextResponse(string(data)), resp.Hooks)
 }
 
 // truncateOutput safely truncates output to maxOutputToModel,

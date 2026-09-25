@@ -934,6 +934,9 @@ func (s *taskStarter) executeLocalTools(
 		}
 	}
 	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Content)
+	// Workspace hooks ran inside the tool calls, before post_tool_use,
+	// so their rows precede the deployment hook rows.
+	hookResults := append(workspaceHookResults(ctx, s.opts.Logger, outcome.Content), postResults...)
 	for _, result := range denied {
 		outcome.Content = append(outcome.Content, result)
 	}
@@ -949,7 +952,7 @@ func (s *taskStarter) executeLocalTools(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	messages, err = appendHookResultMessages(messages, postResults, prepared.ModelConfigID)
+	messages, err = appendHookResultMessages(messages, hookResults, prepared.ModelConfigID)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}

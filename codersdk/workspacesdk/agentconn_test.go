@@ -96,14 +96,16 @@ func TestAgentConnRejectsCrossAgentRedirects(t *testing.T) {
 			name:   "post 307",
 			status: http.StatusTemporaryRedirect,
 			invoke: func(ctx context.Context, conn workspacesdk.AgentConn) error {
-				return conn.WriteFile(ctx, "/tmp/attacker", strings.NewReader("redirect-body"))
+				_, err := conn.WriteFile(ctx, "/tmp/attacker", strings.NewReader("redirect-body"))
+				return err
 			},
 		},
 		{
 			name:   "post 308",
 			status: http.StatusPermanentRedirect,
 			invoke: func(ctx context.Context, conn workspacesdk.AgentConn) error {
-				return conn.WriteFile(ctx, "/tmp/attacker", strings.NewReader("redirect-body"))
+				_, err := conn.WriteFile(ctx, "/tmp/attacker", strings.NewReader("redirect-body"))
+				return err
 			},
 		},
 	}

@@ -2018,7 +2018,7 @@ content you are trying to write, then re-encode it properly.
 		defer conn.Close()
 
 		reader := bytes.NewReader(args.Content)
-		err = conn.WriteFile(ctx, args.Path, reader)
+		_, err = conn.WriteFile(ctx, args.Path, reader)
 		if err != nil {
 			return codersdk.Response{}, err
 		}
