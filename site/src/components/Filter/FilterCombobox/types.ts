@@ -21,7 +21,7 @@ export type FilterCategory = {
 	label: string;
 	getOptions: (query: string) => Promise<FilterOption[]>;
 	icon?: ReactNode;
-	/** Extra typed prefixes that enter this category, e.g. `user` for `owner`. */
+	/** Extra typed prefixes that enter this category. */
 	aliases?: readonly string[];
 	/**
 	 * Query keys this category owns for chip parsing. Defaults to `[key]`. A
@@ -56,7 +56,8 @@ export type FilterCategory = {
 	 * `widenedKey` instead of the category key, e.g. Owner committing
 	 * `user:alice` (owned by or shared with alice) instead of `owner:alice`.
 	 * While it is on, a pill after the chip reads `pillPrefix` and the chip's
-	 * value, and removing the pill turns the switch off.
+	 * value, and removing the pill turns the switch off. Applies only to
+	 * submenu categories, not inline ones.
 	 */
 	scopeToggle?: {
 		/** Switch label for the category's applied value, if there is one. */
@@ -75,7 +76,7 @@ export type FilterCategory = {
 };
 
 export const categoryChipKeys = (
-	category: FilterCategory,
+	category: Pick<FilterCategory, "key" | "chipKeys" | "scopeToggle">,
 ): readonly string[] => [
 	...new Set([
 		...(category.chipKeys ?? [category.key]),

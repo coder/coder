@@ -172,7 +172,8 @@ export function FilterCombobox({
 	const [highlightedCategoryKey, setHighlightedCategoryKey] = useState<
 		string | null
 	>(null);
-	// Typing a 3+ character prefix of a scope pill phrase finds the flyout.
+	// A scope match shows its flyout only while its row is highlighted, and
+	// never on coarse pointers.
 	const shownFlyoutKey =
 		flyoutCategoryKey ??
 		(!isCoarsePointer &&
@@ -257,7 +258,7 @@ export function FilterCombobox({
 	// open explicitly rather than through the scope match.
 	const toggleFlyoutScope = (categoryKey: string) => {
 		setFlyoutCategoryKey(categoryKey);
-		actions.toggleScope(categoryKey, true);
+		actions.toggleScope(categoryKey, { clearCategorySearch: true });
 	};
 	const selectFlyoutOption = (token: string) => {
 		actions.toggleCategoryOption(token);
@@ -390,21 +391,14 @@ export function FilterCombobox({
 						<SearchIcon aria-hidden className="size-icon-sm" />
 					</InputGroupAddon>
 					<FilterComboboxChips>
-						{chipValues.map((token, index) => {
+						{chipValues.map((token) => {
 							const display = chipDisplay(token, categories);
 							const category = categories.find(
 								(entry) => entry.key === display.key,
 							);
-							// The scope pill follows the last chip its category owns.
+							// The scope pill follows its category's chip.
 							const scopeToggle =
-								category?.scopeToggle &&
-								scopeWidened(category.key) &&
-								!chipValues
-									.slice(index + 1)
-									.some(
-										(later) =>
-											chipDisplay(later, categories).key === category.key,
-									)
+								category?.scopeToggle && scopeWidened(category.key)
 									? category.scopeToggle
 									: undefined;
 							const labelOnly = category?.chipLabelOnly === true;
@@ -1198,7 +1192,7 @@ function CategoryOptionsList({
 				category={category}
 				embedded={embedded}
 				offset={offset}
-				scope={undefined}
+				scope={scope}
 				onToggleScope={onToggleScope}
 			>
 				<LoadError

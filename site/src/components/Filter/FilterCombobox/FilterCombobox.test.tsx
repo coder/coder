@@ -1478,18 +1478,62 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it("rewrites the applied chip to match a typed owner prefix", async () => {
+	it("applies a typed owner prefix only when an option is picked", async () => {
 		const { user, onChange, input } = setup([scopedOwnerCategory], {
 			initialValue: "user:alice",
 		});
 
 		await user.click(input);
 		await user.type(input, "owner:");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{Escape}");
+		expect(onChange).not.toHaveBeenCalledWith("owner:alice");
 
+		await user.clear(input);
+		await user.type(input, "owner:");
+		await user.click(await screen.findByRole("option", { name: "alice" }));
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
 		);
 	});
+
+	it("lets the scope switch override a typed owner prefix", async () => {
+		const { user, input } = setup([scopedOwnerCategory], {
+			initialValue: "user:alice",
+		});
+
+		await user.click(input);
+		await user.type(input, "owner:");
+		const scopeSwitch = await screen.findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
+		await user.click(scopeSwitch);
+
+		expect(scopeSwitch).toBeChecked();
+	});
+
+	it.each([
+		["user:bob", "user:bob"],
+		["owner:bob", "owner:bob"],
+	])(
+		"commits a typed %s missing from the options with Enter",
+		async (typed, expected) => {
+			const { user, onChange, input } = setup([
+				{ ...scopedOwnerCategory, getOptions: async () => [] },
+			]);
+
+			await user.click(input);
+			await user.type(input, typed);
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"No Owner matches",
+				),
+			);
+			await user.keyboard("{Enter}");
+
+			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expected));
+		},
+	);
 
 	it("clears every chip and the search text with Clear all", async () => {
 		const { user, onChange, input } = setup(
@@ -1585,17 +1629,19 @@ describe("FilterCombobox", () => {
 		expect(onChange).toHaveBeenLastCalledWith("owner:alice xyz");
 	});
 
-	it("replaces both parsed Owner keys when selecting an option", async () => {
-		const { user, onChange, filtersButton } = setup([scopedOwnerCategory], {
-			initialValue: "owner:bob user:carol",
-		});
+	it("keeps a second Owner token as search text when selecting an option", async () => {
+		const { user, onChange, input, filtersButton } = setup(
+			[scopedOwnerCategory],
+			{ initialValue: "owner:bob user:carol" },
+		);
+		expect(input).toHaveValue("user:carol");
 
 		await user.click(filtersButton);
 		await user.keyboard("{ArrowRight}");
 		await user.click(await screen.findByRole("option", { name: "alice" }));
 
 		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice user:carol"),
 		);
 	});
 
@@ -1713,6 +1759,58 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	it("offers the scope switch in a category whose options failed to load", async () => {
+		const { user, onChange, filtersButton } = setup(
+			[
+				{
+					...scopedOwnerCategory,
+					getOptions: async () => {
+						throw new Error("failed");
+					},
+				},
+			],
+			{ initialValue: "user:alice" },
+		);
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowRight}");
+		await user.click(
+			await screen.findByRole("switch", {
+				name: "Include workspaces shared with alice",
+			}),
+		);
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
+	it("does not list the category for a scope phrase prefix under three characters", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			initialValue: "owner:alice",
+			fakeTimers: true,
+		});
+		await user.click(input);
+		await user.type(input, "sh");
+		await settleTypedText();
+
+		expect(onChange).toHaveBeenLastCalledWith("owner:alice sh");
+	});
+
+	it("clears the typed text when removing an owner from the scope flyout", async () => {
+		const { user, onChange, input } = setup([scopedOwnerCategory], {
+			initialValue: "user:alice",
+			skipHover: true,
+		});
+
+		await user.click(input);
+		await user.type(input, "sha");
+		await user.click(await screen.findByRole("button", { name: "alice" }));
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		expect(input).toHaveValue("");
+	});
+
 	it("clears the typed text when picking an owner from the scope flyout", async () => {
 		const { user, onChange, input } = setup([scopedOwnerCategory], {
 			skipHover: true,
@@ -1726,16 +1824,6 @@ describe("FilterCombobox", () => {
 			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
 		);
 		expect(input).toHaveValue("");
-	});
-
-	it("does not offer Clear all for two chips", () => {
-		setup([ownerCategory, statusCategory], {
-			initialValue: "owner:alice status:running",
-		});
-
-		expect(
-			screen.queryByRole("button", { name: "Clear all" }),
-		).not.toBeInTheDocument();
 	});
 
 	it("clears every chip with Clear all while a category is open", async () => {

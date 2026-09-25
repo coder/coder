@@ -56,13 +56,12 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				key: "owner",
 				label: "Owner",
 				icon: <UserIcon />,
-				// `user:<name>` also matches workspaces shared with that user.
-				chipKeys: ["owner", "user"],
 				scopeToggle: {
 					label: (owner) =>
 						owner
 							? `Include workspaces shared with ${owner}`
 							: "Include shared workspaces",
+					// `user:<name>` also matches workspaces shared with that user.
 					widenedKey: "user",
 					pillPrefix: "+ shared with",
 					pillRemoveLabel: (owner) => `Hide workspaces shared with ${owner}`,

@@ -619,7 +619,6 @@ const scopedOwnerCategories: FilterCategory[] = [
 		key: "owner",
 		label: "Owner",
 		icon: <UserIcon />,
-		chipKeys: ["owner", "user"],
 		scopeToggle: {
 			label: (owner) =>
 				owner

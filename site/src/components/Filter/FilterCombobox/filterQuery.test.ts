@@ -107,7 +107,7 @@ describe("filterQuery", () => {
 		).toEqual(["owner:alice", "status:running"]);
 	});
 
-	it("collapses owner and user keys to the last Owner chip", () => {
+	it("keeps the first Owner token as the chip and the rest as free text", () => {
 		const categories = [
 			{
 				key: "owner",
@@ -125,11 +125,14 @@ describe("filterQuery", () => {
 		const chipKeys = ["owner", "user"];
 
 		expect(queryToChips("owner:alice user:bob", chipKeys, categories)).toEqual([
-			"user:bob",
-		]);
-		expect(queryToChips("user:bob owner:alice", chipKeys, categories)).toEqual([
 			"owner:alice",
 		]);
+		expect(queryToChips("user:bob owner:alice", chipKeys, categories)).toEqual([
+			"user:bob",
+		]);
+		expect(
+			extractFreeText("user:me dev owner:alice", chipKeys, categories),
+		).toBe("dev owner:alice");
 		expect(
 			composeFilterQuery(
 				["owner:bob", "user:carol", "user:alice"],
