@@ -155,6 +155,28 @@ Deleting a secret also revokes the tokens issued under it, so the client has to 
 Earlier releases accepted the parameter in the query string.
 An integration that relied on that has to move it into the body or the header.
 
+## HTTP 401 for an access token in the query string
+
+Every API endpoint answers HTTP 401 when an access token issued by the OAuth2 provider arrives only in the URL query string, as `?access_token=` or `?coder_session_token=`.
+OAuth 2.1 section 5.1 requires the resource server to ignore access tokens in a URI query parameter.
+The response carries a `WWW-Authenticate: Bearer` challenge with no error code, because the ignored token leaves the request with no credentials, and the JSON body names the fix.
+Send the token in the `Authorization` header instead, as shown under [Authorization code flow](./integration-patterns.md#authorization-code-flow).
+
+The rule applies to tokens the OAuth2 provider issued.
+Coder session tokens and API tokens created from the dashboard or the CLI are still accepted in the query string, because browsers cannot set headers on WebSocket connections.
+
+A token that also appears in the `Authorization` header, the `Coder-Session-Token` header, or the session cookie is accepted, and the query copy is ignored.
+
+Each refusal writes a log line containing `oauth2 access token refused: sent in the URL query string` with the `api_key_id`, `path`, `remote_addr`, and `user_agent` of the request.
+Search the Coder logs for that string to find the integration that sends the token in the URL.
+The refused token stays valid and is not marked as used.
+
+A URL is recorded by reverse proxies, load balancers, CDN access logs, browser history, and `Referer` headers.
+Treat a token that was sent this way as exposed and revoke it, following [Revoke a token](./token-management.md#revoke-a-token).
+
+Earlier releases accepted the token in the query string.
+An integration that relied on that has to move it into the `Authorization` header.
+
 ## "unsupported_response_type" returned to your callback
 
 Coder supports the authorization code flow only, so `response_type=code` is the single accepted value.

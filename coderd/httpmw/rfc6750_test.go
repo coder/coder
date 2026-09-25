@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -228,4 +229,120 @@ func TestAPITokenFromRequest(t *testing.T) {
 			require.Equal(t, tt.expected, extractedToken)
 		})
 	}
+}
+
+//nolint:tparallel,paralleltest // Subtests share a DB; run sequentially to avoid Windows DB cleanup flake.
+func TestOAuth2ProviderTokenInQueryString(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	user := dbgen.User(t, db, database.User{})
+	app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
+	oauthKey, oauthToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		LoginType: database.LoginTypeOAuth2ProviderApp,
+		ExpiresAt: dbtime.Now().Add(testutil.WaitLong),
+	})
+	dbgen.OAuth2ProviderAppToken(t, db, database.OAuth2ProviderAppToken{
+		AppID:    app.ID,
+		APIKeyID: oauthKey.ID,
+		UserID:   user.ID,
+	})
+	sessionKey, sessionToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		ExpiresAt: dbtime.Now().Add(testutil.WaitLong),
+	})
+
+	cfg := httpmw.ExtractAPIKeyConfig{DB: db}
+
+	handlerExpecting := func(want database.APIKey) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			require.Equal(t, want.ID, httpmw.APIKey(r).ID)
+			rw.WriteHeader(http.StatusOK)
+		})
+	}
+
+	requireIgnored := func(t *testing.T, rw *httptest.ResponseRecorder) {
+		require.Equal(t, http.StatusUnauthorized, rw.Code)
+		wwwAuth := rw.Header().Get("WWW-Authenticate")
+		require.True(t, strings.HasPrefix(wwwAuth, `Bearer realm="coder"`), wwwAuth)
+		require.NotContains(t, wwwAuth, "error=")
+		require.Contains(t, rw.Body.String(), "Authorization header")
+	}
+
+	t.Run("AccessTokenQuery", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test?access_token="+url.QueryEscape(oauthToken), nil)
+		rw := httptest.NewRecorder()
+		httpmw.ExtractAPIKeyMW(cfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
+		requireIgnored(t, rw)
+
+		key, err := db.GetAPIKeyByID(ctx, oauthKey.ID)
+		require.NoError(t, err)
+		require.Equal(t, oauthKey.LastUsed, key.LastUsed)
+		require.Equal(t, oauthKey.ExpiresAt, key.ExpiresAt)
+	})
+
+	t.Run("SessionTokenQuery", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test?"+codersdk.SessionTokenCookie+"="+url.QueryEscape(oauthToken), nil)
+		rw := httptest.NewRecorder()
+		httpmw.ExtractAPIKeyMW(cfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
+		requireIgnored(t, rw)
+	})
+
+	t.Run("BearerHeader", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set("Authorization", "Bearer "+oauthToken)
+		rw := httptest.NewRecorder()
+		httpmw.ExtractAPIKeyMW(cfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
+		require.Equal(t, http.StatusOK, rw.Code)
+	})
+
+	t.Run("SessionTokenHeader", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test", nil)
+		req.Header.Set(codersdk.SessionTokenHeader, oauthToken)
+		rw := httptest.NewRecorder()
+		httpmw.ExtractAPIKeyMW(cfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
+		require.Equal(t, http.StatusOK, rw.Code)
+	})
+
+	t.Run("QueryAndBearerHeader", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test?access_token="+url.QueryEscape(oauthToken), nil)
+		req.Header.Set("Authorization", "Bearer "+oauthToken)
+		rw := httptest.NewRecorder()
+		httpmw.ExtractAPIKeyMW(cfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
+		require.Equal(t, http.StatusOK, rw.Code)
+	})
+
+	t.Run("FirstPartySessionTokenQuery", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test?"+codersdk.SessionTokenCookie+"="+url.QueryEscape(sessionToken), nil)
+		rw := httptest.NewRecorder()
+		httpmw.ExtractAPIKeyMW(cfg)(handlerExpecting(sessionKey)).ServeHTTP(rw, req)
+		require.Equal(t, http.StatusOK, rw.Code)
+	})
+
+	t.Run("OptionalRoute", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test?access_token="+url.QueryEscape(oauthToken), nil)
+		rw := httptest.NewRecorder()
+		optionalCfg := cfg
+		optionalCfg.Optional = true
+		httpmw.ExtractAPIKeyMW(optionalCfg)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			_, ok := httpmw.APIKeyOptional(r)
+			require.False(t, ok)
+			rw.WriteHeader(http.StatusOK)
+		})).ServeHTTP(rw, req)
+		require.Equal(t, http.StatusOK, rw.Code)
+	})
+
+	t.Run("CustomSessionTokenFunc", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test?"+codersdk.SessionTokenCookie+"="+url.QueryEscape(oauthToken), nil)
+		rw := httptest.NewRecorder()
+		customCfg := cfg
+		customCfg.SessionTokenFunc = func(r *http.Request) string {
+			return r.URL.Query().Get(codersdk.SessionTokenCookie)
+		}
+		httpmw.ExtractAPIKeyMW(customCfg)(handlerExpecting(oauthKey)).ServeHTTP(rw, req)
+		requireIgnored(t, rw)
+	})
 }
