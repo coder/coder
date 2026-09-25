@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"cmp"
 	"net/http"
 	"net/netip"
 
@@ -133,31 +132,11 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		sshInfo *codersdk.ConnectionLogSSHInfo
 	)
 
-	var (
-		connType       codersdk.ConnectionType
-		appName        string
-		appDisplayName string
-	)
-	switch kind := dblog.ConnectionLog.Kind; kind {
-	case database.ConnectionKindWorkspaceApp,
-		database.ConnectionKindPortForwarding,
-		database.ConnectionKindTunnel:
-		connType = codersdk.ConnectionType(kind)
-		if kind == database.ConnectionKindWorkspaceApp {
-			appName = dblog.ConnectionLog.AppNameOrPort.String
-			appDisplayName = appName
-		}
-		webInfo = &codersdk.ConnectionLogWebInfo{
-			UserAgent:  dblog.ConnectionLog.UserAgent.String,
-			User:       user,
-			SlugOrPort: dblog.ConnectionLog.AppNameOrPort.String,
-			StatusCode: dblog.ConnectionLog.Code.Int32,
-		}
-	// Agent connections. On older rows the kind names the app.
-	default:
-		appName = cmp.Or(dblog.ConnectionLog.AppNameOrPort.String, string(kind))
+	var appName, appDisplayName string
+	switch source := dblog.ConnectionLog.Source; source {
+	case database.ConnectionSourceAgent:
+		appName = dblog.ConnectionLog.AppNameOrPort.String
 		appDisplayName = codersdk.AppDisplayName(appName)
-		connType = codersdk.ConnectionTypeOfApp(appName)
 		sshInfo = &codersdk.ConnectionLogSSHInfo{
 			ConnectionID:     dblog.ConnectionLog.ConnectionID.UUID,
 			DisconnectReason: dblog.ConnectionLog.DisconnectReason.String,
@@ -167,6 +146,17 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		}
 		if dblog.ConnectionLog.Code.Valid {
 			sshInfo.ExitCode = &dblog.ConnectionLog.Code.Int32
+		}
+	default:
+		if source == database.ConnectionSourceWorkspaceApp {
+			appName = dblog.ConnectionLog.AppNameOrPort.String
+			appDisplayName = appName
+		}
+		webInfo = &codersdk.ConnectionLogWebInfo{
+			UserAgent:  dblog.ConnectionLog.UserAgent.String,
+			User:       user,
+			SlugOrPort: dblog.ConnectionLog.AppNameOrPort.String,
+			StatusCode: dblog.ConnectionLog.Code.Int32,
 		}
 	}
 
@@ -184,7 +174,7 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		WorkspaceID:            dblog.ConnectionLog.WorkspaceID,
 		WorkspaceName:          dblog.ConnectionLog.WorkspaceName,
 		AgentName:              dblog.ConnectionLog.AgentName,
-		Type:                   connType,
+		Type:                   db2sdk.ConnectionLogType(dblog.ConnectionLog.Source, dblog.ConnectionLog.AppNameOrPort.String),
 		AppName:                appName,
 		AppDisplayName:         appDisplayName,
 		IP:                     ip,

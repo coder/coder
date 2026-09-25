@@ -2,6 +2,7 @@
 package sdk2db
 
 import (
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -13,4 +14,36 @@ func ProvisionerDaemonStatus(status codersdk.ProvisionerDaemonStatus) database.P
 
 func ProvisionerDaemonStatuses(params []codersdk.ProvisionerDaemonStatus) []database.ProvisionerDaemonStatus {
 	return slice.List(params, ProvisionerDaemonStatus)
+}
+
+// Returns what a `type:` filter matches: a web source, or the apps of a
+// family. Unknown excludes the registered apps.
+func ConnectionLogTypeFilter(t codersdk.ConnectionType) (source database.ConnectionSource, appNames, excludedAppNames []string) {
+	switch {
+	case t == "":
+		return "", nil, nil
+	case t == codersdk.ConnectionTypeUnknown:
+		return "", nil, codersdk.KnownConnectionAppNames()
+	case t.IsWeb():
+		return database.ConnectionSource(t), nil, nil
+	default:
+		return "", t.AppNames(), nil
+	}
+}
+
+// Each family is also a registered app name. Any other type is an unknown app,
+// so the connection is still logged.
+func ConnectionLogAppName(typ agentproto.Connection_Type) string {
+	switch typ {
+	case agentproto.Connection_SSH:
+		return string(codersdk.AppFamilySSH)
+	case agentproto.Connection_JETBRAINS:
+		return string(codersdk.AppFamilyJetBrains)
+	case agentproto.Connection_VSCODE:
+		return string(codersdk.AppFamilyVSCode)
+	case agentproto.Connection_RECONNECTING_PTY:
+		return string(codersdk.AppFamilyReconnectingPTY)
+	default:
+		return string(codersdk.AppFamilyUnknown)
+	}
 }

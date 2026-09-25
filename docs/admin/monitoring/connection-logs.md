@@ -57,7 +57,7 @@ You can filter connection logs by the following parameters:
     to.
 - `type` - The type of the connection, such as SSH, VS Code, or workspace app.
     An IDE type includes every app in it, so `type:vscode` includes Cursor and
-    Devin sessions.
+    Devin sessions. `type:unknown` matches apps Coder does not recognize.
     For more connection types, refer to the
     [CoderSDK documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#ConnectionType).
 - `app` - The app that connected, such as `cursor`, or the slug of a workspace

@@ -104,8 +104,8 @@ export const ConnectionLogDescription: React.FC<
 			const typeName = connectionTypeDisplayNames[type];
 			return (
 				<span>
-					{app_display_name || typeName}{" "}
-					{app_name && app_name !== type && (
+					{app_display_name}{" "}
+					{app_name !== type && (
 						<>
 							<span className="text-xs text-content-secondary">
 								({typeName})

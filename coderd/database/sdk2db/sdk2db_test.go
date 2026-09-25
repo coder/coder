@@ -3,7 +3,10 @@ package sdk2db_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/sdk2db"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -32,5 +35,26 @@ func TestProvisionerDaemonStatus(t *testing.T) {
 				t.Errorf("ProvisionerDaemonStatus(%v) = %v; want %v", tc.input, got, tc.expect)
 			}
 		})
+	}
+}
+
+// A row matched by a type filter reads back as that type.
+func TestConnectionLogTypeFilter(t *testing.T) {
+	t.Parallel()
+
+	for _, typ := range codersdk.FilterableConnectionTypes() {
+		source, appNames, excludedAppNames := sdk2db.ConnectionLogTypeFilter(typ)
+		switch {
+		case source != "":
+			require.Equal(t, typ, db2sdk.ConnectionLogType(source, ""), typ)
+		case typ == codersdk.ConnectionTypeUnknown:
+			require.NotContains(t, excludedAppNames, "an_unregistered_ide")
+			require.Equal(t, typ, db2sdk.ConnectionLogType(database.ConnectionSourceAgent, "an_unregistered_ide"), typ)
+		default:
+			require.NotEmpty(t, appNames, typ)
+			for _, appName := range appNames {
+				require.Equal(t, typ, db2sdk.ConnectionLogType(database.ConnectionSourceAgent, appName), appName)
+			}
+		}
 	}
 }
