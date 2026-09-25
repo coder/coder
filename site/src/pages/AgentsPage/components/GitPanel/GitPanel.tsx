@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	ChatDiffStatus,
 	WorkspaceAgentRepoChanges,
@@ -31,6 +32,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import {
@@ -41,7 +43,68 @@ import {
 import { LocalDiffPanel } from "../DiffViewer/LocalDiffPanel";
 import { RemoteDiffPanel } from "../DiffViewer/RemoteDiffPanel";
 
-type GitView = { type: "remote" } | { type: "local"; repoRoot: string };
+type GitView =
+	| { type: "remote"; refId: string }
+	| { type: "local"; repoRoot: string };
+
+// The view id for a tracked ref. Rows without origin and branch
+// share the empty-key id.
+const viewIdFor = (status: ChatDiffStatus): string =>
+	`remote:${status.remote_origin ?? ""}:${status.git_branch ?? ""}`;
+
+// A keyless row predates the keyed schema and the API cannot select
+// it: an empty selector means the primary ref. Only the primary can
+// stay selectable; any other keyless row would fetch the primary's
+// diff under its own title.
+const isSelectableRef = (status: ChatDiffStatus, index: number): boolean =>
+	index === 0 || Boolean(status.remote_origin || status.git_branch);
+
+// Line counts for one repo's unified diff.
+const countDiffLines = (unifiedDiff: string): DiffStats => {
+	let additions = 0;
+	let deletions = 0;
+	for (const line of unifiedDiff.split("\n")) {
+		if (line.startsWith("+") && !line.startsWith("+++")) {
+			additions++;
+		} else if (line.startsWith("-") && !line.startsWith("---")) {
+			deletions++;
+		}
+	}
+	return { additions, deletions };
+};
+
+// Per-repo diff stats, repos with no net change excluded.
+const computeRepoStats = (
+	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>,
+): Map<string, DiffStats> => {
+	const stats = new Map<string, DiffStats>();
+	for (const [root, repo] of repositories.entries()) {
+		if (!repo.unified_diff) {
+			continue;
+		}
+		const repoStat = countDiffLines(repo.unified_diff);
+		if (repoStat.additions > 0 || repoStat.deletions > 0) {
+			stats.set(root, repoStat);
+		}
+	}
+	return stats;
+};
+
+// Union of currently-dirty and ever-dirty repos (still known to
+// the watcher), so a clean-revert does not hide the entry.
+const computeLocalRepos = (
+	repoStats: ReadonlyMap<string, DiffStats>,
+	everDirty: ReadonlySet<string> | undefined,
+	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>,
+): string[] => {
+	const roots = new Set<string>(repoStats.keys());
+	for (const root of everDirty ?? []) {
+		if (repositories.has(root)) {
+			roots.add(root);
+		}
+	}
+	return Array.from(roots).sort((a, b) => a.localeCompare(b));
+};
 
 const GIT_NOT_SETUP_TITLE = "Git is not set up for this chat";
 const GIT_NOT_SETUP_SENTENCE = "Git is not set up for this chat.";
@@ -56,11 +119,8 @@ type DiffStats = {
 };
 
 type GitPanelProps = {
-	/** PR tab data. Omitted if no PR is associated. */
-	prTab?: {
-		prNumber: number;
-		chatId: string;
-	};
+	/** The chat whose remote diff is displayed. */
+	chatId: string;
 	/** Repository data from git watcher. */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	/** Callback to send a refresh to the git watcher. Returns false when disconnected. */
@@ -71,8 +131,7 @@ type GitPanelProps = {
 	isExpanded?: boolean;
 	/** Whether the watcher is loading its initial repository state. */
 	isGitStatusLoading?: boolean;
-	/** Diff status for the remote/branch view (includes PR metadata). */
-	remoteDiffStats?: ChatDiffStatus;
+	remoteDiffStats?: readonly ChatDiffStatus[];
 	/** Ref to the chat input, forwarded to RemoteDiffPanel. */
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	/**
@@ -87,6 +146,41 @@ type GitPanelProps = {
 function repoLabel(repoRoot: string): string {
 	const segments = repoRoot.split("/").filter(Boolean);
 	return segments[segments.length - 1] ?? repoRoot;
+}
+
+// The repository an origin names, such as "coder/coder" from
+// "https://github.com/coder/coder.git". Falls back to the raw
+// origin when the URL carries no owner/repo path.
+function originRepoLabel(remoteOrigin: string | undefined): string {
+	if (!remoteOrigin) {
+		return "";
+	}
+
+	let path: string;
+	try {
+		path = new URL(remoteOrigin).pathname;
+	} catch {
+		// Not a URL. An scp-style remote such as
+		// "git@github.com:coder/coder.git" separates the host from
+		// the path with a colon, so treat it like a slash.
+		path = remoteOrigin.replaceAll(":", "/");
+	}
+
+	const segments = path
+		.split("/")
+		.filter(Boolean)
+		.map((segment) =>
+			segment.endsWith(".git") ? segment.slice(0, -4) : segment,
+		);
+
+	const owner = segments.at(-2);
+	const repo = segments.at(-1);
+
+	if (owner && repo) {
+		return `${owner}/${repo}`;
+	}
+
+	return remoteOrigin;
 }
 
 type ViewItemBase = {
@@ -107,8 +201,120 @@ type ViewItem =
 	| (ViewItemBase & { kind: "remote" })
 	| (ViewItemBase & { kind: "local"; repoRoot: string });
 
+// Inputs the view reconciliation needs for one render.
+type ViewFallbackInput = {
+	localRepos: readonly string[];
+	remoteDiffStats?: readonly ChatDiffStatus[];
+	primaryRefId: string;
+};
+
+// The view to render when the active one is no longer valid: the
+// remote tab hid, its ref lost its row, or its repo left the set.
+// Falls back to the first local repo, then the primary ref. When
+// nothing is left, the remote view stands and RemoteContent shows
+// its own empty state.
+const fallbackView = (view: GitView, input: ViewFallbackInput): GitView => {
+	const { localRepos, primaryRefId } = input;
+	const showRemoteTab = (input.remoteDiffStats?.length ?? 0) > 0;
+
+	// The remote tab can hide while a remote view is active.
+	if (view.type === "remote" && !showRemoteTab) {
+		if (localRepos.length > 0) {
+			return { type: "local", repoRoot: localRepos[0] };
+		}
+		return { type: "remote", refId: primaryRefId };
+	}
+	if (view.type === "remote") {
+		const isTracked =
+			view.refId === input.primaryRefId ||
+			(input.remoteDiffStats ?? []).some(
+				(status, index) =>
+					isSelectableRef(status, index) && viewIdFor(status) === view.refId,
+			);
+		if (isTracked) {
+			return view;
+		}
+		return { type: "remote", refId: primaryRefId };
+	}
+	// localRepos includes ever-dirty repos with empty diffs, so the
+	// active view stays valid until its root leaves the set.
+	if (localRepos.includes(view.repoRoot)) {
+		return view;
+	}
+	if (showRemoteTab) {
+		return { type: "remote", refId: primaryRefId };
+	}
+	if (localRepos.length > 0) {
+		return { type: "local", repoRoot: localRepos[0] };
+	}
+	return { type: "remote", refId: primaryRefId };
+};
+
+// One switcher entry for a tracked ref: PR rows show their number
+// and state, branch-only rows show the branch name. When the chat
+// tracks more than one origin, every row also names its repository,
+// because branch names and PR numbers repeat across repositories.
+const buildRemoteItem = (
+	status: ChatDiffStatus,
+	hasMultipleOrigins: boolean,
+): ViewItem => {
+	const prNumber =
+		status.pr_number ?? parsePullRequestUrl(status.url ?? "")?.number;
+	const state = status.pull_request_state;
+	const draft = status.pull_request_draft;
+	// head_branch falls back for legacy rows that predate git_branch.
+	const branchName = status.git_branch || status.head_branch;
+	const originLabel = hasMultipleOrigins
+		? originRepoLabel(status.remote_origin)
+		: undefined;
+	const originPrefix = originLabel ? `${originLabel} · ` : "";
+	if (prNumber) {
+		return {
+			kind: "remote",
+			id: viewIdFor(status),
+			stateLabel: prStateLabel(state, draft),
+			triggerIdentifier: `${originPrefix}PR #${prNumber}`,
+			itemPrimary: `${originPrefix}PR #${prNumber}`,
+			itemSecondary: status.pull_request_title || undefined,
+			stateClasses: prStateClasses(state, draft),
+			icon: (
+				<PrStateIcon
+					state={state}
+					draft={draft}
+					className="size-3.5! shrink-0"
+				/>
+			),
+		};
+	}
+	return {
+		kind: "remote",
+		id: viewIdFor(status),
+		stateLabel: "Branch",
+		triggerIdentifier: `${originPrefix}${branchName || "Branch"}`,
+		itemPrimary: "Branch",
+		itemSecondary: `${originPrefix}${branchName || "Branch"}`,
+		stateClasses: "text-content-secondary",
+		icon: <GitBranchIcon className="size-3.5 shrink-0" />,
+	};
+};
+
+// The full ref selector for a fetch. Keyless rows cannot carry
+// one, so they fetch with no selector and the server picks the
+// primary.
+const refSelectorFor = (
+	status: ChatDiffStatus | undefined,
+): TypesGen.DiffStatusRef | undefined => {
+	if (!status?.remote_origin && !status?.git_branch) {
+		return undefined;
+	}
+	return {
+		remote_origin: status.remote_origin ?? "",
+		git_branch: status.git_branch ?? "",
+	};
+};
+
 export const GitPanel: FC<GitPanelProps> = ({
-	prTab,
+	chatId,
 	repositories,
 	onRefresh,
 	onCommit,
@@ -118,84 +324,25 @@ export const GitPanel: FC<GitPanelProps> = ({
 	chatInputRef,
 	everDirty,
 }) => {
-	const hasRemoteDiff =
-		(remoteDiffStats?.changed_files ?? 0) > 0 ||
-		(remoteDiffStats?.additions ?? 0) > 0 ||
-		(remoteDiffStats?.deletions ?? 0) > 0;
-
-	const showRemoteTab = Boolean(prTab) || hasRemoteDiff;
+	const showRemoteTab = (remoteDiffStats?.length ?? 0) > 0;
 	const hasGitContext = repositories.size > 0 || showRemoteTab;
-	const isWaitingForGitStatus = !hasGitContext && isGitStatusLoading;
 
-	const prTitle = remoteDiffStats?.pull_request_title;
-	const prState = remoteDiffStats?.pull_request_state;
-	const prDraft = remoteDiffStats?.pull_request_draft;
-
-	// Compute per-repo diff stats from unified diffs. The React
-	// Compiler memoizes these derivations.
-	const repoStats = (() => {
-		const stats = new Map<string, DiffStats>();
-		for (const [root, repo] of repositories.entries()) {
-			if (!repo.unified_diff) continue;
-			let additions = 0;
-			let deletions = 0;
-			for (const line of repo.unified_diff.split("\n")) {
-				if (line.startsWith("+") && !line.startsWith("+++")) {
-					additions++;
-				} else if (line.startsWith("-") && !line.startsWith("---")) {
-					deletions++;
-				}
-			}
-			if (additions > 0 || deletions > 0) {
-				stats.set(root, { additions, deletions });
-			}
-		}
-		return stats;
-	})();
-
-	// Union of currently-dirty and ever-dirty repos (still known to
-	// the watcher) so a clean-revert does not hide the entry.
-	const localRepos = (() => {
-		const roots = new Set<string>(repoStats.keys());
-		if (everDirty) {
-			for (const root of everDirty) {
-				if (repositories.has(root)) {
-					roots.add(root);
-				}
-			}
-		}
-		return Array.from(roots).sort((a, b) => a.localeCompare(b));
-	})();
+	// The React Compiler memoizes these derivations.
+	const repoStats = computeRepoStats(repositories);
+	const localRepos = computeLocalRepos(repoStats, everDirty, repositories);
 
 	// Default to the first local repo when nothing has been pushed
 	// upstream yet, so the panel opens on the diff the user just made.
+	const primaryRefStatus = remoteDiffStats?.[0];
+	const primaryRefId = primaryRefStatus
+		? viewIdFor(primaryRefStatus)
+		: "remote";
 	const [view, setView] = useState<GitView>(() => {
 		if (!showRemoteTab && localRepos.length > 0) {
 			return { type: "local", repoRoot: localRepos[0] };
 		}
-		return { type: "remote" };
+		return { type: "remote", refId: primaryRefId };
 	});
-
-	// If the active view gets hidden, switch to the first available.
-	useEffect(() => {
-		if (view.type === "remote" && !showRemoteTab) {
-			if (localRepos.length > 0) {
-				setView({ type: "local", repoRoot: localRepos[0] });
-			}
-		} else if (view.type === "local") {
-			// localRepos includes ever-dirty repos with empty diffs, so
-			// the active view stays valid until its root leaves the set.
-			if (!localRepos.includes(view.repoRoot)) {
-				if (showRemoteTab) {
-					setView({ type: "remote" });
-				} else if (localRepos.length > 0) {
-					setView({ type: "local", repoRoot: localRepos[0] });
-				} else {
-					setView({ type: "remote" });
-				}
-			}
-		}
-	}, [view, showRemoteTab, localRepos]);
 
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 
@@ -221,26 +368,34 @@ export const GitPanel: FC<GitPanelProps> = ({
 		spinTimerRef.current = setTimeout(() => setSpinning(false), 1000);
 	};
 
-	// Reconcile a stale `view` inline so a repo removal never renders
-	// as "No changes" for a frame before the effect above updates.
-	// When nothing else is available, the remote view falls through;
-	// RemoteContent handles its own empty/loading state.
-	const effectiveView: GitView =
-		view.type === "remote"
-			? showRemoteTab
-				? view
-				: localRepos.length > 0
-					? { type: "local", repoRoot: localRepos[0] }
-					: view
-			: localRepos.includes(view.repoRoot)
-				? view
-				: showRemoteTab
-					? { type: "remote" }
-					: localRepos.length > 0
-						? { type: "local", repoRoot: localRepos[0] }
-						: { type: "remote" };
+	// Deriving this in render avoids an effect that would otherwise
+	// need to compare refIds to keep from re-setting itself.
+	const effectiveView = fallbackView(view, {
+		localRepos,
+		remoteDiffStats,
+		primaryRefId,
+	});
 
-	const showPrTitleRow = effectiveView.type === "remote" && prTab && prTitle;
+	const isRemoteView = effectiveView.type === "remote";
+
+	// The selected status row, or the primary when the view has no
+	// remote selector, so the panel always shows a diff.
+	const viewRefId =
+		effectiveView.type === "remote" ? effectiveView.refId : undefined;
+	const selectedRemote =
+		remoteDiffStats?.find(
+			(status) => viewRefId !== undefined && viewIdFor(status) === viewRefId,
+		) ?? remoteDiffStats?.[0];
+
+	const prTitle = selectedRemote?.pull_request_title;
+	const selectedPrNumber =
+		selectedRemote?.pr_number ??
+		parsePullRequestUrl(selectedRemote?.url ?? "")?.number;
+
+	// The selected ref can be branch-only with no PR, so the title
+	// row needs a PR number to belong to.
+	const showPrTitleRow =
+		isRemoteView && Boolean(selectedPrNumber) && Boolean(prTitle);
 
 	const [isPrTitleTruncated, setIsPrTitleTruncated] = useState(false);
 	// Ref callback so the observer attaches whenever the title span
@@ -258,39 +413,19 @@ export const GitPanel: FC<GitPanelProps> = ({
 		return () => observer.disconnect();
 	};
 
-	const remoteHeadBranch = remoteDiffStats?.head_branch;
-	const remoteItem: ViewItem | null = showRemoteTab
-		? prTab
-			? {
-					kind: "remote",
-					id: "remote",
-					stateLabel: prStateLabel(prState, prDraft),
-					triggerIdentifier: `PR #${prTab.prNumber}`,
-					itemPrimary: `PR #${prTab.prNumber}`,
-					itemSecondary: prTitle || undefined,
-					stateClasses: prStateClasses(prState, prDraft),
-					icon: (
-						<PrStateIcon
-							state={prState}
-							draft={prDraft}
-							className="size-3.5! shrink-0"
-						/>
-					),
-				}
-			: {
-					kind: "remote",
-					id: "remote",
-					stateLabel: "Branch",
-					triggerIdentifier: remoteHeadBranch || "Branch",
-					itemPrimary: "Branch",
-					itemSecondary: remoteHeadBranch || undefined,
-					stateClasses: "text-content-secondary",
-					icon: <GitBranchIcon className="size-3.5! shrink-0" />,
-				}
-		: null;
+	const remoteOrigins = new Set(
+		remoteDiffStats?.map((status) => status.remote_origin).filter(Boolean),
+	);
+	const hasMultipleOrigins = remoteOrigins.size > 1;
+	const remoteItems: ViewItem[] =
+		showRemoteTab && remoteDiffStats
+			? remoteDiffStats
+					.filter(isSelectableRef)
+					.map((status) => buildRemoteItem(status, hasMultipleOrigins))
+			: [];
 
 	const localItems: ViewItem[] = localRepos.map((repoRoot) => ({
-		kind: "local" as const,
+		kind: "local",
 		id: `local:${repoRoot}`,
 		repoRoot,
 		stateLabel: "Working",
@@ -301,22 +436,19 @@ export const GitPanel: FC<GitPanelProps> = ({
 		icon: <CircleDotIcon className="size-3.5! shrink-0 text-content-warning" />,
 	}));
 
-	const items: ViewItem[] = [
-		...(remoteItem ? [remoteItem] : []),
-		...localItems,
-	];
+	const items: ViewItem[] = [...remoteItems, ...localItems];
 
-	const activeItem: ViewItem | undefined =
-		effectiveView.type === "remote"
-			? (remoteItem ?? undefined)
-			: items.find(
-					(item) =>
-						item.kind === "local" && item.repoRoot === effectiveView.repoRoot,
-				);
+	const activeRepoRoot =
+		effectiveView.type === "local" ? effectiveView.repoRoot : undefined;
+	const activeItem: ViewItem | undefined = isRemoteView
+		? items.find((item) => item.id === viewRefId)
+		: items.find(
+				(item) => item.kind === "local" && item.repoRoot === activeRepoRoot,
+			);
 
 	const handleSelectItem = (item: ViewItem) => {
 		if (item.kind === "remote") {
-			setView({ type: "remote" });
+			setView({ type: "remote", refId: item.id });
 		} else {
 			setView({ type: "local", repoRoot: item.repoRoot });
 		}
@@ -330,7 +462,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 					<GitViewSwitcher
 						items={items}
 						activeItem={activeItem}
-						hasRemoteItem={remoteItem !== null}
+						hasRemoteItem={remoteItems.length > 0}
 						onSelect={handleSelectItem}
 					/>
 				</div>
@@ -420,15 +552,16 @@ export const GitPanel: FC<GitPanelProps> = ({
 			)}
 			{/* Content */}
 			<div className="min-h-0 flex-1">
-				{effectiveView.type === "remote" ? (
+				{isRemoteView ? (
 					<RemoteContent
-						prTab={prTab}
+						chatId={chatId}
 						hasGitContext={hasGitContext}
-						isGitStatusLoading={isWaitingForGitStatus}
+						isGitStatusLoading={isGitStatusLoading}
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
 						diffStyle={diffStyle}
-						diffStatus={remoteDiffStats}
+						diffStatus={selectedRemote}
+						remoteRef={refSelectorFor(selectedRemote)}
 					/>
 				) : (
 					<LocalRepoContent
@@ -576,23 +709,36 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 // ---------------------------------------------------------------
 
 const RemoteContent: FC<{
-	prTab?: { prNumber: number; chatId: string };
+	chatId?: string;
 	hasGitContext: boolean;
 	isGitStatusLoading: boolean;
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
 	diffStatus?: ChatDiffStatus;
+	remoteRef?: TypesGen.DiffStatusRef;
 }> = ({
-	prTab,
+	chatId,
 	hasGitContext,
 	isGitStatusLoading,
 	isExpanded,
 	chatInputRef,
 	diffStyle,
 	diffStatus,
+	remoteRef,
 }) => {
-	if (!prTab) {
+	if (!chatId || !diffStatus) {
+		// Loading beats every settled state: the status row that
+		// selects the message can still arrive.
+		let title = GIT_NOT_SETUP_SENTENCE;
+		let body = GIT_NOT_SETUP_BODY;
+		if (isGitStatusLoading) {
+			title = GIT_STATUS_LOADING_TITLE;
+			body = GIT_STATUS_LOADING_BODY;
+		} else if (hasGitContext) {
+			title = "No pushed changes yet";
+			body = "Once commits are pushed, the branch diff will appear here.";
+		}
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
 				<div className="mb-4 flex size-10 items-center justify-center rounded-lg border border-solid border-border-default bg-surface-secondary">
@@ -602,31 +748,20 @@ const RemoteContent: FC<{
 						<GitBranchIcon className="size-5 text-content-secondary" />
 					)}
 				</div>
-				<p className="text-sm font-medium text-content-primary">
-					{hasGitContext
-						? "No pushed changes yet"
-						: isGitStatusLoading
-							? GIT_STATUS_LOADING_TITLE
-							: GIT_NOT_SETUP_SENTENCE}
-				</p>
-				<p className="mt-1 max-w-52 text-xs text-content-secondary">
-					{hasGitContext
-						? "Once commits are pushed, the branch diff will appear here."
-						: isGitStatusLoading
-							? GIT_STATUS_LOADING_BODY
-							: GIT_NOT_SETUP_BODY}
-				</p>
+				<p className="text-sm font-medium text-content-primary">{title}</p>
+				<p className="mt-1 max-w-52 text-xs text-content-secondary">{body}</p>
 			</div>
 		);
 	}
 
 	return (
 		<RemoteDiffPanel
-			chatId={prTab.chatId}
+			chatId={chatId}
 			isExpanded={isExpanded}
 			chatInputRef={chatInputRef}
 			diffStyle={diffStyle}
 			diffStatus={diffStatus}
+			remoteRef={remoteRef}
 		/>
 	);
 };

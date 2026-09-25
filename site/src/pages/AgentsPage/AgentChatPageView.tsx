@@ -59,7 +59,6 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
-import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -341,10 +340,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
-	const parsedPrNumber = Number(
-		parsePullRequestUrl(chat.diff_status?.url)?.number,
-	);
-	const prNumber = chat.diff_status?.pr_number ?? (parsedPrNumber || undefined);
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -685,9 +680,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			case "git":
 				return (
 					<GitPanel
-						prTab={
-							prNumber && agentId ? { prNumber, chatId: agentId } : undefined
-						}
+						chatId={agentId}
 						repositories={gitWatcher.repositories}
 						everDirty={gitWatcher.everDirty}
 						isGitStatusLoading={
@@ -697,7 +690,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						onRefresh={handleRefresh}
 						onCommit={handleCommit}
 						isExpanded={visualExpanded}
-						remoteDiffStats={chat.diff_status}
+						remoteDiffStats={chat.diff_statuses}
 						chatInputRef={editing.chatInputRef}
 					/>
 				);

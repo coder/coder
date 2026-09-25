@@ -310,7 +310,7 @@ const buildQueries = (
 		mcpServers?: readonly TypesGen.MCPServerConfig[];
 	},
 ) => {
-	const diffStatus: TypesGen.ChatDiffStatus = {
+	const mockDiffStatus: TypesGen.ChatDiffStatus = {
 		chat_id: CHAT_ID,
 		url: opts?.diffUrl,
 		pull_request_title: "",
@@ -320,12 +320,13 @@ const buildQueries = (
 		deletions: opts?.diffUrl ? 1 : 0,
 		changed_files: opts?.diffUrl ? 2 : 0,
 	};
-	const chatWithDiffStatus: TypesGen.Chat = {
+	const mockChatWithDiffStatus: TypesGen.Chat = {
 		...chat,
-		diff_status: diffStatus,
+		diff_status: mockDiffStatus,
+		diff_statuses: [mockDiffStatus],
 	};
 	return [
-		{ key: chatEntityKey(CHAT_ID), data: chatWithDiffStatus },
+		{ key: chatEntityKey(CHAT_ID), data: mockChatWithDiffStatus },
 		{
 			key: chatMessagesKey(CHAT_ID),
 			data: { pages: [messagesData], pageParams: [undefined] },
@@ -338,7 +339,7 @@ const buildQueries = (
 		},
 		{
 			key: chatListKey(toChatListParams()),
-			data: { pages: [[chatWithDiffStatus]], pageParams: [0] },
+			data: { pages: [[mockChatWithDiffStatus]], pageParams: [0] },
 		},
 		{
 			key: chatDiffContentsKey(CHAT_ID),
