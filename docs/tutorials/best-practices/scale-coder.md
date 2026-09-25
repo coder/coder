@@ -97,14 +97,12 @@ Kubernetes or in different availability zones of the same geographic region.
 
 Do not deploy in different geographic regions.
 
-Control plane instances need to be able to communicate with one another directly with low
-latency, under 10&nbsp;ms. Note that this is for the availability of the Coder API.
-Workspaces are not fault tolerant unless they are explicitly built that way at
-the template level.
+Control plane instances need to be able to communicate with one another directly with low latency, under 10&nbsp;ms.
+Note that this is for the availability of the Coder API.
+Workspaces are not fault tolerant unless they are explicitly built that way at the template level.
 
 Deploy control plane instances as geographically close to PostgreSQL as possible.
-Low-latency communication (under 10&nbsp;ms) with Postgres is essential for control
-plane performance.
+Low-latency communication (under 10&nbsp;ms) with Postgres is essential for control plane performance.
 
 ### Scaling
 
@@ -209,9 +207,8 @@ the control plane.
 
 ### Locality
 
-Control plane instances must have low-latency connections (under 10&nbsp;ms) to
-PostgreSQL. If you use multiple PostgreSQL replicas in a clustered config, these
-must also be low-latency with respect to one another.
+Control plane instances must have low-latency connections (under 10&nbsp;ms) to PostgreSQL.
+If you use multiple PostgreSQL replicas in a clustered config, these must also be low-latency with respect to one another.
 
 ### Scaling
 

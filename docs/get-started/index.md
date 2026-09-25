@@ -2,9 +2,8 @@
 title: Quickstart
 ---
 
-Follow this guide to get your first Coder development environment
-running in under 10&nbsp;minutes. This guide covers the essential concepts and shows
-you how to create your first workspace and open it in your preferred editor.
+Follow this guide to get your first Coder development environment running in under 10&nbsp;minutes.
+This guide covers the essential concepts and shows you how to create your first workspace and open it in your preferred editor.
 This workspace includes a basic set of tools to edit most code bases.
 
 ## What you'll do

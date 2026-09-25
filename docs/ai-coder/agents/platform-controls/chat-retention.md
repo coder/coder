@@ -15,9 +15,9 @@ Debug run and step cleanup is controlled separately. See
 
 ## How it works
 
-A background process runs approximately every 10&nbsp;minutes to remove expired
-conversation data. Only archived conversations are eligible for deletion —
-active (non-archived) conversations are never purged.
+A background process runs approximately every 10&nbsp;minutes to remove expired conversation data.
+Only archived conversations are eligible for deletion.
+Active (non-archived) conversations are never purged.
 
 When an archived conversation exceeds the retention period, Coder deletes it along with its messages, diff statuses, and queued messages.
 Coder retains an attached file while any conversation references it, regardless of whether the conversation is active or archived.

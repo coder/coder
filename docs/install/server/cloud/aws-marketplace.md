@@ -32,9 +32,10 @@ You will then be taken to the AWS Management Console, CloudFormation `Create sta
 
 ![AWS Marketplace Stack](../../../images/platforms/aws/marketplace-stack.png)
 
-The default parameters will support POCs and small team deployments of Coder using `t3.large` (2&nbsp;cores and 8&nbsp;GB memory) Nodes.  While the deployment uses EKS Auto-mode and will scale using Karpenter, keep in mind this platforms is intended for proof-of-concept
-deployments. You should adjust your infrastructure when preparing for
-production use. See: [Scaling Coder](../../plan/index.md)
+The default parameters will support POCs and small team deployments of Coder using `t3.large` (2&nbsp;cores and 8&nbsp;GB memory) Nodes.
+While the deployment uses EKS Auto-mode and will scale using Karpenter, keep in mind this platforms is intended for proof-of-concept deployments.
+You should adjust your infrastructure when preparing for production use.
+See: [Scaling Coder](../../plan/index.md)
 
 ![AWS Marketplace Parameters](../../../images/platforms/aws/marketplace-parm.png)
 

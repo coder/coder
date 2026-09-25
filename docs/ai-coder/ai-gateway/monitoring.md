@@ -242,9 +242,8 @@ Refer to the [API documentation](../../reference/api/aigateway.md) for full deta
 
 ## Data retention
 
-AI Gateway data is retained for **60&nbsp;days by default**. Configure the retention
-period to balance storage costs with your organization's compliance and analysis
-needs.
+AI Gateway data is retained for **60&nbsp;days by default**.
+Configure the retention period to balance storage costs with your organization's compliance and analysis needs.
 
 For configuration options and details, refer to [Data Retention](./setup.md#data-retention)
 in the AI Gateway setup guide.

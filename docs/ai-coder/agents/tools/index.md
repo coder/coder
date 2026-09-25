@@ -99,11 +99,9 @@ affinity = 10 x (active + 0.5 x deleted) x 0.5^(days_since_last_use / 14)
 ```
 
 - `active`: your workspaces on the template used in the last 60&nbsp;days.
-- `deleted`: your recently deleted workspaces used in the last 60&nbsp;days,
-  counted at half the weight of active ones.
-- `days_since_last_use`: days since you last used the template. The personal
-  term halves every 14&nbsp;days and is zero when you have no usage in the last
-  60&nbsp;days.
+- `deleted`: your recently deleted workspaces used in the last 60&nbsp;days, counted at half the weight of active ones.
+- `days_since_last_use`: days since you last used the template.
+  The personal term halves every 14&nbsp;days and is zero when you have no usage in the last 60&nbsp;days.
 - `active_developers`: developers in the organization with an active
   workspace on the template, excluding unclaimed prebuilt workspaces.
 

@@ -306,10 +306,8 @@ database to the prior version.
 
 ### Performance efficiency
 
-We highly recommend deploying the PostgreSQL instance in the same region (and if
-possible, same availability zone) as the control plane to optimize for low
-latency connections. We recommend keeping latency under 10&nbsp;ms between the control
-plane and database.
+We highly recommend deploying the PostgreSQL instance in the same region (and if possible, same availability zone) as the control plane to optimize for low latency connections.
+We recommend keeping latency under 10&nbsp;ms between the control plane and database.
 
 When determining scaling requirements, take into account the following
 considerations:

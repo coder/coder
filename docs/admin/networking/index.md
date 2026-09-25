@@ -25,8 +25,7 @@ In order for clients and workspaces to be able to connect:
 > workspaces over a good quality, broadband network connection. The following
 > are minimum requirements:
 >
-> - better than 400&nbsp;ms round-trip latency to the control plane and to their
->   workspace
+> - better than 400&nbsp;ms round-trip latency to the control plane and to their workspace
 > - better than 0.5% random packet loss
 
 - All clients and agents must be able to establish a connection to the control

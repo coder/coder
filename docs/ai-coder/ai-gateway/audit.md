@@ -48,10 +48,9 @@ not just what was called.
 
 ### Sessions list
 
-The sessions page (`http://<deployment-url>/ai-gateway/sessions`) lists sessions in
-reverse-chronological order. By default it shows sessions with activity in the
-last 24&nbsp;hours. Use the time range filter in the filter bar to widen or narrow
-the window, for example to see older sessions.
+The sessions page (`http://<deployment-url>/ai-gateway/sessions`) lists sessions in reverse-chronological order.
+By default it shows sessions with activity in the last 24&nbsp;hours.
+Use the time range filter in the filter bar to widen or narrow the window, for example to see older sessions.
 
 Each row shows the last prompt, initiator, provider, client, token usage,
 network requests, thread count, and timestamp.

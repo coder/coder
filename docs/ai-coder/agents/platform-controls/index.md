@@ -164,8 +164,8 @@ See [Git Providers](./git-providers.md) for details.
 ### Data retention
 
 Administrators can configure a retention period for archived conversations.
-When enabled, archived conversations and orphaned files older than the
-retention period are automatically purged. The default is 30&nbsp;days.
+When enabled, archived conversations and orphaned files older than the retention period are automatically purged.
+The default is 30&nbsp;days.
 
 This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**.
 Refer to [Data Retention](./chat-retention.md) for details.

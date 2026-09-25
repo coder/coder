@@ -105,14 +105,10 @@ A brief overview of all files contained in the bundle is provided below:
    ```
 
    Workspace paths and globs are evaluated by the workspace agent.
-   Environment variables such as `$HOME` expand in the workspace, and `~/`
-   resolves against the agent user's home directory; any absolute path in
-   the workspace can be requested. Symlinks are followed for directly
-   requested paths, but not during glob traversal. Collection is limited to
-   10000 files and 100&nbsp;MiB in total; files larger than 10&nbsp;MiB are truncated
-   to their last 10&nbsp;MiB and marked as truncated in the manifest. Collected
-   files are stored under `agent/workspace_files/files/`, and collection
-   metadata is stored in `agent/workspace_files/manifest.json`.
+   Environment variables such as `$HOME` expand in the workspace, and `~/` resolves against the agent user's home directory; any absolute path in the workspace can be requested.
+   Symlinks are followed for directly requested paths, but not during glob traversal.
+   Collection is limited to 10000 files and 100&nbsp;MiB in total; files larger than 10&nbsp;MiB are truncated to their last 10&nbsp;MiB and marked as truncated in the manifest.
+   Collected files are stored under `agent/workspace_files/files/`, and collection metadata is stored in `agent/workspace_files/manifest.json`.
 
    > [!WARNING]
    > Workspace files can contain tokens, credentials, source code, or other

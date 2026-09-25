@@ -208,10 +208,10 @@ ENTRYPOINT ["/opt/coder", "wsproxy", "server"]
 
 ### Selecting a proxy
 
-Users can select a workspace proxy at the top-right of the browser-based Coder
-dashboard. Workspace proxy preferences are cached by the web browser. If a proxy
-goes offline, the session will fall back to the primary proxy. This could take
-up to 60&nbsp;seconds.
+Users can select a workspace proxy at the top-right of the browser-based Coder dashboard.
+Workspace proxy preferences are cached by the web browser.
+If a proxy goes offline, the session will fall back to the primary proxy.
+This could take up to 60&nbsp;seconds.
 
 ![Workspace proxy picker](../../images/admin/networking/workspace-proxies/ws-proxy-picker.png)
 
