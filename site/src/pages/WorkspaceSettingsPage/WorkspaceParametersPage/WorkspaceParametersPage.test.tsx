@@ -360,38 +360,6 @@ describe("WorkspaceParametersPage", () => {
 		await waitFor(() => expect(submitButton).toBeDisabled());
 	});
 
-	it("keeps submit enabled when a parameter reports only warnings", async () => {
-		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
-
-		const [, mockPublisher] = mockDynamicParameterWebSocket();
-
-		renderWorkspaceParametersPage();
-
-		// A value the template no longer offers is reconciled to the default and
-		// reported as a warning, which must not block the build.
-		await connectWithInitialParameters(mockPublisher, [
-			{
-				...MockPreviewParameter1,
-				diagnostics: [
-					{
-						severity: "warning",
-						summary: "Previously selected option is no longer available",
-						detail: 'The value "red" is not one of the available options.',
-						extra: { code: "stale_option" },
-					},
-				],
-			},
-		]);
-
-		await waitForLoaderToBeRemoved();
-
-		const form = screen.getByTestId("form");
-		const submitButton = within(form).getByRole("button", {
-			name: /update and restart/i,
-		});
-		await waitFor(() => expect(submitButton).toBeEnabled());
-	});
-
 	it("disables submit when a parameter reports an error", async () => {
 		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
 

@@ -137,12 +137,12 @@ export const WorkspaceParametersPageView: FC<
 		},
 	);
 
-	// Only an errors should blocks the update
-	const hasIncompatibleParameters = parameters.some(
-		(parameter) =>
-			!parameter.mutable &&
-			parameter.diagnostics.some((d) => d.severity === "error"),
-	);
+	const hasIncompatibleParameters = parameters.some((parameter) => {
+		if (!parameter.mutable && parameter.diagnostics.length > 0) {
+			return true;
+		}
+		return false;
+	});
 
 	return (
 		<>

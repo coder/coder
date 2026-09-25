@@ -90,28 +90,23 @@ func ResolveParameters(
 	//
 	// To enforce these, the user's input values are trimmed based on the
 	// mutability and ephemeral parameters defined in the template version.
-	trimCarriedValues(output.Parameters, values)
+	for _, parameter := range output.Parameters {
+		// Ephemeral parameters should not be taken from the previous build.
+		// They must always be explicitly set in every build.
+		// So remove their values if they are sourced from the previous build.
+		if parameter.Ephemeral {
+			v := values[parameter.Name]
+			if v.Source == sourcePrevious {
+				delete(values, parameter.Name)
+			}
+		}
+	}
 
 	// This is the final set of values that will be used. Any errors at this stage
 	// are fatal. Additional validation for immutability has to be done manually.
 	output, diags = renderer.Render(ctx, ownerID, values.ValuesMap())
 	if diags.HasErrors() {
 		return nil, parameterValidationError(diags)
-	}
-
-	// Dropping a value changes the options of any parameter derived from it, so
-	// a value that the trim above kept can be stranded by the render it caused.
-	// Every pass but the last drops at least one more value, so the number of
-	// parameters bounds the work.
-	for range len(output.Parameters) {
-		if !trimCarriedValues(output.Parameters, values) {
-			break
-		}
-
-		output, diags = renderer.Render(ctx, ownerID, values.ValuesMap())
-		if diags.HasErrors() {
-			return nil, parameterValidationError(diags)
-		}
 	}
 
 	// parameterNames is going to be used to remove any excess values left
@@ -243,35 +238,6 @@ func ResolveParameters(
 
 	// Return the values to be saved for the build.
 	return values.ValuesMap(), nil
-}
-
-// trimCarriedValues removes the values this template version cannot carry
-// forward from the previous build, and reports whether it removed any. Values
-// supplied with this build or by a preset are left alone, because those were
-// asked for explicitly.
-func trimCarriedValues(parameters []previewtypes.Parameter, values parameterValueMap) bool {
-	var trimmed bool
-	for _, parameter := range parameters {
-		v, ok := values[parameter.Name]
-		if !ok || v.Source != sourcePrevious {
-			continue
-		}
-
-		// Ephemeral parameters must be set explicitly in every build.
-		drop := parameter.Ephemeral
-		// A template update can remove an option value the previous build selected.
-		if parameter.Mutable && !isValidParameterOption(parameter, v.Value) {
-			drop = true
-		}
-
-		if !drop {
-			continue
-		}
-
-		delete(values, parameter.Name)
-		trimmed = true
-	}
-	return trimmed
 }
 
 type parameterValueMap map[string]parameterValue

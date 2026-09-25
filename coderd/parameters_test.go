@@ -16,9 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -111,71 +109,6 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 			Exists().Value("CL")
 		coderdtest.AssertParameter(t, "region", preview.Parameters).
 			Exists().Value("na")
-	})
-
-	// A template update can remove an option value that a workspace already selected
-	t.Run("StaleOptionValue", func(t *testing.T) {
-		t.Parallel()
-
-		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
-		require.NoError(t, err)
-
-		modulesArchive, skipped, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
-		require.NoError(t, err)
-		require.Len(t, skipped, 0)
-
-		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
-			provisionerDaemonVersion: provProto.CurrentVersion.String(),
-			mainTF:                   dynamicParametersTerraformSource,
-			modulesArchive:           modulesArchive,
-		})
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		stream := setup.stream
-		previews := stream.Chan()
-
-		preview := testutil.RequireReceive(ctx, t, previews)
-		require.Equal(t, -1, preview.ID)
-
-		// "zzz" stands in for an option the template used to offer.
-		err = stream.Send(codersdk.DynamicParametersRequest{
-			ID:     1,
-			Inputs: map[string]string{"region": "zzz"},
-		})
-		require.NoError(t, err)
-
-		preview = testutil.RequireReceive(ctx, t, previews)
-		require.Equal(t, 1, preview.ID)
-		require.Empty(t, preview.Diagnostics)
-
-		coderdtest.AssertParameter(t, "region", preview.Parameters).
-			Exists().Value("na")
-
-		region, ok := slice.Find(preview.Parameters, func(p codersdk.PreviewParameter) bool {
-			return p.Name == "region"
-		})
-		require.True(t, ok)
-		require.Len(t, region.Diagnostics, 1)
-		require.Equal(t, codersdk.DiagnosticSeverityWarning, region.Diagnostics[0].Severity)
-		require.Equal(t, dynamicparameters.DiagnosticCodeStaleOption, region.Diagnostics[0].Extra.Code)
-		require.Contains(t, region.Diagnostics[0].Detail, "zzz")
-
-		// A valid selection is still honored, and the warning clears.
-		err = stream.Send(codersdk.DynamicParametersRequest{
-			ID:     2,
-			Inputs: map[string]string{"region": "eu"},
-		})
-		require.NoError(t, err)
-
-		preview = testutil.RequireReceive(ctx, t, previews)
-		require.Equal(t, 2, preview.ID)
-		coderdtest.AssertParameter(t, "region", preview.Parameters).
-			Exists().Value("eu")
-		region, ok = slice.Find(preview.Parameters, func(p codersdk.PreviewParameter) bool {
-			return p.Name == "region"
-		})
-		require.True(t, ok)
-		require.Empty(t, region.Diagnostics)
 	})
 
 	// OldProvisioners use the static parameters in the dynamic param flow

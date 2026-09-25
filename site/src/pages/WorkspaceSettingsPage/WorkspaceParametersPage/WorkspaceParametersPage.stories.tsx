@@ -253,9 +253,10 @@ export const RequireActiveVersionUpdating: Story = {
 	},
 };
 
-// The template dropped the option this workspace had selected. The backend
-// falls back to the default and reports the substitution as a warning.
-export const StaleOptionWarning: Story = {
+// The template dropped the option this workspace had selected. The stale value
+// fails option validation, and the update stays blocked until the user picks a
+// valid option.
+export const StaleOptionOnMutableParameter: Story = {
 	parameters: {
 		reactRouter: workspaceRouterParameters(
 			MockOutdatedStoppedWorkspaceRequireActiveVersion,
@@ -268,42 +269,15 @@ export const StaleOptionWarning: Story = {
 			MockOutdatedStoppedWorkspaceRequireActiveVersion,
 			{ updateWorkspaceVersion: false },
 		),
-		webSocket: staleOptionWebSocketParams(),
+		webSocket: staleOptionWebSocketParams({ mutable: true }),
 	},
 };
 
-// The backend never substitutes an immutable parameter's value, so the stale
-// value is kept, fails option validation, and blocks the update.
+// An immutable parameter cannot be changed, so a stale option blocks the update
+// until the template is fixed.
 export const StaleOptionOnImmutableParameter: Story = {
 	parameters: {
-		webSocket: [
-			{
-				event: "open",
-			},
-			{
-				event: "message",
-				data: JSON.stringify({
-					id: 0,
-					diagnostics: [],
-					parameters: [
-						{
-							...MockDropdownParameter,
-							mutable: false,
-							value: { value: "t2.nano", valid: true },
-							diagnostics: [
-								{
-									severity: "error",
-									summary: "Value must be a valid option",
-									detail:
-										'the value "t2.nano" must be defined as one of options',
-									extra: { code: "" },
-								},
-							],
-						},
-					],
-				}),
-			},
-		],
+		webSocket: staleOptionWebSocketParams({ mutable: false }),
 	},
 };
 
@@ -381,20 +355,26 @@ function filledWebSocketParams(): WebSocketEvent[] {
 	];
 }
 
-function staleOptionWebSocketParams(): WebSocketEvent[] {
+function staleOptionWebSocketParams({
+	mutable,
+}: {
+	mutable: boolean;
+}): WebSocketEvent[] {
+	const staleOption = "t2.nano";
 	const staleParams = JSON.stringify({
 		id: 0,
 		diagnostics: [],
 		parameters: [
 			{
 				...MockDropdownParameter,
-				value: MockDropdownParameter.default_value,
+				mutable,
+				value: { value: staleOption, valid: true },
 				diagnostics: [
 					{
-						severity: "warning",
-						summary: "Previously selected option is no longer available",
-						detail: 'The value "t2.nano" is not one of the available options.',
-						extra: { code: "stale_option" },
+						severity: "error",
+						summary: "Value must be a valid option",
+						detail: `the value "${staleOption}" must be defined as one of options`,
+						extra: { code: "" },
 					},
 				],
 			},
