@@ -334,9 +334,7 @@ describe("FilterCombobox", () => {
 
 		await user.click(input);
 		await user.type(input, "outdated:t");
-		expect(
-			onChange.mock.calls.some(([query]) => query.includes("outdated:t")),
-		).toBe(false);
+		expect(onChange).toHaveBeenLastCalledWith("");
 		await user.type(input, "rue ");
 
 		expect(onChange).toHaveBeenLastCalledWith("outdated:true");
@@ -344,19 +342,91 @@ describe("FilterCombobox", () => {
 	});
 
 	it("announces loading suggestions while typing", async () => {
-		const { user, input } = setup([
-			{ ...ownerCategory, getOptions: neverResolves },
-		]);
+		const getOptions = vi.fn(neverResolves);
+		const { user, input } = setup([{ ...ownerCategory, getOptions }]);
 
 		await user.click(input);
 		await user.type(input, "ali");
 
 		expect(screen.getByRole("status")).toHaveTextContent("Loading suggestions");
+		await waitFor(() => expect(getOptions).toHaveBeenCalledWith("ali"));
+		expect(screen.getByRole("status")).toHaveTextContent("Loading suggestions");
+	});
+
+	it("announces loading instead of a previous suggestion error while typing", async () => {
+		const { user, input } = setup([
+			{
+				...ownerCategory,
+				getOptions: async (query) => {
+					if (query) {
+						throw new Error("failed");
+					}
+					return [];
+				},
+			},
+		]);
+
+		await user.click(input);
+		await user.type(input, "zzz");
 		await waitFor(() =>
 			expect(screen.getByRole("status")).toHaveTextContent(
-				"Loading suggestions",
+				"Couldn’t load suggestions.",
 			),
 		);
+		await user.type(input, "y");
+
+		expect(screen.getByRole("status")).toHaveTextContent("Loading suggestions");
+	});
+
+	it("keeps matching rows selectable while typed text is debounced", async () => {
+		const { user, onChange, input } = setup([ownerCategory, statusCategory]);
+
+		await user.click(input);
+		await screen.findByRole("option", { name: "Running" });
+		await user.type(input, "status:ru");
+		await user.click(screen.getByRole("option", { name: "Running" }));
+
+		expect(onChange).toHaveBeenLastCalledWith("status:running");
+	});
+
+	it("keeps an applied option when Enter completes typed text that located it", async () => {
+		const { user, onChange, input } = setup([ownerCategory, statusCategory], {
+			initialValue: "owner:alice status:running",
+		});
+
+		await user.click(input);
+		await user.type(input, "ali");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{Enter}");
+		expect(onChange).toHaveBeenLastCalledWith("owner:alice status:running");
+		expect(input).toHaveValue("");
+
+		await user.click(input);
+		await user.type(input, "status:run");
+		await screen.findByRole("option", { name: "Running" });
+		await user.keyboard("{Enter}");
+		expect(onChange).toHaveBeenLastCalledWith("owner:alice status:running");
+	});
+
+	it("does not suggest values for text typed before opening all filters", async () => {
+		const { user, onChange, input, filtersButton } = setup([
+			{
+				...ownerCategory,
+				getOptions: async () => [
+					{ label: "alice", value: "alice" },
+					{ label: "runner", value: "runner" },
+				],
+			},
+		]);
+
+		await user.click(input);
+		await screen.findByRole("option", { name: "Owner" });
+		await user.type(input, "run");
+		await user.click(filtersButton);
+		await user.keyboard("{End}{Enter}");
+
+		expect(onChange).not.toHaveBeenCalledWith("owner:runner");
+		expect(onChange).toHaveBeenLastCalledWith("run");
 	});
 
 	it("announces no filters only after suggestions load", async () => {

@@ -50,7 +50,7 @@ function useFilterComboboxState(): FilterComboboxStateValue {
 	return context;
 }
 
-/** Reads and moves the highlighted row without re-rendering the caller. */
+/** Imperative handle to `FilterComboboxRoot`'s highlighted row. */
 export type FilterComboboxHighlight = {
 	get: () => string;
 	set: (value: string) => void;
