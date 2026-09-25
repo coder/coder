@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -33,6 +33,19 @@ import {
 	debugWorkspaceBuildPrompt,
 	formatWorkspaceBuildLogsForDebug,
 } from "./utils/workspaceBuildDebug";
+
+// The deep link's build ID moves from the URL into this entry's history state
+// on arrival, because the layout's links forward location.search and the
+// next composer must be a plain one.
+type DebugLinkState = { debugWorkspaceBuildId: string };
+
+const readDebugLinkState = (state: unknown): string | null =>
+	typeof state === "object" &&
+	state !== null &&
+	"debugWorkspaceBuildId" in state &&
+	typeof state.debugWorkspaceBuildId === "string"
+		? state.debugWorkspaceBuildId
+		: null;
 
 type DebugWorkspaceBuildAlertProps = {
 	error: unknown;
@@ -78,24 +91,29 @@ const AgentCreatePage: FC = () => {
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
-	// Read once and tied to this history entry: the layout's links forward
-	// location.search, so a later entry with the same param must not prefill
-	// again.
-	const [debugLink] = useState(() => {
-		const buildId = searchParams.get(debugWorkspaceBuildSearchParam);
-		if (
-			buildId === null ||
-			!isUUID(buildId) ||
-			!experiments.includes("enable-ai-workspace-debug")
-		) {
-			return null;
-		}
-		return { key: location.key, buildId };
-	});
+	const debugLinkParam = searchParams.get(debugWorkspaceBuildSearchParam);
+	const debugLinkValue = debugLinkParam ?? readDebugLinkState(location.state);
 	const debugBuildId =
-		debugLink !== null && debugLink.key === location.key
-			? debugLink.buildId
+		debugLinkValue !== null &&
+		isUUID(debugLinkValue) &&
+		experiments.includes("enable-ai-workspace-debug")
+			? debugLinkValue
 			: null;
+	useEffect(() => {
+		if (debugLinkParam === null) {
+			return;
+		}
+		const search = new URLSearchParams(searchParams);
+		search.delete(debugWorkspaceBuildSearchParam);
+		const state: DebugLinkState | undefined =
+			debugBuildId !== null
+				? { debugWorkspaceBuildId: debugBuildId }
+				: undefined;
+		navigate(
+			{ pathname: location.pathname, search: search.toString() },
+			{ replace: true, state },
+		);
+	}, [debugLinkParam, debugBuildId, location.pathname, navigate, searchParams]);
 	const debugBuildQuery = useQuery({
 		...workspaceBuildById(debugBuildId ?? ""),
 		enabled: debugBuildId !== null,
@@ -164,12 +182,9 @@ const AgentCreatePage: FC = () => {
 		};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
-		// The param stays in this entry's URL; keep it out of the chat's.
-		const search = new URLSearchParams(location.search);
-		search.delete(debugWorkspaceBuildSearchParam);
 		navigate({
 			pathname: buildAgentChatPath({ chatId: createdChat.id }),
-			search: search.toString(),
+			search: location.search,
 		});
 	};
 
