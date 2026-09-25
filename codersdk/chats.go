@@ -362,6 +362,7 @@ type ChatMessagePart struct {
 	ParsedCommands [][]string      `json:"parsed_commands,omitempty" variants:"tool-call?"`
 	Result         json.RawMessage `json:"result,omitempty" variants:"tool-result?"`
 	ResultDelta    string          `json:"result_delta,omitempty" variants:"tool-result?"`
+	ReasoningDelta string          `json:"reasoning_delta,omitempty" variants:"tool-result?"`
 	ResultReset    bool            `json:"result_reset,omitempty" variants:"tool-result?"`
 	IsError        bool            `json:"is_error,omitempty" variants:"tool-result?"`
 	IsMedia        bool            `json:"is_media,omitempty" variants:"tool-result?"`
@@ -446,11 +447,11 @@ type ChatMessagePart struct {
 // StripInternal removes internal-only fields that must not be
 // sent to API clients. Call before publishing via REST or SSE.
 //
-// Note: ArgsDelta, ResultDelta, and ResultReset are intentionally preserved.
-// They are streaming-only fields consumed by the frontend via SSE
-// message_part events. ArgsDelta is produced by processStepStream in
-// chatloop; ResultDelta and ResultReset are produced by the advisor
-// streaming callbacks in chatd.
+// Note: ArgsDelta, ResultDelta, ReasoningDelta, and ResultReset are
+// intentionally preserved. They are streaming-only fields consumed by the
+// frontend via WebSocket message_part events. ArgsDelta is produced by
+// chatloop; ResultDelta, ReasoningDelta, and ResultReset are produced by
+// the advisor streaming callbacks.
 func (p *ChatMessagePart) StripInternal() {
 	p.ProviderMetadata = nil
 	if p.FileID.Valid {
