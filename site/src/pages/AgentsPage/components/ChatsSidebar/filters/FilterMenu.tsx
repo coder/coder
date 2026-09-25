@@ -160,6 +160,26 @@ const MultiSelectMenuItem: FC<
 	</DropdownMenuPrimitive.CheckboxItem>
 );
 
+// lucide's ListFilter with the top line shortened into a ring, marking that
+// filters differ from the defaults.
+const ActiveListFilterIcon: FC = () => (
+	<svg
+		xmlns="http://www.w3.org/2000/svg"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		strokeWidth={2}
+		strokeLinecap="round"
+		strokeLinejoin="round"
+		aria-hidden
+	>
+		<path d="M3 6h9" />
+		<circle cx="18" cy="6" r="3" />
+		<path d="M7 12h10" />
+		<path d="M10 18h4" />
+	</svg>
+);
+
 const FilterRow: FC<{
 	readonly label: string;
 	readonly value: ReactNode;
@@ -242,6 +262,7 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 	const selectedAdvancedOptions = advancedOptions.filter(
 		(option) => option.checked,
 	);
+	const filtersActive = hasActiveFilters(filters);
 
 	return (
 		<DropdownMenu>
@@ -251,11 +272,11 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 					size="icon"
 					aria-label="Filter agents"
 					className={cn(
-						"size-7 min-w-0 -mr-0.5 justify-end px-0 text-content-secondary hover:text-content-primary",
-						hasActiveFilters(filters) && "text-content-primary",
+						"size-7 text-content-secondary hover:text-content-primary",
+						filtersActive && "text-content-primary",
 					)}
 				>
-					<ListFilterIcon />
+					{filtersActive ? <ActiveListFilterIcon /> : <ListFilterIcon />}
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
