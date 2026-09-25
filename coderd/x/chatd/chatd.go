@@ -3377,7 +3377,8 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
 		"spawn_explore_agent", "wait_agent", "list_agents", "list_subagent_models",
-		"ask_user_question", "attach_file":
+		"ask_user_question", "attach_file",
+		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName:
 		return isRootChat
 	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
 		"spawn_computer_use_agent":
@@ -3563,13 +3564,14 @@ func mergeTurnSkills(
 }
 
 // buildSystemPrompt applies system-level prompt injections in a fixed
-// order: subagent instruction, chat instruction, skill index, user prompt,
-// then mode overlay prompts.
+// order: subagent instruction, chat instruction, skill index, memory index,
+// user prompt, then mode overlay prompts.
 func buildSystemPrompt(
 	prompt []fantasy.Message,
 	subagentInstruction string,
 	instruction string,
 	resolvedSkills []skillspkg.ResolvedSkill,
+	memoryIndex string,
 	userPrompt string,
 	behaviorContext systemPromptBehaviorContext,
 ) []fantasy.Message {
@@ -3581,6 +3583,9 @@ func buildSystemPrompt(
 	}
 	if skillIndex := chattool.FormatResolvedSkillIndex(resolvedSkills); skillIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, skillIndex)
+	}
+	if memoryIndex != "" {
+		prompt = chatprompt.InsertSystem(prompt, memoryIndex)
 	}
 	if userPrompt != "" {
 		prompt = chatprompt.InsertSystem(prompt, userPrompt)

@@ -28,6 +28,9 @@ const (
 	CheckChatModelConfigsGroupAclIsObject                    CheckConstraint = "chat_model_configs_group_acl_is_object"                    // chat_model_configs
 	CheckChatModelConfigsUserAclIsObject                     CheckConstraint = "chat_model_configs_user_acl_is_object"                     // chat_model_configs
 	CheckChatOrganizationModelOverridesContextCheck          CheckConstraint = "chat_organization_model_overrides_context_check"           // chat_organization_model_overrides
+	CheckChatProjectMemoriesBodyLength                       CheckConstraint = "chat_project_memories_body_length"                         // chat_project_memories
+	CheckChatProjectMemoriesDescriptionLength                CheckConstraint = "chat_project_memories_description_length"                  // chat_project_memories
+	CheckChatProjectMemoriesNameFormat                       CheckConstraint = "chat_project_memories_name_format"                         // chat_project_memories
 	CheckChatProjectsDescriptionLength                       CheckConstraint = "chat_projects_description_length"                          // chat_projects
 	CheckChatProjectsIconLength                              CheckConstraint = "chat_projects_icon_length"                                 // chat_projects
 	CheckChatProjectsNameLength                              CheckConstraint = "chat_projects_name_length"                                 // chat_projects

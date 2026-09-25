@@ -176,6 +176,19 @@ func (p ChatProject) RBACObject() rbac.Object {
 	return rbac.ResourceChatProject.WithID(p.ID).InOrg(p.OrganizationID).WithOwner(p.OwnerID.String())
 }
 
+// RBACObject scopes a memory to its project so the project owner owns it.
+// Memories carry no owner of their own, so the parent project must be
+// supplied.
+func (m ChatProjectMemory) RBACObject(project ChatProject) rbac.Object {
+	return rbac.ResourceChatProjectMemory.WithID(m.ID).InOrg(project.OrganizationID).WithOwner(project.OwnerID.String())
+}
+
+// ChatProjectMemoryRBACObject is the object to authorize when creating a
+// memory in the project, before an ID exists.
+func ChatProjectMemoryRBACObject(project ChatProject) rbac.Object {
+	return rbac.ResourceChatProjectMemory.InOrg(project.OrganizationID).WithOwner(project.OwnerID.String())
+}
+
 func (c Chat) RBACObject() rbac.Object {
 	obj := rbac.ResourceChat.
 		WithID(c.ID).

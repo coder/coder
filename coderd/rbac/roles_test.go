@@ -231,15 +231,18 @@ func TestMemberRolesExcludeWorkspacePerms(t *testing.T) {
 		})
 	}
 
-	member := rbac.OrgMemberPermissions(orgSettings).Member
-	require.False(t, hasResource(member, rbac.ResourceWorkspace.Type), "organization-member must not grant workspace permissions")
-	require.True(t, hasResource(member, rbac.ResourceOrganizationMember.Type), "organization-member should grant read-self")
-	require.True(t, hasResource(member, rbac.ResourceChat.Type), "organization-member should grant chat access")
+	member := rbac.OrgMemberPermissions(orgSettings)
+	require.False(t, hasResource(member.Member, rbac.ResourceWorkspace.Type), "organization-member must not grant workspace permissions")
+	require.True(t, hasResource(member.Member, rbac.ResourceOrganizationMember.Type), "organization-member should grant read-self")
+	require.True(t, hasResource(member.Member, rbac.ResourceChat.Type), "organization-member should grant chat access")
+	require.True(t, hasResource(member.Member, rbac.ResourceChatProject.Type), "organization-member should grant chat project access")
+	require.True(t, hasResource(member.Member, rbac.ResourceChatProjectMemory.Type), "organization-member should grant chat project memory access")
 
-	sa := rbac.OrgServiceAccountPermissions(orgSettings).Member
-	require.False(t, hasResource(sa, rbac.ResourceWorkspace.Type), "organization-service-account must not grant workspace permissions")
-	require.True(t, hasResource(sa, rbac.ResourceOrganizationMember.Type), "organization-service-account should grant read-self")
-	require.False(t, hasResource(sa, rbac.ResourceChat.Type), "organization-service-account must not grant chat access")
+	sa := rbac.OrgServiceAccountPermissions(orgSettings)
+	require.False(t, hasResource(sa.Member, rbac.ResourceWorkspace.Type), "organization-service-account must not grant workspace permissions")
+	require.True(t, hasResource(sa.Member, rbac.ResourceOrganizationMember.Type), "organization-service-account should grant read-self")
+	require.False(t, hasResource(sa.Member, rbac.ResourceChat.Type), "organization-service-account must not grant chat access")
+	require.False(t, hasResource(sa.Member, rbac.ResourceChatProjectMemory.Type), "organization-service-account must not grant chat project memory access")
 
 	// The registered organization-workspace-access role is the grant
 	// path for workspace permissions.
@@ -248,6 +251,10 @@ func TestMemberRolesExcludeWorkspacePerms(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, hasResource(wsAccess.ByOrgID[orgID.String()].Member, rbac.ResourceWorkspace.Type),
 		"organization-workspace-access should grant workspace permissions")
+	require.False(t, hasResource(wsAccess.ByOrgID[orgID.String()].Member, rbac.ResourceChatProject.Type),
+		"organization-workspace-access must not grant chat project access")
+	require.False(t, hasResource(wsAccess.ByOrgID[orgID.String()].Member, rbac.ResourceChatProjectMemory.Type),
+		"organization-workspace-access must not grant chat project memory access")
 }
 
 // These were "pared down" in https://github.com/coder/coder/pull/21359 to avoid
@@ -1441,6 +1448,26 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgMemberMe},
 				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			// Memory is owned by the project creator; org admins reach every
+			// project's memory.
+			Name:     "ChatProjectMemoryCRUD",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceChatProjectMemory.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatProjectMemoryOtherOwner",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceChatProjectMemory.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
 			},
 		},
 		{
