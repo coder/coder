@@ -27,6 +27,7 @@ import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
+import { type DeepLinkState, readDeepLinkState } from "./utils/deepLinkState";
 import { buildAgentChatPath } from "./utils/navigation";
 import {
 	debugWorkspaceBuildLogsFileName,
@@ -35,28 +36,6 @@ import {
 } from "./utils/workspaceBuildDebug";
 
 const promptSearchParam = "prompt";
-
-// Deep link values move from the URL into this entry's history state on
-// arrival, because the layout's links forward location.search and the next
-// composer must be a plain one.
-type DeepLinkState = { debugWorkspaceBuildId?: string; prompt?: string };
-
-const readDeepLinkState = (state: unknown): DeepLinkState => {
-	if (typeof state !== "object" || state === null) {
-		return {};
-	}
-	return {
-		debugWorkspaceBuildId:
-			"debugWorkspaceBuildId" in state &&
-			typeof state.debugWorkspaceBuildId === "string"
-				? state.debugWorkspaceBuildId
-				: undefined,
-		prompt:
-			"prompt" in state && typeof state.prompt === "string"
-				? state.prompt
-				: undefined,
-	};
-};
 
 type DebugWorkspaceBuildAlertProps = {
 	error: unknown;

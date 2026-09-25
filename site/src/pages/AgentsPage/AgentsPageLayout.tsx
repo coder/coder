@@ -88,6 +88,7 @@ import {
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
+import { readDeepLinkState } from "./utils/deepLinkState";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 
@@ -491,7 +492,13 @@ const AgentsPageLayout: FC = () => {
 		// Only clear the draft when the user is already on the empty
 		// state and explicitly requests a blank slate.  When navigating
 		// back from a conversation the existing draft is preserved.
-		if (!agentId) {
+		// A composer prefilled from a deep link shows the link's text, not
+		// the draft, so the draft is preserved there too.
+		const linkState = readDeepLinkState(location.state);
+		const showsDeepLink =
+			linkState.prompt !== undefined ||
+			linkState.debugWorkspaceBuildId !== undefined;
+		if (!agentId && !showsDeepLink) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate({ pathname: "/agents", search: location.search });

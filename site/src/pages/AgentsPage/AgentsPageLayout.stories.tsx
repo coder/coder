@@ -393,20 +393,6 @@ const meta: Meta<typeof AgentsPageLayout> = {
 export default meta;
 type Story = StoryObj<typeof AgentsPageLayout>;
 
-export const PromptLink: Story = {
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				path: "/agents",
-				searchParams: {
-					prompt: "Fix the flaky test in site/src/api\nand explain the cause.",
-				},
-			},
-			routing: [agentsRouting, aiSettingsRouting],
-		}),
-	},
-};
-
 const mockChats = (chats: Chat[]) => {
 	spyOn(API.experimental, "getChats").mockResolvedValue(chats);
 };
@@ -1110,6 +1096,20 @@ const debugWorkspaceBuildRouter = (buildId: string) =>
 		},
 		routing: [agentsRouting, aiSettingsRouting],
 	});
+
+export const PromptLink: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: {
+					prompt: "Fix the flaky test in site/src/api\nand explain the cause.",
+				},
+			},
+			routing: [agentsRouting, aiSettingsRouting],
+		}),
+	},
+};
 
 export const DebugWorkspaceBuildLoading: Story = {
 	parameters: {
