@@ -440,16 +440,16 @@ Because the condition evaluates based on the workspace owner, provisioning or de
 
 #### Validation
 
-To confirm that prebuild jobs are correctly routed to the new provisioner pool, use the Provisioner Jobs dashboard or the [`coder provisioner jobs list`](../../../reference/cli/provisioner_jobs_list.md) CLI command to inspect job metadata and tags.
+To confirm that prebuild jobs are correctly routed to the new provisioner pool, use the Provisioner Jobs dashboard or the [`coder provisioner jobs list`](../../../reference/cli/provisioner/jobs/list.md) CLI command to inspect job metadata and tags.
 Follow these steps:
 
 1. Publish the new template version.
 
 1. Validate the status of the prebuild provisioners.
-    Check the Provisioners page in the Coder dashboard or run the [`coder provisioner list`](../../../reference/cli/provisioner_list.md) CLI command to ensure all prebuild provisioners are up to date and the tags are properly set.
+    Check the Provisioners page in the Coder dashboard or run the [`coder provisioner list`](../../../reference/cli/provisioner/list.md) CLI command to ensure all prebuild provisioners are up to date and the tags are properly set.
 
 1. Wait for the prebuilds reconciliation loop to run.
-    The loop frequency is controlled by the configuration value [`CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`](../../../reference/cli/server.md#--workspace-prebuilds-reconciliation-interval).
+    The loop frequency is controlled by the configuration value [`CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`](../../../reference/cli/server/index.md#--workspace-prebuilds-reconciliation-interval).
     When the loop runs, it will provision prebuilds for the new template version and deprovision prebuilds for the previous version.
     Both provisioning and deprovisioning jobs for prebuilds should display the tag `is_prebuild=true`.
 

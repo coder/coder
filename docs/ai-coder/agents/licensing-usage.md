@@ -65,7 +65,7 @@ Coder generates one `hb_agent_runtime_v1` event for each UTC hour shortly after 
 In steady state, each hour's usage typically reaches Tallyman within about 25 minutes of the hour closing.
 You can monitor these requests in `coderd` logs.
 
-A successful request produces a debug log similar to the following example when you enable debug logging with [`CODER_LOG_FILTER=.*`](../../reference/cli/server.md#-l---log-filter):
+A successful request produces a debug log similar to the following example when you enable debug logging with [`CODER_LOG_FILTER=.*`](../../reference/cli/server/index.md#-l---log-filter):
 
 ```sh
 [debu] published usage events to tallyman accepted=1 rejected=0

@@ -15,11 +15,11 @@ on Kubernetes or `journalctl -u coder` if you deployed Coder on a host
 machine/VM.
 
 - To change the log format/location, you can set
-  [`CODER_LOGGING_HUMAN`](../../reference/cli/server.md#--log-human) and
-  [`CODER_LOGGING_JSON`](../../reference/cli/server.md#--log-json) server config.
+  [`CODER_LOGGING_HUMAN`](../../reference/cli/server/index.md#--log-human) and
+  [`CODER_LOGGING_JSON`](../../reference/cli/server/index.md#--log-json) server config.
   options.
 - To only display certain types of logs, use
-  the[`CODER_LOG_FILTER`](../../reference/cli/server.md#-l---log-filter) server
+  the[`CODER_LOG_FILTER`](../../reference/cli/server/index.md#-l---log-filter) server
   config. Using `.*` will result in the `DEBUG` log level being used.
 
 > [!NOTE]
@@ -33,7 +33,7 @@ Connect logs are all captured in the `coderd` logs.
 ## `provisionerd` Logs
 
 Logs for [external provisioners](../../install/operate/provisioners/index.md) are structured
-[and configured](../../reference/cli/provisioner_start.md#--log-human) similarly
+[and configured](../../reference/cli/provisioner/start.md#--log-human) similarly
 to `coderd` logs. Use these logs to troubleshoot and monitor the Terraform
 operations behind workspaces and templates.
 

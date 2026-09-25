@@ -39,7 +39,7 @@ curl https://coder.example.com/api/v2/workspaces?q=owner:me \
 
 We publish an [API reference](../reference/api/index.md) in our documentation.
 You can also enable a
-[Swagger endpoint](../reference/cli/server.md#--swagger-enable) on your Coder
+[Swagger endpoint](../reference/cli/server/index.md#--swagger-enable) on your Coder
 deployment.
 
 ## Use cases

@@ -67,10 +67,10 @@ OOM/OOD notifications can be delivered to users in VS Code.
 You can configure:
 
 - SMTP or webhooks globally with
-[`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server.md#--notifications-method)
+[`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server/index.md#--notifications-method)
 (default: `smtp`).
 - Coder dashboard Inbox with
-[`CODER_NOTIFICATIONS_INBOX_ENABLED`](../../../reference/cli/server.md#--notifications-inbox-enabled)
+[`CODER_NOTIFICATIONS_INBOX_ENABLED`](../../../reference/cli/server/index.md#--notifications-inbox-enabled)
 (default: `true`).
 
 Premium customers can configure which method to use for each of the supported
@@ -274,7 +274,7 @@ Custom notifications let you send an ad‑hoc notification to yourself using the
 These are useful for surfacing the result of long-running tasks or important state changes.
 At this time, custom notifications can only be sent to the user making the request.
 
-To send a custom notification, execute [`coder notifications custom <title> <message>`](../../../reference/cli/notifications_custom.md).
+To send a custom notification, execute [`coder notifications custom <title> <message>`](../../../reference/cli/notifications/custom.md).
 
 <!-- TODO(ssncferreira): Update when sending custom notifications to multiple users/roles is supported.
 	 Explain deduplication behaviour for multiple users/roles.
@@ -311,10 +311,10 @@ Administrators may wish to stop _all_ notifications across the deployment. We
 support a killswitch in the CLI for these cases.
 
 To pause sending notifications, execute
-[`coder notifications pause`](../../../reference/cli/notifications_pause.md).
+[`coder notifications pause`](../../../reference/cli/notifications/pause.md).
 
 To resume sending notifications, execute
-[`coder notifications resume`](../../../reference/cli/notifications_resume.md).
+[`coder notifications resume`](../../../reference/cli/notifications/resume.md).
 
 ## Troubleshooting
 

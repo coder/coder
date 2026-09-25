@@ -4,7 +4,7 @@ title: Configure control plane access
 
 The control plane's primary configuration is done via environment variables. For
 a full list of the options, run `coder server --help` or see our
-[CLI documentation](../../reference/cli/server.md).
+[CLI documentation](../../reference/cli/server/index.md).
 
 > [!TIP]
 > Need to look up an exact environment variable, CLI flag, or YAML key for a
@@ -65,8 +65,8 @@ If you are providing TLS certificates directly to the control plane, either
 1. Configure multiple certificates and keys via
    [`coder.tls.secretNames`](../../../helm/coder/values.yaml)
    in the Helm Chart, or
-   [`--tls-cert-file`](../../reference/cli/server.md#--tls-cert-file) and
-   [`--tls-key-file`](../../reference/cli/server.md#--tls-key-file) command line
+   [`--tls-cert-file`](../../reference/cli/server/index.md#--tls-cert-file) and
+   [`--tls-key-file`](../../reference/cli/server/index.md#--tls-key-file) command line
    options (these both take a comma separated list of files; list certificates
    and their respective keys in the same order).
 

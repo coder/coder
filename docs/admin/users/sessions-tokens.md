@@ -30,9 +30,9 @@ export CODER_SESSION_TOKEN=$(coder login token)
 
 By default, sessions last 24 hours and are automatically refreshed. You can
 configure
-[`CODER_SESSION_DURATION`](../../reference/cli/server.md#--session-duration) to
+[`CODER_SESSION_DURATION`](../../reference/cli/server/index.md#--session-duration) to
 change the duration and
-[`CODER_DISABLE_SESSION_EXPIRY_REFRESH`](../../reference/cli/server.md#--disable-session-expiry-refresh)
+[`CODER_DISABLE_SESSION_EXPIRY_REFRESH`](../../reference/cli/server/index.md#--disable-session-expiry-refresh)
 to configure this behavior.
 
 ## Long-Lived Tokens (API Tokens)
@@ -62,7 +62,7 @@ coder tokens create --name=my-token --lifetime=720h
 ```
 
 See the help docs for
-[`coder tokens create`](../../reference/cli/tokens_create.md) for more info.
+[`coder tokens create`](../../reference/cli/tokens/create.md) for more info.
 
 </div>
 
@@ -82,7 +82,7 @@ coder tokens create --name my-token --user <username>
 ```
 
 See the full CLI reference for
-[`coder tokens create`](../../reference/cli/tokens_create.md)
+[`coder tokens create`](../../reference/cli/tokens/create.md)
 
 #### API
 
@@ -94,7 +94,7 @@ Use our API reference for more information on how to
 ### Set max token length
 
 You can use the
-[`CODER_MAX_TOKEN_LIFETIME`](../../reference/cli/server.md#--max-token-lifetime)
+[`CODER_MAX_TOKEN_LIFETIME`](../../reference/cli/server/index.md#--max-token-lifetime)
 server flag to set the maximum duration for long-lived tokens in your
 deployment.
 

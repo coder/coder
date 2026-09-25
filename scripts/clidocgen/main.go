@@ -1,11 +1,10 @@
 package main
 
 import (
-	"cmp"
 	"encoding/json"
+	"flag"
 	"os"
 	"path/filepath"
-	"slices"
 
 	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/coder/v2/scripts/atomicwrite"
@@ -44,6 +43,9 @@ func deleteEmptyDirs(dir string) error {
 }
 
 func main() {
+	manifestOnly := flag.Bool("manifest-only", false, "Only rebuild the \"Command Line\" section of manifest.json; do not write reference pages.")
+	flag.Parse()
+
 	docgenenv.Prepare()
 
 	workdir, err := os.Getwd()
@@ -51,9 +53,6 @@ func main() {
 		flog.Fatalf("getwd: %v", err)
 	}
 	root := (&cli.RootCmd{})
-
-	// wroteMap indexes file paths to commands.
-	wroteMap := make(map[string]*serpent.Command)
 
 	var (
 		docsDir        = filepath.Join(workdir, "docs")
@@ -86,7 +85,33 @@ func main() {
 	if err != nil {
 		flog.Fatalf("creating command: %v", err)
 	}
-	err = genTree(
+	if !*manifestOnly {
+		writePages(cliMarkdownDir, cmd)
+	}
+
+	// Rebuild the "Command Line" route's children from the command tree so
+	// the nav nests the same way the generated pages do. cmdLine aliases the
+	// manifest loaded above, so mutating it updates the manifest in place.
+	cmdLine.Children = cliManifestChildren(cmd)
+
+	manifestByt, err := json.MarshalIndent(man, "", "  ")
+	if err != nil {
+		flog.Fatalf("marshaling manifest: %v", err)
+	}
+
+	err = atomicwrite.File(manifestPath, manifestByt)
+	if err != nil {
+		flog.Fatalf("writing manifest: %v", err)
+	}
+}
+
+// writePages generates a reference page for every visible command under
+// cliMarkdownDir, then deletes pages and directories left over from commands
+// that no longer exist.
+func writePages(cliMarkdownDir string, cmd *serpent.Command) {
+	// wroteMap indexes file paths to commands.
+	wroteMap := make(map[string]*serpent.Command)
+	err := genTree(
 		cliMarkdownDir,
 		cmd,
 		wroteMap,
@@ -119,33 +144,5 @@ func main() {
 	err = deleteEmptyDirs(cliMarkdownDir)
 	if err != nil {
 		flog.Fatalf("deleting empty dirs: %v", err)
-	}
-
-	// Rebuild the "Command Line" route's children from the generated pages.
-	// cmdLine aliases the manifest loaded above, so mutating it updates the
-	// manifest in place.
-	cmdLine.Children = nil
-	for path, cmd := range wroteMap {
-		relPath, err := filepath.Rel(docsDir, path)
-		if err != nil {
-			flog.Fatalf("getting relative path: %v", err)
-		}
-		child := cliCommandRoute(cmd)
-		child.Path = relPath
-		cmdLine.Children = append(cmdLine.Children, child)
-	}
-	// Sort children by title because wroteMap iteration is non-deterministic.
-	slices.SortFunc(cmdLine.Children, func(a, b docgenenv.Route) int {
-		return cmp.Compare(a.Title, b.Title)
-	})
-
-	manifestByt, err := json.MarshalIndent(man, "", "  ")
-	if err != nil {
-		flog.Fatalf("marshaling manifest: %v", err)
-	}
-
-	err = atomicwrite.File(manifestPath, manifestByt)
-	if err != nil {
-		flog.Fatalf("writing manifest: %v", err)
 	}
 }
