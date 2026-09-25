@@ -26,7 +26,7 @@ type WorkspaceParametersPageViewProps = {
 	autofillParameters: AutofillBuildParameter[];
 	parameters: PreviewParameter[];
 	diagnostics: PreviewParameter["diagnostics"];
-	canChangeVersions: boolean;
+	updatesToActiveVersion: boolean;
 	isSubmitting: boolean;
 	submitLabel: string;
 	onCancel: () => void;
@@ -44,7 +44,7 @@ export const WorkspaceParametersPageView: FC<
 	autofillParameters,
 	parameters,
 	diagnostics,
-	canChangeVersions,
+	updatesToActiveVersion,
 	isSubmitting,
 	submitLabel,
 	onSubmit,
@@ -68,11 +68,6 @@ export const WorkspaceParametersPageView: FC<
 		validateOnChange: true,
 		validateOnBlur: true,
 	});
-
-	const disabled =
-		workspace.outdated &&
-		workspace.template_require_active_version &&
-		!canChangeVersions;
 
 	// Debounce websocket sends to avoid stale responses overwriting
 	// the form while the user is still typing.
@@ -142,10 +137,11 @@ export const WorkspaceParametersPageView: FC<
 
 	return (
 		<>
-			{disabled && (
-				<Alert severity="warning" className="mb-8" prominent>
-					The template for this workspace requires automatic updates. Update the
-					workspace to edit parameters.
+			{updatesToActiveVersion && (
+				<Alert severity="info" className="mb-8" prominent>
+					The template for this workspace requires automatic updates. These
+					parameters are for the latest template version, and submitting them
+					will update the workspace to it.
 				</Alert>
 			)}
 
@@ -253,7 +249,6 @@ export const WorkspaceParametersPageView: FC<
 
 							const parameterField = `rich_parameter_values.${parameterFieldIndex}`;
 							const isDisabled =
-								disabled ||
 								parameter.styling?.disabled ||
 								!parameter.mutable ||
 								isSubmitting;
@@ -282,7 +277,6 @@ export const WorkspaceParametersPageView: FC<
 						type="submit"
 						disabled={
 							isSubmitting ||
-							disabled ||
 							hasUnsyncedParameters ||
 							diagnostics.some(
 								(diagnostic) => diagnostic.severity === "error",
