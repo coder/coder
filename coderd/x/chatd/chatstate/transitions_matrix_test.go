@@ -521,10 +521,9 @@ func remainingBodiesExcluding(bodies []string, exclude int) []string {
 
 // runPositiveCase seeds the chat, runs the transition, and asserts the
 // post-state plus case-specific effects.
-func runPositiveCase(t *testing.T, spec transitionCaseSpec) {
+func runPositiveCase(t *testing.T, f *testFixture, spec transitionCaseSpec) {
 	t.Helper()
 	require.NotNil(t, spec.apply, "case %s missing apply", spec.subtestName())
-	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	seeder := spec.seed
@@ -559,9 +558,8 @@ func runPositiveCase(t *testing.T, spec transitionCaseSpec) {
 // runDisallowedCase seeds the chat, runs the transition with default
 // inputs, and asserts that the chatstate package surfaces the right
 // sentinel error and rolled the snapshot bump back.
-func runDisallowedCase(t *testing.T, tr chatstate.Transition, from chatstate.ExecutionState) {
+func runDisallowedCase(t *testing.T, f *testFixture, tr chatstate.Transition, from chatstate.ExecutionState) {
 	t.Helper()
-	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	seeded := seedState(t, f, from)
 	if seeded.exists {
@@ -616,6 +614,8 @@ func runDisallowedCase(t *testing.T, tr chatstate.Transition, from chatstate.Exe
 func TestTransitionMatrix_AllCombinations(t *testing.T) {
 	t.Parallel()
 
+	// Each case owns its chat and publisher; dependencies are read-only.
+	fixture := newTestFixture(t)
 	cases := matrixCases()
 
 	// Detect duplicate full keys and duplicate subtest names. The
@@ -725,7 +725,9 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 					actualPositive[tc.key()] = struct{}{}
 					mu.Unlock()
 				}
-				runPositiveCase(t, tc)
+				f := *fixture
+				f.Pub = newRecordingPubsub()
+				runPositiveCase(t, &f, tc)
 			})
 		}
 	})
@@ -757,7 +759,9 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 						mu.Lock()
 						actualDisallowed[disallowedCaseKey{transition: tr, from: from}] = struct{}{}
 						mu.Unlock()
-						runDisallowedCase(t, tr, from)
+						f := *fixture
+						f.Pub = newRecordingPubsub()
+						runDisallowedCase(t, &f, tr, from)
 					})
 				}
 			})

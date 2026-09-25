@@ -68,6 +68,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	proto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/safedial"
 )
 
@@ -251,8 +252,6 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-	_ = agenttest.New(t, client.URL, agentToken)
-
 	// Track tools sent in LLM requests. The first call is for the
 	// root chat which spawns a subagent; the second call is for the
 	// subagent itself.
@@ -407,8 +406,6 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 	})
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-
-	_ = agenttest.New(t, client.URL, agentToken)
 
 	// Start an external MCP server whose tools should remain available to the
 	// root plan-mode chat but stay hidden from plan-mode subagents.
@@ -3092,7 +3089,8 @@ func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 			got.LastTurnSummary.Valid &&
 			got.LastTurnSummary.String == "Waiting for user input"
 	}, testutil.IntervalFast)
-	chatd.WaitUntilIdleForTest(server)
+	// A requires_action runner stays active until tool results arrive.
+	require.NoError(t, server.Close())
 
 	require.Equal(t, database.ChatStatusRequiresAction, fromDB.Status,
 		"expected requires_action, got %s (last_error=%q)",
@@ -5057,17 +5055,28 @@ func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T)
 		BuildNumber: 2,
 	}).Do()
 
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+	validationTrap := clock.Trap().NewTimer("chatd", "dial-validation-delay")
+	defer validationTrap.Close()
+	dialStarted := make(chan struct{})
 	var dialCalls atomic.Int32
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.Clock = clock
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		cfg.AgentConn = func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			dialCalls.Add(1)
 			require.Equal(t, dbAgent.ID, agentID)
+			close(dialStarted)
 			<-ctx.Done()
 			return nil, nil, ctx.Err()
 		}
 	})
+
+	validationTimer := validationTrap.MustWait(ctx)
+	validationTimer.MustRelease(ctx)
+	testutil.TryReceive(ctx, t, dialStarted)
+	advanceMockClockBy(ctx, t, clock, validationTimer.Duration)
 
 	var chatResult database.Chat
 	require.Eventually(t, func() bool {
