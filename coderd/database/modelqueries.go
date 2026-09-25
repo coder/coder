@@ -344,6 +344,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.Shared,
 		arg.SharedWithUserID,
 		arg.SharedWithGroupID,
+		arg.UserID,
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,
@@ -1322,6 +1323,8 @@ func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, organiza
 			&i.OrganizationID,
 			&i.GroupACL,
 			&i.UserACL,
+			&i.SigningSecret,
+			&i.SigningSecretKeyID,
 		); err != nil {
 			return nil, err
 		}

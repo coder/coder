@@ -1354,3 +1354,19 @@ describe("provider-scoped general fields", () => {
 		expect(result.modelConfig).toBeUndefined();
 	});
 });
+
+describe("provider-scoped provider fields", () => {
+	const form = formWith({ openai: { reasoningMode: "pro" } });
+
+	it("serializes a scoped provider field for its provider", () => {
+		const result = buildModelConfigFromForm("openai", form);
+		expect(result.modelConfig?.provider_options?.openai).toEqual({
+			reasoning_mode: "pro",
+		});
+	});
+
+	it("omits a scoped provider field for an aliased provider", () => {
+		const result = buildModelConfigFromForm("azure", form);
+		expect(result.modelConfig).toBeUndefined();
+	});
+});

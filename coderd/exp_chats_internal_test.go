@@ -478,7 +478,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := validateChatModelConfigProviderModel(tt.provider, tt.model)
+			got := validateChatModelConfigProviderModel(tt.provider, tt.model, nil)
 			if tt.wantErr {
 				require.NotNil(t, got)
 				require.Contains(t, got.Response.Detail, tt.wantDetail)

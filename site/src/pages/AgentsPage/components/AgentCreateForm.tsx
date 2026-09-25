@@ -1,4 +1,4 @@
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
@@ -51,7 +51,6 @@ export const emptyInputStorageKey = "agents.empty-input";
 export const selectedOrganizationIdStorageKey =
 	"agents.selected-organization-id";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 export type CreateChatOptions = {
 	message: string;
@@ -65,18 +64,39 @@ export type CreateChatOptions = {
 };
 
 /**
- * Hook that manages draft persistence for the empty-state chat input.
- * Persists the current input to localStorage so the user's draft
- * survives page reloads.
+ * Prefilled content for a chat opened from a deep link. The form reads it on
+ * mount (remount with a new `key` to change it), uploads the attachment
+ * without sending, and neither reads nor writes the saved draft or
+ * attachments.
+ */
+export type AgentCreatePrefill = {
+	message: string;
+	attachment: {
+		name: string;
+		text: string;
+	};
+};
+
+/**
+ * Persists the empty-state input to localStorage so the draft survives
+ * reloads.
  *
- * Once `submitDraft` is called, the stored draft is removed and further
- * content changes are no longer persisted for the lifetime of the hook.
- * Call `resetDraft` to re-enable persistence (e.g. on mutation failure).
+ * `submitDraft` removes the stored draft and stops persisting until
+ * `resetDraft` (e.g. after a failed send).
+ *
+ * When `prefilledText` is given, it is the initial value and the stored
+ * draft is neither read nor modified.
  *
  * @internal Exported for testing.
  */
-export function useEmptyStateDraft() {
+export function useEmptyStateDraft(prefilledText?: string) {
 	const [{ initialInputValue, initialEditorState }] = useState(() => {
+		if (prefilledText !== undefined) {
+			return {
+				initialInputValue: prefilledText,
+				initialEditorState: undefined,
+			};
+		}
 		const draft = parseStoredDraft(localStorage.getItem(emptyInputStorageKey));
 		return {
 			initialInputValue: draft.text,
@@ -85,6 +105,7 @@ export function useEmptyStateDraft() {
 	});
 	const inputValueRef = useRef(initialInputValue);
 	const sentRef = useRef(false);
+	const persists = prefilledText === undefined;
 
 	const handleContentChange = (
 		content: string,
@@ -92,7 +113,7 @@ export function useEmptyStateDraft() {
 		hasFileReferences: boolean,
 	) => {
 		inputValueRef.current = content;
-		if (!sentRef.current) {
+		if (persists && !sentRef.current) {
 			const shouldPersist = content.trim() || hasFileReferences;
 			if (shouldPersist) {
 				try {
@@ -110,7 +131,9 @@ export function useEmptyStateDraft() {
 		// Mark as sent so that editor change events firing during
 		// the async gap cannot re-persist the draft.
 		sentRef.current = true;
-		localStorage.removeItem(emptyInputStorageKey);
+		if (persists) {
+			localStorage.removeItem(emptyInputStorageKey);
+		}
 	};
 
 	const resetDraft = () => {
@@ -129,7 +152,7 @@ export function useEmptyStateDraft() {
 	};
 }
 
-interface AgentCreateFormProps {
+type AgentCreateFormProps = {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	isCreating: boolean;
 	createError: unknown;
@@ -140,7 +163,8 @@ interface AgentCreateFormProps {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
-}
+	prefill?: AgentCreatePrefill;
+};
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
@@ -153,6 +177,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	workspaceOptions,
 	workspacesError,
 	isWorkspacesLoading,
+	prefill,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
 	const {
@@ -161,10 +186,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleContentChange,
 		submitDraft,
 		resetDraft,
-	} = useEmptyStateDraft();
-	const [initialLastModelConfigID] = useState(() => {
-		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
-	});
+	} = useEmptyStateDraft(prefill?.message);
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
 	// filtered workspace list without deleting it. Preserve the stored value
 	// because the permitted-organizations query may resolve after mount and
@@ -314,13 +336,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const modelConfigs = availableModelConfigs;
 	/*
 	 * Model precedence: user click > root override (specific model) > root
-	 * override (chat_default, resolved) > last-used > default > first available.
+	 * override (chat_default, resolved) > default > first available.
 	 */
-	const lastUsedModelID =
-		initialLastModelConfigID &&
-		modelOptions.some((option) => option.id === initialLastModelConfigID)
-			? initialLastModelConfigID
-			: "";
 	const defaultModelID = getUsableDefaultModelIDForOrganization(
 		modelConfigs,
 		modelOptions,
@@ -343,8 +360,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const rootOverrideDisplayModelID = isRootOverrideChatDefault
 		? defaultModelID || (modelOptions[0]?.id ?? "")
 		: rootOverrideModelID;
-	const fallbackModelID =
-		lastUsedModelID || defaultModelID || (modelOptions[0]?.id ?? "");
+	const fallbackModelID = defaultModelID || (modelOptions[0]?.id ?? "");
 	const preferredModelID = rootOverrideDisplayModelID || fallbackModelID;
 	const [userSelectedModel, setUserSelectedModel] = useState("");
 	const [hasUserSelectedModel, setHasUserSelectedModel] = useState(false);
@@ -501,7 +517,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? organizationId || undefined
 			: undefined,
 		{
-			persist: true,
+			// persist also restores saved draft files into this send.
+			persist: prefill === undefined,
 			provider: getProviderForModelOption(modelOptions, selectedModel),
 		},
 	);
@@ -560,6 +577,32 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			// Attachments preserved for retry on failure.
 		}
 	};
+
+	const [prefillFile] = useState(() =>
+		prefill
+			? new File([prefill.attachment.text], prefill.attachment.name, {
+					type: "text/plain",
+				})
+			: null,
+	);
+	// Attached once, after adoption, because adoption replaces the attachment
+	// list. An org change after that drops the logs, and they are not attached
+	// again.
+	const prefillAttachRequestedRef = useRef(false);
+	const attachPrefillFile = useEffectEvent((file: File) => {
+		handleAttach([file]);
+	});
+	const canAttachPrefillFile = organizationAdopted && !isForbidden;
+	useEffect(() => {
+		if (
+			prefillFile &&
+			canAttachPrefillFile &&
+			!prefillAttachRequestedRef.current
+		) {
+			prefillAttachRequestedRef.current = true;
+			attachPrefillFile(prefillFile);
+		}
+	}, [prefillFile, canAttachPrefillFile]);
 
 	return (
 		<>

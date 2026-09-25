@@ -1855,6 +1855,7 @@ var partNulFields = []partNulField{
 	{name: "ArgsDelta", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ArgsDelta }},
 	{name: "Result", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage { return &p.Result }},
 	{name: "ResultDelta", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ResultDelta }},
+	{name: "ReasoningDelta", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ReasoningDelta }},
 	{name: "Title", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.Title }},
 	{name: "Content", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.Content }},
 	{name: "ProviderMetadata", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage { return &p.ProviderMetadata }},

@@ -24,7 +24,7 @@ If you already have the Coder binary installed, restart it after installing Dock
 Our install script is the fastest way to install Coder on Linux/macOS:
 
 ```sh
-curl -L https://coder.com/install.sh | sh
+curl -fsSL https://coder.com/install.sh | sh
 ```
 
 ## Windows

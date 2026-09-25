@@ -90,7 +90,7 @@ type generationCompaction struct {
 	// Override, when non-nil, is the compaction model override resolved at
 	// prepare time. Its model client is built in the compact action path,
 	// so construction failures cannot fail turns that never compact.
-	Override *resolvedCompactionOverride
+	Override *resolvedModelOverride
 	// ChatModelConfig is the chat model's config, used to detect provider
 	// changes when sanitizing the compaction prompt.
 	ChatModelConfig database.ChatModelConfig
@@ -1023,6 +1023,14 @@ func (s *taskStarter) generateCompaction(
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
 		compactionOpts.ModelConfigID = overrideModel.dbConfig.ID
 		compactionOpts.SummaryCall = compactionSummaryCall(overrideModel)
+		// Prompt caches are model-scoped and provider-native tools are
+		// model-specific, so unless the override resolves to the chat model
+		// itself its definitions buy the request nothing and can get it
+		// rejected.
+		if !sameCompactionProviderIdentity(prepared.Compaction.ChatModelConfig, overrideModel.dbConfig) ||
+			overrideModel.resolvedModel != prepared.Compaction.Options.ResolvedModel {
+			compactionOpts.ToolDefinitions = nil
+		}
 		compactionOpts.Messages = sanitizeCompactionPrompt(
 			ctx,
 			logger,
@@ -1584,6 +1592,7 @@ func stepDataFromPersisted(step chatloop.PersistedStep) stepData {
 		Usage:                step.Usage,
 		ContextLimit:         step.ContextLimit,
 		Runtime:              step.Runtime,
+		ProviderResponseID:   step.ProviderResponseID,
 		BatchRuntime:         step.BatchRuntime,
 		BatchBilledCalls:     step.BatchBilledCalls,
 		ToolCallCreatedAt:    step.ToolCallCreatedAt,

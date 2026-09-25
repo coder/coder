@@ -11,7 +11,7 @@ import { Checkbox as CheckboxPrimitive } from "radix-ui";
  * To allow for an indeterminate state the checkbox must be controlled, otherwise the checked prop would remain undefined
  */
 export const Checkbox: React.FC<
-	React.ComponentPropsWithRef<typeof CheckboxPrimitive.Root>
+	React.ComponentProps<typeof CheckboxPrimitive.Root>
 > = ({ className, ...props }) => {
 	return (
 		<CheckboxPrimitive.Root

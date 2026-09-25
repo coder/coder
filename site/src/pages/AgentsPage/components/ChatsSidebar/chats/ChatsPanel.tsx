@@ -57,13 +57,14 @@ import {
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
+import { SectionSwitcher } from "./SectionSwitcher";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const UNREAD_SECTION_KEY = "Unread";
 const READ_SECTION_KEY = "Read";
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
-interface ChatsPanelProps {
+type ChatsPanelProps = {
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
@@ -97,7 +98,7 @@ interface ChatsPanelProps {
 	readonly isChatsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
-}
+};
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
 	chats,
@@ -299,6 +300,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		isLoadingModelConfigs,
 		chatErrorReasons,
 		activeChatId,
+		currentUserId,
 		isArchiving,
 		archivingChatId,
 		toggleExpanded,
@@ -367,6 +369,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						<NavLink to="/workspaces" className="inline-flex">
 							<ProductLogo className="size-6" />
 						</NavLink>
+						<SectionSwitcher />
 					</div>
 					<div className="flex items-center gap-0.5 -mr-1.5">
 						<Button

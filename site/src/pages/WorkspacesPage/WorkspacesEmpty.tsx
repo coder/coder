@@ -6,15 +6,17 @@ import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 
-interface WorkspacesEmptyProps {
+type WorkspacesEmptyProps = {
 	isUsingFilter: boolean;
+	onClearFilter: () => void;
 	templates?: Template[];
 	canCreateTemplate: boolean;
 	canCreateWorkspace: boolean;
-}
+};
 
 export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 	isUsingFilter,
+	onClearFilter,
 	templates,
 	canCreateTemplate,
 	canCreateWorkspace,
@@ -28,7 +30,16 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 		"A workspace is your personal, customizable development environment.";
 
 	if (isUsingFilter) {
-		return <EmptyState message="No results matched your search" />;
+		return (
+			<EmptyState
+				message="No workspaces match your search."
+				cta={
+					<Button variant="outline" onClick={onClearFilter}>
+						Clear all
+					</Button>
+				}
+			/>
+		);
 	}
 
 	if (!canCreateWorkspace) {

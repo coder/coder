@@ -5183,6 +5183,24 @@ type ChatHeartbeat struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
+// MCP servers that a chat owner attached to a root chat. Experimental. chatd connects to every row on each turn of the chat.
+type ChatMCPServer struct {
+	ID     uuid.UUID `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	Slug   string    `db:"slug" json:"slug"`
+	Url    string    `db:"url" json:"url"`
+	// JSON object of HTTP header name to value sent on every request to the server. Encrypted at rest via dbcrypt when headers_key_id is set.
+	Headers string `db:"headers" json:"headers"`
+	// The ID of the key used to encrypt headers. If this is NULL, headers are not encrypted.
+	HeadersKeyID        sql.NullString `db:"headers_key_id" json:"headers_key_id"`
+	ToolAllowList       []string       `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList        []string       `db:"tool_deny_list" json:"tool_deny_list"`
+	AllowInSubagents    bool           `db:"allow_in_subagents" json:"allow_in_subagents"`
+	ForwardCoderHeaders bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time      `db:"updated_at" json:"updated_at"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
@@ -5212,6 +5230,8 @@ type ChatMessage struct {
 	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
 	// Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.
 	SearchTsvConfig NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
+	// ID of the chat_queued_messages row this message was promoted from. NULL when the message was not promoted from the queue, or when a version that did not record the link wrote it. Not a foreign key: promotion deletes the queued row in the same transaction.
+	QueuedMessageID sql.NullInt64 `db:"queued_message_id" json:"queued_message_id"`
 }
 
 type ChatModelConfig struct {
@@ -5554,6 +5574,8 @@ type MCPServerConfig struct {
 	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
 	GroupACL                ChatACL        `db:"group_acl" json:"group_acl"`
 	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
+	SigningSecret           string         `db:"signing_secret" json:"signing_secret"`
+	SigningSecretKeyID      sql.NullString `db:"signing_secret_key_id" json:"signing_secret_key_id"`
 }
 
 type MCPServerUserToken struct {
@@ -5621,13 +5643,14 @@ type NotificationTemplate struct {
 
 // A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.
 type OAuth2ProviderApp struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Name        string    `db:"name" json:"name"`
-	Icon        string    `db:"icon" json:"icon"`
-	CallbackURL string    `db:"callback_url" json:"callback_url"`
-	// List of valid redirect URIs for the application
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	Name      string    `db:"name" json:"name"`
+	Icon      string    `db:"icon" json:"icon"`
+	// Deprecated: the primary redirect URI is the first entry of redirect_uris. Every writer keeps this column equal to it until the column is dropped.
+	CallbackURL string `db:"callback_url" json:"callback_url"`
+	// Redirect URIs the authorize and token endpoints accept. The first entry is the primary, used when a request omits redirect_uri.
 	RedirectUris []string `db:"redirect_uris" json:"redirect_uris"`
 	// OAuth2 client type: confidential or public
 	ClientType string `db:"client_type" json:"client_type"`

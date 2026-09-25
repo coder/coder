@@ -17,12 +17,12 @@ import {
 } from "#/modules/permissions";
 import { modelOrganizationSearchParam } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 
-interface AISettingsSidebarViewProps {
+type AISettingsSidebarViewProps = {
 	/** Site-wide permissions. */
 	permissions: Permissions;
 	canAccessOrganizationModels?: boolean;
 	canShareOrganizationMCPServers?: boolean;
-}
+};
 
 const SubNavItem: FC<{ href: To; children?: ReactNode }> = ({
 	href,
@@ -41,6 +41,12 @@ const SubNavItem: FC<{ href: To; children?: ReactNode }> = ({
 	>
 		{children}
 	</NavLink>
+);
+
+const SubNavGroup: FC<{ children: ReactNode }> = ({ children }) => (
+	<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
+		{children}
+	</div>
 );
 
 const organizationScopedPath = (
@@ -126,7 +132,7 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 					<SidebarNavItem href={coderAgentsPath}>Coder Agents</SidebarNavItem>
 				)}
 				{permissions.editDeploymentConfig && (
-					<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
+					<SubNavGroup>
 						<SubNavItem href={mcpServersPath}>MCP servers</SubNavItem>
 						{permissions.updateAnyTemplate && (
 							<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
@@ -135,7 +141,7 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 							Instructions
 						</SubNavItem>
 						<SubNavItem href="/ai/settings/lifecycle">Lifecycle</SubNavItem>
-					</div>
+					</SubNavGroup>
 				)}
 				{!permissions.editDeploymentConfig &&
 					(permissions.viewAnyMCPServerConfigs ||
@@ -143,7 +149,7 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 						permissions.updateAnyMCPServerConfig ||
 						permissions.deleteAnyMCPServerConfig ||
 						canShareOrganizationMCPServers) && (
-						<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
+						<SubNavGroup>
 							<SubNavItem
 								href={
 									permissions.viewAnyMCPServerConfigs ||
@@ -156,12 +162,12 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 							>
 								MCP servers
 							</SubNavItem>
-						</div>
+						</SubNavGroup>
 					)}
 				{!permissions.editDeploymentConfig && permissions.updateAnyTemplate && (
-					<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
+					<SubNavGroup>
 						<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
-					</div>
+					</SubNavGroup>
 				)}
 			</div>
 		</BaseSidebar>

@@ -272,7 +272,7 @@ type Options struct {
 	ChatStreamPartsDialer chatd.StreamPartsDialer
 	// Nil keeps the default chat agent caps active.
 	ChatAgentCapacityUnlock chatd.AgentCapacityUnlock
-	// ChatProviderAPIKeys overrides deployment-derived provider keys.
+	// ChatProviderAPIKeys supplies fallback provider keys for chat execution.
 	// Test harnesses use this to route chat models to local providers.
 	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
 	// ChatWorkerDisabled skips starting the chat daemon's background
@@ -889,7 +889,7 @@ func New(options *Options) *API {
 				options.Logger.Named("mcp-user-oidc"),
 			)
 		}
-		providerAPIKeys := ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues)
+		providerAPIKeys := chatprovider.ProviderAPIKeys{}
 		if options.ChatProviderAPIKeys != nil {
 			providerAPIKeys = *options.ChatProviderAPIKeys
 		}
@@ -937,6 +937,7 @@ func New(options *Options) *API {
 				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
 				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
 				StreamSilenceTimeout:           streamSilenceTimeout,
+				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
@@ -1240,12 +1241,20 @@ func New(options *Options) *API {
 
 	// OAuth2 metadata endpoint for RFC 8414 discovery
 	r.Route("/.well-known/oauth-authorization-server", func(r chi.Router) {
-		r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
+		r.Use(
+			httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
+			// Discovery carries no credential, so the limiter keys on the
+			// address rather than a user.
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+		)
 		r.Get("/*", api.oauth2AuthorizationServerMetadata())
 	})
 	// OAuth2 protected resource metadata endpoint for RFC 9728 discovery
 	r.Route("/.well-known/oauth-protected-resource", func(r chi.Router) {
-		r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
+		r.Use(
+			httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+		)
 		r.Get("/*", api.oauth2ProtectedResourceMetadata())
 	})
 
@@ -1261,56 +1270,49 @@ func New(options *Options) *API {
 			// rejection carries no credential, so it needs none.
 			httpmw.NoStore,
 		)
-		r.Route("/authorize", func(r chi.Router) {
-			r.Use(
-				// Fetch the app as system for the authorize endpoint
-				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
-				apiKeyMiddlewareRedirect,
-			)
-			// GET shows the consent page, POST processes the consent
-			r.Get("/", api.getOAuth2ProviderAppAuthorize())
-			r.Post("/", api.postOAuth2ProviderAppAuthorize())
-		})
-		r.Route("/tokens", func(r chi.Router) {
-			r.Use(
-				// Use OAuth2-compliant error responses for the tokens endpoint
-				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
-			)
-			r.Group(func(r chi.Router) {
-				r.Use(apiKeyMiddleware)
-				// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
-				// route used to revoke permissions from an application.  It is here for
-				// parity with POST on /tokens.
-				r.Delete("/", api.deleteOAuth2ProviderAppTokens())
-			})
-			// The POST /tokens endpoint will be called from an unauthorized client so
-			// we cannot require an API key.
-			r.Post("/", api.postOAuth2ProviderAppToken())
-		})
+		authorize := r.With(
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+			// Fetch the app as system for the authorize endpoint
+			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+			apiKeyMiddlewareRedirect,
+		)
+		// GET shows the consent page, POST processes the consent
+		authorize.Get("/authorize", api.getOAuth2ProviderAppAuthorize())
+		authorize.Post("/authorize", api.postOAuth2ProviderAppAuthorize())
+
+		tokens := r.With(
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+			// Use OAuth2-compliant error responses for the tokens endpoint
+			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+		)
+		// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
+		// route used to revoke permissions from an application.  It is here for
+		// parity with POST on /tokens.
+		tokens.With(apiKeyMiddleware).Delete("/tokens", api.deleteOAuth2ProviderAppTokens())
+		// The POST /tokens endpoint will be called from an unauthorized client so
+		// we cannot require an API key.
+		tokens.Post("/tokens", api.postOAuth2ProviderAppToken())
 
 		// RFC 7009 Token Revocation Endpoint
-		r.Route("/revoke", func(r chi.Router) {
-			r.Use(
-				// RFC 7009 endpoint uses OAuth2 client authentication, not API key
-				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
-			)
-			// POST /revoke is the standard OAuth2 token revocation endpoint per RFC 7009
-			r.Post("/", api.revokeOAuth2Token())
-		})
+		r.With(
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+			// RFC 7009 endpoint uses OAuth2 client authentication, not API key
+			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+		).Post("/revoke", api.revokeOAuth2Token())
 
 		// RFC 7591 Dynamic Client Registration - Public endpoint
-		r.Post("/register", api.postOAuth2ClientRegistration())
+		r.With(httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute)).
+			Post("/register", api.postOAuth2ClientRegistration())
 
 		// RFC 7592 Client Configuration Management - Protected by registration access token
-		r.Route("/clients/{client_id}", func(r chi.Router) {
-			r.Use(
-				// Middleware to validate registration access token
-				oauth2provider.RequireRegistrationAccessToken(api.Database),
-			)
-			r.Get("/", api.oauth2ClientConfiguration())          // Read client configuration
-			r.Put("/", api.putOAuth2ClientConfiguration())       // Update client configuration
-			r.Delete("/", api.deleteOAuth2ClientConfiguration()) // Delete client
-		})
+		clients := r.With(
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+			// Middleware to validate registration access token
+			oauth2provider.RequireRegistrationAccessToken(api.Database),
+		)
+		clients.Get("/clients/{client_id}", api.oauth2ClientConfiguration())          // Read client configuration
+		clients.Put("/clients/{client_id}", api.putOAuth2ClientConfiguration())       // Update client configuration
+		clients.Delete("/clients/{client_id}", api.deleteOAuth2ClientConfiguration()) // Delete client
 	})
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.
@@ -1342,32 +1344,14 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserSkill)
 			})
 		})
-		// Chat routes are promoted to /api/v2. CODAGT-921 decided a compatibility
-		// window, so these experimental duplicates must remain for one release.
-		// TODO(CODAGT-921): remove after the transition window (tracked in CODAGT-922).
-		r.Route("/users/{user}/ai-provider-keys", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				httpmw.ExtractUserParam(options.Database),
-			)
-			api.registerUserAIProviderKeyRoutes(r)
-		})
-		r.Route("/organizations", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Route("/{organization}", func(r chi.Router) {
-				r.Use(httpmw.ExtractOrganizationParam(options.Database))
-				api.registerOrganizationChatRoutes(r, chatAPIPrefixExperimental)
-				r.Route("/members/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractOrganizationMemberParam(options.Database))
-					api.registerOrganizationMemberChatRoutes(r)
-				})
-			})
-		})
-		api.registerChatAPIRoutes(r, apiKeyMiddleware, chatAPIPrefixExperimental)
+		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
 
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			api.registerMCPServerOAuth2Routes(r, chatAPIPrefixExperimental)
+			// Providers pin the redirect URI when a session is established,
+			// so the callback URL cannot change for existing sessions without
+			// breaking token refresh and forcing a re-auth.
+			r.Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
 			// MCP HTTP transport endpoint with mandatory authentication.
 			r.Route("/http", func(r chi.Router) {
 				r.Use(
@@ -1423,10 +1407,12 @@ func New(options *Options) *API {
 			r.Get("/available", handleExperimentsAvailable)
 			r.Get("/", api.handleExperimentsGet)
 		})
-		api.registerChatAPIRoutes(r, apiKeyMiddleware, chatAPIPrefixV2)
+		api.registerChatAPIRoutes(r, apiKeyMiddleware)
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			api.registerMCPServerOAuth2Routes(r, chatAPIPrefixV2)
+			// Disconnect stays outside organization routes so former organization
+			// members can delete their stored token after losing config read access.
+			r.Delete("/servers/{mcpServer}/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
 		})
 
 		r.Get("/updatecheck", api.updateCheck)
@@ -1491,7 +1477,7 @@ func New(options *Options) *API {
 				r.Use(
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
-				api.registerOrganizationChatRoutes(r, chatAPIPrefixV2)
+				api.registerOrganizationChatRoutes(r)
 				r.Get("/", api.organization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
@@ -1867,6 +1853,7 @@ func New(options *Options) *API {
 			)
 			r.Get("/", api.workspaceBuild)
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
+			r.Post("/debug-events", api.postWorkspaceBuildDebugEvent)
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
@@ -2165,12 +2152,6 @@ type API struct {
 	// interruptible tasks.
 	ctx    context.Context
 	cancel context.CancelFunc
-
-	// chatFilesRateLimit is shared by the /api/experimental and /api/v2
-	// chat file mounts so the compatibility window does not double the
-	// FilesRateLimit budget.
-	chatFilesRateLimitOnce sync.Once
-	chatFilesRateLimit     func(http.Handler) http.Handler
 
 	// DeploymentID is loaded from the database on startup.
 	DeploymentID string

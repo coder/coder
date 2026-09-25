@@ -176,6 +176,9 @@ func (w *pipeResponseWriter) Write(p []byte) (int, error) {
 	// net/http semantics: an implicit 200 OK on first Write if the handler
 	// did not call WriteHeader explicitly.
 	w.WriteHeader(http.StatusOK)
+	if len(p) == 0 {
+		return 0, nil
+	}
 	return w.body.Write(p)
 }
 

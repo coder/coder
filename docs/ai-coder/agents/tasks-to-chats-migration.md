@@ -182,7 +182,7 @@ The WebSocket sends JSON envelopes with a `type` field (`"ping"`,
 | `message`      | A complete message has been persisted                   |
 | `status`       | The chat status changed (e.g. `running` → `waiting`)    |
 | `error`        | An error occurred during processing                     |
-| `retry`        | The server is retrying a failed LLM call                |
+| `retry`        | The control plane is retrying a failed LLM call         |
 | `queue_update` | The queued message list changed                         |
 
 Use `after_id` as a query parameter when reconnecting to skip messages the
@@ -663,7 +663,7 @@ API:
 | **Diff/PR tracking**                 | `GET /chats/{chat}/diff` returns change tracking and PR metadata                                      |
 | **Title generation**                 | `POST /chats/{chat}/title/propose` returns a suggested title                                          |
 | **Pinning**                          | Pin and reorder chats via the `pin_order` field                                                       |
-| **Automatic workspace provisioning** | No workspace needed for Q&A. Provisioned only when the agent needs to act                             |
+| **Automatic workspace provisioning** | Created for workspace access or to obtain missing tools, skills, MCP integrations, or context         |
 
 ## Response schema changes
 

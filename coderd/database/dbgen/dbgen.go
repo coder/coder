@@ -141,6 +141,8 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		ContextLimit:        []int64{seed.ContextLimit.Int64},
 		Compressed:          []bool{seed.Compressed},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
+		ProviderResponseID:  []string{seed.ProviderResponseID.String},
+		QueuedMessageID:     []int64{seed.QueuedMessageID.Int64},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
@@ -395,6 +397,8 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		APIKeyValueKeyID:        seed.APIKeyValueKeyID,
 		CustomHeaders:           seed.CustomHeaders,
 		CustomHeadersKeyID:      seed.CustomHeadersKeyID,
+		SigningSecret:           seed.SigningSecret,
+		SigningSecretKeyID:      seed.SigningSecretKeyID,
 		ToolAllowList:           takeFirstSlice(seed.ToolAllowList, []string{}),
 		ToolDenyList:            takeFirstSlice(seed.ToolDenyList, []string{}),
 		Availability:            takeFirst(seed.Availability, "default_off"),
@@ -409,6 +413,38 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 	})
 	require.NoError(t, err, "insert MCP server config")
 	return cfg
+}
+
+func ChatMCPServer(t testing.TB, db database.Store, seed database.ChatMCPServer) database.ChatMCPServer {
+	t.Helper()
+
+	chatID := seed.ChatID
+	if chatID == uuid.Nil {
+		defaultOrg, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		owner := User(t, db, database.User{})
+		model := ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: defaultOrg.ID})
+		chatID = Chat(t, db, database.Chat{
+			OrganizationID:    defaultOrg.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: model.ID,
+		}).ID
+	}
+
+	server, err := db.UpsertChatMCPServer(genCtx, database.UpsertChatMCPServerParams{
+		ID:                  takeFirst(seed.ID, uuid.New()),
+		ChatID:              chatID,
+		Slug:                takeFirst(seed.Slug, testutil.GetRandomName(t)),
+		Url:                 takeFirst(seed.Url, "https://mcp.example.com/mcp"),
+		Headers:             takeFirst(seed.Headers, "{}"),
+		HeadersKeyID:        seed.HeadersKeyID,
+		ToolAllowList:       takeFirstSlice(seed.ToolAllowList, []string{}),
+		ToolDenyList:        takeFirstSlice(seed.ToolDenyList, []string{}),
+		AllowInSubagents:    seed.AllowInSubagents,
+		ForwardCoderHeaders: seed.ForwardCoderHeaders,
+	})
+	require.NoError(t, err, "upsert chat MCP server")
+	return server
 }
 
 func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnectionLogParams) database.ConnectionLog {

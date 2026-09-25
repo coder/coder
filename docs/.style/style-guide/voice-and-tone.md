@@ -34,7 +34,7 @@ Rewrite in the second person or in a neutral voice.
 
 > I usually set the workspace timeout in the template settings.
 
-*Enforced by `Coder.FirstPersonSingular`.*
+*Enforced by `Coder.FirstPersonSingular` (planned).*
 
 ## Reserve first-person plural for Coder Technologies
 
@@ -72,7 +72,7 @@ Rewrite with the product, release, or feature as the subject ("Each release incl
 The second **Don't** uses "we" to refer to the product's release behavior.
 The third **Don't** uses "we" to mean "the docs and the reader together," which obscures who runs the command.
 
-*Enforced by `Coder.FirstPersonPlural`.*
+*Enforced by `Coder.FirstPersonPlural` (planned).*
 
 ## Active voice by default
 

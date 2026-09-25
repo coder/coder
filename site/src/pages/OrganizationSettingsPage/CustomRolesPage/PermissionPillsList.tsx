@@ -12,9 +12,9 @@ function getUniqueResourceTypes(jsonObject: readonly Permission[]) {
 	return [...new Set(resourceTypes)];
 }
 
-interface PermissionPillsListProps {
+type PermissionPillsListProps = {
 	permissions: readonly Permission[];
-}
+};
 
 export const PermissionPillsList: FC<PermissionPillsListProps> = ({
 	permissions,
@@ -42,10 +42,10 @@ export const PermissionPillsList: FC<PermissionPillsListProps> = ({
 	);
 };
 
-interface PermissionPillProps {
+type PermissionPillProps = {
 	resource: string;
 	permissions: readonly Permission[];
-}
+};
 
 const PermissionsPill: FC<PermissionPillProps> = ({
 	resource,

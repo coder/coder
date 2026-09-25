@@ -1,4 +1,3 @@
-import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
@@ -6,18 +5,17 @@ import { workspaceById } from "#/api/queries/workspaces";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
+import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import {
-	useChatBuildId,
-	useChatWorkspaceId,
-} from "../../../context/ChatWorkspaceContext";
+import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
+import { LogNotice } from "./LogNotice";
 import type { ToolStatus } from "./utils";
 
-interface WorkspaceBuildLogSectionProps {
+type WorkspaceBuildLogSectionProps = {
 	status: ToolStatus;
 	/** Build ID from the completed tool result. */
 	buildId?: string;
-}
+};
 
 // How long to wait for the first log entry before showing a
 // warning. Builds can stay queued or run slow Terraform init for
@@ -41,11 +39,10 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	// Primary source: build ID from the chat binding, pushed via
 	// pubsub when create_workspace or start_workspace persists it.
 	// This avoids the 2s polling latency.
-	const chatBuildId = useChatBuildId();
+	const { workspaceId, buildId: chatBuildId } = useChatWorkspace();
 
 	// Fallback: poll the workspace to infer the build ID from
 	// latest_build. Only used when the binding hasn't arrived yet.
-	const workspaceId = useChatWorkspaceId();
 	const needsPoll = isRunning && !chatBuildId;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
@@ -57,7 +54,8 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	// Only use the polled build if it's actually in progress.
 	const latestBuildStatus = workspaceQuery.data?.latest_build?.status;
 	const polledActiveBuildId =
-		latestBuildStatus === "pending" || latestBuildStatus === "starting"
+		latestBuildStatus !== undefined &&
+		ACTIVE_BUILD_STATUSES.includes(latestBuildStatus)
 			? liveBuildId
 			: undefined;
 
@@ -106,31 +104,20 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 
 	if (!effectiveBuildId) {
 		if (isRunning && workspaceId) {
-			return (
-				<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-					<LoaderIcon className="size-3 animate-spin motion-reduce:animate-none" />
-					<span>Loading build logs…</span>
-				</div>
-			);
+			return <LogNotice icon="loading">Loading build logs…</LogNotice>;
 		}
 		return null;
 	}
 
 	if (fetchFailed) {
-		return (
-			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-				<TriangleAlertIcon className="size-3" />
-				<span>Failed to load build logs.</span>
-			</div>
-		);
+		return <LogNotice icon="warning">Failed to load build logs.</LogNotice>;
 	}
 
 	if (timedOut && !hasLogs) {
 		return (
-			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-				<TriangleAlertIcon className="size-3" />
-				<span>Build logs are taking longer than expected.</span>
-			</div>
+			<LogNotice icon="warning">
+				Build logs are taking longer than expected.
+			</LogNotice>
 		);
 	}
 
@@ -140,20 +127,11 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 		completedLogsQuery.isSuccess &&
 		(!logs || logs.length === 0)
 	) {
-		return (
-			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-				<span>No build logs available.</span>
-			</div>
-		);
+		return <LogNotice>No build logs available.</LogNotice>;
 	}
 
 	if (!logs || logs.length === 0) {
-		return (
-			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-				<LoaderIcon className="size-3 animate-spin motion-reduce:animate-none" />
-				<span>Loading build logs…</span>
-			</div>
-		);
+		return <LogNotice icon="loading">Loading build logs…</LogNotice>;
 	}
 
 	return (

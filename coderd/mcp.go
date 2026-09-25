@@ -469,6 +469,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		APIKeyValueKeyID:        sql.NullString{},
 		CustomHeaders:           customHeadersJSON,
 		CustomHeadersKeyID:      sql.NullString{},
+		SigningSecret:           strings.TrimSpace(req.SigningSecret),
+		SigningSecretKeyID:      sql.NullString{},
 		ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
 		ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
 		Availability:            strings.TrimSpace(req.Availability),
@@ -784,6 +786,13 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			customHeadersKeyID = sql.NullString{}
 		}
 
+		signingSecret := existing.SigningSecret
+		signingSecretKeyID := existing.SigningSecretKeyID
+		if req.SigningSecret != nil {
+			signingSecret = strings.TrimSpace(*req.SigningSecret)
+			signingSecretKeyID = sql.NullString{}
+		}
+
 		toolAllowList := existing.ToolAllowList
 		if req.ToolAllowList != nil {
 			toolAllowList = coalesceStringSlice(trimStringSlice(*req.ToolAllowList))
@@ -913,6 +922,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			APIKeyValueKeyID:        apiKeyValueKeyID,
 			CustomHeaders:           customHeaders,
 			CustomHeadersKeyID:      customHeadersKeyID,
+			SigningSecret:           signingSecret,
+			SigningSecretKeyID:      signingSecretKeyID,
 			ToolAllowList:           toolAllowList,
 			ToolDenyList:            toolDenyList,
 			Availability:            availability,
@@ -1567,8 +1578,6 @@ func (api *API) markMCPTokenRefreshFailure(
 // external authorization servers, so it must not change when other MCP
 // routes move. The route registration in coderd.go and the OAuth cookie
 // Path values must stay aligned with it.
-// TODO(CODAGT-922): define a migration story before moving registered
-// redirect URIs to /api/v2.
 func mcpServerOAuth2CallbackPath(configID uuid.UUID) string {
 	return fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", configID)
 }
@@ -1625,6 +1634,7 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 		ModelIntent:         config.ModelIntent,
 		AllowInPlanMode:     config.AllowInPlanMode,
 		ForwardCoderHeaders: config.ForwardCoderHeaders,
+		HasSigningSecret:    config.SigningSecret != "",
 		CreatedAt:           config.CreatedAt,
 		UpdatedAt:           config.UpdatedAt,
 

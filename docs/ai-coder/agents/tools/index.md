@@ -36,9 +36,11 @@ Two properties hold for every built-in tool:
 
 ## Workspace creation tools
 
-A chat starts without a workspace, and many requests are answered without
-one. When the agent needs compute (to read files, run commands, or edit
-code), it provisions a workspace using three tools:
+A chat can start without a workspace.
+When the conversation and available tools are sufficient, the agent answers without provisioning one.
+If missing tools, skills, MCP integrations, or context block progress, or the task needs workspace file access or execution, the agent provisions a workspace.
+You don't need to request a workspace separately for setup needed to complete your task.
+The agent uses three tools to provision a workspace:
 
 | Tool               | Purpose                                                   |
 |--------------------|-----------------------------------------------------------|
@@ -209,10 +211,12 @@ become ready, then attaches it to the chat.
 
 Guardrails:
 
-- The agent is instructed to create a workspace only when the task requires
-  one or when you explicitly ask for it, and to follow the `next_step` from
-  `list_templates`, which means asking you first when no template was
-  recommended.
+- The agent creates a workspace when missing tools, skills, MCP integrations, or context block progress, when workspace access is needed, or when you ask.
+  It prefers existing tools and context when they're sufficient.
+  Creating a workspace doesn't make workspace MCP tools available in Plan Mode.
+  Workspace readiness doesn't guarantee that skills, MCP tools, or context have finished loading.
+  The agent uses available capabilities rather than recreating the workspace to retry discovery.
+  It follows the `next_step` from `list_templates`, asking you to choose when no template is recommended.
 - The tool is idempotent: if the chat already has a workspace building or
   running, that workspace is returned instead of creating a duplicate.
 - Templates that do not allow Coder Agents are rejected.

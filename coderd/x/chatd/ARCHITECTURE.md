@@ -5,7 +5,7 @@ Chatd has 4 main pieces:
 - **core state machine**: describes how a chat's state in the database can change over time. It defines the valid states and transitions for committed chat data: status, messages, queued messages, pending actions, worker ownership, and the fields used to reject stale work. It's a specification implemented by [chatstate/machine.go](./chatstate/machine.go). Runtime components, such as the HTTP endpoints and the chat worker, use it to ensure that they modify the state only in valid ways.
 - **API surface**: the HTTP endpoints that coderd exposes. Responsible for: creating chats, sending messages, editing messages, updating metadata, managing the queue, interrupting active work, and submitting tool results. These are used by the client, usually via the browser, to interact with chats.
 - **chat worker**: lives inside every coderd replica. It acquires chats, calls the LLM API, executes tools, handles interrupts and tool-result waits, and commits completed outcomes through the core state machine.
-- **stream loop**: powers `GET /api/experimental/chats/{chat}/stream`, the WebSocket endpoint that the UI uses to consume a live chat. It combines two kinds of data: messages committed to the database and streaming message parts emitted by the chat worker. It receives notifications over pubsub whenever the chat state is updated, fetches messages from the database, and connects to the coderd replica that currently owns the chat to relay the streaming message parts to the client.
+- **stream loop**: powers `GET /api/v2/chats/{chat}/stream`, the WebSocket endpoint that the UI uses to consume a live chat. It combines two kinds of data: messages committed to the database and streaming message parts emitted by the chat worker. It receives notifications over pubsub whenever the chat state is updated, fetches messages from the database, and connects to the coderd replica that currently owns the chat to relay the streaming message parts to the client.
 
 # Gateway attribution keys
 
@@ -136,6 +136,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `FinishError(err)` parks the chat in `error` and persists `last_error = err`, replacing any previously stored error. It is allowed when an unarchived chat is waiting or running.
 - `CancelRequiresAction(reason)` closes pending dynamic tool calls with synthetic cancellation tool results, satisfies the pending-action projection, clears `requires_action_deadline_at`, and lands in `running`.
 - `ReconcileInvalidState` reconciles a chat in an invalid state by setting it to a valid state. Defined in the [Invalid states](#invalid-states) section.
+
+Every transition that promotes a queued message into history stores the queue row's ID in `chat_messages.queued_message_id`, and fails if deleting that queue row doesn't remove exactly one row. Other messages leave it NULL.
 
 ### Execution state transition diagram
 
@@ -273,7 +275,7 @@ Right after the refactor described in this document is complete, some chats may 
 
 This will land the chat in either `E0` or `E1`, depending on whether it has any queued messages.
 
-Users can reconcile a chat's state by calling the `POST /api/experimental/chats/{chat}/reconcile-invalid` endpoint.
+Users can reconcile a chat's state by calling the `POST /api/v2/chats/{chat}/reconcile-invalid` endpoint.
 
 ## Message revisions and history version
 
@@ -425,7 +427,7 @@ EXECUTE FUNCTION sync_chat_retry_state();
 
 This section maps the public endpoints that mutate chat state to the transitions they use.
 
-Chat routes are registered once by `registerChatAPIRoutes` and mounted under both `/api/experimental` and `/api/v2` during a compatibility window. Paths in this document are written with one prefix or the other, but every promoted route answers on both. The routes that were not promoted answer only on `/api/experimental`; at the time of writing these are the `providers` and `user-provider-configs` collections under `/chats`, the `computer-use-provider` and `advisor` routes under `/chats/config`, `GET /chats/{chat}/stream/desktop`, and `GET /chats/{chat}/debug/runs` with `GET /chats/{chat}/debug/runs/{debugRun}`. Each mount reserves the top-level `/chats/<segment>` collection paths it does not serve (`model-configs`, `providers`, and `user-provider-configs` on `/api/v2`; `models` and `model-configs` on `/api/experimental`) so they return 404 instead of matching the `{chat}` wildcard and failing UUID parsing.
+Chat routes are registered by `registerChatAPIRoutes` and mounted under `/api/v2`. The routes that were not promoted are registered by `registerExperimentalChatRoutes` and answer only on `/api/experimental`: the `computer-use-provider` and `advisor` routes under `/chats/config`, `GET /chats/{chat}/stream/desktop`, and `GET /chats/{chat}/debug/runs` with `GET /chats/{chat}/debug/runs/{debugRun}`. The `/api/v2` mount reserves `/chats/model-configs` so it returns 404 instead of matching the `{chat}` wildcard and failing UUID parsing.
 
 ### Organization-scoped model discovery
 
@@ -439,7 +441,7 @@ Model configuration writes are serialized per organization by `inChatModelConfig
 
 The write paths maintain exactly one default whenever an organization has at least one live model config. The partial unique index permits at most one default per organization, while the locked write logic self-promotes the first config, unsets an old default before replacing it, and elects a replacement when the current default is demoted or deleted. Election prefers an enabled config whose provider is enabled, then falls back to another live config. If the only config is explicitly demoted, it is promoted again to preserve the invariant.
 
-### `POST /api/experimental/chats`
+### `POST /api/v2/chats`
 
 This endpoint uses `Create(initialMessages)`:
 
@@ -447,7 +449,7 @@ This endpoint uses `Create(initialMessages)`:
 
 No other input states are supported.
 
-### `PATCH /api/experimental/chats/{chat}`
+### `PATCH /api/v2/chats/{chat}`
 
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived
 
@@ -464,16 +466,16 @@ If the request does not change `archived`, this endpoint doesn't emit any state 
 
 Other execution-state classes are not supported for archive/unarchive.
 
-### `POST /api/experimental/chats/{chat}/messages`
+### `POST /api/v2/chats/{chat}/messages`
 
 For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 
 - `W -> SendMessage(m, queue) -> R0`
 - `E0 -> SendMessage(m, queue) -> R0`
 - `E1 -> SendMessage(m, queue) -> R1`: this appends `m` to the end of the queue, promotes the current queue head, and clears the error. The scenario where this happens is:
-    - the user queued some messages
-    - the chat ran into an error and stopped, for example because of an unretriable problem with the LLM provider
-    - the user then sends a new message, but there is a non-empty queue. As defined here, the UX will be “add the new message to the end of the queue and promote the queue head.” Arguably, a better UX could be “add the new message to the chat immediately and start running it, even though there's a non-empty queue.” I think the former is better because it's more consistent with the behavior of the endpoint in other cases.
+  - the user queued some messages
+  - the chat ran into an error and stopped, for example because of an unretriable problem with the LLM provider
+  - the user then sends a new message, but there is a non-empty queue. As defined here, the UX will be “add the new message to the end of the queue and promote the queue head.” Arguably, a better UX could be “add the new message to the chat immediately and start running it, even though there's a non-empty queue.” I think the former is better because it's more consistent with the behavior of the endpoint in other cases.
 - `R0 -> SendMessage(m, queue) -> R1`
 - `R1 -> SendMessage(m, queue) -> R1`
 - `I0 -> SendMessage(m, queue) -> I1`
@@ -495,9 +497,11 @@ For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
 
 When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized.
 
+The promoted head in `messages` carries the old head's queue ID in `queued_message_id`. `queued_message` is the new tail, so the two IDs differ.
+
 Other input states are not supported.
 
-### `PATCH /api/experimental/chats/{chat}/messages/{message}`
+### `PATCH /api/v2/chats/{chat}/messages/{message}`
 
 This endpoint uses `EditMessage(k, replacement)`:
 
@@ -515,7 +519,7 @@ This endpoint uses `EditMessage(k, replacement)`:
 
 Other input states are not supported.
 
-### `DELETE /api/experimental/chats/{chat}/queue/{queuedMessage}`
+### `DELETE /api/v2/chats/{chat}/queue/{queuedMessage}`
 
 This endpoint uses `DeleteQueuedMessage(qid)`:
 
@@ -530,7 +534,7 @@ This endpoint uses `DeleteQueuedMessage(qid)`:
 
 No other input states are supported.
 
-### `POST /api/experimental/chats/{chat}/queue/{queuedMessage}/promote`
+### `POST /api/v2/chats/{chat}/queue/{queuedMessage}/promote`
 
 This endpoint uses `PromoteQueuedMessage(qid)`:
 
@@ -543,9 +547,11 @@ This endpoint uses `PromoteQueuedMessage(qid)`:
 
 `PromoteQueuedMessage` reorders `qid` to the queue head internally when needed. From `E1` and `A1`, it removes the queued message and inserts it into history immediately. From `R1` and `I1`, it leaves the message queued at the head so `FinishInterruption(partial?)` can promote it after finalizing the interrupted suffix.
 
+Either way, the resulting history message has `queued_message_id = qid`.
+
 No other input states are supported.
 
-### `POST /api/experimental/chats/{chat}/interrupt`
+### `POST /api/v2/chats/{chat}/interrupt`
 
 This endpoint uses `Interrupt(user_cancel)`:
 
@@ -558,7 +564,7 @@ When `Interrupt(user_cancel)` lands in `I0` or `I1`, the chat is later picked up
 
 No other input states are supported.
 
-### `POST /api/experimental/chats/{chat}/tool-results`
+### `POST /api/v2/chats/{chat}/tool-results`
 
 This endpoint uses `CompleteRequiresAction(results)`:
 
@@ -567,7 +573,7 @@ This endpoint uses `CompleteRequiresAction(results)`:
 
 No other input states are supported.
 
-### `POST /api/experimental/chats/{chat}/compact`
+### `POST /api/v2/chats/{chat}/compact`
 
 This endpoint uses `RequestCompaction`:
 
@@ -577,7 +583,7 @@ This endpoint uses `RequestCompaction`:
 
 No other input states are supported: generating chats get a conflict error, and archived chats are rejected. Requesting compaction from an error state clears `last_error`, so a context-overflowed chat can recover by compacting instead of re-running the same oversized prompt. The endpoint is owner-only because the compaction runs LLM inference with the owner's delegated credentials. Inside the same transaction, after the transition succeeds, the endpoint verifies there is at least one uncompressed assistant message after the latest compaction boundary and rolls back with a "nothing to compact" conflict otherwise, so no LLM call is ever started for an empty or already-compacted chat. See [Manual compaction](#manual-compaction) for how the worker consumes the request.
 
-### `POST /api/experimental/chats/{chat}/clear`
+### `POST /api/v2/chats/{chat}/clear`
 
 This endpoint uses `ClearContext`:
 
@@ -590,29 +596,28 @@ No other input states are supported: generating chats and chats with queued mess
 
 The chat worker and the stream loop need real-time notifications when the chat state changes to ensure they are responsive. To achieve this, we use pubsub.
 
-As with the transitions section, I don't recommend reading the rest of this section thoroughly at first. Give it a cursory look, and treat it as a reference that you can return to later when you're analyzing the `GET /api/experimental/chats/{chat}/stream` endpoint or the chat worker.
+As with the transitions section, I don't recommend reading the rest of this section thoroughly at first. Give it a cursory look, and treat it as a reference that you can return to later when you're analyzing the `GET /api/v2/chats/{chat}/stream` endpoint or the chat worker.
 
 ### Notification channels
 
 There are 2 notification channels:
 
 - `chat:ownership` is a global channel consumed by chat workers. Its payload is:
-    - `chat_id`
-    - `snapshot_version`
+  - `chat_id`
+  - `snapshot_version`
     It notifies chat workers about chats that need processing by a chat worker, but aren't owned by a chat worker. A worker then picks the chat up.
 - `chat:update:{chat_id}` is a per-chat channel consumed by a chat worker that owns the chat and by active stream loops. Its payload is:
-    - `snapshot_version`
-    - `worker_id`
-    - `runner_id`
-    - `history_version`
-    - `queue_version`
-    - `retry_state_version`
-    - `generation_attempt`
-    - `status`
-    - `archived`
-    
+  - `snapshot_version`
+  - `worker_id`
+  - `runner_id`
+  - `history_version`
+  - `queue_version`
+  - `retry_state_version`
+  - `generation_attempt`
+  - `status`
+  - `archived`
+
     It notifies receivers that a chat's execution state changed. Receivers use the payload as a hint to decide whether they should fetch the latest state from the database.
-    
 
 ### Notification emission rules
 
@@ -883,7 +888,7 @@ The generation goroutine supports:
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
-    - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
+  - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
 - file links
 - workspace binding
 - plan mode
@@ -1016,7 +1021,7 @@ Compaction reduces the LLM prompt size by summarizing older history into a compr
 
 Trailing user messages the assistant has not answered yet are not summarized: they are excluded from the summarizer's input and re-committed after the triplet as model-only user rows, so the pruned prompt keeps them verbatim instead of relying on summary fidelity.
 
-Users can also request a compaction on demand via `POST /api/experimental/chats/{chat}/compact` (surfaced in the web UI as the `/compact` slash command). Manual compaction is a durable one-shot request executed through the normal worker loop rather than synchronously in the HTTP handler. This reuses the worker's lock fencing, retry accounting, streamed "Summarizing..." progress parts, metrics, and debug runs, and it survives replica crashes. The flow:
+Users can also request a compaction on demand via `POST /api/v2/chats/{chat}/compact` (surfaced in the web UI as the `/compact` slash command). Manual compaction is a durable one-shot request executed through the normal worker loop rather than synchronously in the HTTP handler. This reuses the worker's lock fencing, retry accounting, streamed "Summarizing..." progress parts, metrics, and debug runs, and it survives replica crashes. The flow:
 
 1. The endpoint applies the `RequestCompaction` transition: allowed from `W`, `E0`, and `E1`, it sets `chats.compaction_requested_at = now()`, clears `last_error`, lands in `R0` (or `R1` from `E1`, preserving the queue) without inserting any message, and publishes a status-change pubsub event to wake workers. Because the transition inserts no history, it advances `history_version` to the transaction's new `snapshot_version` and resets `generation_attempt` itself, granting the fresh retry budget and episode keys a history change would otherwise provide. A timestamp is used instead of a boolean for debuggability. AI Gateway attribution needs no per-request key: generation preparation resolves the owner's synthetic API key like any other turn.
 2. The generation goroutine's decision logic checks `compaction_requested_at` after the unresolved local/dynamic tool guards but before the history-completeness check (an idle chat's history is otherwise complete, which would end the turn). If the marker is set and at least one uncompressed assistant message exists after the latest compaction boundary, it selects a forced compaction; if there is nothing to compact, the marker is ignored and the turn finishes normally, clearing it.
@@ -1039,7 +1044,7 @@ Coder stores no hook-specific dispatch or decision state. Delivery is best-effor
 
 # Stream loop
 
-The stream loop powers the `GET /api/experimental/chats/{chat}/stream` endpoint. It is scoped to one chat and one client WebSocket. It's responsible for delivering a stream of chat updates to the client, including:
+The stream loop powers the `GET /api/v2/chats/{chat}/stream` endpoint. It is scoped to one chat and one client WebSocket. It's responsible for delivering a stream of chat updates to the client, including:
 
 - messages committed to the database; and
 - streaming message parts emitted by the chat worker via the relay mechanism.
@@ -1049,7 +1054,7 @@ The stream loop powers the `GET /api/experimental/chats/{chat}/stream` endpoint.
 The following chat stream events, delivered to the client over WebSocket, are supported:
 
 - `message_part`: a streaming message part emitted by the chat worker. Each carries the `history_version` and `generation_attempt` of the episode it belongs to, so a client knows which episode a message part comes from.
-- `message`: a committed chat message present in the database.
+- `message`: a committed chat message present in the database. Messages promoted from the queue carry `queued_message_id`, so clients can match them to the queued entry without comparing content. A missing field means unknown, since older servers don't write it.
 - `status`: the chat's status.
 - `error`: the chat's persisted error payload.
 - `queue_update`: the full current queued-message list.
@@ -1082,8 +1087,8 @@ The stream loop stores:
 - latest synchronized `queue_version`;
 - latest synchronized `retry_state_version`;
 - known committed messages:
-    - message ID;
-    - latest message revision sent to the client;
+  - message ID;
+  - latest message revision sent to the client;
 - latest status sent to the client;
 - `history_version` for the last sent error;
 - latest `history_version` for which `action_required` was sent;
@@ -1352,8 +1357,8 @@ Control message shape:
 
 ```json
 {
-	"history_version": 12,
-	"generation_attempt": 3
+    "history_version": 12,
+    "generation_attempt": 3
 }
 ```
 

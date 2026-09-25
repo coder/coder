@@ -16,18 +16,18 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-interface QueuedMessagesListProps {
+type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
 	className?: string;
-}
+};
 
-interface QueuedMessageInfo {
+type QueuedMessageInfo = {
 	displayText: string;
 	attachmentCount: number;
 	hookNotices: string[];
-}
+};
 
 export const getQueuedMessageInfo = (
 	message: ChatQueuedMessage,
@@ -206,11 +206,12 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 							{isFirst && (
 								<span
 									className={cn(
-										"flex shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity",
+										"hidden shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity sm:flex",
 										showActions ? "opacity-100" : "opacity-0",
 									)}
 								>
-									<CornerDownLeftIcon className="size-3" />
+									<CornerDownLeftIcon className="size-3" aria-hidden="true" />
+									<span className="sr-only">Enter</span>
 									to send
 								</span>
 							)}
