@@ -9995,6 +9995,47 @@ func TestPatchChatMessage(t *testing.T) {
 	})
 }
 
+// readStreamChatSnapshot reads through the initial status event, which
+// follows replayed messages.
+func readStreamChatSnapshot(ctx context.Context, t *testing.T, events <-chan codersdk.ChatStreamEvent) []codersdk.ChatStreamEvent {
+	t.Helper()
+	var snapshot []codersdk.ChatStreamEvent
+	for {
+		select {
+		case <-ctx.Done():
+			require.FailNow(t, "timed out waiting for the snapshot status event")
+		case event, ok := <-events:
+			require.True(t, ok, "stream closed before the snapshot status event")
+			require.NotEqual(t, codersdk.ChatStreamEventTypeError, event.Type)
+			snapshot = append(snapshot, event)
+			if event.Type == codersdk.ChatStreamEventTypeStatus {
+				return snapshot
+			}
+		}
+	}
+}
+
+func streamChatEventsOfType(events []codersdk.ChatStreamEvent, eventType codersdk.ChatStreamEventType) []codersdk.ChatStreamEvent {
+	var matched []codersdk.ChatStreamEvent
+	for _, event := range events {
+		if event.Type == eventType {
+			matched = append(matched, event)
+		}
+	}
+	return matched
+}
+
+func streamChatSnapshotHasText(events []codersdk.ChatStreamEvent, text string) bool {
+	for _, event := range streamChatEventsOfType(events, codersdk.ChatStreamEventTypeMessage) {
+		for _, part := range event.Message.Content {
+			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == text {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func TestStreamChat(t *testing.T) {
 	t.Parallel()
 
@@ -10049,6 +10090,161 @@ func TestStreamChat(t *testing.T) {
 				}
 			}
 		}
+	})
+
+	t.Run("AfterID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "stream chat after_id cursor"},
+			},
+		})
+		require.NoError(t, err)
+
+		page, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, page.Messages)
+		afterID := page.Messages[0].ID
+
+		events, closer, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterID: &afterID})
+		require.NoError(t, err)
+		defer closer.Close()
+
+		snapshot := readStreamChatSnapshot(ctx, t, events)
+		require.Empty(t, streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeHistoryReset))
+		for _, event := range streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeMessage) {
+			require.Greater(t, event.Message.ID, afterID)
+		}
+	})
+
+	t.Run("AfterIDEditTruncation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "before edit"},
+			},
+		})
+		require.NoError(t, err)
+
+		page, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, page.Messages)
+		edited, err := client.EditChatMessage(ctx, chat.ID, page.Messages[0].ID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "after edit"},
+			},
+		})
+		require.NoError(t, err)
+
+		afterID := edited.Message.ID
+		events, closer, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterID: &afterID})
+		require.NoError(t, err)
+		defer closer.Close()
+
+		snapshot := readStreamChatSnapshot(ctx, t, events)
+		require.Empty(t, streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeHistoryReset))
+		for _, event := range streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeMessage) {
+			require.Greater(t, event.Message.ID, afterID)
+		}
+	})
+
+	t.Run("AfterIDUnknown", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "stream chat unknown cursor"},
+			},
+		})
+		require.NoError(t, err)
+
+		afterID := int64(1 << 40)
+		events, closer, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterID: &afterID})
+		require.NoError(t, err)
+		defer closer.Close()
+
+		snapshot := readStreamChatSnapshot(ctx, t, events)
+		require.Empty(t, streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeHistoryReset))
+		for _, event := range streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeMessage) {
+			require.Greater(t, event.Message.ID, afterID)
+		}
+	})
+
+	t.Run("AfterIDOtherChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		const initialMessage = "stream chat own history"
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: initialMessage},
+			},
+		})
+		require.NoError(t, err)
+
+		// Created second so the foreign cursor ID exceeds chat's initial message.
+		const otherMessage = "stream chat other chat cursor"
+		other, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: otherMessage},
+			},
+		})
+		require.NoError(t, err)
+		otherPage, err := client.GetChatMessages(ctx, other.ID, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, otherPage.Messages)
+		foreignID := otherPage.Messages[0].ID
+
+		requireFullHistory := func(msg string) {
+			t.Helper()
+			events, closer, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterID: &foreignID})
+			require.NoError(t, err)
+			defer closer.Close()
+
+			snapshot := readStreamChatSnapshot(ctx, t, events)
+			require.Empty(t, streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeHistoryReset))
+			require.True(t, streamChatSnapshotHasText(snapshot, initialMessage), msg)
+			require.False(t, streamChatSnapshotHasText(snapshot, otherMessage), "foreign cursor must not leak another chat's messages")
+			for _, event := range snapshot {
+				require.Equal(t, chat.ID, event.ChatID)
+			}
+		}
+		requireFullHistory("foreign cursor must fall back to the full history")
+
+		// The edit soft-deletes the cursor, which must still resolve as foreign.
+		_, err = client.EditChatMessage(ctx, other.ID, foreignID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "stream chat other chat edited"},
+			},
+		})
+		require.NoError(t, err)
+		requireFullHistory("deleted foreign cursor must fall back to the full history")
 	})
 
 	t.Run("Unauthenticated", func(t *testing.T) {

@@ -4576,6 +4576,24 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	partialMessages := filterMessageEvents(partialSnapshot)
 	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
 	require.Equal(t, codersdk.ChatMessageRoleUser, partialMessages[0].Message.Role)
+
+	err = db.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
+		ChatID:  chat.ID,
+		AfterID: msg2.ID - 1,
+	})
+	require.NoError(t, err)
+
+	resetSnapshot, _, cancelReset, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
+	require.True(t, ok)
+	cancelReset()
+
+	resets := slice.Filter(resetSnapshot, func(e codersdk.ChatStreamEvent) bool {
+		return e.Type == codersdk.ChatStreamEventTypeHistoryReset
+	})
+	require.Len(t, resets, 1, "deleted cursor should trigger a history reset")
+	resetMessages := filterMessageEvents(resetSnapshot)
+	require.Len(t, resetMessages, 1, "only the message before the truncation survives")
+	require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("first")}, resetMessages[0].Message.Content)
 }
 
 // filterMessageEvents returns only the Message-type events from a

@@ -9069,6 +9069,50 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 	return i, err
 }
 
+const getChatMessageByIDForStream = `-- name: GetChatMessageByIDForStream :one
+SELECT
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+FROM
+    chat_messages
+WHERE
+    id = $1::bigint
+`
+
+// Includes deleted rows so the stream can resolve which chat a deleted cursor
+// belongs to.
+func (q *sqlQuerier) GetChatMessageByIDForStream(ctx context.Context, id int64) (ChatMessage, error) {
+	row := q.db.QueryRowContext(ctx, getChatMessageByIDForStream, id)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.ModelConfigID,
+		&i.CreatedAt,
+		&i.Role,
+		&i.Content,
+		&i.Visibility,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.Compressed,
+		&i.CreatedBy,
+		&i.ContentVersion,
+		&i.TotalCostMicros,
+		&i.RuntimeMs,
+		&i.Deleted,
+		&i.ProviderResponseID,
+		&i.Revision,
+		&i.ReasoningEffort,
+		&i.SearchTsv,
+		&i.SearchTsvConfig,
+	)
+	return i, err
+}
+
 const getChatMessageSummariesPerChat = `-- name: GetChatMessageSummariesPerChat :many
 SELECT
     cm.chat_id,

@@ -395,6 +395,16 @@ WHERE
     id = @id::bigint
     AND deleted = false;
 
+-- name: GetChatMessageByIDForStream :one
+-- Includes deleted rows so the stream can resolve which chat a deleted cursor
+-- belongs to.
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    id = @id::bigint;
+
 -- name: GetChatMessagesByChatID :many
 -- Ordered by id to match the @after_id cursor. created_at is the transaction
 -- start time, so it can disagree with append order when a transaction takes the
