@@ -81,7 +81,7 @@ export const CopyableCodeBlock: FC<CopyableCodeBlockProps> = ({
 
 type PillToggleProps = {
 	label: string;
-	count?: number;
+	count: number;
 	isActive: boolean;
 	onToggle: () => void;
 	icon?: ReactNode;
@@ -108,7 +108,7 @@ export const PillToggle: FC<PillToggleProps> = ({
 		>
 			{icon}
 			{label}
-			{count !== undefined && count > 0 ? ` (${count})` : null}
+			{count > 0 ? ` (${count})` : null}
 		</button>
 	);
 };

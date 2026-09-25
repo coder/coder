@@ -178,7 +178,7 @@ type CommentableDiffViewerProps = {
 	/** Parsed file diffs to render. */
 	parsedFiles: readonly FileDiffMetadata[];
 	/** Whether the panel is in expanded mode. */
-	isExpanded?: boolean;
+	isExpanded: boolean;
 	/** Loading state. */
 	isLoading?: boolean;
 	/** Error state. */
@@ -188,7 +188,7 @@ type CommentableDiffViewerProps = {
 	/** Which diff rendering style to use. */
 	diffStyle: DiffStyle;
 	/** Ref to the chat message input for inserting comments. */
-	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	chatInputRef: RefObject<ChatMessageInputRef | null>;
 	/** Scroll to a specific file. */
 	scrollToFile?: string | null;
 	/** Called after scrollToFile has been processed. */
@@ -303,16 +303,16 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 		);
 		// Single imperative call: chip inserted atomically
 		// in one Lexical update. No rAF hack needed.
-		chatInputRef?.current?.addFileReference({
+		chatInputRef.current?.addFileReference({
 			fileName: box.fileName,
 			startLine,
 			endLine,
 			content,
 		});
 		if (text.trim()) {
-			chatInputRef?.current?.insertText(text);
+			chatInputRef.current?.insertText(text);
 		}
-		chatInputRef?.current?.focus();
+		chatInputRef.current?.focus();
 		updateCommentBox(null);
 	};
 

@@ -7,7 +7,7 @@ type DebugRunListProps = {
 	runs: ChatDebugRunSummary[];
 	chatId: string;
 	isVisible: boolean;
-	download?: DownloadDebugFile;
+	download: DownloadDebugFile;
 };
 
 export const DebugRunList: FC<DebugRunListProps> = ({

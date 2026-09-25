@@ -40,15 +40,11 @@ import {
 
 type DebugStepCardProps = {
 	step: ChatDebugStep;
-	defaultOpen?: boolean;
 };
 
 type SectionKey = "tools" | "options" | "usage" | "policy";
 
-export const DebugStepCard: FC<DebugStepCardProps> = ({
-	step,
-	defaultOpen = false,
-}) => {
+export const DebugStepCard: FC<DebugStepCardProps> = ({ step }) => {
 	// Single active metadata pill: only one section open at a time.
 	const [activeSection, setActiveSection] = useState<SectionKey | null>(null);
 
@@ -114,7 +110,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 	const errorText = getErrorMessage(rawError, safeJsonStringify(rawError));
 
 	return (
-		<Collapsible defaultOpen={defaultOpen}>
+		<Collapsible>
 			<div className="overflow-hidden rounded-lg border border-solid border-border-default/40 bg-surface-secondary/10">
 				<CollapsibleTrigger asChild>
 					<button

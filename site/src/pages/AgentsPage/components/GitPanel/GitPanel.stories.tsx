@@ -103,6 +103,10 @@ const meta: Meta<typeof GitPanel> = {
 		onRefresh: fn().mockReturnValue(true),
 		onCommit: fn(),
 		repositories: new Map(),
+		everDirty: new Set(),
+		isGitStatusLoading: false,
+		isExpanded: false,
+		chatInputRef: { current: null },
 	},
 	decorators: [
 		(Story) => (
