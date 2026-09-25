@@ -9,6 +9,18 @@ import { MockOrganizationAISpendReport } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
 import { type SpendReportQuery, SpendUsersTable } from "./SpendUsersTable";
 
+const tableProps = {
+	period: {
+		start: new Date("2026-03-05T00:00:00Z"),
+		end: new Date("2026-03-12T00:00:00Z"),
+	},
+	unpricedModels: {
+		forUser: () => undefined,
+		total: undefined,
+		setPricingHref: undefined,
+	},
+};
+
 const requestError = new Error("Unable to load organization spend");
 
 it("retries the initial request when the load failed", async () => {
@@ -21,7 +33,7 @@ it("retries the initial request when the load failed", async () => {
 		error: requestError,
 		refetch,
 	} satisfies SpendReportQuery;
-	render(<SpendUsersTable reportQuery={reportQuery} />);
+	render(<SpendUsersTable {...tableProps} reportQuery={reportQuery} />);
 
 	await userEvent.click(screen.getByRole("button", { name: "Retry" }));
 
@@ -39,7 +51,7 @@ it("retries the refresh when a background refetch failed", async () => {
 		error: requestError,
 		refetch,
 	} satisfies SpendReportQuery;
-	render(<SpendUsersTable reportQuery={reportQuery} />);
+	render(<SpendUsersTable {...tableProps} reportQuery={reportQuery} />);
 
 	await userEvent.click(screen.getByRole("button", { name: "Retry" }));
 

@@ -3120,6 +3120,19 @@ class ApiMethods {
 		return response.data;
 	};
 
+	/** Downloads the organization's aggregated AI spend as a CSV file. */
+	exportOrganizationAISpend = async (
+		organizationId: string,
+		filter: TypesGen.OrganizationAISpendDetailsFilter,
+	): Promise<Blob> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organizationId}/ai/spend/export`,
+			filter,
+		);
+		const response = await this.axios.get<Blob>(url, { responseType: "blob" });
+		return response.data;
+	};
+
 	getAIProviders = async (): Promise<TypesGen.AIProvider[]> => {
 		const response = await this.axios.get<TypesGen.AIProvider[]>(
 			"/api/v2/ai/providers",

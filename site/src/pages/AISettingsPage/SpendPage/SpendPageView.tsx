@@ -13,10 +13,11 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "#/pages/AIBridgePage/AIBridgeSetupAlert";
-import { type SpendFilterMenus, SpendFilters } from "./components/SpendFilters";
+import { SpendFilters } from "./components/SpendFilters";
 import {
 	type SpendReportQuery,
 	SpendUsersTable,
+	type UnpricedModelsInfo,
 } from "./components/SpendUsersTable";
 
 type SpendPageViewProps = {
@@ -31,8 +32,13 @@ type SpendPageViewProps = {
 	period: DateTimeRangeValue;
 	minDate: Date | undefined;
 	onPeriodChange: (value: DateTimeRangeValue) => void;
-	filterMenus: SpendFilterMenus | undefined;
+	filterQuery: string;
+	onFilterQueryChange: (query: string) => void;
+	canFilterDimensions: boolean;
+	onExportCSV: () => void;
+	isExportingCSV: boolean;
 	reportQuery: SpendReportQuery;
+	unpricedModels: UnpricedModelsInfo;
 };
 
 export const SpendPageView: FC<SpendPageViewProps> = ({
@@ -79,8 +85,13 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 	period,
 	minDate,
 	onPeriodChange,
-	filterMenus,
+	filterQuery,
+	onFilterQueryChange,
+	canFilterDimensions,
+	onExportCSV,
+	isExportingCSV,
 	reportQuery,
+	unpricedModels,
 }) => {
 	if (isOrganizationsLoading) {
 		return <Loader />;
@@ -130,14 +141,21 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 			<SpendFilters
 				organizations={organizations}
 				organization={organization}
-				onOrganizationChange={onOrganizationChange}
-				menus={filterMenus}
+				filterQuery={filterQuery}
+				onFilterQueryChange={onFilterQueryChange}
+				canFilterDimensions={canFilterDimensions}
+				onExportCSV={onExportCSV}
+				isExportingCSV={isExportingCSV}
 				now={now}
 				period={period}
 				minDate={minDate}
 				onPeriodChange={onPeriodChange}
 			/>
-			<SpendUsersTable reportQuery={reportQuery} />
+			<SpendUsersTable
+				reportQuery={reportQuery}
+				period={period}
+				unpricedModels={unpricedModels}
+			/>
 		</>
 	);
 };

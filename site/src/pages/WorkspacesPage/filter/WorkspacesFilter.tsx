@@ -6,21 +6,16 @@ import {
 	UserIcon,
 	UserKeyIcon,
 } from "lucide-react";
-import { type FC, useCallback, useMemo } from "react";
+import { type FC, useMemo } from "react";
 import { useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
 import {
 	getValidationErrorMessage,
 	hasError,
 	isApiValidationError,
 } from "#/api/errors";
-import { workspaces } from "#/api/queries/workspaces";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
-import type {
-	FilterCategory,
-	SearchResult,
-} from "#/components/Filter/FilterCombobox/types";
+import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
@@ -32,8 +27,6 @@ import {
 	getTemplateFilterOptions,
 	getUserFilterOptions,
 } from "./categoryOptions";
-
-const WORKSPACE_PREVIEW_LIMIT = 5;
 
 type WorkspaceFilterProps = Readonly<{
 	filter: UseFilterResult;
@@ -54,7 +47,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	const canFilterDormant =
 		entitlements.features.advanced_template_scheduling.enabled;
 	const queryClient = useQueryClient();
-	const navigate = useNavigate();
 
 	const categories = useMemo(() => {
 		// Always expose User and Owner so both stay recognized chip keys and the
@@ -69,6 +61,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				label: "Owner",
 				hint: "me",
 				icon: <UserKeyIcon />,
+				showWhenSingleOption: true,
 				getOptions: getUserOptions,
 			},
 			{
@@ -77,12 +70,15 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				label: "User",
 				hint: "me",
 				icon: <UserIcon />,
+				showWhenSingleOption: true,
 				getOptions: getUserOptions,
 			},
 			{
 				key: "status",
 				label: "Status",
 				icon: <CircleDotIcon />,
+				inlineOptions: true,
+				inlineOptionIcons: true,
 				getOptions: getStatusFilterOptions,
 			},
 			{
@@ -93,6 +89,10 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				// Boolean workspace filters live under their own keys, so the
 				// category owns them for chip parsing.
 				chipKeys: ATTRIBUTE_CHIP_KEYS,
+				inlineOptions: true,
+				inlineOptionsLabel: "Workspace is…",
+				inlineOptionsExclusive: true,
+				inlineOptionsLabelOnly: true,
 				getOptions: (query) =>
 					getAttributeFilterOptions(query, { canFilterDormant }),
 			},
@@ -107,7 +107,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 		if (showOrganizations) {
 			next.push({
 				key: "organization",
-				label: "Organization",
+				label: "Organizations",
 				icon: <Building2Icon />,
 				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
 			});
@@ -116,54 +116,21 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 		return next;
 	}, [canListUsers, canFilterDormant, me, showOrganizations, queryClient]);
 
-	const getSearchResults = useCallback(
-		async (query: string): Promise<SearchResult[]> => {
-			const response = await queryClient.fetchQuery(
-				workspaces({
-					q: query,
-					limit: WORKSPACE_PREVIEW_LIMIT,
-					offset: 0,
-				}),
-			);
-
-			return response.workspaces.map((workspace) => ({
-				value: workspace.id,
-				label: workspace.name,
-				imageUrl: workspace.owner_avatar_url,
-				href: `/@${workspace.owner_name}/${workspace.name}`,
-			}));
-		},
-		[queryClient],
-	);
-
-	const onSearchResultSelect = useCallback(
-		(result: SearchResult) => {
-			if (result.href) {
-				navigate(result.href);
-			}
-		},
-		[navigate],
-	);
-
 	// The page hides its ErrorAlert for API validation errors, so the filter
 	// owns surfacing the actionable "invalid query" message.
 	const showValidationError = hasError(error) && isApiValidationError(error);
 
 	return (
-		<div className="flex flex-col gap-2">
+		<div className="flex min-w-0 flex-col gap-2">
 			<FilterCombobox
 				value={filter.query}
 				onChange={filter.update}
 				categories={categories}
 				placeholder="Search and filter workspaces…"
-				// Starts at a compact width and widens to fit chips before wrapping.
-				className="w-auto min-w-lg max-w-full self-start"
+				className="w-full min-w-0 self-start sm:w-auto sm:min-w-lg sm:max-w-full"
 				errorMessage={
 					showValidationError ? getValidationErrorMessage(error) : undefined
 				}
-				getSearchResults={getSearchResults}
-				onSearchResultSelect={onSearchResultSelect}
-				searchResultsLabel="Jump to workspace"
 			/>
 		</div>
 	);

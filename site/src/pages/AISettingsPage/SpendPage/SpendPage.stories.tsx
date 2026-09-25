@@ -1,11 +1,19 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
-import { screen, spyOn, userEvent, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type { OrganizationAISpendUser } from "#/api/typesGenerated";
 import {
 	MockAIProviders,
+	MockGroup,
 	MockOrganization,
 	MockOrganization2,
 	MockOrganizationAISpendReport,
@@ -31,10 +39,50 @@ const mockSpendUsers: OrganizationAISpendUser[] = Array.from(
 		providers: i % 3 === 0 ? ["anthropic", "openai"] : ["anthropic"],
 		clients: i % 2 === 1 ? ["Claude Code", "Cursor"] : ["Claude Code"],
 		models: i % 3 === 0 ? ["claude-opus-4-6", "gpt-5.4"] : ["claude-opus-4-6"],
+		unpriced_usage_count: i % 4 === 0 ? 2 : 0,
 	}),
 );
 
+// Mirrors the provider, model, and client filtering the endpoint applies.
+const filterMockSpendUsers = (
+	params: Parameters<typeof API.getOrganizationAISpendUsers>[1],
+) =>
+	mockSpendUsers.filter(
+		(spendUser) =>
+			(!params.provider_name ||
+				spendUser.providers.includes(params.provider_name)) &&
+			(!params.model || spendUser.models.includes(params.model)) &&
+			(!params.client || spendUser.clients.includes(params.client)),
+	);
+
 const routing = { path: "/ai/settings/spend", useStoryElement: true };
+
+const mockSpendGroup = {
+	...MockGroup,
+	name: "platform",
+	display_name: "Platform",
+	members: mockSpendUsers.slice(0, 4).map((spendUser) => ({
+		...MockUserMember,
+		id: spendUser.user_id,
+		username: spendUser.username,
+	})),
+};
+
+/** Waits until the spend table lists exactly these usernames. */
+const expectSpendUsers = async (
+	canvasElement: HTMLElement,
+	usernames: readonly string[],
+) => {
+	const canvas = within(canvasElement);
+	await waitFor(() => {
+		const rows = within(canvas.getByRole("table", { name: "Spend by user" }))
+			.getAllByRole("row")
+			.slice(1);
+		expect(rows.map((row) => row.textContent)).toEqual(
+			usernames.map((username) => expect.stringContaining(`@${username}`)),
+		);
+	});
+};
 
 // Story parameters deep-merge into the meta's, so a story cannot drop a range
 // the meta sets.
@@ -68,26 +116,60 @@ const meta = {
 			MockOrganization,
 			MockOrganization2,
 		]);
-		spyOn(API, "checkAuthorization").mockResolvedValue({
-			[MockOrganization.id]: true,
-			[MockOrganization2.id]: true,
-		});
-		spyOn(API, "getOrganizationAISpendUsers").mockImplementation(
-			async (_organizationId, params) => ({
-				...MockOrganizationAISpendReport,
-				period_start: params.period_start ?? "2026-03-01T00:00:00.000Z",
-				period_end: params.period_end ?? "2026-04-01T00:00:00.000Z",
-				count: mockSpendUsers.length,
-				totals: { cost_micros: 78_000_000, unpriced_usage_count: 0 },
-				users: mockSpendUsers.slice(
-					params.offset ?? 0,
-					(params.offset ?? 0) + (params.limit ?? 10),
-				),
-			}),
+		spyOn(API, "checkAuthorization").mockImplementation(async (req) =>
+			"readModelPrices" in req.checks
+				? { readModelPrices: true, updateModelPrices: true }
+				: { [MockOrganization.id]: true, [MockOrganization2.id]: true },
 		);
+		spyOn(API.experimental, "getAIModelPrices").mockResolvedValue([
+			{
+				provider: "anthropic",
+				model: "claude-opus-4-6",
+				input_price: 5_000_000,
+				output_price: 25_000_000,
+				cache_read_price: null,
+				cache_write_price: null,
+				source: "default",
+				created_at: "2026-03-01T00:00:00Z",
+				updated_at: "2026-03-01T00:00:00Z",
+			},
+		]);
+		spyOn(API, "getOrganizationAISpendUsers").mockImplementation(
+			async (_organizationId, params) => {
+				const users = filterMockSpendUsers(params);
+				return {
+					...MockOrganizationAISpendReport,
+					period_start: params.period_start ?? "2026-03-01T00:00:00.000Z",
+					period_end: params.period_end ?? "2026-04-01T00:00:00.000Z",
+					count: users.length,
+					totals: {
+						cost_micros: users.reduce((sum, u) => sum + u.cost_micros, 0),
+						unpriced_usage_count: users.reduce(
+							(sum, u) => sum + u.unpriced_usage_count,
+							0,
+						),
+					},
+					users: users.slice(
+						params.offset ?? 0,
+						(params.offset ?? 0) + (params.limit ?? 10),
+					),
+				};
+			},
+		);
+		spyOn(API, "getGroupsByOrganization").mockResolvedValue([mockSpendGroup]);
+		spyOn(API, "getGroup").mockResolvedValue(mockSpendGroup);
 		spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
 		spyOn(API, "getAIBridgeClients").mockResolvedValue(["Claude Code"]);
 		spyOn(API, "getAIBridgeModels").mockResolvedValue(["gpt-4o"]);
+		spyOn(API, "getUsers").mockResolvedValue({
+			users: mockSpendUsers.map((spendUser) => ({
+				...MockUserMember,
+				id: spendUser.user_id,
+				username: spendUser.username,
+				name: spendUser.name,
+			})),
+			count: mockSpendUsers.length,
+		});
 	},
 } satisfies Meta<typeof SpendPage>;
 export default meta;
@@ -96,7 +178,13 @@ type Story = StoryObj<typeof SpendPage>;
 export const FirstPage: Story = {
 	parameters: { reactRouter: explicitRange },
 	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("table", { name: "Spend by user" });
+		const canvas = within(canvasElement);
+		await canvas.findByRole("table", { name: "Spend by user" });
+		await expect(
+			within(canvas.getByRole("region", { name: "Spend summary" })).getByText(
+				"Feb 10 - Mar 12",
+			),
+		).toBeInTheDocument();
 	},
 };
 
@@ -111,9 +199,82 @@ export const ProviderMenu: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Select provider" }),
+			await canvas.findByRole("combobox", { name: "Search and filter users…" }),
 		);
-		await screen.findByRole("option", { name: /OpenAI/ });
+		await userEvent.hover(
+			await screen.findByRole("option", { name: "Provider" }),
+		);
+		await screen.findByRole("button", { name: /OpenAI/ });
+	},
+};
+
+const longModelNames = [
+	"alibaba/qwen3-next-80b-a3b-thinking",
+	"anthropic.claude-opus-4-1-20250805-v1:0",
+	"arcee-ai/trinity-large-thinking-preview",
+	"au.anthropic.claude-opus-4-6-20260115-v1:0",
+	"gpt-4o",
+];
+
+export const ModelMenuLongNames: Story = {
+	parameters: { reactRouter: explicitRange },
+	beforeEach: () => {
+		spyOn(API, "getAIBridgeModels").mockResolvedValue(longModelNames);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("combobox", { name: "Search and filter users…" }),
+		);
+		await userEvent.hover(
+			await screen.findByRole("option", { name: /^Model$/ }),
+		);
+		await screen.findByRole("button", {
+			name: "alibaba/qwen3-next-80b-a3b-thinking",
+		});
+	},
+};
+
+export const UnconfiguredPricingFilter: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/ai/settings/spend",
+				searchParams: {
+					startDate: "2026-02-10T00:00:00.000Z",
+					endDate: "2026-03-12T00:00:00.000Z",
+					filter: "pricing:unconfigured",
+				},
+			},
+			routing,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await expectSpendUsers(canvasElement, ["user01", "user05", "user09"]);
+	},
+};
+
+export const GroupFilter: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/ai/settings/spend",
+				searchParams: {
+					startDate: "2026-02-10T00:00:00.000Z",
+					endDate: "2026-03-12T00:00:00.000Z",
+					filter: "group:platform",
+				},
+			},
+			routing,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await expectSpendUsers(canvasElement, [
+			"user01",
+			"user02",
+			"user03",
+			"user04",
+		]);
 	},
 };
 
@@ -125,26 +286,19 @@ export const FilteredByProvider: Story = {
 				searchParams: {
 					startDate: "2026-02-10T00:00:00.000Z",
 					endDate: "2026-03-12T00:00:00.000Z",
-					provider_name: "openai",
+					filter: "provider:openai",
 				},
 			},
 			routing,
 		}),
 	},
-	beforeEach: () => {
-		spyOn(API, "getOrganizationAISpendUsers").mockResolvedValue({
-			...MockOrganizationAISpendReport,
-			count: 3,
-			totals: { cost_micros: 27_000_000, unpriced_usage_count: 0 },
-			users: [
-				{ ...mockSpendUsers[0], providers: ["openai"] },
-				{ ...mockSpendUsers[3], providers: ["openai"] },
-				{ ...mockSpendUsers[6], providers: ["openai"] },
-			],
-		});
-	},
 	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("table", { name: "Spend by user" });
+		await expectSpendUsers(canvasElement, [
+			"user01",
+			"user04",
+			"user07",
+			"user10",
+		]);
 	},
 };
 
@@ -180,5 +334,23 @@ export const SecondPage: Story = {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("table", { name: "Spend by user" });
 		await userEvent.click(canvas.getByRole("button", { name: "Next page" }));
+	},
+};
+
+export const UnpricedModelsSummary: Story = {
+	parameters: { reactRouter: explicitRange },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("table", { name: "Spend by user" });
+		await userEvent.hover(
+			canvas.getByRole("button", { name: "Model pricing missing" }),
+		);
+		const tooltip = await screen.findByRole("tooltip");
+		await within(tooltip).findByText("gpt-5.4");
+		await expect(
+			within(tooltip).getByRole("link", {
+				name: "Set pricing for these models",
+			}),
+		).toBeInTheDocument();
 	},
 };

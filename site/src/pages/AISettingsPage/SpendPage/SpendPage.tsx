@@ -1,18 +1,30 @@
-import { type FC, useState } from "react";
-import { useQuery } from "react-query";
+import { saveAs } from "file-saver";
+import { type FC, useMemo, useState } from "react";
+import { useMutation, useQuery } from "react-query";
 import { useSearchParams } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail } from "#/api/errors";
 import {
 	aiSpendOrganizations,
+	exportOrganizationAISpend,
+	type OrganizationAISpendQuery,
+	organizationAISpendAllUsers,
 	paginatedOrganizationAISpend,
 } from "#/api/queries/aiBridge";
-import type { OrganizationAISpendFilter } from "#/api/typesGenerated";
+import { allAIModelPrices } from "#/api/queries/aiProviders";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import type {
+	OrganizationAISpendFilter,
+	OrganizationAISpendUser,
+} from "#/api/typesGenerated";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
+import {
+	parseFilterQuery,
+	stringifyFilter,
+} from "#/components/Filter/filterQuery";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { useClientFilterMenu } from "#/pages/AIBridgePage/filters/ClientFilter";
-import { useModelFilterMenu } from "#/pages/AIBridgePage/filters/ModelFilter";
-import { useProviderFilterMenu } from "#/pages/AIBridgePage/filters/ProviderFilter";
 import { getAIBridgePermissions } from "#/pages/AIBridgePage/getAIBridgePermissions";
 import {
 	modelOrganizationSearchParam,
@@ -21,6 +33,18 @@ import {
 import { pageTitle } from "#/utils/page";
 import { SpendPageView } from "./SpendPageView";
 import { defaultSpendPeriod } from "./spendPeriod";
+import { findUnpricedModels, pricedModelKeys } from "./unpricedModels";
+
+const modelPricePermissionChecks = {
+	readModelPrices: {
+		object: { resource_type: "ai_model_price" },
+		action: "read",
+	},
+	updateModelPrices: {
+		object: { resource_type: "ai_model_price" },
+		action: "update",
+	},
+} as const;
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
@@ -87,13 +111,22 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		);
 	};
 
+	const filterQuery = searchParams.get("filter") ?? "";
+	const filterValues = parseFilterQuery(filterQuery);
+
+	const setFilterQuery = (query: string) =>
+		setFilterParams({ filter: query || undefined });
+	const setFilterValue = (key: string, value: string | undefined) => {
+		setFilterQuery(stringifyFilter({ ...filterValues, [key]: value }));
+	};
+
 	const organizationsQuery = useQuery({
 		...aiSpendOrganizations(),
 		enabled: isSpendAvailable,
 	});
 	const organizationSelection = selectModelOrganization(
 		organizationsQuery.data ?? [],
-		searchParams.get(modelOrganizationSearchParam),
+		filterValues.org ?? searchParams.get(modelOrganizationSearchParam),
 	);
 	// A requested organization the viewer cannot see gets a warning, not
 	// another organization's spend.
@@ -103,28 +136,11 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 
 	const dimensions: SpendDimensions = canFilterDimensions
 		? {
-				provider_name: searchParams.get("provider_name") || undefined,
-				client: searchParams.get("client") || undefined,
-				model: searchParams.get("model") || undefined,
+				provider_name: filterValues.provider,
+				client: filterValues.client,
+				model: filterValues.model,
 			}
 		: {};
-	const filterMenus = {
-		provider: useProviderFilterMenu({
-			value: dimensions.provider_name,
-			onChange: (option) => setFilterParams({ provider_name: option?.value }),
-			enabled: isSpendAvailable && canFilterDimensions,
-		}),
-		client: useClientFilterMenu({
-			value: dimensions.client,
-			onChange: (option) => setFilterParams({ client: option?.value }),
-			enabled: isSpendAvailable && canFilterDimensions,
-		}),
-		model: useModelFilterMenu({
-			value: dimensions.model,
-			onChange: (option) => setFilterParams({ model: option?.value }),
-			enabled: isSpendAvailable && canFilterDimensions,
-		}),
-	};
 
 	// The default period lives in memory, not the URL, so a shared link
 	// resolves relative to the viewer's current time. It is fixed per mount so
@@ -145,10 +161,13 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				? lastPicked.preset
 				: undefined;
 
-	const spendFilter: OrganizationAISpendFilter = {
+	const spendFilter: OrganizationAISpendQuery = {
 		period_start: period.start.toISOString(),
 		period_end: period.end.toISOString(),
 		...dimensions,
+		username: filterValues.user,
+		group: filterValues.group,
+		unconfiguredPricing: filterValues.pricing === "unconfigured" || undefined,
 	};
 
 	const onPeriodChange = (value: DateTimeRangeValue) => {
@@ -179,6 +198,90 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	}
 	const minDate = retention?.start ? new Date(retention.start) : undefined;
 
+	const modelPricePermissionsQuery = useQuery({
+		...checkAuthorization({ checks: modelPricePermissionChecks }),
+		enabled: isSpendAvailable,
+	});
+	const modelPricesQuery = useQuery({
+		...allAIModelPrices(),
+		enabled: modelPricePermissionsQuery.data?.readModelPrices === true,
+	});
+	const pricedKeys = useMemo(
+		() =>
+			modelPricesQuery.data
+				? pricedModelKeys(modelPricesQuery.data)
+				: undefined,
+		[modelPricesQuery.data],
+	);
+	// The summary names unpriced models across every matching user, which the
+	// paged report does not carry.
+	const allUsersQuery = useQuery({
+		...organizationAISpendAllUsers(organization?.id ?? "", spendFilter),
+		enabled:
+			organization !== undefined &&
+			pricedKeys !== undefined &&
+			(reportQuery.data?.totals.unpriced_usage_count ?? 0) > 0,
+	});
+	const totalUnpricedModels =
+		pricedKeys && allUsersQuery.data
+			? [
+					...new Set(
+						allUsersQuery.data
+							.filter((user) => user.unpriced_usage_count > 0)
+							.flatMap((user) => findUnpricedModels(user, pricedKeys)),
+					),
+				].sort()
+			: undefined;
+	const unpricedModels = {
+		forUser: (user: OrganizationAISpendUser) =>
+			pricedKeys ? findUnpricedModels(user, pricedKeys) : undefined,
+		total: totalUnpricedModels,
+		setPricingHref:
+			modelPricePermissionsQuery.data?.updateModelPrices && organization
+				? {
+						pathname: "/ai/settings/models",
+						search: new URLSearchParams({
+							[modelOrganizationSearchParam]: organization.name,
+						}).toString(),
+					}
+				: undefined,
+	};
+
+	const exportMutation = useMutation(exportOrganizationAISpend());
+	const onExportCSV = () => {
+		if (organization === undefined) {
+			return;
+		}
+		exportMutation.mutate(
+			{
+				organizationId: organization.id,
+				username: filterValues.user,
+				group: filterValues.group,
+				filter: {
+					period_start: spendFilter.period_start,
+					period_end: spendFilter.period_end,
+					provider_name: dimensions.provider_name,
+					model: dimensions.model,
+				},
+			},
+			{
+				onSuccess: (csv) => {
+					// Matches the name the server sends in Content-Disposition.
+					const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
+					saveAs(
+						csv,
+						`ai-spend-export-${organization.name}-${dateOnly(period.start)}-to-${dateOnly(period.end)}.csv`,
+					);
+				},
+				onError: (error) => {
+					toast.error("Failed to export CSV.", {
+						description: getErrorDetail(error),
+					});
+				},
+			},
+		);
+	};
+
 	return (
 		<>
 			<title>{pageTitle("User spend", "AI Settings")}</title>
@@ -188,16 +291,19 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				now={now}
 				organizations={organizationsQuery.data ?? []}
 				organization={organization}
-				onOrganizationChange={(next) =>
-					setFilterParams({ [modelOrganizationSearchParam]: next.name })
-				}
+				onOrganizationChange={(next) => setFilterValue("org", next.name)}
 				isOrganizationsLoading={organizationsQuery.isLoading}
 				organizationsError={organizationsQuery.error}
 				period={{ ...period, preset }}
 				minDate={minDate}
 				onPeriodChange={onPeriodChange}
-				filterMenus={canFilterDimensions ? filterMenus : undefined}
+				filterQuery={filterQuery}
+				onFilterQueryChange={setFilterQuery}
+				canFilterDimensions={canFilterDimensions}
+				onExportCSV={onExportCSV}
+				isExportingCSV={exportMutation.isPending}
 				reportQuery={reportQuery}
+				unpricedModels={unpricedModels}
 			/>
 		</>
 	);
