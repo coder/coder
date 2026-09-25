@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -20,6 +21,8 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream"
+	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream/eventstreamapi"
 	v4signer "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
@@ -512,6 +515,261 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				require.True(t, strings.HasPrefix(authHeader, "AWS4-HMAC-SHA256"), "missing SigV4 auth: %q", authHeader)
 				require.Contains(t, authHeader, "/bedrock-mantle/aws4_request",
 					"signature must be scoped to the bedrock-mantle service")
+				require.Contains(t, received[0].Header.Get("User-Agent"), awssig.PRMUserAgent)
+
+				interceptions := bridgeServer.Recorder.RecordedInterceptions()
+				require.Len(t, interceptions, 1)
+				require.Equal(t, tc.model, interceptions[0].Model)
+				bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+			})
+		}
+	})
+
+	// BYOK: a user-supplied Bedrock API key must authenticate the upstream
+	// request as a bearer token instead of being dropped in favor of the
+	// deployment's SigV4 signing.
+	t.Run("byok/invoke-model", func(t *testing.T) {
+		for _, streaming := range []bool{true, false} {
+			t.Run(fmt.Sprintf("streaming=%v", streaming), func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+				t.Cleanup(cancel)
+
+				const userKey = "user-bedrock-api-key"
+
+				fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+
+				bedrockCfg := &config.AWSBedrock{
+					Region:          "us-west-2",
+					AccessKey:       "test-access-key",
+					AccessKeySecret: "test-secret-key",
+					Model:           "danthropic",
+					SmallFastModel:  "danthropic-mini",
+					BaseURL:         upstream.URL,
+				}
+
+				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+					withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+				)
+
+				reqBody, err := sjson.SetBytes(fix.Request(), "stream", streaming)
+				require.NoError(t, err)
+				resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody,
+					http.Header{"X-Api-Key": {userKey}})
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				if streaming {
+					_, err = io.ReadAll(resp.Body)
+					require.NoError(t, err)
+				}
+
+				received := upstream.ReceivedRequests()
+				require.Len(t, received, 1)
+
+				// The user key authenticates as a bearer token; no SigV4.
+				require.Equal(t, "Bearer "+userKey, received[0].Header.Get("Authorization"))
+				require.NotContains(t, received[0].Header.Get("Authorization"), "AWS4-HMAC-SHA256")
+				require.Empty(t, received[0].Header.Get("X-Amz-Date"))
+				require.Empty(t, received[0].Header.Get("X-Api-Key"))
+
+				// InvokeModel wire transform still applied.
+				pathParts := strings.Split(received[0].Path, "/")
+				require.True(t, len(pathParts) >= 3 && pathParts[1] == "model", "unexpected path: %s", received[0].Path)
+				require.Equal(t, bedrockCfg.Model, pathParts[2])
+				require.False(t, gjson.GetBytes(received[0].Body, "model").Exists(), "model should be stripped from body")
+				require.False(t, gjson.GetBytes(received[0].Body, "stream").Exists(), "stream should be stripped from body")
+				require.Contains(t, received[0].Header.Get("User-Agent"), awssig.PRMUserAgent)
+
+				bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+			})
+		}
+	})
+
+	// BYOK streaming must still decode Bedrock's binary event-stream frames.
+	// The bearer path drops bedrock.WithConfig, but the SDK's event-stream
+	// decoder is registered by the bedrock package's init and selected by the
+	// response content-type, so decoding is preserved.
+	t.Run("byok/invoke-model/eventstream", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		const userKey = "user-bedrock-api-key-eventstream"
+
+		var gotAuth atomic.Value
+		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotAuth.Store(r.Header.Get("Authorization"))
+			_ = writeBedrockEventStream(w,
+				`{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"anthropic.claude","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":5,"output_tokens":1}}}`,
+				`{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`,
+				`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}`,
+				`{"type":"content_block_stop","index":0}`,
+				`{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":2}}`,
+				`{"type":"message_stop"}`,
+			)
+		}))
+		t.Cleanup(upstream.Close)
+
+		bedrockCfg := &config.AWSBedrock{
+			Region:          "us-west-2",
+			AccessKey:       "test-access-key",
+			AccessKeySecret: "test-secret-key",
+			Model:           "danthropic",
+			SmallFastModel:  "danthropic-mini",
+			BaseURL:         upstream.URL,
+		}
+
+		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+			withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+		)
+
+		reqBody, err := sjson.SetBytes(fixtures.Parse(t, fixtures.AntSingleBuiltinTool).Request(), "stream", true)
+		require.NoError(t, err)
+		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody,
+			http.Header{"X-Api-Key": {userKey}})
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// The re-emitted client SSE proves the binary frames were decoded.
+		sp := aibridge.NewSSEParser()
+		require.NoError(t, sp.Parse(resp.Body))
+		assert.Contains(t, sp.AllEvents(), "message_start")
+		assert.Contains(t, sp.AllEvents(), "message_stop")
+
+		require.Equal(t, "Bearer "+userKey, gotAuth.Load())
+	})
+
+	t.Run("byok/mantle", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		const userKey = "user-bedrock-api-key-mantle"
+
+		fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
+		upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+
+		bedrockCfg := &config.AWSBedrock{
+			Region:          "us-west-2",
+			AccessKey:       "test-access-key",
+			AccessKeySecret: "test-secret-key",
+			BaseURL:         upstream.URL + "/anthropic",
+			Protocol:        config.BedrockProtocolMantle,
+		}
+		wantModel := gjson.GetBytes(fix.Request(), "model").String()
+		require.NotEmpty(t, wantModel)
+
+		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+			withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+		)
+
+		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, fix.Request(),
+			http.Header{"X-Api-Key": {userKey}})
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		received := upstream.ReceivedRequests()
+		require.Len(t, received, 1)
+
+		// Native passthrough, bearer auth, no SigV4.
+		require.Equal(t, "/anthropic/v1/messages", received[0].Path)
+		require.Equal(t, "Bearer "+userKey, received[0].Header.Get("Authorization"))
+		require.NotContains(t, received[0].Header.Get("Authorization"), "AWS4-HMAC-SHA256")
+		require.Empty(t, received[0].Header.Get("X-Amz-Date"))
+		require.Empty(t, received[0].Header.Get("X-Api-Key"))
+		require.Equal(t, wantModel, gjson.GetBytes(received[0].Body, "model").String(), "model should be forwarded unchanged")
+		require.Contains(t, received[0].Header.Get("User-Agent"), awssig.PRMUserAgent)
+
+		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+	})
+
+	// A user Bedrock API key must also authenticate the mantle OpenAI routes,
+	// whichever auth header the client used to supply it.
+	t.Run("byok/mantle/openai routes", func(t *testing.T) {
+		t.Parallel()
+
+		const userKey = "user-bedrock-api-key-openai"
+
+		cases := []struct {
+			name         string
+			fixture      []byte
+			model        string
+			requestPath  string
+			upstreamPath string
+			clientAuth   http.Header
+		}{
+			{
+				name:         "responses bearer",
+				fixture:      fixtures.OaiResponsesBlockingSimple,
+				model:        "openai.gpt-5.6-luna",
+				requestPath:  "/bedrock/v1/responses",
+				upstreamPath: "/openai/v1/responses",
+				clientAuth:   http.Header{"Authorization": {"Bearer " + userKey}},
+			},
+			{
+				name:         "responses x-api-key",
+				fixture:      fixtures.OaiResponsesBlockingSimple,
+				model:        "openai.gpt-5.6-luna",
+				requestPath:  "/bedrock/v1/responses",
+				upstreamPath: "/openai/v1/responses",
+				clientAuth:   http.Header{"X-Api-Key": {userKey}},
+			},
+			{
+				name:         "chat completions bearer",
+				fixture:      fixtures.OaiChatSimple,
+				model:        "mistral.ministral-3-3b-instruct",
+				requestPath:  "/bedrock/v1/chat/completions",
+				upstreamPath: "/v1/chat/completions",
+				clientAuth:   http.Header{"Authorization": {"Bearer " + userKey}},
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+				t.Cleanup(cancel)
+
+				fix := fixtures.Parse(t, tc.fixture)
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+				bedrockCfg := config.AWSBedrock{
+					Region:          "us-west-2",
+					AccessKey:       "test-access-key",
+					AccessKeySecret: "test-secret-key",
+					BaseURL:         upstream.URL,
+					Protocol:        config.BedrockProtocolMantle,
+				}
+				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+					withCustomProvider(aibridgetest.NewBedrockProvider(t, config.Anthropic{
+						Name:    config.ProviderBedrock,
+						BaseURL: upstream.URL,
+					}, bedrockCfg)),
+				)
+
+				reqBody, err := sjson.SetBytes(fix.Request(), "model", tc.model)
+				require.NoError(t, err)
+				resp, err := bridgeServer.makeRequest(t, http.MethodPost, tc.requestPath, reqBody, tc.clientAuth)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				_, err = io.Copy(io.Discard, resp.Body)
+				require.NoError(t, err)
+
+				received := upstream.ReceivedRequests()
+				require.Len(t, received, 1)
+				require.Equal(t, tc.upstreamPath, received[0].Path)
+				require.Equal(t, tc.model, gjson.GetBytes(received[0].Body, "model").String())
+
+				// Bearer auth with the user's key, no SigV4.
+				require.Equal(t, "Bearer "+userKey, received[0].Header.Get("Authorization"))
+				require.Empty(t, received[0].Header.Get("X-Amz-Date"))
+				require.Empty(t, received[0].Header.Get("X-Api-Key"))
 				require.Contains(t, received[0].Header.Get("User-Agent"), awssig.PRMUserAgent)
 
 				interceptions := bridgeServer.Recorder.RecordedInterceptions()
@@ -2781,4 +3039,36 @@ func TestTokenUsageRecordedWithoutMCPProxier(t *testing.T) {
 			assert.EqualValues(t, tc.expectedOutputTokens, bridgeServer.Recorder.TotalOutputTokens()-outputBefore, "output tokens miscalculated")
 		})
 	}
+}
+
+// writeBedrockEventStream writes each JSON event as an AWS binary event-stream
+// "chunk" frame, matching the wire format the Bedrock InvokeModel streaming
+// endpoint returns.
+func writeBedrockEventStream(w http.ResponseWriter, events ...string) error {
+	w.Header().Set("Content-Type", "application/vnd.amazon.eventstream")
+	w.WriteHeader(http.StatusOK)
+
+	encoder := eventstream.NewEncoder()
+	for _, event := range events {
+		payload, err := json.Marshal(map[string]string{
+			"bytes": base64.StdEncoding.EncodeToString([]byte(event)),
+		})
+		if err != nil {
+			return err
+		}
+		if err := encoder.Encode(w, eventstream.Message{
+			Headers: eventstream.Headers{
+				{Name: eventstreamapi.MessageTypeHeader, Value: eventstream.StringValue(eventstreamapi.EventMessageType)},
+				{Name: eventstreamapi.EventTypeHeader, Value: eventstream.StringValue("chunk")},
+				{Name: eventstreamapi.ContentTypeHeader, Value: eventstream.StringValue("application/json")},
+			},
+			Payload: payload,
+		}); err != nil {
+			return err
+		}
+	}
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+	return nil
 }
