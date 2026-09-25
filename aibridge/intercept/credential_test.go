@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/quartz"
@@ -25,7 +27,7 @@ func TestCredential(t *testing.T) {
 	tests := []struct {
 		name                    string
 		newCred                 func(t *testing.T) intercept.Credential
-		expectKind              intercept.CredentialKind
+		expectKind              credential.Kind
 		expectAuthHeader        string
 		expectHint              string
 		expectLength            int
@@ -35,10 +37,10 @@ func TestCredential(t *testing.T) {
 		{
 			name: "byok_authorization",
 			newCred: func(*testing.T) intercept.Credential {
-				return intercept.BYOK{Secret: "user-bearer-token", Header: intercept.AuthHeaderAuthorization}
+				return intercept.BYOK{Secret: "user-bearer-token", Header: aibheaders.AuthHeaderAuthorization}
 			},
-			expectKind:       intercept.CredentialKindBYOK,
-			expectAuthHeader: intercept.AuthHeaderAuthorization,
+			expectKind:       credential.KindBYOK,
+			expectAuthHeader: aibheaders.AuthHeaderAuthorization,
 			expectHint:       "us...en",
 			expectLength:     len("user-bearer-token"),
 			expectAsBYOK:     true,
@@ -46,10 +48,10 @@ func TestCredential(t *testing.T) {
 		{
 			name: "byok_xapikey",
 			newCred: func(*testing.T) intercept.Credential {
-				return intercept.BYOK{Secret: "user-api-key", Header: intercept.AuthHeaderXAPIKey}
+				return intercept.BYOK{Secret: "user-api-key", Header: aibheaders.AuthHeaderXAPIKey}
 			},
-			expectKind:       intercept.CredentialKindBYOK,
-			expectAuthHeader: intercept.AuthHeaderXAPIKey,
+			expectKind:       credential.KindBYOK,
+			expectAuthHeader: aibheaders.AuthHeaderXAPIKey,
 			expectHint:       "us...ey",
 			expectLength:     len("user-api-key"),
 			expectAsBYOK:     true,
@@ -61,7 +63,7 @@ func TestCredential(t *testing.T) {
 			newCred: func(*testing.T) intercept.Credential {
 				return intercept.AWSSigV4{AccessKey: "AKIAIOSFODNN7EXAMPLE"}
 			},
-			expectKind:       intercept.CredentialKindCentralized,
+			expectKind:       credential.KindCentralized,
 			expectAuthHeader: "",
 			expectHint:       "AKIA...MPLE",
 			expectLength:     len("AKIAIOSFODNN7EXAMPLE"),
@@ -73,7 +75,7 @@ func TestCredential(t *testing.T) {
 			newCred: func(*testing.T) intercept.Credential {
 				return intercept.AWSSigV4{AccessKey: ""}
 			},
-			expectKind:       intercept.CredentialKindCentralized,
+			expectKind:       credential.KindCentralized,
 			expectAuthHeader: "",
 			expectHint:       "<aws chain>",
 			expectLength:     0,
@@ -85,10 +87,10 @@ func TestCredential(t *testing.T) {
 			newCred: func(t *testing.T) intercept.Credential {
 				pool, err := keypool.New(config.ProviderAnthropic, []string{"k0-pool-key"}, quartz.NewMock(t), nil)
 				require.NoError(t, err)
-				return &intercept.CentralizedPool{Pool: pool, Header: intercept.AuthHeaderXAPIKey}
+				return &intercept.CentralizedPool{Pool: pool, Header: aibheaders.AuthHeaderXAPIKey}
 			},
-			expectKind:              intercept.CredentialKindCentralized,
-			expectAuthHeader:        intercept.AuthHeaderXAPIKey,
+			expectKind:              credential.KindCentralized,
+			expectAuthHeader:        aibheaders.AuthHeaderXAPIKey,
 			expectHint:              "<failover key>",
 			expectLength:            0,
 			expectAsCentralizedPool: true,
@@ -99,13 +101,13 @@ func TestCredential(t *testing.T) {
 			newCred: func(t *testing.T) intercept.Credential {
 				pool, err := keypool.New(config.ProviderAnthropic, []string{"k0-pool-key"}, quartz.NewMock(t), nil)
 				require.NoError(t, err)
-				cp := &intercept.CentralizedPool{Pool: pool, Header: intercept.AuthHeaderXAPIKey}
+				cp := &intercept.CentralizedPool{Pool: pool, Header: aibheaders.AuthHeaderXAPIKey}
 				_, keyErr := cp.NextKey(cp.Pool.Walker())
 				require.Nil(t, keyErr)
 				return cp
 			},
-			expectKind:              intercept.CredentialKindCentralized,
-			expectAuthHeader:        intercept.AuthHeaderXAPIKey,
+			expectKind:              credential.KindCentralized,
+			expectAuthHeader:        aibheaders.AuthHeaderXAPIKey,
 			expectHint:              "k0...ey",
 			expectLength:            len("k0-pool-key"),
 			expectAsCentralizedPool: true,

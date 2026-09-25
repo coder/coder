@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -130,7 +131,7 @@ func TestStreamingInterceptionRecordsLatestUsageWithZeroCompletionTokens(t *test
 		uuid.New(),
 		req,
 		intercept.Config{BaseURL: upstream.URL},
-		intercept.BYOK{Secret: "test-key", Header: intercept.AuthHeaderAuthorization},
+		intercept.BYOK{Secret: "test-key", Header: aibheaders.AuthHeaderAuthorization},
 		httpReq.Header,
 		otel.Tracer("test"),
 	)
@@ -213,7 +214,7 @@ func TestStreamingInterception_RelaysUpstreamErrorToClient(t *testing.T) {
 			cfg := intercept.Config{
 				BaseURL: mockServer.URL,
 			}
-			cred := intercept.BYOK{Secret: "test-key", Header: intercept.AuthHeaderAuthorization}
+			cred := intercept.BYOK{Secret: "test-key", Header: aibheaders.AuthHeaderAuthorization}
 
 			req := &ChatCompletionNewParamsWrapper{
 				ChatCompletionNewParams: openai.ChatCompletionNewParams{

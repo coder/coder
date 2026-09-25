@@ -21,7 +21,7 @@ func TestExecute_PerModelIsolation(t *testing.T) {
 	sonnetCalls := atomic.Int32{}
 	haikuCalls := atomic.Int32{}
 
-	cbs := circuitbreaker.NewProviderCircuitBreakers("test", &config.CircuitBreaker{
+	cbs := circuitbreaker.NewProviderCircuitBreakersWithCallback("test", &config.CircuitBreaker{
 		FailureThreshold: 1,
 		Interval:         time.Minute,
 		Timeout:          time.Minute,
@@ -70,7 +70,7 @@ func TestExecute_PerEndpointIsolation(t *testing.T) {
 	messagesCalls := atomic.Int32{}
 	completionsCalls := atomic.Int32{}
 
-	cbs := circuitbreaker.NewProviderCircuitBreakers("test", &config.CircuitBreaker{
+	cbs := circuitbreaker.NewProviderCircuitBreakersWithCallback("test", &config.CircuitBreaker{
 		FailureThreshold: 1,
 		Interval:         time.Minute,
 		Timeout:          time.Minute,
@@ -117,7 +117,7 @@ func TestExecute_CustomIsFailure(t *testing.T) {
 	var calls atomic.Int32
 
 	// Custom IsFailure that treats 502 as failure
-	cbs := circuitbreaker.NewProviderCircuitBreakers("test", &config.CircuitBreaker{
+	cbs := circuitbreaker.NewProviderCircuitBreakersWithCallback("test", &config.CircuitBreaker{
 		FailureThreshold: 1,
 		Interval:         time.Minute,
 		Timeout:          time.Minute,
@@ -159,7 +159,7 @@ func TestExecute_OnStateChange(t *testing.T) {
 		to       gobreaker.State
 	}
 
-	cbs := circuitbreaker.NewProviderCircuitBreakers("test", &config.CircuitBreaker{
+	cbs := circuitbreaker.NewProviderCircuitBreakersWithCallback("test", &config.CircuitBreaker{
 		FailureThreshold: 1,
 		Interval:         time.Minute,
 		Timeout:          time.Minute,

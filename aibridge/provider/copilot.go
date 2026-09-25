@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
@@ -21,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 const (
@@ -133,7 +133,7 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 	defer tracing.EndSpanErr(span, &outErr)
 
 	// Extract the per-user Copilot key from the Authorization header.
-	key := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization))
+	key := aibheaders.ExtractBearerToken(r.Header.Get(aibheaders.AuthHeaderAuthorization))
 	if key == "" {
 		span.SetStatus(codes.Error, "missing authorization")
 		return nil, xerrors.New("missing Copilot authorization: Authorization header not found or invalid")
@@ -148,7 +148,7 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		BaseURL:      p.cfg.BaseURL,
 		APIDumpDir:   p.cfg.APIDumpDir,
 	}
-	cred := intercept.BYOK{Secret: key, Header: intercept.AuthHeaderAuthorization}
+	cred := intercept.BYOK{Secret: key, Header: aibheaders.AuthHeaderAuthorization}
 
 	var interceptor intercept.Interceptor
 

@@ -1,11 +1,11 @@
-package utils_test
+package headers_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge/headers"
 )
 
 func TestExtractBearerToken(t *testing.T) {
@@ -67,7 +67,7 @@ func TestExtractBearerToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := utils.ExtractBearerToken(tt.input)
+			result := headers.ExtractBearerToken(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

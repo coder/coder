@@ -6,30 +6,28 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
-	"github.com/sony/gobreaker/v2"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/net/http/httpguts"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
+	aibclient "github.com/coder/coder/v2/aibridge/client"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/interceptionerror"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/quartz"
 )
 
@@ -80,24 +78,10 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 		}
 
 		// Create per-provider circuit breaker if configured
-		cfg := prov.CircuitBreakerConfig()
 		providerName := prov.Name()
-		onChange := func(endpoint, model string, from, to gobreaker.State) {
-			logger.Info(context.Background(), "circuit breaker state change",
-				slog.F("provider", providerName),
-				slog.F("endpoint", endpoint),
-				slog.F("model", model),
-				slog.F("from", from.String()),
-				slog.F("to", to.String()),
-			)
-			if m != nil {
-				m.CircuitBreakerState.WithLabelValues(providerName, endpoint, model).Set(circuitbreaker.StateToGaugeValue(to))
-				if to == gobreaker.StateOpen {
-					m.CircuitBreakerTrips.WithLabelValues(providerName, endpoint, model).Inc()
-				}
-			}
-		}
-		cbs := circuitbreaker.NewProviderCircuitBreakers(providerName, cfg, onChange, m)
+		cbs := circuitbreaker.NewProviderCircuitBreakers(
+			providerName, prov.CircuitBreakerConfig(), logger, m,
+		)
 
 		// Add the known provider-specific routes which are bridged (i.e. intercepted and augmented).
 		for _, path := range prov.BridgedRoutes() {
@@ -163,10 +147,10 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 
 		// We execute this before CreateInterceptor since the interceptors
 		// read the request body and don't reset them.
-		client := GuessClient(r)
-		sessionID := GuessSessionID(client, r)
+		client := aibclient.GuessClient(r)
+		sessionID := aibclient.GuessSessionID(client, r)
 
-		if isWebSocketUpgrade(r) {
+		if aibheaders.IsWebSocketUpgrade(r) {
 			route := strings.TrimPrefix(r.URL.Path, fmt.Sprintf("/%s", p.Name()))
 			logger.Debug(ctx, "rejecting unsupported WebSocket upgrade",
 				slog.F("provider", p.Name()),
@@ -183,7 +167,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// themselves are stripped from the upstream request by
 		// PrepareClientHeaders. Fail closed: reject the request if the
 		// headers are partial or malformed.
-		agentFirewallSessionID, agentFirewallSeqNumber, err := extractAgentFirewallHeaders(r)
+		agentFirewallSessionID, agentFirewallSeqNumber, err := aibheaders.ExtractAgentFirewallHeaders(r)
 		if err != nil {
 			logger.Warn(ctx, "rejecting request with invalid agent firewall headers", slog.Error(err))
 			http.Error(w, "invalid agent firewall headers", http.StatusBadRequest)
@@ -250,7 +234,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			CorrelatingToolCallID:       interceptor.CorrelatingToolCallID(),
 			AgentFirewallSessionID:      agentFirewallSessionID,
 			AgentFirewallSequenceNumber: agentFirewallSeqNumber,
-			CredentialKind:              string(cred.Kind()),
+			CredentialKind:              cred.Kind(),
 			CredentialHint:              cred.Hint(),
 		}); err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to record interception: %v", err))
@@ -285,7 +269,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// For a centralized pool, the hint now reflects the last key the
 		// failover loop attempted.
 		credCtx := intercept.WithCredentialInfo(ctx, cred)
-		errType, errMsg := categorizeInterceptionError(p, execErr)
+		errType, errMsg := interceptionerror.Categorize(p, execErr)
 		if execErr != nil {
 			if m != nil {
 				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusFailed, route, r.Method, actor.ID, string(client)).Add(1)
@@ -309,13 +293,6 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// Ensure all recording have completed before completing request.
 		asyncRecorder.Wait()
 	}
-}
-
-// isWebSocketUpgrade reports whether r is a WebSocket opening handshake.
-func isWebSocketUpgrade(r *http.Request) bool {
-	return r.Method == http.MethodGet &&
-		httpguts.HeaderValuesContainsToken(r.Header.Values("Connection"), "upgrade") &&
-		httpguts.HeaderValuesContainsToken(r.Header.Values("Upgrade"), "websocket")
 }
 
 // ServeHTTP exposes the internal http.Handler, which has all [Provider]s' routes registered.
@@ -345,46 +322,4 @@ func (b *RequestBridge) Shutdown(ctx context.Context) error {
 	})
 
 	return err
-}
-
-// extractAgentFirewallHeaders reads and parses the Agent Firewall
-// correlation headers from the request. Both headers must be present
-// together with a valid UUID session ID and a non-negative int32
-// sequence number, or both must be absent. Partial or malformed headers
-// return an error so the caller can reject the request (fail closed).
-func extractAgentFirewallHeaders(r *http.Request) (sessionID *string, seqNumber *int32, err error) {
-	rawSessionID := r.Header.Get(agplaibridge.HeaderAgentFirewallSessionID)
-	rawSeqNumber := r.Header.Get(agplaibridge.HeaderAgentFirewallSequenceNumber)
-
-	hasSessionID := rawSessionID != ""
-	hasSeqNumber := rawSeqNumber != ""
-
-	switch {
-	case !hasSessionID && !hasSeqNumber:
-		// Neither header present; request did not traverse Agent Firewall.
-		return nil, nil, nil
-	case hasSessionID && !hasSeqNumber:
-		return nil, nil, xerrors.Errorf("agent firewall session ID header present without sequence number")
-	case !hasSessionID && hasSeqNumber:
-		return nil, nil, xerrors.Errorf("agent firewall sequence number header present without session ID")
-	}
-
-	// Both headers present; validate the session ID is a UUID. Storing an
-	// invalid value would silently drop the firewall correlation to NULL
-	// downstream, so reject it here instead.
-	if _, parseErr := uuid.Parse(rawSessionID); parseErr != nil {
-		return nil, nil, xerrors.Errorf("invalid agent firewall session ID %q: %w", rawSessionID, parseErr)
-	}
-
-	// Parse the sequence number.
-	n, err := strconv.ParseInt(rawSeqNumber, 10, 32)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("invalid agent firewall sequence number %q: %w", rawSeqNumber, err)
-	}
-	if n < 0 {
-		return nil, nil, xerrors.Errorf("invalid agent firewall sequence number %q: must be non-negative", rawSeqNumber)
-	}
-
-	n32 := int32(n)
-	return &rawSessionID, &n32, nil
 }

@@ -1,4 +1,4 @@
-package intercept
+package headers
 
 import (
 	"net/http"
@@ -83,7 +83,9 @@ func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 // BuildUpstreamHeaders produces the header set for an upstream SDK request.
 // It starts from the prepared client headers, preserves provider auth, then
 // applies identity from the authenticated request actor.
-func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, authHeaderName string, cfg Config, actor *aibcontext.Actor) http.Header {
+//
+//nolint:revive // sendActorHeaders carries the provider's SendActorHeaders setting.
+func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, authHeaderName string, sendActorHeaders bool, actor *aibcontext.Actor) http.Header {
 	headers := PrepareClientHeaders(clientHeaders)
 	if headers == nil {
 		headers = make(http.Header)
@@ -94,7 +96,7 @@ func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, auth
 		headers.Set(authHeaderName, v)
 	}
 
-	if cfg.SendActorHeaders {
+	if sendActorHeaders {
 		for name, value := range headersFromActor(actor) {
 			headers.Set(name, value)
 		}

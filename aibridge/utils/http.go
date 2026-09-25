@@ -10,6 +10,19 @@ import (
 	"time"
 )
 
+// NewStreamingTransport returns an HTTP transport tuned for streaming with no
+// response header timeout.
+func NewStreamingTransport() *http.Transport {
+	return &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+}
+
 // NewJSONErrorResponse builds an *http.Response with a JSON body
 // and optional Retry-After header. Used to synthesize bridge-side
 // error responses (e.g. key-pool exhaustion, marshaling
