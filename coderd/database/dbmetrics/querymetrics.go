@@ -5400,14 +5400,6 @@ func (m queryMetricsStore) UpdateChatPlanModeByID(ctx context.Context, arg datab
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateChatProjectBinding(ctx context.Context, arg database.UpdateChatProjectBindingParams) (database.ChatTable, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateChatProjectBinding(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateChatProjectBinding").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectBinding").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) UpdateChatProjectByID(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatProjectByID(ctx, arg)

@@ -1681,7 +1681,6 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
   },
   "pin_order": 0,
   "plan_mode": "plan",
-  "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "title": "string",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
