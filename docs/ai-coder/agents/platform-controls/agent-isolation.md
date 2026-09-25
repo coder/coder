@@ -27,10 +27,13 @@ They do not need `ReadWriteMany` storage.
 Use a test namespace and a workspace without sensitive data.
 You need:
 
-- A Linux cluster with NetworkPolicy enforcement turned on for standalone Pods.
+- A Linux cluster with NetworkPolicy enforcement turned on.
 - A default storage class that provides a volume writable by user and group ID `1000`.
 - A fixed IPv4 address and TCP port for Coder, including agent downloads and relay connections.
+  A load balancer with static addresses meets this requirement, such as an AWS Network Load Balancer or a reserved static IP on GKE.
+  Set the Coder access URL to that address, or make sure the address is the only one that its hostname resolves to.
 - A Coder provisioner with permission to create Pods, a PVC, a ConfigMap, and a NetworkPolicy in that namespace.
+  For Amazon VPC CNI, the provisioner also needs permission to create Deployments.
 
 Check these permissions using the provisioner's Kubernetes credentials:
 
@@ -44,19 +47,41 @@ kubectl auth can-i create networkpolicies.networking.k8s.io -n YOUR_NAMESPACE
 Each command must return `yes`.
 The provisioner also needs permission to read, update, and delete these resources.
 
+The [Coder Helm chart](../../../install/kubernetes.md) grants its service account permission to manage Pods, PVCs, and Deployments in the release namespace, but not ConfigMaps or NetworkPolicies.
+Add them with `coder.serviceAccount.extraRules`.
+If workspaces run in a different namespace, list it under `coder.serviceAccount.workspaceNamespaces`:
+
+```yaml
+coder:
+  serviceAccount:
+    workspacePerms: true
+    enableDeployments: true
+    extraRules:
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        verbs: [create, delete, deletecollection, get, list, patch, update, watch]
+      - apiGroups: ["networking.k8s.io"]
+        resources: ["networkpolicies"]
+        verbs: [create, delete, deletecollection, get, list, patch, update, watch]
+    workspaceNamespaces:
+      - name: coder-sandbox-test
+```
+
 > [!WARNING]
 > Do not run untrusted code until the network tests pass.
 > Kubernetes can accept a NetworkPolicy without enforcing it, leaving the agent's network access unrestricted.
 
 For GKE, check [network policy enforcement](https://cloud.google.com/kubernetes-engine/docs/how-to/network-policy).
-For Amazon VPC CNI, use Deployment-managed Pods instead of this example's standalone Pods.
-[AWS documents unreliable enforcement for standalone Pods](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy.html).
+For Amazon VPC CNI, use the Deployments version of `main.tf`.
+[AWS documents unreliable enforcement for standalone Pods](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy.html), so that version runs each Pod through a Deployment.
+Enable network policy in the VPC CNI add-on with `enableNetworkPolicy: "true"`.
 
-Save this Terraform as `main.tf` in an empty template directory.
+Expand one of the examples below and save it as `main.tf` in an empty template directory.
 Edit the `locals` block at the top of the file with your namespace and Coder server address.
+Both versions create the same agents, volumes, and network policy.
 
 <details>
-<summary>main.tf: two Pods, one project volume, and an agent network policy</summary>
+<summary>main.tf with standalone Pods: two Pods, one project volume, and an agent network policy</summary>
 
 ```tf
 terraform {
@@ -312,6 +337,289 @@ resource "kubernetes_pod_v1" "sandbox" {
 
 </details>
 
+<details>
+<summary>main.tf with Deployments: the same resources, for Amazon VPC CNI</summary>
+
+```tf
+terraform {
+  required_providers {
+    coder      = { source = "coder/coder" }
+    kubernetes = { source = "hashicorp/kubernetes" }
+  }
+}
+
+locals {
+  # Edit these values for your cluster and Coder deployment.
+
+  # Use ~/.kube/config on the provisioner host instead of in-cluster authentication.
+  use_kubeconfig = false
+  # Existing namespace for workspace resources.
+  namespace = "coder-sandbox-test"
+  # Storage class for the shared project PVC. Null uses the cluster default.
+  storage_class_name = null
+  # Hostname in the Coder access URL, without scheme or port.
+  coder_host = "coder.example.com"
+  # Trusted fixed IPv4 address of the external Coder endpoint, not a cluster Service or node IP.
+  coder_ip = "192.0.2.10"
+  # TCP port of the Coder endpoint (including agent downloads and embedded DERP).
+  coder_port = 443
+}
+
+provider "kubernetes" {
+  config_path = local.use_kubeconfig ? "~/.kube/config" : null
+}
+
+data "coder_workspace" "me" {}
+data "coder_provisioner" "me" {}
+
+resource "coder_agent" "dev" {
+  os   = "linux"
+  arch = data.coder_provisioner.me.arch
+  dir  = "/home/coder/project"
+}
+resource "coder_agent" "dev-coderd-chat" {
+  os   = "linux"
+  arch = data.coder_provisioner.me.arch
+  dir  = "/home/coder/project"
+  env  = { CODER_AGENT_EXP_MCP_CONFIG_FILES = "/etc/coder/mcp.json" }
+}
+
+locals {
+  name   = "coder-${data.coder_workspace.me.id}"
+  labels = { "com.coder.workspace.id" = data.coder_workspace.me.id }
+}
+
+resource "kubernetes_persistent_volume_claim_v1" "project" {
+  metadata {
+    name      = "${local.name}-project"
+    namespace = local.namespace
+  }
+  wait_until_bound = false
+  spec {
+    access_modes       = ["ReadWriteOnce"]
+    storage_class_name = local.storage_class_name
+    resources {
+      requests = { storage = "10Gi" }
+    }
+  }
+}
+
+resource "kubernetes_config_map_v1" "mcp" {
+  metadata {
+    name      = "${local.name}-mcp"
+    namespace = local.namespace
+  }
+  data = { "mcp.json" = jsonencode({ mcpServers = {} }) }
+}
+
+resource "kubernetes_network_policy_v1" "sandbox" {
+  metadata {
+    name      = "${local.name}-sandbox"
+    namespace = local.namespace
+  }
+  spec {
+    pod_selector {
+      match_labels = merge(local.labels, { "coder.com/agent-role" = "sandbox" })
+    }
+    policy_types = ["Egress"]
+    egress {
+      to {
+        ip_block {
+          cidr = "${local.coder_ip}/32"
+        }
+      }
+      ports {
+        protocol = "TCP"
+        port     = local.coder_port
+      }
+    }
+  }
+}
+
+resource "kubernetes_deployment_v1" "dev" {
+  count            = data.coder_workspace.me.start_count
+  wait_for_rollout = false
+  metadata {
+    name      = "${local.name}-dev"
+    namespace = local.namespace
+    labels    = merge(local.labels, { "coder.com/agent-role" = "dev" })
+  }
+  spec {
+    replicas = 1
+    strategy { type = "Recreate" }
+    selector {
+      match_labels = merge(local.labels, { "coder.com/agent-role" = "dev" })
+    }
+    template {
+      metadata {
+        labels = merge(local.labels, { "coder.com/agent-role" = "dev" })
+      }
+      spec {
+        automount_service_account_token = false
+        host_network                    = false
+        security_context {
+          run_as_user     = 1000
+          run_as_group    = 1000
+          fs_group        = 1000
+          run_as_non_root = true
+          seccomp_profile { type = "RuntimeDefault" }
+        }
+        host_aliases {
+          ip        = local.coder_ip
+          hostnames = [local.coder_host]
+        }
+        container {
+          name        = "dev"
+          image       = "codercom/example-base:ubuntu"
+          command     = ["sh", "-c", coder_agent.dev.init_script]
+          working_dir = "/home/coder/project"
+          env {
+            name  = "CODER_AGENT_TOKEN"
+            value = coder_agent.dev.token
+          }
+          volume_mount {
+            name       = "home"
+            mount_path = "/home/coder"
+          }
+          volume_mount {
+            name       = "project"
+            mount_path = "/home/coder/project"
+          }
+          volume_mount {
+            name       = "tmp"
+            mount_path = "/tmp"
+          }
+        }
+        volume {
+          name = "project"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.project.metadata[0].name
+          }
+        }
+        volume {
+          name = "home"
+          empty_dir {}
+        }
+        volume {
+          name = "tmp"
+          empty_dir {}
+        }
+      }
+    }
+  }
+}
+
+resource "kubernetes_deployment_v1" "sandbox" {
+  count            = data.coder_workspace.me.start_count
+  depends_on       = [kubernetes_network_policy_v1.sandbox]
+  wait_for_rollout = false
+  metadata {
+    name      = "${local.name}-dev-coderd-chat"
+    namespace = local.namespace
+    labels    = merge(local.labels, { "coder.com/agent-role" = "sandbox" })
+  }
+  spec {
+    replicas = 1
+    strategy { type = "Recreate" }
+    selector {
+      match_labels = merge(local.labels, { "coder.com/agent-role" = "sandbox" })
+    }
+    template {
+      metadata {
+        labels = merge(local.labels, { "coder.com/agent-role" = "sandbox" })
+      }
+      spec {
+        automount_service_account_token = false
+        host_network                    = false
+        security_context {
+          run_as_user     = 1000
+          run_as_group    = 1000
+          fs_group        = 1000
+          run_as_non_root = true
+          seccomp_profile {
+            type = "RuntimeDefault"
+          }
+        }
+        # Dev schedules independently, including with WaitForFirstConsumer storage.
+        affinity {
+          pod_affinity {
+            required_during_scheduling_ignored_during_execution {
+              topology_key = "kubernetes.io/hostname"
+              label_selector {
+                match_labels = merge(local.labels, { "coder.com/agent-role" = "dev" })
+              }
+            }
+          }
+        }
+        host_aliases {
+          ip        = local.coder_ip
+          hostnames = [local.coder_host]
+        }
+        container {
+          name        = "dev-coderd-chat"
+          image       = "codercom/example-base:ubuntu"
+          command     = ["sh", "-c", coder_agent.dev-coderd-chat.init_script]
+          working_dir = "/home/coder/project"
+          env {
+            name  = "CODER_AGENT_TOKEN"
+            value = coder_agent.dev-coderd-chat.token
+          }
+          env {
+            name  = "CODER_AGENT_EXP_MCP_CONFIG_FILES"
+            value = "/etc/coder/mcp.json"
+          }
+          security_context {
+            allow_privilege_escalation = false
+            read_only_root_filesystem  = true
+            run_as_non_root            = true
+            capabilities { drop = ["ALL"] }
+          }
+          volume_mount {
+            name       = "home"
+            mount_path = "/home/coder"
+          }
+          volume_mount {
+            name       = "project"
+            mount_path = "/home/coder/project"
+          }
+          volume_mount {
+            name       = "tmp"
+            mount_path = "/tmp"
+          }
+          volume_mount {
+            name       = "mcp"
+            mount_path = "/etc/coder"
+            read_only  = true
+          }
+        }
+        volume {
+          name = "project"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.project.metadata[0].name
+          }
+        }
+        volume {
+          name = "home"
+          empty_dir {}
+        }
+        volume {
+          name = "tmp"
+          empty_dir {}
+        }
+        volume {
+          name = "mcp"
+          config_map {
+            name = kubernetes_config_map_v1.mcp.metadata[0].name
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+</details>
+
 Use the Coder hostname without `https://` or a port.
 Use an external IP address, not a cluster Service or node IP.
 `hostAliases` lets the agent find Coder at this IP without DNS.
@@ -320,6 +628,9 @@ If your cluster has no default storage class, set `storage_class_name` to one th
 If the provisioner runs outside the cluster, set `use_kubeconfig = true`.
 Provide `~/.kube/config` on the provisioner host.
 Otherwise, the example uses in-cluster authentication.
+
+The Deployments version keeps one replica per Deployment and uses the `Recreate` strategy, because two replicas cannot share the `ReadWriteOnce` project volume.
+It sets `wait_for_rollout = false` so that the workspace build finishes when Kubernetes accepts the Deployment instead of waiting for the Pod to start.
 
 The AI agent runs as user ID `1000`, without Linux capabilities or a Kubernetes service-account token.
 It can write to its home, temporary directories, and shared project, but not system files.
@@ -338,10 +649,16 @@ From the template directory, run:
 terraform init
 terraform validate
 coder templates push sandbox-k8s --directory .
+coder templates edit sandbox-k8s --default-ttl 8h --yes
 coder create sandbox-test --template sandbox-k8s
 ```
 
+The default TTL stops every workspace from this template 8 hours after it starts, so a forgotten test workspace does not keep running.
+With a Premium license, add `--allow-user-autostop=false` so users cannot extend it.
+
 After the template passes validation, wait for both agents to connect.
+The build log shows deprecation warnings for the `dir` argument on `coder_agent`.
+You can ignore them.
 In **Agents**, start a chat attached to `sandbox-test`.
 Ask the chat to run:
 
