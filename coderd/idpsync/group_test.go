@@ -95,6 +95,7 @@ func TestParseGroupClaims(t *testing.T) {
 //nolint:paralleltest, tparallel
 func TestGroupSyncTable(t *testing.T) {
 	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
 
 	userClaims := jwt.MapClaims{
 		"groups": []string{
@@ -275,7 +276,6 @@ func TestGroupSyncTable(t *testing.T) {
 		// this is still fast without being in parallel.
 		//nolint:paralleltest, tparallel
 		t.Run(tc.Name, func(t *testing.T) {
-			db, _ := dbtestutil.NewDB(t)
 			manager := runtimeconfig.NewManager()
 			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
 				manager,

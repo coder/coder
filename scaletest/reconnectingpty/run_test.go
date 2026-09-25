@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -23,17 +22,23 @@ import (
 
 func Test_Runner(t *testing.T) {
 	t.Parallel()
+	baseClient, agentID := setupRunnerTest(t)
+	newClient := func() *codersdk.Client {
+		return codersdk.New(baseClient.URL,
+			codersdk.WithHTTPClient(baseClient.HTTPClient),
+			codersdk.WithSessionToken(baseClient.SessionToken()),
+		)
+	}
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		client, agentID := setupRunnerTest(t)
+		client := newClient()
 
 		runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 			AgentID: agentID,
 			Init: workspacesdk.AgentReconnectingPTYInit{
-				// Use ; here because it's powershell compatible (vs &&).
-				Command: "echo 'hello world'; sleep 1",
+				Command: "echo 'hello world'",
 			},
 			LogOutput: true,
 		})
@@ -58,7 +63,7 @@ func Test_Runner(t *testing.T) {
 	t.Run("NoLogOutput", func(t *testing.T) {
 		t.Parallel()
 
-		client, agentID := setupRunnerTest(t)
+		client := newClient()
 
 		runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 			AgentID: agentID,
@@ -87,7 +92,7 @@ func Test_Runner(t *testing.T) {
 		t.Run("NoTimeout", func(t *testing.T) {
 			t.Parallel()
 
-			client, agentID := setupRunnerTest(t)
+			client := newClient()
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
@@ -111,14 +116,14 @@ func Test_Runner(t *testing.T) {
 		t.Run("Timeout", func(t *testing.T) {
 			t.Parallel()
 
-			client, agentID := setupRunnerTest(t)
+			client := newClient()
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "sleep 120",
 				},
-				Timeout:   httpapi.Duration(2 * time.Second),
+				Timeout:   httpapi.Duration(testutil.IntervalFast),
 				LogOutput: true,
 			})
 
@@ -140,14 +145,14 @@ func Test_Runner(t *testing.T) {
 		t.Run("Timeout", func(t *testing.T) {
 			t.Parallel()
 
-			client, agentID := setupRunnerTest(t)
+			client := newClient()
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "sleep 120",
 				},
-				Timeout:       httpapi.Duration(2 * time.Second),
+				Timeout:       httpapi.Duration(testutil.IntervalFast),
 				ExpectTimeout: true,
 				LogOutput:     true,
 			})
@@ -165,7 +170,7 @@ func Test_Runner(t *testing.T) {
 		t.Run("NoTimeout", func(t *testing.T) {
 			t.Parallel()
 
-			client, agentID := setupRunnerTest(t)
+			client := newClient()
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
@@ -195,12 +200,12 @@ func Test_Runner(t *testing.T) {
 		t.Run("Matches", func(t *testing.T) {
 			t.Parallel()
 
-			client, agentID := setupRunnerTest(t)
+			client := newClient()
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: workspacesdk.AgentReconnectingPTYInit{
-					Command: "echo 'hello world'; sleep 1",
+					Command: "echo 'hello world'",
 				},
 				LogOutput: true,
 			})
@@ -220,12 +225,12 @@ func Test_Runner(t *testing.T) {
 		t.Run("NotMatches", func(t *testing.T) {
 			t.Parallel()
 
-			client, agentID := setupRunnerTest(t)
+			client := newClient()
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: workspacesdk.AgentReconnectingPTYInit{
-					Command: "echo 'hello world'; sleep 1",
+					Command: "echo 'hello world'",
 				},
 				LogOutput: true,
 			})
