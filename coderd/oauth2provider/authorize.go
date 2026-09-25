@@ -78,9 +78,6 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 // empty result is returned rather than rejected so the caller decides: both
 // callers happen to answer errNoGrantableScope, but only one of them can say
 // whether an empty allowlist should also fail the request.
-//
-// No allocation here may be sized by appScope, since not every write path
-// narrows it. Duplicates are dropped as names are read.
 func grantableScopes(appScope string) []string {
 	var filtered []string
 	for a := range strings.FieldsSeq(appScope) {
