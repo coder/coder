@@ -621,12 +621,41 @@ export const useFilterCombobox = ({
 		returnToCategories();
 	};
 
+	// Typed text that could still be a filter being searched for (a category
+	// name or a loaded option) is not applied to the results yet, so they do
+	// not empty out mid-word. It applies once it matches no filter, or when the
+	// menu is dismissed or switched to the full filter list.
+	const couldBeFilterSearch = (text: string) => {
+		const normalized = text.trim().toLowerCase();
+		if (normalized.length === 0) {
+			return false;
+		}
+		if (matchCategories(normalized, submenuCategories).length > 0) {
+			return true;
+		}
+		return categories.some((category) =>
+			(unfilteredOptions.optionsByKey.get(category.key) ?? []).some(
+				(option) =>
+					option.label.toLowerCase().includes(normalized) ||
+					option.value.toLowerCase().includes(normalized),
+			),
+		);
+	};
+
+	const applyTypedSearch = () => {
+		const query = composeFilterQuery(chipValues, chipKeys, committedFreeText);
+		if (query !== lastEmittedRef.current) {
+			emitQuery(query, true);
+		}
+	};
+
 	const showFilterMenu = () => {
 		inputRef.current?.focus();
 		if (mode === "category") {
 			leaveCategory();
 			return;
 		}
+		applyTypedSearch();
 		dispatch({ type: "showAllFilters" });
 	};
 
@@ -728,13 +757,18 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		emitQuery(composeFilterQuery(chipValues, chipKeys, nextValue), false);
+		const searchText = couldBeFilterSearch(nextValue) ? "" : nextValue;
+		emitQuery(composeFilterQuery(chipValues, chipKeys, searchText), false);
 		dispatch({ type: "typeFreeText", value: nextValue });
 	};
 
 	// Radix only originates close requests (escape / outside press); opens flow
-	// from the caller, so a dismissal simply restores the free-text input.
+	// from the caller, so a dismissal restores the free-text input and applies
+	// it as a search.
 	const handleDismiss = () => {
+		if (mode !== "category") {
+			applyTypedSearch();
+		}
 		dispatch({ type: "close", input: "restore" });
 	};
 
