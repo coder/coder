@@ -21319,6 +21319,53 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatResponseFormat": {
+            "type": "object",
+            "properties": {
+                "json_schema": {
+                    "$ref": "#/definitions/codersdk.ChatResponseFormatJSONSchema"
+                },
+                "type": {
+                    "enum": [
+                        "text",
+                        "json_schema"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormatType"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.ChatResponseFormatJSONSchema": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "description": "Description tells the model what the output is for (1024 bytes max).",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name identifies the output and matches ^[A-Za-z0-9_-]{1,64}$.",
+                    "type": "string"
+                },
+                "schema": {
+                    "description": "Schema is the JSON Schema object the output must satisfy.",
+                    "type": "object"
+                }
+            }
+        },
+        "codersdk.ChatResponseFormatType": {
+            "type": "string",
+            "enum": [
+                "text",
+                "json_schema"
+            ],
+            "x-enum-varnames": [
+                "ChatResponseFormatTypeText",
+                "ChatResponseFormatTypeJSONSchema"
+            ]
+        },
         "codersdk.ChatRetentionDaysResponse": {
             "type": "object",
             "properties": {
@@ -22072,6 +22119,14 @@ const docTemplate = `{
                 },
                 "reasoning_effort": {
                     "type": "string"
+                },
+                "response_format": {
+                    "description": "ResponseFormat asks for a structured final answer to the first message.\njson_schema requires the chat-structured-output experiment, not plan mode.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormat"
+                        }
+                    ]
                 },
                 "system_prompt": {
                     "type": "string"
@@ -23742,7 +23797,8 @@ const docTemplate = `{
                 "ai-gateway-reverse-proxy",
                 "chat-advisor",
                 "chat-virtual-desktop",
-                "agent-lifecycle-hooks"
+                "agent-lifecycle-hooks",
+                "chat-structured-output"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -23750,6 +23806,7 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatStructuredOutput": "Accepts structured output response formats on agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -23774,7 +23831,8 @@ const docTemplate = `{
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
-                "Enables chat lifecycle hook webhooks for agent chats."
+                "Enables chat lifecycle hook webhooks for agent chats.",
+                "Accepts structured output response formats on agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -23790,7 +23848,8 @@ const docTemplate = `{
                 "ExperimentAIGatewayReverseProxy",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
-                "ExperimentAgentLifecycleHooks"
+                "ExperimentAgentLifecycleHooks",
+                "ExperimentChatStructuredOutput"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

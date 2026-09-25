@@ -318,6 +318,14 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "plan_mode": "plan",
   "reasoning_effort": "string",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": {}
+    },
+    "type": "text"
+  },
   "system_prompt": "string",
   "unsafe_dynamic_tools": [
     {

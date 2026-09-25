@@ -1064,6 +1064,9 @@ var (
 	ErrEditedMessageNotFound = xerrors.New("edited message not found")
 	// ErrEditedMessageNotUser indicates a non-user message edit attempt.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")
+	// ErrEditedMessageStructured indicates an edit of a message that asked
+	// for a structured output, which is not supported.
+	ErrEditedMessageStructured = xerrors.New("messages that ask for a structured output cannot be edited")
 	// ErrChatArchived indicates the chat is archived and cannot
 	// accept modifications (messages, edits, promotions, or
 	// tool-result submissions).
@@ -1101,6 +1104,9 @@ type CreateOptions struct {
 	ClientType              database.ChatClientType
 	SystemPrompt            string
 	InitialUserContent      []codersdk.ChatMessagePart
+	// StructuredOutputRequest is a ParseResponseFormat part, appended after hooks
+	// compose the content. Only root chats outside plan mode accept it.
+	StructuredOutputRequest *codersdk.ChatMessagePart
 	MCPServerIDs            []uuid.UUID
 	Labels                  database.StringMap
 	DynamicTools            json.RawMessage
@@ -1273,6 +1279,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if len(opts.InitialUserContent) == 0 {
 		return database.Chat{}, xerrors.New("initial user content is required")
 	}
+	if opts.StructuredOutputRequest != nil && (opts.PlanMode.Valid || opts.ChatMode.Valid || opts.ParentChatID.Valid) {
+		return database.Chat{}, xerrors.New("structured output requires a root chat outside plan mode")
+	}
 	// Ensure MCPServerIDs is non-nil so pq.Array produces '{}'
 	// instead of SQL NULL, which violates the NOT NULL column
 	// constraint.
@@ -1352,6 +1361,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
+	}
+	if opts.StructuredOutputRequest != nil {
+		contentParts = append(slices.Clone(contentParts), *opts.StructuredOutputRequest)
 	}
 	userContent, err := chatprompt.MarshalParts(contentParts)
 	if err != nil {
@@ -1742,6 +1754,9 @@ func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.U
 	if target.Role != database.ChatMessageRoleUser {
 		return ErrEditedMessageNotUser
 	}
+	if hasStructuredRequestPart(target) {
+		return ErrEditedMessageStructured
+	}
 	return nil
 }
 
@@ -1875,6 +1890,9 @@ func (p *Server) EditMessage(
 		}
 		if target.Role != database.ChatMessageRoleUser {
 			return ErrEditedMessageNotUser
+		}
+		if hasStructuredRequestPart(target) {
+			return ErrEditedMessageStructured
 		}
 		editedMsg = target
 
