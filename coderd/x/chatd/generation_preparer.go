@@ -654,6 +654,28 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
+	// The finalizer rides as a provider tool so its definition keeps the
+	// caller's schema unnormalized; it runs locally and alone in its step.
+	// Every preparation rechecks the settings and registries it could clash
+	// with, before deferred tool search hides any MCP tool.
+	structured, finalizerSchema, err := structuredTurnFor(ctx, logger, chat.ID, input.Messages)
+	if err == nil && finalizerSchema != nil {
+		if reason := finalizerConfigurationReason(resolved.providerOptions, tools, dynamicToolNames, providerTools, subagentToolNameAliases); reason != "" {
+			err = newStructuredConfigurationError(structured, reason)
+		}
+	}
+	if err != nil {
+		cleanup()
+		return generationPrepared{}, err
+	}
+	if finalizerSchema != nil {
+		providerTools = append(providerTools, chatloop.ProviderTool{Definition: finalizerSchema.FinalizerDefinition(), Runner: finalizerSchema.FinalizerRunner()})
+		if exclusiveToolNames == nil {
+			exclusiveToolNames = make(map[string]bool)
+		}
+		exclusiveToolNames[chatstructured.FinalizerToolName] = true
+	}
+
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
 		activeToolNames = allowedExploreToolNames(tools)
@@ -702,17 +724,6 @@ func (server *Server) prepareGeneration(
 			deriveDeferredMCPActivations(promptRows, deferredCandidates, activationTokenBudget),
 		)
 		builtinToolNames[chattool.FindToolsName] = true
-	}
-
-	// The finalizer rides as a provider tool so its definition keeps the
-	// caller's schema unnormalized; it runs locally and alone in its step.
-	structuredRequestID, finalizerSchema := structuredTurnFor(ctx, logger, chat.ID, input.Messages)
-	if finalizerSchema != nil {
-		providerTools = append(providerTools, chatloop.ProviderTool{Definition: finalizerSchema.FinalizerDefinition(), Runner: finalizerSchema.FinalizerRunner()})
-		if exclusiveToolNames == nil {
-			exclusiveToolNames = make(map[string]bool)
-		}
-		exclusiveToolNames[chatstructured.FinalizerToolName] = true
 	}
 
 	toolDefinitions := chatloop.BuildToolDefinitions(tools, activeToolNames, providerTools)
@@ -804,7 +815,7 @@ func (server *Server) prepareGeneration(
 		BuiltinToolNames:     builtinToolNames,
 		ToolNameToConfigID:   toolNameToConfigID,
 		MaxSteps:             maxChatSteps,
-		StructuredRequestID:  structuredRequestID,
+		StructuredRequestID:  structured.Request.RequestID,
 		FinalizerSchema:      finalizerSchema,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,

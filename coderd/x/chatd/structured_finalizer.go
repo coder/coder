@@ -3,14 +3,18 @@ package chatd
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"sync"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -158,19 +162,19 @@ const finalizerSeparateStepFeedback = chatstructured.FinalizerToolName + " must 
 const finalizerUnstorableFeedback = "structured output is too large to store. Call " + chatstructured.FinalizerToolName + " again with a smaller output."
 
 // structuredTurnFor returns the open structured output request of history's
-// latest user turn, or uuid.Nil, and its compiled schema when the finalizer
-// can be offered. A schema that fails to compile offers no finalizer.
-func structuredTurnFor(ctx context.Context, logger slog.Logger, chatID uuid.UUID, history []database.ChatMessage) (uuid.UUID, *chatstructured.Schema) {
+// latest user turn with its compiled schema, or a zero state and nil schema
+// when none is open. A schema that no longer compiles is a configuration
+// error.
+func structuredTurnFor(ctx context.Context, logger slog.Logger, chatID uuid.UUID, history []database.ChatMessage) (chatstructured.ActiveRequestState, *chatstructured.Schema, error) {
 	state, open := openStructuredRequest(ctx, logger, chatID, history)
 	if !open {
-		return uuid.Nil, nil
+		return chatstructured.ActiveRequestState{}, nil, nil
 	}
 	schema, err := chatstructured.CompileSchema(state.Request.Schema)
 	if err != nil {
-		logger.Warn(ctx, "structured output schema does not compile; finalizer not offered", slog.F("chat_id", chatID))
-		return state.Request.RequestID, nil
+		return state, nil, newStructuredConfigurationError(state, structuredInvalidSchemaReason)
 	}
-	return state.Request.RequestID, schema
+	return state, schema, nil
 }
 
 // finalizerBatchControls decides, on the server, the structured output
@@ -243,4 +247,62 @@ func replaceFinalizerResult(content []fantasy.Content, id, feedback string) {
 			content[i] = result
 		}
 	}
+}
+
+// Configuration failures that close an open structured output request.
+const (
+	structuredStrictToolsReason   = "The model's strict tool schema setting cannot be used with structured output."
+	structuredToolCollisionReason = "Another tool is named " + chatstructured.FinalizerToolName + ", which structured output reserves."
+	structuredInvalidSchemaReason = "The stored structured output schema no longer compiles."
+)
+
+// structuredConfigurationError ends a turn whose open structured output
+// request cannot be served as specified; finishGenerationError closes the
+// request with a failed configuration_error receipt carrying reason. The
+// reason is fixed text: it never includes schema values, tool arguments,
+// provider responses or credentials.
+type structuredConfigurationError struct {
+	requestID    uuid.UUID
+	requestRowID int64
+	reason       string
+}
+
+func (e *structuredConfigurationError) Error() string {
+	return "structured output configuration error: " + e.reason
+}
+
+// newStructuredConfigurationError returns a terminal generation error whose
+// user-facing message is reason.
+func newStructuredConfigurationError(state chatstructured.ActiveRequestState, reason string) error {
+	return terminalGeneration(chaterror.WithClassification(
+		&structuredConfigurationError{requestID: state.Request.RequestID, requestRowID: state.RequestRowID, reason: reason},
+		chaterror.ClassifiedError{Message: reason, Kind: codersdk.ChatErrorKindConfig},
+	))
+}
+
+// finalizerConfigurationReason returns why the finalizer cannot be offered
+// as specified, or "". Strict tool schemas apply to every function tool in
+// the pinned OpenAI Responses SDK, so the finalizer cannot be exempted; any
+// other tool, dynamic tool, provider tool or alias with the finalizer's name
+// would collide with it. Nothing is altered to make either case pass.
+func finalizerConfigurationReason(options fantasy.ProviderOptions, tools []fantasy.AgentTool, dynamic map[string]bool, providerTools []chatloop.ProviderTool, aliases map[string]string) string {
+	for _, data := range options {
+		if responses, ok := data.(*fantasyopenai.ResponsesProviderOptions); ok && responses.StrictJSONSchema != nil && *responses.StrictJSONSchema {
+			return structuredStrictToolsReason
+		}
+	}
+	names := make([]string, 0, len(tools)+len(providerTools)+2*len(aliases))
+	for _, tool := range tools {
+		names = append(names, tool.Info().Name)
+	}
+	for _, tool := range providerTools {
+		names = append(names, tool.Definition.GetName())
+	}
+	for from, to := range aliases {
+		names = append(names, from, to)
+	}
+	if dynamic[chatstructured.FinalizerToolName] || slices.Contains(names, chatstructured.FinalizerToolName) {
+		return structuredToolCollisionReason
+	}
+	return ""
 }

@@ -1,18 +1,21 @@
 package chatd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
@@ -336,4 +339,43 @@ func TestSubmitToolResultsRejectsFinalizerCall(t *testing.T) {
 	require.Equal(t, "Unexpected tool result.", validation.Message)
 	after, _ := structuredHistory(t, f, created.Chat.ID)
 	require.Equal(t, before, after)
+}
+
+func TestFinalizerConfigurationReason(t *testing.T) {
+	t.Parallel()
+	fin := chatstructured.FinalizerToolName
+	tool := func(name string) fantasy.AgentTool {
+		return fantasy.NewAgentTool(name, "", func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.ToolResponse{}, nil
+		})
+	}
+	strict := func(v bool) fantasy.ProviderOptions {
+		return fantasy.ProviderOptions{fantasyopenai.Name: &fantasyopenai.ResponsesProviderOptions{StrictJSONSchema: &v}}
+	}
+	provider := func(name string) []chatloop.ProviderTool {
+		return []chatloop.ProviderTool{{Definition: fantasy.FunctionTool{Name: name}}}
+	}
+	for _, tt := range []struct {
+		name      string
+		options   fantasy.ProviderOptions
+		tools     []fantasy.AgentTool
+		dynamic   map[string]bool
+		providers []chatloop.ProviderTool
+		aliases   map[string]string
+		want      string
+	}{
+		{name: "Compatible", options: strict(false), tools: []fantasy.AgentTool{tool("execute")}, dynamic: map[string]bool{"dyn": true}, providers: provider("web_search"), aliases: map[string]string{"a": "b"}},
+		{name: "ChatCompletions", options: fantasy.ProviderOptions{fantasyopenai.Name: &fantasyopenai.ProviderOptions{}}},
+		{name: "StrictResponses", options: strict(true), want: structuredStrictToolsReason},
+		{name: "Tool", tools: []fantasy.AgentTool{tool(fin)}, want: structuredToolCollisionReason},
+		{name: "Dynamic", dynamic: map[string]bool{fin: true}, want: structuredToolCollisionReason},
+		{name: "ProviderTool", providers: provider(fin), want: structuredToolCollisionReason},
+		{name: "AliasKey", aliases: map[string]string{fin: "execute"}, want: structuredToolCollisionReason},
+		{name: "AliasTarget", aliases: map[string]string{"old": fin}, want: structuredToolCollisionReason},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, finalizerConfigurationReason(tt.options, tt.tools, tt.dynamic, tt.providers, tt.aliases))
+		})
+	}
 }
