@@ -47,16 +47,17 @@ func TestExperimentRuleConditions(t *testing.T) {
 
 	//nolint:gocritic // Tests seed rules directly; there is no rules API yet.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	_, _, _, err = experiments.WriteRule(systemCtx, db, owner.UserID, codersdk.ExperimentExample, experiments.Rule{
-		Mode:      experiments.ModeCondition,
-		Condition: fmt.Sprintf("%q in user.groups", defaultOrg.Name+"/"+group.Name),
-	}, 0)
-	require.NoError(t, err)
-	_, _, _, err = experiments.WriteRule(systemCtx, db, owner.UserID, codersdk.ExperimentMCPToolSearch, experiments.Rule{
-		Mode:      experiments.ModeCondition,
-		Condition: fmt.Sprintf("%q in user.organizations", otherOrg.Name),
-	}, 0)
-	require.NoError(t, err)
+	for ex, condition := range map[codersdk.Experiment]string{
+		codersdk.ExperimentExample:       fmt.Sprintf("%q in user.groups", defaultOrg.Name+"/"+group.Name),
+		codersdk.ExperimentMCPToolSearch: fmt.Sprintf("%q in user.organizations", otherOrg.Name),
+	} {
+		_, _, changed, err := experiments.WriteRule(systemCtx, db, owner.UserID, ex, experiments.Rule{
+			Mode:      experiments.ModeCondition,
+			Condition: condition,
+		}, 0)
+		require.NoError(t, err)
+		require.True(t, changed)
+	}
 
 	for _, tc := range []struct {
 		name   string

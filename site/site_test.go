@@ -546,11 +546,12 @@ func TestExperimentsMetadata(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	eligible := dbgen.User(t, db, database.User{})
 	other := dbgen.User(t, db, database.User{})
-	_, _, _, err = experiments.WriteRule(ctx, db, eligible.ID, codersdk.ExperimentExample, experiments.Rule{
+	_, _, changed, err := experiments.WriteRule(ctx, db, eligible.ID, codersdk.ExperimentExample, experiments.Rule{
 		Mode:      experiments.ModeCondition,
 		Condition: fmt.Sprintf("user.username == %q", eligible.Username),
 	}, 0)
 	require.NoError(t, err)
+	require.True(t, changed)
 
 	fetchExperiments := func(t *testing.T, userID uuid.UUID) codersdk.Experiments {
 		t.Helper()
