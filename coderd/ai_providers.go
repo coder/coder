@@ -657,12 +657,28 @@ func (api *API) aiProviderStatusFromDB(ctx context.Context, provider database.AI
 	return api.aiProviderStatus(provider, buildHostnameCollisionMap(rows))
 }
 
+type aiProviderValidationError struct {
+	Validations []codersdk.ValidationError
+}
+
+func (*aiProviderValidationError) Error() string {
+	return "invalid AI provider request"
+}
+
 // writeAIProviderError translates an error from the AI provider
 // lookup/update/delete paths into the right HTTP status code. logMsg
 // labels the log line for operator debugging, and userMsg is the
 // internal-error response message shown to the API consumer when no
 // more specific branch fires.
 func writeAIProviderError(ctx context.Context, logger slog.Logger, rw http.ResponseWriter, err error, logMsg, userMsg string) {
+	var validationErr *aiProviderValidationError
+	if errors.As(err, &validationErr) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid AI provider request.",
+			Validations: validationErr.Validations,
+		})
+		return
+	}
 	if errors.Is(err, errAIProviderInvalidName) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Invalid provider id or name: must be a UUID or match %s.", codersdk.AIProviderNameRegex),
@@ -810,23 +826,33 @@ func applyAIProviderKeyOps(ctx context.Context, tx database.Store, providerID uu
 	if err != nil {
 		return nil, ops, changes, xerrors.Errorf("load existing ai provider keys: %w", err)
 	}
-	existingByID := make(map[uuid.UUID]struct{}, len(existing))
+	existingByID := make(map[uuid.UUID]string, len(existing))
 	for _, k := range existing {
-		existingByID[k.ID] = struct{}{}
+		existingByID[k.ID] = k.APIKey
 	}
 
 	keep := make(map[uuid.UUID]struct{}, len(muts))
+	seenKeys := make(map[string]int, len(muts))
 	var inserts []string
-	for _, m := range muts {
+	for i, m := range muts {
+		var key string
 		switch {
 		case m.ID != nil:
-			if _, ok := existingByID[*m.ID]; !ok {
+			var ok bool
+			key, ok = existingByID[*m.ID]
+			if !ok {
 				return nil, ops, changes, xerrors.Errorf("%w: %s", errAIProviderKeyUnknown, *m.ID)
 			}
 			keep[*m.ID] = struct{}{}
 		case m.APIKey != nil:
-			inserts = append(inserts, *m.APIKey)
+			key = *m.APIKey
+			inserts = append(inserts, key)
 		}
+		// Compare the final key set, not keys being removed by this patch.
+		if validations := codersdk.ValidateAIProviderKeyUniqueness(key, "api_keys", seenKeys); len(validations) > 0 {
+			return nil, ops, changes, &aiProviderValidationError{Validations: validations}
+		}
+		seenKeys[key] = i
 	}
 
 	for _, k := range existing {
@@ -892,6 +918,11 @@ func lookupAndMergeSettings(ctx context.Context, db database.Store, idOrName str
 	}
 	if patch != nil {
 		settings = mergeAIProviderSettings(settings, *patch)
+		if settings.Bedrock != nil {
+			if validations := settings.Bedrock.ValidateCredentials(); len(validations) > 0 {
+				return database.AIProvider{}, codersdk.AIProviderSettings{}, &aiProviderValidationError{Validations: validations}
+			}
+		}
 	}
 	return old, settings, nil
 }

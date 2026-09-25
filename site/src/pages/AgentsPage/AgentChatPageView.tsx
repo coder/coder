@@ -839,7 +839,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	return (
 		<TerminalClientSessionContext value={clientSessionId}>
 			<ChatWorkspaceContext
-				value={{ workspaceId: workspace?.id, buildId: chat.build_id }}
+				value={{
+					workspaceId: workspace?.id,
+					buildId: chat.build_id,
+					agentId: chat.agent_id,
+				}}
 			>
 				<DesktopPanelContext value={desktopPanelCtx}>
 					<div

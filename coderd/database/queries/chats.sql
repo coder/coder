@@ -963,7 +963,9 @@ inserted AS (
         cache_read_tokens,
         context_limit,
         compressed,
-        runtime_ms
+        runtime_ms,
+        provider_response_id,
+        queued_message_id
     )
     SELECT
         allocated.id,
@@ -983,7 +985,10 @@ inserted AS (
         NULLIF((@cache_read_tokens::bigint[])[allocated.ord], 0),
         NULLIF((@context_limit::bigint[])[allocated.ord], 0),
         (@compressed::boolean[])[allocated.ord],
-        NULLIF((@runtime_ms::bigint[])[allocated.ord], 0)
+        NULLIF((@runtime_ms::bigint[])[allocated.ord], 0),
+        NULLIF((@provider_response_id::text[])[allocated.ord], ''),
+        -- Queue ids start at 1, so 0 is a safe "not promoted" sentinel.
+        NULLIF((@queued_message_id::bigint[])[allocated.ord], 0)
     FROM allocated
     RETURNING *
 )

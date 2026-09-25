@@ -1248,6 +1248,16 @@ Disable workspace sharing. Workspace ACL checking is disabled and only owners ca
 
 Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.
 
+### --disable-chat-caller-supplied-tools
+
+|             |                                                        |
+|-------------|--------------------------------------------------------|
+| Type        | <code>bool</code>                                      |
+| Environment | <code>$CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS</code> |
+| YAML        | <code>disableChatCallerSuppliedTools</code>            |
+
+Disable caller-supplied tools in chats. Chat requests that include unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing chats run without their dynamic tools and inline MCP servers.
+
 ### --disable-workspace-agent-context-sync
 
 |             |                                                          |
@@ -1337,7 +1347,7 @@ These SSH config options will override the default SSH config options. Provide o
 | Environment | <code>$CODER_CLI_UPGRADE_MESSAGE</code> |
 | YAML        | <code>client.cliUpgradeMessage</code>   |
 
-The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.
+The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -fsSL https://coder.com/install.sh | sh'.
 
 ### --write-config
 

@@ -100,7 +100,7 @@ Configure Artifactory as a **Remote Terraform Repository** that proxies and
 caches the Coder registry. This approach provides automatic updates and
 requires no manual synchronization.
 
-See [Mirror the Coder Registry with JFrog Artifactory](../../../install/registry-mirror-artifactory.md)
+See [Mirror the Coder Registry with JFrog Artifactory](../../../install/prepare/registry-mirror.md)
 for complete setup instructions.
 
 ### Artifactory Local Repository
@@ -163,8 +163,8 @@ template as the underlying module.
 
 ### Private git repository
 
-If you are importing a module from a private git repository, the Coder server or
-[provisioner](../../provisioners/index.md) needs git credentials. Since this token
+If you are importing a module from a private git repository, the control plane or
+[provisioner](../../../install/operate/provisioners/index.md) needs git credentials. Since this token
 will only be used for cloning your repositories with modules, it is best to
 create a token with access limited to the repository and no extra permissions.
 In GitHub, you can generate a

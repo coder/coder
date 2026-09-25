@@ -63,7 +63,12 @@ var bedrockSupportedBetaFlags = map[string]bool{
 	"tool-search-tool-2025-10-19": true,
 	// Supported on Claude Opus 4.5.
 	"tool-examples-2025-10-29": true,
+	// Enables the thinking.block_binding body field. Not gated per model:
+	// clients send it only to models that enforce thinking block binding.
+	bedrockBetaThinkingBinding: true,
 }
+
+const bedrockBetaThinkingBinding = "thinking-binding-controls-2026-08-01"
 
 // BedrockRuntime carries everything a Bedrock-backed interception needs: the
 // static Bedrock config plus the AWS credentials provider. The messages
@@ -342,7 +347,7 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader())
+			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg, aibcontext.ActorFromContext(req.Context()))
 			return next(req)
 		}))
 	}
@@ -562,6 +567,13 @@ func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 	}
 	i.reqPayload = updated
 
+	updated, err = i.reqPayload.convertThinkingBlockBindingForBedrock(i.clientHeaders)
+	if err != nil {
+		i.logger.Warn(context.Background(), "failed to convert thinking block binding for Bedrock", slog.Error(err))
+		return
+	}
+	i.reqPayload = updated
+
 	// Adaptive-only models accept output_config but reject some of its
 	// sub-fields (currently: output_config.format). Strip those after the
 	// top-level pass has decided to keep output_config.
@@ -593,6 +605,7 @@ func bedrockModelSupportsAdaptiveThinking(model string) bool {
 func bedrockModelRequiresAdaptiveThinking(model string) bool {
 	return strings.Contains(model, "anthropic.claude-opus-4-7") ||
 		strings.Contains(model, "anthropic.claude-opus-4-8") ||
+		strings.Contains(model, "anthropic.claude-opus-5-5") ||
 		strings.Contains(model, "anthropic.claude-sonnet-5")
 }
 

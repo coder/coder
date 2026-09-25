@@ -129,7 +129,7 @@ func (r *RootCmd) list() *serpent.Command {
 				workspaceFilter.SharedWithUser = user.ID.String()
 
 				// Unset the default query that conflicts with the --shared-with-me flag
-				if workspaceFilter.FilterQuery == "owner:me" {
+				if workspaceFilter.FilterQuery == "user:me" {
 					workspaceFilter.FilterQuery = ""
 				}
 			}

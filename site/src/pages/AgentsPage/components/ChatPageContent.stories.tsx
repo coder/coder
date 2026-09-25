@@ -250,6 +250,48 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 	},
 };
 
+// The advisor streams its reasoning and advice after its assistant message
+// is already durable. Both must land on that message's card, with no second
+// live card for the same call.
+export const StreamedAdvisorResultOverlaysDurableCall: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages([
+			buildMessage(1, "user", [
+				{ type: "text", text: "Should the advisor be on by default?" },
+			]),
+			buildMessage(2, "assistant", [
+				{
+					type: "tool-call",
+					tool_call_id: "advisor-call",
+					tool_name: "advisor",
+					args: {
+						question: "on or off by default?",
+						model_intent: "Checking the default",
+					},
+				},
+			]),
+		]);
+		store.setChatStatus("running");
+		store.applyMessageParts([
+			{
+				type: "tool-result",
+				tool_call_id: "advisor-call",
+				tool_name: "advisor",
+				reasoning_delta: "Weighing the default against the rollout risk.",
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "advisor-call",
+				tool_name: "advisor",
+				result_delta: "Keep it off by default and let teams opt in.",
+			},
+		]);
+
+		return <StoryChatPageTimeline store={store} />;
+	},
+};
+
 // Matches the fixed terminal error path.
 const errorClearsStreamStore = createChatStore();
 export const ErrorClearsStreamingTool: Story = {
@@ -360,7 +402,7 @@ export const InterruptingShowsBusyComposer: Story = {
 		expect(canvas.getByRole("status")).toHaveTextContent(
 			"Interrupting. Waiting for the agent to stop.",
 		);
-		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
+		expect(canvas.queryByRole("button", { name: "Queue" })).toBeNull();
 		expect(canvas.getByText("Interrupting")).toBeInTheDocument();
 		expect(canvas.queryByText("Thinking")).toBeNull();
 
