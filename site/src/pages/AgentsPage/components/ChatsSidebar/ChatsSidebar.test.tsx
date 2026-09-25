@@ -9,7 +9,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockAppearanceConfig,
@@ -66,7 +66,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...overrides,
 });
 
-const dashboardValue = {
+const mockDashboardValue = {
 	entitlements: MockEntitlements,
 	experiments: [] as TypesGen.Experiment[],
 	appearance: MockAppearanceConfig,
@@ -88,7 +88,7 @@ const Wrapper: FC<WrapperProps> = ({ children, initialPath = "/agents" }) => {
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
 				<TooltipProvider>
 					<MemoryRouter initialEntries={[initialPath]}>
-						<DashboardContext.Provider value={dashboardValue}>
+						<DashboardContext.Provider value={mockDashboardValue}>
 							{children}
 						</DashboardContext.Provider>
 					</MemoryRouter>
@@ -597,6 +597,120 @@ describe("ChatsSidebar load-more behavior", () => {
 		// No observer should have been created since the sentinel
 		// is not rendered.
 		expect(observeCount).toBe(0);
+	});
+});
+
+describe("ChatsSidebar PR icon", () => {
+	const mockMultiPRChat = buildChat({
+		id: "multi-pr",
+		title: "Multiple pull requests",
+		diff_statuses: [
+			{
+				...MockChatDiffStatus,
+				chat_id: "multi-pr",
+				git_branch: "feat/one",
+				url: "https://github.com/coder/coder/pull/1",
+				pr_number: 1,
+				pull_request_state: "open",
+				pull_request_title: "feat: add login page",
+			},
+			{
+				...MockChatDiffStatus,
+				chat_id: "multi-pr",
+				git_branch: "feat/two",
+				url: "https://github.com/coder/coder/pull/2",
+				pr_number: 2,
+				pull_request_state: "merged",
+				pull_request_title: "feat: add login tests",
+			},
+		],
+	});
+
+	// The popover contents are visual state, covered by the
+	// WithMultiplePRs story screenshot. Assert what screen readers
+	// announce.
+	it("announces the pull request state when the chat tracks one pull request", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "one-pr",
+							title: "One pull request",
+							diff_statuses: [
+								{
+									...MockChatDiffStatus,
+									chat_id: "one-pr",
+									url: "https://github.com/coder/coder/pull/1",
+									pull_request_state: "open",
+									pull_request_title: "",
+									additions: 0,
+									deletions: 0,
+									changed_files: 0,
+								},
+							],
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(
+			screen.getByRole("img", { name: /pull request/i }),
+		).toHaveAccessibleName("Pull request open");
+	});
+
+	it("announces the tracked pull request count when the chat tracks several", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} chats={[mockMultiPRChat]} />
+			</Wrapper>,
+		);
+
+		// The count and the glyph are one named image, so the link
+		// does not announce the count twice.
+		expect(
+			screen.getByRole("img", { name: /pull request/i }),
+		).toHaveAccessibleName("2 pull requests");
+		const link = screen.getByRole("link", {
+			name: /multiple pull requests/i,
+		});
+		expect(link).toHaveAccessibleName(
+			/Multiple pull requests.*2 pull requests/,
+		);
+		expect(link).not.toHaveAccessibleName(/2 pull requests.*2 pull requests/);
+	});
+
+	it("lists every pull request when the multi-PR chat link has keyboard focus", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} chats={[mockMultiPRChat]} />
+			</Wrapper>,
+		);
+
+		const link = screen.getByRole("link", {
+			name: /multiple pull requests/i,
+		});
+		await user.tab();
+		while (!link.matches(":focus")) {
+			await user.tab();
+		}
+		expect(link).toHaveFocus();
+
+		// The link is the tooltip trigger, so Radix exposes the
+		// per-PR list through the link's describedby relation.
+		const tooltip = await screen.findByRole("tooltip");
+		expect(link).toHaveAttribute(
+			"aria-describedby",
+			tooltip.getAttribute("id") ?? "",
+		);
+		expect(link).toHaveAccessibleDescription(/Pull request open/);
+		expect(link).toHaveAccessibleDescription(/PR #1/);
+		expect(link).toHaveAccessibleDescription(/Pull request merged/);
+		expect(link).toHaveAccessibleDescription(/PR #2/);
 	});
 });
 
