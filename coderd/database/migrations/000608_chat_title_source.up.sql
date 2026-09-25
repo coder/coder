@@ -11,7 +11,7 @@ ALTER TABLE chats
     ADD COLUMN title_updated_at timestamptz NOT NULL DEFAULT NOW();
 
 COMMENT ON COLUMN chats.title_source IS 'Only a user title may replace a generated or user title. Rows from before this column existed are fallback regardless of who set their title.';
-COMMENT ON COLUMN chats.title_updated_at IS 'When title was last written. Orders title events; updated_at is not changed by title writes.';
+COMMENT ON COLUMN chats.title_updated_at IS 'Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.';
 
 -- Refresh chats_expanded to include the new chat columns. The gentest
 -- TestViewSubsetChat requires every chats column to appear in the view.

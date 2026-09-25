@@ -2305,7 +2305,7 @@ COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat 
 
 COMMENT ON COLUMN chats.title_source IS 'Only a user title may replace a generated or user title. Rows from before this column existed are fallback regardless of who set their title.';
 
-COMMENT ON COLUMN chats.title_updated_at IS 'When title was last written. Orders title events; updated_at is not changed by title writes.';
+COMMENT ON COLUMN chats.title_updated_at IS 'Orders title events, because title writes do not change updated_at. Rows from before this column existed have the migration time.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
