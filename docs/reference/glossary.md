@@ -137,7 +137,7 @@ Refer to [Coder Validated Architecture](../install/plan/sizing/index.md).
 
 The CLI command that starts [`coderd`](#coderd).
 Use this name only for the command a reader runs, not as a name for the [control plane](#control-plane) itself.
-Refer to the [`coder server` reference](./cli/server.md).
+Refer to the [`coder server` reference](./cli/server/index.md).
 
 ### `coder_agent`
 

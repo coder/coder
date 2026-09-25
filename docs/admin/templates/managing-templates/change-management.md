@@ -7,7 +7,7 @@ automating the creation of new versions in CI/CD pipelines.
 
 These pipelines will require tokens for your deployment. To cap token lifetime
 on creation,
-[configure the control plane to set a shorter max token lifetime](../../../reference/cli/server.md#--max-token-lifetime).
+[configure the control plane to set a shorter max token lifetime](../../../reference/cli/server/index.md#--max-token-lifetime).
 
 ## coderd Terraform Provider
 
@@ -98,6 +98,6 @@ for an example of how to test and publish Coder templates in a CI/CD pipeline.
 
 ### Next steps
 
-- [Coder CLI Reference](../../../reference/cli/templates.md)
+- [Coder CLI Reference](../../../reference/cli/templates/index.md)
 - [Coderd Terraform Provider Reference](https://registry.terraform.io/providers/coder/coderd/latest/docs)
 - [Coderd API Reference](../../../reference/index.md)

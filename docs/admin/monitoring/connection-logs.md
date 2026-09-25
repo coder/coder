@@ -89,7 +89,7 @@ for details.
 Connection events are also dispatched as service logs and can be captured and
 categorized using any log management tool such as [Splunk](https://splunk.com).
 
-Example of a [JSON formatted](../../reference/cli/server.md#--log-json)
+Example of a [JSON formatted](../../reference/cli/server/index.md#--log-json)
 connection log entry, when an SSH connection is made:
 
 ```json
@@ -122,7 +122,7 @@ connection log entry, when an SSH connection is made:
 }
 ```
 
-Example of a [human readable](../../reference/cli/server.md#--log-human)
+Example of a [human readable](../../reference/cli/server/index.md#--log-human)
 connection log entry, when `code-server` is opened:
 
 ```console
