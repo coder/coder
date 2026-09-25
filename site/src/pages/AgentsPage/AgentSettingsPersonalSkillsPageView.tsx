@@ -84,7 +84,7 @@ export type AgentSettingsPersonalSkillsPageViewProps = {
 	onDownload: (skill: UserSkillMetadata) => void;
 	onExportAll: () => void;
 	downloadingSkillName?: string;
-	isExportingAll?: boolean;
+	isExportingAll: boolean;
 	editorState?: PersonalSkillEditorState;
 	deleteState?: PersonalSkillDeleteState;
 };
@@ -223,7 +223,7 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 	onDownload,
 	onExportAll,
 	downloadingSkillName,
-	isExportingAll = false,
+	isExportingAll,
 	editorState,
 	deleteState,
 }) => {
