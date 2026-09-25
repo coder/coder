@@ -1,9 +1,12 @@
 package oauth2provider
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestResolveRedirectURIs(t *testing.T) {
@@ -144,15 +147,15 @@ func TestRegisteredScopeAllowlist(t *testing.T) {
 		wantErr string
 	}{
 		{name: "EmptyIsNoAllowlist", raw: "", want: ""},
-		// Whitespace only grants nothing at authorization. Collapsing it to ""
-		// would make it unrestricted.
-		{name: "WhitespaceKeptAsGiven", raw: "  ", want: "  "},
+		{name: "WhitespaceRejected", raw: "  ", wantErr: "scope is blank"},
 		{name: "CatalogNamesKept", raw: "workspace:read template:read", want: "workspace:read template:read"},
 		{name: "AliasesCanonicalized", raw: "all application_connect", want: "coder:all coder:application_connect"},
 		{name: "DuplicatesDropped", raw: "workspace:read all coder:all", want: "workspace:read coder:all"},
 		{name: "UnknownNamesDropped", raw: "openid workspace:read offline_access", want: "workspace:read"},
-		{name: "OnlyUnknownRejected", raw: "openid profile", wantErr: `unknown scope "openid"`},
-		{name: "InternalOnlyRejected", raw: "debug_info:read", wantErr: `unknown scope "debug_info:read"`},
+		{name: "OnlyUnknownRejected", raw: "openid profile", wantErr: "'openid profile': unknown or unsupported scope"},
+		{name: "InternalOnlyRejected", raw: "debug_info:read", wantErr: "'debug_info:read': unknown or unsupported scope"},
+		{name: "NonASCIIReplaced", raw: "wörkspace:read", wantErr: "'w rkspace:read': unknown or unsupported scope"},
+		{name: "TooManyNames", raw: strings.Repeat("workspace:read ", codersdk.OAuth2ScopeListMaxNames+1), wantErr: "must list at most"},
 	}
 
 	for _, tc := range tests {

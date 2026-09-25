@@ -225,8 +225,6 @@ func TestOAuth2PrivilegeEscalation(t *testing.T) {
 		regResp, err := client.PostOAuth2ClientRegistration(ctx, regReq)
 		require.NoError(t, err)
 
-		// An update that adds a scope name outside the catalog stores only
-		// the catalog names and reports what it kept.
 		updateReq := codersdk.OAuth2ClientRegistrationRequest{
 			RedirectURIs: []string{"https://example.com/callback"},
 			ClientName:   clientName,
@@ -241,7 +239,7 @@ func TestOAuth2PrivilegeEscalation(t *testing.T) {
 		updateReq.Scope = "nosuch:admin"
 		_, err = client.PutOAuth2ClientConfiguration(ctx, regResp.ClientID, regResp.RegistrationAccessToken, updateReq)
 		require.ErrorContains(t, err, "invalid_client_metadata")
-		require.ErrorContains(t, err, "unknown scope")
+		require.ErrorContains(t, err, "unknown or unsupported scope")
 		require.ErrorContains(t, err, "nosuch:admin")
 
 		config, err := client.GetOAuth2ClientConfiguration(ctx, regResp.ClientID, regResp.RegistrationAccessToken)

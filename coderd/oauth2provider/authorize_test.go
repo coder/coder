@@ -592,6 +592,9 @@ func TestOAuth2AuthorizeAdminCreatedAppAllowlist(t *testing.T) {
 	})
 }
 
+// The app is inserted directly to model one registered before registration
+// narrowed the scope list to the catalog. Authorization must reject it rather
+// than grant a scope dbauthz cannot evaluate.
 func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 	t.Parallel()
 
@@ -1386,20 +1389,18 @@ func TestOAuth2AuthorizeWhitespaceOnlyAllowlist(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	registration, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+	// Registration refuses a list that could never authorize.
+	_, err = client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
 		RedirectURIs: []string{appCallbackURL},
 		ClientName:   testutil.GetRandomName(t),
 		Scope:        whitespaceOnly,
 	})
-	require.NoError(t, err)
-	//nolint:gocritic // OAuth2 app management requires owner permission.
-	registered, err := client.OAuth2ProviderApp(ctx, uuid.MustParse(registration.ClientID))
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "invalid_client_metadata")
+	require.ErrorContains(t, err, "scope is blank")
 
 	apps := map[string]codersdk.OAuth2ProviderApp{
 		"AdminCreate": created,
 		"AdminUpdate": updated,
-		"DCR":         registered,
 	}
 	for name, app := range apps {
 		t.Run(name, func(t *testing.T) {

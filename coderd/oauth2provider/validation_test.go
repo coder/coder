@@ -555,8 +555,9 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 		// The scope the registration response reports. Unknown names are
 		// dropped and aliases are canonicalized.
 		wantScope string
+		// Empty means the request is accepted.
 		wantError string
-		// The unknown name a rejection must report.
+		// The rejected name the error must report.
 		wantName string
 	}{
 		{
@@ -602,14 +603,19 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 		{
 			name:      "OnlyUnknownNames",
 			scope:     "openid profile email",
-			wantError: "unknown scope",
-			wantName:  "openid",
+			wantError: "unknown or unsupported scope",
+			wantName:  "openid profile email",
 		},
 		{
 			name:      "OnlyInternalName",
 			scope:     "debug_info:read",
-			wantError: "unknown scope",
+			wantError: "unknown or unsupported scope",
 			wantName:  "debug_info:read",
+		},
+		{
+			name:      "WhitespaceOnly",
+			scope:     "   ",
+			wantError: "scope is blank",
 		},
 		{
 			name:      "TooManyNames",

@@ -69,11 +69,6 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 				"invalid_client_metadata", err.Error())
 			return
 		}
-		if err := codersdk.ValidateOAuth2ScopeList(req.Scope); err != nil {
-			writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
-				"invalid_client_metadata", "invalid scope: "+err.Error())
-			return
-		}
 		scope, err := registeredScopeAllowlist(req.Scope)
 		if err != nil {
 			writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
@@ -347,17 +342,11 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			return
 		}
 
-		// Apps registered before these checks existed may already store a
-		// scope list that fails them. Skip the checks when the request resends
-		// the stored value unchanged, so those apps can still update other
-		// fields.
+		// RFC 7592 updates resend every field, so an unchanged scope list is
+		// not rechecked. Apps registered before these checks may store a list
+		// that fails them and could otherwise not update other fields.
 		scope := scopeAllowlist(req.Scope)
 		if req.Scope != existingApp.Scope.String {
-			if err := codersdk.ValidateOAuth2ScopeList(req.Scope); err != nil {
-				writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
-					"invalid_client_metadata", "invalid scope: "+err.Error())
-				return
-			}
 			scope, err = registeredScopeAllowlist(req.Scope)
 			if err != nil {
 				writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,

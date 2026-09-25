@@ -555,8 +555,10 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 		// The scope the registration response reports. Unknown names are
 		// dropped and aliases are canonicalized.
 		wantScope string
-		// The unknown name the error must report. Empty means the request is accepted.
-		wantUnknown string
+		// Empty means the request is accepted.
+		wantError string
+		// The rejected name the error must report.
+		wantName string
 	}{
 		{
 			name:      "DefaultEmpty",
@@ -594,14 +596,16 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 			wantScope: "workspace:read",
 		},
 		{
-			name:        "OnlyUnknownNames",
-			scope:       "openid profile email",
-			wantUnknown: "openid",
+			name:      "OnlyUnknownNames",
+			scope:     "openid profile email",
+			wantError: "unknown or unsupported scope",
+			wantName:  "openid profile email",
 		},
 		{
-			name:        "OnlyInternalName",
-			scope:       "debug_info:read",
-			wantUnknown: "debug_info:read",
+			name:      "OnlyInternalName",
+			scope:     "debug_info:read",
+			wantError: "unknown or unsupported scope",
+			wantName:  "debug_info:read",
 		},
 	}
 
@@ -619,14 +623,16 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 
 			resp, err := client.PostOAuth2ClientRegistration(ctx, req)
 
-			if test.wantUnknown == "" {
+			if test.wantError == "" {
 				require.NoError(t, err)
 				require.Equal(t, test.wantScope, resp.Scope)
 				return
 			}
 			require.ErrorContains(t, err, "invalid_client_metadata")
-			require.ErrorContains(t, err, "unknown scope")
-			require.ErrorContains(t, err, test.wantUnknown)
+			require.ErrorContains(t, err, test.wantError)
+			if test.wantName != "" {
+				require.ErrorContains(t, err, test.wantName)
+			}
 		})
 	}
 }

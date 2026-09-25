@@ -178,18 +178,26 @@ func scopeAllowlist(raw string) sql.NullString {
 	}
 }
 
-// registeredScopeAllowlist narrows a DCR scope list to the catalog names for
-// storage (RFC 7591 section 3.2.2). A list that keeps no catalog name is
-// refused rather than stored as "", which would mean no allowlist. A list with
-// no names is stored as given.
+// registeredScopeAllowlist checks a DCR scope list and narrows it to the
+// catalog names for storage (RFC 7591 section 3.2.2). A list that names no
+// supported scope is refused, since it could never authorize and storing it
+// as "" would mean no allowlist. The error is safe to return as an
+// error_description.
 func registeredScopeAllowlist(raw string) (sql.NullString, error) {
+	if err := codersdk.ValidateOAuth2ScopeList(raw); err != nil {
+		return sql.NullString{}, err
+	}
+	if raw == "" {
+		return scopeAllowlist(raw), nil
+	}
 	names := strings.Fields(raw)
 	if len(names) == 0 {
-		return scopeAllowlist(raw), nil
+		return sql.NullString{}, xerrors.New("scope is blank; omit it or list supported scopes")
 	}
 	kept := grantableScopes(raw)
 	if len(kept) == 0 {
-		return sql.NullString{}, xerrors.Errorf("unknown scope %q, and no supported scope remains", names[0])
+		shown := capErrorDescription(sanitizeErrorDescription(strings.Join(names, " ")))
+		return sql.NullString{}, xerrors.Errorf("'%s': %w; see scopes_supported in /.well-known/oauth-authorization-server", shown, errUnknownScope)
 	}
 	return scopeAllowlist(strings.Join(kept, " ")), nil
 }

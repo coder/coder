@@ -707,6 +707,13 @@ func TestUpdateClientConfiguration_LegacyInvalidScope(t *testing.T) {
 			wantScope:  unknown,
 		},
 		{
+			name:       "NewCatalogScopeIsStored",
+			stored:     unknown,
+			scope:      "template:read",
+			wantStatus: http.StatusOK,
+			wantScope:  "template:read",
+		},
+		{
 			name:       "NewMixedScopeIsNarrowed",
 			stored:     unknown,
 			scope:      unknown + " template:read",
