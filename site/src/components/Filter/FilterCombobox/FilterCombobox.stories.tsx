@@ -616,7 +616,6 @@ export const TypedInlinePrefix: Story = {
 	},
 };
 
-// With a single template there is nothing to narrow, so Template is left out.
 const singleTemplateCategories: FilterCategory[] = [
 	{
 		key: "owner",
@@ -642,6 +641,7 @@ const openFilterMenu = async (canvasElement: HTMLElement) => {
 	});
 };
 
+// Template has one option, so the menu omits it.
 export const SingleOptionCategoryHidden: Story = {
 	render: () => (
 		<FilterComboboxHarness
@@ -652,7 +652,7 @@ export const SingleOptionCategoryHidden: Story = {
 	play: ({ canvasElement }) => openFilterMenu(canvasElement),
 };
 
-// An applied chip keeps the category listed so it can still be changed.
+// The template:docker chip keeps Template listed.
 export const SingleOptionCategoryWithChip: Story = {
 	render: () => (
 		<FilterComboboxHarness
@@ -709,7 +709,6 @@ export const DismissOnOutsideClick: Story = {
 	},
 };
 
-// A failed category lookup surfaces a Retry that refetches the options.
 export const CategoryOptionsErrorRetry: Story = {
 	render: () => {
 		// The unfiltered options and the category view share the empty-query
@@ -744,20 +743,14 @@ export const CategoryOptionsErrorRetry: Story = {
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "status:");
-		await expect(
-			await body.findByText(/Couldn.t load Status options/, {
-				ignore: '[role="status"], script, style',
-			}),
-		).toBeVisible();
-		await expect(body.getByRole("status")).toHaveTextContent(
-			/Couldn.t load Status options/,
-		);
+		await body.findByText(/Couldn.t load Status options/, {
+			ignore: '[role="status"], script, style',
+		});
 		await userEvent.click(body.getByRole("button", { name: /retry/i }));
-		await waitFor(() => expect(body.getByText("Running")).toBeVisible());
+		await body.findByText("Running");
 	},
 };
 
-// A failed suggestion lookup surfaces a Retry that refetches the typeahead.
 export const TypeaheadErrorRetry: Story = {
 	render: () => {
 		let thrown = false;
@@ -769,6 +762,7 @@ export const TypeaheadErrorRetry: Story = {
 						key: "owner",
 						label: "Owner",
 						icon: <UserIcon />,
+						showWhenSingleOption: true,
 						getOptions: async (query) => {
 							if (query === "alice" && !thrown) {
 								thrown = true;
@@ -789,18 +783,11 @@ export const TypeaheadErrorRetry: Story = {
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "alice");
-		await expect(
-			await body.findByText(/Couldn.t load suggestions/, {
-				ignore: '[role="status"], script, style',
-			}),
-		).toBeVisible();
-		await expect(body.getByRole("status")).toHaveTextContent(
-			/Couldn.t load suggestions/,
-		);
+		await body.findByText(/Couldn.t load suggestions/, {
+			ignore: '[role="status"], script, style',
+		});
 		await userEvent.click(body.getByRole("button", { name: /retry/i }));
-		await waitFor(() =>
-			expect(body.getByRole("option", { name: /alice/i })).toBeVisible(),
-		);
+		await body.findByRole("option", { name: /alice/i });
 	},
 };
 

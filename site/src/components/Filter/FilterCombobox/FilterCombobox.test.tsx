@@ -11,6 +11,7 @@ import { TYPED_TEXT_LOOKUP_TIMEOUT_MS } from "./useFilterCombobox";
 const ownerCategory: FilterCategory = {
 	key: "owner",
 	label: "Owner",
+	// Listed with one option and while loading, so these tests see the row.
 	showWhenSingleOption: true,
 	getOptions: async () => [{ label: "alice", value: "alice" }],
 };
@@ -140,6 +141,51 @@ const setup = (
 describe("FilterCombobox", () => {
 	afterEach(() => {
 		vi.useRealTimers();
+	});
+
+	it("fetches hidden categories before menu open and skips opted-out categories", async () => {
+		const fetchable = vi.fn(async () => [{ label: "Docker", value: "docker" }]);
+		const optedOut = vi.fn(async () => [{ label: "alice", value: "alice" }]);
+		render(
+			<FilterComboboxHarness
+				categories={[
+					{ key: "template", label: "Template", getOptions: fetchable },
+					{
+						key: "owner",
+						label: "Owner",
+						showWhenSingleOption: true,
+						getOptions: optedOut,
+					},
+				]}
+				initialValue=""
+				onChange={vi.fn()}
+			/>,
+		);
+		await waitFor(() => expect(fetchable).toHaveBeenCalledWith(""));
+		expect(optedOut).not.toHaveBeenCalled();
+	});
+
+	it("ignores hidden options for suggestions but keeps hidden keys prefix-searchable", async () => {
+		const getOptions = vi.fn(async (query: string) =>
+			[{ label: "Docker", value: "docker" }].filter((option) =>
+				option.label.toLowerCase().includes(query.toLowerCase()),
+			),
+		);
+		const { user, input, onChange } = setup(
+			[{ key: "template", label: "Template", getOptions }],
+			{ fakeTimers: true },
+		);
+		await user.click(input);
+		await user.type(input, "dock");
+		await settleTypedText();
+		expect(onChange).toHaveBeenLastCalledWith("dock");
+		expect(getOptions).not.toHaveBeenCalledWith("dock");
+
+		await user.clear(input);
+		await user.type(input, "templ");
+		await settleTypedText();
+		await user.type(input, ":");
+		expect(onChange).not.toHaveBeenCalledWith("templ");
 	});
 
 	it("opens from the Filters button with keyboard focus and navigates categories", async () => {
@@ -448,6 +494,7 @@ describe("FilterCombobox", () => {
 		const templateCategory: FilterCategory = {
 			key: "template",
 			label: "Template",
+			showWhenSingleOption: true,
 			getOptions: async (query) =>
 				query === "zed" ? [{ label: "zed", value: "zed" }] : [],
 		};
@@ -805,6 +852,40 @@ describe("FilterCombobox", () => {
 		await user.click(await screen.findByRole("button", { name: "zed" }));
 
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:zed"));
+	});
+
+	it("returns keyboard navigation to a listed category after a one-option filter is removed", async () => {
+		const { user, onChange, input } = setup([
+			{
+				key: "template",
+				label: "Template",
+				getOptions: async () => [{ label: "Docker", value: "docker" }],
+			},
+			{
+				...manyOwnersCategory,
+				key: "owner",
+				getOptions: async () => [
+					{ label: "alice", value: "alice" },
+					{ label: "bob", value: "bob" },
+				],
+			},
+		]);
+		await user.click(input);
+		await user.type(input, "template:");
+		await user.click(await screen.findByRole("option", { name: "Docker" }));
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("template:docker"),
+		);
+		await user.keyboard("{Enter}");
+		await screen.findByRole("option", { name: "Docker" });
+		await user.click(await screen.findByRole("option", { name: "Docker" }));
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		await user.keyboard("{Enter}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{ArrowDown}{Enter}");
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
 	});
 
 	it("retries a hover flyout whose options failed to load", async () => {

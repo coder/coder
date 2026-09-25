@@ -41,9 +41,12 @@ export type FilterCategory = {
 	/** Applied chips show only the option label, without the category prefix. */
 	chipLabelOnly?: boolean;
 	/**
-	 * Keep the category in the menu while it has at most one option. Such
-	 * categories are left out by default, since filtering by them would not
-	 * narrow the results. Does not apply to inline categories.
+	 * Keep the category in the menu with zero or one option. When unset, a
+	 * non-inline category fetches its empty-query options while the menu is
+	 * closed to determine whether it has more than one option. It is hidden until
+	 * that fetch resolves. An applied chip or failed lookup keeps it listed.
+	 * Setting this flag skips the closed-menu fetch and keeps the category listed.
+	 * Inline categories are unaffected.
 	 */
 	showWhenSingleOption?: boolean;
 };

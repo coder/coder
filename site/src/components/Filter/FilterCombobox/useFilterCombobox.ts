@@ -307,10 +307,17 @@ export const useFilterCombobox = ({
 		[chipKeys, value],
 	);
 	const chipKeyOf = (token: string) => parseChipToken(token, chipKeys)?.key;
+	const categoryForChip = (token: string) => {
+		const key = chipKeyOf(token);
+		return key === undefined
+			? undefined
+			: categories.find((category) =>
+					(category.chipKeys ?? [category.key]).includes(key),
+				);
+	};
 
-	// Categories with a flyout or drill-in list. Inline categories render their
-	// options directly in the main panel and never enter category mode.
-	const submenuCategories = categories.filter(
+	// Every submenu category includes entries hidden by the option-count rule.
+	const allSubmenuCategories = categories.filter(
 		(category) => !category.inlineOptions,
 	);
 	const inlineCategories = categories.filter(
@@ -324,11 +331,10 @@ export const useFilterCombobox = ({
 		? parseTypedCategoryPrefix(inputValue, inlineCategories)
 		: null;
 
-	// Each category's unfiltered options, fetched while browsing for the pointer
-	// flyouts and always for inline categories, whose chips take their labels
-	// from them, and for categories that can be left out with a single option,
-	// so they are left out before the menu opens. Shares its cache key with the
-	// category view.
+	// Categories without this flag fetch their empty-query options while the
+	// menu is closed to determine whether they have more than one option.
+	// Inline categories fetch while browsing; flagged categories do not fetch
+	// until browsing starts. Shares its cache key with the category view.
 	const unfilteredOptionsEnabled = isBrowsing && activeCategoryKey === null;
 	const unfilteredOptions = useQueries({
 		queries: categories.map((category) =>
@@ -362,17 +368,13 @@ export const useFilterCombobox = ({
 			};
 		},
 	});
-	// Filtering by a category with at most one option would not narrow the
-	// results, so categories stay out of the menu until they offer a real
-	// choice. An applied chip keeps the category listed so it can change, and a
+	// An applied chip keeps its category listed so the chip can be changed, and a
 	// failed lookup keeps it listed so its flyout can offer a retry.
-	const menuCategories = submenuCategories.filter((category) => {
+	const menuCategories = allSubmenuCategories.filter((category) => {
 		if (
 			category.showWhenSingleOption ||
 			unfilteredOptions.erroredKeys.has(category.key) ||
-			chipValues.some((token) =>
-				(category.chipKeys ?? [category.key]).includes(chipKeyOf(token) ?? ""),
-			)
+			chipValues.some((token) => categoryForChip(token) === category)
 		) {
 			return true;
 		}
@@ -429,8 +431,9 @@ export const useFilterCombobox = ({
 		typeaheadQuerySource.length > 0 &&
 		typeaheadQuerySource !== debouncedTypeaheadQuery;
 
+	const optionLookupCategories = [...menuCategories, ...inlineCategories];
 	const suggestionOptions = useQueries({
-		queries: categories.map((category) =>
+		queries: optionLookupCategories.map((category) =>
 			filterComboboxOptions(
 				category.key,
 				category.getOptions,
@@ -449,9 +452,9 @@ export const useFilterCombobox = ({
 			const erroredKeys = new Set<string>();
 			results.forEach((result, index) => {
 				if (result.data) {
-					optionsByKey.set(categories[index].key, result.data);
+					optionsByKey.set(optionLookupCategories[index].key, result.data);
 				} else if (result.isError) {
-					erroredKeys.add(categories[index].key);
+					erroredKeys.add(optionLookupCategories[index].key);
 				}
 			});
 			return {
@@ -486,14 +489,15 @@ export const useFilterCombobox = ({
 			: suggestionOptions.optionsByKey,
 	);
 	if (typeaheadQuerySource.length > 0) {
-		for (const [key, options] of unfilteredOptions.optionsByKey) {
+		for (const category of optionLookupCategories) {
+			const options = unfilteredOptions.optionsByKey.get(category.key);
 			const settled =
 				!typeaheadQueryPending &&
-				(typeaheadOptionsByKey.has(key) ||
-					suggestionOptions.erroredKeys.has(key));
-			if (!settled) {
+				(typeaheadOptionsByKey.has(category.key) ||
+					suggestionOptions.erroredKeys.has(category.key));
+			if (options && !settled) {
 				typeaheadOptionsByKey.set(
-					key,
+					category.key,
 					filterOptionsByText(options, typeaheadQuerySource),
 				);
 			}
@@ -535,7 +539,7 @@ export const useFilterCombobox = ({
 			? []
 			: collectValueSuggestions(
 					inputValue,
-					submenuCategories,
+					menuCategories,
 					typeaheadOptionsByKey,
 					chipValues,
 				);
@@ -597,17 +601,9 @@ export const useFilterCombobox = ({
 	// other applied options. Queries that already combine several of them, such
 	// as a bookmarked URL, are left alone until one is picked.
 	const withInlineOption = (token: string) => {
-		const categoryFor = (chip: string) => {
-			const key = parseChipToken(chip, chipKeys)?.key;
-			return key === undefined
-				? undefined
-				: categories.find((category) =>
-						(category.chipKeys ?? [category.key]).includes(key),
-					);
-		};
-		const category = categoryFor(token);
+		const category = categoryForChip(token);
 		const kept = category?.inlineOptionsExclusive
-			? chipValues.filter((chip) => categoryFor(chip) !== category)
+			? chipValues.filter((chip) => categoryForChip(chip) !== category)
 			: chipValues;
 		return [...kept, token];
 	};
@@ -643,8 +639,24 @@ export const useFilterCombobox = ({
 
 	// Returning to the category list highlights the row that was open, so the
 	// keyboard position is never lost when the option rows unmount.
-	const returnToCategories = () => {
-		setHighlightedValue(activeCategoryKey ?? "");
+	const returnToCategories = (nextChips = chipValues) => {
+		const activeCategory = categories.find(
+			(category) => category.key === activeCategoryKey,
+		);
+		const remainsListed = (category: FilterCategory) =>
+			category.showWhenSingleOption ||
+			unfilteredOptions.erroredKeys.has(category.key) ||
+			(unfilteredOptions.optionsByKey.get(category.key)?.length ?? 0) > 1 ||
+			nextChips.some((token) => categoryForChip(token) === category);
+		const activeCategoryRemainsListed =
+			activeCategory !== undefined && remainsListed(activeCategory);
+		const nextHighlight = activeCategoryRemainsListed
+			? activeCategoryKey
+			: (categories.find(
+					(category) =>
+						category.key !== activeCategoryKey && remainsListed(category),
+				)?.key ?? "");
+		setHighlightedValue(nextHighlight ?? "");
 		dispatch({ type: "leaveCategory" });
 	};
 
@@ -654,8 +666,9 @@ export const useFilterCombobox = ({
 	};
 
 	const toggleCategoryOption = (token: string) => {
-		updateFromChips(toggledChips(token), typedFreeText);
-		returnToCategories();
+		const nextChips = toggledChips(token);
+		updateFromChips(nextChips, typedFreeText);
+		returnToCategories(nextChips);
 	};
 
 	// Typed filter text is dropped once an option is picked. Free-text search
@@ -709,24 +722,29 @@ export const useFilterCombobox = ({
 		returnToCategories();
 	};
 
-	// True when matchCategories matches text, text matches a loaded option, or
-	// a category's getOptions returns a matching option within
-	// TYPED_TEXT_LOOKUP_TIMEOUT_MS; a failed lookup counts as no match. Callers
-	// hold such text back so results do not empty out mid-word.
+	// Text is held when any category name matches, or when a listed category's
+	// loaded option matches or its lookup finds an option within
+	// TYPED_TEXT_LOOKUP_TIMEOUT_MS. Failed and pending lookups count as no match.
 	const couldBeFilterSearch = (text: string): Promise<boolean> => {
 		if (text.length === 0) {
 			return Promise.resolve(false);
 		}
-		const matchesLoadedOption = [
-			...unfilteredOptions.optionsByKey.values(),
-		].some((options) => filterOptionsByText(options, text).length > 0);
+		// Option matches are limited to listed categories. Category names still
+		// match across all submenu and inline categories so typed prefixes work.
+		const matchesLoadedOption = menuCategories.some(
+			(category) =>
+				filterOptionsByText(
+					unfilteredOptions.optionsByKey.get(category.key) ?? [],
+					text,
+				).length > 0,
+		);
 		const matchesCategory =
-			matchCategories(text, [...menuCategories, ...inlineCategories]).length >
-			0;
+			matchCategories(text, [...allSubmenuCategories, ...inlineCategories])
+				.length > 0;
 		if (matchesCategory || matchesLoadedOption) {
 			return Promise.resolve(true);
 		}
-		const matches = categories.map(async (category) => {
+		const matches = optionLookupCategories.map(async (category) => {
 			const options = await queryClient.fetchQuery(
 				filterComboboxOptions(category.key, category.getOptions, text, true),
 			);
@@ -822,7 +840,7 @@ export const useFilterCombobox = ({
 		cancelTypedTextLookup();
 		const typedCategory = parseTypedCategoryPrefix(
 			nextValue,
-			submenuCategories,
+			allSubmenuCategories,
 		);
 		if (typedCategory) {
 			dispatch({
