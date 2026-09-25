@@ -12,8 +12,14 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
+// TestServerStageMetricsFollowExperiment checks that the chat-stage-metrics
+// experiment decides whether the stage families reach the server's
+// registry. A family with no series is absent from a gather, so one
+// observation is recorded first. The server's stage tracer must also
+// read the configured clock.
 func TestServerStageMetricsFollowExperiment(t *testing.T) {
 	t.Parallel()
 
@@ -26,12 +32,14 @@ func TestServerStageMetricsFollowExperiment(t *testing.T) {
 			if enabled {
 				experiments = codersdk.Experiments{codersdk.ExperimentChatStageMetrics}
 			}
+			clock := quartz.NewMock(t)
 			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
 				withInternalTestServerExperiments(experiments),
 				withInternalTestServerRegistry(registry),
+				withInternalTestServerClock(clock),
 			)
-			// A family with no series is absent from a gather.
-			_, span := chatloop.NewStageTracer(nil, server.metrics).Start(t.Context(), chatloop.StageCommit)
+			require.Equal(t, clock.Now(), server.stages.Now())
+			_, span := server.stages.Start(t.Context(), chatloop.StageCommit)
 			span.End(nil)
 
 			count, err := promtestutil.GatherAndCount(registry, "coderd_chatd_stage_duration_seconds")
