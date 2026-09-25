@@ -1318,6 +1318,16 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getWorkspaceBuild = async (
+		buildId: string,
+	): Promise<TypesGen.WorkspaceBuild> => {
+		const response = await this.axios.get<TypesGen.WorkspaceBuild>(
+			`/api/v2/workspacebuilds/${buildId}`,
+		);
+
+		return response.data;
+	};
+
 	waitForBuild = (build: TypesGen.WorkspaceBuild) => {
 		return new Promise<TypesGen.ProvisionerJob | undefined>((res, reject) => {
 			void (async () => {

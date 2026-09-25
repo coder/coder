@@ -23695,7 +23695,8 @@ const docTemplate = `{
                 "chat-advisor",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks",
-                "chat-inline-mcp-servers"
+                "chat-inline-mcp-servers",
+                "enable-ai-workspace-debug"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -23705,6 +23706,7 @@ const docTemplate = `{
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
+                "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
@@ -23729,7 +23731,8 @@ const docTemplate = `{
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats.",
-                "Enables inline MCP servers declared on POST /chats."
+                "Enables inline MCP servers declared on POST /chats.",
+                "Enables debugging failed workspace builds with Coder Agents."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -23746,7 +23749,8 @@ const docTemplate = `{
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks",
-                "ExperimentChatInlineMCPServers"
+                "ExperimentChatInlineMCPServers",
+                "ExperimentEnableAIWorkspaceDebug"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

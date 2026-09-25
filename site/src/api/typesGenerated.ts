@@ -5091,6 +5091,7 @@ export type Experiment =
 	| "chat-advisor"
 	| "chat-inline-mcp-servers"
 	| "chat-virtual-desktop"
+	| "enable-ai-workspace-debug"
 	| "example"
 	| "mcp-server-http"
 	| "mcp-tool-search"
@@ -5108,6 +5109,7 @@ export const Experiments: Experiment[] = [
 	"chat-advisor",
 	"chat-inline-mcp-servers",
 	"chat-virtual-desktop",
+	"enable-ai-workspace-debug",
 	"example",
 	"mcp-server-http",
 	"mcp-tool-search",
