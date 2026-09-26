@@ -60,6 +60,7 @@ import {
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
 import {
+	noOptionMatchesMessage,
 	optionsLoadErrorMessage,
 	optionsLoadingMessage,
 	SUGGESTIONS_ERROR_MESSAGE,
@@ -240,8 +241,11 @@ export function FilterCombobox({
 	// The flyout follows cmdk's highlight, which pointer and keyboard both move.
 	// A highlight never opens a closed flyout; `shownFlyoutKey` handles the
 	// scope match.
-	const handleHighlightedValueChange = (highlighted: string) => {
-		actions.onHighlightedValueChange(highlighted);
+	const handleHighlightedValueChange = (
+		highlighted: string,
+		previous: string,
+	) => {
+		actions.onHighlightedValueChange(highlighted, previous);
 		const isCategoryRow = listedCategories.some(
 			(category) => category.key === highlighted,
 		);
@@ -254,39 +258,34 @@ export function FilterCombobox({
 	// Typed text narrows the category rows, so a click enters the category and
 	// drops the text, and only a scope match gets a flyout. Enter on a row
 	// listed only by the scope match applies the text as a search instead.
-	const flyoutCategory =
+	// The flyout renders only on wider viewports.
+	const flyoutOptions = useFlyoutOptions(
 		activeCategoryKey === null &&
-		(!categoriesNarrowedByText || shownFlyoutKey === scopeMatchKey)
+			!isMobile &&
+			(!categoriesNarrowedByText || shownFlyoutKey === scopeMatchKey)
 			? listedCategories.find((category) => category.key === shownFlyoutKey)
-			: undefined;
+			: undefined,
+		unfilteredOptionsByKey,
+		unfilteredOptionsErroredKeys,
+		actions.retryUnfilteredOptions,
+	);
+	// The hook announces its own states; the flyout is view state, so its load
+	// state joins the announcement here.
+	const flyoutLoadMessage = !flyoutOptions
+		? undefined
+		: flyoutOptions.loading
+			? optionsLoadingMessage(flyoutOptions.category.label)
+			: flyoutOptions.failed
+				? optionsLoadErrorMessage(flyoutOptions.category.label)
+				: flyoutOptions.emptyMessage
+					? noOptionMatchesMessage(flyoutOptions.category.label)
+					: undefined;
 	// Toggling clears text typed to find the category, so the flyout is pinned
 	// open explicitly rather than through the scope match.
 	const toggleFlyoutScope = (categoryKey: string) => {
 		setFlyoutCategoryKey(categoryKey);
 		actions.toggleScope(categoryKey, { clearCategorySearch: true });
 	};
-	// The flyout renders only on wider viewports.
-	const shownFlyoutCategory = isMobile ? undefined : flyoutCategory;
-	const flyoutOptions = useFlyoutOptions(
-		shownFlyoutCategory,
-		shownFlyoutCategory && unfilteredOptionsByKey.get(shownFlyoutCategory.key),
-		shownFlyoutCategory !== undefined &&
-			unfilteredOptionsErroredKeys.has(shownFlyoutCategory.key),
-		() => {
-			if (shownFlyoutCategory) {
-				actions.retryUnfilteredOptions(shownFlyoutCategory.key);
-			}
-		},
-	);
-	// The hook announces its own states; the flyout is view state, so its load
-	// state joins the announcement here.
-	const flyoutLoadMessage = !shownFlyoutCategory
-		? undefined
-		: flyoutOptions.loading
-			? optionsLoadingMessage(shownFlyoutCategory.label)
-			: flyoutOptions.failed
-				? optionsLoadErrorMessage(shownFlyoutCategory.label)
-				: undefined;
 	const liveRegionMessage = [flyoutLoadMessage, statusMessage]
 		.filter(Boolean)
 		.join(" ");
@@ -540,12 +539,13 @@ export function FilterCombobox({
 									// input keeps it.
 									onMouseDown={(event) => event.preventDefault()}
 									onClick={(event) => {
-										// The button unmounts, so focus it held moves to the
-										// input instead of the page body.
+										// The button unmounts, as does an open category's search
+										// field on wider viewports, so focus either held moves to
+										// the input instead of the page body.
 										const hadFocus =
 											document.activeElement === event.currentTarget;
 										actions.clearAll();
-										if (hadFocus) {
+										if (hadFocus || (activeCategoryKey !== null && !isMobile)) {
 											actions.focusInput();
 										}
 									}}
@@ -598,17 +598,16 @@ export function FilterCombobox({
 								/>
 							)}
 							{categoryOptionsList ??
-								(shownFlyoutCategory && (
+								(flyoutOptions && (
 									<FlyoutCategoryPanel
-										key={shownFlyoutCategory.key}
-										category={shownFlyoutCategory}
+										key={flyoutOptions.category.key}
 										offset={panelOffset}
 										flyout={flyoutOptions}
 										selectedTokens={chipValues}
 										optionTokenFor={(option) =>
-											optionTokenFor(shownFlyoutCategory.key, option)
+											optionTokenFor(flyoutOptions.category.key, option)
 										}
-										scope={scopeState(shownFlyoutCategory.key)}
+										scope={scopeState(flyoutOptions.category.key)}
 										onToggleScope={toggleFlyoutScope}
 										onMouseEnter={cancelHoverSwitch}
 										onSelectOption={selectFlyoutOption}
@@ -1105,33 +1104,47 @@ function OptionsPanel({
 	);
 }
 
-// The open flyout's search and load state. FilterCombobox owns it so the live
-// region announces what the panel shows.
+// The shown flyout's search and load state, or undefined when no flyout is
+// shown. FilterCombobox owns it so the live region announces what the panel
+// shows.
 const useFlyoutOptions = (
 	category: FilterCategory | undefined,
-	options: readonly FilterOption[] | undefined,
-	optionsError: boolean,
-	onRetry: () => void,
+	optionsByKey: ReadonlyMap<string, readonly FilterOption[]>,
+	erroredKeys: ReadonlySet<string>,
+	retryOptions: (categoryKey: string) => void,
 ) => {
-	// Tagged with its category, so another flyout starts with an empty search.
-	const [search, setSearch] = useState({ categoryKey: "", query: "" });
-	const query =
-		category && search.categoryKey === category.key ? search.query : "";
-	const setQuery = (next: string) =>
-		setSearch({ categoryKey: category?.key ?? "", query: next });
+	const categoryKey = category?.key;
+	// Showing another flyout, or none, clears the search.
+	const [search, setSearch] = useState({ categoryKey, query: "" });
+	if (search.categoryKey !== categoryKey) {
+		setSearch({ categoryKey, query: "" });
+	}
+	const query = search.categoryKey === categoryKey ? search.query : "";
+	const setQuery = (next: string) => setSearch({ categoryKey, query: next });
 	const trimmedQuery = query.trim();
 	// `getOptions` may return only the first page for an empty query, so a
 	// typed search calls `getOptions(query)` after the debounce. Until those
-	// results arrive, the unfiltered list is filtered locally.
-	const debouncedQuery = useDebouncedValue(trimmedQuery, SEARCH_DEBOUNCE_MS);
+	// results arrive, the unfiltered list is filtered locally. The search runs
+	// only once the debounced state is the current one, so text debounced for
+	// one flyout never reaches another flyout's loader.
+	const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
+	const debouncedQuery =
+		debouncedSearch === search && search.categoryKey === categoryKey
+			? trimmedQuery
+			: "";
 	const searchResults = useQuery(
 		filterComboboxOptions(
-			category?.key ?? "",
+			categoryKey ?? "",
 			category?.getOptions,
 			debouncedQuery,
 			category !== undefined && debouncedQuery.length > 0,
 		),
 	);
+	if (!category) {
+		return undefined;
+	}
+	const options = optionsByKey.get(category.key);
+	const optionsError = erroredKeys.has(category.key);
 	const normalized = trimmedQuery.toLowerCase();
 	const searchSettled = debouncedQuery === trimmedQuery;
 	const searchFailed =
@@ -1147,13 +1160,16 @@ const useFlyoutOptions = (
 	const loading = options === undefined && !optionsError;
 	const failed = optionsError || searchFailed;
 	return {
+		category,
 		query,
 		setQuery,
 		filteredOptions,
 		searchable: (options?.length ?? 0) > SEARCHABLE_OPTION_COUNT,
 		loading,
 		failed,
-		retry: optionsError ? onRetry : () => void searchResults.refetch(),
+		retry: optionsError
+			? () => retryOptions(category.key)
+			: () => void searchResults.refetch(),
 		emptyMessage:
 			loading || failed || filteredOptions.length > 0
 				? undefined
@@ -1164,9 +1180,8 @@ const useFlyoutOptions = (
 };
 
 type FlyoutCategoryPanelProps = Readonly<{
-	category: FilterCategory;
 	offset: number;
-	flyout: ReturnType<typeof useFlyoutOptions>;
+	flyout: NonNullable<ReturnType<typeof useFlyoutOptions>>;
 	selectedTokens: readonly string[];
 	/** Token an option commits, or the applied chip it removes. */
 	optionTokenFor: (option: FilterOption) => string;
@@ -1177,7 +1192,6 @@ type FlyoutCategoryPanelProps = Readonly<{
 }>;
 
 function FlyoutCategoryPanel({
-	category,
 	offset,
 	flyout,
 	selectedTokens,
@@ -1188,6 +1202,7 @@ function FlyoutCategoryPanel({
 	onSelectOption,
 }: FlyoutCategoryPanelProps) {
 	const {
+		category,
 		query,
 		setQuery,
 		filteredOptions,
