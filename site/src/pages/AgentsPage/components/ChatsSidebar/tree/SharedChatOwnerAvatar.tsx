@@ -25,7 +25,7 @@ export const SharedChatOwnerAvatar: FC<SharedChatOwnerAvatarProps> = ({
 	const ownerLabel = chat.owner_name || chat.owner_username || "Unknown user";
 	const isRunning = chat.status === "running";
 	// Avatar pads emoji inline for its larger sizes, which leaves the emoji
-	// tiny in this 20px circle; the important modifier overrides that.
+	// tiny in this 18px circle; the important modifier overrides that.
 	const isEmojiAvatar = chat.owner_avatar_url?.startsWith("/emojis/");
 
 	return (
@@ -33,14 +33,14 @@ export const SharedChatOwnerAvatar: FC<SharedChatOwnerAvatarProps> = ({
 			role="img"
 			aria-label={`Shared by ${ownerLabel}, ${statusLabel}`}
 			data-testid={testId}
-			className="relative inline-flex size-5 shrink-0"
+			className="relative inline-flex size-4.5 shrink-0"
 		>
 			<Avatar
 				size="sm"
 				src={chat.owner_avatar_url}
 				fallback={chat.owner_username || chat.owner_name}
 				className={cn(
-					"size-5 rounded-full text-[8px]",
+					"size-4.5 rounded-full text-[8px]",
 					isEmojiAvatar && "p-0.5!",
 				)}
 			>

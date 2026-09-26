@@ -195,7 +195,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 							"group relative flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
 							// Single-line shared rows use a fixed height so their avatars
 							// sit exactly 12px apart.
-							isSharedWithMe ? "min-h-8 items-center" : "items-start",
+							isSharedWithMe ? "min-h-7.5 items-center" : "items-start",
 							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-data-[state=open]:bg-surface-tertiary",
 							"has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 							hoverLayout,
@@ -322,7 +322,13 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 						{/* Rows shared with the viewer show nothing on the right except the
 						    actions trigger, so reserve the column only when it can appear. */}
 						{(!isSharedWithMe || hasMenuActions || isArchivingThisChat) && (
-							<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
+							<div
+								className={cn(
+									"relative flex w-7 shrink-0 flex-col items-end self-stretch",
+									// Fits the fixed shared-row height so the avatar spacing holds.
+									isSharedWithMe ? "my-0.5" : "my-1",
+								)}
+							>
 								<div className="flex h-6 w-7 shrink-0 items-center justify-end">
 									{isArchivingThisChat ? (
 										<Spinner
