@@ -87,9 +87,11 @@ var editFilesHookInputProperties = schema.ToParameters(schema.Generate(reflect.T
 // presentHookToolInputs returns the calls to send to pre_tool_use and the
 // model inputs it replaced, keyed by tool call ID. Hooks receive builtin
 // edit_files input grouped by path, the shape hook policies were written
-// for, instead of the model's flat edits list. Input that does not decode
-// into the flat schema is sent unchanged; the tool rejects it without
-// executing anything. Callers must have rejected duplicate tool call IDs.
+// for, instead of the model's flat edits list, with paths normalized the
+// way the tool executes them. Decoding drops keys the flat schema does
+// not declare. Input that does not decode is sent unchanged; the tool
+// rejects it without executing anything. Callers must have rejected
+// duplicate tool call IDs.
 func presentHookToolInputs(
 	prepared generationPrepared,
 	toolCalls []fantasy.ToolCallContent,
@@ -107,7 +109,7 @@ func presentHookToolInputs(
 		if err := json.Unmarshal([]byte(toolCall.Input), &args); err != nil {
 			continue
 		}
-		grouped, err := json.Marshal(chattool.NewEditFilesHookInput(args.Edits))
+		grouped, err := json.Marshal(chattool.NewEditFilesHookInput(chattool.NormalizeEditPaths(args.Edits)))
 		if err != nil {
 			continue
 		}
@@ -120,8 +122,11 @@ func presentHookToolInputs(
 // restoreHookToolInputs undoes presentHookToolInputs on the pre_tool_use
 // result so persistence and execution see flat edit_files input: a call
 // without an override gets its model input back, and an override, which
-// must use the grouped form, is flattened. The model cannot fix a bad
-// override, so one that is ambiguous or does not decode fails closed.
+// must use the grouped form, is flattened. Persistence reads the flat
+// override from preflight.Overrides; the preflight.Allowed writes keep
+// that slice consistent for later readers, of which override validation
+// is currently the only one. The model cannot fix a bad override, so one
+// that is ambiguous or does not decode fails closed.
 func restoreHookToolInputs(
 	prepared generationPrepared,
 	preflight *chathooks.PreToolUseExecutionResult,
@@ -171,11 +176,15 @@ func flattenEditFilesOverride(override json.RawMessage) (json.RawMessage, error)
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return nil, xerrors.New("decode grouped files form: trailing JSON value")
 	}
-	flat, err := json.Marshal(chattool.EditFilesArgs{Edits: grouped.Edits()})
-	if err != nil {
+	// The flat input is stored and replayed to the model, so text is kept
+	// as written instead of HTML-escaped.
+	var flat bytes.Buffer
+	encoder := json.NewEncoder(&flat)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(chattool.EditFilesArgs{Edits: grouped.Edits()}); err != nil {
 		return nil, xerrors.Errorf("encode flat edits: %w", err)
 	}
-	return flat, nil
+	return bytes.TrimSuffix(flat.Bytes(), []byte("\n")), nil
 }
 
 // malformedToolResult reports input the tool decoder would reject anyway. It

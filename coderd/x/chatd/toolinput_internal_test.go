@@ -118,6 +118,17 @@ func TestValidateOverriddenToolInputs(t *testing.T) {
 	require.NoError(t, validateOverriddenToolInputs(prepared, untouched))
 }
 
+// The flattened override is stored and replayed to the model, so text
+// is kept as written rather than HTML-escaped.
+func TestFlattenEditFilesOverrideKeepsText(t *testing.T) {
+	t.Parallel()
+
+	flat, err := flattenEditFilesOverride(json.RawMessage(
+		`{"files":[{"path":"/repo/a.go","edits":[{"old_text":"a < b && c > d","new_text":"<tag>"}]}]}`))
+	require.NoError(t, err)
+	require.Equal(t, `{"edits":[{"path":"/repo/a.go","old_text":"a < b && c > d","new_text":"<tag>"}]}`, string(flat))
+}
+
 // TestBuiltinToolSchemasDescribeTheirInputs guards the validator's reach: it
 // cannot detect a case-variant key for a builtin that declares no properties.
 func TestBuiltinToolSchemasDescribeTheirInputs(t *testing.T) {

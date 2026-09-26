@@ -1157,8 +1157,11 @@ func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 		// modelEdits replaces modelInput as the model's tool call.
 		modelEdits string
 		// noHooks runs the turn without a hook consumer.
-		noHooks  bool
-		override string
+		noHooks bool
+		// wantHookInput is the tool_input hooks receive; empty means
+		// groupedInput.
+		wantHookInput string
+		override      string
 		// wantArgs is the persisted tool-call input.
 		wantArgs string
 		// wantRequest is the agent request; nil means none is sent.
@@ -1186,6 +1189,20 @@ func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 			noHooks:     true,
 			wantArgs:    modelInput,
 			wantRequest: groupedRequest,
+		},
+		{
+			// Hooks see the paths the tool executes, while the stored
+			// call keeps the paths the model sent.
+			name: "HookSeesTrimmedPaths",
+			modelEdits: `{"edits":[` +
+				`{"path":" /repo/a.go","old_text":"x := 1","new_text":"x := 2"},` +
+				`{"path":"/repo/a.go","old_text":"y := 1","new_text":"y := 2"}]}`,
+			wantHookInput: `{"files":[{"path":"/repo/a.go","edits":[` +
+				`{"old_text":"x := 1","new_text":"x := 2"},{"old_text":"y := 1","new_text":"y := 2"}]}]}`,
+			wantArgs: `{"edits":[` +
+				`{"path":" /repo/a.go","old_text":"x := 1","new_text":"x := 2"},` +
+				`{"path":"/repo/a.go","old_text":"y := 1","new_text":"y := 2"}]}`,
+			wantRequest: groupedRequest[:1],
 		},
 		{
 			// Grouping drops the order of edits across files, so an
@@ -1230,6 +1247,11 @@ func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 			name:      "FlatOverrideFailsClosed",
 			override:  modelInput,
 			wantError: `hook input override for tool edit_files: decode grouped files form: json: unknown field "edits"`,
+		},
+		{
+			name:      "EmptyOverrideFailsClosed",
+			override:  `{}`,
+			wantError: `hook input override for tool edit_files: decode grouped files form: files is required`,
 		},
 	}
 	for _, tt := range tests {
@@ -1326,9 +1348,103 @@ func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 				return
 			}
 			require.Len(t, hookInputs, 1)
-			require.JSONEq(t, groupedInput, hookInputs[0])
+			wantHookInput := groupedInput
+			if tt.wantHookInput != "" {
+				wantHookInput = tt.wantHookInput
+			}
+			require.JSONEq(t, wantHookInput, hookInputs[0])
 		})
 	}
+}
+
+// Two edit_files calls in one step: the denied call keeps the model's
+// input and never executes, and the overridden call executes and is
+// stored as the flattened override.
+func TestPreToolUseHookEditFilesDenyAndOverrideInOneStep(t *testing.T) {
+	t.Parallel()
+
+	const (
+		deniedInput     = `{"edits":[{"path":"/repo/secret.go","old_text":"key := 1","new_text":"key := 2"}]}`
+		overriddenInput = `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"}]}`
+	)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if modelCalls.Add(1) == 1 {
+			first := chattest.OpenAIToolCallChunk("edit_files", deniedInput)
+			first.Choices[0].ToolCalls[0].ID = "call_denied"
+			second := chattest.OpenAIToolCallChunk("edit_files", overriddenInput).Choices[0].ToolCalls[0]
+			second.ID = "call_overridden"
+			second.Index = 1
+			first.Choices[0].ToolCalls = append(first.Choices[0].ToolCalls, second)
+			return chattest.OpenAIStreamingResponse(first)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+		if data.ToolUseID == "call_denied" {
+			require.JSONEq(t, `{"files":[{"path":"/repo/secret.go","edits":[{"old_text":"key := 1","new_text":"key := 2"}]}]}`, string(data.ToolInput))
+			return `{"permission":{"decision":"deny","reason":"blocked by policy"}}`
+		}
+		require.JSONEq(t, `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"x := 1","new_text":"x := 2"}]}]}`, string(data.ToolInput))
+		return `{"permission":{"decision":"allow","input_override":{"files":[{"path":"/repo/a.go","edits":[{"old_text":"x := 1","new_text":"x := 3"}]}]}}}`
+	})
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().
+		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
+			Files:       []workspacesdk.FileEdits{{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{OldText: "x := 1", NewText: "x := 3"}}}},
+			IncludeDiff: true,
+		}).
+		Return(workspacesdk.FileEditResponse{}, nil).
+		Times(1)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "pre-tool-use-edit-files-deny-and-override",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("edit both files"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	calls := make(map[string]codersdk.ChatMessagePart)
+	results := make(map[string]codersdk.ChatMessagePart)
+	for _, part := range chatToolParts(ctx, t, db, chat.ID) {
+		switch part.Type {
+		case codersdk.ChatMessagePartTypeToolCall:
+			calls[part.ToolCallID] = part
+		case codersdk.ChatMessagePartTypeToolResult:
+			results[part.ToolCallID] = part
+		}
+	}
+	require.JSONEq(t, deniedInput, string(calls["call_denied"].Args))
+	require.True(t, results["call_denied"].IsError)
+	require.Contains(t, string(results["call_denied"].Result), "Reason: blocked by policy.")
+	require.JSONEq(t, `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 3"}]}`, string(calls["call_overridden"].Args))
+	require.False(t, results["call_overridden"].IsError)
 }
 
 func requireNoClientVisibleText(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, text string) {

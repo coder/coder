@@ -80,7 +80,7 @@ Coder rejects a built-in tool call whose input repeats a key or spells a schema 
 This check doesn't cover dynamic and MCP tools, because the client and the workspace agent execute those calls rather than `coderd`.
 A policy that gates them must validate their input itself.
 
-`edit_files` is the exception to the model's-bytes rule.
+`edit_files` input is the exception.
 The model sends a flat `edits` list in which every edit names its own `path`, and Coder presents those edits to `pre_tool_use` grouped by path, keeping each file's edits in their original order:
 
 ```json
@@ -88,7 +88,9 @@ The model sends a flat `edits` list in which every edit names its own `path`, an
 ```
 
 Each edit carries `old_text` and `new_text`, and `replace_all` only when it's `true`.
-If the input doesn't match the `edits` schema, `tool_input` carries the model's bytes instead, and the tool rejects the call without editing any file.
+Paths appear as the tool uses them, with surrounding whitespace removed, so edits whose paths differ only by that whitespace appear under one file.
+Coder builds this view from the decoded edits and drops keys the `edits` schema doesn't declare, so a call that uses the retired `files` shape appears as `{"files":[]}`, and the tool rejects it.
+Only input that fails to decode reaches `pre_tool_use` as the model's bytes; the tool rejects that call too, without editing any file.
 
 For `user_prompt_submit`, `prompt` concatenates the original submitted text parts, and `parts` carries the original structured message, including non-text parts such as file references.
 These values are captured before the consumer's override or injected context changes the stored prompt.
