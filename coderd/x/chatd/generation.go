@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -754,7 +755,21 @@ func (s *taskStarter) generateAssistant(
 	if len(outcome.Step.Content) == 0 {
 		return s.finishGenerationTurn(ctx, machine, input, requireGenerationAttempt(attempt.number))
 	}
-	preflight, err := s.admitStepToolCalls(ctx, input, prepared, outcome.Step.Content)
+	// Rejected finalizer calls are resolved in this commit, so hooks never
+	// admit them and they are never dispatched.
+	content, rejected, controlParts, err := attempt.finalizer.screen(outcome.Step.Content, outcome.FinishReason)
+	if err != nil {
+		return xerrors.Errorf("screen structured output finalizer calls: %w", err)
+	}
+	outcome.Step.Content = content
+	admitted := content
+	if len(rejected) > 0 {
+		admitted = slices.DeleteFunc(slices.Clone(content), func(block fantasy.Content) bool {
+			call, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
+			return ok && rejected[call.ToolCallID]
+		})
+	}
+	preflight, err := s.admitStepToolCalls(ctx, input, prepared, admitted)
 	if err != nil {
 		return err
 	}
@@ -766,6 +781,7 @@ func (s *taskStarter) generateAssistant(
 		logger:                 s.opts.Logger,
 		contentVersion:         chatprompt.CurrentContentVersion,
 		hookRewrittenToolCalls: preflight.Overrides,
+		extraAssistantParts:    controlParts,
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
@@ -1142,6 +1158,8 @@ type generationAttempt struct {
 	number int64
 	// publish streams a message part into the attempt's buffer episode.
 	publish func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+	// finalizer screens structured output finalizer calls of the attempt.
+	finalizer *finalizerGate
 	// startModelInvocation marks the start of the attempt's billable
 	// model invocation window on the buffer episode, so an interrupt
 	// can bill the window the step would have reported. It is always
@@ -1192,7 +1210,8 @@ func (s *taskStarter) beginGenerationAttempt(
 		return generationAttempt{}, taskRetryableError{err: xerrors.Errorf("create message part episode: %w", err)}
 	}
 	return generationAttempt{
-		number: attempt,
+		number:    attempt,
+		finalizer: openRequestGate(ctx, s.opts.Logger, s.opts.Store, input.ChatID),
 		publish: func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 			_ = s.opts.MessagePartBuffer.AddPart(key, role, part)
 		},
