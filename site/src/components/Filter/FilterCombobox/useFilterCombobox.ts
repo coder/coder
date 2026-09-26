@@ -173,6 +173,9 @@ export const optionsLoadErrorMessage = (label: string) =>
 export const optionsLoadingMessage = (label: string) =>
 	`Loading ${label} options.`;
 
+/** Announced when a category shows no options. */
+export const noOptionMatchesMessage = (label: string) => `No ${label} matches`;
+
 /**
  * Longest wait for option lookups before typed text that matched no loaded
  * filter is applied as a free-text search anyway.
@@ -205,7 +208,7 @@ const deriveStatusMessage = ({
 			return optionsLoadErrorMessage(activeCategoryLabel);
 		}
 		if (activeOptionsEmpty) {
-			return `No ${activeCategoryLabel} matches`;
+			return noOptionMatchesMessage(activeCategoryLabel);
 		}
 		return `Filtering by ${activeCategoryLabel}`;
 	}
@@ -632,25 +635,23 @@ export const useFilterCombobox = ({
 	// cmdk highlights the first row when the highlighted row unmounts. When a
 	// highlighted inline load row gives way to loaded options, the highlight
 	// moves to that category's first option instead.
-	const highlightedLoadRowKeyRef = useRef<string | null>(null);
-	const handleHighlightedValueChange = (value: string) => {
-		const loadingSection = inlineSections.find(
-			(section) => section.status !== "ready" && section.loadRowValue === value,
-		);
-		if (loadingSection) {
-			highlightedLoadRowKeyRef.current = loadingSection.category.key;
-			return;
-		}
-		const heldKey = highlightedLoadRowKeyRef.current;
-		highlightedLoadRowKeyRef.current = null;
+	const handleHighlightedValueChange = (_value: string, previous: string) => {
 		const loadedSection = inlineSections.find(
-			(section) => section.category.key === heldKey,
+			(section) => section.loadRowValue === previous,
 		);
 		const [firstRow] = loadedSection?.rows ?? [];
 		if (loadedSection?.status === "ready" && firstRow) {
 			setHighlightedValue(firstRow.token);
 		}
 	};
+	// The handoff applies only while the menu stays open, so a load that
+	// finishes while it is closed does not move a reopened menu's highlight.
+	useEffect(() => {
+		const highlight = highlightRef.current;
+		if (!open && highlight?.get().startsWith(INLINE_LOAD_ROW_VALUE_PREFIX)) {
+			highlight.set("");
+		}
+	}, [open]);
 	const inlineLoadMessages = inlineSections.flatMap(({ category, status }) => {
 		if (status === "loading") {
 			return [optionsLoadingMessage(category.label)];
