@@ -3197,6 +3197,7 @@ describe("useChatStore", () => {
 			persistedError: null,
 			isAwaitingFirstStreamChunk: false,
 			chatStatus: result.current.chatStatus,
+			hasRecentStreamOutput: true,
 		});
 		expect(liveStatus.phase).toBe("failed");
 		expect(liveStatus.hasAccumulatedOutput).toBe(false);

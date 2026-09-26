@@ -36,6 +36,7 @@ const derive = (
 		persistedError: null,
 		isAwaitingFirstStreamChunk: false,
 		chatStatus: null,
+		hasRecentStreamOutput: true,
 		...overrides,
 	});
 
@@ -94,7 +95,20 @@ describe("deriveLiveStatus", () => {
 		[
 			"streaming",
 			{ streamState: buildStreamState() },
-			{ phase: "streaming", hasAccumulatedOutput: false },
+			{
+				phase: "streaming",
+				hasAccumulatedOutput: false,
+				hasRecentOutput: true,
+			},
+		],
+		[
+			"streaming after output goes quiet",
+			{ streamState: buildStreamState(), hasRecentStreamOutput: false },
+			{
+				phase: "streaming",
+				hasAccumulatedOutput: false,
+				hasRecentOutput: false,
+			},
 		],
 		[
 			"interrupting",
@@ -129,7 +143,11 @@ describe("deriveLiveStatus", () => {
 				streamState: buildStreamState(),
 				persistedError: buildStreamError({ kind: "timeout" }),
 			}),
-		).toEqual({ phase: "streaming", hasAccumulatedOutput: false });
+		).toEqual({
+			phase: "streaming",
+			hasAccumulatedOutput: false,
+			hasRecentOutput: true,
+		});
 	});
 
 	it("suppresses accumulated output after a terminal stream error", () => {
