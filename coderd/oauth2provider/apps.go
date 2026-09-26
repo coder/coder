@@ -167,9 +167,10 @@ func GetApp(accessURL *url.URL) http.HandlerFunc {
 	}
 }
 
-// scopeAllowlist wraps a scope list for storage. Every write path stores the
-// spelling as given; readers canonicalize. An empty list stores as an empty,
-// valid string, meaning no allowlist.
+// scopeAllowlist wraps a scope list for storage. The admin API stores the
+// caller's spelling, new DCR rows hold canonical catalog names, and an
+// unchanged RFC 7592 resend keeps what the row already held. An empty list
+// stores as an empty, valid string, meaning no allowlist.
 func scopeAllowlist(raw string) sql.NullString {
 	return sql.NullString{
 		String: raw,

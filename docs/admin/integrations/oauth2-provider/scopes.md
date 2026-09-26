@@ -26,7 +26,10 @@ An application with no allowlist honors any requested scope, and a request that 
 An application registered through [Dynamic Client Registration](./index.md#dynamic-client-registration) declares its allowlist in the `scope` field of its registration.
 An administrator sets one with the **Allowed scopes** field in the web UI, or with the optional, space-separated `scope` field when [creating an application](../../../reference/api/enterprise.md#create-oauth2-application) through the management API.
 When [updating an application](../../../reference/api/enterprise.md#update-oauth2-application), omit `scope` to keep the current allowlist, send a new value to replace it, or send an empty string to clear it and make the application unrestricted.
-The stored value is not checked against the scopes this deployment offers; a name it does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](./troubleshooting.md#invalid_scope-returned-to-your-callback).
+Dynamic Client Registration keeps only the names this deployment offers, both on `POST /oauth2/register` and on `PUT /oauth2/clients/{client_id}`, and returns the stored list in the response.
+A `scope` that keeps no offered name is rejected with `400 invalid_client_metadata` and the request is not stored.
+An update that resends the stored `scope` unchanged keeps it as stored.
+An allowlist set through the web UI or the management API is stored as given; a name it holds that this deployment does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](./troubleshooting.md#invalid_scope-returned-to-your-callback).
 
 Use caution when narrowing the scope allowlist of a self-registered application.
 Many clients request every scope Coder advertises in `scopes_supported` rather than selecting specific scopes; MCP clients that rely on discovery commonly work this way.
