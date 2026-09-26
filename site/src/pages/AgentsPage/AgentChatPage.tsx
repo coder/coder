@@ -711,6 +711,7 @@ const AgentChatPage: FC = () => {
 					planModeEnabled={planModeEnabled}
 					onPlanModeToggle={handlePlanModeToggle}
 					showRightPanel={showSidebarPanel}
+					onCloseRightPanel={() => handleSetShowSidebarPanel(false)}
 				/>
 			) : chatQuery.isLoadingError || chatMessagesQuery.isLoadingError ? (
 				getErrorStatus(chatQuery.error) === 404 ? (

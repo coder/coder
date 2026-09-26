@@ -4,7 +4,11 @@ import { type FC, useState } from "react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
-import { RIGHT_PANEL_WIDTH_KEY, RightPanel } from "./RightPanel";
+import {
+	RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH,
+	RIGHT_PANEL_WIDTH_KEY,
+	RightPanel,
+} from "./RightPanel";
 
 type HarnessProps = {
 	onOpenChange?: (isOpen: boolean) => void;
@@ -33,15 +37,20 @@ const RightPanelHarness: FC<HarnessProps> = ({
 	};
 
 	return (
-		<RightPanel
-			isOpen={isOpen}
-			isExpanded={isOpen && isExpanded}
-			onToggleExpanded={() => setIsExpanded(!isExpanded)}
-			onClose={() => setIsOpen(false)}
-			onVisualExpandedChange={onVisualExpandedChange}
-		>
-			<div>Panel content</div>
-		</RightPanel>
+		<>
+			<button type="button" onClick={() => setIsOpen(true)}>
+				Open panel
+			</button>
+			<RightPanel
+				isOpen={isOpen}
+				isExpanded={isOpen && isExpanded}
+				onToggleExpanded={() => setIsExpanded(!isExpanded)}
+				onClose={() => setIsOpen(false)}
+				onVisualExpandedChange={onVisualExpandedChange}
+			>
+				<div>Panel content</div>
+			</RightPanel>
+		</>
 	);
 };
 
@@ -50,8 +59,9 @@ type SidebarHarnessProps = HarnessProps & {
 };
 
 /**
- * Supplies the outlet context the panel uses to collapse the chats
- * sidebar while the pointer is at the left edge of the viewport.
+ * Supplies the sidebar outlet context the panel reads and writes, plus
+ * "Expand sidebar" and "Collapse sidebar" buttons that change the sidebar
+ * the way a user click does.
  */
 const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 	onSidebarCollapsedChange,
@@ -87,6 +97,9 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 					<>
 						<button type="button" onClick={() => setIsSidebarCollapsed(false)}>
 							Expand sidebar
+						</button>
+						<button type="button" onClick={() => setIsSidebarCollapsed(true)}>
+							Collapse sidebar
 						</button>
 						<Outlet context={outletContext} />
 					</>
@@ -282,10 +295,19 @@ describe("RightPanel resize drag", () => {
 	});
 
 	describe("side-by-side room check", () => {
-		// jsdom reports a zero-width parent, so above the side-by-side
-		// breakpoint there is never room for both the chat and the panel.
+		// Room checks only run at or above the side-by-side breakpoint.
+		const SIDE_BY_SIDE_VIEWPORT =
+			RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH + 176;
+		const NARROW_VIEWPORT = RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH - 124;
+		// Enough for the 360px chat minimum plus the 360px panel minimum.
+		const ROOMY_PARENT_WIDTH = 2000;
+
+		// jsdom reports a zero-width parent unless clientWidth is stubbed,
+		// so by default there is never room for both the chat and the
+		// panel. Animation frames run synchronously to keep checks
+		// deterministic.
 		beforeEach(() => {
-			vi.stubGlobal("innerWidth", 1200);
+			vi.stubGlobal("innerWidth", SIDE_BY_SIDE_VIEWPORT);
 			vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
 				cb(0);
 				return 0;
@@ -293,18 +315,34 @@ describe("RightPanel resize drag", () => {
 			vi.stubGlobal("cancelAnimationFrame", () => {});
 		});
 
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		const stubParentWidth = (width: number) =>
+			vi
+				.spyOn(HTMLElement.prototype, "clientWidth", "get")
+				.mockReturnValue(width);
+
+		const resizeWindow = (width: number) => {
+			vi.stubGlobal("innerWidth", width);
+			fireEvent(window, new Event("resize"));
+		};
+
 		const renderWithSidebar = () => {
 			const onOpenChange = vi.fn();
+			const onExpandedChange = vi.fn();
 			const onSidebarCollapsedChange = vi.fn();
 			render(
 				<MemoryRouter>
 					<RightPanelWithSidebarHarness
 						onOpenChange={onOpenChange}
+						onExpandedChange={onExpandedChange}
 						onSidebarCollapsedChange={onSidebarCollapsedChange}
 					/>
 				</MemoryRouter>,
 			);
-			return { onOpenChange, onSidebarCollapsedChange };
+			return { onOpenChange, onExpandedChange, onSidebarCollapsedChange };
 		};
 
 		it("collapses the sidebar to make room for the open panel", () => {
@@ -323,6 +361,75 @@ describe("RightPanel resize drag", () => {
 
 			expect(onSidebarCollapsedChange).toHaveBeenCalledExactlyOnceWith(false);
 			expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+		});
+
+		it("does not carry a below-breakpoint expand into a later resize", async () => {
+			const user = userEvent.setup();
+			const { onOpenChange, onSidebarCollapsedChange } = renderWithSidebar();
+			resizeWindow(NARROW_VIEWPORT);
+			await user.click(screen.getByRole("button", { name: "Expand sidebar" }));
+			onSidebarCollapsedChange.mockClear();
+
+			resizeWindow(SIDE_BY_SIDE_VIEWPORT);
+
+			expect(onSidebarCollapsedChange).toHaveBeenCalledExactlyOnceWith(true);
+			expect(onOpenChange).not.toHaveBeenCalled();
+		});
+
+		it("collapses the sidebar when the panel opens after the sidebar was expanded", async () => {
+			const user = userEvent.setup();
+			const { onOpenChange, onSidebarCollapsedChange } = renderWithSidebar();
+			pointerDown();
+			pointerMove(CLOSE_ZONE_X);
+			pointerUp(CLOSE_ZONE_X);
+			await user.click(screen.getByRole("button", { name: "Expand sidebar" }));
+			onOpenChange.mockClear();
+			onSidebarCollapsedChange.mockClear();
+
+			await user.click(screen.getByRole("button", { name: "Open panel" }));
+
+			expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(true);
+			expect(onSidebarCollapsedChange).toHaveBeenCalledExactlyOnceWith(true);
+		});
+
+		it("collapses the sidebar on a later narrowing after an expand that fit", async () => {
+			const user = userEvent.setup();
+			const parentWidth = stubParentWidth(ROOMY_PARENT_WIDTH);
+			const { onOpenChange, onSidebarCollapsedChange } = renderWithSidebar();
+			await user.click(
+				screen.getByRole("button", { name: "Collapse sidebar" }),
+			);
+			await user.click(screen.getByRole("button", { name: "Expand sidebar" }));
+			onSidebarCollapsedChange.mockClear();
+
+			parentWidth.mockReturnValue(0);
+			resizeWindow(SIDE_BY_SIDE_VIEWPORT);
+
+			expect(onSidebarCollapsedChange).toHaveBeenCalledExactlyOnceWith(true);
+			expect(onOpenChange).not.toHaveBeenCalled();
+		});
+
+		it("treats a resize drag's sidebar re-expand as the drag's, not the user's", async () => {
+			const user = userEvent.setup();
+			const { onOpenChange, onExpandedChange, onSidebarCollapsedChange } =
+				renderWithSidebar();
+			// Expand the panel, then expand the sidebar behind it.
+			pointerDown();
+			pointerMove(EXPAND_ZONE_X);
+			pointerUp(EXPAND_ZONE_X);
+			expect(onExpandedChange).toHaveBeenLastCalledWith(true);
+			await user.click(screen.getByRole("button", { name: "Expand sidebar" }));
+			onSidebarCollapsedChange.mockClear();
+
+			// Touch the left edge, come back, and release in the normal zone.
+			pointerDown({ clientX: 1000 });
+			pointerMove(SIDEBAR_EDGE_X);
+			pointerMove(700);
+			pointerUp(700);
+
+			expect(onExpandedChange).toHaveBeenLastCalledWith(false);
+			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(true);
+			expect(onOpenChange).not.toHaveBeenCalled();
 		});
 	});
 
