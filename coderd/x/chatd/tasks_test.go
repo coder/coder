@@ -1157,6 +1157,20 @@ func TestInterruptTask_ExecuteResults(t *testing.T) {
 			generic:  true,
 		},
 		{
+			name:     "NoWorkspace",
+			args:     executeWithinDeadline,
+			dialErr:  chattool.ErrChatHasNoWorkspace,
+			noCancel: true,
+			generic:  true,
+		},
+		{
+			name:     "BackgroundNoAgent",
+			args:     executeBackground,
+			dialErr:  chattool.ErrWorkspaceHasNoAgent,
+			noCancel: true,
+			generic:  true,
+		},
+		{
 			name:           "PastDeadlineStillRunning",
 			args:           executePastDeadline,
 			snapshot:       true,

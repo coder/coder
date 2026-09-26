@@ -179,7 +179,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			if err != nil {
 				// An earlier attempt of this tool call may have started
 				// the command, unless no workspace agent exists to run it.
-				if id, ok := ToolCallIdentityFromContext(ctx); ok && ctx.Err() == nil && !hasNoWorkspaceAgent(err) {
+				if id, ok := ToolCallIdentityFromContext(ctx); ok && ctx.Err() == nil && !HasNoWorkspaceAgent(err) {
 					return fantasy.NewTextErrorResponse(UnknownOutcome(AgentUnreachableReason(err),
 						"an earlier attempt may have started the command", checkProcessText(id))), nil
 				}
@@ -322,11 +322,11 @@ func executeForeground(
 	return fantasy.NewTextResponse(string(data))
 }
 
-// hasNoWorkspaceAgent reports whether a workspace connection error means
+// HasNoWorkspaceAgent reports whether a workspace connection error means
 // no workspace agent exists: the chat has no workspace, the workspace was
 // deleted, or it has no running agent. Processes do not outlive the
 // agent, so no earlier attempt's command can still be running.
-func hasNoWorkspaceAgent(err error) bool {
+func HasNoWorkspaceAgent(err error) bool {
 	return errors.Is(err, ErrChatHasNoWorkspace) ||
 		errors.Is(err, ErrWorkspaceDeleted) ||
 		errors.Is(err, ErrWorkspaceHasNoAgent)
