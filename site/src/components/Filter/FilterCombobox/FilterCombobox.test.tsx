@@ -151,6 +151,9 @@ describe("FilterCombobox", () => {
 		vi.useRealTimers();
 	});
 
+	const expectStatus = (text: string) =>
+		waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(text));
+
 	it("fetches hideable categories before the menu opens and skips others", async () => {
 		const hideable = vi.fn(async () => [{ label: "Docker", value: "docker" }]);
 		const other = vi.fn(async () => [{ label: "alice", value: "alice" }]);
@@ -1646,7 +1649,8 @@ describe("FilterCombobox", () => {
 		await user.hover(await screen.findByRole("option", { name: "Owner" }));
 		const search = await screen.findByRole("textbox", { name: "Search Owner" });
 		await user.type(search, "zed");
-		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		await expectStatus("Couldn’t load Owner options.");
+		await user.click(screen.getByRole("button", { name: "Retry" }));
 		await user.click(await screen.findByRole("button", { name: "zed" }));
 
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:zed"));
@@ -1703,11 +1707,7 @@ describe("FilterCombobox", () => {
 
 		await user.click(filtersButton);
 		await user.hover(await screen.findByRole("option", { name: "Owner" }));
-		await waitFor(() =>
-			expect(screen.getByRole("status")).toHaveTextContent(
-				"Couldn’t load Owner options.",
-			),
-		);
+		await expectStatus("Couldn’t load Owner options.");
 		await user.click(screen.getByRole("button", { name: "Retry" }));
 		await user.click(await screen.findByRole("button", { name: "alice" }));
 
@@ -1734,9 +1734,6 @@ describe("FilterCombobox", () => {
 		};
 	};
 
-	const expectStatus = (text: string) =>
-		waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(text));
-
 	it("announces a failed inline category and retries it from the keyboard", async () => {
 		const { user, onChange, filtersButton, retry } = setupFailedInlineStatus();
 
@@ -1748,20 +1745,71 @@ describe("FilterCombobox", () => {
 			"true",
 		);
 		await user.keyboard("{Enter}");
-		await expectStatus("Loading Status options");
+		await expectStatus("Loading Status options.");
 		expect(
-			screen.getByRole("option", { name: "Loading Status options" }),
+			screen.getByRole("option", { name: "Loading Status options." }),
 		).toHaveAttribute("aria-selected", "true");
 		await user.keyboard("{Enter}");
 		expect(screen.getByRole("status")).toHaveTextContent(
-			"Loading Status options",
+			"Loading Status options.",
 		);
 
 		await act(async () => retry.resolve(undefined));
-		await user.click(await screen.findByRole("option", { name: "Running" }));
+		await screen.findByRole("option", { name: "Running" });
+		await user.keyboard("{Enter}");
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("status:running"),
 		);
+	});
+
+	it("announces every failed inline category", async () => {
+		const failing = async () => {
+			throw new Error("boom");
+		};
+		const { filtersButton, user } = setup([
+			{ ...statusCategory, getOptions: failing },
+			{ ...attributesCategory, getOptions: failing },
+		]);
+
+		await user.click(filtersButton);
+
+		await expectStatus(
+			"Couldn’t load Status options. Couldn’t load Attributes options.",
+		);
+	});
+
+	it("shows and announces an inline category's pending first load", async () => {
+		const { filtersButton, user } = setup([
+			{ ...statusCategory, getOptions: () => new Promise(() => {}) },
+		]);
+
+		await user.click(filtersButton);
+
+		expect(
+			await screen.findByRole("option", { name: "Loading Status options." }),
+		).toBeInTheDocument();
+		await expectStatus("Loading Status options.");
+	});
+
+	it("announces a pending hover flyout Retry", async () => {
+		let calls = 0;
+		const getOptions = async () => {
+			calls += 1;
+			if (calls === 1) {
+				throw new Error("boom");
+			}
+			return new Promise<FilterOption[]>(() => {});
+		};
+		const { user, filtersButton } = setup([{ ...ownerCategory, getOptions }], {
+			skipHover: true,
+		});
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		await expectStatus("Couldn’t load Owner options.");
+		await user.click(screen.getByRole("button", { name: "Retry" }));
+
+		await expectStatus("Loading Owner options.");
 	});
 
 	it("announces a failed inline category after its typed prefix", async () => {
@@ -1780,7 +1828,7 @@ describe("FilterCombobox", () => {
 		await user.keyboard("{End}{Enter}");
 		await user.type(input, "status:");
 
-		await expectStatus("Loading Status options");
+		await expectStatus("Loading Status options.");
 	});
 
 	it("applies a typed row of an inline category whose unfiltered load failed", async () => {
@@ -2128,6 +2176,29 @@ describe("FilterCombobox", () => {
 
 		afterEach(() => {
 			vi.unstubAllGlobals();
+		});
+
+		it("does not announce a failed category it shows no flyout for", async () => {
+			const { user, filtersButton } = setup(
+				[
+					{
+						...ownerCategory,
+						getOptions: async () => {
+							throw new Error("boom");
+						},
+					},
+					statusCategory,
+				],
+				{ skipHover: true },
+			);
+
+			await user.click(filtersButton);
+			await user.hover(await screen.findByRole("option", { name: "Owner" }));
+			await screen.findByRole("option", { name: "Running" });
+
+			expect(screen.getByRole("status")).not.toHaveTextContent(
+				"Couldn’t load Owner options.",
+			);
 		});
 
 		it("drills into a category and selects an option", async () => {
