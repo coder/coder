@@ -872,14 +872,20 @@ func (call interruptCall) interrupt(ctx context.Context, conn workspacesdk.Agent
 
 // unreachableResult returns the result of call when no connection to the
 // workspace agent could be made. ok is false when the call keeps the
-// generic interrupted result: without a workspace agent no process can
-// be running and no edit is in progress.
+// generic interrupted result: an execute call without a workspace agent,
+// whose process cannot be running, and a file tool call whose change
+// cannot have survived. A stopped workspace keeps its disk, so a file
+// tool call without an agent gets an unknown result.
 func (call interruptCall) unreachableResult(id chattool.ToolCallIdentity, connErr error) (result interruptResult, ok bool, err error) {
+	if call.toolName != chattool.ExecuteToolName {
+		resp, ok := chattool.FileToolCallConnErrorResult(call.toolName, connErr)
+		if !ok {
+			return interruptResult{}, false, nil
+		}
+		return toolResponseInterruptResult(call, resp), true, nil
+	}
 	if chattool.HasNoWorkspaceAgent(connErr) {
 		return interruptResult{}, false, nil
-	}
-	if call.toolName != chattool.ExecuteToolName {
-		return toolResponseInterruptResult(call, chattool.AgentUnreachableFileToolCallResult(call.toolName, connErr)), true, nil
 	}
 	execResult := chattool.AgentUnreachableExecuteResult(id, connErr)
 	if call.background {

@@ -82,7 +82,15 @@ func fileToolCallCases() []fileToolCallCase {
 			wantContent: []string{"outcome unknown", "could not be reached", "dial failed", "an earlier attempt may have applied", "Check the file"},
 		},
 		{name: "ConnErrorNoIdentity", noIdentity: true, connErr: xerrors.New("dial failed"), wantIsError: true, wantContent: []string{"dial failed"}, wantAbsent: []string{"outcome unknown"}},
-		{name: "ConnErrorNoAgent", connErr: chattool.ErrWorkspaceHasNoAgent, wantIsError: true, wantContent: []string{"workspace has no running agent"}, wantAbsent: []string{"outcome unknown"}},
+		{
+			// A stopped workspace keeps its disk, so an earlier attempt's
+			// change may be there.
+			name:        "ConnErrorNoAgent",
+			connErr:     chattool.ErrWorkspaceHasNoAgent,
+			wantIsError: true,
+			wantContent: []string{"outcome unknown", "workspace has no running agent", "start_workspace", "an earlier attempt may have applied", "Check the file"},
+		},
+		{name: "ConnErrorNoWorkspace", connErr: chattool.ErrChatHasNoWorkspace, wantIsError: true, wantContent: []string{"does not have one"}, wantAbsent: []string{"outcome unknown"}},
 		{name: "ConnErrorWorkspaceDeleted", connErr: chattool.ErrWorkspaceDeleted, wantIsError: true, wantContent: []string{"workspace was deleted"}, wantAbsent: []string{"outcome unknown"}},
 		{name: "TransportErrorNoIdentity", noIdentity: true, err: transportErr, wantIsError: true, wantContent: []string{"connection reset by peer"}, wantAbsent: []string{"outcome unknown"}},
 		{
@@ -377,14 +385,35 @@ func TestInterruptFileToolCall(t *testing.T) {
 	}
 }
 
-func TestAgentUnreachableFileToolCallResult(t *testing.T) {
+func TestFileToolCallConnErrorResult(t *testing.T) {
 	t.Parallel()
 
+	tests := []struct {
+		name        string
+		err         error
+		wantOK      bool
+		wantContent []string
+	}{
+		{name: "DialFailed", err: xerrors.New("dial failed"), wantOK: true, wantContent: []string{"outcome unknown", "could not be reached", "may have been applied", "dial failed", "Check the file"}},
+		{name: "NoAgent", err: chattool.ErrWorkspaceHasNoAgent, wantOK: true, wantContent: []string{"outcome unknown", "start_workspace", "may have been applied"}},
+		{name: "NoWorkspace", err: chattool.ErrChatHasNoWorkspace},
+		{name: "WorkspaceDeleted", err: chattool.ErrWorkspaceDeleted},
+	}
 	for _, toolName := range []string{chattool.EditFilesToolName, chattool.WriteFileToolName} {
-		resp := chattool.AgentUnreachableFileToolCallResult(toolName, xerrors.New("dial failed"))
-		assert.True(t, resp.IsError)
-		for _, want := range []string{"outcome unknown", "could not be reached", "may have been applied", "dial failed", "Check the file"} {
-			assert.Contains(t, resp.Content, want)
+		for _, tt := range tests {
+			t.Run(toolName+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				resp, ok := chattool.FileToolCallConnErrorResult(toolName, tt.err)
+				require.Equal(t, tt.wantOK, ok)
+				if !ok {
+					return
+				}
+				assert.True(t, resp.IsError)
+				for _, want := range tt.wantContent {
+					assert.Contains(t, resp.Content, want)
+				}
+			})
 		}
 	}
 }

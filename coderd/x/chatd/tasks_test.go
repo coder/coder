@@ -1701,9 +1701,15 @@ func TestInterruptTask_FileToolCallResults(t *testing.T) {
 			wantError: []string{"outcome unknown", "answer could not be read", "may have been applied"},
 		},
 		{
-			// Without an agent no edit is in progress.
-			name:    "WorkspaceHasNoAgent",
-			dialErr: chattool.ErrWorkspaceHasNoAgent,
+			// A stopped workspace keeps its disk, so the edit may be there.
+			name:      "WorkspaceHasNoAgent",
+			dialErr:   chattool.ErrWorkspaceHasNoAgent,
+			wantError: []string{"outcome unknown", "start_workspace", "may have been applied"},
+		},
+		{
+			// A chat without a workspace cannot have applied anything.
+			name:    "ChatHasNoWorkspace",
+			dialErr: chattool.ErrChatHasNoWorkspace,
 			generic: true,
 		},
 		{
