@@ -730,9 +730,16 @@ func (server *Server) prepareGeneration(
 	}
 	var allowInactiveTools map[string]bool
 	if decideMCPToolSearch(mcpToolSearchInput{
-		experimentEnabled: server.experiments.Enabled(codersdk.ExperimentMCPToolSearch),
-		candidates:        deferredCandidates,
-		dynamicToolNames:  dynamicToolNames,
+		// The owner is the subject: only the owner posts turns and
+		// descendant chats inherit it. Preparation runs for every step,
+		// so the first step decides and later steps of the same turn
+		// reuse that decision; otherwise a rule change mid-turn would
+		// reject find_tools calls the model already issued.
+		experimentEnabled: input.TurnExperiments.mcpToolSearchEnabled(stopNudgeKey(input.Messages), func() bool {
+			return server.experimentEvaluator.Enabled(ctx, chat.OwnerID, codersdk.ExperimentMCPToolSearch)
+		}),
+		candidates:       deferredCandidates,
+		dynamicToolNames: dynamicToolNames,
 	}) {
 		activationTokenBudget := float64(modelConfig.ContextLimit) / mcpToolSearchBudgetDivisor
 		findTools := chattool.FindTools(chattool.FindToolsOptions{

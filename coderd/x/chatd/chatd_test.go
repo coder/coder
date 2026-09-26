@@ -50,6 +50,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	experimentrules "github.com/coder/coder/v2/coderd/experiments"
+	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -2719,7 +2721,7 @@ func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
 
 	// Start a replica with a short stale threshold.
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(ps, chatd.Config{
+	server := newChatdServer(t, ps, chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
@@ -3035,7 +3037,7 @@ func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 	mockPush := &mockWebpushDispatcher{}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	server := chatd.New(ps, chatd.Config{
+	server := newChatdServer(t, ps, chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
@@ -5179,7 +5181,7 @@ func TestHeartbeatNoWorkspaceNoBump(t *testing.T) {
 	t.Cleanup(func() { tracker.Close() })
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(ps, chatd.Config{
+	server := newChatdServer(t, ps, chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
@@ -5253,6 +5255,21 @@ func waitForChatProcessed(
 	chatd.WaitUntilIdleForTest(server)
 }
 
+// newChatdServer creates a chatd server. When cfg has no experiment
+// evaluator, it uses one with no stored rules, so every experiment follows
+// cfg.Experiments.
+func newChatdServer(t testing.TB, ps dbpubsub.Pubsub, cfg chatd.Config) *chatd.Server {
+	t.Helper()
+	if cfg.ExperimentEvaluator == nil {
+		evaluator, err := experimentrules.New(cfg.Logger, experimentstest.Store{}, cfg.Experiments)
+		require.NoError(t, err)
+		cfg.ExperimentEvaluator = evaluator
+	}
+	server, err := chatd.New(ps, cfg)
+	require.NoError(t, err)
+	return server
+}
+
 // newTestServer creates a passive server whose periodic chat
 // acquisition is effectively disabled, so chats are only processed in
 // response to explicit wakes.
@@ -5277,7 +5294,7 @@ func newTestServer(
 	for _, o := range overrides {
 		o(&cfg)
 	}
-	server := chatd.New(ps, cfg)
+	server := newChatdServer(t, ps, cfg)
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})
@@ -9208,7 +9225,7 @@ func newDebugEnabledTestServer(
 	t.Helper()
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(ps, chatd.Config{
+	server := newChatdServer(t, ps, chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  replicaID,
@@ -9254,7 +9271,7 @@ func newActiveTestServer(
 	for _, o := range overrides {
 		o(&cfg)
 	}
-	server := chatd.New(ps, cfg)
+	server := newChatdServer(t, ps, cfg)
 	server.Start()
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
@@ -9400,7 +9417,7 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 				"openai",
 				openAIURL,
 			)
-			server := chatd.New(ps, chatd.Config{
+			server := newChatdServer(t, ps, chatd.Config{
 				Logger:                     slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 				Database:                   db,
 				ReplicaID:                  uuid.New(),
@@ -9784,7 +9801,7 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 	mockPush := &mockWebpushDispatcher{}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(ps, chatd.Config{
+	server := newChatdServer(t, ps, chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
@@ -9905,7 +9922,7 @@ func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
 	mockPush := &mockWebpushDispatcher{}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(ps, chatd.Config{
+	server := newChatdServer(t, ps, chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
@@ -9993,7 +10010,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 
 	loggerA := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	serverA := chatd.New(ps, chatd.Config{
+	serverA := newChatdServer(t, ps, chatd.Config{
 		Logger:                     loggerA,
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
@@ -10038,7 +10055,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 	require.NoError(t, serverA.Close())
 
 	loggerB := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	serverB := chatd.New(ps, chatd.Config{
+	serverB := newChatdServer(t, ps, chatd.Config{
 		Logger:                     loggerB,
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
@@ -10092,7 +10109,7 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 	mockPush := &mockWebpushDispatcher{}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(ps, chatd.Config{
+	server := newChatdServer(t, ps, chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
@@ -10212,7 +10229,7 @@ func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t
 	mockPush := &mockWebpushDispatcher{}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(ps, chatd.Config{
+	server := newChatdServer(t, ps, chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
@@ -10272,7 +10289,7 @@ func TestErroredChatClearsLastTurnSummaryAndSendsWebPush(t *testing.T) {
 	mockPush := &mockWebpushDispatcher{}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(ps, chatd.Config{
+	server := newChatdServer(t, ps, chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
@@ -10670,7 +10687,7 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 	})
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(ps, chatd.Config{
+	server := newChatdServer(t, ps, chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
@@ -11571,6 +11588,301 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 		require.Contains(t, withExperiment, chattool.FindToolsName,
 			"the experiment defers every MCP schema behind find_tools, even a small catalog")
 		require.NotContains(t, withExperiment, "small-mcp__echo")
+	})
+}
+
+// TestMCPToolSearchExperimentRules checks that stored experiment rules
+// decide mcp-tool-search per chat owner, on every turn, and fail closed.
+func TestMCPToolSearchExperimentRules(t *testing.T) {
+	t.Parallel()
+
+	const echoTool = "rules-mcp__echo"
+
+	type harness struct {
+		db        database.Store
+		server    *chatd.Server
+		owner     database.User
+		org       database.Organization
+		model     database.ChatModelConfig
+		mcpConfig database.MCPServerConfig
+		// turnTools waits for the nth model request (1-based) and returns
+		// the tool names it offered.
+		turnTools func(t *testing.T, n int) []string
+		// turnRequest waits for the nth model request (1-based).
+		turnRequest func(t *testing.T, n int) recordedOpenAIRequest
+		// setRespond replaces the default text reply: respond answers the
+		// nth streaming model request (1-based). Call it before the first
+		// turn starts.
+		setRespond func(respond func(n int) chattest.OpenAIResponse)
+	}
+	newHarness := func(t *testing.T, static codersdk.Experiments, store func(database.Store) experimentrules.Store) harness {
+		t.Helper()
+		db, ps := dbtestutil.NewDB(t)
+		mcpSrv := newTestMCPServer("rules-mcp")
+		addTestMCPTextTool(mcpSrv, "echo", "Echo input", "echo: ")
+		mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+		t.Cleanup(mcpTS.Close)
+
+		var (
+			requestsMu sync.Mutex
+			requests   []recordedOpenAIRequest
+			respond    func(n int) chattest.OpenAIResponse
+		)
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			requestsMu.Lock()
+			requests = append(requests, recordOpenAIRequest(req))
+			n := len(requests)
+			respondFn := respond
+			requestsMu.Unlock()
+			if respondFn != nil {
+				return respondFn(n)
+			}
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		})
+		owner, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: org.ID,
+			DisplayName:    "Rules MCP",
+			Slug:           "rules-mcp",
+			Url:            mcpTS.URL,
+			CreatedBy:      uuid.NullUUID{UUID: owner.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: owner.ID, Valid: true},
+		})
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			cfg.Experiments = static
+			evaluator, err := experimentrules.New(cfg.Logger, store(db), static)
+			require.NoError(t, err)
+			cfg.ExperimentEvaluator = evaluator
+		})
+		turnRequest := func(t *testing.T, n int) recordedOpenAIRequest {
+			t.Helper()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			var request recordedOpenAIRequest
+			testutil.Eventually(ctx, t, func(context.Context) bool {
+				requestsMu.Lock()
+				defer requestsMu.Unlock()
+				if len(requests) < n {
+					return false
+				}
+				request = requests[n-1]
+				return true
+			}, testutil.IntervalFast)
+			return request
+		}
+		return harness{
+			db:          db,
+			server:      server,
+			owner:       owner,
+			org:         org,
+			model:       model,
+			mcpConfig:   mcpConfig,
+			turnRequest: turnRequest,
+			turnTools: func(t *testing.T, n int) []string {
+				t.Helper()
+				return turnRequest(t, n).Tools
+			},
+			setRespond: func(fn func(n int) chattest.OpenAIResponse) {
+				requestsMu.Lock()
+				defer requestsMu.Unlock()
+				respond = fn
+			},
+		}
+	}
+	withoutToolSearch := slices.DeleteFunc(slices.Clone(codersdk.ExperimentsKnown), func(ex codersdk.Experiment) bool {
+		return ex == codersdk.ExperimentMCPToolSearch
+	})
+	// requireDeferred asserts whether the turn deferred MCP schemas behind
+	// find_tools (experiment on) or advertised them directly (off).
+	requireDeferred := func(t *testing.T, tools []string, deferred bool) {
+		t.Helper()
+		if deferred {
+			require.Contains(t, tools, chattool.FindToolsName)
+			require.NotContains(t, tools, echoTool)
+			return
+		}
+		require.NotContains(t, tools, chattool.FindToolsName)
+		require.Contains(t, tools, echoTool)
+	}
+
+	t.Run("condition decides per owner", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t, withoutToolSearch, experimentrules.NewDBStore)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		other := dbgen.User(t, h.db, database.User{})
+		dbgen.OrganizationMember(t, h.db, database.OrganizationMember{UserID: other.ID, OrganizationID: h.org.ID})
+		_, _, changed, err := experimentrules.WriteRule(ctx, h.db, h.owner.ID, codersdk.ExperimentMCPToolSearch, experimentrules.Rule{
+			Mode:      experimentrules.ModeCondition,
+			Condition: fmt.Sprintf("user.username == %q", h.owner.Username),
+		}, 0)
+		require.NoError(t, err)
+		require.True(t, changed)
+
+		for i, tc := range []struct {
+			owner    database.User
+			deferred bool
+		}{
+			{owner: h.owner, deferred: true},
+			{owner: other, deferred: false},
+		} {
+			chat, err := h.server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: h.org.ID,
+				OwnerID:        tc.owner.ID,
+				Title:          "per owner",
+				ModelConfigID:  h.model.ID,
+				MCPServerIDs:   []uuid.UUID{h.mcpConfig.ID},
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("hello"),
+				},
+			})
+			require.NoError(t, err)
+			requireDeferred(t, h.turnTools(t, i+1), tc.deferred)
+			waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
+		}
+	})
+
+	t.Run("rule changes apply on the next turn", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t, withoutToolSearch, experimentrules.NewDBStore)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		revision := int64(0)
+		setMode := func(mode experimentrules.Mode) {
+			t.Helper()
+			_, stored, _, err := experimentrules.WriteRule(ctx, h.db, h.owner.ID, codersdk.ExperimentMCPToolSearch, experimentrules.Rule{Mode: mode}, revision)
+			require.NoError(t, err)
+			revision = stored.Revision
+		}
+		turns := 0
+		sendTurn := func(chatID uuid.UUID) []string {
+			t.Helper()
+			_, err := h.server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:        chatID,
+				CreatedBy:     h.owner.ID,
+				ModelConfigID: h.model.ID,
+				Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
+				BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+			})
+			require.NoError(t, err)
+			turns++
+			tools := h.turnTools(t, turns)
+			waitForChatStatus(ctx, t, h.db, chatID, database.ChatStatusWaiting)
+			return tools
+		}
+		createChat := func(parent uuid.NullUUID, mode experimentrules.Mode) uuid.UUID {
+			t.Helper()
+			chat, err := h.server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: h.org.ID,
+				OwnerID:        h.owner.ID,
+				ParentChatID:   parent,
+				RootChatID:     parent,
+				Title:          "rule changes",
+				ModelConfigID:  h.model.ID,
+				MCPServerIDs:   []uuid.UUID{h.mcpConfig.ID},
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("hello"),
+				},
+			})
+			require.NoError(t, err)
+			turns++
+			requireDeferred(t, h.turnTools(t, turns), mode == experimentrules.ModeOn)
+			waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
+			return chat.ID
+		}
+
+		setMode(experimentrules.ModeOn)
+		parentID := createChat(uuid.NullUUID{}, experimentrules.ModeOn)
+
+		// The kill switch applies to the next turn of the same chat and
+		// to a child chat, which inherits the owner.
+		setMode(experimentrules.ModeOff)
+		requireDeferred(t, sendTurn(parentID), false)
+		childID := createChat(uuid.NullUUID{UUID: parentID, Valid: true}, experimentrules.ModeOff)
+
+		setMode(experimentrules.ModeOn)
+		requireDeferred(t, sendTurn(parentID), true)
+		requireDeferred(t, sendTurn(childID), true)
+	})
+
+	t.Run("decision holds for the whole turn", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t, withoutToolSearch, experimentrules.NewDBStore)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, stored, _, err := experimentrules.WriteRule(ctx, h.db, h.owner.ID, codersdk.ExperimentMCPToolSearch, experimentrules.Rule{Mode: experimentrules.ModeOn}, 0)
+		require.NoError(t, err)
+		// The kill switch flips while the model is answering the first
+		// step, after it has decided to call find_tools.
+		flipErr := make(chan error, 1)
+		h.setRespond(func(n int) chattest.OpenAIResponse {
+			if n != 1 {
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			}
+			_, _, _, err := experimentrules.WriteRule(ctx, h.db, h.owner.ID, codersdk.ExperimentMCPToolSearch, experimentrules.Rule{Mode: experimentrules.ModeOff}, stored.Revision)
+			flipErr <- err
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk(chattool.FindToolsName, `{"queries":["echo"]}`),
+			)
+		})
+		chat, err := h.server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: h.org.ID,
+			OwnerID:        h.owner.ID,
+			Title:          "whole turn",
+			ModelConfigID:  h.model.ID,
+			MCPServerIDs:   []uuid.UUID{h.mcpConfig.ID},
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("hello"),
+			},
+		})
+		require.NoError(t, err)
+		requireDeferred(t, h.turnTools(t, 1), true)
+		require.NoError(t, testutil.RequireReceive(ctx, t, flipErr))
+
+		// The rest of the turn keeps the decision made at its start: the
+		// issued find_tools call runs and activates the MCP tool.
+		second := h.turnRequest(t, 2)
+		require.Contains(t, second.Tools, chattool.FindToolsName)
+		require.Contains(t, second.Tools, echoTool)
+		for _, msg := range second.Messages {
+			require.NotContains(t, msg.Content, "not active")
+		}
+		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
+
+		// The next turn evaluates the rule again.
+		_, err = h.server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     h.owner.ID,
+			ModelConfigID: h.model.ID,
+			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
+			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		requireDeferred(t, h.turnTools(t, 3), false)
+		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
+	})
+
+	t.Run("rules read error fails closed", func(t *testing.T) {
+		t.Parallel()
+		// The experiment is enabled at startup, but an unreadable rule set
+		// must turn it off rather than fall back to the startup list.
+		h := newHarness(t, codersdk.ExperimentsKnown, func(database.Store) experimentrules.Store {
+			return experimentstest.Store{RulesErr: xerrors.New("rules unavailable")}
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, err := h.server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: h.org.ID,
+			OwnerID:        h.owner.ID,
+			Title:          "fail closed",
+			ModelConfigID:  h.model.ID,
+			MCPServerIDs:   []uuid.UUID{h.mcpConfig.ID},
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("hello"),
+			},
+		})
+		require.NoError(t, err)
+		requireDeferred(t, h.turnTools(t, 1), false)
+		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
 	})
 }
 

@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
@@ -729,6 +730,15 @@ func New(options *Options) *API {
 		AISeatTracker:               aiseats.Noop{},
 	}
 
+	api.ExperimentEvaluator, err = experimentrules.New(
+		options.Logger.Named("experiments"),
+		experimentrules.NewDBStore(options.Database),
+		experiments,
+	)
+	if err != nil {
+		panic(xerrors.Errorf("create experiment evaluator: %w", err))
+	}
+
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
 		options.Logger.Named("workspaceapps"),
@@ -775,11 +785,11 @@ func New(options *Options) *API {
 		Logger:                    options.Logger.Named("site"),
 		AIGatewayEnabled:          options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
 		UserSecretFilePathEnabled: !options.DeploymentValues.DisableUserSecretFilePath.Value(),
+		ExperimentEvaluator:       api.ExperimentEvaluator,
 	})
 	if err != nil {
 		options.Logger.Fatal(ctx, "failed to initialize site handler", slog.Error(err))
 	}
-	api.SiteHandler.Experiments.Store(&experiments)
 
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -925,7 +935,7 @@ func New(options *Options) *API {
 					options.PrometheusRegistry,
 				)
 			}
-			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
+			api.chatDaemon, err = chatd.New(options.Pubsub, chatd.Config{
 				Logger:                         options.Logger.Named("chatd"),
 				Database:                       options.Database,
 				ReplicaID:                      api.ID,
@@ -939,6 +949,7 @@ func New(options *Options) *API {
 				StreamSilenceTimeout:           streamSilenceTimeout,
 				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
+				ExperimentEvaluator:            api.ExperimentEvaluator,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
@@ -954,6 +965,9 @@ func New(options *Options) *API {
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
 			})
+			if err != nil {
+				panic(xerrors.Errorf("create chat daemon: %w", err))
+			}
 			if !options.ChatWorkerDisabled {
 				api.chatDaemon.Start()
 			}
@@ -1405,7 +1419,7 @@ func New(options *Options) *API {
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/available", handleExperimentsAvailable)
-			r.Get("/", api.handleExperimentsGet)
+			r.With(httpmw.NoStore).Get("/", api.handleExperimentsGet)
 		})
 		api.registerChatAPIRoutes(r, apiKeyMiddleware)
 		r.Route("/mcp", func(r chi.Router) {
@@ -2238,6 +2252,10 @@ type API struct {
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
+	// ExperimentEvaluator decides user-scoped experiments per user from
+	// stored rules, falling back to Experiments. Use it instead of
+	// Experiments for every experiment in codersdk.ExperimentsUserScoped.
+	ExperimentEvaluator *experimentrules.Evaluator
 
 	healthCheckGroup    *singleflight.Group[string, *healthsdk.HealthcheckReport]
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]

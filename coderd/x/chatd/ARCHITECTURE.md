@@ -815,6 +815,8 @@ The runner maintains the following local state:
 - a list of goroutines it has spawned to perform side effects, each identified by a unique ID, together with cancellation handles and go channels that the goroutines use to notify they have finished.
 - the ID of the currently active goroutine, if there is one.
 
+TODO(author): document the runner's per-turn experiment decision (`turnExperimentDecisions`): the `mcp-tool-search` decision made on a turn's first step, keyed by the turn's prompt row, reused by every later step of that turn even though each step runs as its own task, refreshed on the next turn, never replaced by a late result from an older turn, and lost on runner handoff (the next runner evaluates again).
+
 ### Event processing
 
 The main idea behind the event processing logic is that a chat's status and its history version determine the work that the runner should be performing at any given time. Let's go through an example:

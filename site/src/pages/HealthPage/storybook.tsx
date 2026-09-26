@@ -8,6 +8,7 @@ import {
 	HEALTH_QUERY_KEY,
 	HEALTH_QUERY_SETTINGS_KEY,
 } from "#/api/queries/debug";
+import { experimentsKey } from "#/api/queries/experiments";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -15,6 +16,7 @@ import {
 	MockExperiments,
 	MockHealth,
 	MockHealthSettings,
+	MockUserOwner,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { HealthLayout } from "./HealthLayout";
@@ -39,7 +41,7 @@ export const generateMeta = ({ element, path, params }: MetaOptions) => {
 				{ key: HEALTH_QUERY_SETTINGS_KEY, data: MockHealthSettings },
 				{ key: ["buildInfo"], data: MockBuildInfo },
 				{ key: ["entitlements"], data: MockEntitlements },
-				{ key: ["experiments"], data: MockExperiments },
+				{ key: experimentsKey(MockUserOwner.id), data: MockExperiments },
 				{ key: ["appearance"], data: MockAppearanceConfig },
 			],
 			decorators: [withDashboardProvider],
