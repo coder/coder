@@ -46,6 +46,14 @@ const (
 // maxIntValue is the largest value of the platform int type.
 const maxIntValue = int(^uint(0) >> 1)
 
+// TruncateToolResult caps a tool result's text to the per-result budget
+// of a model with a contextLimit-token window, as generation does before
+// it stores a tool result. A contextLimit <= 0 uses the default budget.
+// It reports whether the text was cut.
+func TruncateToolResult(content string, contextLimit int64) (string, bool) {
+	return truncateToolResultText(content, toolResultByteBudget(contextLimit))
+}
+
 // toolResultByteBudget converts a model context-window size (in
 // tokens) into the maximum number of bytes a single tool result may
 // contribute to the prompt. A context limit <= 0 means the window is

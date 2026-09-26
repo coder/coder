@@ -25,7 +25,7 @@ type EditFilesArgs struct {
 
 func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
-		"edit_files",
+		EditFilesToolName,
 		"Perform edits on one or more files by replacing old_text with"+
 			" new_text. Each entry in files must include the absolute path"+
 			" of the file to edit and at least one edit. Matching is fuzzy"+
@@ -114,17 +114,30 @@ func executeEditFilesTool(
 		}
 	}
 
-	resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+	editCtx := ctx
+	if id, ok := ToolCallIdentityFromContext(ctx); ok {
+		editCtx = workspacesdk.WithToolCall(ctx, id.AgentToolCall())
+	}
+	resp, err := conn.EditFiles(editCtx, workspacesdk.FileEditRequest{
 		Files:       args.Files,
 		IncludeDiff: true,
 	})
+	return editFilesResult(ctx, resp, err), nil
+}
+
+// editFilesResult converts what EditFiles returned into the tool result.
+// ctx is the tool call's context.
+func editFilesResult(ctx context.Context, resp workspacesdk.FileEditResponse, err error) fantasy.ToolResponse {
 	if err != nil {
-		return fantasy.NewTextErrorResponse(agentAPIErrorMessage(err)), nil
+		if result, ok := fileToolCallErrorResult(ctx, "edit files", fileToolChange(EditFilesToolName), err); ok {
+			return result
+		}
+		return fantasy.NewTextErrorResponse(agentAPIErrorMessage(err))
 	}
 	return toolResponse(map[string]any{
 		"ok":    true,
 		"files": resp.Files,
-	}), nil
+	})
 }
 
 // agentAPIErrorMessage preserves the agent's actionable message while

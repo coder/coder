@@ -103,3 +103,31 @@ func TestTruncateToolResultText(t *testing.T) {
 		assert.True(t, utf8.ValidString(out))
 	})
 }
+
+func TestTruncateToolResult(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		content      string
+		contextLimit int64
+		wantMax      int
+		wantCut      bool
+	}{
+		{name: "FitsDefault", content: "ok", wantMax: defaultToolResultBytes},
+		{name: "OverDefault", content: strings.Repeat("x", defaultToolResultBytes+1), wantMax: defaultToolResultBytes, wantCut: true},
+		{name: "OverContextBudget", content: strings.Repeat("x", defaultToolResultBytes), contextLimit: 30_000, wantMax: toolResultByteBudget(30_000), wantCut: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, cut := TruncateToolResult(tt.content, tt.contextLimit)
+			assert.Equal(t, tt.wantCut, cut)
+			assert.LessOrEqual(t, len(got), tt.wantMax)
+			if !tt.wantCut {
+				assert.Equal(t, tt.content, got)
+			}
+		})
+	}
+}

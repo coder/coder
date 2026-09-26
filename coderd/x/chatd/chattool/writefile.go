@@ -22,7 +22,7 @@ type WriteFileArgs struct {
 
 func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
-		"write_file",
+		WriteFileToolName,
 		"Write a file to the workspace.",
 		func(ctx context.Context, args WriteFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			var planPath string
@@ -79,8 +79,21 @@ func executeWriteFileTool(
 		}
 	}
 
-	if err := conn.WriteFile(ctx, requestedPath, strings.NewReader(args.Content)); err != nil {
-		return fantasy.NewTextErrorResponse(err.Error()), nil
+	writeCtx := ctx
+	if id, ok := ToolCallIdentityFromContext(ctx); ok {
+		writeCtx = workspacesdk.WithToolCall(ctx, id.AgentToolCall())
 	}
-	return toolResponse(map[string]any{"ok": true}), nil
+	return writeFileResult(ctx, conn.WriteFile(writeCtx, requestedPath, strings.NewReader(args.Content))), nil
+}
+
+// writeFileResult converts what WriteFile returned into the tool result.
+// ctx is the tool call's context.
+func writeFileResult(ctx context.Context, err error) fantasy.ToolResponse {
+	if err != nil {
+		if result, ok := fileToolCallErrorResult(ctx, "write file", fileToolChange(WriteFileToolName), err); ok {
+			return result
+		}
+		return fantasy.NewTextErrorResponse(err.Error())
+	}
+	return toolResponse(map[string]any{"ok": true})
 }
