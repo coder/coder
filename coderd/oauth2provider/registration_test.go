@@ -680,9 +680,7 @@ func TestUpdateClientConfiguration_LegacyInvalidScope(t *testing.T) {
 		stored     string
 		scope      string
 		wantStatus int
-		// The stored scope after the request. A resent value is kept as is,
-		// a changed value is narrowed to the catalog, and a rejected value
-		// leaves the stored one untouched.
+		// The scope stored after the request.
 		wantScope string
 	}{
 		{

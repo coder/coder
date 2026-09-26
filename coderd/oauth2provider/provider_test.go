@@ -684,7 +684,8 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// The same allowlist written through either path reads back the same
-		// way, even though both store the caller's spelling as given.
+		// way. The admin API stores the caller's spelling; DCR stores canonical
+		// names.
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		admin, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
 			Name:        "scope-origin-admin",

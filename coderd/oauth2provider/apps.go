@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -169,37 +168,14 @@ func GetApp(accessURL *url.URL) http.HandlerFunc {
 }
 
 // scopeAllowlist wraps a scope list for storage. The admin API stores the
-// spelling as given and readers canonicalize. An empty list stores as an empty,
-// valid string, meaning no allowlist.
+// caller's spelling, new DCR rows hold canonical catalog names, and an
+// unchanged RFC 7592 resend keeps what the row already held. An empty list
+// stores as an empty, valid string, meaning no allowlist.
 func scopeAllowlist(raw string) sql.NullString {
 	return sql.NullString{
 		String: raw,
 		Valid:  true,
 	}
-}
-
-// registeredScopeAllowlist checks a DCR scope list and narrows it to the
-// catalog names for storage (RFC 7591 section 3.2.2). A list that names no
-// supported scope is refused, since it could never authorize and storing it
-// as "" would mean no allowlist. The error is safe to return as an
-// error_description.
-func registeredScopeAllowlist(raw string) (sql.NullString, error) {
-	if err := codersdk.ValidateOAuth2ScopeList(raw); err != nil {
-		return sql.NullString{}, err
-	}
-	if raw == "" {
-		return scopeAllowlist(raw), nil
-	}
-	names := strings.Fields(raw)
-	if len(names) == 0 {
-		return sql.NullString{}, xerrors.New("scope is blank; omit it or list supported scopes")
-	}
-	kept := grantableScopes(raw)
-	if len(kept) == 0 {
-		shown := capErrorDescription(sanitizeErrorDescription(strings.Join(names, " ")))
-		return sql.NullString{}, xerrors.Errorf("'%s': %w; see scopes_supported in /.well-known/oauth-authorization-server", shown, errUnknownScope)
-	}
-	return scopeAllowlist(strings.Join(kept, " ")), nil
 }
 
 // writeInvalidScopeError writes a 400 when a scope list is too large and

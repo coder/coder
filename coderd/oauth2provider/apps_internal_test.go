@@ -155,6 +155,7 @@ func TestRegisteredScopeAllowlist(t *testing.T) {
 		{name: "OnlyUnknownRejected", raw: "openid profile", wantErr: "'openid profile': unknown or unsupported scope"},
 		{name: "InternalOnlyRejected", raw: "debug_info:read", wantErr: "'debug_info:read': unknown or unsupported scope"},
 		{name: "NonASCIIReplaced", raw: "wörkspace:read", wantErr: "'w rkspace:read': unknown or unsupported scope"},
+		{name: "LongUnknownListTruncated", raw: strings.TrimSpace(strings.Repeat(strings.Repeat("x", 300)+" ", 10)), wantErr: "(truncated)"},
 		{name: "TooManyNames", raw: strings.Repeat("workspace:read ", codersdk.OAuth2ScopeListMaxNames+1), wantErr: "must list at most"},
 	}
 

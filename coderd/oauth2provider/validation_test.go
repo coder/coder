@@ -549,83 +549,27 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 	_ = coderdtest.CreateFirstUser(t, client)
 	oauth2providertest.EnableDCR(t, client)
 
+	// TestRegisteredScopeAllowlist covers the scope rules. These rows prove
+	// the handler wiring only.
 	tests := []struct {
-		name  string
-		scope string
-		// The scope the registration response reports. Unknown names are
-		// dropped and aliases are canonicalized.
+		name      string
+		scope     string
 		wantScope string
 		// Empty means the request is accepted.
 		wantError string
-		// The rejected name the error must report.
-		wantName string
+		// The scope text the error echoes.
+		wantShown string
 	}{
-		{
-			name:      "DefaultEmpty",
-			scope:     "",
-			wantScope: "",
-		},
-		{
-			name:      "ValidLowLevel",
-			scope:     "workspace:read",
-			wantScope: "workspace:read",
-		},
-		{
-			name:      "ValidComposite",
-			scope:     "coder:workspaces.access",
-			wantScope: "coder:workspaces.access",
-		},
-		{
-			name:      "ValidMultiple",
-			scope:     "workspace:read template:read coder:all",
-			wantScope: "workspace:read template:read coder:all",
-		},
-		{
-			name:      "ValidAliases",
-			scope:     "all application_connect",
-			wantScope: "coder:all coder:application_connect",
-		},
-		{
-			name:      "AtNameLimit",
-			scope:     strings.Repeat("workspace:read ", codersdk.OAuth2ScopeListMaxNames),
-			wantScope: "workspace:read",
-		},
 		{
 			name:      "UnknownNameDropped",
 			scope:     "workspace:read nosuch:scope",
 			wantScope: "workspace:read",
 		},
 		{
-			name:      "OIDCNamesDropped",
-			scope:     "openid profile email workspace:read",
-			wantScope: "workspace:read",
-		},
-		{
 			name:      "OnlyUnknownNames",
 			scope:     "openid profile email",
 			wantError: "unknown or unsupported scope",
-			wantName:  "openid profile email",
-		},
-		{
-			name:      "OnlyInternalName",
-			scope:     "debug_info:read",
-			wantError: "unknown or unsupported scope",
-			wantName:  "debug_info:read",
-		},
-		{
-			name:      "WhitespaceOnly",
-			scope:     "   ",
-			wantError: "scope is blank",
-		},
-		{
-			name:      "TooManyNames",
-			scope:     strings.Repeat("workspace:read ", codersdk.OAuth2ScopeListMaxNames+1),
-			wantError: "must list at most",
-		},
-		{
-			name:      "TooLong",
-			scope:     strings.Repeat("a", codersdk.OAuth2ScopeListMaxBytes+1),
-			wantError: "must be at most",
+			wantShown: "openid profile email",
 		},
 	}
 
@@ -650,9 +594,7 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 			}
 			require.ErrorContains(t, err, "invalid_client_metadata")
 			require.ErrorContains(t, err, test.wantError)
-			if test.wantName != "" {
-				require.ErrorContains(t, err, test.wantName)
-			}
+			require.ErrorContains(t, err, test.wantShown)
 		})
 	}
 }

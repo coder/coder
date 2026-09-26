@@ -26,6 +26,29 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// registeredScopeAllowlist narrows a DCR scope list to canonical catalog names
+// for storage (RFC 7591 section 3.2.2) and drops duplicates. A list that keeps
+// no catalog name is refused, since storing it as "" would mean no allowlist.
+// The error is safe to return as an error_description.
+func registeredScopeAllowlist(raw string) (sql.NullString, error) {
+	if err := codersdk.ValidateOAuth2ScopeList(raw); err != nil {
+		return sql.NullString{}, err
+	}
+	if raw == "" {
+		return scopeAllowlist(raw), nil
+	}
+	names := strings.Fields(raw)
+	if len(names) == 0 {
+		return sql.NullString{}, xerrors.New("scope is blank; omit it or list supported scopes")
+	}
+	kept := grantableScopes(raw)
+	if len(kept) == 0 {
+		shown := capErrorDescription(sanitizeErrorDescription(strings.Join(names, " ")))
+		return sql.NullString{}, xerrors.Errorf("'%s': %w; see scopes_supported in /.well-known/oauth-authorization-server", shown, errUnknownScope)
+	}
+	return scopeAllowlist(strings.Join(kept, " ")), nil
+}
+
 // CreateDynamicClientRegistration returns an http.HandlerFunc that handles POST /oauth2/register
 func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, auditor *audit.Auditor, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {

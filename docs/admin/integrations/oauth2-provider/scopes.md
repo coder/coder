@@ -28,6 +28,7 @@ An administrator sets one with the **Allowed scopes** field in the web UI, or wi
 When [updating an application](../../../reference/api/enterprise.md#update-oauth2-application), omit `scope` to keep the current allowlist, send a new value to replace it, or send an empty string to clear it and make the application unrestricted.
 Dynamic Client Registration keeps only the names this deployment offers, both on `POST /oauth2/register` and on `PUT /oauth2/clients/{client_id}`, and returns the stored list in the response.
 A `scope` that keeps no offered name is rejected with `400 invalid_client_metadata` and the request is not stored.
+An update that resends the stored `scope` unchanged keeps it as stored.
 An allowlist set through the web UI or the management API is stored as given; a name it holds that this deployment does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](./troubleshooting.md#invalid_scope-returned-to-your-callback).
 
 Use caution when narrowing the scope allowlist of a self-registered application.
