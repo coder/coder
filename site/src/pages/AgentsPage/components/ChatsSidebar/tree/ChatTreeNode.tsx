@@ -306,8 +306,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										className={cn(
 											"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
 											// The timestamp swaps out for the actions trigger on
-											// hover; without menu actions there is no trigger, so
-											// keep the timestamp visible.
+											// hover or while a menu is open. Without menu actions,
+											// there is no trigger, so keep the timestamp visible.
 											hasMenuActions &&
 												"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
 											hasMenuActions && isActiveChat && "hidden",
