@@ -213,7 +213,7 @@ func TestFinalizerDispatch(t *testing.T) {
 		require.Zero(t, run.state.Rejections)
 		clientJSON, err := json.Marshal(run.client)
 		require.NoError(t, err)
-		require.Equal(t, 2, strings.Count(string(clientJSON), "CANDIDATE_MARKER"), "only the call arguments and the receipt carry the value")
+		require.Equal(t, 3, strings.Count(string(clientJSON), "CANDIDATE_MARKER"), "only the call arguments and the receipt's text and outcome carry the value")
 	})
 
 	for name, calls := range map[string][]chattest.OpenAIToolCall{

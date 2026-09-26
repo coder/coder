@@ -257,6 +257,12 @@ type ChatMessage struct {
 	Role          ChatMessageRole   `json:"role"`
 	Content       []ChatMessagePart `json:"content,omitempty"`
 	Usage         *ChatMessageUsage `json:"usage,omitempty"`
+	// StructuredOutputRequestID is set on a user message that asked for a
+	// structured output: the ID its result reports in StructuredOutput.
+	StructuredOutputRequestID *uuid.UUID `json:"structured_output_request_id,omitempty" format:"uuid"`
+	// StructuredOutput is set on the assistant message that closed a
+	// structured output request, whose content holds a text fallback of it.
+	StructuredOutput *ChatStructuredOutput `json:"structured_output,omitempty"`
 }
 
 // ChatMessageUsage contains token usage information for a chat message.
@@ -1725,6 +1731,9 @@ type ChatQueuedMessage struct {
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	Content       []ChatMessagePart `json:"content"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
+	// StructuredOutputRequestID is set when the queued message asks for a
+	// structured output; it keeps the ID once the message is sent.
+	StructuredOutputRequestID *uuid.UUID `json:"structured_output_request_id,omitempty" format:"uuid"`
 }
 
 // ChatStreamMessagePart is a streamed message part update.
