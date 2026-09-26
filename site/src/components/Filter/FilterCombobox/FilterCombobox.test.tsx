@@ -409,7 +409,7 @@ describe("FilterCombobox", () => {
 			category = {},
 			getFilteredOptions = () => Promise.resolve([docker]),
 			skipHover = false,
-			shouldAdvanceTime = true,
+			shouldAdvanceTime = false,
 		}: {
 			category?: Partial<FilterCategory>;
 			getFilteredOptions?: (query: string) => Promise<FilterOption[]>;
@@ -489,8 +489,6 @@ describe("FilterCombobox", () => {
 			{
 				getFilteredOptions: () =>
 					new Promise((resolve) => setTimeout(resolve, lookupMs, [docker])),
-				// Render time must not fire the lookup timeout early.
-				shouldAdvanceTime: false,
 			},
 		);
 		await user.click(input);
@@ -532,12 +530,18 @@ describe("FilterCombobox", () => {
 
 	it("searches text matching a hideable category whose Retry settles at one option", async () => {
 		const { user, input, filtersButton, onChange, firstLoad, retryLoad } =
-			setupDeferredTemplateLoads("", { skipHover: true });
+			setupDeferredTemplateLoads("", {
+				skipHover: true,
+				shouldAdvanceTime: true,
+			});
 		await act(async () => firstLoad.reject(new Error("boom")));
 		await user.click(filtersButton);
 		await user.hover(await screen.findByRole("option", { name: "Template" }));
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 		await user.click(input);
+		// Only the test moves the clock from here, so a slow run cannot fire
+		// the lookup timeout.
+		vi.setTimerTickMode("manual");
 		await user.type(input, "dock");
 		await settleTypedText();
 		await act(async () => retryLoad.resolve([docker]));
