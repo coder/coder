@@ -361,7 +361,7 @@ export const useFilterCombobox = ({
 			const failedOrRetryingKeys = new Set<string>();
 			const hideableFirstLoadKeys = new Set<string>();
 			results.forEach((result, index) => {
-				const { key, hideWhenSingleOption } = categories[index];
+				const { key, hideWhenSingleOption, inlineOptions } = categories[index];
 				if (result.data) {
 					optionsByKey.set(key, result.data);
 				} else if (result.isError) {
@@ -371,7 +371,7 @@ export const useFilterCombobox = ({
 				// `errorUpdateCount` tells a retry from the first load.
 				if (!result.data && result.errorUpdateCount > 0) {
 					failedOrRetryingKeys.add(key);
-				} else if (hideWhenSingleOption && result.isPending) {
+				} else if (hideWhenSingleOption && !inlineOptions && result.isPending) {
 					hideableFirstLoadKeys.add(key);
 				}
 			});
@@ -391,6 +391,13 @@ export const useFilterCombobox = ({
 	});
 	const isHideableFirstLoad = (category: FilterCategory) =>
 		unfilteredOptions.hideableFirstLoadKeys.has(category.key);
+	const hasOptionsOrChip = (
+		category: FilterCategory,
+		options: readonly FilterOption[] | undefined,
+		chips: readonly string[],
+	) =>
+		(options?.length ?? 0) > 1 ||
+		chips.some((token) => categoryForChip(token) === category);
 	// A hideable category stays in the menu while its options first load, so
 	// typed text can match it; while it has an applied chip, so the chip can be
 	// changed. After a failed lookup, including while its retry runs, it stays
@@ -399,8 +406,11 @@ export const useFilterCombobox = ({
 		!category.hideWhenSingleOption ||
 		isHideableFirstLoad(category) ||
 		unfilteredOptions.failedOrRetryingKeys.has(category.key) ||
-		(unfilteredOptions.optionsByKey.get(category.key)?.length ?? 0) > 1 ||
-		chips.some((token) => categoryForChip(token) === category);
+		hasOptionsOrChip(
+			category,
+			unfilteredOptions.optionsByKey.get(category.key),
+			chips,
+		);
 	const menuCategories = allSubmenuCategories.filter((category) =>
 		isInMenu(category),
 	);
@@ -766,11 +776,10 @@ export const useFilterCombobox = ({
 
 	// True when text matches the name of any category, including one left out
 	// of the menu, or a loaded option or an option getOptions returns within
-	// TYPED_TEXT_LOOKUP_TIMEOUT_MS of a category in the menu or an inline
-	// category. Failed and pending lookups count as no match, and so does a
-	// category whose first load leaves it out of the menu once it settles.
-	// Callers hold such text back from the search so results do not empty out
-	// mid-word.
+	// TYPED_TEXT_LOOKUP_TIMEOUT_MS of an inline category or a category in the
+	// menu once its first load settles. Failed and pending lookups count as no
+	// match. Callers hold such text back from the search so results do not empty
+	// out mid-word.
 	const couldBeFilterSearch = (text: string): Promise<boolean> => {
 		if (text.length === 0) {
 			return Promise.resolve(false);
@@ -787,20 +796,25 @@ export const useFilterCombobox = ({
 			return Promise.resolve(true);
 		}
 		const matches = optionLookupCategories.map(async (category) => {
-			if (isHideableFirstLoad(category)) {
-				const unfiltered = await queryClient.fetchQuery(
-					filterComboboxOptions(category.key, category.getOptions, "", true),
+			const fetchOptions = (query: string) =>
+				queryClient.fetchQuery(
+					filterComboboxOptions(category.key, category.getOptions, query, true),
 				);
-				const hasChip = chipValues.some(
-					(token) => categoryForChip(token) === category,
-				);
-				if (unfiltered.length <= 1 && !hasChip) {
-					throw new Error("Category leaves the menu");
-				}
+			const [unfiltered, options] = await Promise.all([
+				isHideableFirstLoad(category) ? fetchOptions("") : undefined,
+				fetchOptions(text),
+			]);
+			// Chips may change while the lookup runs, so read the last sent query.
+			if (
+				unfiltered &&
+				!hasOptionsOrChip(
+					category,
+					unfiltered,
+					queryToChips(lastEmittedRef.current, chipKeys),
+				)
+			) {
+				throw new Error("Category leaves the menu");
 			}
-			const options = await queryClient.fetchQuery(
-				filterComboboxOptions(category.key, category.getOptions, text, true),
-			);
 			if (filterOptionsByText(options, text).length === 0) {
 				throw new Error("No matching option");
 			}
