@@ -11608,6 +11608,12 @@ func TestMCPToolSearchExperimentRules(t *testing.T) {
 		// turnTools waits for the nth model request (1-based) and returns
 		// the tool names it offered.
 		turnTools func(t *testing.T, n int) []string
+		// turnRequest waits for the nth model request (1-based).
+		turnRequest func(t *testing.T, n int) recordedOpenAIRequest
+		// setRespond replaces the default text reply: respond answers the
+		// nth streaming model request (1-based). Call it before the first
+		// turn starts.
+		setRespond func(respond func(n int) chattest.OpenAIResponse)
 	}
 	newHarness := func(t *testing.T, static codersdk.Experiments, store func(database.Store) experimentrules.Store) harness {
 		t.Helper()
@@ -11620,6 +11626,7 @@ func TestMCPToolSearchExperimentRules(t *testing.T) {
 		var (
 			requestsMu sync.Mutex
 			requests   []recordedOpenAIRequest
+			respond    func(n int) chattest.OpenAIResponse
 		)
 		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 			if !req.Stream {
@@ -11627,7 +11634,12 @@ func TestMCPToolSearchExperimentRules(t *testing.T) {
 			}
 			requestsMu.Lock()
 			requests = append(requests, recordOpenAIRequest(req))
+			n := len(requests)
+			respondFn := respond
 			requestsMu.Unlock()
+			if respondFn != nil {
+				return respondFn(n)
+			}
 			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 		})
 		owner, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
@@ -11646,27 +11658,37 @@ func TestMCPToolSearchExperimentRules(t *testing.T) {
 			require.NoError(t, err)
 			cfg.ExperimentEvaluator = evaluator
 		})
+		turnRequest := func(t *testing.T, n int) recordedOpenAIRequest {
+			t.Helper()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			var request recordedOpenAIRequest
+			testutil.Eventually(ctx, t, func(context.Context) bool {
+				requestsMu.Lock()
+				defer requestsMu.Unlock()
+				if len(requests) < n {
+					return false
+				}
+				request = requests[n-1]
+				return true
+			}, testutil.IntervalFast)
+			return request
+		}
 		return harness{
-			db:        db,
-			server:    server,
-			owner:     owner,
-			org:       org,
-			model:     model,
-			mcpConfig: mcpConfig,
+			db:          db,
+			server:      server,
+			owner:       owner,
+			org:         org,
+			model:       model,
+			mcpConfig:   mcpConfig,
+			turnRequest: turnRequest,
 			turnTools: func(t *testing.T, n int) []string {
 				t.Helper()
-				ctx := testutil.Context(t, testutil.WaitLong)
-				var tools []string
-				testutil.Eventually(ctx, t, func(context.Context) bool {
-					requestsMu.Lock()
-					defer requestsMu.Unlock()
-					if len(requests) < n {
-						return false
-					}
-					tools = requests[n-1].Tools
-					return true
-				}, testutil.IntervalFast)
-				return tools
+				return turnRequest(t, n).Tools
+			},
+			setRespond: func(fn func(n int) chattest.OpenAIResponse) {
+				requestsMu.Lock()
+				defer requestsMu.Unlock()
+				respond = fn
 			},
 		}
 	}
@@ -11782,6 +11804,62 @@ func TestMCPToolSearchExperimentRules(t *testing.T) {
 		setMode(experimentrules.ModeOn)
 		requireDeferred(t, sendTurn(parentID), true)
 		requireDeferred(t, sendTurn(childID), true)
+	})
+
+	t.Run("decision holds for the whole turn", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t, withoutToolSearch, experimentrules.NewDBStore)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, stored, _, err := experimentrules.WriteRule(ctx, h.db, h.owner.ID, codersdk.ExperimentMCPToolSearch, experimentrules.Rule{Mode: experimentrules.ModeOn}, 0)
+		require.NoError(t, err)
+		// The kill switch flips while the model is answering the first
+		// step, after it has decided to call find_tools.
+		flipErr := make(chan error, 1)
+		h.setRespond(func(n int) chattest.OpenAIResponse {
+			if n != 1 {
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			}
+			_, _, _, err := experimentrules.WriteRule(ctx, h.db, h.owner.ID, codersdk.ExperimentMCPToolSearch, experimentrules.Rule{Mode: experimentrules.ModeOff}, stored.Revision)
+			flipErr <- err
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk(chattool.FindToolsName, `{"queries":["echo"]}`),
+			)
+		})
+		chat, err := h.server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: h.org.ID,
+			OwnerID:        h.owner.ID,
+			Title:          "whole turn",
+			ModelConfigID:  h.model.ID,
+			MCPServerIDs:   []uuid.UUID{h.mcpConfig.ID},
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("hello"),
+			},
+		})
+		require.NoError(t, err)
+		requireDeferred(t, h.turnTools(t, 1), true)
+		require.NoError(t, testutil.RequireReceive(ctx, t, flipErr))
+
+		// The rest of the turn keeps the decision made at its start: the
+		// issued find_tools call runs and activates the MCP tool.
+		second := h.turnRequest(t, 2)
+		require.Contains(t, second.Tools, chattool.FindToolsName)
+		require.Contains(t, second.Tools, echoTool)
+		for _, msg := range second.Messages {
+			require.NotContains(t, msg.Content, "not active")
+		}
+		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
+
+		// The next turn evaluates the rule again.
+		_, err = h.server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     h.owner.ID,
+			ModelConfigID: h.model.ID,
+			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
+			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		requireDeferred(t, h.turnTools(t, 3), false)
+		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
 	})
 
 	t.Run("rules read error fails closed", func(t *testing.T) {
