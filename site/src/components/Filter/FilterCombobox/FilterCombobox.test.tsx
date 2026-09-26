@@ -109,10 +109,15 @@ const setup = (
 		initialValue = "",
 		skipHover = false,
 		fakeTimers = false,
-	}: { initialValue?: string; skipHover?: boolean; fakeTimers?: boolean } = {},
+	}: {
+		initialValue?: string;
+		skipHover?: boolean;
+		/** "manual" keeps the fake clock from following wall time. */
+		fakeTimers?: boolean | "manual";
+	} = {},
 ) => {
 	if (fakeTimers) {
-		vi.useFakeTimers({ shouldAdvanceTime: true });
+		vi.useFakeTimers({ shouldAdvanceTime: fakeTimers !== "manual" });
 	}
 	// user-event moves the pointer between elements without a related target,
 	// which reads as leaving the whole menu. Tests that click into a hover
@@ -537,11 +542,7 @@ describe("FilterCombobox", () => {
 		await user.keyboard("{ArrowDown}{ArrowRight}");
 		await screen.findByRole("option", { name: "alice" });
 		await user.type(input, "carol");
-		await waitFor(() =>
-			expect(
-				screen.queryByRole("option", { name: "alice" }),
-			).not.toBeInTheDocument(),
-		);
+		await expectStatus("No Owner matches.");
 		await user.keyboard("{Enter}");
 
 		await waitFor(() =>
@@ -1149,6 +1150,30 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	it("shows and announces a category search with no match", async () => {
+		const { user, input } = setup([manyOwnersCategory]);
+
+		await user.click(input);
+		await user.type(input, "owner:nobody");
+
+		await expectStatus("No Owner matches.");
+		expect(screen.getByText("No matching options")).toBeInTheDocument();
+	});
+
+	it("does not apply a previous search's option with Enter while a search is pending", async () => {
+		const { user, onChange, input } = setup([manyOwnersCategory]);
+
+		await user.click(input);
+		await user.type(input, "owner:");
+		await screen.findByRole("option", { name: "user-0" });
+		await user.type(input, "zed{Enter}");
+
+		expect(onChange).not.toHaveBeenCalledWith("owner:user-0");
+		await screen.findByRole("option", { name: "zed" });
+		await user.keyboard("{Enter}");
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:zed"));
+	});
+
 	it("announces an empty category", async () => {
 		const { user, input } = setup([emptyTemplateCategory]);
 
@@ -1258,7 +1283,29 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(getUserOptions).toHaveBeenCalledWith("user-2"));
 
 		expect(getUserOptions).not.toHaveBeenCalledWith("user-1");
-		expect(getOwnerOptions.mock.calls).toEqual([[""], ["user-1"]]);
+	});
+
+	it("searches a hover flyout's loader once its typed text settles", async () => {
+		const getOptions = vi.fn(manyOwnersCategory.getOptions);
+		const { user, filtersButton } = setup(
+			[{ ...manyOwnersCategory, getOptions }],
+			{ skipHover: true, fakeTimers: "manual" },
+		);
+
+		// Nothing advances the clock except these calls, so a keystroke never
+		// waits long enough to end the debounce.
+		const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
+		await user.click(filtersButton);
+		await flush();
+		await user.hover(screen.getByRole("option", { name: "Owner" }));
+		await flush();
+		await user.type(
+			screen.getByRole("textbox", { name: "Search Owner" }),
+			"user-1",
+		);
+		await act(() => vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS));
+
+		expect(getOptions.mock.calls).toEqual([[""], ["user-1"]]);
 	});
 
 	it("keeps a settled hover flyout search when a space is typed", async () => {
@@ -1275,7 +1322,7 @@ describe("FilterCombobox", () => {
 		await user.keyboard(" ");
 
 		expect(screen.getByRole("status")).not.toHaveTextContent(
-			"No Owner matches",
+			"Loading Owner options.",
 		);
 		await user.click(screen.getByRole("button", { name: "zed" }));
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:zed"));
@@ -1298,6 +1345,18 @@ describe("FilterCombobox", () => {
 		await user.click(await screen.findByRole("button", { name: "zed" }));
 
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:zed"));
+	});
+
+	it("shows and announces an empty hover flyout with no search", async () => {
+		const { user, filtersButton } = setup([emptyTemplateCategory], {
+			skipHover: true,
+		});
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Template" }));
+
+		await expectStatus("No Template options.");
+		expect(screen.getByText("No options")).toBeInTheDocument();
 	});
 
 	it("retries a failed hover flyout search", async () => {
