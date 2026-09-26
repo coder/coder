@@ -210,9 +210,10 @@ export const optionsEmptyText = (searched: boolean) =>
  * Rows an options panel shows for trimmed `text`, given the category's
  * unfiltered options and `results`, which are `getOptions(text)`'s results
  * or undefined until they arrive. `getOptions` may return only the first page
- * for an empty query, so until then the unfiltered options are filtered
- * locally. `loading` is set while there is nothing to show, or while `text`
- * has no results and no local match, unless `failed` is set.
+ * for an empty query, so until `results` arrive the unfiltered options are
+ * filtered locally. When `failed` is set there are no rows and no loading.
+ * Otherwise `loading` is set while neither `unfiltered` nor `results` has
+ * arrived, or while `text` has no results yet and no local match.
  */
 export const shownOptions = ({
 	unfiltered,
@@ -225,6 +226,9 @@ export const shownOptions = ({
 	text: string;
 	failed: boolean;
 }) => {
+	if (failed) {
+		return { options: undefined, loading: false };
+	}
 	const searched = text.length > 0;
 	const options = !searched
 		? (unfiltered ?? results)
@@ -232,9 +236,8 @@ export const shownOptions = ({
 	return {
 		options,
 		loading:
-			!failed &&
-			(options === undefined ||
-				(searched && results === undefined && options.length === 0)),
+			options === undefined ||
+			(searched && results === undefined && options.length === 0),
 	};
 };
 
@@ -704,9 +707,7 @@ export const useFilterCombobox = ({
 		failed: activeOptionsError,
 	});
 	const activeOptions =
-		activeCategoryKey === null || activeOptionsError
-			? undefined
-			: activeShown.options;
+		activeCategoryKey === null ? undefined : activeShown.options;
 	const activeOptionsLoading =
 		activeCategoryKey !== null && activeShown.loading;
 	const retryActiveOptions = () => {
@@ -778,16 +779,14 @@ export const useFilterCombobox = ({
 	const typeaheadOptionsByKey = new Map<string, readonly FilterOption[]>();
 	if (typeaheadQuerySource.length > 0) {
 		for (const { key } of categories) {
-			if (!typeaheadQueryPending && suggestionOptions.erroredKeys.has(key)) {
-				continue;
-			}
 			const { options } = shownOptions({
 				unfiltered: unfilteredOptions.optionsByKey.get(key),
 				results: typeaheadQueryPending
 					? undefined
 					: suggestionOptions.optionsByKey.get(key),
 				text: typeaheadQuerySource,
-				failed: false,
+				failed:
+					!typeaheadQueryPending && suggestionOptions.erroredKeys.has(key),
 			});
 			if (options) {
 				typeaheadOptionsByKey.set(key, options);
