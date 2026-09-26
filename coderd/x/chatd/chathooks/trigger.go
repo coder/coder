@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
@@ -26,7 +27,7 @@ const (
 
 func SessionStartSource(messages []database.ChatMessage) string {
 	for _, message := range messages {
-		if message.Role == database.ChatMessageRoleAssistant {
+		if message.Role == database.ChatMessageRoleAssistant && !chatstate.IsReceiptRow(message) {
 			return SessionStartSourceResume
 		}
 	}

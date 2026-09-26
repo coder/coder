@@ -1461,8 +1461,10 @@ func latestSubagentAssistantMessage(
 
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]
+		// The report is the subagent's own final text, never the fallback
+		// text of a structured output receipt.
 		if message.Role != database.ChatMessageRoleAssistant ||
-			message.Visibility == database.ChatMessageVisibilityModel {
+			message.Visibility == database.ChatMessageVisibilityModel || chatstate.IsReceiptRow(message) {
 			continue
 		}
 
