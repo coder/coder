@@ -1375,6 +1375,12 @@ func New(options *Options) *API {
 				r.Mount("/", api.mcpHTTPHandler())
 			})
 		})
+		r.Route("/experiments/rules", func(r chi.Router) {
+			// Responses contain condition text, so they are never cached.
+			r.Use(apiKeyMiddleware, httpmw.NoStore)
+			r.Get("/", api.experimentRules)
+			r.Put("/{experiment}", api.putExperimentRule)
+		})
 		r.Route("/watch-all-workspacebuilds", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

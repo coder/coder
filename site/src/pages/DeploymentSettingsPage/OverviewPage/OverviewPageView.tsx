@@ -78,6 +78,20 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 					)}
 					additionalValues={safeExperiments}
 				/>
+				<p className="m-0 text-sm text-content-secondary">
+					Experiments lists the startup defaults. Runtime experiment rules can
+					override them per user without a restart. See{" "}
+					<Link
+						href={docs(
+							"/reference/feature-stages#target-experiments-at-runtime",
+						)}
+						target="_blank"
+						rel="noreferrer"
+					>
+						the documentation
+					</Link>
+					.
+				</p>
 			</div>
 		</>
 	);

@@ -131,6 +131,29 @@ func AuditRecord(ex codersdk.Experiment, rule Rule) database.ExperimentRule {
 	}
 }
 
+// ReadRules returns the stored rule of every experiment that has one,
+// including experiments that do not accept runtime rules. A stored value
+// the Evaluator treats as malformed is returned with an empty Mode and, when
+// readable, its revision, so that callers can replace it.
+func ReadRules(ctx context.Context, db database.Store) (map[codersdk.Experiment]Rule, error) {
+	rows, err := db.GetExperimentRules(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get experiment rules: %w", err)
+	}
+	rules := make(map[codersdk.Experiment]Rule, len(rows))
+	for _, row := range rows {
+		ex := codersdk.Experiment(row.Experiment)
+		rule, err := parseStoredRule(ex, row.Value)
+		if err != nil {
+			// The error never quotes stored content. An unreadable
+			// revision cannot be replaced through WriteRule either.
+			rule = Rule{}
+		}
+		rules[ex] = rule
+	}
+	return rules, nil
+}
+
 // readRule returns the stored rule for ex, or the zero Rule when none is
 // stored. Only the revision must be readable, so that a rule the Evaluator
 // treats as malformed can still be replaced: for such a value readRule
@@ -143,6 +166,12 @@ func readRule(ctx context.Context, tx database.Store, ex codersdk.Experiment) (R
 	if err != nil {
 		return Rule{}, xerrors.Errorf("get experiment rule: %w", err)
 	}
+	return parseStoredRule(ex, value)
+}
+
+// parseStoredRule decodes a stored value. It fails only when the revision
+// is unreadable; see readRule.
+func parseStoredRule(ex codersdk.Experiment, value string) (Rule, error) {
 	var revision struct {
 		Revision int64 `json:"revision"`
 	}
