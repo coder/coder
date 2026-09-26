@@ -504,7 +504,8 @@ export const useFilterCombobox = ({
 			: category.key;
 	// The applied chip holding a value, ignoring letter case, unless a typed
 	// prefix sets the key. An option maps to it, so its row shows as selected
-	// and a click removes it; typed Enter commits it, which keeps it.
+	// and selecting it removes it; typed Enter with no option highlighted
+	// commits it, which keeps it.
 	const scopeChipHolding = (category: FilterCategory, value: string) => {
 		if (activeCategoryKey === category.key && typedScopeWidened !== null) {
 			return undefined;
