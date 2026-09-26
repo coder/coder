@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -37,6 +38,7 @@ func TestExecuteToolCall(t *testing.T) {
 			Code:     code,
 		}
 	}
+	transportErr := &url.Error{Op: "Post", URL: "http://agent/api/v0/processes/start", Err: xerrors.New("connection reset by peer")}
 	agentErrorResponse := codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
 		Message: "Failed to start process.",
 		Detail:  "no such directory",
@@ -225,40 +227,60 @@ func TestExecuteToolCall(t *testing.T) {
 			start: func(string) (workspacesdk.StartProcessResponse, error) {
 				return workspacesdk.StartProcessResponse{}, toolCallError(workspacesdk.ToolCallErrorInputMismatch)
 			},
-			check: func(t *testing.T, result chattool.ExecuteResult, _ string) {
+			check: func(t *testing.T, result chattool.ExecuteResult, processID string) {
 				assert.False(t, result.Success)
-				assert.Contains(t, result.Error, "different input")
-				assert.Contains(t, result.Error, "no process was started")
+				assert.Contains(t, result.Error, "changed nothing")
+				assert.Contains(t, result.Error, "already exists with a different input")
+				assert.Contains(t, result.Error, processID)
 			},
 		},
 		{
 			// The request may have reached the agent, so the command may
 			// have started.
-			name:  "TransportError",
+			name:  "Unreachable",
 			input: `{"command":"make test"}`,
 			start: func(string) (workspacesdk.StartProcessResponse, error) {
-				return workspacesdk.StartProcessResponse{}, xerrors.New("connection reset by peer")
+				return workspacesdk.StartProcessResponse{}, xerrors.Errorf("do request: %w", transportErr)
 			},
 			check: func(t *testing.T, result chattool.ExecuteResult, processID string) {
 				assert.False(t, result.Success)
 				assert.Contains(t, result.Error, "outcome unknown")
+				assert.Contains(t, result.Error, "could not be reached")
 				assert.Contains(t, result.Error, "may have started")
 				assert.Contains(t, result.Error, "connection reset by peer")
 				assert.Contains(t, result.Error, "process_output")
 				assert.Contains(t, result.Error, processID)
+				assert.NotContains(t, result.Error, "support tool calls")
+				assert.NotContains(t, result.Error, "was sent")
 			},
 		},
 		{
-			name:  "TransportErrorBackground",
+			name:  "UnreachableBackground",
 			input: `{"command":"make dev","run_in_background":true}`,
 			start: func(string) (workspacesdk.StartProcessResponse, error) {
-				return workspacesdk.StartProcessResponse{}, xerrors.New("connection reset by peer")
+				return workspacesdk.StartProcessResponse{}, xerrors.Errorf("do request: %w", transportErr)
 			},
 			check: func(t *testing.T, result chattool.ExecuteResult, processID string) {
 				assert.False(t, result.Success)
 				assert.Contains(t, result.Error, "outcome unknown")
 				assert.Contains(t, result.Error, processID)
 				assert.False(t, result.Backgrounded)
+			},
+		},
+		{
+			// The agent answered, so the process may have started.
+			name:  "UnreadableResponse",
+			input: `{"command":"make test"}`,
+			start: func(string) (workspacesdk.StartProcessResponse, error) {
+				return workspacesdk.StartProcessResponse{}, xerrors.New("decode response: unexpected EOF")
+			},
+			check: func(t *testing.T, result chattool.ExecuteResult, processID string) {
+				assert.False(t, result.Success)
+				assert.Contains(t, result.Error, "outcome unknown")
+				assert.Contains(t, result.Error, "could not be read")
+				assert.Contains(t, result.Error, "unexpected EOF")
+				assert.Contains(t, result.Error, "may have started")
+				assert.Contains(t, result.Error, processID)
 			},
 		},
 		{
@@ -375,6 +397,94 @@ func TestExecuteToolCall(t *testing.T) {
 			var result chattool.ExecuteResult
 			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result), resp.Content)
 			tt.check(t, result, processID)
+		})
+	}
+}
+
+// TestExecuteToolCallNoConnection covers execute when the workspace
+// connection cannot be obtained. With a tool call identity, an earlier
+// attempt may have started the command.
+func TestExecuteToolCallNoConnection(t *testing.T) {
+	t.Parallel()
+
+	dialErr := xerrors.New("dial workspace agent: connection refused")
+	tests := []struct {
+		name       string
+		noIdentity bool
+		connErr    error
+		check      func(t *testing.T, resp fantasy.ToolResponse, processID string)
+	}{
+		{
+			name:    "Identity",
+			connErr: dialErr,
+			check: func(t *testing.T, resp fantasy.ToolResponse, processID string) {
+				assert.True(t, resp.IsError)
+				assert.Contains(t, resp.Content, "outcome unknown")
+				assert.Contains(t, resp.Content, "could not be reached")
+				assert.Contains(t, resp.Content, dialErr.Error())
+				assert.Contains(t, resp.Content, "earlier attempt may have started the command")
+				assert.Contains(t, resp.Content, "process_output")
+				assert.Contains(t, resp.Content, processID)
+			},
+		},
+		{
+			name:       "NoIdentity",
+			noIdentity: true,
+			connErr:    dialErr,
+			check: func(t *testing.T, resp fantasy.ToolResponse, _ string) {
+				assert.True(t, resp.IsError)
+				assert.Equal(t, dialErr.Error(), resp.Content)
+			},
+		},
+		{
+			// Processes do not outlive the workspace agent, so a
+			// workspace without one, or a deleted workspace, settles
+			// the outcome.
+			name:    "IdentityNoAgent",
+			connErr: xerrors.Errorf("get workspace connection: %w", chattool.ErrWorkspaceHasNoAgent),
+			check: func(t *testing.T, resp fantasy.ToolResponse, _ string) {
+				assert.True(t, resp.IsError)
+				assert.Contains(t, resp.Content, chattool.ErrWorkspaceHasNoAgent.Error())
+				assert.NotContains(t, resp.Content, "outcome unknown")
+			},
+		},
+		{
+			name:    "IdentityWorkspaceDeleted",
+			connErr: xerrors.Errorf("get workspace connection: %w", chattool.ErrWorkspaceDeleted),
+			check: func(t *testing.T, resp fantasy.ToolResponse, _ string) {
+				assert.True(t, resp.IsError)
+				assert.Contains(t, resp.Content, chattool.ErrWorkspaceDeleted.Error())
+				assert.NotContains(t, resp.Content, "outcome unknown")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			dbNow := time.Now()
+			identity := chattool.ToolCallIdentity{
+				ChatID:     uuid.New(),
+				MessageID:  42,
+				ToolCallID: "call_" + uuid.NewString(),
+				Age:        chattool.NewToolCallAge(quartz.NewMock(t), dbNow, dbNow),
+			}
+			if !tt.noIdentity {
+				ctx = chattool.WithToolCallIdentity(ctx, identity)
+			}
+			tool := chattool.Execute(chattool.ExecuteOptions{
+				GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+					return nil, tt.connErr
+				},
+			})
+			resp, err := tool.Run(ctx, fantasy.ToolCall{
+				ID:    identity.ToolCallID,
+				Name:  "execute",
+				Input: `{"command":"make test"}`,
+			})
+			require.NoError(t, err)
+			tt.check(t, resp, workspacesdk.ToolCallUUID(identity.ChatID, identity.MessageID, identity.ToolCallID).String())
 		})
 	}
 }

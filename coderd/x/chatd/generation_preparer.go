@@ -566,6 +566,7 @@ func (server *Server) prepareGeneration(
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn:    workspaceCtx.getWorkspaceConn,
+			DefaultTimeout:      executeDefaultTimeout,
 			AgentBrowserSession: chat.ID.String(),
 		}),
 		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),

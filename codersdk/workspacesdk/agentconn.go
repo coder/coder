@@ -962,7 +962,8 @@ type CancelProcessResponse struct {
 	// Started is false when the agent never started a process for the
 	// tool call: a cancel recorded it as canceled, or the start failed.
 	Started bool `json:"started"`
-	// Canceled is true when this request killed a running process.
+	// Canceled is true when a cancel request killed the running process;
+	// repeated cancels report it too.
 	Canceled  bool               `json:"canceled"`
 	Output    string             `json:"output,omitempty"`
 	Truncated *ProcessTruncation `json:"truncated,omitempty"`
