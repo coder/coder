@@ -197,11 +197,6 @@ type interruptionOutcome struct {
 // and waiting for the agent's answer reports the real outcome.
 const interruptCancelTimeout = time.Minute
 
-// executeDefaultTimeout is how long a foreground execute call waits when
-// the model sets no timeout. Interrupt handling derives execute
-// deadlines from it, so the tool and interrupt handling both use it.
-const executeDefaultTimeout = 10 * time.Second
-
 type taskStarter struct {
 	server                   *Server
 	opts                     chatWorkerOptions
@@ -770,13 +765,10 @@ func (s *taskStarter) interruptToolCalls(
 	defer workspaceCtx.close()
 	conn, err := workspaceCtx.getWorkspaceConn(agentCtx)
 	if err != nil {
-		// Without an agent, or with the workspace deleted, the processes
-		// died with the agent and no edit is in progress, so the calls
-		// keep today's result, as in the tools.
-		if !errors.Is(err, chattool.ErrWorkspaceHasNoAgent) && !errors.Is(err, chattool.ErrWorkspaceDeleted) {
-			for i, call := range calls {
-				results[i], answered[i], errs[i] = call.unreachableResult(identities[i], err)
-			}
+		// Each call decides whether anything it did can have survived
+		// without a reachable agent.
+		for i, call := range calls {
+			results[i], answered[i], errs[i] = call.unreachableResult(identities[i], err)
 		}
 	} else {
 		var wg sync.WaitGroup
@@ -879,19 +871,22 @@ func (call interruptCall) interrupt(ctx context.Context, conn workspacesdk.Agent
 }
 
 // unreachableResult returns the result of call when no connection to the
-// workspace agent could be made. ok is false for a background execute
-// call, whose process keeps running and whose result the tool already
-// returned.
+// workspace agent could be made. ok is false when the call keeps the
+// generic interrupted result: without a workspace agent no process can
+// be running and no edit is in progress.
 func (call interruptCall) unreachableResult(id chattool.ToolCallIdentity, connErr error) (result interruptResult, ok bool, err error) {
-	switch {
-	case call.toolName != chattool.ExecuteToolName:
-		return toolResponseInterruptResult(call, chattool.AgentUnreachableFileToolCallResult(call.toolName, connErr)), true, nil
-	case call.background:
+	if chattool.HasNoWorkspaceAgent(connErr) {
 		return interruptResult{}, false, nil
-	default:
-		result, err = executeInterruptResult(call, chattool.AgentUnreachableExecuteResult(id, connErr))
-		return result, true, err
 	}
+	if call.toolName != chattool.ExecuteToolName {
+		return toolResponseInterruptResult(call, chattool.AgentUnreachableFileToolCallResult(call.toolName, connErr)), true, nil
+	}
+	execResult := chattool.AgentUnreachableExecuteResult(id, connErr)
+	if call.background {
+		execResult = chattool.AgentUnreachableBackgroundExecuteResult(id, connErr)
+	}
+	result, err = executeInterruptResult(call, execResult)
+	return result, true, err
 }
 
 // interruptCalls returns the calls in localCalls that interrupt handling
@@ -944,7 +939,7 @@ func classifyInterruptCall(call fantasy.ToolCallContent) (interruptCall, bool) {
 	if args.RunsInBackground() {
 		return interruptCall{toolCallID: call.ToolCallID, toolName: call.ToolName, background: true}, true
 	}
-	timeout, err := args.EffectiveTimeout(executeDefaultTimeout)
+	timeout, err := args.EffectiveTimeout(chattool.ExecuteDefaultTimeout)
 	if err != nil {
 		return interruptCall{}, false
 	}

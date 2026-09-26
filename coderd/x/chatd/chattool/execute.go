@@ -16,9 +16,11 @@ import (
 )
 
 const (
-	// defaultTimeout is the default timeout for command
-	// execution.
-	defaultTimeout = 10 * time.Second
+	// ExecuteDefaultTimeout is how long a foreground execute call waits
+	// for its command when neither the timeout argument nor
+	// ExecuteOptions.DefaultTimeout is set. The tool's description and
+	// timeout argument state it as 10s.
+	ExecuteDefaultTimeout = 10 * time.Second
 
 	// maxOutputToModel is the maximum output sent to the LLM.
 	maxOutputToModel = 32 << 10 // 32KB
@@ -151,7 +153,7 @@ func trailingAmpersandCommand(command string) (string, bool) {
 func (a ExecuteArgs) EffectiveTimeout(optionTimeout time.Duration) (time.Duration, error) {
 	timeout := optionTimeout
 	if timeout <= 0 {
-		timeout = defaultTimeout
+		timeout = ExecuteDefaultTimeout
 	}
 	if a.Timeout != nil {
 		parsed, err := time.ParseDuration(*a.Timeout)
@@ -176,10 +178,8 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
 				// An earlier attempt of this tool call may have started
-				// the command, unless the workspace has no agent or was
-				// deleted: its processes died with the agent.
-				if id, ok := ToolCallIdentityFromContext(ctx); ok && ctx.Err() == nil &&
-					!errors.Is(err, ErrWorkspaceHasNoAgent) && !errors.Is(err, ErrWorkspaceDeleted) {
+				// the command, unless no workspace agent exists to run it.
+				if id, ok := ToolCallIdentityFromContext(ctx); ok && ctx.Err() == nil && !HasNoWorkspaceAgent(err) {
 					return fantasy.NewTextErrorResponse(UnknownOutcome(AgentUnreachableReason(err),
 						"an earlier attempt may have started the command", checkProcessText(id))), nil
 				}
@@ -322,6 +322,16 @@ func executeForeground(
 	return fantasy.NewTextResponse(string(data))
 }
 
+// HasNoWorkspaceAgent reports whether a workspace connection error means
+// no workspace agent exists: the chat has no workspace, the workspace was
+// deleted, or it has no running agent. Processes do not outlive the
+// agent, so no earlier attempt's command can still be running.
+func HasNoWorkspaceAgent(err error) bool {
+	return errors.Is(err, ErrChatHasNoWorkspace) ||
+		errors.Is(err, ErrWorkspaceDeleted) ||
+		errors.Is(err, ErrWorkspaceHasNoAgent)
+}
+
 // startErrorResult converts a StartProcess error into a result. ctx is
 // the tool call's context. A *workspacesdk.ToolCallError is the agent's
 // answer for the tool call in ctx.
@@ -399,15 +409,29 @@ func notCanceledResult(id ToolCallIdentity, reason string) ExecuteResult {
 
 // InterruptBackgroundExecute returns the result of a background execute
 // call the user interrupted, without ending its process. ok is false when
-// the agent does not report a process for the tool call, including an
-// agent without tool call support, which picks another process ID.
+// the agent answers that it has no process for the tool call, including
+// an agent without tool call support, which picks another process ID.
 func InterruptBackgroundExecute(ctx context.Context, conn workspacesdk.AgentConn, id ToolCallIdentity) (result ExecuteResult, ok bool) {
 	processID := id.UUID()
-	if _, err := conn.ProcessOutput(ctx, processID, nil); err != nil {
+	_, err := conn.ProcessOutput(ctx, processID, nil)
+	if err == nil {
+		return backgroundStartedResult(processID), true
+	}
+	var reason string
+	switch kind, _ := ClassifyAgentError(err); kind {
+	case AgentErrorUnreachable:
+		return AgentUnreachableBackgroundExecuteResult(id, err), true
+	case AgentErrorUnreadable:
+		reason = AgentUnreadableReason(err)
+	default:
 		return ExecuteResult{}, false
 	}
-	return backgroundStartedResult(processID), true
+	return ExecuteResult{Error: UnknownOutcome(reason, backgroundRunningEffect, checkOrSignalProcessText(id))}, true
 }
+
+// backgroundRunningEffect is what may have happened to an interrupted
+// background execute call whose process the agent did not report.
+const backgroundRunningEffect = "the command may be running in the background"
 
 // canceledExecuteResult returns the result of a foreground execute call
 // from the workspace agent's answer to CancelProcess for its process.
@@ -457,10 +481,17 @@ func canceledExecuteResult(id ToolCallIdentity, resp workspacesdk.CancelProcessR
 
 // AgentUnreachableExecuteResult returns the result of a foreground
 // execute call the user interrupted when the workspace agent could not
-// be reached to end its process.
+// be reached.
 func AgentUnreachableExecuteResult(id ToolCallIdentity, err error) ExecuteResult {
 	return ExecuteResult{Error: UnknownOutcome(AgentUnreachableReason(err),
 		"the command may still be running", checkOrSignalProcessText(id))}
+}
+
+// AgentUnreachableBackgroundExecuteResult returns the result of a
+// background execute call the user interrupted when the workspace agent
+// could not be reached.
+func AgentUnreachableBackgroundExecuteResult(id ToolCallIdentity, err error) ExecuteResult {
+	return ExecuteResult{Error: UnknownOutcome(AgentUnreachableReason(err), backgroundRunningEffect, checkOrSignalProcessText(id))}
 }
 
 // checkOrSignalProcessText tells the model how to find or stop the tool
