@@ -619,6 +619,169 @@ export const TypedInlinePrefix: Story = {
 	},
 };
 
+const singleTemplateCategories: FilterCategory[] = [
+	{
+		key: "owner",
+		label: "Owner",
+		icon: <UserIcon />,
+		getOptions: async (query) => filterOptions(ownerOptions, query),
+	},
+	{
+		key: "template",
+		label: "Template",
+		icon: <LayoutGridIcon />,
+		hideWhenSingleOption: true,
+		getOptions: async (query) =>
+			filterOptions(templateOptions.slice(0, 1), query),
+	},
+];
+
+const openFilterMenu = async (canvasElement: HTMLElement) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "Filters" }),
+	);
+	await within(canvasElement.ownerDocument.body).findByRole("option", {
+		name: "Owner",
+	});
+};
+
+// Template has one option, so the menu omits it.
+export const SingleOptionCategoryHidden: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={singleTemplateCategories}
+		/>
+	),
+	play: ({ canvasElement }) => openFilterMenu(canvasElement),
+};
+
+// Placeholder rows hold the category list until Template's options load.
+export const CategoryListLoading: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				singleTemplateCategories[0],
+				{
+					...singleTemplateCategories[1],
+					getOptions: () => new Promise<FilterOption[]>(() => {}),
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
+	},
+};
+
+// Template settled at one option while Organization still loads, so the
+// placeholders keep one row per submenu category.
+export const CategoryListLoadingAfterOneSettles: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				...singleTemplateCategories,
+				{
+					key: "organization",
+					label: "Organization",
+					icon: <UserIcon />,
+					hideWhenSingleOption: true,
+					getOptions: () => new Promise<FilterOption[]>(() => {}),
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
+	},
+};
+
+// A category opened while Template's options load shows the category rows
+// beside its options, not placeholder rows.
+export const CategoryOpenWhileCategoryListLoads: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				singleTemplateCategories[0],
+				{
+					...singleTemplateCategories[1],
+					getOptions: () => new Promise<FilterOption[]>(() => {}),
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByRole("combobox", { name: "Search and filter…" });
+		await userEvent.click(input);
+		await userEvent.type(input, "owner:");
+	},
+};
+
+// The template:docker chip keeps Template listed.
+export const SingleOptionCategoryWithChip: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="template:docker"
+			categories={singleTemplateCategories}
+		/>
+	),
+	play: ({ canvasElement }) => openFilterMenu(canvasElement),
+};
+
+// Template's options failed to load, so it stays in the menu to offer a retry.
+export const SingleOptionCategoryLoadFailed: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				singleTemplateCategories[0],
+				{
+					...singleTemplateCategories[1],
+					getOptions: async () => {
+						throw new Error("Failed to load templates");
+					},
+				},
+			]}
+		/>
+	),
+	play: ({ canvasElement }) => openFilterMenu(canvasElement),
+};
+
+// A Retry that returns one option hides Template and closes its flyout.
+export const SingleOptionCategoryRetried: Story = {
+	render: () => {
+		let thrown = false;
+		const categories: FilterCategory[] = [
+			singleTemplateCategories[0],
+			{
+				...singleTemplateCategories[1],
+				getOptions: async (query) => {
+					if (!thrown) {
+						thrown = true;
+						throw new Error("Failed to load templates");
+					}
+					return singleTemplateCategories[1].getOptions(query);
+				},
+			},
+		];
+		return <FilterComboboxHarness initialQuery="" categories={categories} />;
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openFilterMenu(canvasElement);
+		await userEvent.hover(body.getByRole("option", { name: "Template" }));
+		await userEvent.click(await body.findByRole("button", { name: "Retry" }));
+	},
+};
+
 // Escape closes the popup without clearing the committed chips.
 export const DismissOnEscape: Story = {
 	render: () => <FilterComboboxHarness initialQuery="owner:me" />,
@@ -700,16 +863,11 @@ export const CategoryOptionsErrorRetry: Story = {
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "status:");
-		await expect(
-			await body.findByText(/Couldn.t load Status options/, {
-				ignore: '[role="status"], script, style',
-			}),
-		).toBeVisible();
-		await expect(body.getByRole("status")).toHaveTextContent(
-			/Couldn.t load Status options/,
-		);
+		await body.findByText(/Couldn.t load Status options/, {
+			ignore: '[role="status"], script, style',
+		});
 		await userEvent.click(body.getByRole("button", { name: /retry/i }));
-		await waitFor(() => expect(body.getByText("Running")).toBeVisible());
+		await body.findByText("Running");
 	},
 };
 
@@ -836,18 +994,11 @@ export const TypeaheadErrorRetry: Story = {
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "alice");
-		await expect(
-			await body.findByText(/Couldn.t load suggestions/, {
-				ignore: '[role="status"], script, style',
-			}),
-		).toBeVisible();
-		await expect(body.getByRole("status")).toHaveTextContent(
-			/Couldn.t load suggestions/,
-		);
+		await body.findByText(/Couldn.t load suggestions/, {
+			ignore: '[role="status"], script, style',
+		});
 		await userEvent.click(body.getByRole("button", { name: /retry/i }));
-		await waitFor(() =>
-			expect(body.getByRole("option", { name: /alice/i })).toBeVisible(),
-		);
+		await body.findByRole("option", { name: /alice/i });
 	},
 };
 

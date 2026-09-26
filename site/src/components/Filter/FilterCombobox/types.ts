@@ -40,4 +40,15 @@ export type FilterCategory = {
 	inlineOptionsExclusive?: boolean;
 	/** Applied chips show only the option label, without the category prefix. */
 	chipLabelOnly?: boolean;
+	/**
+	 * Leave the category out of the menu while `getOptions("")` returns at most
+	 * one option. When `getOptions("")` omits values the results can contain,
+	 * the row can hide while its one option would still narrow the results. Its
+	 * empty-query options are fetched when the filter renders. Until every
+	 * category with this flag finishes its first load, successfully or not, the
+	 * unnarrowed menu shows placeholder rows in place of all submenu rows. An
+	 * applied chip keeps it in the menu. A failed lookup keeps it until a retry
+	 * returns at most one option. Does not apply to inline categories.
+	 */
+	hideWhenSingleOption?: boolean;
 };

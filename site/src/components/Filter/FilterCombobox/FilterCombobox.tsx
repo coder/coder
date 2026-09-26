@@ -21,6 +21,7 @@ import {
 	InputGroupAddon,
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
@@ -60,7 +61,7 @@ import {
  * Delay before hovering another category swaps an open flyout, so a diagonal
  * move into the current flyout does not switch panels.
  */
-const CATEGORY_HOVER_DELAY_MS = 300;
+export const CATEGORY_HOVER_DELAY_MS = 300;
 
 const labelOnlyChipClassName =
 	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
@@ -113,8 +114,10 @@ export function FilterCombobox({
 		activeOptionsError,
 		activeOptionsEmptyText,
 		statusMessage,
+		menuCategories,
 		listedCategories,
 		categoriesNarrowedByText,
+		categoryPlaceholderCount,
 		autoHighlight,
 		unfilteredOptionsByKey,
 		unfilteredOptionsErroredKeys,
@@ -139,12 +142,19 @@ export function FilterCombobox({
 	// Category shown in the pointer flyout. Distinct from `activeCategoryKey`,
 	// which is the committed drill-in state shared with keyboard navigation.
 	// Reset whenever the menu opens or closes so a dismissed flyout does not
-	// reappear next time.
+	// reappear next time, and when its category leaves the menu.
 	const [flyout, setFlyout] = useState<{
 		categoryKey: string | null;
 		openAtReset: boolean;
 	}>({ categoryKey: null, openAtReset: open });
-	if (flyout.openAtReset !== open) {
+	// Reads menuCategories, not listedCategories: typed text removes a row only
+	// from listedCategories, and its flyout must return when the text is
+	// deleted.
+	if (
+		flyout.openAtReset !== open ||
+		(flyout.categoryKey !== null &&
+			!menuCategories.some((category) => category.key === flyout.categoryKey))
+	) {
 		setFlyout({ categoryKey: null, openAtReset: open });
 	}
 	const flyoutCategoryKey = flyout.categoryKey;
@@ -210,7 +220,14 @@ export function FilterCombobox({
 		previous: string,
 	) => {
 		actions.onHighlightedValueChange(highlighted, previous);
-		if (flyoutCategoryKey === null || highlighted === flyoutCategoryKey) {
+		// While typed text turns `autoHighlight` off, cmdk's pick arrives as "".
+		// It must not close a flyout the text only hides, such as Owner's while
+		// `own` is typed, so the flyout returns when the text is deleted.
+		if (
+			flyoutCategoryKey === null ||
+			highlighted === "" ||
+			highlighted === flyoutCategoryKey
+		) {
 			return;
 		}
 		const isCategoryRow = listedCategories.some(
@@ -223,7 +240,7 @@ export function FilterCombobox({
 	// viewports.
 	const flyoutOptions = useFlyoutOptions(
 		activeCategoryKey === null && !categoriesNarrowedByText && !isMobile
-			? categories.find((category) => category.key === flyoutCategoryKey)
+			? listedCategories.find((category) => category.key === flyoutCategoryKey)
 			: undefined,
 		unfilteredOptionsByKey,
 		unfilteredOptionsErroredKeys,
@@ -246,12 +263,14 @@ export function FilterCombobox({
 
 	const mainPanelEmpty =
 		listedCategories.length === 0 &&
+		categoryPlaceholderCount === 0 &&
 		valueSuggestions.length === 0 &&
 		inlineSections.length === 0 &&
 		!typeaheadError;
 
 	const mainPanelProps = {
 		listedCategories,
+		categoryPlaceholderCount,
 		valueSuggestions,
 		inlineSections,
 		typeaheadError,
@@ -619,6 +638,8 @@ const groupByCategoryLabel = <T extends { categoryLabel: string }>(
 
 type MainPanelProps = Readonly<{
 	listedCategories: readonly FilterCategory[];
+	/** Nonzero while the category list is still unknown. */
+	categoryPlaceholderCount: number;
 	valueSuggestions: readonly ValueSuggestion[];
 	inlineSections: readonly InlineSection[];
 	typeaheadError: boolean;
@@ -643,6 +664,7 @@ type MainPanelProps = Readonly<{
 
 function MainPanel({
 	listedCategories,
+	categoryPlaceholderCount,
 	valueSuggestions,
 	inlineSections,
 	typeaheadError,
@@ -665,7 +687,19 @@ function MainPanel({
 				embedded &&
 					"w-full rounded-none border-0 bg-transparent p-0 shadow-none",
 			)}
+			aria-busy={categoryPlaceholderCount > 0 || undefined}
 		>
+			{Array.from({ length: categoryPlaceholderCount }, (_, index) => (
+				<div
+					key={`placeholder-${index}`}
+					aria-hidden
+					data-slot="category-placeholder"
+					className={cn(OPTION_ITEM_CLASS, "flex items-center")}
+				>
+					<Skeleton className="size-4 shrink-0" />
+					<Skeleton variant="text" className="w-24" />
+				</div>
+			))}
 			{listedCategories.map((category) => (
 				<FilterComboboxItem
 					ref={(element) => registerCategoryRow(category.key, element)}

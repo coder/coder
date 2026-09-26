@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { render } from "#/testHelpers/renderHelpers";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
-import { FilterCombobox, SEARCHABLE_OPTION_COUNT } from "./FilterCombobox";
+import {
+	CATEGORY_HOVER_DELAY_MS,
+	FilterCombobox,
+	SEARCHABLE_OPTION_COUNT,
+} from "./FilterCombobox";
 import { SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
 import {
@@ -174,6 +178,448 @@ describe("FilterCombobox", () => {
 		await user.hover(screen.getByRole("option", { name: "Owner" }));
 		await flushTimers();
 	};
+
+	it("fetches hideable categories before the menu opens and skips others", async () => {
+		const hideable = vi.fn(async () => [{ label: "Docker", value: "docker" }]);
+		const other = vi.fn(async () => [{ label: "alice", value: "alice" }]);
+		render(
+			<FilterComboboxHarness
+				categories={[
+					{
+						key: "template",
+						label: "Template",
+						hideWhenSingleOption: true,
+						getOptions: hideable,
+					},
+					{ key: "owner", label: "Owner", getOptions: other },
+				]}
+				initialValue=""
+				onChange={vi.fn()}
+			/>,
+		);
+		await waitFor(() => expect(hideable).toHaveBeenCalledWith(""));
+		expect(other).not.toHaveBeenCalled();
+	});
+
+	it("announces loading until hideable categories load, then offers them", async () => {
+		const templates = heldSearch(
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => [],
+			},
+			"",
+		);
+		const { user, onChange, filtersButton } = setup([
+			templates.category,
+			ownerCategory,
+		]);
+
+		await user.click(filtersButton);
+		expect(screen.getByRole("status")).toHaveTextContent("Loading filters");
+		await act(async () =>
+			templates.resolve([
+				{ label: "docker", value: "docker" },
+				{ label: "k8s", value: "k8s" },
+			]),
+		);
+		await screen.findByRole("option", { name: "Template" });
+		await user.keyboard("{Home}{ArrowRight}");
+		await user.click(await screen.findByRole("option", { name: "k8s" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("template:k8s"),
+		);
+	});
+
+	it("highlights the first category once placeholder rows are replaced", async () => {
+		const templates = heldSearch(
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => [],
+			},
+			"",
+		);
+		const { user, onChange, filtersButton } = setup([
+			ownerCategory,
+			templates.category,
+			statusCategory,
+		]);
+
+		await user.click(filtersButton);
+		await screen.findByRole("option", { name: /Running/ });
+		await act(async () =>
+			templates.resolve([
+				{ label: "docker", value: "docker" },
+				{ label: "k8s", value: "k8s" },
+			]),
+		);
+		await screen.findByRole("option", { name: "Template" });
+		await user.keyboard("{Enter}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{ArrowDown}{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
+	it("keeps a highlight moved to an inline row while placeholder rows show", async () => {
+		const templates = heldSearch(
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => [],
+			},
+			"",
+		);
+		const { user, onChange, filtersButton } = setup([
+			ownerCategory,
+			templates.category,
+			statusCategory,
+		]);
+
+		await user.click(filtersButton);
+		await screen.findByRole("option", { name: /Running/ });
+		await user.keyboard("{ArrowDown}");
+		await act(async () =>
+			templates.resolve([
+				{ label: "docker", value: "docker" },
+				{ label: "k8s", value: "k8s" },
+			]),
+		);
+		await screen.findByRole("option", { name: "Template" });
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("status:running"),
+		);
+	});
+
+	it("matches typed text to a hideable category while its options load", async () => {
+		const templates = heldSearch(
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => [],
+			},
+			"",
+		);
+		const { user, onChange, input } = setup([
+			ownerCategory,
+			templates.category,
+		]);
+
+		await user.click(input);
+		await user.type(input, "tem");
+		await user.keyboard("{ArrowDown}{Enter}");
+		await act(async () =>
+			templates.resolve([
+				{ label: "docker", value: "docker" },
+				{ label: "k8s", value: "k8s" },
+			]),
+		);
+		await user.click(await screen.findByRole("option", { name: "k8s" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("template:k8s"),
+		);
+	});
+
+	it("announces the error of a hideable category whose options failed to load", async () => {
+		const { user, filtersButton } = setup([
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => {
+					throw new Error("failed");
+				},
+			},
+			ownerCategory,
+		]);
+
+		await user.click(filtersButton);
+		await screen.findByRole("option", { name: "Template" });
+		await user.keyboard("{Home}{ArrowRight}");
+
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Couldn’t load Template options.",
+			),
+		);
+	});
+
+	it("keeps the category list through a hideable category's Retry", async () => {
+		let failed = false;
+		const retry = Promise.withResolvers<FilterOption[]>();
+		const { user, onChange, filtersButton } = setup(
+			[
+				ownerCategory,
+				{
+					key: "template",
+					label: "Template",
+					hideWhenSingleOption: true,
+					getOptions: async () => {
+						if (!failed) {
+							failed = true;
+							throw new Error("failed");
+						}
+						return retry.promise;
+					},
+				},
+			],
+			{ skipHover: true },
+		);
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Template" }));
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		expect(screen.getByRole("status")).not.toHaveTextContent("Loading filters");
+		await user.hover(screen.getByRole("option", { name: "Template" }));
+		await act(async () =>
+			retry.resolve([
+				{ label: "docker", value: "docker" },
+				{ label: "k8s", value: "k8s" },
+			]),
+		);
+		await user.click(await screen.findByRole("button", { name: "k8s" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("template:k8s"),
+		);
+	});
+
+	it("ignores hidden options for suggestions but keeps hidden categories reachable by name and prefix", async () => {
+		const getOptions = vi.fn(async (query: string) =>
+			[{ label: "Docker", value: "docker" }].filter((option) =>
+				option.label.toLowerCase().includes(query.toLowerCase()),
+			),
+		);
+		const { user, input, onChange } = setup(
+			[
+				{
+					key: "template",
+					label: "Template",
+					hideWhenSingleOption: true,
+					getOptions,
+				},
+			],
+			{ fakeTimers: true },
+		);
+		await user.click(input);
+		await user.type(input, "dock");
+		await settleTypedText();
+		expect(onChange).toHaveBeenLastCalledWith("dock");
+		expect(getOptions).not.toHaveBeenCalledWith("dock");
+		await user.keyboard("{ArrowDown}{Enter}");
+		expect(onChange).not.toHaveBeenCalledWith("template:docker");
+
+		await user.clear(input);
+		await user.type(input, "templ");
+		await settleTypedText();
+		expect(onChange).not.toHaveBeenCalledWith("templ");
+
+		await user.clear(input);
+		await user.type(input, "template:");
+		await user.click(await screen.findByRole("option", { name: "Docker" }));
+		expect(onChange).toHaveBeenLastCalledWith("template:docker");
+	});
+
+	const docker = { label: "Docker", value: "docker" };
+
+	const setupDeferredTemplateLoads = (
+		initialValue: string,
+		{
+			category = {},
+			getFilteredOptions = () => Promise.resolve([docker]),
+			skipHover = false,
+			// A clock that follows real time lets a slow run fire the lookup timeout
+			// before a deferred load settles.
+			shouldAdvanceTime = false,
+		}: {
+			category?: Partial<FilterCategory>;
+			getFilteredOptions?: (query: string) => Promise<FilterOption[]>;
+			skipHover?: boolean;
+			shouldAdvanceTime?: boolean;
+		} = {},
+	) => {
+		const [firstLoad, retryLoad] = [
+			Promise.withResolvers<FilterOption[]>(),
+			Promise.withResolvers<FilterOption[]>(),
+		];
+		let unfilteredLoads = 0;
+		const rendered = setup(
+			[
+				{
+					key: "template",
+					label: "Template",
+					hideWhenSingleOption: true,
+					getOptions: (query) => {
+						if (query !== "") {
+							return getFilteredOptions(query);
+						}
+						unfilteredLoads += 1;
+						return unfilteredLoads === 1
+							? firstLoad.promise
+							: retryLoad.promise;
+					},
+					...category,
+				},
+			],
+			{
+				initialValue,
+				fakeTimers: shouldAdvanceTime ? true : "manual",
+				skipHover,
+			},
+		);
+		return { ...rendered, firstLoad, retryLoad };
+	};
+
+	it("searches text matching a hideable category whose first load settles at one option", async () => {
+		const { user, input, onChange, firstLoad } = setupDeferredTemplateLoads("");
+		await user.click(input);
+		await user.type(input, "dock");
+		await settleTypedText();
+		await act(async () => firstLoad.resolve([docker]));
+
+		expect(onChange).toHaveBeenLastCalledWith("dock");
+	});
+
+	it("holds back text matching a hideable category whose first load settles at one option with its chip", async () => {
+		const { user, input, onChange, firstLoad } =
+			setupDeferredTemplateLoads("template:docker");
+		await user.click(input);
+		await user.type(input, "dock");
+		await settleTypedText();
+		await act(async () => firstLoad.resolve([docker]));
+		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
+
+		expect(onChange).not.toHaveBeenCalledWith("template:docker dock");
+	});
+
+	it("searches text matching a hideable category whose chip is removed before its first load settles", async () => {
+		const { user, input, onChange, firstLoad } =
+			setupDeferredTemplateLoads("template:docker");
+		await user.click(input);
+		await user.type(input, "dock");
+		await settleTypedText();
+		await user.click(
+			screen.getByRole("button", { name: "Remove template:docker" }),
+		);
+		await act(async () => firstLoad.resolve([docker]));
+
+		expect(onChange).toHaveBeenLastCalledWith("dock");
+	});
+
+	it("holds back text matching a hideable category when its first load and lookup each fit the timeout but their sum does not", async () => {
+		const loadMs = TYPED_TEXT_LOOKUP_TIMEOUT_MS * 0.8;
+		const lookupMs = TYPED_TEXT_LOOKUP_TIMEOUT_MS * 0.4;
+		const { user, input, onChange, firstLoad } = setupDeferredTemplateLoads(
+			"",
+			{
+				getFilteredOptions: () =>
+					new Promise((resolve) => setTimeout(resolve, lookupMs, [docker])),
+			},
+		);
+		await user.click(input);
+		await user.type(input, "dock");
+		await settleTypedText();
+		await act(() => vi.advanceTimersByTimeAsync(loadMs));
+		await act(async () =>
+			firstLoad.resolve([
+				{ label: "Docker", value: "docker" },
+				{ label: "Kubernetes", value: "kubernetes" },
+			]),
+		);
+		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
+
+		expect(onChange).not.toHaveBeenCalledWith("dock");
+	});
+
+	it("holds back text matching a hideable category whose first load fails", async () => {
+		const { user, input, onChange, firstLoad } = setupDeferredTemplateLoads("");
+		await user.click(input);
+		await user.type(input, "dock");
+		await settleTypedText();
+		await act(async () => firstLoad.reject(new Error("boom")));
+		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
+
+		expect(onChange).not.toHaveBeenCalledWith("dock");
+	});
+
+	it("holds back text matching a hideable category whose first load already failed", async () => {
+		const { user, input, onChange, firstLoad } = setupDeferredTemplateLoads("");
+		await act(async () => firstLoad.reject(new Error("boom")));
+		await user.click(input);
+		await user.type(input, "dock");
+		await settleTypedText();
+		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
+
+		expect(onChange).not.toHaveBeenCalledWith("dock");
+	});
+
+	it("searches text matching a hideable category whose Retry settles at one option", async () => {
+		const { user, input, filtersButton, onChange, firstLoad, retryLoad } =
+			setupDeferredTemplateLoads("", {
+				skipHover: true,
+				shouldAdvanceTime: true,
+			});
+		await act(async () => firstLoad.reject(new Error("boom")));
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Template" }));
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		await user.click(input);
+		// Only the test moves the clock from here, so a slow run cannot fire
+		// the lookup timeout.
+		vi.setTimerTickMode("manual");
+		await user.type(input, "dock");
+		await settleTypedText();
+		await act(async () => retryLoad.resolve([docker]));
+
+		expect(onChange).toHaveBeenLastCalledWith("dock");
+	});
+
+	it("searches text matching a settled hideable category whose chip is removed during the lookup", async () => {
+		const kubernetes = Promise.withResolvers<FilterOption[]>();
+		const { user, input, onChange, firstLoad } = setupDeferredTemplateLoads(
+			"template:docker",
+			{ getFilteredOptions: () => kubernetes.promise },
+		);
+		await act(async () => firstLoad.resolve([docker]));
+		await user.click(input);
+		await user.type(input, "kub");
+		await settleTypedText();
+		await user.click(
+			screen.getByRole("button", { name: "Remove template:docker" }),
+		);
+		await act(async () =>
+			kubernetes.resolve([{ label: "Kubernetes", value: "kubernetes" }]),
+		);
+
+		expect(onChange).toHaveBeenLastCalledWith("kub");
+	});
+
+	it("holds back text matching an inline category that sets hideWhenSingleOption", async () => {
+		const { user, input, onChange, firstLoad } = setupDeferredTemplateLoads(
+			"",
+			{
+				category: { inlineOptions: true },
+			},
+		);
+		await user.click(input);
+		await user.type(input, "dock");
+		await settleTypedText();
+		await act(async () => firstLoad.resolve([docker]));
+		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
+
+		expect(onChange).not.toHaveBeenCalledWith("dock");
+	});
 
 	it("opens from the Filters button with keyboard focus and navigates categories", async () => {
 		const { user, onChange, input, filtersButton } = setup([ownerCategory]);
@@ -1459,6 +1905,101 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:zed"));
 	});
 
+	it("returns keyboard navigation to a listed category after a one-option filter is removed", async () => {
+		const { user, onChange, input } = setup([
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: async () => [{ label: "Docker", value: "docker" }],
+			},
+			{
+				...manyOwnersCategory,
+				key: "owner",
+				getOptions: async () => [
+					{ label: "alice", value: "alice" },
+					{ label: "bob", value: "bob" },
+				],
+			},
+		]);
+		await user.click(input);
+		await user.type(input, "template:");
+		await user.click(await screen.findByRole("option", { name: "Docker" }));
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("template:docker"),
+		);
+		await user.keyboard("{Enter}");
+		await screen.findByRole("option", { name: "Docker" });
+		await user.click(await screen.findByRole("option", { name: "Docker" }));
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		await user.keyboard("{Enter}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{ArrowDown}{Enter}");
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
+	it.each([
+		["own", "keeps Owner listed"],
+		["zzz", "removes every listed row"],
+	])(
+		"restores a hover flyout when typed %s, which %s, is cleared",
+		async (typed) => {
+			const { user, input } = setup(
+				[{ ...ownerCategory, getOptions: neverResolves }, statusCategory],
+				{ skipHover: true },
+			);
+
+			await user.click(input);
+			await user.hover(await screen.findByRole("option", { name: "Owner" }));
+			await expectStatus("Loading Owner options.");
+			await user.type(input, typed);
+			await waitFor(() =>
+				expect(screen.getByRole("status")).not.toHaveTextContent(
+					"Loading Owner options.",
+				),
+			);
+			await user.clear(input);
+
+			await expectStatus("Loading Owner options.");
+		},
+	);
+
+	it("does not open another flyout after a Retry hides the open one", async () => {
+		const retry = Promise.withResolvers<undefined>();
+		let calls = 0;
+		const { user, filtersButton } = setup(
+			[
+				{ ...ownerCategory, getOptions: neverResolves },
+				{
+					key: "template",
+					label: "Template",
+					hideWhenSingleOption: true,
+					getOptions: async () => {
+						calls += 1;
+						if (calls === 1) {
+							throw new Error("boom");
+						}
+						await retry.promise;
+						return [{ label: "Docker", value: "docker" }];
+					},
+				},
+			],
+			{ skipHover: true, fakeTimers: true },
+		);
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Template" }));
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		await act(async () => retry.resolve(undefined));
+		await act(() => vi.advanceTimersByTimeAsync(CATEGORY_HOVER_DELAY_MS * 2));
+
+		expect(screen.getByRole("status")).not.toHaveTextContent(
+			"Loading Owner options.",
+		);
+	});
+
 	it("retries a hover flyout whose options failed to load", async () => {
 		let failed = false;
 		const getOptions = vi.fn(async (query: string) => {
@@ -1484,8 +2025,11 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	// Owner comes first so a highlight that leaves the Status rows lands on it.
-	const setupFailedInlineStatus = () => {
+	// With no categoriesBeforeStatus, Owner is the only row above Status, so
+	// ArrowUp from Status highlights it.
+	const setupFailedInlineStatus = (
+		categoriesBeforeStatus: readonly FilterCategory[] = [],
+	) => {
 		const retry = Promise.withResolvers<undefined>();
 		let calls = 0;
 		const getOptions = async (query: string) => {
@@ -1497,7 +2041,11 @@ describe("FilterCombobox", () => {
 			return statusCategory.getOptions(query);
 		};
 		return {
-			...setup([ownerCategory, { ...statusCategory, getOptions }]),
+			...setup([
+				ownerCategory,
+				...categoriesBeforeStatus,
+				{ ...statusCategory, getOptions },
+			]),
 			retry,
 		};
 	};
@@ -1569,6 +2117,30 @@ describe("FilterCombobox", () => {
 		await screen.findByRole("option", { name: "Running" });
 
 		expectHighlighted("Owner");
+	});
+
+	it("hands a Retry's highlight to the first loaded option while placeholder rows show", async () => {
+		const { user, onChange, filtersButton, retry } = setupFailedInlineStatus([
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: neverResolves,
+			},
+		]);
+
+		await user.click(filtersButton);
+		await screen.findByRole("option", { name: "Retry" });
+		await user.keyboard("{End}{Enter}");
+		await screen.findByRole("option", { name: "Loading Status options." });
+		expect(screen.getByRole("status")).toHaveTextContent("Loading filters");
+		await act(async () => retry.resolve(undefined));
+		await screen.findByRole("option", { name: "Running" });
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("status:running"),
+		);
 	});
 
 	it("announces every failed inline category", async () => {
