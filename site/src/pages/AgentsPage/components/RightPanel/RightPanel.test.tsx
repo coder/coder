@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { type FC, useState } from "react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -81,7 +82,16 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 
 	return (
 		<Routes>
-			<Route element={<Outlet context={outletContext} />}>
+			<Route
+				element={
+					<>
+						<button type="button" onClick={() => setIsSidebarCollapsed(false)}>
+							Expand sidebar
+						</button>
+						<Outlet context={outletContext} />
+					</>
+				}
+			>
 				<Route path="*" element={<RightPanelHarness {...harnessProps} />} />
 			</Route>
 		</Routes>
@@ -268,6 +278,51 @@ describe("RightPanel resize drag", () => {
 			pointerUp(SIDEBAR_EDGE_X);
 
 			expect(onSidebarCollapsedChange).toHaveBeenCalledExactlyOnceWith(true);
+		});
+	});
+
+	describe("side-by-side room check", () => {
+		// jsdom reports a zero-width parent, so above the side-by-side
+		// breakpoint there is never room for both the chat and the panel.
+		beforeEach(() => {
+			vi.stubGlobal("innerWidth", 1200);
+			vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+				cb(0);
+				return 0;
+			});
+			vi.stubGlobal("cancelAnimationFrame", () => {});
+		});
+
+		const renderWithSidebar = () => {
+			const onOpenChange = vi.fn();
+			const onSidebarCollapsedChange = vi.fn();
+			render(
+				<MemoryRouter>
+					<RightPanelWithSidebarHarness
+						onOpenChange={onOpenChange}
+						onSidebarCollapsedChange={onSidebarCollapsedChange}
+					/>
+				</MemoryRouter>,
+			);
+			return { onOpenChange, onSidebarCollapsedChange };
+		};
+
+		it("collapses the sidebar to make room for the open panel", () => {
+			const { onOpenChange, onSidebarCollapsedChange } = renderWithSidebar();
+
+			expect(onSidebarCollapsedChange).toHaveBeenCalledExactlyOnceWith(true);
+			expect(onOpenChange).not.toHaveBeenCalled();
+		});
+
+		it("closes the panel instead of re-collapsing a sidebar the user expanded", async () => {
+			const user = userEvent.setup();
+			const { onOpenChange, onSidebarCollapsedChange } = renderWithSidebar();
+			onSidebarCollapsedChange.mockClear();
+
+			await user.click(screen.getByRole("button", { name: "Expand sidebar" }));
+
+			expect(onSidebarCollapsedChange).toHaveBeenCalledExactlyOnceWith(false);
+			expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
 		});
 	});
 

@@ -308,13 +308,25 @@ export const RightPanel = ({
 		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
 	}, [width]);
 
+	// Set when the user expands the sidebar while the panel is open, so the
+	// next room check closes the panel instead of collapsing the sidebar
+	// the user just asked for.
+	const wasSidebarCollapsed = useRef(isSidebarCollapsed);
+	const sidebarExpandedByUser = useRef(false);
+
 	useEffect(() => {
+		if (wasSidebarCollapsed.current && !isSidebarCollapsed) {
+			sidebarExpandedByUser.current = true;
+		}
+		wasSidebarCollapsed.current = isSidebarCollapsed;
+
 		if (
 			!visualOpen ||
 			visualExpanded ||
 			isSidebarCollapsed ||
 			!onToggleSidebarCollapsed
 		) {
+			sidebarExpandedByUser.current = false;
 			return;
 		}
 
@@ -336,13 +348,19 @@ export const RightPanel = ({
 				}
 
 				const requiredMainWidth = getChatMinWidth(parent) + MIN_WIDTH;
+				const closePanel = sidebarExpandedByUser.current;
+				sidebarExpandedByUser.current = false;
 
 				if (parent.clientWidth >= requiredMainWidth) {
 					return;
 				}
 
 				collapseRequested = true;
-				onToggleSidebarCollapsed();
+				if (closePanel) {
+					onClose();
+				} else {
+					onToggleSidebarCollapsed();
+				}
 			});
 		};
 
@@ -361,6 +379,7 @@ export const RightPanel = ({
 		visualExpanded,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
+		onClose,
 	]);
 
 	return (
