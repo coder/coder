@@ -56,22 +56,22 @@ func TestEditFiles(t *testing.T) {
 					`{"old_text":"old","new_text":"new"},` +
 					`{"path":"  ","old_text":"old","new_text":"new"}` +
 					`]}`,
-				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2]; path is required in every edit; no files in this batch were applied",
+				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2]; path is required in every edit\nNo files were applied.",
 			},
 			{
 				name:    "EmptyEdits",
 				input:   `{"edits":[]}`,
-				wantErr: "Add at least one edit to edits; no files in this batch were applied",
+				wantErr: "Add at least one edit to edits\nNo files were applied.",
 			},
 			{
 				name:    "MissingEdits",
 				input:   `{}`,
-				wantErr: "Add at least one edit to edits; no files in this batch were applied",
+				wantErr: "Add at least one edit to edits\nNo files were applied.",
 			},
 			{
 				name:    "OldFilesShape",
 				input:   `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"old","new_text":"new"}]}]}`,
-				wantErr: "Send a flat edits list where every edit has its own path, for example " + example + "; the files key is not supported; no files in this batch were applied",
+				wantErr: "Send a flat edits list where every edit has its own path, for example " + example + "; the files key is not supported\nNo files were applied.",
 			},
 			{
 				// fantasy's own decode error names Go types and does
@@ -82,7 +82,7 @@ func TestEditFiles(t *testing.T) {
 				input: `{"edits":"not json"}`,
 				wantContains: []string{
 					"Send edits as a JSON array of objects with string path, old_text and new_text and optional boolean replace_all, for example " + example,
-					"no files in this batch were applied",
+					"\nNo files were applied.",
 				},
 			},
 			{
@@ -90,7 +90,7 @@ func TestEditFiles(t *testing.T) {
 				input: `[]`,
 				wantContains: []string{
 					"Send edits as a JSON array of objects",
-					"no files in this batch were applied",
+					"\nNo files were applied.",
 				},
 			},
 		}
@@ -118,6 +118,56 @@ func TestEditFiles(t *testing.T) {
 				for _, want := range tc.wantContains {
 					assert.Contains(t, resp.Content, want)
 				}
+			})
+		}
+	})
+
+	// Failures before the edit request reaches the agent write nothing,
+	// so the result says so.
+	t.Run("WorkspaceUnavailableAppliesNothing", func(t *testing.T) {
+		t.Parallel()
+		const input = `{"edits":[{"path":"/repo/a.go","old_text":"old","new_text":"new"}]}`
+		tests := []struct {
+			name    string
+			options chattool.EditFilesOptions
+			wantErr string
+		}{
+			{
+				name:    "ResolverNotConfigured",
+				options: chattool.EditFilesOptions{},
+				wantErr: "workspace connection resolver is not configured\nNo files were applied.",
+			},
+			{
+				name: "ConnectionFails",
+				options: chattool.EditFilesOptions{
+					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+						return nil, xerrors.New("workspace agent is not connected")
+					},
+				},
+				wantErr: "workspace agent is not connected\nNo files were applied.",
+			},
+			{
+				name: "PlanPathResolveFails",
+				options: chattool.EditFilesOptions{
+					ResolvePlanPath: func(context.Context) (string, string, error) {
+						return "", "", xerrors.New("workspace unavailable")
+					},
+					IsPlanTurn: true,
+				},
+				wantErr: "resolve chat-specific plan path: workspace unavailable\nNo files were applied.",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				resp, err := chattool.EditFiles(tt.options).Run(context.Background(), fantasy.ToolCall{
+					ID:    "call-1",
+					Name:  "edit_files",
+					Input: input,
+				})
+				require.NoError(t, err)
+				assert.True(t, resp.IsError)
+				assert.Equal(t, tt.wantErr, resp.Content)
 			})
 		}
 	})
@@ -192,32 +242,109 @@ func TestEditFiles(t *testing.T) {
 		}
 	})
 
-	t.Run("AgentAPIErrorOmitsTransportNoise", func(t *testing.T) {
+	// The result claims nothing was applied only when the agent's
+	// response proves it: the agent returns 400 and 404 only before it
+	// writes, and a single file is left untouched on any failure. Its
+	// write phase can fail with 403 or 500 after committing earlier
+	// files, and a transport error may follow a completed write.
+	t.Run("AgentErrorResult", func(t *testing.T) {
 		t.Parallel()
-		ctrl := gomock.NewController(t)
-		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-		sdkErr := codersdk.NewTestError(http.StatusBadRequest, "POST", "http://[fd7a::1]:4/api/v0/edit-files")
-		sdkErr.Message = `file path must be absolute: "a.txt"`
-		sdkErr.Helper = "Use an absolute path."
-		sdkErr.Detail = "some detail"
-		sdkErr.Validations = []codersdk.ValidationError{{Field: "path", Detail: "must be absolute"}}
-		mockConn.EXPECT().EditFiles(gomock.Any(), gomock.Any()).
-			Return(workspacesdk.FileEditResponse{}, xerrors.Errorf("do request: %w", sdkErr))
-
-		tool := chattool.EditFiles(chattool.EditFilesOptions{
-			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-				return mockConn, nil
+		const (
+			oneFile  = `{"edits":[{"path":"/repo/a.go","old_text":"old","new_text":"new"}]}`
+			twoFiles = `{"edits":[{"path":"/repo/a.go","old_text":"old","new_text":"new"},{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"}]}`
+		)
+		agentError := func(status int, message string) error {
+			sdkErr := codersdk.NewTestError(status, "POST", "http://[fd7a::1]:4/api/v0/edit-files")
+			sdkErr.Message = message
+			return sdkErr
+		}
+		detailed := codersdk.NewTestError(http.StatusBadRequest, "POST", "http://[fd7a::1]:4/api/v0/edit-files")
+		detailed.Message = `file path must be absolute: "a.txt"`
+		detailed.Helper = "Use an absolute path."
+		detailed.Detail = "some detail"
+		detailed.Validations = []codersdk.ValidationError{{Field: "path", Detail: "must be absolute"}}
+		tests := []struct {
+			name     string
+			input    string
+			agentErr error
+			wantErr  string
+		}{
+			{
+				// Transport metadata from codersdk.Error.Error() is
+				// dropped; the agent's message, helper, detail and
+				// validations are kept.
+				name:     "BadRequestOmitsTransportNoise",
+				input:    `{"edits":[{"path":"a.txt","old_text":"old","new_text":"new"}]}`,
+				agentErr: xerrors.Errorf("do request: %w", detailed),
+				wantErr:  "No files were applied. file path must be absolute: \"a.txt\": Use an absolute path.: some detail\n- path: must be absolute\nFix the failing edit and resend all edits.",
 			},
-		})
+			{
+				name:     "BadRequestSeveralFiles",
+				input:    twoFiles,
+				agentErr: agentError(http.StatusBadRequest, "edit /repo/b.go: search string not found in file"),
+				wantErr:  "No files were applied. edit /repo/b.go: search string not found in file\nFix the failing edit and resend all edits.",
+			},
+			{
+				name:     "NotFoundSeveralFiles",
+				input:    twoFiles,
+				agentErr: agentError(http.StatusNotFound, "open /repo/b.go: file does not exist"),
+				wantErr:  "No files were applied. open /repo/b.go: file does not exist\nFix the failing edit and resend all edits.",
+			},
+			{
+				name:     "ServerErrorOneFile",
+				input:    oneFile,
+				agentErr: agentError(http.StatusInternalServerError, "write /repo/a.go: no space left on device"),
+				wantErr:  "No files were applied. write /repo/a.go: no space left on device\nFix the failing edit and resend all edits.",
+			},
+			{
+				// Two edits to one file are still a single-file request.
+				name:     "ServerErrorOneFileTwoEdits",
+				input:    `{"edits":[{"path":"/repo/a.go","old_text":"old","new_text":"new"},{"path":"/repo/a.go","old_text":"foo()","new_text":"bar()"}]}`,
+				agentErr: agentError(http.StatusInternalServerError, "write /repo/a.go: no space left on device"),
+				wantErr:  "No files were applied. write /repo/a.go: no space left on device\nFix the failing edit and resend all edits.",
+			},
+			{
+				name:     "ServerErrorSeveralFiles",
+				input:    twoFiles,
+				agentErr: agentError(http.StatusInternalServerError, "write /repo/b.go: no space left on device"),
+				wantErr:  "It is unknown whether any files were applied. write /repo/b.go: no space left on device\nRe-read the files before resending edits.",
+			},
+			{
+				name:     "ForbiddenSeveralFiles",
+				input:    twoFiles,
+				agentErr: agentError(http.StatusForbidden, "open /repo/.b.go.tmp.1234abcd: permission denied"),
+				wantErr:  "It is unknown whether any files were applied. open /repo/.b.go.tmp.1234abcd: permission denied\nRe-read the files before resending edits.",
+			},
+			{
+				name:     "TransportError",
+				input:    oneFile,
+				agentErr: xerrors.New("do request: connection reset by peer"),
+				wantErr:  "It is unknown whether any files were applied. do request: connection reset by peer\nRe-read the files before resending edits.",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctrl := gomock.NewController(t)
+				mockConn := agentconnmock.NewMockAgentConn(ctrl)
+				mockConn.EXPECT().EditFiles(gomock.Any(), gomock.Any()).
+					Return(workspacesdk.FileEditResponse{}, tt.agentErr)
+				tool := chattool.EditFiles(chattool.EditFilesOptions{
+					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+						return mockConn, nil
+					},
+				})
 
-		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-			ID:    "call-1",
-			Name:  "edit_files",
-			Input: `{"edits":[{"path":"a.txt","old_text":"old","new_text":"new"}]}`,
-		})
-		require.NoError(t, err)
-		assert.True(t, resp.IsError)
-		assert.Equal(t, "file path must be absolute: \"a.txt\": Use an absolute path.: some detail\n- path: must be absolute", resp.Content)
+				resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+					ID:    "call-1",
+					Name:  "edit_files",
+					Input: tt.input,
+				})
+				require.NoError(t, err)
+				assert.True(t, resp.IsError)
+				assert.Equal(t, tt.wantErr, resp.Content)
+			})
+		}
 	})
 
 	t.Run("PlanTurnRejectsNonPlanPath", func(t *testing.T) {
@@ -244,7 +371,7 @@ func TestEditFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, "during plan turns, edit_files is restricted to "+planPath, resp.Content)
+		assert.Equal(t, "Edit only "+planPath+"; during plan turns, edit_files is restricted to that file\nNo files were applied.", resp.Content)
 		assert.False(t, getWorkspaceConnCalled)
 	})
 
@@ -275,7 +402,7 @@ func TestEditFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, "during plan turns, edit_files is restricted to "+planPath, resp.Content)
+		assert.Equal(t, "Edit only "+planPath+"; during plan turns, edit_files is restricted to that file\nNo files were applied.", resp.Content)
 		assert.False(t, getWorkspaceConnCalled)
 	})
 
@@ -381,7 +508,7 @@ func TestEditFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, "the chat-specific plan path /home/coder/.coder/plans/PLAN-test-uuid.md resolves to /home/coder/README.md; symlinked plan paths are not allowed during plan turns", resp.Content)
+		assert.Equal(t, "the chat-specific plan path /home/coder/.coder/plans/PLAN-test-uuid.md resolves to /home/coder/README.md; symlinked plan paths are not allowed during plan turns\nNo files were applied.", resp.Content)
 	})
 
 	t.Run("RejectsPlanPathsWhenResolvePlanPathIsConfigured", func(t *testing.T) {
@@ -489,7 +616,7 @@ func TestEditFiles(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
 		assert.False(t, resolvePlanPathCalled)
-		assert.Equal(t, editFilesBatchRejectedMessage(relativePlanPathMessage()), resp.Content)
+		assert.Equal(t, "Use the chat-specific absolute plan path; plan files must use absolute paths\nNo files were applied.", resp.Content)
 	})
 
 	t.Run("PerChatPlanPathIsAllowed", func(t *testing.T) {
@@ -705,56 +832,88 @@ func TestEditFiles_MapsOldTextNewTextToSDK(t *testing.T) {
 	assert.False(t, resp.IsError)
 }
 
-func TestEditFiles_ToolResponseCarriesFileResults(t *testing.T) {
+func TestEditFiles_AppliedResult(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	targetPath := "/home/coder/target.txt"
-	expectedFiles := []workspacesdk.FileEditResult{
+	const (
+		diffA = "--- /repo/a.go\n+++ /repo/a.go\n@@ -1 +1 @@\n-x := 1\n+x := 2\n"
+		diffB = "--- /repo/b.go\n+++ /repo/b.go\n@@ -1 +1 @@\n-foo()\n+bar()\n"
+	)
+	tests := []struct {
+		name      string
+		input     string
+		agentResp workspacesdk.FileEditResponse
+		want      string
+	}{
 		{
-			Path: targetPath,
-			Diff: "--- " + targetPath + "\n+++ " + targetPath + "\n@@ -1 +1 @@\n-old\n+new\n",
-		},
-	}
-	// The tool must opt into diffs (IncludeDiff: true) and forward
-	// the agent's per-file results through to its response.
-	mockConn.EXPECT().
-		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
-			Files: []workspacesdk.FileEdits{{
-				Path: targetPath,
-				Edits: []workspacesdk.FileEdit{{
-					OldText: "old",
-					NewText: "new",
-				}},
+			name:  "OneFile",
+			input: `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"}]}`,
+			agentResp: workspacesdk.FileEditResponse{Files: []workspacesdk.FileEditResult{
+				{Path: "/repo/a.go", Diff: diffA},
 			}},
-			IncludeDiff: true,
-		}).
-		Return(workspacesdk.FileEditResponse{Files: expectedFiles}, nil)
-
-	tool := chattool.EditFiles(chattool.EditFilesOptions{
-		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-			return mockConn, nil
+			want: `{"status":"applied","message":"Applied edits to 1 file.","files":[` +
+				`{"path":"/repo/a.go","status":"applied","diff":"--- /repo/a.go\n+++ /repo/a.go\n@@ -1 +1 @@\n-x := 1\n+x := 2\n"}]}`,
 		},
-	})
-
-	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-		ID:    "call-1",
-		Name:  "edit_files",
-		Input: `{"edits":[{"path":"` + targetPath + `","old_text":"old","new_text":"new"}]}`,
-	})
-	require.NoError(t, err)
-	assert.False(t, resp.IsError)
-
-	var decoded struct {
-		OK    bool                          `json:"ok"`
-		Files []workspacesdk.FileEditResult `json:"files"`
+		{
+			name: "SeveralFiles",
+			input: `{"edits":[` +
+				`{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"},` +
+				`{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"}` +
+				`]}`,
+			agentResp: workspacesdk.FileEditResponse{Files: []workspacesdk.FileEditResult{
+				{Path: "/repo/a.go", Diff: diffA},
+				{Path: "/repo/b.go", Diff: diffB},
+			}},
+			want: `{"status":"applied","message":"Applied edits to 2 files.","files":[` +
+				`{"path":"/repo/a.go","status":"applied","diff":"--- /repo/a.go\n+++ /repo/a.go\n@@ -1 +1 @@\n-x := 1\n+x := 2\n"},` +
+				`{"path":"/repo/b.go","status":"applied","diff":"--- /repo/b.go\n+++ /repo/b.go\n@@ -1 +1 @@\n-foo()\n+bar()\n"}]}`,
+		},
+		{
+			// An edit that changes nothing gets an empty diff from
+			// the agent.
+			name:  "EmptyDiff",
+			input: `{"edits":[{"path":"/repo/a.go","old_text":"x","new_text":"x"}]}`,
+			agentResp: workspacesdk.FileEditResponse{Files: []workspacesdk.FileEditResult{
+				{Path: "/repo/a.go"},
+			}},
+			want: `{"status":"applied","message":"Applied edits to 1 file.","files":[{"path":"/repo/a.go","status":"applied","diff":""}]}`,
+		},
+		{
+			// Agents that predate per-file results return none; the
+			// count then comes from the files in the request, not the
+			// edits.
+			name: "AgentWithoutPerFileResults",
+			input: `{"edits":[` +
+				`{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"},` +
+				`{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"},` +
+				`{"path":"/repo/a.go","old_text":"y := 1","new_text":"y := 2"}` +
+				`]}`,
+			agentResp: workspacesdk.FileEditResponse{},
+			want:      `{"status":"applied","message":"Applied edits to 2 files.","files":[]}`,
+		},
 	}
-	require.NoError(t, json.Unmarshal([]byte(resp.Content), &decoded))
-	assert.True(t, decoded.OK)
-	require.Len(t, decoded.Files, 1)
-	assert.Equal(t, targetPath, decoded.Files[0].Path)
-	assert.Equal(t, expectedFiles[0].Diff, decoded.Files[0].Diff)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctrl := gomock.NewController(t)
+			mockConn := agentconnmock.NewMockAgentConn(ctrl)
+			mockConn.EXPECT().EditFiles(gomock.Any(), gomock.Any()).Return(tt.agentResp, nil)
+			tool := chattool.EditFiles(chattool.EditFilesOptions{
+				GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+					return mockConn, nil
+				},
+			})
+
+			resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+				ID:    "call-1",
+				Name:  "edit_files",
+				Input: tt.input,
+			})
+			require.NoError(t, err)
+			assert.False(t, resp.IsError, resp.Content)
+			assert.Equal(t, tt.want, resp.Content)
+		})
+	}
 }
 
 func TestEditFiles_DecodeToolInput(t *testing.T) {
