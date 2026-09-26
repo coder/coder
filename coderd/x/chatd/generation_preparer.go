@@ -658,7 +658,12 @@ func (server *Server) prepareGeneration(
 	// caller's schema unnormalized; it runs locally and alone in its step.
 	// Every preparation rechecks the settings and registries it could clash
 	// with, before deferred tool search hides any MCP tool.
-	structured, finalizerSchema, err := structuredTurnFor(ctx, logger, chat.ID, input.Messages)
+	var structured chatstructured.ActiveRequestState
+	var finalizerSchema *chatstructured.Schema
+	structuredHistory, err := structuredStateHistory(ctx, server.db, chat.ID, input.Messages)
+	if err == nil {
+		structured, finalizerSchema, err = structuredTurnFor(ctx, logger, chat.ID, structuredHistory)
+	}
 	if err == nil && finalizerSchema != nil {
 		if reason := finalizerConfigurationReason(resolved.providerOptions, tools, dynamicToolNames, providerTools, subagentToolNameAliases); reason != "" {
 			err = newStructuredConfigurationError(structured, reason)

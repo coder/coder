@@ -1,12 +1,15 @@
 package chatd
 
 import (
+	"bytes"
 	"context"
+	"slices"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -148,11 +151,86 @@ func stopAfterResultID(content []fantasy.Content, stopAfterTools map[string]stru
 	return ""
 }
 
-// structuredFinishMessages returns the receipt FinishTurn commits for t.
-// The executor only records candidates whose receipt encodes.
-func structuredFinishMessages(ctx context.Context, store database.Store, chatID uuid.UUID, t *structuredTerminal) ([]chatstate.Message, error) {
+// structuredFinishMessages returns the receipt FinishTurn commits for t,
+// re-reading the request under the chat lock: a stop hook await, or any
+// other gap since the decision, may have closed the request or changed its
+// candidate. A success never commits a candidate that is no longer current;
+// the current candidate succeeds instead, and without one the request fails
+// by the decision's rules. The executor only records candidates whose
+// receipt encodes.
+func structuredFinishMessages(ctx context.Context, logger slog.Logger, store database.Store, chatID uuid.UUID, t *structuredTerminal) ([]chatstate.Message, error) {
 	if t == nil {
 		return nil, nil
 	}
-	return structuredReceiptMessages(ctx, store, chatID, t.requestRowID, t.outcome)
+	history, err := store.GetChatMessagesAllVisibilitiesByChatID(ctx, chatID)
+	if err != nil {
+		return nil, xerrors.Errorf("load structured output history: %w", err)
+	}
+	state, open := openStructuredRequest(ctx, logger, chatID, history)
+	if !open || state.Request.RequestID != t.outcome.RequestID {
+		return nil, nil
+	}
+	out := t.outcome
+	if out.Status == codersdk.ChatStructuredOutputStatusSucceeded && !bytes.Equal(state.Candidate, out.Value) {
+		out.Value = state.Candidate
+		if state.Candidate == nil {
+			_, _, submission, err := structuredStepFacts(history, state.RequestRowID, nil)
+			if err != nil {
+				return nil, err
+			}
+			code := codersdk.ChatStructuredOutputErrorCodeNotProduced
+			if submission {
+				code = codersdk.ChatStructuredOutputErrorCodeValidationExhausted
+			}
+			out = structuredFailure(state, code).outcome
+		}
+	}
+	return structuredReceiptMessages(ctx, store, chatID, t.requestRowID, out)
+}
+
+// structuredInvalidation returns the stop hook messages of a continuing
+// turn with one invalidation control appended to the hook's model-only
+// context row when the open request has a candidate, so the resumed turn
+// must finalize again, also after a restart. No client sees the control or
+// a new row. Run it inside the ChatMachine.Update that commits the messages;
+// visible is the user-visible history read before the hook.
+func structuredInvalidation(ctx context.Context, logger slog.Logger, store database.Store, chatID uuid.UUID, visible []database.ChatMessage, messages []chatstate.Message) ([]chatstate.Message, error) {
+	i := slices.IndexFunc(messages, func(msg chatstate.Message) bool { return msg.Visibility == database.ChatMessageVisibilityModel })
+	if i < 0 {
+		return messages, nil
+	}
+	history, err := structuredStateHistory(ctx, store, chatID, visible)
+	if err != nil {
+		return nil, err
+	}
+	state, open := openStructuredRequest(ctx, logger, chatID, history)
+	if !open || state.Candidate == nil {
+		return messages, nil
+	}
+	row := messages[i]
+	parts, err := chatprompt.ParseContent(database.ChatMessage{Role: row.Role, Visibility: row.Visibility, Content: row.Content, ContentVersion: row.ContentVersion})
+	if err != nil {
+		return nil, xerrors.Errorf("parse stop hook context: %w", err)
+	}
+	control, err := chatstructured.EncodeControlPart(chatstructured.Control{RequestID: state.Request.RequestID, Kind: chatstructured.ControlInvalidation})
+	if err != nil {
+		return nil, xerrors.Errorf("encode structured output invalidation: %w", err)
+	}
+	if row.Content, err = chatprompt.MarshalParts(append(parts, control)); err != nil {
+		return nil, xerrors.Errorf("marshal stop hook context: %w", err)
+	}
+	messages = slices.Clone(messages)
+	messages[i] = row
+	return messages, nil
+}
+
+// generationFailedReceipts returns the failed generation_failed receipt that
+// closes the open structured output request when a turn ends in an error.
+func generationFailedReceipts(ctx context.Context, logger slog.Logger, store database.Store, chatID uuid.UUID) ([]chatstate.Message, error) {
+	history, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chatID})
+	if err != nil {
+		return nil, xerrors.Errorf("load history for structured output receipt: %w", err)
+	}
+	return activeRequestReceipt(ctx, logger, store, chatID, history,
+		structuredFailure(chatstructured.ActiveRequestState{}, codersdk.ChatStructuredOutputErrorCodeGenerationFailed).outcome)
 }

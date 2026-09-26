@@ -1648,6 +1648,14 @@ func (m queryMetricsStore) GetChatMessageSummariesPerChat(ctx context.Context, c
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatMessagesAllVisibilitiesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMessagesAllVisibilitiesByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatMessagesAllVisibilitiesByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessagesAllVisibilitiesByChatID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatMessagesByChatID(ctx context.Context, chatID database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatMessagesByChatID(ctx, chatID)
