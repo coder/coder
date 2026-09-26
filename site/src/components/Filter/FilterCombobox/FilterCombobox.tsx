@@ -117,8 +117,7 @@ export function FilterCombobox({
 		unfilteredOptionsByKey,
 		unfilteredOptionsErroredKeys,
 		valueSuggestions,
-		inlineOptionRows,
-		inlineOptionErrors,
+		inlineSections,
 		chipValues,
 		highlightRef,
 		typeaheadError,
@@ -232,15 +231,13 @@ export function FilterCombobox({
 	const mainPanelEmpty =
 		listedCategories.length === 0 &&
 		valueSuggestions.length === 0 &&
-		inlineOptionRows.length === 0 &&
-		inlineOptionErrors.length === 0 &&
+		inlineSections.length === 0 &&
 		!typeaheadError;
 
 	const mainPanelProps = {
 		listedCategories,
 		valueSuggestions,
-		inlineOptionRows,
-		inlineOptionErrors,
+		inlineSections,
 		typeaheadError,
 		registerCategoryRow,
 		onSelectCategory: selectCategory,
@@ -574,13 +571,17 @@ function ChipLabel({
 	);
 }
 
-type InlineOptionRow = {
-	categoryKey: string;
-	token: string;
-	categoryLabel: string;
-	selected: boolean;
-	showIcon: boolean;
-	option: FilterOption;
+type InlineSection = {
+	category: FilterCategory;
+	heading: string;
+	rows: readonly {
+		token: string;
+		selected: boolean;
+		showIcon: boolean;
+		option: FilterOption;
+	}[];
+	status: "ready" | "loading" | "failed";
+	retryValue: string;
 };
 
 type ValueSuggestion = {
@@ -608,8 +609,7 @@ const groupByCategoryLabel = <T extends { categoryLabel: string }>(
 type MainPanelProps = Readonly<{
 	listedCategories: readonly FilterCategory[];
 	valueSuggestions: readonly ValueSuggestion[];
-	inlineOptionRows: readonly InlineOptionRow[];
-	inlineOptionErrors: readonly { category: FilterCategory; heading: string }[];
+	inlineSections: readonly InlineSection[];
 	typeaheadError: boolean;
 	embedded?: boolean;
 	/** Clicking a category enters it instead of opening its pointer flyout. */
@@ -633,8 +633,7 @@ type MainPanelProps = Readonly<{
 function MainPanel({
 	listedCategories,
 	valueSuggestions,
-	inlineOptionRows,
-	inlineOptionErrors,
+	inlineSections,
 	typeaheadError,
 	embedded = false,
 	drillIn,
@@ -676,11 +675,24 @@ function MainPanel({
 					<ChevronRightIcon aria-hidden className="ml-auto shrink-0" />
 				</FilterComboboxItem>
 			))}
-			{groupByCategoryLabel(inlineOptionRows).map(([label, rows]) => (
-				<FilterComboboxGroup className={INLINE_GROUP_CLASS} key={label}>
+			{inlineSections.map(({ category, heading, rows, status, retryValue }) => (
+				<FilterComboboxGroup className={INLINE_GROUP_CLASS} key={category.key}>
 					<FilterComboboxLabel className="pt-0 opacity-80">
-						{label}
+						{heading}
 					</FilterComboboxLabel>
+					{status === "loading" && <LoadingOptions />}
+					{status === "failed" && (
+						<>
+							<EmptyOptions message={optionsLoadErrorMessage(category)} />
+							<FilterComboboxItem
+								className={OPTION_ITEM_CLASS}
+								value={retryValue}
+								onSelect={() => onRetryInlineOptions(category.key)}
+							>
+								Retry
+							</FilterComboboxItem>
+						</>
+					)}
 					{rows.map(({ token, option, selected, showIcon }) => (
 						<FilterComboboxItem
 							className={cn(
@@ -699,17 +711,6 @@ function MainPanel({
 						</FilterComboboxItem>
 					))}
 				</FilterComboboxGroup>
-			))}
-			{inlineOptionErrors.map(({ category, heading }) => (
-				<div className={INLINE_GROUP_CLASS} key={category.key}>
-					<FilterComboboxLabel className="pt-0 opacity-80">
-						{heading}
-					</FilterComboboxLabel>
-					<LoadError
-						message={optionsLoadErrorMessage(category)}
-						onRetry={() => onRetryInlineOptions(category.key)}
-					/>
-				</div>
 			))}
 			{groupByCategoryLabel(valueSuggestions).map(
 				([categoryLabel, suggestions]) => (

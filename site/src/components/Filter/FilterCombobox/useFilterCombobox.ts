@@ -156,8 +156,13 @@ type StatusMessageInput = {
 	activeOptionsEmpty: boolean;
 	typeaheadLoading: boolean;
 	typeaheadError: boolean;
+	failedInlineCategoryLabel: string | undefined;
 	typeaheadEmpty: boolean;
 };
+
+// cmdk value of an inline category's Retry row. Chip tokens never start with
+// a double underscore key.
+const INLINE_RETRY_VALUE_PREFIX = "__retry__:";
 
 /**
  * Longest wait for option lookups before typed text that matched no loaded
@@ -178,6 +183,7 @@ const deriveStatusMessage = ({
 	activeOptionsEmpty,
 	typeaheadLoading,
 	typeaheadError,
+	failedInlineCategoryLabel,
 	typeaheadEmpty,
 }: StatusMessageInput): string => {
 	if (activeCategoryLabel !== undefined) {
@@ -197,6 +203,9 @@ const deriveStatusMessage = ({
 	}
 	if (typeaheadError) {
 		return SUGGESTIONS_ERROR_MESSAGE;
+	}
+	if (failedInlineCategoryLabel !== undefined) {
+		return `Couldn't load ${failedInlineCategoryLabel} options`;
 	}
 	if (typeaheadEmpty) {
 		return "No filters found";
@@ -342,16 +351,24 @@ export const useFilterCombobox = ({
 		combine: (results) => {
 			const optionsByKey = new Map<string, readonly FilterOption[]>();
 			const erroredKeys = new Set<string>();
+			const failedOrRetryingKeys = new Set<string>();
 			results.forEach((result, index) => {
+				const { key } = categories[index];
 				if (result.data) {
-					optionsByKey.set(categories[index].key, result.data);
+					optionsByKey.set(key, result.data);
 				} else if (result.isError) {
-					erroredKeys.add(categories[index].key);
+					erroredKeys.add(key);
+				}
+				// A retry puts a failed query back to pending, so
+				// `errorUpdateCount` tells a retry from the first load.
+				if (!result.data && result.errorUpdateCount > 0) {
+					failedOrRetryingKeys.add(key);
 				}
 			});
 			return {
 				optionsByKey,
 				erroredKeys,
+				failedOrRetryingKeys,
 				refetch: (categoryKey: string) => {
 					const index = categories.findIndex(
 						(category) => category.key === categoryKey,
@@ -486,50 +503,61 @@ export const useFilterCombobox = ({
 		typeaheadQuerySource.length === 0
 			? unfilteredOptions.optionsByKey
 			: typeaheadOptionsByKey;
-	const inlineOptionsHeading = (category: FilterCategory) =>
-		category.inlineOptionsLabel ?? `${category.label} is…`;
-	const inlineOptionRowsFor = (
-		optionsByCategory: ReadonlyMap<string, readonly FilterOption[]>,
-	) =>
-		categories.flatMap((category) => {
-			if (!category.inlineOptions) {
-				return [];
-			}
-			return (optionsByCategory.get(category.key) ?? []).map((option) => {
-				const token = optionToken(category.key, option);
-				return {
-					categoryKey: category.key,
-					categoryLabel: inlineOptionsHeading(category),
-					token,
-					selected: chipValues.includes(token),
-					showIcon: category.inlineOptionsIcons ?? false,
-					option,
-				};
-			});
+	const inlineOptionRowsFor = (category: FilterCategory) =>
+		(inlineOptionsSource.get(category.key) ?? []).map((option) => {
+			const token = optionToken(category.key, option);
+			return {
+				token,
+				selected: chipValues.includes(token),
+				showIcon: category.inlineOptionsIcons ?? false,
+				option,
+			};
 		});
-	const inlineRowsShown = (categoryKey: string) =>
-		typedInlinePrefix === null || categoryKey === typedInlinePrefix.categoryKey;
-	const inlineOptionRows = open
-		? inlineOptionRowsFor(inlineOptionsSource).filter((row) =>
-				inlineRowsShown(row.categoryKey),
-			)
-		: [];
-	// Inline categories have no flyout to offer Retry, so a failed load shows
-	// it in the main panel until typed text replaces the rows.
-	const inlineOptionErrors =
-		open && typeaheadQuerySource.length === 0
-			? categories
-					.filter(
-						(category) =>
-							category.inlineOptions &&
-							inlineRowsShown(category.key) &&
-							unfilteredOptions.erroredKeys.has(category.key),
-					)
-					.map((category) => ({
+	// Inline categories have no flyout, so the main panel shows a failed load's
+	// error and Retry, and a loading row while that Retry runs. Typed text
+	// replaces the unfiltered rows and their load state.
+	const inlineLoadStatus = (
+		category: FilterCategory,
+	): "ready" | "loading" | "failed" => {
+		if (typeaheadQuerySource.length > 0) {
+			return "ready";
+		}
+		if (unfilteredOptions.erroredKeys.has(category.key)) {
+			return "failed";
+		}
+		return unfilteredOptions.failedOrRetryingKeys.has(category.key)
+			? "loading"
+			: "ready";
+	};
+	const inlineSections = open
+		? categories.flatMap((category) => {
+				if (
+					!category.inlineOptions ||
+					(typedInlinePrefix !== null &&
+						category.key !== typedInlinePrefix.categoryKey)
+				) {
+					return [];
+				}
+				const rows = inlineOptionRowsFor(category);
+				const status = inlineLoadStatus(category);
+				if (status === "ready" && rows.length === 0) {
+					return [];
+				}
+				return [
+					{
 						category,
-						heading: inlineOptionsHeading(category),
-					}))
-			: [];
+						heading: category.inlineOptionsLabel ?? `${category.label} is…`,
+						rows,
+						status,
+						retryValue: `${INLINE_RETRY_VALUE_PREFIX}${category.key}`,
+					},
+				];
+			})
+		: [];
+	const inlineOptionRows = inlineSections.flatMap((section) => section.rows);
+	const failedInlineSection = inlineSections.find(
+		(section) => section.status === "failed",
+	);
 
 	const valueSuggestions =
 		!typeaheadActive || typedInlinePrefix !== null
@@ -566,7 +594,7 @@ export const useFilterCombobox = ({
 		!typeaheadLoading &&
 		!typeaheadError &&
 		listedCategories.length === 0 &&
-		inlineOptionRows.length === 0 &&
+		inlineSections.length === 0 &&
 		valueSuggestions.length === 0;
 
 	const activeOptionsEmpty =
@@ -583,6 +611,7 @@ export const useFilterCombobox = ({
 		activeOptionsEmpty,
 		typeaheadLoading,
 		typeaheadError,
+		failedInlineCategoryLabel: failedInlineSection?.category.label,
 		typeaheadEmpty,
 	});
 
@@ -1010,7 +1039,11 @@ export const useFilterCombobox = ({
 		// top row.
 		const rowValues = [
 			...listedCategories.map((category) => category.key),
-			...inlineOptionRows.map((row) => row.token),
+			...inlineSections.flatMap((section) =>
+				section.status === "failed"
+					? [section.retryValue]
+					: section.rows.map((row) => row.token),
+			),
 			...valueSuggestions.map((suggestion) => suggestion.token),
 		];
 		// A highlighted row can unmount without cmdk reporting a new highlight,
@@ -1074,8 +1107,7 @@ export const useFilterCombobox = ({
 		unfilteredOptionsByKey: unfilteredOptions.optionsByKey,
 		unfilteredOptionsErroredKeys: unfilteredOptions.erroredKeys,
 		valueSuggestions,
-		inlineOptionRows,
-		inlineOptionErrors,
+		inlineSections,
 		chipValues,
 		highlightRef,
 		typeaheadError,
