@@ -52,6 +52,7 @@ import {
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
 import {
+	optionsLoadErrorMessage,
 	SUGGESTIONS_ERROR_MESSAGE,
 	useFilterCombobox,
 } from "./useFilterCombobox";
@@ -218,6 +219,9 @@ export function FilterCombobox({
 		activeCategoryKey === null && !categoriesNarrowedByText
 			? categories.find((category) => category.key === flyoutCategoryKey)
 			: undefined;
+	const flyoutLoadFailed =
+		flyoutCategory !== undefined &&
+		unfilteredOptionsErroredKeys.has(flyoutCategory.key);
 	const selectFlyoutOption = (token: string) => {
 		actions.toggleCategoryOption(token);
 		updateFlyoutCategory(null);
@@ -416,7 +420,14 @@ export function FilterCombobox({
 					className="relative left-0 w-(--radix-popover-trigger-width) max-w-(--radix-popper-available-width) overflow-visible border-0 bg-transparent shadow-none data-[state=closed]:hidden sm:w-fit"
 				>
 					{/* Keep mounted so polite status announcements stay consistent. */}
-					<FilterComboboxStatus>{statusMessage}</FilterComboboxStatus>
+					<FilterComboboxStatus>
+						{[
+							flyoutLoadFailed && optionsLoadErrorMessage(flyoutCategory.label),
+							statusMessage,
+						]
+							.filter(Boolean)
+							.join(" ")}
+					</FilterComboboxStatus>
 					{isMobile ? (
 						(activeCategoryKey !== null || !mainPanelEmpty) && (
 							<div
@@ -491,8 +502,8 @@ const INLINE_GROUP_CLASS =
 // Categories with more options than this get a search field in their panel.
 export const SEARCHABLE_OPTION_COUNT = 10;
 
-const optionsLoadErrorMessage = (category: FilterCategory | undefined) =>
-	`Couldn’t load ${category ? category.label : "filter"} options.`;
+const categoryLoadErrorMessage = (category: FilterCategory | undefined) =>
+	optionsLoadErrorMessage(category ? category.label : "filter");
 
 type LoadErrorProps = Readonly<{ message: string; onRetry: () => void }>;
 
@@ -581,7 +592,7 @@ type InlineSection = {
 		option: FilterOption;
 	}[];
 	status: "ready" | "loading" | "failed";
-	retryValue: string;
+	loadRowValue: string;
 };
 
 type ValueSuggestion = {
@@ -675,43 +686,63 @@ function MainPanel({
 					<ChevronRightIcon aria-hidden className="ml-auto shrink-0" />
 				</FilterComboboxItem>
 			))}
-			{inlineSections.map(({ category, heading, rows, status, retryValue }) => (
-				<FilterComboboxGroup className={INLINE_GROUP_CLASS} key={category.key}>
-					<FilterComboboxLabel className="pt-0 opacity-80">
-						{heading}
-					</FilterComboboxLabel>
-					{status === "loading" && <LoadingOptions />}
-					{status === "failed" && (
-						<>
-							<EmptyOptions message={optionsLoadErrorMessage(category)} />
+			{inlineSections.map(
+				({ category, heading, rows, status, loadRowValue }) => (
+					<FilterComboboxGroup
+						className={INLINE_GROUP_CLASS}
+						key={category.key}
+					>
+						<FilterComboboxLabel className="pt-0 opacity-80">
+							{heading}
+						</FilterComboboxLabel>
+						{status === "failed" && (
+							<EmptyOptions message={categoryLoadErrorMessage(category)} />
+						)}
+						{/* One row for loading and Retry keeps cmdk's highlight on it while
+					    a Retry runs. */}
+						{status !== "ready" && (
 							<FilterComboboxItem
-								className={OPTION_ITEM_CLASS}
-								value={retryValue}
-								onSelect={() => onRetryInlineOptions(category.key)}
+								className={cn(
+									OPTION_ITEM_CLASS,
+									status === "loading" && "justify-center",
+								)}
+								value={loadRowValue}
+								onSelect={() => {
+									if (status === "failed") {
+										onRetryInlineOptions(category.key);
+									}
+								}}
 							>
-								Retry
+								{status === "failed" ? (
+									"Retry"
+								) : (
+									<>
+										<Spinner loading size="sm" aria-hidden />
+										<span className="sr-only">{`Loading ${category.label} options`}</span>
+									</>
+								)}
 							</FilterComboboxItem>
-						</>
-					)}
-					{rows.map(({ token, option, selected, showIcon }) => (
-						<FilterComboboxItem
-							className={cn(
-								OPTION_ITEM_CLASS,
-								(!showIcon || selected) && "text-content-primary",
-							)}
-							key={token}
-							value={token}
-							onSelect={() => onToggleInlineOption(token)}
-						>
-							<OptionRowContent
-								icon={showIcon ? option.startIcon : undefined}
-								label={option.label}
-								selected={selected}
-							/>
-						</FilterComboboxItem>
-					))}
-				</FilterComboboxGroup>
-			))}
+						)}
+						{rows.map(({ token, option, selected, showIcon }) => (
+							<FilterComboboxItem
+								className={cn(
+									OPTION_ITEM_CLASS,
+									(!showIcon || selected) && "text-content-primary",
+								)}
+								key={token}
+								value={token}
+								onSelect={() => onToggleInlineOption(token)}
+							>
+								<OptionRowContent
+									icon={showIcon ? option.startIcon : undefined}
+									label={option.label}
+									selected={selected}
+								/>
+							</FilterComboboxItem>
+						))}
+					</FilterComboboxGroup>
+				),
+			)}
 			{groupByCategoryLabel(valueSuggestions).map(
 				([categoryLabel, suggestions]) => (
 					<FilterComboboxGroup key={categoryLabel}>
@@ -912,7 +943,7 @@ function FlyoutCategoryPanel({
 			{loading && <LoadingOptions />}
 			{failed && (
 				<LoadError
-					message={optionsLoadErrorMessage(category)}
+					message={categoryLoadErrorMessage(category)}
 					onRetry={optionsError ? onRetry : () => searchResults.refetch()}
 				/>
 			)}
@@ -980,7 +1011,7 @@ function CategoryOptionsList({
 		return (
 			<OptionsPanel category={category} embedded={embedded} offset={offset}>
 				<LoadError
-					message={optionsLoadErrorMessage(category)}
+					message={categoryLoadErrorMessage(category)}
 					onRetry={onRetry}
 				/>
 			</OptionsPanel>

@@ -1227,7 +1227,11 @@ describe("FilterCombobox", () => {
 
 		await user.click(filtersButton);
 		await user.hover(await screen.findByRole("option", { name: "Owner" }));
-		await screen.findByText("Couldn’t load Owner options.");
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Couldn’t load Owner options.",
+			),
+		);
 		await user.click(screen.getByRole("button", { name: "Retry" }));
 		await user.click(await screen.findByRole("button", { name: "alice" }));
 
@@ -1236,6 +1240,7 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	// Owner comes first so a highlight that leaves the Status rows lands on it.
 	const setupFailedInlineStatus = () => {
 		const retry = Promise.withResolvers<undefined>();
 		let calls = 0;
@@ -1247,33 +1252,37 @@ describe("FilterCombobox", () => {
 			await retry.promise;
 			return statusCategory.getOptions(query);
 		};
-		return { ...setup([{ ...statusCategory, getOptions }]), retry };
+		return {
+			...setup([ownerCategory, { ...statusCategory, getOptions }]),
+			retry,
+		};
 	};
+
+	const expectStatus = (text: string) =>
+		waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(text));
 
 	it("announces a failed inline category and retries it from the keyboard", async () => {
 		const { user, onChange, filtersButton, retry } = setupFailedInlineStatus();
 
 		await user.click(filtersButton);
-		await screen.findByText("Couldn’t load Status options.");
-		expect(screen.getByRole("status")).toHaveTextContent(
-			"Couldn't load Status options",
-		);
+		await expectStatus("Couldn’t load Status options.");
 		await user.keyboard("{End}");
 		expect(screen.getByRole("option", { name: "Retry" })).toHaveAttribute(
 			"aria-selected",
 			"true",
 		);
 		await user.keyboard("{Enter}");
-
-		await waitFor(() =>
-			expect(
-				screen.queryByText("Couldn’t load Status options."),
-			).not.toBeInTheDocument(),
+		await expectStatus("Loading Status options");
+		expect(
+			screen.getByRole("option", { name: "Loading Status options" }),
+		).toHaveAttribute("aria-selected", "true");
+		await user.keyboard("{Enter}");
+		expect(screen.getByRole("status")).toHaveTextContent(
+			"Loading Status options",
 		);
-		expect(screen.getByText("Status is…")).toBeInTheDocument();
+
 		await act(async () => retry.resolve(undefined));
 		await user.click(await screen.findByRole("option", { name: "Running" }));
-
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("status:running"),
 		);
@@ -1285,9 +1294,40 @@ describe("FilterCombobox", () => {
 		await user.click(input);
 		await user.type(input, "status:");
 
-		await screen.findByText("Couldn’t load Status options.");
-		expect(screen.getByRole("status")).toHaveTextContent(
-			"Couldn't load Status options",
+		await expectStatus("Couldn’t load Status options.");
+	});
+
+	it("announces a retrying inline category after its typed prefix", async () => {
+		const { user, input, filtersButton } = setupFailedInlineStatus();
+
+		await user.click(filtersButton);
+		await user.keyboard("{End}{Enter}");
+		await user.type(input, "status:");
+
+		await expectStatus("Loading Status options");
+	});
+
+	it("applies a typed row of an inline category whose unfiltered load failed", async () => {
+		const { user, input, onChange } = setup([
+			ownerCategory,
+			{
+				...statusCategory,
+				getOptions: async (query) => {
+					if (query === "") {
+						throw new Error("boom");
+					}
+					return statusCategory.getOptions(query);
+				},
+			},
+		]);
+
+		await user.click(input);
+		await user.type(input, "runn");
+		await screen.findByRole("option", { name: "Running" });
+		await user.keyboard("{ArrowDown}{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("status:running"),
 		);
 	});
 
