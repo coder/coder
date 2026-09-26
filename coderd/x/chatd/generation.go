@@ -1582,12 +1582,27 @@ func (s *taskStarter) finishGenerationError(
 		slog.Error(cause),
 	)
 	lastError, message := generationLastError(cause)
+	var configuration *structuredConfigurationError
 	var committed database.Chat
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
-		if _, err := tx.FinishError(chatstate.FinishErrorInput{LastError: lastError}); err != nil {
+		// A configuration error closes its structured output request in
+		// this transaction; the receipt helper skips a request already
+		// closed, so a retried finish writes no second receipt.
+		var receipts []chatstate.Message
+		if errors.As(cause, &configuration) {
+			var err error
+			receipts, err = structuredReceiptMessages(ctx, store, input.ChatID, configuration.requestRowID, codersdk.ChatStructuredOutput{
+				RequestID: configuration.requestID, Status: codersdk.ChatStructuredOutputStatusFailed,
+				Error: &codersdk.ChatStructuredOutputError{Code: codersdk.ChatStructuredOutputErrorCodeConfigurationError, Message: configuration.reason},
+			})
+			if err != nil {
+				return err
+			}
+		}
+		if _, err := tx.FinishError(chatstate.FinishErrorInput{LastError: lastError, TerminalMessages: receipts}); err != nil {
 			return xerrors.Errorf("tx.FinishError: %w", err)
 		}
 		chat, err := store.GetChatByID(ctx, input.ChatID)
