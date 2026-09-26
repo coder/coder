@@ -411,28 +411,40 @@ func TestExecuteToolCallNoConnection(t *testing.T) {
 	tests := []struct {
 		name       string
 		noIdentity bool
+		connErr    error
 		check      func(t *testing.T, resp fantasy.ToolResponse, processID string)
 	}{
 		{
-			name: "Identity",
+			name:    "Identity",
+			connErr: dialErr,
 			check: func(t *testing.T, resp fantasy.ToolResponse, processID string) {
-				var result chattool.ExecuteResult
-				require.NoError(t, json.Unmarshal([]byte(resp.Content), &result), resp.Content)
-				assert.False(t, result.Success)
-				assert.Contains(t, result.Error, "outcome unknown")
-				assert.Contains(t, result.Error, "could not be reached")
-				assert.Contains(t, result.Error, dialErr.Error())
-				assert.Contains(t, result.Error, "earlier attempt may have started the command")
-				assert.Contains(t, result.Error, "process_output")
-				assert.Contains(t, result.Error, processID)
+				assert.True(t, resp.IsError)
+				assert.Contains(t, resp.Content, "outcome unknown")
+				assert.Contains(t, resp.Content, "could not be reached")
+				assert.Contains(t, resp.Content, dialErr.Error())
+				assert.Contains(t, resp.Content, "earlier attempt may have started the command")
+				assert.Contains(t, resp.Content, "process_output")
+				assert.Contains(t, resp.Content, processID)
 			},
 		},
 		{
 			name:       "NoIdentity",
 			noIdentity: true,
+			connErr:    dialErr,
 			check: func(t *testing.T, resp fantasy.ToolResponse, _ string) {
 				assert.True(t, resp.IsError)
 				assert.Equal(t, dialErr.Error(), resp.Content)
+			},
+		},
+		{
+			// Processes do not outlive the workspace agent, so a
+			// workspace without one settles the outcome.
+			name:    "IdentityNoAgent",
+			connErr: xerrors.Errorf("get workspace connection: %w", chattool.ErrWorkspaceHasNoAgent),
+			check: func(t *testing.T, resp fantasy.ToolResponse, _ string) {
+				assert.True(t, resp.IsError)
+				assert.Contains(t, resp.Content, chattool.ErrWorkspaceHasNoAgent.Error())
+				assert.NotContains(t, resp.Content, "outcome unknown")
 			},
 		},
 	}
@@ -453,7 +465,7 @@ func TestExecuteToolCallNoConnection(t *testing.T) {
 			}
 			tool := chattool.Execute(chattool.ExecuteOptions{
 				GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-					return nil, dialErr
+					return nil, tt.connErr
 				},
 			})
 			resp, err := tool.Run(ctx, fantasy.ToolCall{

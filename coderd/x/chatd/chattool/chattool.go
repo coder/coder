@@ -20,6 +20,11 @@ const templateNotAvailableMessage = "template not available for chat workspaces;
 // chat's workspace so the model recovers instead of concluding it is blocked.
 const WorkspaceUnavailableHint = "The workspace is probably gone; use the create_workspace tool to make a new one"
 
+// ErrWorkspaceHasNoAgent is returned by a workspace connection resolver
+// when the chat's workspace has no running agent. Its message is shown to
+// the model.
+var ErrWorkspaceHasNoAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
+
 func workspaceLoadErrorResponse(err error) fantasy.ToolResponse {
 	return fantasy.NewTextErrorResponse(
 		xerrors.Errorf("load workspace: %w. %s", err, WorkspaceUnavailableHint).Error(),
