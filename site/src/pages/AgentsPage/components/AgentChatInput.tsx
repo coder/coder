@@ -285,12 +285,19 @@ const BadgeDismissButton: FC<{
 	</button>
 );
 
-const MCPGroupBadge: FC<{
+type MCPGroupBadgeProps = {
 	servers: readonly TypesGen.MCPServerConfig[];
 	onRemoveMcp?: (serverId: string) => void;
 	isDisabled?: boolean;
 	className: string;
-}> = ({ servers, onRemoveMcp, isDisabled, className }) => {
+};
+
+const MCPGroupBadge: FC<MCPGroupBadgeProps> = ({
+	servers,
+	onRemoveMcp,
+	isDisabled,
+	className,
+}) => {
 	const [open, setOpen] = useState(false);
 	const label = `${servers.length} MCPs`;
 
