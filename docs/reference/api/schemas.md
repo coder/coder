@@ -9106,7 +9106,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
   "condition": "string",
-  "mode": "inherit",
+  "mode": "string",
   "revision": 0,
   "updated_at": "2019-08-24T14:15:22Z",
   "updated_by": "deea00dc-b6b6-4412-a483-26ac61e1f6fe"
@@ -9115,29 +9115,23 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name         | Type                                                       | Required | Restrictions | Description                                                                                         |
-|--------------|------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------|
-| `condition`  | string                                                     | false    |              | Condition is the CEL expression of a condition rule.                                                |
-| `mode`       | [codersdk.ExperimentRuleMode](#codersdkexperimentrulemode) | false    |              | Mode is empty when the stored rule is malformed. A malformed rule decides off until it is replaced. |
-| `revision`   | integer                                                    | false    |              | Revision increases on every change. Zero means never configured.                                    |
-| `updated_at` | string                                                     | false    |              |                                                                                                     |
-| `updated_by` | string                                                     | false    |              |                                                                                                     |
-
-#### Enumerated Values
-
-| Property | Value(s)                            |
-|----------|-------------------------------------|
-| `mode`   | `condition`, `inherit`, `off`, `on` |
+| Name         | Type    | Required | Restrictions | Description                                                                                                                                                                                                          |
+|--------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `condition`  | string  | false    |              | Condition is the CEL expression of a condition rule.                                                                                                                                                                 |
+| `mode`       | string  | false    |              | Mode is one of the ExperimentRuleMode values, or empty when the stored rule is malformed. A malformed rule decides off until it is replaced. It is a plain string so that clients can represent the malformed state. |
+| `revision`   | integer | false    |              | Revision increases on every change. Zero means never configured.                                                                                                                                                     |
+| `updated_at` | string  | false    |              |                                                                                                                                                                                                                      |
+| `updated_by` | string  | false    |              |                                                                                                                                                                                                                      |
 
 ## codersdk.ExperimentRuleEntry
 
 ```json
 {
-  "experiment": "example",
+  "experiment": "string",
   "ignored": true,
   "rule": {
     "condition": "string",
-    "mode": "inherit",
+    "mode": "string",
     "revision": 0,
     "updated_at": "2019-08-24T14:15:22Z",
     "updated_by": "deea00dc-b6b6-4412-a483-26ac61e1f6fe"
@@ -9148,12 +9142,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name             | Type                                               | Required | Restrictions | Description                                                                                                       |
-|------------------|----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
-| `experiment`     | [codersdk.Experiment](#codersdkexperiment)         | false    |              |                                                                                                                   |
-| `ignored`        | boolean                                            | false    |              | Ignored is true for a stored rule of an experiment that does not accept runtime rules. Such a rule has no effect. |
-| `rule`           | [codersdk.ExperimentRule](#codersdkexperimentrule) | false    |              | Rule is null when no rule was ever stored.                                                                        |
-| `static_default` | boolean                                            | false    |              | Static default reports whether the experiment is in the startup --experiments list of the replica that answered.  |
+| Name             | Type                                               | Required | Restrictions | Description                                                                                                                  |
+|------------------|----------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------|
+| `experiment`     | string                                             | false    |              | Experiment is the experiment name. Ignored entries can name experiments this version does not know, so it is a plain string. |
+| `ignored`        | boolean                                            | false    |              | Ignored is true for a stored rule of an experiment that does not accept runtime rules. Such a rule has no effect.            |
+| `rule`           | [codersdk.ExperimentRule](#codersdkexperimentrule) | false    |              | Rule is null when no rule was ever stored.                                                                                   |
+| `static_default` | boolean                                            | false    |              | Static default reports whether the experiment is in the startup --experiments list of the replica that answered.             |
 
 ## codersdk.ExperimentRuleMode
 

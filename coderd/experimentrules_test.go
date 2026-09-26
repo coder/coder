@@ -63,7 +63,7 @@ func ruleEntry(ctx context.Context, t *testing.T, client *codersdk.ExperimentalC
 	entries, err := client.ExperimentRules(ctx)
 	require.NoError(t, err)
 	for _, entry := range entries {
-		if entry.Experiment == ex {
+		if entry.Experiment == string(ex) {
 			return entry
 		}
 	}
@@ -91,8 +91,8 @@ func TestExperimentRules(t *testing.T) {
 		entries, err := w.client.ExperimentRules(ctx)
 		require.NoError(t, err)
 		require.Equal(t, []codersdk.ExperimentRuleEntry{
-			{Experiment: codersdk.ExperimentExample},
-			{Experiment: codersdk.ExperimentMCPToolSearch, StaticDefault: true},
+			{Experiment: string(codersdk.ExperimentExample)},
+			{Experiment: string(codersdk.ExperimentMCPToolSearch), StaticDefault: true},
 		}, entries)
 
 		w.put(ctx, codersdk.ExperimentExample, codersdk.ExperimentRuleModeOn, "")
@@ -115,7 +115,7 @@ func TestExperimentRules(t *testing.T) {
 		entry := ruleEntry(ctx, t, w.client, codersdk.ExperimentMCPToolSearch)
 		require.True(t, entry.StaticDefault)
 		require.NotNil(t, entry.Rule)
-		require.Equal(t, codersdk.ExperimentRuleModeInherit, entry.Rule.Mode)
+		require.Equal(t, string(codersdk.ExperimentRuleModeInherit), entry.Rule.Mode)
 		require.Equal(t, int64(2), entry.Rule.Revision)
 		require.Equal(t, owner.UserID, entry.Rule.UpdatedBy)
 		require.False(t, entry.Rule.UpdatedAt.IsZero())
@@ -175,8 +175,8 @@ func TestExperimentRules(t *testing.T) {
 		entries, err := w.client.ExperimentRules(ctx)
 		require.NoError(t, err)
 		require.Equal(t, []codersdk.ExperimentRuleEntry{
-			{Experiment: codersdk.ExperimentExample, Rule: &stored},
-			{Experiment: codersdk.ExperimentMCPToolSearch},
+			{Experiment: string(codersdk.ExperimentExample), Rule: &stored},
+			{Experiment: string(codersdk.ExperimentMCPToolSearch)},
 		}, entries)
 	})
 
@@ -230,10 +230,10 @@ func TestExperimentRules(t *testing.T) {
 		entries, err := client.ExperimentRules(ctx)
 		require.NoError(t, err)
 		require.Equal(t, []codersdk.ExperimentRuleEntry{
-			{Experiment: codersdk.ExperimentExample, Rule: &codersdk.ExperimentRule{Revision: 2}},
-			{Experiment: codersdk.ExperimentMCPToolSearch},
-			{Experiment: codersdk.ExperimentAutoFillParameters, Rule: &codersdk.ExperimentRule{Mode: codersdk.ExperimentRuleModeOff, Revision: 4}, Ignored: true},
-			{Experiment: "not-an-experiment", Rule: &codersdk.ExperimentRule{Mode: codersdk.ExperimentRuleModeOn, Revision: 1}, Ignored: true},
+			{Experiment: string(codersdk.ExperimentExample), Rule: &codersdk.ExperimentRule{Revision: 2}},
+			{Experiment: string(codersdk.ExperimentMCPToolSearch)},
+			{Experiment: string(codersdk.ExperimentAutoFillParameters), Rule: &codersdk.ExperimentRule{Mode: string(codersdk.ExperimentRuleModeOff), Revision: 4}, Ignored: true},
+			{Experiment: "not-an-experiment", Rule: &codersdk.ExperimentRule{Mode: string(codersdk.ExperimentRuleModeOn), Revision: 1}, Ignored: true},
 		}, entries)
 
 		rule, err := client.PutExperimentRule(ctx, codersdk.ExperimentExample, codersdk.PutExperimentRuleRequest{Mode: codersdk.ExperimentRuleModeOn, ExpectedRevision: 2})

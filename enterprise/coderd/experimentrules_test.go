@@ -111,7 +111,7 @@ func (f experimentRulesFixture) storedRule(ctx context.Context, t *testing.T) *c
 	entries, err := f.client.ExperimentRules(ctx)
 	require.NoError(t, err)
 	for _, entry := range entries {
-		if entry.Experiment == codersdk.ExperimentExample {
+		if entry.Experiment == string(codersdk.ExperimentExample) {
 			return entry.Rule
 		}
 	}

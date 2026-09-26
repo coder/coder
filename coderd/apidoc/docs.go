@@ -23837,18 +23837,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "mode": {
-                    "description": "Mode is empty when the stored rule is malformed. A malformed rule\ndecides off until it is replaced.",
-                    "enum": [
-                        "inherit",
-                        "on",
-                        "off",
-                        "condition"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ExperimentRuleMode"
-                        }
-                    ]
+                    "description": "Mode is one of the ExperimentRuleMode values, or empty when the\nstored rule is malformed. A malformed rule decides off until it is\nreplaced. It is a plain string so that clients can represent the\nmalformed state.",
+                    "type": "string"
                 },
                 "revision": {
                     "description": "Revision increases on every change. Zero means never configured.",
@@ -23868,7 +23858,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "experiment": {
-                    "$ref": "#/definitions/codersdk.Experiment"
+                    "description": "Experiment is the experiment name. Ignored entries can name\nexperiments this version does not know, so it is a plain string.",
+                    "type": "string"
                 },
                 "ignored": {
                     "description": "Ignored is true for a stored rule of an experiment that does not\naccept runtime rules. Such a rule has no effect.",

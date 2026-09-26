@@ -44,7 +44,7 @@ func TestExperimentRules(t *testing.T) {
 		entries, err := codersdk.NewExperimentalClient(client).ExperimentRules(ctx)
 		require.NoError(t, err)
 		for _, entry := range entries {
-			if entry.Experiment == ex {
+			if entry.Experiment == string(ex) {
 				return entry.Rule
 			}
 		}
@@ -79,7 +79,7 @@ func TestExperimentRules(t *testing.T) {
 		_, _, err = run("reset", "example")
 		require.NoError(t, err)
 		rule := storedRule(ctx, t, ownerClient, codersdk.ExperimentExample)
-		require.Equal(t, codersdk.ExperimentRuleModeInherit, rule.Mode)
+		require.Equal(t, string(codersdk.ExperimentRuleModeInherit), rule.Mode)
 		require.Equal(t, int64(4), rule.Revision)
 
 		stdout, _, err = run("list", "-o", "json")
@@ -109,7 +109,7 @@ func TestExperimentRules(t *testing.T) {
 		require.Contains(t, err.Error(), "409")
 		require.Contains(t, stderr, `Current rule for experiment "example": on (revision 1)`)
 		rule := storedRule(ctx, t, ownerClient, codersdk.ExperimentExample)
-		require.Equal(t, codersdk.ExperimentRuleModeOn, rule.Mode)
+		require.Equal(t, string(codersdk.ExperimentRuleModeOn), rule.Mode)
 		require.Equal(t, int64(1), rule.Revision)
 	})
 

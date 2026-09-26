@@ -74,7 +74,7 @@ func (api *API) experimentRules(rw http.ResponseWriter, r *http.Request) {
 	entries := make([]codersdk.ExperimentRuleEntry, 0, len(codersdk.ExperimentsUserScoped)+len(rules))
 	for _, ex := range codersdk.ExperimentsUserScoped {
 		entry := codersdk.ExperimentRuleEntry{
-			Experiment:    ex,
+			Experiment:    string(ex),
 			StaticDefault: api.Experiments.Enabled(ex),
 		}
 		if rule, ok := rules[ex]; ok {
@@ -91,7 +91,7 @@ func (api *API) experimentRules(rw http.ResponseWriter, r *http.Request) {
 	slices.Sort(ignored)
 	for _, ex := range ignored {
 		entries = append(entries, codersdk.ExperimentRuleEntry{
-			Experiment:    ex,
+			Experiment:    string(ex),
 			StaticDefault: api.Experiments.Enabled(ex),
 			Rule:          ptr.Ref(convertExperimentRule(rules[ex])),
 			Ignored:       true,
@@ -203,7 +203,7 @@ func (api *API) putExperimentRule(rw http.ResponseWriter, r *http.Request) {
 
 func convertExperimentRule(rule experimentrules.Rule) codersdk.ExperimentRule {
 	return codersdk.ExperimentRule{
-		Mode:      codersdk.ExperimentRuleMode(rule.Mode),
+		Mode:      string(rule.Mode),
 		Condition: rule.Condition,
 		Revision:  rule.Revision,
 		UpdatedBy: rule.UpdatedBy,

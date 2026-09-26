@@ -29,9 +29,11 @@ const (
 
 // ExperimentRule is the stored runtime rule of one experiment.
 type ExperimentRule struct {
-	// Mode is empty when the stored rule is malformed. A malformed rule
-	// decides off until it is replaced.
-	Mode ExperimentRuleMode `json:"mode" enums:"inherit,on,off,condition"`
+	// Mode is one of the ExperimentRuleMode values, or empty when the
+	// stored rule is malformed. A malformed rule decides off until it is
+	// replaced. It is a plain string so that clients can represent the
+	// malformed state.
+	Mode string `json:"mode"`
 	// Condition is the CEL expression of a condition rule.
 	Condition string `json:"condition,omitempty"`
 	// Revision increases on every change. Zero means never configured.
@@ -42,7 +44,9 @@ type ExperimentRule struct {
 
 // ExperimentRuleEntry describes the runtime rule state of one experiment.
 type ExperimentRuleEntry struct {
-	Experiment Experiment `json:"experiment"`
+	// Experiment is the experiment name. Ignored entries can name
+	// experiments this version does not know, so it is a plain string.
+	Experiment string `json:"experiment"`
 	// StaticDefault reports whether the experiment is in the startup
 	// --experiments list of the replica that answered.
 	StaticDefault bool `json:"static_default"`

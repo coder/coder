@@ -5106,10 +5106,12 @@ export type Experiment =
  */
 export interface ExperimentRule {
 	/**
-	 * Mode is empty when the stored rule is malformed. A malformed rule
-	 * decides off until it is replaced.
+	 * Mode is one of the ExperimentRuleMode values, or empty when the
+	 * stored rule is malformed. A malformed rule decides off until it is
+	 * replaced. It is a plain string so that clients can represent the
+	 * malformed state.
 	 */
-	readonly mode: ExperimentRuleMode;
+	readonly mode: string;
 	/**
 	 * Condition is the CEL expression of a condition rule.
 	 */
@@ -5127,7 +5129,11 @@ export interface ExperimentRule {
  * ExperimentRuleEntry describes the runtime rule state of one experiment.
  */
 export interface ExperimentRuleEntry {
-	readonly experiment: Experiment;
+	/**
+	 * Experiment is the experiment name. Ignored entries can name
+	 * experiments this version does not know, so it is a plain string.
+	 */
+	readonly experiment: string;
 	/**
 	 * StaticDefault reports whether the experiment is in the startup
 	 * --experiments list of the replica that answered.
