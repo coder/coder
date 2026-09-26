@@ -687,3 +687,148 @@ func TestEditFiles_ToolResponseCarriesFileResults(t *testing.T) {
 	assert.Equal(t, targetPath, decoded.Files[0].Path)
 	assert.Equal(t, expectedFiles[0].Diff, decoded.Files[0].Diff)
 }
+
+func TestEditFiles_Grouping(t *testing.T) {
+	t.Parallel()
+
+	e1 := chattool.EditFilesEdit{Path: "/repo/a.go", OldText: "x := 1", NewText: "x := 2"}
+	e2 := chattool.EditFilesEdit{Path: "/repo/b.go", OldText: "foo()", NewText: "bar()"}
+	e3 := chattool.EditFilesEdit{Path: "/repo/a.go", OldText: "y := 1", NewText: "y := 2"}
+	all := chattool.EditFilesEdit{Path: "/repo/a.go", OldText: "foo", NewText: "bar", ReplaceAll: true}
+
+	tests := []struct {
+		name  string
+		edits []chattool.EditFilesEdit
+		// agentFiles is the grouped agent request form.
+		agentFiles []workspacesdk.FileEdits
+		// hookJSON is the exact pre_tool_use tool_input.
+		hookJSON string
+		// flattened is the result of flattening hookJSON back to
+		// schema B.
+		flattened []chattool.EditFilesEdit
+	}{
+		{
+			name:  "Empty",
+			edits: nil,
+			// An empty slice, not nil, so hooks see an array.
+			agentFiles: []workspacesdk.FileEdits{},
+			hookJSON:   `{"files":[]}`,
+			flattened:  []chattool.EditFilesEdit{},
+		},
+		{
+			name:  "SingleFile",
+			edits: []chattool.EditFilesEdit{e1, e3},
+			agentFiles: []workspacesdk.FileEdits{
+				{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{
+					{OldText: "x := 1", NewText: "x := 2"},
+					{OldText: "y := 1", NewText: "y := 2"},
+				}},
+			},
+			hookJSON:  `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"x := 1","new_text":"x := 2"},{"old_text":"y := 1","new_text":"y := 2"}]}]}`,
+			flattened: []chattool.EditFilesEdit{e1, e3},
+		},
+		{
+			name:  "SeveralFiles",
+			edits: []chattool.EditFilesEdit{e1, e3, e2},
+			agentFiles: []workspacesdk.FileEdits{
+				{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{
+					{OldText: "x := 1", NewText: "x := 2"},
+					{OldText: "y := 1", NewText: "y := 2"},
+				}},
+				{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{
+					{OldText: "foo()", NewText: "bar()"},
+				}},
+			},
+			hookJSON:  `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"x := 1","new_text":"x := 2"},{"old_text":"y := 1","new_text":"y := 2"}]},{"path":"/repo/b.go","edits":[{"old_text":"foo()","new_text":"bar()"}]}]}`,
+			flattened: []chattool.EditFilesEdit{e1, e3, e2},
+		},
+		{
+			// Grouping keeps each file's edit order but not the
+			// order of edits across files.
+			name:  "InterleavedPaths",
+			edits: []chattool.EditFilesEdit{e1, e2, e3},
+			agentFiles: []workspacesdk.FileEdits{
+				{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{
+					{OldText: "x := 1", NewText: "x := 2"},
+					{OldText: "y := 1", NewText: "y := 2"},
+				}},
+				{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{
+					{OldText: "foo()", NewText: "bar()"},
+				}},
+			},
+			hookJSON:  `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"x := 1","new_text":"x := 2"},{"old_text":"y := 1","new_text":"y := 2"}]},{"path":"/repo/b.go","edits":[{"old_text":"foo()","new_text":"bar()"}]}]}`,
+			flattened: []chattool.EditFilesEdit{e1, e3, e2},
+		},
+		{
+			name:  "ReplaceAll",
+			edits: []chattool.EditFilesEdit{all, e1},
+			agentFiles: []workspacesdk.FileEdits{
+				{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{
+					{OldText: "foo", NewText: "bar", ReplaceAll: true},
+					{OldText: "x := 1", NewText: "x := 2"},
+				}},
+			},
+			hookJSON:  `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"foo","new_text":"bar","replace_all":true},{"old_text":"x := 1","new_text":"x := 2"}]}]}`,
+			flattened: []chattool.EditFilesEdit{all, e1},
+		},
+		{
+			// Paths compare exactly: no trimming, no case folding.
+			name: "PathsCompareExactly",
+			edits: []chattool.EditFilesEdit{
+				{Path: "/repo/a.go", OldText: "a", NewText: "b"},
+				{Path: "/repo/A.go", OldText: "c", NewText: "d"},
+				{Path: "/repo/a.go ", OldText: "e", NewText: "f"},
+			},
+			agentFiles: []workspacesdk.FileEdits{
+				{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{OldText: "a", NewText: "b"}}},
+				{Path: "/repo/A.go", Edits: []workspacesdk.FileEdit{{OldText: "c", NewText: "d"}}},
+				{Path: "/repo/a.go ", Edits: []workspacesdk.FileEdit{{OldText: "e", NewText: "f"}}},
+			},
+			hookJSON: `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"a","new_text":"b"}]},{"path":"/repo/A.go","edits":[{"old_text":"c","new_text":"d"}]},{"path":"/repo/a.go ","edits":[{"old_text":"e","new_text":"f"}]}]}`,
+			flattened: []chattool.EditFilesEdit{
+				{Path: "/repo/a.go", OldText: "a", NewText: "b"},
+				{Path: "/repo/A.go", OldText: "c", NewText: "d"},
+				{Path: "/repo/a.go ", OldText: "e", NewText: "f"},
+			},
+		},
+		{
+			name:  "IdenticalDuplicatesKept",
+			edits: []chattool.EditFilesEdit{e1, e1},
+			agentFiles: []workspacesdk.FileEdits{
+				{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{
+					{OldText: "x := 1", NewText: "x := 2"},
+					{OldText: "x := 1", NewText: "x := 2"},
+				}},
+			},
+			hookJSON:  `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"x := 1","new_text":"x := 2"},{"old_text":"x := 1","new_text":"x := 2"}]}]}`,
+			flattened: []chattool.EditFilesEdit{e1, e1},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.agentFiles, chattool.GroupEditsByPath(tt.edits))
+
+			hookInput, err := json.Marshal(chattool.NewEditFilesHookInput(tt.edits))
+			require.NoError(t, err)
+			assert.Equal(t, tt.hookJSON, string(hookInput))
+
+			var override chattool.EditFilesHookInput
+			require.NoError(t, json.Unmarshal(hookInput, &override))
+			assert.Equal(t, tt.flattened, override.Edits())
+		})
+	}
+
+	// A grouped override must accept only old_text/new_text, not the
+	// deprecated search/replace keys that workspacesdk.FileEdit
+	// decodes for old agents.
+	t.Run("OverrideIgnoresSearchReplace", func(t *testing.T) {
+		t.Parallel()
+
+		var override chattool.EditFilesHookInput
+		err := json.Unmarshal([]byte(`{"files":[{"path":"/repo/a.go","edits":[{"search":"foo()","replace":"bar()"}]}]}`), &override)
+		require.NoError(t, err)
+		assert.Equal(t, []chattool.EditFilesEdit{{Path: "/repo/a.go"}}, override.Edits())
+	})
+}
