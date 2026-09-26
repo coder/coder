@@ -31,12 +31,16 @@ const (
 // JSON object whose only key is "output".
 var ErrInvalidFinalizerArguments = xerrors.New("finalizer arguments must be an object with only the output property")
 
+// ErrFinalizerCallIncomplete rejects a finalizer call from a model step that
+// did not finish normally, for example one cut off by the output limit.
+var ErrFinalizerCallIncomplete = xerrors.New("finalizer call did not finish")
+
 // finalizerSentinels are the fixed-text rejections the runner may show the
 // model. Any other error is reported with finalizerUnchecked.
 var finalizerSentinels = []error{
 	ErrInvalidFinalizerArguments, ErrTooLarge, ErrInvalidUTF8, ErrMalformed, ErrTrailingData, ErrTooDeep,
 	ErrTooManyNodes, ErrArrayTooLong, ErrDuplicateKey, ErrNullCharacter, ErrUnpairedSurrogate,
-	ErrNumberTooLong, ErrExponentTooLarge, ErrNumberOutOfRange,
+	ErrNumberTooLong, ErrExponentTooLarge, ErrNumberOutOfRange, ErrFinalizerCallIncomplete,
 }
 
 // FinalizerDefinition returns a fresh tool definition whose output property
@@ -85,13 +89,8 @@ func copyJSON(v any) any {
 // original bytes. Re-encoding the parsed value could change its size, for
 // example by escaping U+2028, and so change which caps apply.
 func (s *Schema) CheckFinalizerArguments(raw []byte) (any, error) {
-	envelope, err := ParseFinalizerArguments(raw)
-	if err != nil {
+	if err := ScreenFinalizerArguments(raw); err != nil {
 		return nil, err
-	}
-	obj, ok := envelope.(map[string]any)
-	if _, has := obj["output"]; !ok || !has || len(obj) != 1 {
-		return nil, ErrInvalidFinalizerArguments
 	}
 	// With the key set verified, encoding/json's case-insensitive field
 	// matching can only select the exact output key.
@@ -102,6 +101,20 @@ func (s *Schema) CheckFinalizerArguments(raw []byte) (any, error) {
 		return nil, xerrors.Errorf("extract finalizer output: %w", err)
 	}
 	return s.Validate(args.Output)
+}
+
+// ScreenFinalizerArguments parses raw finalizer arguments under the envelope
+// caps and requires exactly the output property, without schema validation.
+func ScreenFinalizerArguments(raw []byte) error {
+	envelope, err := ParseFinalizerArguments(raw)
+	if err != nil {
+		return err
+	}
+	obj, ok := envelope.(map[string]any)
+	if _, has := obj["output"]; !ok || !has || len(obj) != 1 {
+		return ErrInvalidFinalizerArguments
+	}
+	return nil
 }
 
 // FinalizerRunner returns the local executor for the finalizer tool. Its
@@ -132,6 +145,13 @@ func (r *finalizerRunner) Run(_ context.Context, call fantasy.ToolCall) (fantasy
 	if err == nil {
 		return fantasy.NewTextResponse(finalizerAcknowledgment), nil
 	}
+	return fantasy.NewTextErrorResponse(FinalizerFeedback(err)), nil
+}
+
+// FinalizerFeedback returns the model-visible text for a rejected finalizer
+// call: at most 1024 bytes of validation paths and fixed text, never
+// argument values.
+func FinalizerFeedback(err error) string {
 	feedback := finalizerUnchecked
 	var verr *ValidationError
 	if errors.As(err, &verr) {
@@ -144,7 +164,7 @@ func (r *finalizerRunner) Run(_ context.Context, call fantasy.ToolCall) (fantasy
 			}
 		}
 	}
-	return fantasy.NewTextErrorResponse(truncateUTF8(feedback+finalizerRetry, maxValidationErrorBytes)), nil
+	return truncateUTF8(feedback+finalizerRetry, maxValidationErrorBytes)
 }
 
 func (r *finalizerRunner) ProviderOptions() fantasy.ProviderOptions { return r.opts }

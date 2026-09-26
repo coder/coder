@@ -293,13 +293,20 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	if !modelInvokedAt.IsZero() {
 		attemptRuntime = interruptedAt.Sub(modelInvokedAt)
 	}
+	governingFinalizer := false
+	if slices.ContainsFunc(parts, func(p messagepartbuffer.Part) bool { return isFinalizerCallPart(p.MessagePart) }) {
+		if _, governingFinalizer, err = openRequestGate(ctx, s.opts.Logger, s.opts.Store, input.ChatID).governing(); err != nil {
+			return taskRetryableError{err: err}
+		}
+	}
 	partialMessages, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
-		parts:          parts,
-		modelConfigID:  chat.LastModelConfigID,
-		contentVersion: chatprompt.CurrentContentVersion,
-		logger:         s.opts.Logger,
-		interruptedAt:  interruptedAt,
-		attemptRuntime: attemptRuntime,
+		governingFinalizer: governingFinalizer,
+		parts:              parts,
+		modelConfigID:      chat.LastModelConfigID,
+		contentVersion:     chatprompt.CurrentContentVersion,
+		logger:             s.opts.Logger,
+		interruptedAt:      interruptedAt,
+		attemptRuntime:     attemptRuntime,
 	})
 	if err != nil {
 		return xerrors.Errorf("convert buffered parts: %w", err)

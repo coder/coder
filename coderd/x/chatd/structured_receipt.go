@@ -31,13 +31,25 @@ const (
 // caller's transition still completes. Run it inside the ChatMachine.Update
 // that commits the transition, with history read under the same lock.
 func activeRequestReceipt(ctx context.Context, logger slog.Logger, store database.Store, chatID uuid.UUID, history []database.ChatMessage, out codersdk.ChatStructuredOutput) ([]chatstate.Message, error) {
+	state, open := openStructuredRequest(ctx, logger, chatID, history)
+	if !open {
+		return nil, nil
+	}
+	out.RequestID = state.Request.RequestID
+	return structuredReceiptMessages(ctx, store, chatID, state.RequestRowID, out)
+}
+
+// openStructuredRequest reconstructs the structured output request of
+// history's latest user turn and reports whether it is open. History that
+// cannot be reconstructed logs a warning and counts as no open request.
+func openStructuredRequest(ctx context.Context, logger slog.Logger, chatID uuid.UUID, history []database.ChatMessage) (chatstructured.ActiveRequestState, bool) {
 	rows := make([]chatstructured.Row, 0, len(history))
 	for _, msg := range history {
 		parts, err := chatprompt.ParseContent(msg)
 		if err != nil {
-			logger.Warn(ctx, "skip closing structured output request: unreadable message",
+			logger.Warn(ctx, "ignore structured output request: unreadable message",
 				slog.F("chat_id", chatID), slog.F("message_id", msg.ID))
-			return nil, nil
+			return chatstructured.ActiveRequestState{}, false
 		}
 		rows = append(rows, chatstructured.Row{
 			ID: msg.ID, Role: codersdk.ChatMessageRole(msg.Role), Visibility: chatstructured.Visibility(msg.Visibility), Parts: parts,
@@ -45,14 +57,10 @@ func activeRequestReceipt(ctx context.Context, logger slog.Logger, store databas
 	}
 	state, err := chatstructured.ActiveRequest(rows)
 	if err != nil {
-		logger.Warn(ctx, "skip closing structured output request: inconsistent history", slog.F("chat_id", chatID))
-		return nil, nil
+		logger.Warn(ctx, "ignore structured output request: inconsistent history", slog.F("chat_id", chatID))
+		return chatstructured.ActiveRequestState{}, false
 	}
-	if !state.Active || state.Closed {
-		return nil, nil
-	}
-	out.RequestID = state.Request.RequestID
-	return structuredReceiptMessages(ctx, store, chatID, state.RequestRowID, out)
+	return state, state.Active && !state.Closed
 }
 
 // queueDeletedRequestReceipts returns the receipt that cancels the
