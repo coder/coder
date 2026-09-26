@@ -2397,6 +2397,32 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 	})
 }
 
+func TestConvertMessagesWithFiles_OmitsStructuredOutputParts(t *testing.T) {
+	t.Parallel()
+
+	parts := []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")}
+	for _, typ := range []codersdk.ChatMessagePartType{
+		codersdk.ChatMessagePartTypeStructuredOutputRequest,
+		codersdk.ChatMessagePartTypeStructuredOutputControl,
+		codersdk.ChatMessagePartTypeStructuredOutputOutcome,
+	} {
+		parts = append(parts, codersdk.ChatMessagePart{Type: typ, Text: "hidden", StructuredOutputData: json.RawMessage(`{"a":1}`)})
+	}
+	encoded, err := chatprompt.MarshalParts(parts)
+	require.NoError(t, err)
+	for _, role := range []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant} {
+		prompt, err := chatprompt.ConvertMessagesWithFiles(context.Background(), []database.ChatMessage{{
+			Role: role, Visibility: database.ChatMessageVisibilityBoth, Content: encoded, ContentVersion: chatprompt.CurrentContentVersion,
+		}}, nil, slogtest.Make(t, nil), nil)
+		require.NoError(t, err)
+		require.Len(t, prompt, 1)
+		require.Len(t, prompt[0].Content, 1, role)
+		text, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+		require.True(t, ok)
+		require.Equal(t, "hello", text.Text)
+	}
+}
+
 func TestConvertMessagesWithFiles_PasteTextBecomesTextPart(t *testing.T) {
 	t.Parallel()
 

@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -840,6 +841,30 @@ func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
 	require.Equal(t, toolCallID, result.Content[1].ToolCallID)
 	require.Equal(t, toolName, result.Content[1].ToolName)
 	require.True(t, result.Content[1].ProviderExecuted, "tool result should preserve ProviderExecuted")
+}
+
+func TestChatMessage_DropsStructuredOutputParts(t *testing.T) {
+	t.Parallel()
+
+	parts := []codersdk.ChatMessagePart{codersdk.ChatMessageText("visible")}
+	for _, typ := range []codersdk.ChatMessagePartType{
+		codersdk.ChatMessagePartTypeStructuredOutputRequest,
+		codersdk.ChatMessagePartTypeStructuredOutputControl,
+		codersdk.ChatMessagePartTypeStructuredOutputOutcome,
+	} {
+		parts = append(parts, codersdk.ChatMessagePart{Type: typ, Text: "hidden", StructuredOutputData: json.RawMessage(`{"a":1}`)})
+	}
+	content, err := json.Marshal(parts)
+	require.NoError(t, err)
+	want := []codersdk.ChatMessagePart{codersdk.ChatMessageText("visible")}
+
+	message := db2sdk.ChatMessage(database.ChatMessage{
+		ID: 1, ChatID: uuid.New(), Role: database.ChatMessageRoleUser, CreatedAt: time.Now(),
+		Content: pqtype.NullRawMessage{RawMessage: content, Valid: true}, ContentVersion: chatprompt.CurrentContentVersion,
+	})
+	require.Equal(t, want, message.Content)
+	queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{ID: 1, ChatID: uuid.New(), Content: content, CreatedAt: time.Now()})
+	require.Equal(t, want, queued.Content)
 }
 
 func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
