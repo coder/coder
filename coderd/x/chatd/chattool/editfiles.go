@@ -188,17 +188,17 @@ func (editFilesTool) DecodeToolInput(input string) (string, bool) {
 	return input[:start] + content + input[end:], true
 }
 
+// isJSONArrayOfObjects reports whether text is exactly one JSON array
+// whose elements are all objects. json.Unmarshal accepts only JSON
+// whitespace around the value, so text that passes can be spliced into
+// the input unchanged.
 func isJSONArrayOfObjects(text string) bool {
-	trimmed := strings.TrimSpace(text)
-	if !strings.HasPrefix(trimmed, "[") {
-		return false
-	}
 	var items []json.RawMessage
-	if err := json.Unmarshal([]byte(trimmed), &items); err != nil {
+	if err := json.Unmarshal([]byte(text), &items); err != nil || items == nil {
 		return false
 	}
 	for _, item := range items {
-		if !strings.HasPrefix(strings.TrimSpace(string(item)), "{") {
+		if !strings.HasPrefix(strings.TrimLeft(string(item), " \t\r\n"), "{") {
 			return false
 		}
 	}
@@ -206,8 +206,8 @@ func isJSONArrayOfObjects(text string) bool {
 }
 
 // Run rejects the retired files shape and input that does not decode
-// into EditFilesArgs with messages that show the accepted shape; the
-// typed wrapper's decode error names Go types instead.
+// into EditFilesArgs. Both messages start with what to change and show
+// the accepted shape; the decode message also carries the decode error.
 func (t editFilesTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 	var retired struct {
 		Files json.RawMessage `json:"files"`
