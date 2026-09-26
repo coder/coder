@@ -111,29 +111,12 @@ func (l *streamLoop) syncDB(ctx context.Context) ([]codersdk.ChatStreamEvent, st
 	return l.applyDBSnapshot(snapshot), l.currentRelayTarget(), true, nil
 }
 
+// shouldFetch reports whether a hint may carry state the loop has not
+// applied. Any newer snapshot fetches: a message change is only visible
+// through the snapshot watermark, because it need not advance any other
+// version the hint carries.
 func (l *streamLoop) shouldFetch(hint streamSyncHint) bool {
-	if hint.snapshotVersion <= l.state.snapshotVersion {
-		return false
-	}
-	if hint.historyVersion > l.state.historyVersion {
-		return true
-	}
-	if hint.queueVersion > l.state.queueVersion {
-		return true
-	}
-	if hint.retryVersion > l.state.retryVersion {
-		return true
-	}
-	if hint.status != l.state.status {
-		return true
-	}
-	if !sameNullUUID(hint.workerID, l.state.workerID) {
-		return true
-	}
-	if hint.generationAttempt != l.state.generationAttempt {
-		return true
-	}
-	return false
+	return hint.snapshotVersion > l.state.snapshotVersion
 }
 
 func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, error) {
@@ -146,10 +129,12 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		}
 		snapshot.chat = chat
 
-		if chat.HistoryVersion > l.state.historyVersion {
+		// Message revisions are snapshot versions, so every message changed
+		// since the last applied snapshot has a revision above it.
+		if chat.SnapshotVersion > l.state.snapshotVersion {
 			snapshot.changedMessages, err = tx.GetChatMessagesByRevisionForStream(ctx, database.GetChatMessagesByRevisionForStreamParams{
 				ChatID:        l.chatID,
-				AfterRevision: l.state.historyVersion,
+				AfterRevision: l.state.snapshotVersion,
 			})
 			if err != nil {
 				return xerrors.Errorf("get changed chat messages: %w", err)
@@ -229,9 +214,9 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 	historyChanged := chat.HistoryVersion > l.state.historyVersion
 	generationChanged := chat.GenerationAttempt != l.state.generationAttempt
 
-	if historyChanged {
-		events = append(events, l.messageEvents(snapshot)...)
-	}
+	// Message events follow the fetched delta, which may hold changes that did
+	// not advance the execution history.
+	events = append(events, l.messageEvents(snapshot)...)
 	if !l.state.initialMessageSyncDone {
 		l.state.initialMessageSyncDone = true
 	}
@@ -280,6 +265,8 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 		}
 	}
 
+	// The preview and its buffered parts belong to an execution episode, so
+	// they reset only when the execution history or generation changes.
 	if historyChanged || (generationChanged && chat.GenerationAttempt != 0) {
 		l.state.lastPartSeq = 0
 		events = append(events, codersdk.ChatStreamEvent{
