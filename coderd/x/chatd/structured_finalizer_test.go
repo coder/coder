@@ -63,7 +63,8 @@ func TestFinalizerArgumentsScreenedBeforeCommit(t *testing.T) {
 				return err == nil && (done.Status == database.ChatStatusWaiting || done.Status == database.ChatStatusError)
 			}, testutil.IntervalFast)
 			require.Equal(t, database.ChatStatusWaiting, done.Status, chatLastErrorMessage(done.LastError))
-			require.EqualValues(t, 2, streamed.Load())
+			// An open request repairs the text answer until its budget ends.
+			require.EqualValues(t, map[bool]int{true: 3, false: 2}[governing], streamed.Load())
 
 			visible, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 			require.NoError(t, err)
@@ -99,9 +100,9 @@ func TestFinalizerArgumentsScreenedBeforeCommit(t *testing.T) {
 			}
 			require.Equal(t, []string{"{}"}, args)
 			require.Contains(t, string(results[0].Result), chatstructured.ErrDuplicateKey.Error())
-			require.Equal(t, 1, state.Rejections)
+			require.Equal(t, 3, state.Rejections)
 			require.Nil(t, state.Candidate)
-			require.False(t, state.Closed)
+			require.True(t, state.Closed)
 			for _, msg := range append(visible, prompt...) {
 				require.NotContains(t, string(msg.Content.RawMessage), marker)
 			}

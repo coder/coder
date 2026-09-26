@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -30,11 +31,25 @@ type finalizerRun struct {
 	controls []chatstructured.Control
 	state    chatstructured.ActiveRequestState
 	client   []codersdk.ChatMessage
+	receipts []codersdk.ChatStructuredOutput
+	requests [][]chattest.OpenAIMessage
+	status   database.ChatStatus
 }
 
 // runFinalizerTurn runs one turn whose first model step emits calls, then
 // answers with text. A nil schema starts an ordinary chat.
 func runFinalizerTurn(t *testing.T, schema json.RawMessage, calls ...chattest.OpenAIToolCall) finalizerRun {
+	t.Helper()
+	if len(calls) == 0 {
+		return runStructuredTurn(t, schema, 0)
+	}
+	return runStructuredTurn(t, schema, 0, calls)
+}
+
+// runStructuredTurn runs one turn whose model steps emit steps in order and
+// then answer with text; a non-zero failStatus fails the first model call
+// before them.
+func runStructuredTurn(t *testing.T, schema json.RawMessage, failStatus int, steps ...[]chattest.OpenAIToolCall) finalizerRun {
 	t.Helper()
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -45,15 +60,23 @@ func runFinalizerTurn(t *testing.T, schema json.RawMessage, calls ...chattest.Op
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
-		first := streamed.Add(1) == 1
-		if first {
-			mu.Lock()
+		step := int(streamed.Add(1)) - 1
+		mu.Lock()
+		if step == 0 {
 			run.tools = append([]chattest.OpenAITool(nil), req.Tools...)
-			mu.Unlock()
 		}
-		if !first || len(calls) == 0 {
+		run.requests = append(run.requests, append([]chattest.OpenAIMessage(nil), req.Messages...))
+		mu.Unlock()
+		if failStatus != 0 {
+			if step == 0 {
+				return chattest.OpenAIResponse{Error: &chattest.ErrorResponse{StatusCode: failStatus, Type: "invalid_request_error", Message: "PROVIDER_BODY_MARKER"}}
+			}
+			step--
+		}
+		if step >= len(steps) {
 			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 		}
+		calls := steps[step]
 		chunk := chattest.OpenAIToolCallChunk(calls[0].Function.Name, calls[0].Function.Arguments)
 		for i, call := range calls[1:] {
 			call.Index, call.ID, call.Type = i+1, "call_"+uuid.NewString()[:8], "function"
@@ -83,7 +106,7 @@ func runFinalizerTurn(t *testing.T, schema json.RawMessage, calls ...chattest.Op
 		done, err = db.GetChatByID(ctx, chat.ID)
 		return err == nil && (done.Status == database.ChatStatusWaiting || done.Status == database.ChatStatusError)
 	}, testutil.IntervalFast)
-	require.Equal(t, database.ChatStatusWaiting, done.Status, chatLastErrorMessage(done.LastError))
+	run.status = done.Status
 
 	history, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 	require.NoError(t, err)
@@ -93,6 +116,9 @@ func runFinalizerTurn(t *testing.T, schema json.RawMessage, calls ...chattest.Op
 		require.NoError(t, err)
 		rows = append(rows, chatstructured.Row{ID: msg.ID, Role: codersdk.ChatMessageRole(msg.Role), Visibility: chatstructured.Visibility(msg.Visibility), Parts: parts})
 		run.client = append(run.client, db2sdk.ChatMessage(msg))
+		if out, err := chatstate.ReceiptRowOutcome(msg); err == nil {
+			run.receipts = append(run.receipts, out)
+		}
 		for _, part := range parts {
 			switch part.Type {
 			case codersdk.ChatMessagePartTypeToolResult:
@@ -154,7 +180,7 @@ func TestFinalizerDispatch(t *testing.T) {
 		require.Zero(t, run.state.Rejections)
 		clientJSON, err := json.Marshal(run.client)
 		require.NoError(t, err)
-		require.Equal(t, 1, strings.Count(string(clientJSON), "CANDIDATE_MARKER"), "only the call arguments carry the value")
+		require.Equal(t, 2, strings.Count(string(clientJSON), "CANDIDATE_MARKER"), "only the call arguments and the receipt carry the value")
 	})
 
 	for name, calls := range map[string][]chattest.OpenAIToolCall{
@@ -173,10 +199,12 @@ func TestFinalizerDispatch(t *testing.T) {
 			for _, result := range run.results {
 				require.True(t, result.IsError)
 			}
-			require.Len(t, run.controls, 1)
+			// Two text answers are rejected as repairs, which spends the budget.
+			require.Len(t, run.controls, 3)
 			require.Equal(t, chatstructured.ControlRejection, run.controls[0].Kind)
 			require.Nil(t, run.state.Candidate)
-			require.Equal(t, 1, run.state.Rejections)
+			require.Equal(t, 3, run.state.Rejections)
+			require.Equal(t, codersdk.ChatStructuredOutputErrorCodeValidationExhausted, run.state.Outcome.Error.Code)
 		})
 	}
 }

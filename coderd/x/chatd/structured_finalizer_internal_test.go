@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"sort"
 	"strings"
 	"testing"
 
@@ -254,6 +255,19 @@ func TestFinalizerBatchControls(t *testing.T) {
 	require.NoError(t, err)
 	valid, fin := `{"output":{"a":"x"}}`, chatstructured.FinalizerToolName
 	rejection := &chatstructured.Control{RequestID: requestID, Kind: chatstructured.ControlRejection}
+	// Huge numbers and a pad fill the candidate to the control cap; its
+	// succeeded receipt is two bytes longer and cannot be stored.
+	numbers := strings.TrimSuffix(strings.Repeat("["+strings.TrimSuffix(strings.Repeat("1e121,", 250), ",")+"],", 16), ",")
+	padded := func(pad int) string {
+		return `{"output":{"a":"x","n":[` + numbers + `],"p":"` + strings.Repeat("p", pad) + `"}}`
+	}
+	pad := sort.Search(60<<10, func(pad int) bool {
+		output, err := chatstructured.FinalizerOutput([]byte(padded(pad)))
+		require.NoError(t, err)
+		_, err = chatstructured.EncodeControlPart(chatstructured.Control{RequestID: requestID, Kind: chatstructured.ControlCandidate, Value: output})
+		return err != nil
+	}) - 1
+	require.Positive(t, pad)
 	for _, tt := range []struct {
 		name     string
 		step     []codersdk.ChatMessagePart
@@ -273,6 +287,7 @@ func TestFinalizerBatchControls(t *testing.T) {
 		// A valid output whose candidate would not decode once stored is
 		// rejected with fixed feedback instead of failing the step.
 		{name: "Unstorable", step: []codersdk.ChatMessagePart{call("f", fin, `{"output":{"a":"x","b":1e200}}`, false)}, content: []fantasy.Content{result("f", false)}, want: rejection, override: finalizerUnstorableFeedback},
+		{name: "UnstorableReceipt", step: []codersdk.ChatMessagePart{call("f", fin, padded(pad), false)}, content: []fantasy.Content{result("f", false)}, want: rejection, override: finalizerUnstorableFeedback},
 		{name: "NoFinalizer", step: []codersdk.ChatMessagePart{call("x", "execute", `{}`, false)}, content: []fantasy.Content{fantasy.ToolResultContent{ToolCallID: "x", ToolName: "execute"}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

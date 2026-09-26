@@ -817,6 +817,7 @@ func (server *Server) prepareGeneration(
 		MaxSteps:             maxChatSteps,
 		StructuredRequestID:  structured.Request.RequestID,
 		FinalizerSchema:      finalizerSchema,
+		Structured:           structured,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
 			ChatModelConfig: modelConfig,
