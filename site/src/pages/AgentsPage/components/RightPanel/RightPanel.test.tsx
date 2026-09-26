@@ -114,9 +114,9 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 // jsdom lays nothing out: the panel's rect is 0 wide and its parent has
 // no client width. Outside the side-by-side room check block, the
 // viewport is pinned below the side-by-side breakpoint so the max width
-// comes from innerWidth alone (700px) and
-// the initial 480px width is not clamped on mount. With a zero start
-// width the raw drag width is -clientX, giving these zones:
+// comes from innerWidth alone (700px) and the initial 480px width is not
+// clamped on mount. With a zero start width the raw drag width is
+// -clientX, giving these zones:
 const CLOSE_ZONE_X = 100; // raw -100 < 280
 const NORMAL_ZONE_X = -600; // raw 600, kept as the live width
 const EXPAND_ZONE_X = -900; // raw 900 > 700 + 80
