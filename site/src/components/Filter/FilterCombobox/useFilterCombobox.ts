@@ -401,7 +401,7 @@ export const useFilterCombobox = ({
 			: category.key;
 	// With a chip under each key and no typed prefix, an option whose value
 	// one of them holds maps to that chip, so its row shows as selected and a
-	// click removes it.
+	// click removes it. Typed Enter commits that chip, which keeps it.
 	const appliedScopeChipFor = (
 		category: FilterCategory,
 		option: Pick<FilterOption, "value">,
@@ -746,7 +746,7 @@ export const useFilterCombobox = ({
 					inputValue,
 					menuCategories.map((category) => ({
 						...category,
-						optionToken: (option: FilterOption) =>
+						optionTokenFor: (option: FilterOption) =>
 							optionTokenFor(category, option),
 					})),
 					typeaheadOptionsByKey,
@@ -1349,15 +1349,21 @@ export const useFilterCombobox = ({
 			inputValue.trim().length > 0
 		) {
 			const highlighted = getHighlightedValue();
-			// A typed owner commits under the category key unless `user:` was
-			// typed, since the backend rejects `user:` for users the requester
-			// cannot read.
 			const typedOption = { value: inputValue.trim() };
+			// A typed value no option lists commits under the category key unless
+			// `widenedKey` was typed, since a backend can reject the widened key
+			// for values the requester cannot list (#29961 for Workspaces `user:`).
+			const listed = activeOptions?.some(
+				(option) => option.value === typedOption.value,
+			);
 			const candidate =
-				activeCategory.scopeToggle && typedScopeWidened !== true
-					? (appliedScopeChipFor(activeCategory, typedOption) ??
-						chipToken(activeCategory.key, typedOption.value))
-					: optionTokenFor(activeCategory, typedOption);
+				appliedScopeChipFor(activeCategory, typedOption) ??
+				chipToken(
+					listed || typedScopeWidened === true
+						? optionChipKey(activeCategory)
+						: activeCategory.key,
+					typedOption.value,
+				);
 			const hasHighlightedOption = activeOptions?.some(
 				(option) => optionTokenFor(activeCategory, option) === highlighted,
 			);
