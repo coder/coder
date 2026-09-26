@@ -72,6 +72,7 @@ type Action =
 	| { type: "setTypedFreeText"; value: string }
 	| { type: "leaveCategory" }
 	| { type: "close" }
+	| { type: "clear" }
 	| { type: "reconcile"; freeText: string };
 
 const closeState = (state: State): State => ({
@@ -136,6 +137,8 @@ const reducer = (state: State, action: Action): State => {
 			};
 		case "close":
 			return closeState(state);
+		case "clear":
+			return { ...state, inputValue: "", typedFreeText: "" };
 		case "reconcile":
 			return {
 				...state,
@@ -374,7 +377,13 @@ export const useFilterCombobox = ({
 
 	// A pending typed-text lookup reads the chips of the last sent query when
 	// it resolves.
+	// A row the query drops from the menu while it is closed must not stay
+	// highlighted.
 	const emitQueryKeepingLookup = (query: string) => {
+		highlightCategoryListRow(
+			queryToChips(query, chipKeys),
+			getHighlightedValue(),
+		);
 		lastEmittedRef.current = query;
 		onChange(query);
 	};
@@ -845,23 +854,33 @@ export const useFilterCombobox = ({
 		closeMenu();
 	};
 
-	// Returning to the category list highlights the row that was open, so the
-	// keyboard position is never lost when the option rows unmount. When that
-	// row is not in the menu, because the picked option hid it or the category
-	// was entered by typing its hidden key, the first row in the menu is
-	// highlighted instead; cmdk keeps a highlight that names no row.
-	const returnToCategories = (nextChips = chipValues) => {
+	// Highlights the category row `rowKey` in the menu that `nextChips`
+	// produce. When that row is not in it, because the picked option hid it, a
+	// removed chip no longer lists it, or the category was entered by typing
+	// its hidden key, the first row in the menu is highlighted instead; cmdk
+	// keeps a highlight that names no row. Leaves the highlight unchanged when
+	// `rowKey` names no category row.
+	const highlightCategoryListRow = (
+		nextChips: string[],
+		rowKey = activeCategoryKey,
+	) => {
+		const row = allSubmenuCategories.find(
+			(category) => category.key === rowKey,
+		);
+		if (row === undefined) {
+			return;
+		}
 		const staysInMenu = (category: FilterCategory) =>
 			isInMenu(category, nextChips);
-		const activeCategoryStaysInMenu =
-			activeCategory !== undefined && staysInMenu(activeCategory);
-		const nextHighlight = activeCategoryStaysInMenu
-			? activeCategoryKey
-			: (allSubmenuCategories.find(
-					(category) =>
-						category.key !== activeCategoryKey && staysInMenu(category),
-				)?.key ?? "");
+		const nextHighlight = staysInMenu(row)
+			? row.key
+			: allSubmenuCategories.find(staysInMenu)?.key;
 		setHighlightedValue(nextHighlight ?? "");
+	};
+	// Highlights the row that was open, so the keyboard position is never lost
+	// when the option rows unmount.
+	const returnToCategories = (nextChips = chipValues) => {
+		highlightCategoryListRow(nextChips);
 		dispatch({ type: "leaveCategory" });
 	};
 
@@ -1067,6 +1086,10 @@ export const useFilterCombobox = ({
 			returnToCategories();
 			return;
 		}
+		// A `value` change from the caller can drop the highlighted row.
+		// `handleInputFocus` repairs it, but `focus()` fires no focus event when
+		// the input already has focus.
+		highlightCategoryListRow(chipValues, getHighlightedValue());
 		applyTypedSearch();
 		dispatch({ type: "showAllFilters" });
 	};
@@ -1094,6 +1117,8 @@ export const useFilterCombobox = ({
 		if (mode === "category") {
 			return;
 		}
+		// A `value` change from the caller can drop the highlighted row.
+		highlightCategoryListRow(chipValues, getHighlightedValue());
 		dispatch({ type: "openBrowsing" });
 	};
 
@@ -1167,6 +1192,17 @@ export const useFilterCombobox = ({
 			applyTypedSearch();
 		}
 		closeMenu();
+	};
+
+	// Empties the query, chips and search text alike. Unlike chip removal, it
+	// cancels a pending typed-text lookup, and an open category returns to the
+	// full list while the popup stays open.
+	const clearAll = () => {
+		if (activeCategoryKey !== null) {
+			returnToCategories([]);
+		}
+		dispatch({ type: "clear" });
+		emitQuery("");
 	};
 
 	// Chip removal leaves the popup, the input, and a pending typed-text lookup
@@ -1359,6 +1395,7 @@ export const useFilterCombobox = ({
 			showAllFilters,
 			dismiss: handleDismiss,
 			removeChip: handleRemoveChip,
+			clearAll,
 			retryActiveOptions,
 			retryTypeahead,
 			retryUnfilteredOptions: unfilteredOptions.refetch,

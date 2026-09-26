@@ -31,6 +31,7 @@ import {
 } from "#/utils/mobile";
 import { chipDisplay, chipToken, optionToken } from "./filterQuery";
 import {
+	chipRowItemHeightClassName,
 	FilterComboboxChip,
 	FilterComboboxChips,
 	FilterComboboxChipsInput,
@@ -62,6 +63,12 @@ import {
  * move into the current flyout does not switch panels.
  */
 export const CATEGORY_HOVER_DELAY_MS = 300;
+
+/**
+ * Chip count at which Clear all appears. Fewer chips are quick to remove one
+ * at a time.
+ */
+const CLEAR_ALL_MIN_CHIPS = 3;
 
 const labelOnlyChipClassName =
 	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
@@ -410,7 +417,7 @@ export function FilterCombobox({
 								variant="outline"
 								size="md"
 								data-slot="combobox-chip-search"
-								className="px-2 font-medium"
+								className={cn(chipRowItemHeightClassName, "px-2 font-medium")}
 							>
 								{typedFreeText}
 							</Badge>
@@ -422,7 +429,7 @@ export function FilterCombobox({
 								variant="dashed"
 								size="md"
 								data-slot="combobox-chip-draft"
-								className="px-2 font-medium"
+								className={cn(chipRowItemHeightClassName, "px-2 font-medium")}
 								aria-hidden
 							>
 								{`${activeCategory.key}:`}
@@ -444,6 +451,38 @@ export function FilterCombobox({
 							onClick={actions.onInputFocus}
 							onKeyDown={actions.onInputKeyDown}
 						/>
+						{chipValues.length >= CLEAR_ALL_MIN_CHIPS && (
+							<Badge
+								asChild
+								variant="outline"
+								hover
+								className={cn(
+									chipRowItemHeightClassName,
+									"px-2 font-medium text-content-secondary hover:text-content-primary",
+								)}
+							>
+								<button
+									type="button"
+									// A click does not move focus to the button, so a focused
+									// input keeps it.
+									onMouseDown={(event) => event.preventDefault()}
+									onClick={(event) => {
+										// The button unmounts, as does an open category's search
+										// field on wider viewports, so focus either held moves to
+										// the input instead of the page body. On mobile, focusing
+										// the input would open the keyboard.
+										const hadFocus =
+											document.activeElement === event.currentTarget;
+										actions.clearAll();
+										if (hadFocus || (activeCategoryKey !== null && !isMobile)) {
+											actions.focusInput();
+										}
+									}}
+								>
+									Clear all
+								</button>
+							</Badge>
+						)}
 					</FilterComboboxChips>
 				</FilterComboboxInputGroup>
 				<FilterComboboxContent

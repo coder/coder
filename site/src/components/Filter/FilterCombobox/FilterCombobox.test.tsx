@@ -2282,6 +2282,287 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(search).toHaveFocus());
 	});
 
+	it("clears every chip and the search text with Clear all", async () => {
+		const { user, onChange, input } = setup(
+			[ownerCategory, statusCategory, attributesCategory],
+			{
+				initialValue: "owner:alice status:running outdated:true dev",
+				// Real time must not end the typed-text debounce before Clear all.
+				fakeTimers: "manual",
+				skipHover: true,
+			},
+		);
+
+		await user.click(input);
+		await user.type(input, " ali");
+		await user.click(screen.getByRole("button", { name: "Clear all" }));
+		await settleTypedText();
+
+		expect(onChange).toHaveBeenLastCalledWith("");
+		expect(onChange).not.toHaveBeenCalledWith("dev ali");
+		expect(input).toHaveValue("");
+		expect(input).toHaveFocus();
+
+		await user.hover(screen.getByRole("option", { name: "Owner" }));
+		await flushTimers();
+		await user.click(screen.getByRole("button", { name: "alice" }));
+		expect(onChange).toHaveBeenLastCalledWith("owner:alice");
+	});
+
+	it("leaves focus in place when Clear all is clicked without focus", async () => {
+		const { user, input } = setup(
+			[ownerCategory, statusCategory, attributesCategory],
+			{ initialValue: "owner:alice status:running outdated:true" },
+		);
+
+		await user.click(screen.getByRole("button", { name: "Clear all" }));
+
+		expect(input).not.toHaveFocus();
+	});
+
+	it("reaches Clear all from the input with Escape and Tab", async () => {
+		const { user, input } = setup(
+			[ownerCategory, statusCategory, attributesCategory],
+			{ initialValue: "owner:alice status:running outdated:true" },
+		);
+
+		await user.click(input);
+		await user.keyboard("{Escape}");
+		await user.tab();
+
+		expect(screen.getByRole("button", { name: "Clear all" })).toHaveFocus();
+	});
+
+	it("clears every chip with Clear all while a category is open", async () => {
+		const { user, onChange, input, filtersButton } = setup(
+			[ownerCategory, statusCategory, attributesCategory],
+			{ initialValue: "owner:alice status:running outdated:true" },
+		);
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowRight}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.click(screen.getByRole("button", { name: "Clear all" }));
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		await user.type(input, "dev");
+		await user.keyboard("{Enter}");
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("dev"));
+	});
+
+	it("returns focus to the input when Clear all is clicked from a category search", async () => {
+		const { user, onChange, input, filtersButton } = setup(
+			[manyOwnersCategory, statusCategory, attributesCategory],
+			{
+				initialValue: "owner:alice status:running outdated:true",
+				skipHover: true,
+			},
+		);
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowRight}");
+		const search = await screen.findByRole("textbox", { name: "Search Owner" });
+		await user.click(search);
+		await user.click(screen.getByRole("button", { name: "Clear all" }));
+
+		expect(input).toHaveFocus();
+		await user.keyboard("dev");
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("dev"));
+	});
+
+	it("highlights a category row after Clear all from a category its chip listed", async () => {
+		const { user, onChange, input } = setup(
+			[
+				ownerCategory,
+				{
+					key: "template",
+					label: "Template",
+					hideWhenSingleOption: true,
+					getOptions: async () => [{ label: "docker", value: "docker" }],
+				},
+				statusCategory,
+			],
+			{ initialValue: "template:docker owner:alice status:running" },
+		);
+
+		await user.click(input);
+		await user.type(input, "template:");
+		await screen.findByRole("option", { name: "docker" });
+		await user.click(screen.getByRole("button", { name: "Clear all" }));
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		await user.keyboard("{Enter}");
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
+	it("highlights a category row after Clear all by keyboard from a row its chip listed", async () => {
+		const { user, onChange, input } = setup(
+			[
+				ownerCategory,
+				{
+					key: "template",
+					label: "Template",
+					hideWhenSingleOption: true,
+					getOptions: async () => [{ label: "docker", value: "docker" }],
+				},
+				statusCategory,
+			],
+			{ initialValue: "template:docker owner:alice status:running" },
+		);
+
+		await user.click(input);
+		await screen.findByRole("option", { name: "Template" });
+		await user.keyboard("{ArrowDown}");
+		await user.keyboard("{Escape}");
+		await user.tab();
+		await user.keyboard("{Enter}");
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+		await user.keyboard("{Enter}");
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
+	it.each([
+		["the remove button", "click"],
+		["Backspace", "Backspace"],
+	])(
+		"highlights a category row after removing the chip that listed the highlighted row with %s",
+		async (_, removal) => {
+			const { user, onChange, input } = setup(
+				[
+					ownerCategory,
+					{
+						key: "template",
+						label: "Template",
+						hideWhenSingleOption: true,
+						getOptions: async () => [{ label: "docker", value: "docker" }],
+					},
+				],
+				{ initialValue: "template:docker" },
+			);
+
+			await user.click(input);
+			await screen.findByRole("option", { name: "Template" });
+			await user.keyboard("{ArrowDown}{Escape}");
+			if (removal === "click") {
+				await user.click(
+					screen.getByRole("button", { name: "Remove template:docker" }),
+				);
+			} else {
+				await user.keyboard("{Backspace}");
+			}
+			await user.click(input);
+			await user.keyboard("{Enter}");
+			await user.click(await screen.findByRole("option", { name: "alice" }));
+
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+			);
+		},
+	);
+
+	it.each([
+		["the input", "input"],
+		["the Filters button", "Filters"],
+	])(
+		"highlights a category row after the caller clears the chip that listed the highlighted row and %s reopens the menu",
+		async (_, opener) => {
+			const user = userEvent.setup();
+			const onChange = vi.fn();
+			const Harness = () => {
+				const [value, setValue] = useState("template:docker");
+				return (
+					<>
+						<FilterCombobox
+							value={value}
+							onChange={(next) => {
+								onChange(next);
+								setValue(next);
+							}}
+							categories={[
+								ownerCategory,
+								{
+									key: "template",
+									label: "Template",
+									hideWhenSingleOption: true,
+									getOptions: async () => [
+										{ label: "docker", value: "docker" },
+									],
+								},
+							]}
+							placeholder="Search and filter"
+						/>
+						{/* Keeps focus where it is, like a caller update from elsewhere. */}
+						<button
+							type="button"
+							onMouseDown={(event) => event.preventDefault()}
+							onClick={() => setValue("")}
+						>
+							Reset
+						</button>
+					</>
+				);
+			};
+			render(<Harness />);
+			const input = screen.getByRole("combobox", { name: "Search and filter" });
+
+			await user.click(input);
+			await screen.findByRole("option", { name: "Template" });
+			await user.keyboard("{ArrowDown}{Escape}");
+			await user.click(screen.getByRole("button", { name: "Reset" }));
+			if (opener === "input") {
+				act(() => input.blur());
+				await user.click(input);
+			} else {
+				await user.click(screen.getByRole("button", { name: "Filters" }));
+			}
+			await user.keyboard("{Enter}");
+			await user.click(await screen.findByRole("option", { name: "alice" }));
+
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+			);
+		},
+	);
+
+	it("moves focus to the input when a focused Clear all is clicked", async () => {
+		const { user, input } = setup(
+			[ownerCategory, statusCategory, attributesCategory],
+			{ initialValue: "owner:alice status:running outdated:true" },
+		);
+
+		const clearAll = screen.getByRole("button", { name: "Clear all" });
+		clearAll.focus();
+		await user.click(clearAll);
+
+		expect(input).toHaveFocus();
+	});
+
+	it.each([
+		["Enter", "{Enter}"],
+		["Space", " "],
+	])(
+		"clears every chip with %s and moves focus to the input",
+		async (_, key) => {
+			const { user, onChange, input } = setup(
+				[ownerCategory, statusCategory, attributesCategory],
+				{ initialValue: "owner:alice status:running outdated:true dev" },
+			);
+
+			screen.getByRole("button", { name: "Clear all" }).focus();
+			await user.keyboard(key);
+
+			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+			expect(input).toHaveFocus();
+		},
+	);
+
 	describe("on a mobile viewport", () => {
 		const originalMatchMedia = window.matchMedia;
 
@@ -2334,6 +2615,21 @@ describe("FilterCombobox", () => {
 			await waitFor(() =>
 				expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
 			);
+			expect(input).not.toHaveFocus();
+		});
+
+		it("leaves focus off the input after Clear all from a category", async () => {
+			const { user, onChange, input, filtersButton } = setup(
+				[ownerCategory, statusCategory, attributesCategory],
+				{ initialValue: "owner:alice status:running outdated:true" },
+			);
+
+			await user.click(filtersButton);
+			await user.click(await screen.findByRole("option", { name: "Owner" }));
+			await screen.findByRole("option", { name: "alice" });
+			await user.click(screen.getByRole("button", { name: "Clear all" }));
+
+			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
 			expect(input).not.toHaveFocus();
 		});
 	});
