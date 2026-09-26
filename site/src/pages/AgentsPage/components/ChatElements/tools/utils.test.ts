@@ -933,6 +933,39 @@ describe("parseEditFilesArgs", () => {
 				{ path: "/repo/a.go", edits: [{ search: "x", replace: "y" }] },
 			],
 		},
+		{
+			// The backend trims paths before grouping and running the edits,
+			// so result entries carry the trimmed path.
+			name: "flat paths are trimmed before grouping",
+			args: {
+				edits: [
+					{ path: "/repo/a.go\n", old_text: "one", new_text: "1" },
+					{ path: " /repo/a.go", old_text: "two", new_text: "2" },
+					{ path: " \n", old_text: "blank", new_text: "x" },
+				],
+			},
+			expected: [
+				{
+					path: "/repo/a.go",
+					edits: [
+						{ search: "one", replace: "1" },
+						{ search: "two", replace: "2" },
+					],
+				},
+			],
+		},
+		{
+			name: "files paths are trimmed and blank paths skipped",
+			args: {
+				files: [
+					{ path: "/repo/a.go\n", edits: [{ old_text: "x", new_text: "y" }] },
+					{ path: " ", edits: [{ old_text: "x", new_text: "y" }] },
+				],
+			},
+			expected: [
+				{ path: "/repo/a.go", edits: [{ search: "x", replace: "y" }] },
+			],
+		},
 		{ name: "empty flat edits", args: { edits: [] }, expected: [] },
 		{ name: "flat edits not an array", args: { edits: "[]" }, expected: [] },
 		{ name: "empty object", args: {}, expected: [] },
@@ -1282,6 +1315,55 @@ describe("parseServerEditResults", () => {
 			],
 		});
 		expect(result).toEqual([{ path: "/ok", diff: "--- /ok\n+++ /ok\n" }]);
+	});
+
+	it.each([
+		{
+			name: "applied entry keeps its status",
+			entry: { path: "/repo/a.go", status: "applied", diff: "d" },
+			expected: { path: "/repo/a.go", status: "applied", diff: "d" },
+		},
+		{
+			name: "rejected entry keeps its status and error",
+			entry: {
+				path: "/repo/c.go",
+				status: "rejected",
+				edits: [3, 4],
+				error: "old_text not found",
+			},
+			expected: {
+				path: "/repo/c.go",
+				status: "rejected",
+				error: "old_text not found",
+			},
+		},
+		{
+			name: "unknown entry keeps its status and error",
+			entry: { path: "/repo/b.go", status: "unknown", error: "timeout" },
+			expected: {
+				path: "/repo/b.go",
+				status: "unknown",
+				error: "timeout",
+			},
+		},
+		{
+			// toEqual fails if diff were "", so this pins it as undefined.
+			name: "applied entry without a diff key has no diff",
+			entry: { path: "/repo/a.go", status: "applied" },
+			expected: { path: "/repo/a.go", status: "applied" },
+		},
+		{
+			name: "explicit empty diff is kept",
+			entry: { path: "/repo/a.go", status: "applied", diff: "" },
+			expected: { path: "/repo/a.go", status: "applied", diff: "" },
+		},
+		{
+			name: "entry without status",
+			entry: { path: "/repo/a.go", diff: "d" },
+			expected: { path: "/repo/a.go", diff: "d" },
+		},
+	])("$name", ({ entry, expected }) => {
+		expect(parseServerEditResults({ files: [entry] })).toEqual([expected]);
 	});
 });
 

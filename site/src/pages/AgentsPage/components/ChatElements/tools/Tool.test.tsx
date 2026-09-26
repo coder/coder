@@ -110,62 +110,280 @@ describe("Tool workspace lifecycle rows", () => {
 });
 
 describe("Tool edit_files rows", () => {
-	const args = {
-		edits: [
-			{ path: "/repo/a.go", old_text: "x := 1", new_text: "x := 2" },
-			{ path: "/repo/b.go", old_text: "foo()", new_text: "bar()" },
-		],
+	const edit = (path: string) => ({ path, old_text: "old", new_text: "new" });
+	const twoFiles = { edits: [edit("/repo/a.go"), edit("/repo/b.go")] };
+	const threeFiles = {
+		edits: [edit("/repo/a.go"), edit("/repo/b.go"), edit("/repo/c.go")],
 	};
-	// The server diffs add lines that differ from new_text, so a diff
-	// built from the args instead would not show them.
-	const diffA =
-		"--- /repo/a.go\n+++ /repo/a.go\n@@ -1,1 +1,1 @@\n-x := 1\n+x := 2 // server a\n";
-	const diffB =
-		"--- /repo/b.go\n+++ /repo/b.go\n@@ -1,1 +1,1 @@\n-foo()\n+bar() // server b\n";
+	// Server diffs add a line that differs from new_text, so a diff built
+	// from the args instead would not show it.
+	const diff = (path: string) =>
+		`--- ${path}\n+++ ${path}\n@@ -1,1 +1,1 @@\n-old\n+new // server\n`;
+	const applied = (path: string) => ({
+		path,
+		status: "applied",
+		diff: diff(path),
+	});
+	const ambiguous =
+		"old_text matches 3 occurrences (expected exactly 1). Include more surrounding context to make the match unique, or set replace_all to true";
+	// Each row is [accessible name, text content] in document order.
+	const serverDiffRow = (path: string) => [
+		`Diff of ${path}`,
+		"new // server\n",
+	];
+	const argsDiffRow = (path: string) => [`Diff of ${path}`, "new"];
+	const rejectedRow = (path: string, error: string) => [
+		`Edits to ${path} not applied`,
+		`${path}${error}`,
+	];
+	const unreportedRow = (path: string) => [
+		`No result reported for ${path}`,
+		`${path}No result reported for this file.`,
+	];
+	const unknownRow = (path: string, error: string) => [
+		`Edits to ${path} may not have been applied`,
+		`${path}${error}`,
+	];
+	const transportError =
+		"the workspace agent connection closed before a response arrived";
 
-	it.each([
+	it.each<{
+		name: string;
+		args: unknown;
+		result: unknown;
+		isError?: boolean;
+		header: string;
+		rows: string[][];
+		shownError?: string;
+		hiddenText?: string;
+	}>([
 		{
 			name: "stored ok result",
+			args: twoFiles,
 			result: {
 				ok: true,
 				files: [
-					{ path: "/repo/a.go", diff: diffA },
-					{ path: "/repo/b.go", diff: diffB },
+					{ path: "/repo/a.go", diff: diff("/repo/a.go") },
+					{ path: "/repo/b.go", diff: diff("/repo/b.go") },
 				],
 			},
+			header: "Edited 2 files",
+			rows: [serverDiffRow("/repo/a.go"), serverDiffRow("/repo/b.go")],
+		},
+		{
+			name: "stored ok result missing a file falls back to the args diff",
+			args: twoFiles,
+			result: {
+				ok: true,
+				files: [{ path: "/repo/a.go", diff: diff("/repo/a.go") }],
+			},
+			header: "Edited 2 files",
+			rows: [serverDiffRow("/repo/a.go"), argsDiffRow("/repo/b.go")],
 		},
 		{
 			name: "applied status result",
+			args: twoFiles,
+			result: {
+				status: "applied",
+				message: "Applied edits to 2 files.",
+				files: [applied("/repo/a.go"), applied("/repo/b.go")],
+			},
+			header: "Edited 2 files",
+			rows: [serverDiffRow("/repo/a.go"), serverDiffRow("/repo/b.go")],
+			hiddenText: "Applied edits to 2 files.",
+		},
+		{
+			// Older agents return no per-file results; every file was written.
+			name: "applied result without per-file results falls back to args diffs",
+			args: twoFiles,
+			result: {
+				status: "applied",
+				message: "Applied edits to 2 files.",
+				files: [],
+			},
+			header: "Edited 2 files",
+			rows: [argsDiffRow("/repo/a.go"), argsDiffRow("/repo/b.go")],
+		},
+		{
+			name: "applied entry without a diff falls back to the args diff",
+			args: twoFiles,
+			result: {
+				status: "partial",
+				message: "Applied 1 file. /repo/b.go was not applied.",
+				files: [
+					{
+						path: "/repo/b.go",
+						status: "rejected",
+						edits: [1],
+						error: ambiguous,
+					},
+					{ path: "/repo/a.go", status: "applied" },
+				],
+			},
+			header: "Edited 1 of 2 files",
+			rows: [argsDiffRow("/repo/a.go"), rejectedRow("/repo/b.go", ambiguous)],
+		},
+		{
+			name: "applied entry with an empty diff shows no diff",
+			args: twoFiles,
 			result: {
 				status: "applied",
 				message: "Applied edits to 2 files.",
 				files: [
-					{ path: "/repo/a.go", status: "applied", diff: diffA },
-					{ path: "/repo/b.go", status: "applied", diff: diffB },
+					{ path: "/repo/a.go", status: "applied", diff: "" },
+					applied("/repo/b.go"),
 				],
 			},
+			header: "Edited 2 files",
+			rows: [serverDiffRow("/repo/b.go")],
 		},
-	])("$name shows server diffs and no error", ({ result }) => {
-		renderComponent(
-			<Tool
-				name="edit_files"
-				status="completed"
-				args={args}
-				result={result}
-				codeDiffDisplayMode="always_expanded"
-			/>,
-		);
+		{
+			name: "untrimmed flat paths match trimmed result paths",
+			args: { edits: [edit("/repo/a.go\n"), edit(" /repo/b.go")] },
+			result: {
+				status: "applied",
+				message: "Applied edits to 2 files.",
+				files: [applied("/repo/a.go"), applied("/repo/b.go")],
+			},
+			header: "Edited 2 files",
+			rows: [serverDiffRow("/repo/a.go"), serverDiffRow("/repo/b.go")],
+		},
+		{
+			name: "untrimmed files paths match trimmed result paths",
+			args: {
+				files: [
+					{
+						path: "/repo/a.go\n",
+						edits: [{ old_text: "old", new_text: "new" }],
+					},
+				],
+			},
+			result: {
+				ok: true,
+				files: [{ path: "/repo/a.go", diff: diff("/repo/a.go") }],
+			},
+			header: "Edited a.go",
+			rows: [serverDiffRow("/repo/a.go")],
+		},
+		{
+			name: "partial result keeps args order",
+			args: threeFiles,
+			result: {
+				status: "partial",
+				message: "Applied 2 files. /repo/b.go was not applied.",
+				files: [
+					{
+						path: "/repo/b.go",
+						status: "rejected",
+						edits: [1],
+						error: ambiguous,
+					},
+					applied("/repo/a.go"),
+					applied("/repo/c.go"),
+				],
+			},
+			header: "Edited 2 of 3 files",
+			rows: [
+				serverDiffRow("/repo/a.go"),
+				rejectedRow("/repo/b.go", ambiguous),
+				serverDiffRow("/repo/c.go"),
+			],
+			hiddenText: "Applied 2 files. /repo/b.go was not applied.",
+		},
+		{
+			name: "partial result missing a file shows it as unreported",
+			args: threeFiles,
+			result: {
+				status: "partial",
+				message: "Applied 1 file. /repo/c.go was not applied.",
+				files: [
+					{
+						path: "/repo/c.go",
+						status: "rejected",
+						edits: [2],
+						error: ambiguous,
+					},
+					applied("/repo/a.go"),
+				],
+			},
+			header: "Edited 1 of 3 files",
+			rows: [
+				serverDiffRow("/repo/a.go"),
+				unreportedRow("/repo/b.go"),
+				rejectedRow("/repo/c.go", ambiguous),
+			],
+		},
+		{
+			name: "partial result with an unknown file outcome",
+			args: threeFiles,
+			result: {
+				status: "partial",
+				message: "Applied 1 file.",
+				files: [
+					{
+						path: "/repo/c.go",
+						status: "rejected",
+						edits: [2],
+						error: ambiguous,
+					},
+					{ path: "/repo/b.go", status: "unknown", error: transportError },
+					applied("/repo/a.go"),
+				],
+			},
+			header: "Edited 1 of 3 files",
+			rows: [
+				serverDiffRow("/repo/a.go"),
+				unknownRow("/repo/b.go", transportError),
+				rejectedRow("/repo/c.go", ambiguous),
+			],
+		},
+		{
+			name: "error result",
+			args: twoFiles,
+			result: { error: "No files were applied. old_text not found" },
+			isError: true,
+			header: "Failed to edit 2 files",
+			rows: [],
+			shownError: "No files were applied. old_text not found",
+		},
+	])(
+		"$name",
+		({ args, result, isError, header, rows, shownError, hiddenText }) => {
+			renderComponent(
+				<Tool
+					name="edit_files"
+					status={isError ? "error" : "completed"}
+					isError={isError}
+					args={args}
+					result={result}
+					codeDiffDisplayMode="always_expanded"
+				/>,
+			);
 
-		// An exact name also proves there is no failed-status icon, whose
-		// label would be part of the button name.
-		screen.getByRole("button", { name: "Edited 2 files" });
-		const regions = screen.getAllByRole("region", { name: /^Diff of / });
-		expect(
-			regions.map((el) => [el.getAttribute("aria-label"), el.textContent]),
-		).toEqual([
-			["Diff of /repo/a.go", "x := 2 // server a\n"],
-			["Diff of /repo/b.go", "bar() // server b\n"],
-		]);
-		expect(screen.queryByText("Applied edits to 2 files.")).toBeNull();
-	});
+			if (isError) {
+				// The failed-status icon adds its label to the button name.
+				screen.getByRole("button", {
+					name: (name) => name.startsWith(header),
+				});
+				screen.getByText(shownError ?? "");
+			} else {
+				// An exact name also proves there is no failed-status icon.
+				screen.getByRole("button", { name: header });
+			}
+			const rendered = [
+				...screen.queryAllByRole("region", { name: /^Diff of / }),
+				...screen.queryAllByRole("group"),
+			].sort((a, b) =>
+				a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING
+					? -1
+					: 1,
+			);
+			expect(
+				rendered.map((el) => [el.getAttribute("aria-label"), el.textContent]),
+			).toEqual(rows);
+			if (hiddenText) {
+				expect(screen.queryByText(hiddenText)).toBeNull();
+			}
+		},
+	);
 });
