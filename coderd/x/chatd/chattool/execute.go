@@ -177,6 +177,13 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			}
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
+				// An earlier attempt of this tool call may have started
+				// the command, unless the workspace has no agent: its
+				// processes died with the agent.
+				if id, ok := ToolCallIdentityFromContext(ctx); ok && ctx.Err() == nil && !errors.Is(err, ErrWorkspaceHasNoAgent) {
+					return fantasy.NewTextErrorResponse(UnknownOutcome(AgentUnreachableReason(err),
+						"an earlier attempt may have started the command", checkProcessText(id))), nil
+				}
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 			return executeTool(ctx, conn, args, options), nil
@@ -325,29 +332,29 @@ const agentRestartedResultError = "outcome unknown: the workspace agent restarte
 // the tool call's context. A *workspacesdk.ToolCallError is the agent's
 // answer for the tool call in ctx.
 func startErrorResult(ctx context.Context, action string, err error) fantasy.ToolResponse {
-	var tcErr *workspacesdk.ToolCallError
-	if !errors.As(err, &tcErr) {
-		var sdkErr *codersdk.Error
-		id, ok := ToolCallIdentityFromContext(ctx)
-		// Without an agent response the request may have reached the
-		// agent. A canceled ctx means the result will not be committed.
-		if ok && !errors.As(err, &sdkErr) && ctx.Err() == nil {
-			return errorResult(fmt.Sprintf("outcome unknown: the workspace agent could not be reached "+
-				"after the start request was sent, so the command may have started: %v. On agents that "+
-				"support tool calls, check it with process_output using process ID %s.", err, id.UUID()))
+	id, hasID := ToolCallIdentityFromContext(ctx)
+	kind, code := ClassifyAgentError(err)
+	switch {
+	case kind == AgentErrorRefused:
+		switch code {
+		case workspacesdk.ToolCallErrorAgentStartedAfterToolCall:
+			return errorResult(UnknownOutcome(AgentRestartedReason,
+				"the command may have run before the restart", "Check the workspace state before running it again."))
+		case workspacesdk.ToolCallErrorInputMismatch:
+			return errorResult(fmt.Sprintf("%s: this request changed nothing because a process for this tool call "+
+				"already exists with a different input (process ID %s): %v", action, id.UUID(), err))
+		default:
+			// stale_tool_call and tool_call_canceled reach only a stale
+			// attempt, whose commit fails the history version fence.
+			return errorResult(fmt.Sprintf("%s: %v", action, err))
 		}
+	// A canceled ctx means the result will not be committed.
+	case !hasID || kind == AgentErrorResponse || ctx.Err() != nil:
 		return errorResult(enrichStartError(fmt.Sprintf("%s: %v", action, err)))
-	}
-	switch tcErr.Code {
-	case workspacesdk.ToolCallErrorAgentStartedAfterToolCall:
-		return errorResult(agentRestartedResultError)
-	case workspacesdk.ToolCallErrorInputMismatch:
-		return errorResult(fmt.Sprintf("%s: the workspace agent has a record of this tool call "+
-			"with a different input, so no process was started: %v", action, tcErr))
+	case kind == AgentErrorUnreachable:
+		return errorResult(UnknownOutcome(AgentUnreachableReason(err), "the command may have started", checkProcessText(id)))
 	default:
-		// stale_tool_call and tool_call_canceled reach only a stale
-		// attempt, whose commit fails the history version fence.
-		return errorResult(fmt.Sprintf("%s: %v", action, tcErr))
+		return errorResult(UnknownOutcome(AgentUnreadableReason(err), "the command may have started", checkProcessText(id)))
 	}
 }
 
@@ -466,6 +473,11 @@ func AgentUnreachableExecuteResult(processID string, err error) ExecuteResult {
 			"so it may still be running: %v. On agents that support tool calls, check or signal it with "+
 			"process_output or process_signal using process ID %s.", err, processID),
 	}
+}
+
+// checkProcessText tells the model how to find the tool call's process.
+func checkProcessText(id ToolCallIdentity) string {
+	return fmt.Sprintf("Check it with process_output using process ID %s.", id.UUID())
 }
 
 // waitForToolCallProcess waits for the tool call's process until it
