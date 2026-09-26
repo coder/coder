@@ -168,6 +168,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
     ],
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "owner_avatar_url": "http://example.com",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
     "owner_name": "string",
     "owner_username": "string",
@@ -278,6 +279,7 @@ Status Code **200**
 | `» last_turn_summary`      | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» mcp_server_ids`         | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
 | `» organization_id`        | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» owner_avatar_url`       | string(uri)                                                                        | false    |              |                                                                                                                                                                                                                                                                            |
 | `» owner_id`               | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» owner_name`             | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» owner_username`         | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
@@ -495,6 +497,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_avatar_url": "http://example.com",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
       "owner_username": "string",
@@ -609,6 +612,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_avatar_url": "http://example.com",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
   "owner_username": "string",
@@ -1477,6 +1481,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
     ],
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "owner_avatar_url": "http://example.com",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
     "owner_name": "string",
     "owner_username": "string",
@@ -1643,6 +1648,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_avatar_url": "http://example.com",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
       "owner_username": "string",
@@ -1757,6 +1763,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_avatar_url": "http://example.com",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
   "owner_username": "string",
@@ -1958,6 +1965,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_avatar_url": "http://example.com",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
       "owner_username": "string",
@@ -2072,6 +2080,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_avatar_url": "http://example.com",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
   "owner_username": "string",
@@ -2321,6 +2330,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_avatar_url": "http://example.com",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
       "owner_username": "string",
@@ -2435,6 +2445,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_avatar_url": "http://example.com",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
   "owner_username": "string",
@@ -3408,6 +3419,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_avatar_url": "http://example.com",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
       "owner_username": "string",
@@ -3522,6 +3534,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_avatar_url": "http://example.com",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
   "owner_username": "string",

@@ -123,6 +123,7 @@ type Chat struct {
 	OwnerID             uuid.UUID    `json:"owner_id" format:"uuid"`
 	OwnerUsername       string       `json:"owner_username,omitempty"`
 	OwnerName           string       `json:"owner_name,omitempty"`
+	OwnerAvatarURL      string       `json:"owner_avatar_url,omitempty" format:"uri"`
 	WorkspaceID         *uuid.UUID   `json:"workspace_id,omitempty" format:"uuid"`
 	BuildID             *uuid.UUID   `json:"build_id,omitempty" format:"uuid"`
 	AgentID             *uuid.UUID   `json:"agent_id,omitempty" format:"uuid"`

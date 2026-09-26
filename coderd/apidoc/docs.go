@@ -19786,6 +19786,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "owner_avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
                 "owner_id": {
                     "type": "string",
                     "format": "uuid"

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, ReactNode } from "react";
 import { QueryClientProvider } from "react-query";
@@ -20,6 +20,7 @@ import {
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
+import { shortRelativeTime } from "#/utils/time";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -159,74 +160,131 @@ describe("ChatsSidebar section switcher", () => {
 });
 
 describe("ChatsSidebar sections", () => {
-	it("renders unpinned shared chats in Shared with you before date sections", () => {
+	it("folds chats shared with me into the date sections, after owned chats", () => {
+		const now = Date.now();
 		render(
 			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
 					chats={[
 						buildChat({
-							id: "pinned-shared-chat",
-							title: "Pinned shared chat",
-							shared: true,
-							pin_order: 1,
-						}),
-						buildChat({
 							id: "shared-chat",
 							title: "Shared chat",
 							owner_id: "sharing-user-id",
+							owner_username: "sharer",
 							shared: true,
-						}),
-						buildChat({
-							id: "owned-shared-chat",
-							title: "Owned shared chat",
-							shared: true,
-							updated_at: new Date().toISOString(),
+							updated_at: new Date(now).toISOString(),
 						}),
 						buildChat({
 							id: "owned-chat",
 							title: "Owned chat",
-							updated_at: new Date().toISOString(),
+							updated_at: new Date(now - 60_000).toISOString(),
 						}),
 					]}
 				/>
 			</Wrapper>,
 		);
 
-		const pinnedSection = screen.getByTestId("agents-section-toggle-Pinned");
-		const pinnedSharedNode = screen.getByTestId(
-			"agents-tree-node-pinned-shared-chat",
-		);
-		const sharedSection = screen.getByTestId(
-			"agents-section-toggle-Shared-with-you",
-		);
-		const sharedNode = screen.getByTestId("agents-tree-node-shared-chat");
+		expect(
+			screen.queryByTestId("agents-section-toggle-Shared-with-you"),
+		).not.toBeInTheDocument();
 		const todaySection = screen.getByTestId("agents-section-toggle-Today");
 		const ownedNode = screen.getByTestId("agents-tree-node-owned-chat");
-
-		expect(pinnedSection).toHaveTextContent("Pinned (1)");
-		expect(sharedSection).toHaveTextContent("Shared with you (1)");
+		const sharedNode = screen.getByTestId("agents-tree-node-shared-chat");
 		expect(todaySection).toHaveTextContent("Today (2)");
-		expect(
-			pinnedSection.compareDocumentPosition(pinnedSharedNode) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-		expect(
-			pinnedSharedNode.compareDocumentPosition(sharedSection) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-		expect(
-			sharedSection.compareDocumentPosition(sharedNode) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-		expect(
-			sharedNode.compareDocumentPosition(todaySection) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
 		expect(
 			todaySection.compareDocumentPosition(ownedNode) &
 				Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
+		expect(
+			ownedNode.compareDocumentPosition(sharedNode) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		const sharedGroup = screen.getByTestId("agents-shared-with-me-group-Today");
+		expect(sharedGroup).toContainElement(sharedNode);
+		expect(sharedGroup).not.toContainElement(ownedNode);
+	});
+
+	it("renders chats shared with me as a single line without trailing badges", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "shared-chat",
+							title: "Shared chat",
+							owner_id: "sharing-user-id",
+							shared: true,
+							last_turn_summary: "Shared summary",
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		const sharedNode = screen.getByTestId("agents-tree-node-shared-chat");
+		expect(within(sharedNode).getByText("Shared chat")).toBeInTheDocument();
+		expect(
+			within(sharedNode).queryByText("Shared summary"),
+		).not.toBeInTheDocument();
+		expect(
+			within(sharedNode).queryByText(shortRelativeTime(oneWeekAgo)),
+		).not.toBeInTheDocument();
+		expect(
+			within(sharedNode).queryByLabelText("Shared chat"),
+		).not.toBeInTheDocument();
+	});
+
+	it("shows the owner avatar instead of the status icon for chats shared with me", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "shared-chat",
+							title: "Shared chat",
+							owner_id: "sharing-user-id",
+							owner_name: "Sharing User",
+							shared: true,
+							status: "running",
+							has_unread: true,
+						}),
+						buildChat({
+							id: "owned-shared-chat",
+							title: "Owned shared chat",
+							shared: true,
+							status: "running",
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		const sharedNode = screen.getByTestId("agents-tree-node-shared-chat");
+		expect(
+			within(sharedNode).getByRole("img", {
+				name: "Shared by Sharing User, Working",
+			}),
+		).toBeInTheDocument();
+		expect(
+			within(sharedNode).queryByRole("img", { name: "Working" }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByTestId("shared-chat-avatar-shimmer-shared-chat"),
+		).toBeInTheDocument();
+		expect(
+			within(sharedNode).getByTestId("unread-indicator-shared-chat"),
+		).toBeInTheDocument();
+
+		const ownedNode = screen.getByTestId("agents-tree-node-owned-shared-chat");
+		expect(
+			within(ownedNode).getByRole("img", { name: "Working" }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByTestId("shared-chat-avatar-shimmer-owned-shared-chat"),
+		).not.toBeInTheDocument();
 	});
 });
 

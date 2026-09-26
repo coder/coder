@@ -1955,6 +1955,7 @@ export interface Chat {
 	readonly owner_id: string;
 	readonly owner_username?: string;
 	readonly owner_name?: string;
+	readonly owner_avatar_url?: string;
 	readonly workspace_id?: string;
 	readonly build_id?: string;
 	readonly agent_id?: string;

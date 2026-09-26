@@ -445,6 +445,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"owner_id":                    ActionTrack,
 		"owner_username":              ActionIgnore,
 		"owner_name":                  ActionIgnore,
+		"owner_avatar_url":            ActionIgnore,
 		"organization_id":             ActionIgnore, // Never changes after creation.
 		"workspace_id":                ActionTrack,
 		"build_id":                    ActionIgnore, // Internal lifecycle.
