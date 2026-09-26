@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"charm.land/fantasy"
@@ -115,6 +116,18 @@ func (in EditFilesHookInput) Edits() []EditFilesEdit {
 		}
 	}
 	return edits
+}
+
+// NormalizeEditPaths returns a copy of edits with each path in the form
+// the tool executes it: surrounding whitespace removed. The hook
+// presentation uses the same function so hooks see the paths the tool
+// edits.
+func NormalizeEditPaths(edits []EditFilesEdit) []EditFilesEdit {
+	normalized := slices.Clone(edits)
+	for i := range normalized {
+		normalized[i].Path = strings.TrimSpace(normalized[i].Path)
+	}
+	return normalized
 }
 
 // editFilesExample is the input example shown when the model sends a
@@ -235,9 +248,9 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse("Add at least one edit to edits; no files in this batch were applied"), nil
 			}
 			var missingPath []string
-			for i := range args.Edits {
-				args.Edits[i].Path = strings.TrimSpace(args.Edits[i].Path)
-				if args.Edits[i].Path == "" {
+			args.Edits = NormalizeEditPaths(args.Edits)
+			for i, edit := range args.Edits {
+				if edit.Path == "" {
 					missingPath = append(missingPath, fmt.Sprintf("edits[%d]", i))
 				}
 			}
