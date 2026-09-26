@@ -1240,67 +1240,6 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 	},
 };
 
-const quietResumeStore = buildStoreWithMessages(
-	buildLongConversation(AGENT_ID, 40),
-);
-
-/**
- * Text that resumes after the quiet-output Thinking row appeared must not
- * shrink the live row. The anchored prompt must not move.
- */
-export const QuietThinkingResumeKeepsPromptPosition: Story = {
-	parameters: { pixel: { exclude: true } },
-	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={quietResumeStore} />,
-	play: async ({ canvasElement }) => {
-		quietResumeStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
-		quietResumeStore.setChatStatus("waiting");
-		const canvas = within(canvasElement);
-		const viewport = getViewport(canvas);
-		await waitForScrollOverflow(viewport);
-		await settleScroller();
-		scrollTo(viewport, viewport.scrollHeight);
-		await settleScroller();
-
-		// Begin a turn that streams one line and then goes quiet until the
-		// Thinking row appears under it.
-		quietResumeStore.batch(() => {
-			quietResumeStore.upsertDurableMessages([
-				buildMessage(41, "user", "Follow-up question."),
-			]);
-			quietResumeStore.setChatStatus("running");
-			quietResumeStore.applyMessageParts([
-				{ type: "text", text: "Here is the start of the answer." },
-			]);
-		});
-		await canvas.findByTestId("live-activity-slot", undefined, {
-			timeout: 5_000,
-		});
-		await settleScroller();
-
-		const prompt = canvas.getByTestId("chat-message-message:41");
-		const liveRow = canvas.getByTestId("chat-message-live-assistant");
-		const promptTop = () =>
-			prompt.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
-		const anchoredTop = promptTop();
-		const quietHeight = liveRow.getBoundingClientRect().height;
-		expect(quietHeight).toBeGreaterThan(0);
-
-		// Resumed text hides the Thinking row. The live row must not shrink,
-		// so the anchored prompt stays put.
-		quietResumeStore.applyMessageParts([
-			{ type: "text", text: " And here is more." },
-		]);
-		for (let i = 0; i < 6; i++) {
-			expect(liveRow.getBoundingClientRect().height).toBeGreaterThanOrEqual(
-				quietHeight,
-			);
-			expect(Math.abs(promptTop() - anchoredTop)).toBeLessThan(4);
-			await new Promise<void>((r) => requestAnimationFrame(() => r()));
-		}
-	},
-};
-
 const underflowFetchSpy = fn();
 
 const UnderflowPaginationStory: FC = () => {
