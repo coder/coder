@@ -3,6 +3,7 @@ package httpmw_test
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -43,6 +44,13 @@ func randomAPIKeyParts() (id string, secret string, hashedSecret []byte) {
 	id, _ = cryptorand.String(10)
 	secret, hashedSecret, _ = apikey.GenerateSecret(22)
 	return id, secret, hashedSecret
+}
+
+// softDeleteUserKeepRows reconstructs the orphaned-credential state
+// this middleware must reject; see dbtestutil.SoftDeleteUserKeepRows.
+func softDeleteUserKeepRows(t *testing.T, sqlDB *sql.DB, userID uuid.UUID) {
+	t.Helper()
+	dbtestutil.SoftDeleteUserKeepRows(t, sqlDB, userID)
 }
 
 func TestAPIKey(t *testing.T) {
@@ -245,6 +253,191 @@ func TestAPIKey(t *testing.T) {
 		var resp codersdk.Response
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
 		require.Equal(t, resp.Message, httpmw.SignedOutErrorMessage)
+	})
+
+	t.Run("DeletedUser", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _, sqlDB = dbtestutil.NewDBWithSQLDB(t)
+			r            = httptest.NewRequest("GET", "/", nil)
+			rw           = httptest.NewRecorder()
+			user         = dbgen.User(t, db, database.User{})
+			// LastUsed is old enough that an accepted request would
+			// rewrite it, pinning that rejection precedes the write.
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:   user.ID,
+				LastUsed: dbtime.Now().AddDate(0, 0, -1),
+			})
+		)
+		softDeleteUserKeepRows(t, sqlDB, user.ID)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		deletedUser, err := db.GetUserByID(ctx, user.ID)
+		require.NoError(t, err)
+		require.True(t, deletedUser.Deleted)
+
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.Equal(t, httpmw.SignedOutErrorMessage, resp.Message)
+		require.Equal(t, "API key belongs to a deleted user.", resp.Detail)
+
+		// Reject-before-write: the rejected request must not bump
+		// api_keys.last_used / expires_at or users.last_seen_at.
+		gotAPIKey, err := db.GetAPIKeyByID(ctx, sentAPIKey.ID)
+		require.NoError(t, err)
+		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+		gotUser, err := db.GetUserByID(ctx, user.ID)
+		require.NoError(t, err)
+		require.Equal(t, deletedUser.LastSeenAt, gotUser.LastSeenAt)
+
+		// Soft 401: an optional-auth route must continue unauthenticated
+		// instead of failing the whole request the way a hard error does.
+		optionalR := httptest.NewRequest("GET", "/", nil)
+		optionalR.Header.Set(codersdk.SessionTokenHeader, token)
+		optionalRW := httptest.NewRecorder()
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:       db,
+			Optional: true,
+		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			_, ok := httpmw.APIKeyOptional(r)
+			assert.False(t, ok, "optional-auth route must stay unauthenticated")
+			rw.WriteHeader(http.StatusOK)
+		})).ServeHTTP(optionalRW, optionalR)
+		optionalRes := optionalRW.Result()
+		defer optionalRes.Body.Close()
+		require.Equal(t, http.StatusOK, optionalRes.StatusCode)
+	})
+
+	t.Run("DeletedUserExpiredOAuth", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _, sqlDB = dbtestutil.NewDBWithSQLDB(t)
+			r            = httptest.NewRequest("GET", "/", nil)
+			rw           = httptest.NewRecorder()
+			user         = dbgen.User(t, db, database.User{})
+			// The API key itself is valid, but the OAuth link is
+			// expired, so an accepted request would refresh against the
+			// IdP and rewrite user_links; the deleted owner must be
+			// rejected before either happens.
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  dbtime.Now().AddDate(0, 0, -1),
+				LoginType: database.LoginTypeOIDC,
+			})
+			sentLink = dbgen.UserLink(t, db, database.UserLink{
+				UserID:      user.ID,
+				LoginType:   database.LoginTypeOIDC,
+				OAuthExpiry: dbtime.Now().AddDate(0, 0, -1),
+			})
+		)
+		softDeleteUserKeepRows(t, sqlDB, user.ID)
+
+		var idpCalls atomic.Int64
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB: db,
+			OAuth2Configs: &httpmw.OAuth2Configs{
+				OIDC: &testutil.OAuth2Config{
+					TokenSourceFunc: func() (*oauth2.Token, error) {
+						idpCalls.Add(1)
+						return &oauth2.Token{
+							AccessToken:  "wow",
+							RefreshToken: "moo",
+							Expiry:       dbtime.Now().AddDate(0, 0, 1),
+						}, nil
+					},
+				},
+			},
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.Equal(t, httpmw.SignedOutErrorMessage, resp.Message)
+		require.Equal(t, "API key belongs to a deleted user.", resp.Detail)
+
+		// Reject-before-write: the deleted user's refresh token must
+		// never reach the IdP and user_links must stay untouched.
+		require.EqualValues(t, 0, idpCalls.Load(), "deleted-user key must not reach the IdP")
+		ctx := testutil.Context(t, testutil.WaitShort)
+		gotLink, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, sentLink.OAuthAccessToken, gotLink.OAuthAccessToken)
+		require.Equal(t, sentLink.OAuthRefreshToken, gotLink.OAuthRefreshToken)
+		require.Equal(t, sentLink.OAuthExpiry, gotLink.OAuthExpiry)
+		gotAPIKey, err := db.GetAPIKeyByID(ctx, sentAPIKey.ID)
+		require.NoError(t, err)
+		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+	})
+
+	t.Run("DeletedDuringOAuthRefresh", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			r     = httptest.NewRequest("GET", "/", nil)
+			rw    = httptest.NewRecorder()
+			user  = dbgen.User(t, db, database.User{})
+			// Valid API key, expired OAuth link: the middleware passes
+			// the deleted check, then the owner is soft-deleted while
+			// the IdP refresh round trip is in flight. The cleanup
+			// trigger removes the user_links row, so the refresh
+			// result has nowhere to land.
+			_, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LoginType: database.LoginTypeOIDC,
+			})
+			_ = dbgen.UserLink(t, db, database.UserLink{
+				UserID:      user.ID,
+				LoginType:   database.LoginTypeOIDC,
+				OAuthExpiry: dbtime.Now().AddDate(0, 0, -1),
+			})
+		)
+
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB: db,
+			OAuth2Configs: &httpmw.OAuth2Configs{
+				OIDC: &testutil.OAuth2Config{
+					TokenSourceFunc: func() (*oauth2.Token, error) {
+						// Ordinary soft-delete, triggers enabled: the
+						// cleanup trigger deletes the user's user_links
+						// row while the "IdP call" is in flight.
+						err := db.UpdateUserDeletedByID(context.Background(), user.ID)
+						if err != nil {
+							return nil, err
+						}
+						return &oauth2.Token{
+							AccessToken:  "wow",
+							RefreshToken: "moo",
+							Expiry:       dbtime.Now().AddDate(0, 0, 1),
+						}, nil
+					},
+				},
+			},
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		// A credential revoked mid-request is a rejected credential,
+		// not a server error.
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.Equal(t, httpmw.SignedOutErrorMessage, resp.Message)
 	})
 
 	t.Run("InvalidSecret", func(t *testing.T) {

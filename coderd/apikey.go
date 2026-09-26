@@ -83,6 +83,14 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The {user} param resolves soft-deleted users. 404 matches
+	// tokenConfig and, like userparam.go's constant message, avoids
+	// disclosing the target's deleted state.
+	if user.Deleted {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	// This handler decides only which names may be requested. Rewriting an
 	// accepted alias to the spelling the enum stores belongs to apikey.Generate,
 	// which every caller goes through. The plural field wins when both are set.
@@ -216,6 +224,13 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	if user.IsSystem {
 		api.Logger.Warn(ctx, "disallowed creating api key for system user", slog.F("user_id", user.ID))
 		httpapi.Forbidden(rw)
+		return
+	}
+
+	// The {user} param resolves soft-deleted users. 404 matches
+	// tokenConfig and avoids disclosing the target's deleted state.
+	if user.Deleted {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -505,6 +520,12 @@ func (api *API) expireAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/v2/users/{user}/keys/tokens/tokenconfig [get]
 func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
+	// The {user} param resolves soft-deleted users; 404 avoids
+	// disclosing the target's deleted state.
+	if user.Deleted {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	maxLifetime, err := api.getMaxTokenLifetime(r.Context(), user.ID)
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{

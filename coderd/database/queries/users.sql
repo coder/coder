@@ -575,7 +575,18 @@ SELECT
 	-- username and email are returned just to help for logging purposes
 	-- status is used to enforce 'suspended' users, as all roles are ignored
 	--	when suspended.
-	id, username, status, email,
+	-- deleted is returned so the authentication path can reject credentials
+	-- of soft-deleted users (see httpmw.UserRBACSubject). Deleted users are
+	-- intentionally NOT filtered out here: non-authentication consumers must
+	-- keep resolving roles for an owner who is soft-deleted while their
+	-- workspaces still exist (deletion normally requires releasing
+	-- workspaces first, but orphaned rows and in-flight jobs survive).
+	-- Known dependents: coderd/provisionerdserver/provisionerdserver.go
+	-- (owner role resolution during job acquisition) and
+	-- coderd/dynamicparameters/render.go (owner context for rendering).
+	-- Do not add a WHERE deleted = false filter without migrating those
+	-- consumers first.
+	id, username, status, email, deleted,
 	-- All user roles, including their org roles.
 	array_cat(
 		-- All users are members

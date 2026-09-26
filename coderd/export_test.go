@@ -11,3 +11,7 @@ var ChatStartWorkspace = (*API).chatStartWorkspace
 
 // ChatStopWorkspace exposes chatStopWorkspace for external tests.
 var ChatStopWorkspace = (*API).chatStopWorkspace
+
+// ChatOwnerContext exposes chatOwnerContext so external tests can pin
+// the chat workspace tools' deleted-owner 403 contract.
+var ChatOwnerContext = (*API).chatOwnerContext

@@ -122,6 +122,18 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				}),
 			)
 			if err != nil {
+				// A soft-deleted owner is a client condition, not a server
+				// error: 401 keeps deleted-owner agents out of the 5xx
+				// rate. Soft (optionalWrite) to match the apikey path's
+				// treatment of credentials whose user is gone: on an
+				// Optional mount the request degrades to anonymous, like
+				// the sql.ErrNoRows branch above, rather than hard-failing.
+				if errors.Is(err, ErrUserDeleted) {
+					optionalWrite(http.StatusUnauthorized, codersdk.Response{
+						Message: "Workspace owner has been deleted.",
+					})
+					return
+				}
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error with workspace agent authorization context.",
 					Detail:  err.Error(),

@@ -56,6 +56,17 @@ type ValidateAPIKeyResult struct {
 	UserStatus database.UserStatus
 }
 
+// ErrUserDeleted is returned by UserRBACSubject when the user exists but is
+// soft-deleted. A soft-deleted user must never authorize as a subject, even
+// when a credential row (for example an orphaned api_keys row) still
+// references them. Not all rows referencing a user are purged on
+// soft-delete (chats, OAuth2 app codes, and workspaces survive), so
+// callers can hold a user ID whose subject can no longer be built in
+// ordinary operation; every call site must route this sentinel to a
+// disposition appropriate for its surface instead of surfacing it as a
+// server error.
+var ErrUserDeleted = xerrors.New("user is deleted")
+
 // ValidateAPIKeyError represents a validation failure with enough
 // context for downstream middlewares to decide how to respond.
 type ValidateAPIKeyError struct {
@@ -234,9 +245,10 @@ func PrecheckAPIKey(cfg ValidateAPIKeyConfig) func(http.Handler) http.Handler {
 //   - Token extraction and parsing
 //   - Database lookup + secret hash validation
 //   - Expiry check
+//   - User role lookup (UserRBACSubject): rejects soft-deleted users
+//     before any write below
 //   - OIDC/OAuth token refresh (if applicable)
 //   - API key LastUsed / ExpiresAt DB updates
-//   - User role lookup (UserRBACSubject)
 //
 // It does NOT:
 //   - Write HTTP error responses
@@ -268,6 +280,38 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 				Message: SignedOutErrorMessage,
 				Detail:  fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
 			},
+		}
+	}
+
+	// Fetch user roles before any of the writes below: a soft-deleted user
+	// is a correctly rejected credential, not a server error. An api_keys
+	// row can outlive its user (a row that survived or was resurrected past
+	// delete_deleted_user_resources, a restored backup, an insert that
+	// bypassed trigger_insert_apikeys) and must be inert: for a delete
+	// committed before this read, rejecting here keeps the stale token
+	// from calling the IdP with the deleted user's refresh token,
+	// rewriting user_links, bumping the deleted user's last_seen_at, or
+	// re-firing the cleanup trigger. A delete that commits after this
+	// read is caught downstream instead (see the UpdateUserLink ErrNoRows
+	// mapping below).
+	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
+	if err != nil {
+		if errors.Is(err, ErrUserDeleted) {
+			return nil, &ValidateAPIKeyError{
+				Code: http.StatusUnauthorized,
+				Response: codersdk.Response{
+					Message: SignedOutErrorMessage,
+					Detail:  "API key belongs to a deleted user.",
+				},
+			}
+		}
+		return nil, &ValidateAPIKeyError{
+			Code: http.StatusInternalServerError,
+			Response: codersdk.Response{
+				Message: internalErrorMessage,
+				Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", err.Error()),
+			},
+			Hard: true,
 		}
 	}
 
@@ -394,6 +438,20 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 				Claims: link.Claims,
 			})
 			if err != nil {
+				// A soft-delete that commits between the deleted check
+				// above and this write removes the user_links row (the
+				// cleanup trigger cascades), so ErrNoRows here means the
+				// credential was revoked under us: a soft 401, matching
+				// the deleted check, not a server error.
+				if errors.Is(err, sql.ErrNoRows) {
+					return nil, &ValidateAPIKeyError{
+						Code: http.StatusUnauthorized,
+						Response: codersdk.Response{
+							Message: SignedOutErrorMessage,
+							Detail:  "You must re-authenticate with the login provider.",
+						},
+					}
+				}
 				return nil, &ValidateAPIKeyError{
 					Code: http.StatusInternalServerError,
 					Response: codersdk.Response{
@@ -469,19 +527,6 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 				},
 				Hard: true,
 			}
-		}
-	}
-
-	// Fetch user roles.
-	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
-	if err != nil {
-		return nil, &ValidateAPIKeyError{
-			Code: http.StatusInternalServerError,
-			Response: codersdk.Response{
-				Message: internalErrorMessage,
-				Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", err.Error()),
-			},
-			Hard: true,
 		}
 	}
 
@@ -896,11 +941,17 @@ func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
 
 // UserRBACSubject fetches a user's rbac.Subject from the database. It pulls all roles from both
 // site and organization scopes. It also pulls the groups, and the user's status.
+// It returns ErrUserDeleted for soft-deleted users: subjects are only built to
+// act, and a deleted user may not act.
 func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, scope rbac.ExpandableScope) (rbac.Subject, database.UserStatus, error) {
 	//nolint:gocritic // system needs to update user roles
 	roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), userID)
 	if err != nil {
 		return rbac.Subject{}, "", xerrors.Errorf("get authorization user roles: %w", err)
+	}
+
+	if roles.Deleted {
+		return rbac.Subject{}, "", ErrUserDeleted
 	}
 
 	roleNames, err := roles.RoleNames()
