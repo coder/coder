@@ -49,7 +49,7 @@ type generationPrepareInput struct {
 		summaries []mcpclient.ConnectSummary,
 	)
 	// TurnExperiments holds the turn's user-scoped experiment
-	// decisions, shared by every step of the turn.
+	// decisions, shared by every step of the turn. Required.
 	TurnExperiments *turnExperimentDecisions
 }
 
