@@ -75,9 +75,11 @@ func TestEditFiles(t *testing.T) {
 			},
 			{
 				// fantasy's own decode error names Go types and does
-				// not say that edits must be an array.
+				// not say that edits must be an array. chatloop decodes
+				// a string holding an array before the tool runs, so
+				// this string holds something else.
 				name:  "EditsNotAnArray",
-				input: `{"edits":"[{\"path\":\"/repo/a.go\"}]"}`,
+				input: `{"edits":"not json"}`,
 				wantContains: []string{
 					"Send edits as a JSON array of objects with string path, old_text and new_text and optional boolean replace_all, for example " + example,
 					"no files in this batch were applied",
@@ -806,6 +808,25 @@ func TestEditFiles_DecodeToolInput(t *testing.T) {
 		{
 			name:  "StringHoldingTrailingData",
 			input: `{"edits":"[] []"}`,
+		},
+		{
+			// Only JSON whitespace may surround the array: the content
+			// is spliced in verbatim and must stay valid JSON.
+			name:  "StringWithLeadingNoBreakSpace",
+			input: `{"edits":"\u00a0[{\"path\":\"/a\"}]"}`,
+		},
+		{
+			name:  "StringWithLeadingVerticalTab",
+			input: `{"edits":"\u000b[{\"path\":\"/a\"}]"}`,
+		},
+		{
+			name:  "StringWithTrailingNextLine",
+			input: `{"edits":"[{\"path\":\"/a\"}]\u0085"}`,
+		},
+		{
+			name:  "StringWithJSONWhitespace",
+			input: `{"edits":" \t\r\n[ {\"path\":\"/a\"} ]\n"}`,
+			want:  "{\"edits\": \t\r\n[ {\"path\":\"/a\"} ]\n}",
 		},
 		{
 			name:  "EditsAlreadyArray",
