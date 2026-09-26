@@ -1066,7 +1066,7 @@ type AgentChatPageLoadingViewProps = {
 	onPlanModeToggle?: (enabled: boolean) => void;
 	showRightPanel: boolean;
 	/** Closes the right panel, for example to make room for the sidebar. */
-	onCloseRightPanel?: () => void;
+	onCloseRightPanel: () => void;
 };
 
 export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
@@ -1085,7 +1085,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	planModeEnabled,
 	onPlanModeToggle,
 	showRightPanel,
-	onCloseRightPanel = () => {},
+	onCloseRightPanel,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	return (

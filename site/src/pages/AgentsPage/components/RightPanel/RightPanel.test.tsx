@@ -112,8 +112,9 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 };
 
 // jsdom lays nothing out: the panel's rect is 0 wide and its parent has
-// no client width. The viewport is pinned below the side-by-side
-// breakpoint so the max width comes from innerWidth alone (700px) and
+// no client width. Outside the side-by-side room check block, the
+// viewport is pinned below the side-by-side breakpoint so the max width
+// comes from innerWidth alone (700px) and
 // the initial 480px width is not clamped on mount. With a zero start
 // width the raw drag width is -clientX, giving these zones:
 const CLOSE_ZONE_X = 100; // raw -100 < 280
@@ -296,9 +297,8 @@ describe("RightPanel resize drag", () => {
 
 	describe("side-by-side room check", () => {
 		// Room checks only run at or above the side-by-side breakpoint.
-		const SIDE_BY_SIDE_VIEWPORT =
-			RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH + 176;
-		const NARROW_VIEWPORT = RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH - 124;
+		const SIDE_BY_SIDE_VIEWPORT = RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH;
+		const NARROW_VIEWPORT = RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH - 1;
 		// Enough for the 360px chat minimum plus the 360px panel minimum.
 		const ROOMY_PARENT_WIDTH = 2000;
 
@@ -422,10 +422,15 @@ describe("RightPanel resize drag", () => {
 			onSidebarCollapsedChange.mockClear();
 
 			// Touch the left edge, come back, and release in the normal zone.
-			pointerDown({ clientX: 1000 });
+			// With a zero-width parent the max width here is 360px, so the
+			// normal zone is raw 280 to 440, and raw width is
+			// DRAG_START_X - clientX.
+			const DRAG_START_X = 1000;
+			const DRAG_NORMAL_X = 700; // raw 300
+			pointerDown({ clientX: DRAG_START_X });
 			pointerMove(SIDEBAR_EDGE_X);
-			pointerMove(700);
-			pointerUp(700);
+			pointerMove(DRAG_NORMAL_X);
+			pointerUp(DRAG_NORMAL_X);
 
 			expect(onExpandedChange).toHaveBeenLastCalledWith(false);
 			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(true);

@@ -272,14 +272,14 @@ export const RightPanel = ({
 		};
 	}, []);
 
-	// When the chat and the side-by-side panel do not both fit, one of them
-	// has to give way. Normally the sidebar collapses, but if the user just
-	// expanded the sidebar, the panel closes instead so the sidebar stays
-	// open. wasSidebarCollapsed detects that expansion, and
-	// sidebarToggledByDrag excludes the transient toggles a panel resize
-	// drag makes at the left edge of the viewport.
+	// When the chat and the side-by-side panel do not both fit, the sidebar
+	// collapses to make room. If the user just expanded the sidebar, the
+	// panel closes instead so the sidebar stays open. wasSidebarCollapsed
+	// detects that expansion, and unseenDragSidebarToggle excludes the
+	// transient toggles a panel resize drag makes at the left edge of the
+	// viewport.
 	const wasSidebarCollapsed = useRef(isSidebarCollapsed);
-	const sidebarToggledByDrag = useRef(false);
+	const unseenDragSidebarToggle = useRef(false);
 
 	const handleSnapCommit = (snap: "normal" | "expanded" | "closed") => {
 		if (snap === "expanded" && !isExpanded) {
@@ -312,7 +312,7 @@ export const RightPanel = ({
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed: onToggleSidebarCollapsed
 			? () => {
-					sidebarToggledByDrag.current = true;
+					unseenDragSidebarToggle.current = true;
 					onToggleSidebarCollapsed();
 				}
 			: undefined,
@@ -323,7 +323,7 @@ export const RightPanel = ({
 		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
 	}, [width]);
 
-	const giveWay = useEffectEvent((shouldClosePanel: boolean) => {
+	const makeRoom = useEffectEvent((shouldClosePanel: boolean) => {
 		if (shouldClosePanel) {
 			onClose();
 		} else {
@@ -335,9 +335,9 @@ export const RightPanel = ({
 		let sidebarJustExpanded =
 			wasSidebarCollapsed.current === true &&
 			isSidebarCollapsed === false &&
-			!sidebarToggledByDrag.current;
+			!unseenDragSidebarToggle.current;
 		wasSidebarCollapsed.current = isSidebarCollapsed;
-		sidebarToggledByDrag.current = false;
+		unseenDragSidebarToggle.current = false;
 
 		if (
 			!visualOpen ||
@@ -376,7 +376,7 @@ export const RightPanel = ({
 				}
 
 				roomConflictHandled = true;
-				giveWay(shouldClosePanel);
+				makeRoom(shouldClosePanel);
 			});
 		};
 
