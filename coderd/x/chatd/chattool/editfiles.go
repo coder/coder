@@ -344,19 +344,20 @@ func executeEditFilesTool(
 	var applied, notApplied []editFilesFileResult
 	for _, file := range GroupEditsByPath(args.Edits) {
 		indexes := editIndexes[file.Path]
-		if reason := checkPath(file.Path); reason != "" {
-			notApplied = append(notApplied, editFilesFileResult{
-				Path: file.Path, Status: editFilesStatusRejected, Edits: indexes, Error: reason,
-			})
-			continue
-		}
 		// The interrupt handler can persist a result produced after
 		// cancellation, so a file not yet sent is reported as not
 		// applied instead of failing with an outcome that looks unknown.
+		// This runs first so the interrupt, not a check that needs the
+		// workspace, is the reason given.
 		if ctx.Err() != nil {
 			notApplied = append(notApplied, editFilesFileResult{
-				Path: file.Path, Status: editFilesStatusRejected, Edits: indexes,
-				Error: "not sent because the tool call was interrupted",
+				Path: file.Path, Status: editFilesStatusRejected, Edits: indexes, Error: editFilesInterruptedError,
+			})
+			continue
+		}
+		if reason := checkPath(file.Path); reason != "" {
+			notApplied = append(notApplied, editFilesFileResult{
+				Path: file.Path, Status: editFilesStatusRejected, Edits: indexes, Error: reason,
 			})
 			continue
 		}
@@ -423,6 +424,8 @@ func partialEditFilesMessage(applied int, notApplied []editFilesFileResult) stri
 		switch {
 		case file.Status == editFilesStatusUnknown:
 			_, _ = fmt.Fprintf(&sb, " It is unknown whether %s was applied (%s): re-read %s before resending its edits.", file.Path, indexes, file.Path)
+		case file.Error == editFilesInterruptedError:
+			_, _ = fmt.Fprintf(&sb, " %s (%s).", interruptedFileSentence(file.Path), indexes)
 		case len(file.Edits) == 1:
 			_, _ = fmt.Fprintf(&sb, " %s was not applied (%s was not applied): fix and resend only the edits for %s.", file.Path, indexes, file.Path)
 		default:
@@ -446,13 +449,25 @@ func noneAppliedEditFilesMessage(files []editFilesFileResult) string {
 	_, _ = sb.WriteString(heading)
 	for _, file := range files {
 		indexes := formatEditIndexes(file.Edits)
-		if file.Status == editFilesStatusUnknown {
+		switch {
+		case file.Status == editFilesStatusUnknown:
 			_, _ = fmt.Fprintf(&sb, "\n- %s (%s): unknown whether applied (%s); re-read it before resending its edits", file.Path, indexes, file.Error)
-			continue
+		case file.Error == editFilesInterruptedError:
+			_, _ = fmt.Fprintf(&sb, "\n- %s (%s)", interruptedFileSentence(file.Path), indexes)
+		default:
+			_, _ = fmt.Fprintf(&sb, "\n- %s (%s): %s", file.Path, indexes, file.Error)
 		}
-		_, _ = fmt.Fprintf(&sb, "\n- %s (%s): %s", file.Path, indexes, file.Error)
 	}
 	return sb.String()
+}
+
+// editFilesInterruptedError is the error of a file that was not sent
+// because the tool call was interrupted. Such a file has nothing to fix,
+// so messages name it without a resend instruction.
+const editFilesInterruptedError = "not sent because the tool call was interrupted"
+
+func interruptedFileSentence(path string) string {
+	return path + " was not applied because the tool call was interrupted"
 }
 
 // formatEditIndexes renders indexes as "edits[1], edits[3]".

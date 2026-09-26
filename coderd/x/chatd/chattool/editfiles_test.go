@@ -944,41 +944,81 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 
 	// A result produced after cancellation can still be persisted, so
 	// files not yet sent are reported as not applied rather than
-	// unknown, and no request is made for them.
-	t.Run("InterruptedBeforeLaterFiles", func(t *testing.T) {
+	// unknown, and no request is made for them. The interrupt is checked
+	// before the path checks, so a plan-named file gets the interrupt
+	// reason rather than a resolver error. There is nothing to fix in a
+	// file skipped by the interrupt, so its message has no resend
+	// instruction.
+	t.Run("Interrupted", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		ctrl := gomock.NewController(t)
-		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-		mockConn.EXPECT().
-			EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
-				Files:       []workspacesdk.FileEdits{{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}}},
-				IncludeDiff: true,
-			}).
-			DoAndReturn(func(context.Context, workspacesdk.FileEditRequest) (workspacesdk.FileEditResponse, error) {
-				cancel()
-				return applied("/repo/a.go", diffA), nil
-			}).
-			Times(1)
-		tool := chattool.EditFiles(chattool.EditFilesOptions{
-			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-				return mockConn, nil
+		interruptTests := []struct {
+			name string
+			// cancelAfterFirst cancels during the first request;
+			// otherwise the context is canceled before the call.
+			cancelAfterFirst bool
+			input            string
+			wantIsError      bool
+			want             string
+		}{
+			{
+				name:             "BeforeLaterFiles",
+				cancelAfterFirst: true,
+				input:            `{"edits":[` + editA + `,` + editB + `]}`,
+				want: `{"status":"partial",` +
+					`"message":"Applied 1 file. /repo/b.go was not applied because the tool call was interrupted (edits[1]).",` +
+					`"files":[` +
+					`{"path":"/repo/b.go","status":"rejected","edits":[1],"error":"not sent because the tool call was interrupted"},` +
+					`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
 			},
-		})
+			{
+				name:        "BeforeFirstFile",
+				input:       `{"edits":[` + editA + `,{"path":"/home/coder/plan.md","old_text":"c","new_text":"d"}]}`,
+				wantIsError: true,
+				want: "No files were applied.\n" +
+					"- /repo/a.go was not applied because the tool call was interrupted (edits[0])\n" +
+					"- /home/coder/plan.md was not applied because the tool call was interrupted (edits[1])",
+			},
+		}
+		for _, tt := range interruptTests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				ctrl := gomock.NewController(t)
+				mockConn := agentconnmock.NewMockAgentConn(ctrl)
+				if tt.cancelAfterFirst {
+					mockConn.EXPECT().
+						EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
+							Files:       []workspacesdk.FileEdits{{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}}},
+							IncludeDiff: true,
+						}).
+						DoAndReturn(func(context.Context, workspacesdk.FileEditRequest) (workspacesdk.FileEditResponse, error) {
+							cancel()
+							return applied("/repo/a.go", diffA), nil
+						}).
+						Times(1)
+				} else {
+					cancel()
+				}
+				tool := chattool.EditFiles(chattool.EditFilesOptions{
+					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+						return mockConn, nil
+					},
+					ResolvePlanPath: func(context.Context) (string, string, error) {
+						return "", "", xerrors.New("workspace unavailable")
+					},
+				})
 
-		resp, err := tool.Run(ctx, fantasy.ToolCall{
-			ID:    "call-1",
-			Name:  "edit_files",
-			Input: `{"edits":[` + editA + `,` + editB + `]}`,
-		})
-		require.NoError(t, err)
-		assert.False(t, resp.IsError, resp.Content)
-		assert.Equal(t, `{"status":"partial",`+
-			`"message":"Applied 1 file. /repo/b.go was not applied (edits[1] was not applied): fix and resend only the edits for /repo/b.go.",`+
-			`"files":[`+
-			`{"path":"/repo/b.go","status":"rejected","edits":[1],"error":"not sent because the tool call was interrupted"},`+
-			`{"path":"/repo/a.go","status":"applied","diff":"`+diffAJSON+`"}]}`, resp.Content)
+				resp, err := tool.Run(ctx, fantasy.ToolCall{
+					ID:    "call-1",
+					Name:  "edit_files",
+					Input: tt.input,
+				})
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantIsError, resp.IsError, resp.Content)
+				assert.Equal(t, tt.want, resp.Content)
+			})
+		}
 	})
 }
 
