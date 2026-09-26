@@ -2151,8 +2151,23 @@ func (p *Server) PromoteQueued(
 			return ErrChatArchived
 		}
 
+		// Promoting out of requires_action ends the waiting turn, so its
+		// open structured output request closes as interrupted.
+		var receipts []chatstate.Message
+		if lockedChat.Status == database.ChatStatusRequiresAction {
+			history, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: opts.ChatID})
+			if err != nil {
+				return xerrors.Errorf("load history for promote: %w", err)
+			}
+			receipts, err = activeRequestReceipt(ctx, p.logger, store, opts.ChatID, history,
+				canceledStructuredOutput(uuid.Nil, codersdk.ChatStructuredOutputErrorCodeInterrupted, interruptedStructuredOutputMessage))
+			if err != nil {
+				return xerrors.Errorf("close structured output request on promote: %w", err)
+			}
+		}
 		promoteResult, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
 			QueuedMessageID: opts.QueuedMessageID,
+			Receipts:        receipts,
 		})
 		if err != nil {
 			return err

@@ -45,6 +45,9 @@ type ActiveRequestState struct {
 	Rejections int
 	// Candidate is the latest valid candidate output not since invalidated.
 	Candidate json.RawMessage
+	// Invalidated reports an invalidation after the latest generation step:
+	// a continuing stop hook asked for another step that has not run yet.
+	Invalidated bool
 	// GenerationSteps counts client-visible assistant rows after the request
 	// with content besides control parts and no outcome part. Compaction's
 	// display row is user-only and is not counted.
@@ -83,7 +86,7 @@ func ActiveRequest(rows []Row) (ActiveRequestState, error) {
 		return state, nil
 	}
 	for _, row := range rows[i+1:] {
-		content, outcome := false, false
+		content, outcome, invalidated := false, false, false
 		for _, part := range row.Parts {
 			switch part.Type {
 			case codersdk.ChatMessagePartTypeStructuredOutputOutcome:
@@ -110,15 +113,18 @@ func ActiveRequest(rows []Row) (ActiveRequestState, error) {
 				case ControlRejection:
 					state.Rejections++
 				case ControlInvalidation:
-					state.Candidate = nil
+					state.Candidate, invalidated = nil, true
 				}
 			default:
 				content = true
 			}
 		}
+		// Only a model step answers an invalidation; receipts do not.
 		if row.Role == codersdk.ChatMessageRoleAssistant && row.Visibility == VisibilityBoth && content && !outcome {
 			state.GenerationSteps++
+			state.Invalidated = false
 		}
+		state.Invalidated = state.Invalidated || invalidated
 	}
 	return state, nil
 }

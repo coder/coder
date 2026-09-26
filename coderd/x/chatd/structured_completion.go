@@ -62,6 +62,9 @@ func decideStructuredTurn(input generationDecisionInput, endStep bool) (*structu
 		return nil, err
 	}
 	state := input.structured
+	// A restart loses the stop hook's nudge; its invalidation still owes the
+	// turn a step, which keeps generating like a repair.
+	repairing = repairing || state.Invalidated
 	finishing := stopAfter || complete || endStep
 	exhausted := input.maxSteps > 0 && currentTurnStepCount(input.messages) >= input.maxSteps
 	switch {

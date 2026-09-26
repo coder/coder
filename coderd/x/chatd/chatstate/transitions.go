@@ -874,6 +874,11 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 // PromoteQueuedMessageInput configures [Tx.PromoteQueuedMessage].
 type PromoteQueuedMessageInput struct {
 	QueuedMessageID int64
+	// Receipts are structured output receipt rows inserted between the
+	// tool cancellations and the promoted message. Only a promotion that
+	// inserts history (from E1 or A1) accepts them; anything else is
+	// rejected.
+	Receipts []Message
 }
 
 // PromoteQueuedMessageResult is returned by [Tx.PromoteQueuedMessage].
@@ -881,14 +886,21 @@ type PromoteQueuedMessageResult struct {
 	QueuedMessage        database.ChatQueuedMessage
 	InsertedMessage      *database.ChatMessage
 	CancellationMessages []database.ChatMessage
+	Receipts             []database.ChatMessage
 }
 
 // PromoteQueuedMessage promotes the target queued message to the
 // queue head; from E1/A1 it also pops it into active history.
 func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionPromoteQueuedMessage)
+	if err == nil {
+		err = requireReceipts(input.Receipts)
+	}
 	if err != nil {
 		return PromoteQueuedMessageResult{}, err
+	}
+	if len(input.Receipts) > 0 && (from == StateR1 || from == StateI1) {
+		return PromoteQueuedMessageResult{}, xerrors.New("receipts require a promotion into history")
 	}
 	target, err := tx.store.GetChatQueuedMessageByID(tx.ctx, database.GetChatQueuedMessageByIDParams{
 		ID:     input.QueuedMessageID,
@@ -940,14 +952,15 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("resolve promoted queued message: %w", err)
 	}
-	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
+	toInsert := append(append(cancels, input.Receipts...), promotedMsg)
+	inserted, err := tx.insertMessages(toInsert)
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("insert promoted queued message: %w", err)
 	}
-	if len(inserted) != len(cancels)+1 {
+	if len(inserted) != len(toInsert) {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf(
 			"insert promoted queued message: expected %d rows, got %d",
-			len(cancels)+1, len(inserted),
+			len(toInsert), len(inserted),
 		)
 	}
 	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
@@ -966,12 +979,14 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	}); err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("set running: %w", err)
 	}
-	cancellations := inserted[:len(inserted)-1]
+	cancellations := inserted[:len(cancels)]
+	receipts := inserted[len(cancels) : len(inserted)-1]
 	insertedUserMsg := inserted[len(inserted)-1]
 	return PromoteQueuedMessageResult{
 		QueuedMessage:        target,
 		InsertedMessage:      &insertedUserMsg,
 		CancellationMessages: cancellations,
+		Receipts:             receipts,
 	}, nil
 }
 
