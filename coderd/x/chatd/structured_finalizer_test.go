@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -108,4 +109,48 @@ func TestFinalizerArgumentsScreenedBeforeCommit(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A rejected finalizer call leaves hook admission but keeps its ID in the
+// step, so an ordinary call sharing that ID still fails the batch before any
+// pre_tool_use dispatch instead of committing unadmitted.
+func TestRejectedFinalizerCallKeepsDuplicateToolUseIDCheck(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		chunk := chattest.OpenAIToolCallChunk(chatstructured.FinalizerToolName, `{"output":1,"output":2}`)
+		ordinary := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/x"}`).Choices[0].ToolCalls[0]
+		chunk.Choices[0].ToolCalls[0].ID, ordinary.ID, ordinary.Index = "call_duplicate", "call_duplicate", 1
+		chunk.Choices[0].ToolCalls = append(chunk.Choices[0].ToolCalls, ordinary)
+		return chattest.OpenAIStreamingResponse(chunk)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	var hookCalls atomic.Int32
+	consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
+		hookCalls.Add(1)
+		return `{}`
+	})
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+	})
+	request, err := chatstructured.EncodeRequestPart(chatstructured.Request{RequestID: uuid.New(), Name: "report", Schema: json.RawMessage(`{}`)})
+	require.NoError(t, err)
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID, OwnerID: user.ID, Title: "finalizer", ModelConfigID: model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("answer"), request},
+	})
+	require.NoError(t, err)
+	var done database.Chat
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		done, err = db.GetChatByID(ctx, chat.ID)
+		return err == nil && (done.Status == database.ChatStatusWaiting || done.Status == database.ChatStatusError)
+	}, testutil.IntervalFast)
+	require.Equal(t, database.ChatStatusError, done.Status)
+	require.Contains(t, chatLastErrorMessage(done.LastError), "duplicate tool use ID")
+	require.Zero(t, hookCalls.Load(), "a duplicated ID must be rejected before any dispatch")
 }
