@@ -1752,7 +1752,7 @@ export const ActiveChatKebabPersistent: Story = {
 	},
 };
 
-export const ActiveChatContextMenuFull: Story = {
+export const ActiveChatContextMenuOpen: Story = {
 	args: {
 		chats: [
 			buildChat({
