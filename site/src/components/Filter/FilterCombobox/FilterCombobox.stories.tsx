@@ -92,7 +92,6 @@ const categories: FilterCategory[] = [
 	{
 		key: "owner",
 		label: "Owner",
-		aliases: ["user"],
 		icon: <UserIcon />,
 		getOptions: async (query) => filterOptions(ownerOptions, query),
 	},
@@ -563,7 +562,6 @@ export const CrossCategoryValueSuggestions: Story = {
 				{
 					key: "owner",
 					label: "Owner",
-					aliases: ["user"],
 					icon: <UserIcon />,
 					getOptions: async (query) =>
 						filterOptions(
@@ -619,11 +617,111 @@ export const TypedInlinePrefix: Story = {
 	},
 };
 
+const scopedOwnerCategories: FilterCategory[] = [
+	{
+		key: "owner",
+		label: "Owner",
+		icon: <UserIcon />,
+		scopeToggle: {
+			label: (owner) =>
+				owner
+					? `Include workspaces shared with ${owner}`
+					: "Include shared workspaces",
+			widenedKey: "user",
+			pillPrefix: "+ shared with",
+			pillRemoveLabel: (owner) => `Hide workspaces shared with ${owner}`,
+			searchPhrase: "shared with owner",
+		},
+		getOptions: async (query) => filterOptions(ownerOptions, query),
+	},
+];
+
+// A category scope toggle sits below the option list; the applied chip is
+// joined by a `+ shared with alice` pill while the toggle is on.
+export const ScopeToggle: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alice"
+			categories={scopedOwnerCategories}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
+		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
+		await body.findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
+	},
+};
+
+// Typing the start of the toggle's search phrase opens the Owner flyout, so
+// the toggle is visible.
+export const ScopeToggleTypedMatch: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "shared");
+		await within(canvasElement.ownerDocument.body).findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
+	},
+};
+
+// A long owner name in the chip and its scope pill. At desktop width the pill
+// shows in full.
+export const ScopePillFullLabel: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alexandra-montgomery"
+			categories={scopedOwnerCategories}
+		/>
+	),
+};
+
+// With a chip under each Owner key, both chips show their own query keys, no
+// pill shows, and the switch is disabled because toggling would drop a filter.
+export const ScopeToggleWithSecondOwner: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alice owner:bob"
+			categories={scopedOwnerCategories}
+		/>
+	),
+	play: ScopeToggle.play,
+};
+
+// On a phone the pill truncates so the chip pair stays inside the field.
+export const ScopePillTruncatesWhenNarrow: Story = {
+	...ScopePillFullLabel,
+	parameters: {
+		layout: "fullscreen",
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
+// Hovering the pill shows the full switch label.
+export const ScopePillTooltip: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByText(/^\+ shared with/));
+		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
+	},
+};
+
 export const ClearAll: Story = {
 	render: () => (
 		<FilterComboboxHarness
-			initialQuery="owner:me template:docker status:running outdated:true"
-			categories={categoriesWithAttributes}
+			initialQuery="user:me template:docker status:running outdated:true"
+			categories={categoriesWithAttributes.map((category) =>
+				category.key === "owner" ? scopedOwnerCategories[0] : category,
+			)}
 		/>
 	),
 };

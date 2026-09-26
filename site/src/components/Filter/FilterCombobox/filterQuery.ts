@@ -4,7 +4,11 @@ import {
 	needsQuotes,
 	parseFilterTokens,
 } from "#/components/Filter/filterQuery";
-import type { FilterCategory, FilterOption } from "./types";
+import {
+	categoryChipKeys,
+	type FilterCategory,
+	type FilterOption,
+} from "./types";
 
 export const chipToken = (key: string, value: string) => `${key}:${value}`;
 
@@ -14,12 +18,17 @@ export const optionToken = (
 	option: Pick<FilterOption, "token" | "value">,
 ) => option.token ?? chipToken(key, option.value);
 
-type ChipDisplaySource = Pick<FilterCategory, "key" | "chipKeys">;
+type ChipDisplaySource = Pick<
+	FilterCategory,
+	"key" | "chipKeys" | "scopeToggle"
+>;
 
 /**
  * Key and value to display for a chip token. Tokens owned by a multi-key
  * category (`outdated:true` under Attributes) display under the category key
- * (`attribute:outdated`); the query string itself is unchanged.
+ * (`attribute:outdated`). A token under the category's `scopeToggle.widenedKey`
+ * keeps its value and displays under the category key (`user:bob` displays as
+ * `owner:bob`). The query string itself is unchanged.
  */
 export const chipDisplay = (
 	token: string,
@@ -34,8 +43,11 @@ export const chipDisplay = (
 	const owner = categories.find(
 		(category) =>
 			category.key !== key.toLowerCase() &&
-			category.chipKeys?.includes(key.toLowerCase()),
+			categoryChipKeys(category).includes(key.toLowerCase()),
 	);
+	if (owner?.scopeToggle?.widenedKey === key.toLowerCase()) {
+		return { key: owner.key, value };
+	}
 	if (owner) {
 		return { key: owner.key, value: key.toLowerCase() };
 	}
@@ -162,18 +174,28 @@ type CategoryMatchSource = {
 	key: string;
 	label: string;
 	aliases?: readonly string[];
+	/** Token an option commits, or the applied chip it removes. */
+	optionTokenFor?: (option: FilterOption) => string;
 };
 
 export const parseTypedCategoryPrefix = (
 	raw: string,
 	categories: readonly CategoryMatchSource[],
-): { categoryKey: string; query: string; freeText: string } | null => {
+): {
+	categoryKey: string;
+	query: string;
+	freeText: string;
+	typedKey: string;
+} | null => {
 	const resolveCategory = (typedKey: string) =>
 		categories.find((entry) => {
 			if (entry.key === typedKey || entry.label.toLowerCase() === typedKey) {
 				return true;
 			}
-			return entry.aliases?.some((alias) => alias.toLowerCase() === typedKey);
+			return (
+				entry.aliases?.some((alias) => alias.toLowerCase() === typedKey) ??
+				false
+			);
 		});
 
 	// Scan every `key:` fragment and keep the last one that resolves to a
@@ -183,6 +205,7 @@ export const parseTypedCategoryPrefix = (
 	// `[\w-]+` keeps hyphenated keys consistent with the rest of this module.
 	let chosen: {
 		category: CategoryMatchSource;
+		typedKey: string;
 		index: number;
 		end: number;
 	} | null = null;
@@ -194,7 +217,7 @@ export const parseTypedCategoryPrefix = (
 		const category = resolveCategory(typedKey);
 		if (category) {
 			const index = match.index ?? 0;
-			chosen = { category, index, end: index + match[0].length };
+			chosen = { category, typedKey, index, end: index + match[0].length };
 		}
 	}
 	if (!chosen) {
@@ -203,6 +226,7 @@ export const parseTypedCategoryPrefix = (
 
 	return {
 		categoryKey: chosen.category.key,
+		typedKey: chosen.typedKey,
 		query: raw.slice(chosen.end),
 		freeText: raw.slice(0, chosen.index).trim(),
 	};
@@ -298,7 +322,8 @@ export const collectValueSuggestions = (
 				break;
 			}
 
-			const token = optionToken(category.key, option);
+			const token =
+				category.optionTokenFor?.(option) ?? optionToken(category.key, option);
 
 			if (!optionMatches(option, normalized)) {
 				continue;

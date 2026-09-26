@@ -24,6 +24,10 @@ import {
 import type { FilterComboboxHighlight } from "./primitives";
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
+import { categoryChipKeys } from "./types";
+
+// Shorter prefixes would list the category for ordinary searches such as `sh`.
+const SCOPE_MATCH_MIN_QUERY_LENGTH = 3;
 
 /**
  * The popup has three mutually exclusive modes. `closed` hides it; `browsing`
@@ -55,6 +59,12 @@ type State = {
 	 * chip.
 	 */
 	typedFreeText: string;
+	/**
+	 * Scope set by a typed prefix for the open scope-toggle category:
+	 * `widenedKey` sets true, and the category key or an alias sets false. Null
+	 * when no prefix was typed, so the applied chip decides the scope instead.
+	 */
+	typedScopeWidened: boolean | null;
 };
 
 type Action =
@@ -65,7 +75,9 @@ type Action =
 			categoryKey: string;
 			query: string;
 			typedFreeText: string;
+			typedScopeWidened: boolean | null;
 	  }
+	| { type: "resetTypedScope" }
 	| { type: "typeInCategory"; value: string }
 	| { type: "typeFilterSearch"; value: string }
 	| { type: "typeFreeText"; value: string }
@@ -81,6 +93,7 @@ const closeState = (state: State): State => ({
 	activeCategoryKey: null,
 	typedFreeText: state.typedFreeText,
 	inputValue: state.typedFreeText,
+	typedScopeWidened: null,
 });
 
 const reducer = (state: State, action: Action): State => {
@@ -91,6 +104,7 @@ const reducer = (state: State, action: Action): State => {
 				mode: "browsing",
 				browseAll: false,
 				activeCategoryKey: null,
+				typedScopeWidened: null,
 			};
 		case "showAllFilters":
 			return {
@@ -98,6 +112,7 @@ const reducer = (state: State, action: Action): State => {
 				mode: "browsing",
 				browseAll: true,
 				activeCategoryKey: null,
+				typedScopeWidened: null,
 			};
 		case "enterCategory":
 			return {
@@ -106,7 +121,10 @@ const reducer = (state: State, action: Action): State => {
 				activeCategoryKey: action.categoryKey,
 				inputValue: action.query,
 				typedFreeText: action.typedFreeText.trim(),
+				typedScopeWidened: action.typedScopeWidened,
 			};
+		case "resetTypedScope":
+			return { ...state, typedScopeWidened: null };
 		case "typeInCategory":
 			return { ...state, mode: "category", inputValue: action.value };
 		case "typeFilterSearch":
@@ -116,6 +134,7 @@ const reducer = (state: State, action: Action): State => {
 				browseAll: false,
 				activeCategoryKey: null,
 				inputValue: action.value,
+				typedScopeWidened: null,
 			};
 		case "typeFreeText":
 			return {
@@ -124,6 +143,7 @@ const reducer = (state: State, action: Action): State => {
 				activeCategoryKey: null,
 				inputValue: action.value,
 				typedFreeText: action.value.trim(),
+				typedScopeWidened: null,
 			};
 		case "setTypedFreeText":
 			return { ...state, typedFreeText: action.value.trim() };
@@ -134,6 +154,7 @@ const reducer = (state: State, action: Action): State => {
 				browseAll: true,
 				activeCategoryKey: null,
 				inputValue: state.typedFreeText,
+				typedScopeWidened: null,
 			};
 		case "close":
 			return closeState(state);
@@ -317,10 +338,26 @@ type UseFilterComboboxOptions = {
 export const useFilterCombobox = ({
 	value,
 	onChange,
-	categories,
+	categories: categoriesProp,
 }: UseFilterComboboxOptions) => {
+	// Typed text matches a scope category's widened key too, such as `user`.
+	const categories = useMemo(
+		() =>
+			categoriesProp.map((category) =>
+				category.scopeToggle
+					? {
+							...category,
+							aliases: [
+								...(category.aliases ?? []),
+								category.scopeToggle.widenedKey,
+							],
+						}
+					: category,
+			),
+		[categoriesProp],
+	);
 	const chipKeys = useMemo(
-		() => categories.flatMap((category) => category.chipKeys ?? [category.key]),
+		() => categories.flatMap(categoryChipKeys),
 		[categories],
 	);
 
@@ -332,10 +369,17 @@ export const useFilterCombobox = ({
 			activeCategoryKey: null,
 			inputValue: freeText,
 			typedFreeText: freeText,
+			typedScopeWidened: null,
 		};
 	});
-	const { mode, browseAll, activeCategoryKey, inputValue, typedFreeText } =
-		state;
+	const {
+		mode,
+		browseAll,
+		activeCategoryKey,
+		inputValue,
+		typedFreeText,
+		typedScopeWidened,
+	} = state;
 	const open = mode !== "closed";
 	const isBrowsing = mode === "browsing";
 
@@ -420,13 +464,72 @@ export const useFilterCombobox = ({
 		() => queryToChips(value, chipKeys),
 		[chipKeys, value],
 	);
+	const chipKeyOf = (token: string) => parseChipToken(token, chipKeys)?.key;
+	const scopeChipsOf = (category: FilterCategory) =>
+		category.scopeToggle
+			? chipValues.filter((token) => {
+					const key = chipKeyOf(token);
+					return key !== undefined && categoryChipKeys(category).includes(key);
+				})
+			: [];
+	// The switch and pill act on a scope category's only chip. With a chip
+	// under each key, such as a bookmarked `user:me owner:carol`, rewriting one
+	// would collide with the other, and the query would silently lose a filter.
+	const isScopeToggleDisabled = (category: FilterCategory) =>
+		scopeChipsOf(category).length !== 1;
+	// A category's first applied chip decides its scope toggle; with no chip
+	// the toggle is on. While its category is open, a typed prefix decides it
+	// instead. The typed key reaches the query only with the option picked.
+	const isScopeWidened = (category: FilterCategory) => {
+		const toggle = category.scopeToggle;
+		if (!toggle) {
+			return false;
+		}
+		if (activeCategoryKey === category.key && typedScopeWidened !== null) {
+			return typedScopeWidened;
+		}
+		const [scopeChip] = scopeChipsOf(category);
+		return (
+			scopeChip === undefined || chipKeyOf(scopeChip) === toggle.widenedKey
+		);
+	};
+	// Follows the applied chip, not a typed `owner:` or `user:` prefix.
+	const scopePillCategoryKey = (token: string) => {
+		const category = categoryForChip(token);
+		return category?.scopeToggle &&
+			!isScopeToggleDisabled(category) &&
+			chipKeyOf(token) === category.scopeToggle.widenedKey
+			? category.key
+			: undefined;
+	};
+	const optionChipKey = (category: FilterCategory) =>
+		category.scopeToggle && isScopeWidened(category)
+			? category.scopeToggle.widenedKey
+			: category.key;
+	// The applied chip holding a value, ignoring letter case, unless a typed
+	// prefix sets the key. An option maps to it, so its row shows as applied
+	// and choosing it removes it; typed Enter with no option highlighted
+	// commits it, which keeps it.
+	const scopeChipHolding = (category: FilterCategory, value: string) => {
+		if (activeCategoryKey === category.key && typedScopeWidened !== null) {
+			return undefined;
+		}
+		const folded = value.toLowerCase();
+		return scopeChipsOf(category).find(
+			(chip) => parseChipToken(chip, chipKeys)?.value.toLowerCase() === folded,
+		);
+	};
+	const optionTokenFor = (
+		category: FilterCategory,
+		option: Pick<FilterOption, "token" | "value">,
+	) =>
+		scopeChipHolding(category, option.value) ??
+		optionToken(optionChipKey(category), option);
 	const categoryForChip = (token: string) => {
 		const key = parseChipToken(token, chipKeys)?.key;
 		return key === undefined
 			? undefined
-			: categories.find((category) =>
-					(category.chipKeys ?? [category.key]).includes(key),
-				);
+			: categories.find((category) => categoryChipKeys(category).includes(key));
 	};
 
 	// Categories with a flyout or drill-in list, including those
@@ -541,12 +644,31 @@ export const useFilterCombobox = ({
 	// they show; otherwise cmdk would highlight the first inline row and Enter
 	// would apply it.
 	const placeholdersShown = categoryPlaceholderCount > 0;
+	const findScopeMatch = (query: string) => {
+		const scopeQuery = query.trim().toLowerCase();
+		if (scopeQuery.length < SCOPE_MATCH_MIN_QUERY_LENGTH) {
+			return undefined;
+		}
+		return menuCategories.find((category) => {
+			return category.scopeToggle?.searchPhrase
+				.toLowerCase()
+				.startsWith(scopeQuery);
+		});
+	};
+	const scopeMatchedCategory =
+		typedInlinePrefix !== null ? undefined : findScopeMatch(categoryQuery);
+	const matchedCategories = matchCategories(categoryQuery, menuCategories);
+	const listedOnlyByScopeMatch =
+		scopeMatchedCategory !== undefined &&
+		!matchedCategories.includes(scopeMatchedCategory);
 	const listedCategories =
 		!open || typedInlinePrefix !== null || placeholdersShown
 			? []
 			: categoryQuery.length === 0
 				? menuCategories
-				: matchCategories(categoryQuery, menuCategories);
+				: listedOnlyByScopeMatch
+					? [...matchedCategories, scopeMatchedCategory]
+					: matchedCategories;
 
 	const activeOptionsQuerySource =
 		activeCategoryKey !== null ? inputValue.trim() : "";
@@ -751,7 +873,11 @@ export const useFilterCombobox = ({
 			? []
 			: collectValueSuggestions(
 					inputValue,
-					menuCategories,
+					menuCategories.map((category) => ({
+						...category,
+						optionTokenFor: (option: FilterOption) =>
+							optionTokenFor(category, option),
+					})),
 					typeaheadOptionsByKey,
 					chipValues,
 				);
@@ -837,7 +963,78 @@ export const useFilterCombobox = ({
 			categoryKey,
 			query: "",
 			typedFreeText: freeText,
+			typedScopeWidened: null,
 		});
+	};
+
+	// A category search is dropped after a filter pick or an explicit switch
+	// toggle; text already applied as a search stays.
+	const hasCategorySearchText =
+		mode === "browsing" && !browseAll && inputValue.trim().length > 0;
+	const appliedFreeText = () =>
+		extractFreeText(lastEmittedRef.current, chipKeys);
+
+	const toggleScope = (
+		categoryKey: string,
+		{ clearCategorySearch = false }: { clearCategorySearch?: boolean } = {},
+	) => {
+		const category = categories.find((entry) => entry.key === categoryKey);
+		const toggle = category?.scopeToggle;
+		if (!category || !toggle || isScopeToggleDisabled(category)) {
+			return;
+		}
+		const widened = isScopeWidened(category);
+		dispatch({ type: "resetTypedScope" });
+		rewriteScopeKey(
+			widened ? toggle.widenedKey : category.key,
+			widened ? category.key : toggle.widenedKey,
+			{ clearCategorySearch },
+		);
+	};
+
+	// Unlike the switch, which a typed `owner:` or `user:` prefix may override,
+	// the pill always narrows the applied chip.
+	const removeScopePill = (categoryKey: string) => {
+		const category = categories.find((entry) => entry.key === categoryKey);
+		const toggle = category?.scopeToggle;
+		if (!category || !toggle || isScopeToggleDisabled(category)) {
+			return;
+		}
+		rewriteScopeKey(toggle.widenedKey, category.key);
+	};
+
+	const rewriteScopeKey = (
+		fromKey: string,
+		toKey: string,
+		{ clearCategorySearch = false }: { clearCategorySearch?: boolean } = {},
+	) => {
+		const rewritten = chipValues.map((token) => {
+			const parsed = parseChipToken(token, chipKeys);
+			return parsed?.key === fromKey ? chipToken(toKey, parsed.value) : token;
+		});
+		if (clearCategorySearch && hasCategorySearchText) {
+			const freeText = appliedFreeText();
+			updateFromChips(rewritten, freeText);
+			dispatch({ type: "typeFreeText", value: freeText });
+		} else if (rewritten.some((token, index) => token !== chipValues[index])) {
+			emitQueryKeepingLookup(
+				composeFilterQuery(rewritten, chipKeys, appliedFreeText()),
+			);
+		}
+	};
+
+	// A pick in a scope category replaces the chip under the picked key, or the
+	// category's first chip when none uses that key, such as after a typed
+	// `owner:` or `user:` prefix.
+	const withCategoryOption = (token: string) => {
+		const category = categoryForChip(token);
+		const scopeChips = category ? scopeChipsOf(category) : [];
+		const replaced =
+			scopeChips.find((chip) => chipKeyOf(chip) === chipKeyOf(token)) ??
+			scopeChips[0];
+		return replaced === undefined
+			? [...chipValues, token]
+			: chipValues.map((chip) => (chip === replaced ? token : chip));
 	};
 
 	const toggledChips = (
@@ -884,16 +1081,20 @@ export const useFilterCombobox = ({
 		dispatch({ type: "leaveCategory" });
 	};
 
-	const commitCategoryOption = (token: string) => {
-		const nextChips = [...chipValues, token];
-		updateFromChips(nextChips, typedFreeText);
+	const applyCategoryChips = (nextChips: string[]) => {
+		updateFromChips(
+			nextChips,
+			hasCategorySearchText ? appliedFreeText() : typedFreeText,
+		);
 		returnToCategories(nextChips);
 	};
 
+	const commitCategoryOption = (token: string) => {
+		applyCategoryChips(withCategoryOption(token));
+	};
+
 	const toggleCategoryOption = (token: string) => {
-		const nextChips = toggledChips(token);
-		updateFromChips(nextChips, typedFreeText);
-		returnToCategories(nextChips);
+		applyCategoryChips(toggledChips(token, () => withCategoryOption(token)));
 	};
 
 	// Typed filter text is dropped once an option is picked. Free-text search
@@ -988,7 +1189,9 @@ export const useFilterCombobox = ({
 					text,
 				).length > 0,
 		);
-		const matchesCategory = matchCategories(text, categories).length > 0;
+		const matchesCategory =
+			matchCategories(text, categories).length > 0 ||
+			findScopeMatch(text) !== undefined;
 		if (matchesCategory || matchesLoadedOption) {
 			return Promise.resolve(true);
 		}
@@ -1129,11 +1332,17 @@ export const useFilterCombobox = ({
 			allSubmenuCategories,
 		);
 		if (typedCategory) {
+			const scopeToggle = allSubmenuCategories.find(
+				(entry) => entry.key === typedCategory.categoryKey,
+			)?.scopeToggle;
 			dispatch({
 				type: "enterCategory",
 				categoryKey: typedCategory.categoryKey,
 				query: typedCategory.query,
 				typedFreeText: commitTypedText(typedCategory.freeText),
+				typedScopeWidened: scopeToggle
+					? typedCategory.typedKey === scopeToggle.widenedKey
+					: null,
 			});
 			return;
 		}
@@ -1246,13 +1455,22 @@ export const useFilterCombobox = ({
 			chipValues.length > 0
 		) {
 			event.preventDefault();
+			// A widened chip is followed by its scope pill, so the pill goes first.
+			const pillCategoryKey = scopePillCategoryKey(
+				chipValues[chipValues.length - 1],
+			);
+			if (pillCategoryKey) {
+				removeScopePill(pillCategoryKey);
+				return;
+			}
 			updateFromChips(chipValues.slice(0, -1), "");
 			return;
 		}
 
-		// Let cmdk commit a currently highlighted category option. If there is no
-		// rendered option to select, Enter commits the typed value directly so
-		// valid backend values do not have to appear in the suggestion list.
+		// Let cmdk commit a currently highlighted category option. Otherwise
+		// Enter commits the typed value: the applied chip holding it, a listed
+		// option matching it ignoring letter case, or a new chip, so valid
+		// backend values do not have to appear in the suggestion list.
 		if (
 			event.key === "Enter" &&
 			mode === "category" &&
@@ -1260,9 +1478,25 @@ export const useFilterCombobox = ({
 			inputValue.trim().length > 0
 		) {
 			const highlighted = getHighlightedValue();
-			const candidate = chipToken(activeCategory.key, inputValue.trim());
+			const typedOption = { value: inputValue.trim() };
+			const listedOption = activeOptions?.find(
+				(option) =>
+					option.value.toLowerCase() === typedOption.value.toLowerCase(),
+			);
+			// See `scopeToggle`: unlisted values avoid the widened key, which a
+			// backend can reject (#29961 for Workspaces `user:`).
+			const candidate =
+				scopeChipHolding(activeCategory, typedOption.value) ??
+				(listedOption
+					? optionToken(optionChipKey(activeCategory), listedOption)
+					: chipToken(
+							typedScopeWidened === true
+								? optionChipKey(activeCategory)
+								: activeCategory.key,
+							typedOption.value,
+						));
 			const hasHighlightedOption = activeOptions?.some(
-				(option) => optionToken(activeCategory.key, option) === highlighted,
+				(option) => optionTokenFor(activeCategory, option) === highlighted,
 			);
 			if (
 				!activeOptionsLoading &&
@@ -1347,6 +1581,19 @@ export const useFilterCombobox = ({
 		const highlighted =
 			renderedHighlightedValue ||
 			(event.key === "Tab" && typingFreeText ? (rowValues[0] ?? "") : "");
+		// Completing a row listed only because the text matched its scope
+		// phrase applies the text as a search instead of entering the category.
+		if (
+			isComplete &&
+			listedOnlyByScopeMatch &&
+			highlighted === scopeMatchedCategory?.key
+		) {
+			applyTypedSearch();
+			dispatch({ type: "showAllFilters" });
+			event.preventDefault();
+			return;
+		}
+
 		const category = listedCategories.find(
 			(entry) => entry.key === highlighted,
 		);
@@ -1377,6 +1624,8 @@ export const useFilterCombobox = ({
 		menuCategories,
 		listedCategories,
 		categoriesNarrowedByText: categoryQuery.length > 0,
+		// Category whose scopeToggle.searchPhrase starts with the typed text.
+		scopeMatchKey: scopeMatchedCategory?.key ?? null,
 		categoryPlaceholderCount,
 		autoHighlight: !typingFreeText && !placeholdersShown,
 		unfilteredOptionsByKey: unfilteredOptions.optionsByKey,
@@ -1385,6 +1634,37 @@ export const useFilterCombobox = ({
 		inlineSections,
 		chipValues,
 		highlightRef,
+		scopeState: (categoryKey: string) => {
+			const category = categories.find((entry) => entry.key === categoryKey);
+			const toggle = category?.scopeToggle;
+			if (!category || !toggle) {
+				return undefined;
+			}
+			const [scopeChip] = scopeChipsOf(category);
+			return {
+				widened: isScopeWidened(category),
+				label: toggle.label(
+					scopeChip === undefined
+						? undefined
+						: parseChipToken(scopeChip, chipKeys)?.value,
+				),
+				disabled: isScopeToggleDisabled(category),
+			};
+		},
+		// Key of the category whose scope pill follows this chip.
+		scopePillCategoryKey,
+		// While a scope category has a chip under each key, its chips show their
+		// own query keys instead of the category key.
+		showsOwnQueryKey: (token: string) => {
+			const category = categoryForChip(token);
+			return category !== undefined && scopeChipsOf(category).length > 1;
+		},
+		optionTokenFor: (categoryKey: string, option: FilterOption) => {
+			const category = categories.find((entry) => entry.key === categoryKey);
+			return category
+				? optionTokenFor(category, option)
+				: optionToken(categoryKey, option);
+		},
 		typeaheadError,
 		actions: {
 			setInputRef: (node: HTMLInputElement | null) => {
@@ -1402,6 +1682,8 @@ export const useFilterCombobox = ({
 			selectCategory,
 			toggleCategoryOption,
 			toggleInlineOption,
+			toggleScope,
+			removeScopePill,
 			toggleValueSuggestion,
 			onInputFocus: handleInputFocus,
 			onInputKeyDown: handleInputKeyDown,

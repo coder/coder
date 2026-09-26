@@ -11,7 +11,7 @@ export type FilterOption = {
 	 * Explicit chip token committed when this option is selected, overriding the
 	 * default `${categoryKey}:${value}`. Used by categories that group several
 	 * query keys, e.g. an "Attributes" category whose options commit
-	 * `outdated:true`, `dormant:true`, or `shared:true`.
+	 * `outdated:true` or `dormant:true`.
 	 */
 	token?: string;
 };
@@ -21,13 +21,13 @@ export type FilterCategory = {
 	label: string;
 	getOptions: (query: string) => Promise<FilterOption[]>;
 	icon?: ReactNode;
-	/** Extra typed prefixes that enter this category, e.g. `user` for `owner`. */
+	/** Extra names for this category, matched as typed text or a `name:` prefix. */
 	aliases?: readonly string[];
 	/**
 	 * Query keys this category owns for chip parsing. Defaults to `[key]`. A
-	 * category that commits several distinct boolean keys (e.g. Attributes
-	 * committing `outdated`, `dormant`, `shared`) lists them all so the query
-	 * round-trips them as chips instead of free text.
+	 * category that commits distinct boolean keys (e.g. Attributes committing
+	 * `outdated` and `dormant`) lists them all so the query round-trips them as
+	 * chips instead of free text.
 	 */
 	chipKeys?: readonly string[];
 	/** Render this category's options as top-level toggle rows instead of a submenu. */
@@ -51,4 +51,48 @@ export type FilterCategory = {
 	 * returns at most one option. Does not apply to inline categories.
 	 */
 	hideWhenSingleOption?: boolean;
+	/**
+	 * Switch shown below the category's options. While it is on, options
+	 * commit under `widenedKey` instead of the category key, e.g. Owner
+	 * committing `user:alice` (owned by or shared with alice) instead of
+	 * `owner:alice`. With no chip it is on and disabled, so the first pick
+	 * commits under `widenedKey`. Once a chip is applied, the switch follows
+	 * that chip's key and later picks keep it; with a chip under each key it is
+	 * disabled and both chips show their own query keys. A typed prefix sets
+	 * the key for that entry's pick: `widenedKey` commits under `widenedKey`;
+	 * the category key or an alias commits under the category key. Without a
+	 * typed prefix, a value an applied chip holds, ignoring letter case, maps
+	 * to that chip: choosing its option removes the chip, and typed Enter
+	 * with no option highlighted keeps it. Otherwise a typed value that no
+	 * option lists commits under the category key unless `widenedKey` was
+	 * typed, since a backend may reject the widened key for values the
+	 * requester cannot list. While it is on and enabled, a pill after the
+	 * chip reads `pillPrefix` and the chip's value, and removing the pill
+	 * turns the switch off. Applies only to submenu categories, not inline
+	 * ones.
+	 */
+	scopeToggle?: {
+		/** Switch label for the category's applied value, if there is one. */
+		label: (value: string | undefined) => string;
+		widenedKey: string;
+		/** Pill text before the applied value, e.g. `+ shared with`. */
+		pillPrefix: string;
+		/** Accessible name of the pill's remove button for the applied value. */
+		pillRemoveLabel: (value: string) => string;
+		/**
+		 * A 3+ character prefix of this phrase lists the category and opens its
+		 * flyout.
+		 */
+		searchPhrase: string;
+	};
 };
+
+/** Query keys the category owns: `chipKeys` (default `[key]`) plus `scopeToggle.widenedKey`. */
+export const categoryChipKeys = (
+	category: Pick<FilterCategory, "key" | "chipKeys" | "scopeToggle">,
+): readonly string[] => [
+	...new Set([
+		...(category.chipKeys ?? [category.key]),
+		...(category.scopeToggle ? [category.scopeToggle.widenedKey] : []),
+	]),
+];
