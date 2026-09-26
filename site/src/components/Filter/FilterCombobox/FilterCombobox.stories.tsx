@@ -774,7 +774,7 @@ export const InlineOptionsRetrying: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
 		await userEvent.click(await body.findByRole("option", { name: "Retry" }));
-		await body.findByRole("option", { name: "Loading Status options" });
+		await body.findByRole("option", { name: "Loading Status options." });
 	},
 };
 

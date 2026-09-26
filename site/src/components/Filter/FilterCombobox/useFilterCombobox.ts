@@ -168,6 +168,10 @@ const INLINE_LOAD_ROW_VALUE_PREFIX = "__load__:";
 export const optionsLoadErrorMessage = (label: string) =>
 	`Couldn’t load ${label} options.`;
 
+/** Announced while a category's options load. */
+export const optionsLoadingMessage = (label: string) =>
+	`Loading ${label} options.`;
+
 /**
  * Longest wait for option lookups before typed text that matched no loaded
  * filter is applied as a free-text search anyway.
@@ -177,9 +181,10 @@ export const TYPED_TEXT_LOOKUP_TIMEOUT_MS = 1000;
 /** Shown and announced when the typeahead suggestion queries fail. */
 export const SUGGESTIONS_ERROR_MESSAGE = "Couldn’t load suggestions.";
 
-// Live-region text for each state so screen readers hear loading, failures,
-// and empty results rather than silence. Typeahead loading shows no spinner,
-// so this is its only announcement.
+// Live-region text for the hook's states so screen readers hear loading,
+// failures, and empty results rather than silence. Typeahead loading shows no
+// spinner, so this is its only announcement. FilterCombobox adds the open
+// flyout's load state, which is view state.
 const deriveStatusMessage = ({
 	activeCategoryLabel,
 	activeOptionsLoading,
@@ -192,7 +197,7 @@ const deriveStatusMessage = ({
 }: StatusMessageInput): string => {
 	if (activeCategoryLabel !== undefined) {
 		if (activeOptionsLoading) {
-			return `Loading ${activeCategoryLabel} options`;
+			return optionsLoadingMessage(activeCategoryLabel);
 		}
 		if (activeOptionsError) {
 			return optionsLoadErrorMessage(activeCategoryLabel);
@@ -552,9 +557,31 @@ export const useFilterCombobox = ({
 			})
 		: [];
 	const inlineOptionRows = inlineSections.flatMap((section) => section.rows);
+	// cmdk highlights the first row when the highlighted row unmounts. When a
+	// highlighted inline load row gives way to loaded options, the highlight
+	// moves to that category's first option instead.
+	const highlightedLoadRowKeyRef = useRef<string | null>(null);
+	const handleHighlightedValueChange = (value: string) => {
+		const loadingSection = inlineSections.find(
+			(section) => section.status !== "ready" && section.loadRowValue === value,
+		);
+		if (loadingSection) {
+			highlightedLoadRowKeyRef.current = loadingSection.category.key;
+			return;
+		}
+		const heldKey = highlightedLoadRowKeyRef.current;
+		highlightedLoadRowKeyRef.current = null;
+		const loadedSection = inlineSections.find(
+			(section) => section.category.key === heldKey,
+		);
+		const [firstRow] = loadedSection?.rows ?? [];
+		if (loadedSection?.status === "ready" && firstRow) {
+			setHighlightedValue(firstRow.token);
+		}
+	};
 	const inlineLoadMessages = inlineSections.flatMap(({ category, status }) => {
 		if (status === "loading") {
-			return [`Loading ${category.label} options`];
+			return [optionsLoadingMessage(category.label)];
 		}
 		return status === "failed" ? [optionsLoadErrorMessage(category.label)] : [];
 	});
@@ -1131,6 +1158,7 @@ export const useFilterCombobox = ({
 			onInputKeyDown: handleInputKeyDown,
 			onInputValueChange: handleInputValueChange,
 			setHighlightedValue,
+			onHighlightedValueChange: handleHighlightedValueChange,
 		},
 	};
 };
