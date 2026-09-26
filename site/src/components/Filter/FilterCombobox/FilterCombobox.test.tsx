@@ -2304,7 +2304,7 @@ describe("FilterCombobox", () => {
 		expect(input).toHaveFocus();
 
 		await user.hover(screen.getByRole("option", { name: "Owner" }));
-		await act(() => vi.advanceTimersByTimeAsync(0));
+		await flushTimers();
 		await user.click(screen.getByRole("button", { name: "alice" }));
 		expect(onChange).toHaveBeenLastCalledWith("owner:alice");
 	});
