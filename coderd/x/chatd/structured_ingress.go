@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"slices"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -54,8 +55,13 @@ func ParseResponseFormat(raw json.RawMessage, enabled bool) (*codersdk.ChatMessa
 	if json.Unmarshal(spec["name"], &name) != nil || !chatstructured.ValidRequestName(name) {
 		return reject("response_format.json_schema.name", "Must match ^[A-Za-z0-9_-]{1,64}$.")
 	}
-	if raw, present := spec["description"]; present && (!utf8.Valid(raw) || json.Unmarshal(raw, &description) != nil || len(description) > 1024) {
-		return reject("response_format.json_schema.description", "Must be a string of at most 1024 bytes of valid UTF-8.")
+	if raw, present := spec["description"]; present {
+		// ParseOutputValue rejects invalid UTF-8, unpaired surrogate escapes
+		// and U+0000, which json.Unmarshal would silently replace.
+		_, err := chatstructured.ParseOutputValue(raw)
+		if err != nil || raw[0] != '"' || json.Unmarshal(raw, &description) != nil || len(description) > 1024 {
+			return reject("response_format.json_schema.description", "Must be a string of at most 1024 bytes of valid UTF-8.")
+		}
 	}
 	schema := bytes.TrimSpace(spec["schema"])
 	if len(schema) == 0 || schema[0] != '{' {
@@ -92,8 +98,12 @@ func jsonObjectMembers(raw json.RawMessage, allowed ...string) (map[string]json.
 		}
 		members[key] = value
 	}
+	if _, err := dec.Token(); err != nil {
+		return nil, false
+	}
+	// Exactly one object: any token after it, even a closing one, fails.
 	_, err := dec.Token()
-	return members, err == nil && !dec.More()
+	return members, errors.Is(err, io.EOF)
 }
 
 // HasPendingStructuredRequest reports whether the chat's latest user turn
