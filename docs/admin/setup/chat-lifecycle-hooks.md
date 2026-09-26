@@ -83,6 +83,16 @@ This check doesn't cover dynamic and MCP tools, because the client and the works
 A policy that gates them must validate their input itself.
 The chat `edit_files` tool reads `old_text` and `new_text`; a policy that gates edit content must inspect those keys.
 
+`edit_files` is the exception to the model's-bytes rule.
+The model sends a flat `edits` list in which every edit names its own `path`, and Coder presents those edits to `pre_tool_use` grouped by path, keeping each file's edits in their original order:
+
+```json
+{"files":[{"path":"/repo/a.go","edits":[{"old_text":"x := 1","new_text":"x := 2"}]}]}
+```
+
+Each edit carries `old_text` and `new_text`, and `replace_all` only when it's `true`.
+If the input doesn't match the `edits` schema, `tool_input` carries the model's bytes instead, and the tool rejects the call without editing any file.
+
 For `user_prompt_submit`, `prompt` concatenates the original submitted text parts, and `parts` carries the original structured message, including non-text parts such as file references.
 These values are captured before the consumer's override or injected context changes the stored prompt.
 A consumer that gates prompt content must inspect `parts`.
@@ -132,6 +142,7 @@ Permission rules depend on the event:
 - For `pre_tool_use`, `allow` requires `input_override` containing the replacement tool input.
   Coder persists the replacement with the tool call and executes the tool with it.
   An override for a built-in tool must not repeat a key or vary the capitalization of a schema property; an ambiguous override fails the dispatch closed because the model can't correct it.
+  An `edit_files` override must use the grouped `files` form that `tool_input` shows, with no other keys; Coder flattens it into the `edits` list before it stores and executes the call, and any other form fails the dispatch closed.
   The stored call is marked as rewritten, and the chat shows a "Modified by policy" badge.
   The marker is client-facing, so return `model_context` if the model also needs an explanation of the rewrite.
 - For either event, `deny` blocks the input and must not include `input_override`.
