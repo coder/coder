@@ -20,6 +20,10 @@ const templateNotAvailableMessage = "template not available for chat workspaces;
 // chat's workspace so the model recovers instead of concluding it is blocked.
 const WorkspaceUnavailableHint = "The workspace is probably gone; use the create_workspace tool to make a new one"
 
+// ErrChatHasNoWorkspace is returned by a workspace connection resolver
+// when the chat has no workspace. Its message is shown to the model.
+var ErrChatHasNoWorkspace = xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
+
 // ErrWorkspaceHasNoAgent is returned by a workspace connection resolver
 // when the chat's workspace has no running agent. Its message is shown to
 // the model.
