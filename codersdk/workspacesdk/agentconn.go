@@ -122,8 +122,10 @@ type AgentConn interface {
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
+	CancelWriteFile(ctx context.Context, id string) (CancelFileToolCallResponse, error)
 	UploadChatFile(ctx context.Context, req UploadChatFileRequest) (AgentUploadChatFileResponse, error)
 	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
+	CancelEditFiles(ctx context.Context, id string) (CancelFileToolCallResponse, error)
 	BundleFiles(ctx context.Context, req BundleFilesRequest) ([]byte, error)
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
@@ -969,6 +971,49 @@ type CancelProcessResponse struct {
 	AgeMs     int64              `json:"age_ms,omitempty"`
 }
 
+// CancelFileToolCallResponse is the final state of an edit_files or
+// write_file tool call after a cancel request. The agent cannot stop an
+// edit or write in progress, so it waits for it and returns the recorded
+// HTTP response of the original request. EditFilesResult and
+// WriteFileResult rebuild what EditFiles and WriteFile returned from it.
+type CancelFileToolCallResponse struct {
+	// Started is false when the agent never received the tool call; the
+	// cancel recorded it as canceled, so nothing was applied.
+	Started bool `json:"started"`
+	// StatusCode and Body are the HTTP status and JSON body of the
+	// original request's response. Set when Started is true.
+	StatusCode int             `json:"status_code,omitempty"`
+	Body       json.RawMessage `json:"body,omitempty"`
+}
+
+// EditFilesResult returns what EditFiles returned to the original
+// request. Only valid when Started is true. An error carries no request
+// method or URL.
+func (r CancelFileToolCallResponse) EditFilesResult() (FileEditResponse, error) {
+	res := r.recordedResponse()
+	defer res.Body.Close()
+	return readEditFilesResponse(res)
+}
+
+// WriteFileResult returns what WriteFile returned to the original
+// request. Only valid when Started is true. An error carries no request
+// method or URL.
+func (r CancelFileToolCallResponse) WriteFileResult() error {
+	res := r.recordedResponse()
+	defer res.Body.Close()
+	return readWriteFileResponse(res)
+}
+
+// recordedResponse returns the original request's response. It has no
+// request, so an error read from it has no method or URL.
+func (r CancelFileToolCallResponse) recordedResponse() *http.Response {
+	return &http.Response{
+		StatusCode: r.StatusCode,
+		Header:     http.Header{"Content-Type": {"application/json"}},
+		Body:       io.NopCloser(bytes.NewReader(r.Body)),
+	}
+}
+
 // ProcessOutputOptions configures blocking behavior for
 // process output retrieval.
 type ProcessOutputOptions struct {
@@ -1146,8 +1191,14 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 		return xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	return readWriteFileResponse(res)
+}
+
+// readWriteFileResponse returns the error of a write-file response, or
+// nil for success.
+func readWriteFileResponse(res *http.Response) error {
 	if res.StatusCode != http.StatusOK {
-		return codersdk.ReadBodyAsError(res)
+		return readToolCallError(res)
 	}
 
 	var m codersdk.Response
@@ -1155,6 +1206,27 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 		return xerrors.Errorf("decode response body: %w", err)
 	}
 	return nil
+}
+
+// CancelWriteFile cancels the write_file tool call in ctx, set with
+// WithToolCall. id is the tool call UUID.
+func (c *agentConn) CancelWriteFile(ctx context.Context, id string) (CancelFileToolCallResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	return c.cancelFileToolCall(ctx, "/api/v0/write-file/"+id+"/cancel")
+}
+
+func (c *agentConn) cancelFileToolCall(ctx context.Context, path string) (CancelFileToolCallResponse, error) {
+	res, err := c.apiRequest(ctx, http.MethodPost, path, nil)
+	if err != nil {
+		return CancelFileToolCallResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return CancelFileToolCallResponse{}, readToolCallError(res)
+	}
+	var resp CancelFileToolCallResponse
+	return resp, decodeAgentJSON(res, &resp)
 }
 
 // UploadChatFileRequest is the streaming request for the agent's
@@ -1545,8 +1617,13 @@ func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) (FileE
 		return FileEditResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	return readEditFilesResponse(res)
+}
+
+// readEditFilesResponse decodes an edit-files response.
+func readEditFilesResponse(res *http.Response) (FileEditResponse, error) {
 	if res.StatusCode != http.StatusOK {
-		return FileEditResponse{}, codersdk.ReadBodyAsError(res)
+		return FileEditResponse{}, readToolCallError(res)
 	}
 
 	var resp FileEditResponse
@@ -1554,6 +1631,14 @@ func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) (FileE
 		return FileEditResponse{}, xerrors.Errorf("decode response body: %w", err)
 	}
 	return resp, nil
+}
+
+// CancelEditFiles cancels the edit_files tool call in ctx, set with
+// WithToolCall. id is the tool call UUID.
+func (c *agentConn) CancelEditFiles(ctx context.Context, id string) (CancelFileToolCallResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	return c.cancelFileToolCall(ctx, "/api/v0/edit-files/"+id+"/cancel")
 }
 
 func agentAPIPath(path string, query neturl.Values) string {

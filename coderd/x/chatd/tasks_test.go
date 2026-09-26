@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1384,20 +1385,63 @@ func TestInterruptTask_ExecuteCallsWithoutCancel(t *testing.T) {
 func TestInterruptTask_CancelIgnoresEpisodeBuffer(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
-	callID := "call_" + uuid.NewString()
-	e := newExecuteInterrupt(t, f, []codersdk.ChatMessagePart{executeToolCall(callID, executeWithinDeadline)}, nil)
-	e.createEpisode(t)
-	buffer := e.starter.opts.MessagePartBuffer
-	require.NoError(t, buffer.RecordToolStart(e.key, 0, e.clock.Now()))
-	require.NoError(t, buffer.RecordToolCompletion(e.key, 0, e.clock.Now()))
-	canceledResult := codersdk.ChatMessageToolResult(callID, chattool.ExecuteToolName, json.RawMessage(`{"error":"context canceled"}`), false, false)
-	require.NoError(t, buffer.AddPart(e.key, codersdk.ChatMessageRoleTool, canceledResult))
-	e.expectCancel(t, callID, workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: "partial", AgeMs: 2_000}, nil)
+	type testCase struct {
+		name string
+		call func(callID string) codersdk.ChatMessagePart
+		// expect expects the cancel request.
+		expect func(t *testing.T, e executeInterrupt, callID string)
+		check  func(t *testing.T, part codersdk.ChatMessagePart)
+	}
+	tests := []testCase{
+		{
+			name: chattool.ExecuteToolName,
+			call: func(callID string) codersdk.ChatMessagePart { return executeToolCall(callID, executeWithinDeadline) },
+			expect: func(t *testing.T, e executeInterrupt, callID string) {
+				e.expectCancel(t, callID, workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: "partial", AgeMs: 2_000}, nil)
+			},
+			check: func(t *testing.T, part codersdk.ChatMessagePart) {
+				result := requireExecuteResult(t, part)
+				assert.Equal(t, "partial", result.Output)
+				assert.Contains(t, result.Error, "canceled by the user after 2s.")
+			},
+		},
+	}
+	for _, toolName := range fileToolNames {
+		tests = append(tests, testCase{
+			name: toolName,
+			call: func(callID string) codersdk.ChatMessagePart { return fileToolCall(toolName, callID) },
+			expect: func(t *testing.T, e executeInterrupt, callID string) {
+				e.expectFileCancel(t, toolName, callID, workspacesdk.CancelFileToolCallResponse{Started: true, StatusCode: http.StatusOK, Body: json.RawMessage(`{}`)}, nil)
+			},
+			check: func(t *testing.T, part codersdk.ChatMessagePart) {
+				require.False(t, part.IsError, string(part.Result))
+				var result struct {
+					OK bool `json:"ok"`
+				}
+				require.NoError(t, json.Unmarshal(part.Result, &result), string(part.Result))
+				assert.True(t, result.OK)
+			},
+		})
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	result := requireExecuteResult(t, singleToolResult(t, e.interrupt(t, f), callID))
-	assert.Equal(t, "partial", result.Output)
-	assert.Contains(t, result.Error, "canceled by the user after 2s.")
+			f := newTaskTestFixture(t)
+			callID := "call_" + uuid.NewString()
+			call := tt.call(callID)
+			e := newExecuteInterrupt(t, f, []codersdk.ChatMessagePart{call}, nil)
+			e.createEpisode(t)
+			buffer := e.starter.opts.MessagePartBuffer
+			require.NoError(t, buffer.RecordToolStart(e.key, 0, e.clock.Now()))
+			require.NoError(t, buffer.RecordToolCompletion(e.key, 0, e.clock.Now()))
+			canceledResult := codersdk.ChatMessageToolResult(callID, call.ToolName, json.RawMessage(`{"error":"context canceled"}`), false, false)
+			require.NoError(t, buffer.AddPart(e.key, codersdk.ChatMessageRoleTool, canceledResult))
+			tt.expect(t, e, callID)
+
+			tt.check(t, singleToolResult(t, e.interrupt(t, f), callID))
+		})
+	}
 }
 
 // TestInterruptTask_CancelsExecuteCallsInParallel requires both cancel
@@ -1539,6 +1583,261 @@ func TestInterruptTask_ParentCanceledDuringCancelCommitsNothing(t *testing.T) {
 	chat, err := f.db.GetChatByID(checkCtx, e.chat.ID)
 	require.NoError(t, err)
 	assert.Equal(t, database.ChatStatusInterrupting, chat.Status)
+}
+
+var fileToolNames = []string{chattool.EditFilesToolName, chattool.WriteFileToolName}
+
+func fileToolCall(toolName, callID string) codersdk.ChatMessagePart {
+	args := `{"files":[{"path":"/a.txt","edits":[{"old_text":"a","new_text":"b"}]}]}`
+	if toolName == chattool.WriteFileToolName {
+		args = `{"path":"/a.txt","content":"b"}`
+	}
+	return codersdk.ChatMessagePart{
+		Type:       codersdk.ChatMessagePartTypeToolCall,
+		ToolCallID: callID,
+		ToolName:   toolName,
+		Args:       json.RawMessage(args),
+	}
+}
+
+// expectFileCancel expects one cancel request for the file tool call
+// callID that carries the tool call and returns resp and err.
+func (e executeInterrupt) expectFileCancel(t *testing.T, toolName, callID string, resp workspacesdk.CancelFileToolCallResponse, err error) {
+	t.Helper()
+	cancel := func(ctx context.Context, _ string) (workspacesdk.CancelFileToolCallResponse, error) {
+		e.assertToolCall(ctx, t, callID)
+		return resp, err
+	}
+	if toolName == chattool.WriteFileToolName {
+		e.conn.EXPECT().CancelWriteFile(gomock.Any(), e.processID(callID)).DoAndReturn(cancel)
+		return
+	}
+	e.conn.EXPECT().CancelEditFiles(gomock.Any(), e.processID(callID)).DoAndReturn(cancel)
+}
+
+// requireFileToolErrorResult requires an error result whose message
+// contains every string in want.
+func requireFileToolErrorResult(t *testing.T, part codersdk.ChatMessagePart, want ...string) {
+	t.Helper()
+	require.True(t, part.IsError, string(part.Result))
+	var result struct {
+		Error string `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal(part.Result, &result), string(part.Result))
+	for _, w := range want {
+		assert.Contains(t, result.Error, w)
+	}
+}
+
+// TestInterruptTask_FileToolCallResults runs without a message part
+// episode, as after an ownership change: every unresolved edit_files and
+// write_file call gets a cancel, and its result comes from the answer.
+func TestInterruptTask_FileToolCallResults(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		resp    workspacesdk.CancelFileToolCallResponse
+		err     error
+		dialErr error
+		// generic is set when the call keeps today's interrupted result.
+		generic bool
+		// wantOK is the successful result per tool. Otherwise the result
+		// is an error that contains every string in wantError.
+		wantOK    map[string]string
+		wantError []string
+		// onlyTool limits the case to one tool.
+		onlyTool string
+		// wantTruncated is set when the result must be cut to the default
+		// tool result budget, as generation cuts a live result.
+		wantTruncated bool
+	}{
+		{
+			name: "Applied",
+			resp: workspacesdk.CancelFileToolCallResponse{Started: true, StatusCode: http.StatusOK, Body: json.RawMessage(`{"files":[{"path":"/a.txt","diff":"-a\n+b"}]}`)},
+			wantOK: map[string]string{
+				chattool.EditFilesToolName: `{"ok":true,"files":[{"path":"/a.txt","diff":"-a\n+b"}]}`,
+				chattool.WriteFileToolName: `{"ok":true}`,
+			},
+		},
+		{
+			name:          "OversizedDiff",
+			resp:          workspacesdk.CancelFileToolCallResponse{Started: true, StatusCode: http.StatusOK, Body: json.RawMessage(fmt.Sprintf(`{"files":[{"path":"/a.txt","diff":%q}]}`, strings.Repeat("+line\n", 20_000)))},
+			onlyTool:      chattool.EditFilesToolName,
+			wantTruncated: true,
+		},
+		{
+			name:      "RecordedError",
+			resp:      workspacesdk.CancelFileToolCallResponse{Started: true, StatusCode: http.StatusBadRequest, Body: json.RawMessage(`{"message":"edit /a.txt: no match"}`)},
+			wantError: []string{"edit /a.txt: no match"},
+		},
+		{
+			name:      "NotApplied",
+			wantError: []string{"not applied"},
+		},
+		{
+			name:      "AgentStartedAfterToolCall",
+			err:       &workspacesdk.ToolCallError{Response: codersdk.Response{Message: "restarted"}, Code: workspacesdk.ToolCallErrorAgentStartedAfterToolCall},
+			wantError: []string{"outcome unknown", "restarted after this tool call", "may have been applied"},
+		},
+		{
+			name:    "OldAgentWithoutCancelRoute",
+			err:     codersdk.NewTestError(http.StatusNotFound, http.MethodPost, "/api/v0/edit-files/x/cancel"),
+			generic: true,
+		},
+		{
+			name:      "TransportError",
+			err:       agentTransportError(xerrors.New("connection reset by peer")),
+			wantError: []string{"outcome unknown", "could not be reached", "may have been applied"},
+		},
+		{
+			name:      "NoConnection",
+			dialErr:   xerrors.New("dial failed"),
+			wantError: []string{"outcome unknown", "could not be reached", "may have been applied", "dial failed"},
+		},
+		{
+			name:      "UnreadableAnswer",
+			err:       xerrors.New("unexpected EOF"),
+			wantError: []string{"outcome unknown", "answer could not be read", "may have been applied"},
+		},
+		{
+			// A stopped workspace keeps its disk, so the edit may be there.
+			name:      "WorkspaceHasNoAgent",
+			dialErr:   chattool.ErrWorkspaceHasNoAgent,
+			wantError: []string{"outcome unknown", "start_workspace", "may have been applied"},
+		},
+		{
+			// A chat without a workspace cannot have applied anything.
+			name:    "ChatHasNoWorkspace",
+			dialErr: chattool.ErrChatHasNoWorkspace,
+			generic: true,
+		},
+		{
+			name:    "WorkspaceDeleted",
+			dialErr: chattool.ErrWorkspaceDeleted,
+			generic: true,
+		},
+	}
+	for _, toolName := range fileToolNames {
+		t.Run(toolName, func(t *testing.T) {
+			t.Parallel()
+
+			for _, tc := range tests {
+				if tc.onlyTool != "" && tc.onlyTool != toolName {
+					continue
+				}
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+
+					f := newTaskTestFixture(t)
+					callID := "call_" + uuid.NewString()
+					e := newExecuteInterrupt(t, f, []codersdk.ChatMessagePart{fileToolCall(toolName, callID)}, tc.dialErr)
+					if tc.dialErr == nil {
+						e.expectFileCancel(t, toolName, callID, tc.resp, tc.err)
+					}
+
+					part := singleToolResult(t, e.interrupt(t, f), callID)
+					switch {
+					case tc.generic:
+						requireGenericInterruptResult(t, part)
+					case tc.wantTruncated:
+						// A cut JSON result is no longer JSON, so it is
+						// stored as output text, as for a live result.
+						require.False(t, part.IsError, string(part.Result))
+						var result struct {
+							Output string `json:"output"`
+						}
+						require.NoError(t, json.Unmarshal(part.Result, &result), string(part.Result))
+						assert.LessOrEqual(t, len(result.Output), 64<<10)
+						assert.Contains(t, result.Output, "Coder truncated")
+					case tc.wantOK != nil:
+						require.False(t, part.IsError, string(part.Result))
+						assert.JSONEq(t, tc.wantOK[toolName], string(part.Result))
+					default:
+						requireFileToolErrorResult(t, part, tc.wantError...)
+					}
+				})
+			}
+		})
+	}
+}
+
+// TestInterruptTask_CancelsFileAndExecuteCallsTogether interrupts a batch
+// with every tool that sends tool call headers: each call gets a cancel
+// over one connection and its own result.
+func TestInterruptTask_CancelsFileAndExecuteCallsTogether(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	execCallID := "call_" + uuid.NewString()
+	editCallID := "call_" + uuid.NewString()
+	writeCallID := "call_" + uuid.NewString()
+	e := newExecuteInterrupt(t, f, []codersdk.ChatMessagePart{
+		executeToolCall(execCallID, executeWithinDeadline),
+		fileToolCall(chattool.EditFilesToolName, editCallID),
+		fileToolCall(chattool.WriteFileToolName, writeCallID),
+	}, nil)
+	e.expectCancel(t, execCallID, workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: "partial", AgeMs: 2_000}, nil)
+	e.expectFileCancel(t, chattool.EditFilesToolName, editCallID, workspacesdk.CancelFileToolCallResponse{}, nil)
+	e.expectFileCancel(t, chattool.WriteFileToolName, writeCallID, workspacesdk.CancelFileToolCallResponse{Started: true, StatusCode: http.StatusOK, Body: json.RawMessage(`{}`)}, nil)
+
+	messages := e.interrupt(t, f)
+	result := requireExecuteResult(t, singleToolResult(t, messages, execCallID))
+	assert.Contains(t, result.Error, "canceled by the user after 2s")
+	requireFileToolErrorResult(t, singleToolResult(t, messages, editCallID), "not applied")
+	writePart := singleToolResult(t, messages, writeCallID)
+	require.False(t, writePart.IsError, string(writePart.Result))
+	assert.JSONEq(t, `{"ok":true}`, string(writePart.Result))
+	assert.EqualValues(t, 1, e.dials.Load())
+}
+
+// TestInterruptTask_FileToolCallsWithoutCancel covers file tool calls
+// that share a provider tool call ID with a call of another tool.
+// Interrupt results are keyed by provider tool call ID, so the calls
+// cannot get different results, and they keep today's result.
+func TestInterruptTask_FileToolCallsWithoutCancel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		calls func(callID string) []codersdk.ChatMessagePart
+	}{
+		{
+			name: "DuplicateIDEditAndWrite",
+			calls: func(callID string) []codersdk.ChatMessagePart {
+				return []codersdk.ChatMessagePart{
+					fileToolCall(chattool.EditFilesToolName, callID),
+					fileToolCall(chattool.WriteFileToolName, callID),
+				}
+			},
+		},
+		{
+			name: "DuplicateIDEditAndExecute",
+			calls: func(callID string) []codersdk.ChatMessagePart {
+				return []codersdk.ChatMessagePart{
+					fileToolCall(chattool.EditFilesToolName, callID),
+					executeToolCall(callID, executeWithinDeadline),
+				}
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newTaskTestFixture(t)
+			callID := "call_" + uuid.NewString()
+			calls := tc.calls(callID)
+			e := newExecuteInterrupt(t, f, calls, nil)
+
+			results := toolResults(t, e.interrupt(t, f), callID)
+			require.Len(t, results, len(calls))
+			for _, result := range results {
+				requireGenericInterruptResult(t, result)
+			}
+			assert.Zero(t, e.dials.Load())
+		})
+	}
 }
 
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {

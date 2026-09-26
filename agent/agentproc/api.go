@@ -45,14 +45,25 @@ type API struct {
 type Option func(*apiOptions)
 
 type apiOptions struct {
-	clock quartz.Clock
+	clock         quartz.Clock
+	toolCallChats *agenttoolcall.Chats
 }
 
-// WithClock sets the clock used for process timestamps, process age, and
-// the agent start that tool call decisions compare against.
+// WithClock sets the clock used for process timestamps and process age.
+// When WithToolCallChats is not set, it also measures the agent start that
+// tool call decisions compare against.
 func WithClock(clock quartz.Clock) Option {
 	return func(o *apiOptions) {
 		o.clock = clock
+	}
+}
+
+// WithToolCallChats sets the per-chat tool call state the process records
+// share with the agent's other tool call records. Without it the API
+// keeps its own, with the agent start measured by the WithClock clock.
+func WithToolCallChats(chats *agenttoolcall.Chats) Option {
+	return func(o *apiOptions) {
+		o.toolCallChats = chats
 	}
 }
 
@@ -62,9 +73,12 @@ func NewAPI(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, pathStore 
 	for _, opt := range opts {
 		opt(&options)
 	}
+	if options.toolCallChats == nil {
+		options.toolCallChats = agenttoolcall.NewChats(options.clock)
+	}
 	return &API{
 		logger:    logger,
-		manager:   newManager(logger, execer, fs, envInfo, updateEnv, workingDir, options.clock),
+		manager:   newManager(logger, execer, fs, envInfo, updateEnv, workingDir, options.clock, options.toolCallChats),
 		pathStore: pathStore,
 	}
 }
@@ -202,21 +216,8 @@ func (api *API) startProcess(ctx context.Context, req workspacesdk.StartProcessR
 // writeToolCallError writes the HTTP 409 for an agenttoolcall decision
 // error and reports whether err was one.
 func writeToolCallError(ctx context.Context, rw http.ResponseWriter, err error) bool {
-	var resp workspacesdk.ToolCallError
-	switch {
-	case errors.Is(err, agenttoolcall.ErrStaleToolCall):
-		resp.Code = workspacesdk.ToolCallErrorStale
-		resp.Message = "The tool call is in an older message than the chat's latest message."
-	case errors.Is(err, agenttoolcall.ErrAgentStartedAfterToolCall):
-		resp.Code = workspacesdk.ToolCallErrorAgentStartedAfterToolCall
-		resp.Message = "The workspace agent started after the tool call was committed."
-	case errors.Is(err, agenttoolcall.ErrInputMismatch):
-		resp.Code = workspacesdk.ToolCallErrorInputMismatch
-		resp.Message = "The request differs from the recorded request for this tool call."
-	case errors.Is(err, agenttoolcall.ErrToolCallCanceled):
-		resp.Code = workspacesdk.ToolCallErrorCanceled
-		resp.Message = "The tool call was canceled."
-	default:
+	resp, ok := agenttoolcall.ErrorResponse(err)
+	if !ok {
 		return false
 	}
 	httpapi.Write(ctx, rw, http.StatusConflict, resp)

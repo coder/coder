@@ -18,6 +18,7 @@ import (
 	"go.uber.org/goleak"
 	"tailscale.com/tailcfg"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -276,6 +277,145 @@ func TestAgentConnToolCallRequests(t *testing.T) {
 	assert.Equal(t, []string{"connection-wide"}, got.header.Values(workspacesdk.CoderToolCallIDHeader))
 	assert.Empty(t, got.header.Values(workspacesdk.CoderToolCallMessageIDHeader))
 	assert.Empty(t, got.header.Values(workspacesdk.CoderToolCallAgeMsHeader))
+}
+
+// TestAgentConnFileToolCallRequests verifies that EditFiles and WriteFile
+// decode a coded 409, that the cancel clients use their routes with the
+// tool call headers, and that a cancel response rebuilds what the
+// original request returned.
+func TestAgentConnFileToolCallRequests(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+
+	clientID := uuid.New()
+	agentID := uuid.New()
+	clientConn, _ := newTailnetConn(t, derpMap, clientID, "client")
+	agentTailnet, agentIP := newTailnetConn(t, derpMap, agentID, "agent")
+	stitchTailnet(t, map[uuid.UUID]*tailnet.Conn{
+		clientID: clientConn,
+		agentID:  agentTailnet,
+	})
+
+	// recorded is the response the fake agent gives to an edit or write,
+	// and returns from a cancel of the same tool call.
+	type recorded struct {
+		status int
+		body   string
+	}
+	var current atomic.Pointer[recorded]
+	cancelPaths := make(chan string, 1)
+	apply := func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
+		if r.Header.Get(workspacesdk.CoderToolCallIDHeader) == "stale" {
+			rw.WriteHeader(http.StatusConflict)
+			_, _ = rw.Write([]byte(`{"code":"stale_tool_call","message":"Stale."}`))
+			return
+		}
+		rec := current.Load()
+		rw.WriteHeader(rec.status)
+		_, _ = rw.Write([]byte(rec.body))
+	}
+	cancel := func(rw http.ResponseWriter, r *http.Request) {
+		cancelPaths <- r.URL.Path
+		rw.Header().Set("Content-Type", "application/json")
+		if r.Header.Get(workspacesdk.CoderToolCallIDHeader) == "stale" {
+			rw.WriteHeader(http.StatusConflict)
+			_, _ = rw.Write([]byte(`{"code":"stale_tool_call","message":"Stale."}`))
+			return
+		}
+		rec := current.Load()
+		_, _ = fmt.Fprintf(rw, `{"started":true,"status_code":%d,"body":%s}`, rec.status, rec.body)
+	}
+	router := http.NewServeMux()
+	router.HandleFunc("POST /api/v0/edit-files", apply)
+	router.HandleFunc("POST /api/v0/write-file", apply)
+	router.HandleFunc("POST /api/v0/edit-files/{id}/cancel", cancel)
+	router.HandleFunc("POST /api/v0/write-file/{id}/cancel", cancel)
+	serveTailnetHTTP(t, agentTailnet, router)
+	require.True(t, clientConn.AwaitReachable(ctx, agentIP))
+
+	conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{AgentID: agentID})
+	chatID := uuid.New()
+	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chatID.String()}})
+	toolCall := workspacesdk.ToolCall{MessageID: 7, ID: "toolu/file", Age: 30 * time.Millisecond}
+	id := workspacesdk.ToolCallUUID(chatID, toolCall.MessageID, toolCall.ID).String()
+	tcCtx := workspacesdk.WithToolCall(ctx, toolCall)
+	staleCtx := workspacesdk.WithToolCall(ctx, workspacesdk.ToolCall{MessageID: 7, ID: "stale"})
+
+	// requireSameError requires that rebuilt is the error original was,
+	// without the request method and URL.
+	requireSameError := func(t *testing.T, original, rebuilt error) {
+		t.Helper()
+
+		var origSDK, rebuiltSDK *codersdk.Error
+		require.ErrorAs(t, original, &origSDK)
+		require.ErrorAs(t, rebuilt, &rebuiltSDK)
+		assert.Equal(t, origSDK.StatusCode(), rebuiltSDK.StatusCode())
+		assert.Equal(t, origSDK.Response, rebuiltSDK.Response)
+		assert.Equal(t, origSDK.Helper, rebuiltSDK.Helper)
+		assert.Empty(t, rebuiltSDK.Method())
+		assert.Empty(t, rebuiltSDK.URL())
+		assert.Equal(t, original.Error(), fmt.Sprintf("%s %s: %s", origSDK.Method(), origSDK.URL(), rebuilt.Error()))
+	}
+
+	// The fake agent's response is shared state, so the cases run in
+	// sequence.
+	for _, rec := range []recorded{
+		{status: http.StatusOK, body: `{"files":[{"path":"/a","diff":"@@ -1 +1 @@"}]}`},
+		{status: http.StatusBadRequest, body: `{"message":"edit /a: no match","detail":"hint"}`},
+	} {
+		current.Store(&rec)
+		wantResp, wantErr := conn.EditFiles(tcCtx, workspacesdk.FileEditRequest{})
+		cancelResp, err := conn.CancelEditFiles(tcCtx, id)
+		require.NoError(t, err)
+		assert.Equal(t, "/api/v0/edit-files/"+id+"/cancel", testutil.RequireReceive(ctx, t, cancelPaths))
+		require.True(t, cancelResp.Started)
+		gotResp, gotErr := cancelResp.EditFilesResult()
+		assert.Equal(t, wantResp, gotResp)
+		if wantErr == nil {
+			assert.NoError(t, gotErr)
+			assert.NotEmpty(t, gotResp.Files)
+		} else {
+			requireSameError(t, wantErr, gotErr)
+		}
+	}
+
+	_, err := conn.EditFiles(staleCtx, workspacesdk.FileEditRequest{})
+	var tcErr *workspacesdk.ToolCallError
+	require.ErrorAs(t, err, &tcErr)
+	assert.Equal(t, workspacesdk.ToolCallErrorStale, tcErr.Code)
+	_, err = conn.CancelEditFiles(staleCtx, id)
+	require.ErrorAs(t, err, &tcErr)
+	assert.Equal(t, workspacesdk.ToolCallErrorStale, tcErr.Code)
+	testutil.RequireReceive(ctx, t, cancelPaths)
+
+	for _, rec := range []recorded{
+		{status: http.StatusOK, body: `{"message":"Successfully wrote to \"/a\""}`},
+		{status: http.StatusForbidden, body: `{"message":"open /a: permission denied"}`},
+	} {
+		current.Store(&rec)
+		wantErr := conn.WriteFile(tcCtx, "/a", strings.NewReader("content"))
+		cancelResp, err := conn.CancelWriteFile(tcCtx, id)
+		require.NoError(t, err)
+		assert.Equal(t, "/api/v0/write-file/"+id+"/cancel", testutil.RequireReceive(ctx, t, cancelPaths))
+		require.True(t, cancelResp.Started)
+		gotErr := cancelResp.WriteFileResult()
+		if wantErr == nil {
+			assert.NoError(t, gotErr)
+		} else {
+			requireSameError(t, wantErr, gotErr)
+		}
+	}
+
+	err = conn.WriteFile(staleCtx, "/a", strings.NewReader("content"))
+	require.ErrorAs(t, err, &tcErr)
+	assert.Equal(t, workspacesdk.ToolCallErrorStale, tcErr.Code)
+	_, err = conn.CancelWriteFile(staleCtx, id)
+	require.ErrorAs(t, err, &tcErr)
+	assert.Equal(t, workspacesdk.ToolCallErrorStale, tcErr.Code)
+	testutil.RequireReceive(ctx, t, cancelPaths)
 }
 
 func newTailnetConn(t *testing.T, derpMap *tailcfg.DERPMap, id uuid.UUID, name string) (*tailnet.Conn, netip.Addr) {

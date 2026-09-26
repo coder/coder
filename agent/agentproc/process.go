@@ -99,7 +99,7 @@ type manager struct {
 }
 
 // newManager creates a new process manager.
-func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string, clock quartz.Clock) *manager {
+func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string, clock quartz.Clock, toolCallChats *agenttoolcall.Chats) *manager {
 	if fs == nil {
 		fs = afero.NewOsFs()
 	}
@@ -115,7 +115,7 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 		updateEnv:  updateEnv,
 		workingDir: workingDir,
 		envInfo:    envInfo,
-		records:    agenttoolcall.NewRecords[*process](clock),
+		records:    agenttoolcall.NewRecords[*process](toolCallChats),
 	}
 }
 

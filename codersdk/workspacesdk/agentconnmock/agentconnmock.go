@@ -114,6 +114,21 @@ func (mr *MockAgentConnMockRecorder) CallMCPTool(ctx, req any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CallMCPTool", reflect.TypeOf((*MockAgentConn)(nil).CallMCPTool), ctx, req)
 }
 
+// CancelEditFiles mocks base method.
+func (m *MockAgentConn) CancelEditFiles(ctx context.Context, id string) (workspacesdk.CancelFileToolCallResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CancelEditFiles", ctx, id)
+	ret0, _ := ret[0].(workspacesdk.CancelFileToolCallResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CancelEditFiles indicates an expected call of CancelEditFiles.
+func (mr *MockAgentConnMockRecorder) CancelEditFiles(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelEditFiles", reflect.TypeOf((*MockAgentConn)(nil).CancelEditFiles), ctx, id)
+}
+
 // CancelProcess mocks base method.
 func (m *MockAgentConn) CancelProcess(ctx context.Context, id string) (workspacesdk.CancelProcessResponse, error) {
 	m.ctrl.T.Helper()
@@ -127,6 +142,21 @@ func (m *MockAgentConn) CancelProcess(ctx context.Context, id string) (workspace
 func (mr *MockAgentConnMockRecorder) CancelProcess(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelProcess", reflect.TypeOf((*MockAgentConn)(nil).CancelProcess), ctx, id)
+}
+
+// CancelWriteFile mocks base method.
+func (m *MockAgentConn) CancelWriteFile(ctx context.Context, id string) (workspacesdk.CancelFileToolCallResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CancelWriteFile", ctx, id)
+	ret0, _ := ret[0].(workspacesdk.CancelFileToolCallResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CancelWriteFile indicates an expected call of CancelWriteFile.
+func (mr *MockAgentConnMockRecorder) CancelWriteFile(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelWriteFile", reflect.TypeOf((*MockAgentConn)(nil).CancelWriteFile), ctx, id)
 }
 
 // Close mocks base method.

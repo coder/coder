@@ -48,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/agenttoolcall"
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
@@ -461,7 +462,11 @@ func (a *agent) init() {
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	pathStore := agentgit.NewPathStore()
-	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo))
+	// The process and file APIs share each chat's latest message ID, so a
+	// request for a newer message through either makes older tool calls
+	// stale on both.
+	toolCallChats := agenttoolcall.NewChats(a.clock)
+	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo), agentfiles.WithToolCallChats(toolCallChats))
 	// workingDirFn reports the workspace directory ("" before the first manifest).
 	workingDirFn := func() string {
 		if m := a.manifest.Load(); m != nil {
@@ -469,7 +474,7 @@ func (a *agent) init() {
 		}
 		return ""
 	}
-	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn, agentproc.WithClock(a.clock))
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn, agentproc.WithClock(a.clock), agentproc.WithToolCallChats(toolCallChats))
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(

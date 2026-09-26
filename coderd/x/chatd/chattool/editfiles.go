@@ -25,7 +25,7 @@ type EditFilesArgs struct {
 
 func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
-		"edit_files",
+		EditFilesToolName,
 		"Perform edits on one or more files by replacing old_text with"+
 			" new_text. Each entry in files must include the absolute path"+
 			" of the file to edit and at least one edit. Matching is fuzzy"+
@@ -69,7 +69,7 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 			}
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
-				return fantasy.NewTextErrorResponse(err.Error()), nil
+				return fileToolConnErrorResult(ctx, EditFilesToolName, err), nil
 			}
 			if planPath != "" {
 				if err := ensurePlanPathResolvesToItself(ctx, conn, planPath); err != nil {
@@ -114,17 +114,30 @@ func executeEditFilesTool(
 		}
 	}
 
-	resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+	editCtx := ctx
+	if id, ok := ToolCallIdentityFromContext(ctx); ok {
+		editCtx = workspacesdk.WithToolCall(ctx, id.AgentToolCall())
+	}
+	resp, err := conn.EditFiles(editCtx, workspacesdk.FileEditRequest{
 		Files:       args.Files,
 		IncludeDiff: true,
 	})
+	if result, ok := fileRequestErrorResult(ctx, EditFilesToolName, err); ok {
+		return result, nil
+	}
+	return editFilesResult(resp, err), nil
+}
+
+// editFilesResult converts an answer the agent gave to an edit_files
+// request, live or recorded, into the tool result.
+func editFilesResult(resp workspacesdk.FileEditResponse, err error) fantasy.ToolResponse {
 	if err != nil {
-		return fantasy.NewTextErrorResponse(agentAPIErrorMessage(err)), nil
+		return fantasy.NewTextErrorResponse(agentAPIErrorMessage(err))
 	}
 	return toolResponse(map[string]any{
 		"ok":    true,
 		"files": resp.Files,
-	}), nil
+	})
 }
 
 // agentAPIErrorMessage preserves the agent's actionable message while

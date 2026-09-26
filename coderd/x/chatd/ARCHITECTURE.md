@@ -879,11 +879,11 @@ When receiving streaming message parts from the LLM API, the generation goroutin
 
 Since the runner doesn't wait for goroutines to finish when it cancels them, and spawns new goroutines to perform new work immediately, the runner does not guarantee that any interrupted tool calls are fully stopped before continuing. Tool call interrupts are best-effort.
 
-TODO (CODAGT-757): the interrupt goroutine now cancels unresolved foreground `execute` calls on the workspace agent and commits results that report their outcome. Rewrite this paragraph.
+TODO (CODAGT-757): the interrupt goroutine now cancels unresolved foreground `execute`, `edit_files`, and `write_file` calls on the workspace agent and commits results that report their outcome. Rewrite this paragraph.
 
 Tool calls have at least once semantics: if the goroutine executes a tool call, and the replica crashes before the result is persisted, another replica will execute the tool call again later. Future work may include adding a mechanism to ensure at most once semantics.
 
-TODO (CODAGT-757): `execute` now runs at most once per tool call per workspace agent lifetime: it sends the tool call identity with the start request and attaches to the existing process on a task retry or ownership change. Rewrite this paragraph.
+TODO (CODAGT-757): `execute`, `edit_files`, and `write_file` now run at most once per tool call per workspace agent lifetime: they send the tool call identity with the request, and on a task retry or ownership change `execute` attaches to the existing process and the file tools get the recorded result. Rewrite this paragraph.
 
 Parallel tool call results must be inserted in bulk after all parallel tool calls finish in a single `CommitStep` transition so that the generation goroutine only increments `history_version` once, since a change to the `history_version` interrupts the gorotuine. This is consistent with the existing chatd implementation.
 

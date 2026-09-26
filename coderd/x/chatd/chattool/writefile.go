@@ -22,7 +22,7 @@ type WriteFileArgs struct {
 
 func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
-		"write_file",
+		WriteFileToolName,
 		"Write a file to the workspace.",
 		func(ctx context.Context, args WriteFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			var planPath string
@@ -42,7 +42,7 @@ func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 			}
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
-				return fantasy.NewTextErrorResponse(err.Error()), nil
+				return fileToolConnErrorResult(ctx, WriteFileToolName, err), nil
 			}
 			if planPath != "" {
 				if err := ensurePlanPathResolvesToItself(ctx, conn, planPath); err != nil {
@@ -79,8 +79,22 @@ func executeWriteFileTool(
 		}
 	}
 
-	if err := conn.WriteFile(ctx, requestedPath, strings.NewReader(args.Content)); err != nil {
-		return fantasy.NewTextErrorResponse(err.Error()), nil
+	writeCtx := ctx
+	if id, ok := ToolCallIdentityFromContext(ctx); ok {
+		writeCtx = workspacesdk.WithToolCall(ctx, id.AgentToolCall())
 	}
-	return toolResponse(map[string]any{"ok": true}), nil
+	err := conn.WriteFile(writeCtx, requestedPath, strings.NewReader(args.Content))
+	if result, ok := fileRequestErrorResult(ctx, WriteFileToolName, err); ok {
+		return result, nil
+	}
+	return writeFileResult(err), nil
+}
+
+// writeFileResult converts an answer the agent gave to a write_file
+// request, live or recorded, into the tool result.
+func writeFileResult(err error) fantasy.ToolResponse {
+	if err != nil {
+		return fantasy.NewTextErrorResponse(err.Error())
+	}
+	return toolResponse(map[string]any{"ok": true})
 }
