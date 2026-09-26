@@ -1752,6 +1752,33 @@ export const ActiveChatKebabPersistent: Story = {
 	},
 };
 
+export const ActiveChatContextMenuOpen: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-context-menu",
+				title: "Active context menu chat",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/active-context-menu",
+				pathParams: { agentId: "active-context-menu" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		fireEvent.contextMenu(
+			within(canvasElement).getByTestId("agents-tree-node-active-context-menu"),
+		);
+		await within(document.body).findByText("Pin agent");
+	},
+};
+
 export const WithUnreadChats: Story = {
 	args: {
 		chats: [
@@ -1844,6 +1871,33 @@ export const AgentWithWorkspaceMenuFull: Story = {
 			"Open actions for Agent with workspace",
 		);
 		await userEvent.click(trigger);
+		await within(document.body).findByText("Pin agent");
+	},
+};
+
+export const AgentWithWorkspaceContextMenuFull: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-with-context-menu",
+				title: "Agent with context menu",
+				workspace_id: "workspace-1",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		fireEvent.contextMenu(
+			within(canvasElement).getByTestId(
+				"agents-tree-node-chat-with-context-menu",
+			),
+		);
 		await within(document.body).findByText("Pin agent");
 	},
 };
