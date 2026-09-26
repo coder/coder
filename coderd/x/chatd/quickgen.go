@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -645,7 +646,8 @@ func titleInput(
 	firstUserText := ""
 
 	for _, message := range messages {
-		if message.Visibility == database.ChatMessageVisibilityModel {
+		// A receipt is not a reply, and its fallback text never titles a chat.
+		if message.Visibility == database.ChatMessageVisibilityModel || chatstate.IsReceiptRow(message) {
 			continue
 		}
 
@@ -789,7 +791,7 @@ func extractManualTitleTurns(
 ) []manualTitleTurn {
 	turns := make([]manualTitleTurn, 0, len(messages))
 	for _, message := range messages {
-		if message.Visibility == database.ChatMessageVisibilityModel {
+		if message.Visibility == database.ChatMessageVisibilityModel || chatstate.IsReceiptRow(message) {
 			continue
 		}
 
@@ -1053,7 +1055,8 @@ func renderChatSummaryTranscript(messages []database.ChatMessage) string {
 			message.Visibility == database.ChatMessageVisibilityUser
 		compactionSummary := message.Visibility == database.ChatMessageVisibilityModel &&
 			message.Compressed
-		if !visible && !compactionSummary {
+		// Receipt fallback text repeats the output or names an error code.
+		if (!visible && !compactionSummary) || chatstate.IsReceiptRow(message) {
 			continue
 		}
 

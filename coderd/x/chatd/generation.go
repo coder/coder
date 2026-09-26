@@ -293,7 +293,7 @@ func unresolvedToolCallsFromHistory(
 	dynamicToolNames map[string]bool,
 ) ([]fantasy.ToolCallContent, []pendingDynamicToolCall, error) {
 	assistantIndex := lastMessageIndex(messages, func(msg database.ChatMessage) bool {
-		return msg.Role == database.ChatMessageRoleAssistant
+		return msg.Role == database.ChatMessageRoleAssistant && !chatstate.IsReceiptRow(msg)
 	})
 	if assistantIndex == -1 {
 		return nil, nil, nil
