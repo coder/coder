@@ -191,10 +191,15 @@ type interruptionOutcome struct {
 }
 
 // interruptCancelTimeout bounds the requests an interrupt sends to the
-// workspace agent to end execute calls. It exists only so an unreachable
+// workspace agent for execute calls. It exists only so an unreachable
 // agent yields an unknown result: interrupt latency is not a concern,
 // and waiting for the agent's answer reports the real outcome.
 const interruptCancelTimeout = time.Minute
+
+// executeDefaultTimeout is how long a foreground execute call waits when
+// the model sets no timeout. Interrupt handling derives execute
+// deadlines from it, so the tool and interrupt handling both use it.
+const executeDefaultTimeout = 10 * time.Second
 
 type taskStarter struct {
 	server                   *Server
@@ -323,9 +328,9 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	}
 	// The transaction's history version fence guarantees it sees the same
 	// unresolved tool calls as messages.
-	executeResults, err := s.interruptForegroundExecuteCalls(ctx, chat, messages)
+	executeResults, err := s.interruptExecuteCalls(ctx, chat, messages)
 	if err != nil {
-		return xerrors.Errorf("interrupt foreground execute calls: %w", err)
+		return xerrors.Errorf("interrupt execute calls: %w", err)
 	}
 
 	var committed database.Chat
@@ -717,13 +722,14 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 	return names
 }
 
-// interruptForegroundExecuteCalls ends the unresolved foreground execute
-// calls in messages and returns their results by provider tool call ID.
-// A call without an entry keeps the generic interrupted result. The
-// message part buffer plays no part: the canceled generation goroutine
-// records completions and publishes results before interrupt handling
-// reads them, and it holds nothing after an ownership change.
-func (s *taskStarter) interruptForegroundExecuteCalls(
+// interruptExecuteCalls ends the unresolved foreground execute calls in
+// messages, looks up the processes of the background ones, and returns
+// their results by provider tool call ID. A call without an entry keeps
+// the generic interrupted result. The message part buffer plays no part:
+// the canceled generation goroutine records completions and publishes
+// results before interrupt handling reads them, and it holds nothing
+// after an ownership change.
+func (s *taskStarter) interruptExecuteCalls(
 	ctx context.Context,
 	chat database.Chat,
 	messages []database.ChatMessage,
@@ -732,7 +738,7 @@ func (s *taskStarter) interruptForegroundExecuteCalls(
 	if err != nil {
 		return nil, err
 	}
-	calls := foregroundExecuteCalls(localCalls)
+	calls := interruptedExecuteCalls(localCalls)
 	if len(calls) == 0 {
 		return map[string]json.RawMessage{}, nil
 	}
@@ -763,12 +769,18 @@ func (s *taskStarter) interruptForegroundExecuteCalls(
 	conn, err := workspaceCtx.getWorkspaceConn(agentCtx)
 	if err != nil {
 		for i, identity := range identities {
-			results[i], answered[i] = chattool.AgentUnreachableExecuteResult(identity.UUID(), err), true
+			if !calls[i].background {
+				results[i], answered[i] = chattool.AgentUnreachableExecuteResult(identity.UUID(), err), true
+			}
 		}
 	} else {
 		var wg sync.WaitGroup
 		for i, identity := range identities {
 			wg.Go(func() {
+				if calls[i].background {
+					results[i], answered[i] = chattool.InterruptBackgroundExecute(agentCtx, conn, identity)
+					return
+				}
 				results[i], answered[i] = chattool.InterruptExecute(agentCtx, conn, identity, calls[i].timeout)
 			})
 		}
@@ -793,58 +805,63 @@ func (s *taskStarter) interruptForegroundExecuteCalls(
 	return payloads, nil
 }
 
-// foregroundExecuteCall is an unresolved execute call that runs in the
-// foreground.
-type foregroundExecuteCall struct {
+// interruptedExecuteCall is an unresolved execute call that interrupt
+// handling acts on.
+type interruptedExecuteCall struct {
 	toolCallID string
-	timeout    time.Duration
+	background bool
+	// timeout is the effective timeout of a foreground call.
+	timeout time.Duration
 }
 
-// foregroundExecuteCalls returns the execute calls in localCalls that run
-// in the foreground. An ID shared by several calls is returned once, and
-// only when every call with it qualifies, because they share one tool
-// call UUID.
-func foregroundExecuteCalls(localCalls []fantasy.ToolCallContent) []foregroundExecuteCall {
+// interruptedExecuteCalls returns the execute calls in localCalls that
+// interrupt handling acts on. An ID shared by several calls is returned
+// once, and only when every call with it is handled the same way,
+// because they share one tool call UUID.
+func interruptedExecuteCalls(localCalls []fantasy.ToolCallContent) []interruptedExecuteCall {
+	byID := make(map[string]interruptedExecuteCall)
 	skip := make(map[string]bool)
-	timeouts := make(map[string]time.Duration)
+	var ids []string
 	for _, call := range localCalls {
-		timeout, ok := foregroundExecuteTimeout(call)
-		if !ok {
+		classified, ok := classifyExecuteCall(call)
+		prev, seen := byID[call.ToolCallID]
+		if !ok || (seen && prev != classified) {
 			skip[call.ToolCallID] = true
-			continue
 		}
-		if _, seen := timeouts[call.ToolCallID]; !seen {
-			timeouts[call.ToolCallID] = timeout
+		if !seen {
+			byID[call.ToolCallID] = classified
+			ids = append(ids, call.ToolCallID)
 		}
 	}
-	var calls []foregroundExecuteCall
-	for _, call := range localCalls {
-		if skip[call.ToolCallID] {
-			continue
+	var calls []interruptedExecuteCall
+	for _, id := range ids {
+		if !skip[id] {
+			calls = append(calls, byID[id])
 		}
-		skip[call.ToolCallID] = true
-		calls = append(calls, foregroundExecuteCall{toolCallID: call.ToolCallID, timeout: timeouts[call.ToolCallID]})
 	}
 	return calls
 }
 
-// foregroundExecuteTimeout returns the effective timeout of call when it
-// is an execute call that runs in the foreground. ok is false for any
-// other call, including one with an invalid timeout, for which the tool
-// starts no process. Chatd leaves ExecuteOptions.DefaultTimeout unset.
-func foregroundExecuteTimeout(call fantasy.ToolCallContent) (time.Duration, bool) {
+// classifyExecuteCall returns how interrupt handling acts on call. ok is
+// false for any other tool, for unparsable arguments, and for a
+// foreground call with an invalid timeout, for which the tool starts no
+// process.
+func classifyExecuteCall(call fantasy.ToolCallContent) (interruptedExecuteCall, bool) {
 	if call.ToolName != chattool.ExecuteToolName {
-		return 0, false
+		return interruptedExecuteCall{}, false
 	}
 	var args chattool.ExecuteArgs
-	if err := json.Unmarshal([]byte(call.Input), &args); err != nil || args.RunsInBackground() {
-		return 0, false
+	if err := json.Unmarshal([]byte(call.Input), &args); err != nil {
+		return interruptedExecuteCall{}, false
 	}
-	timeout, err := args.EffectiveTimeout(0)
+	if args.RunsInBackground() {
+		return interruptedExecuteCall{toolCallID: call.ToolCallID, background: true}, true
+	}
+	timeout, err := args.EffectiveTimeout(executeDefaultTimeout)
 	if err != nil {
-		return 0, false
+		return interruptedExecuteCall{}, false
 	}
-	return timeout, true
+	return interruptedExecuteCall{toolCallID: call.ToolCallID, timeout: timeout}, true
 }
 
 // committedPendingLocalToolCancellationMessages returns a result for

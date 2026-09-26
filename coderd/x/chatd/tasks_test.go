@@ -866,10 +866,11 @@ type executeInterrupt struct {
 }
 
 // Execute arguments whose deadline an hour-old tool call is within, and
-// past.
+// past, and of a background call.
 const (
 	executeWithinDeadline = `{"command":"make test","timeout":"2h"}`
 	executePastDeadline   = `{"command":"make test","timeout":"10m"}`
+	executeBackground     = `{"command":"make dev","run_in_background":true}`
 )
 
 func newExecuteInterrupt(t *testing.T, f *taskTestFixture, calls []codersdk.ChatMessagePart, dialErr error) executeInterrupt {
@@ -1024,10 +1025,10 @@ func requireExecuteResult(t *testing.T, part codersdk.ChatMessagePart) chattool.
 	return result
 }
 
-// TestInterruptTask_ForegroundExecuteResults runs without a message part
-// episode, as after an ownership change, so only the execute deadline
-// decides whether a call is canceled.
-func TestInterruptTask_ForegroundExecuteResults(t *testing.T) {
+// TestInterruptTask_ExecuteResults runs without a message part episode,
+// as after an ownership change, so only the execute deadline decides
+// whether a foreground call is canceled.
+func TestInterruptTask_ExecuteResults(t *testing.T) {
 	t.Parallel()
 
 	intPtr := func(v int) *int { return &v }
@@ -1060,14 +1061,14 @@ func TestInterruptTask_ForegroundExecuteResults(t *testing.T) {
 			args:      executeWithinDeadline,
 			resp:      workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: "partial", ExitCode: intPtr(137), AgeMs: 12_000},
 			want:      chattool.ExecuteResult{Output: "partial", ExitCode: 137, WallDurationMs: 12_000},
-			wantError: "canceled by the user after 12s",
+			wantError: "canceled by the user after 12s.",
 		},
 		{
 			name:      "CanceledWithoutExitCode",
 			args:      executeWithinDeadline,
 			resp:      workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: "partial", AgeMs: 1_500},
 			want:      chattool.ExecuteResult{Output: "partial", ExitCode: -1, WallDurationMs: 1_500},
-			wantError: "canceled by the user after 1.5s",
+			wantError: "canceled by the user after 1.5s.",
 		},
 		{
 			name: "AlreadyExited",
@@ -1085,7 +1086,7 @@ func TestInterruptTask_ForegroundExecuteResults(t *testing.T) {
 			name:      "NotStarted",
 			args:      executeWithinDeadline,
 			resp:      workspacesdk.CancelProcessResponse{},
-			wantError: "not run: the command was canceled before it started",
+			wantError: "not run: the command was canceled before the workspace agent received it, or the agent failed to start it.",
 		},
 		{
 			name: "AgentStartedAfterToolCall",
@@ -1157,7 +1158,7 @@ func TestInterruptTask_ForegroundExecuteResults(t *testing.T) {
 			output:    workspacesdk.ProcessOutputResponse{Running: true, Output: "partial", AgeMs: 5 * 60_000},
 			resp:      workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: "partial", ExitCode: intPtr(137), AgeMs: 5 * 60_000},
 			want:      chattool.ExecuteResult{Output: "partial", ExitCode: 137, WallDurationMs: 5 * 60_000},
-			wantError: "canceled by the user after 5m0s",
+			wantError: "canceled by the user after 5m0s.",
 		},
 		{
 			name:     "PastDeadlineExited",
@@ -1168,13 +1169,16 @@ func TestInterruptTask_ForegroundExecuteResults(t *testing.T) {
 			want:     chattool.ExecuteResult{Success: true, Output: "PASS", ExitCode: 0, WallDurationMs: 3_000},
 		},
 		{
+			// The snapshot would keep the process running if the error were
+			// ignored; without an answer it is left running either way.
 			name:      "PastDeadlineOutputError",
 			args:      executePastDeadline,
 			snapshot:  true,
+			output:    workspacesdk.ProcessOutputResponse{Running: true, AgeMs: 11 * 60_000},
 			outputErr: agentTransportError(xerrors.New("connection reset by peer")),
-			resp:      workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: "partial", ExitCode: intPtr(137), AgeMs: 5 * 60_000},
-			want:      chattool.ExecuteResult{Output: "partial", ExitCode: 137, WallDurationMs: 5 * 60_000},
-			wantError: "canceled by the user after 5m0s",
+			noCancel:  true,
+			wantError: "outcome unknown: the workspace agent could not be reached to check whether the command is past its timeout, so it was not canceled",
+			wantUUID:  true,
 		},
 		{
 			name:      "PastDeadlineNotFound",
@@ -1183,6 +1187,49 @@ func TestInterruptTask_ForegroundExecuteResults(t *testing.T) {
 			outputErr: codersdk.NewTestError(http.StatusNotFound, http.MethodGet, "/api/v0/processes/x/output"),
 			err:       codersdk.NewTestError(http.StatusNotFound, http.MethodPost, "/api/v0/processes/x/cancel"),
 			generic:   true,
+		},
+		{
+			name:           "BackgroundFound",
+			args:           executeBackground,
+			snapshot:       true,
+			output:         workspacesdk.ProcessOutputResponse{Running: true, AgeMs: 2 * 60_000},
+			noCancel:       true,
+			want:           chattool.ExecuteResult{Success: true, Backgrounded: true},
+			wantBackground: true,
+		},
+		{
+			name:           "BackgroundTrailingAmpersandFound",
+			args:           `{"command":"make dev &"}`,
+			snapshot:       true,
+			output:         workspacesdk.ProcessOutputResponse{Running: true},
+			noCancel:       true,
+			want:           chattool.ExecuteResult{Success: true, Backgrounded: true},
+			wantBackground: true,
+		},
+		{
+			// Also what an agent without tool call support answers, since it
+			// picked another process ID.
+			name:      "BackgroundNotFound",
+			args:      executeBackground,
+			snapshot:  true,
+			outputErr: codersdk.NewTestError(http.StatusNotFound, http.MethodGet, "/api/v0/processes/x/output"),
+			noCancel:  true,
+			generic:   true,
+		},
+		{
+			name:      "BackgroundOutputError",
+			args:      executeBackground,
+			snapshot:  true,
+			outputErr: agentTransportError(xerrors.New("connection reset by peer")),
+			noCancel:  true,
+			generic:   true,
+		},
+		{
+			name:     "BackgroundNoConnection",
+			args:     executeBackground,
+			dialErr:  xerrors.New("dial failed"),
+			noCancel: true,
+			generic:  true,
 		},
 	}
 	for _, tc := range tests {
@@ -1240,18 +1287,6 @@ func TestInterruptTask_ExecuteCallsWithoutCancel(t *testing.T) {
 		calls func(callID string) []codersdk.ChatMessagePart
 	}{
 		{
-			name: "RunInBackground",
-			calls: func(callID string) []codersdk.ChatMessagePart {
-				return []codersdk.ChatMessagePart{executeToolCall(callID, `{"command":"make dev","run_in_background":true}`)}
-			},
-		},
-		{
-			name: "TrailingAmpersand",
-			calls: func(callID string) []codersdk.ChatMessagePart {
-				return []codersdk.ChatMessagePart{executeToolCall(callID, `{"command":"make dev &"}`)}
-			},
-		},
-		{
 			name: "UnparsableArgs",
 			calls: func(callID string) []codersdk.ChatMessagePart {
 				return []codersdk.ChatMessagePart{executeToolCall(callID, `{"command":1}`)}
@@ -1277,7 +1312,7 @@ func TestInterruptTask_ExecuteCallsWithoutCancel(t *testing.T) {
 			calls: func(callID string) []codersdk.ChatMessagePart {
 				return []codersdk.ChatMessagePart{
 					executeToolCall(callID, executeWithinDeadline),
-					executeToolCall(callID, `{"command":"make dev","run_in_background":true}`),
+					executeToolCall(callID, executeBackground),
 				}
 			},
 		},
@@ -1321,7 +1356,7 @@ func TestInterruptTask_CancelIgnoresEpisodeBuffer(t *testing.T) {
 
 	result := requireExecuteResult(t, singleToolResult(t, e.interrupt(t, f), callID))
 	assert.Equal(t, "partial", result.Output)
-	assert.Contains(t, result.Error, "canceled by the user after 2s")
+	assert.Contains(t, result.Error, "canceled by the user after 2s.")
 }
 
 // TestInterruptTask_CancelsExecuteCallsInParallel requires both cancel
@@ -1371,7 +1406,7 @@ func TestInterruptTask_CancelsExecuteCallsInParallel(t *testing.T) {
 	for callID, output := range map[string]string{firstCallID: "first", secondCallID: "second"} {
 		result := requireExecuteResult(t, singleToolResult(t, messages, callID))
 		assert.Equal(t, output, result.Output)
-		assert.Contains(t, result.Error, "canceled by the user after 5s")
+		assert.Contains(t, result.Error, "canceled by the user after 5s.")
 	}
 	requireGenericInterruptResult(t, singleToolResult(t, messages, waitCallID))
 	assert.EqualValues(t, 1, e.dials.Load())
@@ -1387,7 +1422,21 @@ func TestInterruptTask_CancelBoundYieldsUnknown(t *testing.T) {
 	f := newTaskTestFixture(t)
 	callID := "call_" + uuid.NewString()
 	e := newExecuteInterrupt(t, f, []codersdk.ChatMessagePart{executeToolCall(callID, executeWithinDeadline)}, nil)
-	e.createEpisode(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	// Move the message part buffer off the mock clock, so the bound's
+	// timer is the only event on it and one Advance reaches it. The
+	// buffer's cleanup ticker is the clock's only ticker, and it stops
+	// without tags.
+	tickerStop := e.clock.Trap().TickerStop()
+	e.starter.opts.MessagePartBuffer.Close()
+	tickerStop.MustWait(ctx).MustRelease(ctx)
+	tickerStop.Close()
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	t.Cleanup(buffer.Close)
+	e.starter.opts.MessagePartBuffer = buffer
+
+	bound := e.clock.Trap().AfterFunc("chatworker", "interrupt_cancel")
+	defer bound.Close()
 	arrived := make(chan struct{})
 	e.conn.EXPECT().CancelProcess(gomock.Any(), e.processID(callID)).
 		DoAndReturn(func(ctx context.Context, _ string) (workspacesdk.CancelProcessResponse, error) {
@@ -1396,24 +1445,23 @@ func TestInterruptTask_CancelBoundYieldsUnknown(t *testing.T) {
 			return workspacesdk.CancelProcessResponse{}, agentTransportError(ctx.Err())
 		})
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	advanced := make(chan struct{})
 	go func() {
 		defer close(advanced)
+		call, err := bound.Wait(ctx)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, interruptCancelTimeout, call.Duration)
+		if !assert.NoError(t, call.Release(ctx)) {
+			return
+		}
 		select {
 		case <-arrived:
 		case <-ctx.Done():
 			return
 		}
-		// The bound's timer exists before the request is sent. Step over
-		// the message part buffer's cleanup ticks until it fires.
-		for elapsed := time.Duration(0); elapsed < interruptCancelTimeout; {
-			d, w := e.clock.AdvanceNext()
-			if !assert.NoError(t, w.Wait(ctx)) {
-				return
-			}
-			elapsed += d
-		}
+		assert.NoError(t, e.clock.Advance(interruptCancelTimeout).Wait(ctx))
 	}()
 
 	result := requireExecuteResult(t, singleToolResult(t, e.interrupt(t, f), callID))
