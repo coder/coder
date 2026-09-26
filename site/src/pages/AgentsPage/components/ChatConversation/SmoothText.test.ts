@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { SmoothTextEngine, STREAM_SMOOTHING } from "./SmoothText";
+import { act, renderHook } from "@testing-library/react";
+import { StrictMode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	SmoothTextEngine,
+	STREAM_SMOOTHING,
+	useSmoothStreamingText,
+} from "./SmoothText";
 
 function makeText(length: number): string {
 	return "x".repeat(length);
@@ -148,5 +154,73 @@ describe("SmoothTextEngine", () => {
 		// Over 1 second of wall time, both refresh rates should reveal
 		// approximately the same number of characters.
 		expect(Math.abs(at60Hz - at240Hz)).toBeLessThanOrEqual(2);
+	});
+});
+
+describe("useSmoothStreamingText", () => {
+	beforeEach(() => {
+		vi.useFakeTimers({
+			toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+		});
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	// StrictMode runs effect cleanup and setup again after mount, as React
+	// does in production when <Activity> hides and shows a subtree.
+	it("reveals text present at mount after effects remount", () => {
+		const { result } = renderHook(
+			() =>
+				useSmoothStreamingText({
+					fullText: "Hello, world.",
+					isStreaming: true,
+					bypassSmoothing: false,
+					streamKey: "stream",
+				}),
+			{ wrapper: StrictMode },
+		);
+
+		act(() => {
+			vi.advanceTimersByTime(1_000);
+		});
+
+		expect(result.current.visibleText).toBe("Hello, world.");
+	});
+
+	it("starts at the lag-capped prefix on the first render", () => {
+		const fullText = makeText(300);
+		const renderedLengths: number[] = [];
+		renderHook(() => {
+			const result = useSmoothStreamingText({
+				fullText,
+				isStreaming: true,
+				bypassSmoothing: false,
+				streamKey: "stream",
+			});
+			renderedLengths.push(result.visibleText.length);
+			return result;
+		});
+
+		expect(renderedLengths[0]).toBe(
+			fullText.length - STREAM_SMOOTHING.MAX_VISUAL_LAG_CHARS,
+		);
+	});
+
+	it("stops the animation loop on unmount", () => {
+		const { unmount } = renderHook(() =>
+			useSmoothStreamingText({
+				fullText: makeText(200),
+				isStreaming: true,
+				bypassSmoothing: false,
+				streamKey: "stream",
+			}),
+		);
+		expect(vi.getTimerCount()).toBe(1);
+
+		unmount();
+
+		expect(vi.getTimerCount()).toBe(0);
 	});
 });
