@@ -29,7 +29,7 @@ Every step should be concrete enough that another agent could execute it without
 - ❌ "Improve error handling" → ✓ "Add try-catch to API calls in user-service.ts, return 400 with error message"
 - ❌ "Update tests" → ✓ "Add test case to auth.test.ts: 'should reject expired tokens with 401'"
 
-NEVER include thinking output or other stream-of-consciousness prose mid-plan.
+Write the plan as finished, executable steps. Leave exploratory reasoning out of the plan text.
 
 ### 2. Resolve Unclear Requirements
 
@@ -39,9 +39,9 @@ Resolve ambiguity using the conversation, relevant code, existing tests, and doc
 
 Writing test cases forces disambiguation. Use test definition as a requirements clarification tool.
 
-### 4. TDD is Non-Negotiable
+### 4. Plans Follow TDD
 
-All plans follow: **Red → Green → Refactor**. The refactor phase is MANDATORY.
+All plans follow **Red → Green → Refactor**, including an explicit refactor phase.
 
 ## The TDD Workflow
 
@@ -59,8 +59,6 @@ All plans follow: **Red → Green → Refactor**. The refactor phase is MANDATOR
 - Integration tests: Component interactions (use for critical paths)
 - E2E tests: Complete workflows (use sparingly)
 
-**Write descriptive test cases:**
-
 If you cannot define a test yet, investigate the behavior and comparable tests first. Use the clarification criteria above only if essential requirements remain unresolved.
 
 ### Green Phase: Make Tests Pass
@@ -73,7 +71,7 @@ Focus on correctness first. Hardcode if needed. Add just enough logic. Resist ur
 
 **Purpose:** Apply insights gained during implementation.
 
-**This phase is MANDATORY.** During implementation you'll discover better structure, repeated patterns, and simplification opportunities.
+Every plan includes this phase, because during implementation you'll discover better structure, repeated patterns, and simplification opportunities.
 
 **When to Extract vs Keep Duplication:**
 

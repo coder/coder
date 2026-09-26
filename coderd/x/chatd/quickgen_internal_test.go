@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/google/uuid"
@@ -360,7 +361,7 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 
 			require.Contains(t, prompt, "Primary user objective:")
 			require.Contains(t, prompt, "Requirements:")
-			require.Contains(t, prompt, "- Return only the title text in 2-8 words.")
+			require.Contains(t, prompt, "- Keep the title to 2-8 words.")
 			require.Contains(t, prompt, "Do not answer the user or describe the title-writing task")
 			require.Contains(t, prompt, "stay close to the user's wording")
 			require.Contains(t, prompt, "same language as the user's messages")
@@ -630,7 +631,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 		ModelName:    "gpt-4o-mini",
 		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			require.NotNil(t, call.MaxOutputTokens)
-			require.Equal(t, int64(256), *call.MaxOutputTokens)
+			require.Equal(t, titleMaxOutputTokens, *call.MaxOutputTokens)
 			providerOptions, ok := call.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
 			require.True(t, ok, "%T", call.ProviderOptions[fantasyopenai.Name])
 			require.NotNil(t, providerOptions.ReasoningEffort)
@@ -672,7 +673,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
 	t.Parallel()
 
-	require.Contains(t, titleGenerationPrompt, "Return only the title text in 2-8 words")
+	require.Contains(t, titleGenerationPrompt, "Keep the title to 2-8 words")
 	require.Contains(t, titleGenerationPrompt, "Do not answer the user or describe the title-writing task")
 	require.Contains(t, titleGenerationPrompt, "stay close to the user's wording")
 	require.Contains(t, titleGenerationPrompt, "same language as the user's message")
@@ -980,6 +981,101 @@ func TestGenerateStructuredTitleWithUsage_DropsRejectedTemperature(t *testing.T)
 	require.Equal(t, "Failed workspace logs", title)
 	require.Equal(t, []bool{true, false}, sawTemperature,
 		"generation should retry without temperature after the model rejects it")
+}
+
+// Mirrors Claude Opus 5.5, which rejects both the forced tool_choice of
+// tool-mode object generation and the temperature parameter.
+func TestGenerateStructuredTitleWithUsage_FallsBackToTextWhenToolChoiceRejected(t *testing.T) {
+	t.Parallel()
+
+	var textCallTemperatures []bool
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			return nil, &fantasy.ProviderError{
+				Title:      "bad request",
+				Message:    `tool_choice: type "tool" and "any" are not supported for this model.`,
+				StatusCode: http.StatusBadRequest,
+			}
+		},
+		GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+			textCallTemperatures = append(textCallTemperatures, call.Temperature != nil)
+			if call.Temperature != nil {
+				return nil, newTemperatureRejectedError()
+			}
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{fantasy.TextContent{Text: `{"title":"Failed workspace logs"}`}},
+			}, nil
+		},
+	}
+
+	title, _, err := generateStructuredTitleWithUsage(
+		t.Context(),
+		model,
+		titleObjectCall(resolvedModelCall{}),
+		titleGenerationPrompt,
+		"summarize failed workspace build logs",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Failed workspace logs", title)
+	require.Equal(t, []bool{true, false}, textCallTemperatures,
+		"text-mode generation should also retry without a rejected temperature")
+}
+
+// Budget thinking would reject the forced tool_choice of tool-mode generation,
+// so no configured effort may turn it on for older Claude quickgen models.
+func TestQuickgenCallsKeepBudgetThinkingOff(t *testing.T) {
+	t.Parallel()
+
+	calls := map[string]func(resolvedModelCall) fantasy.ObjectCall{
+		"title":   titleObjectCall,
+		"summary": summaryObjectCall,
+		"label":   turnStatusLabelObjectCall,
+	}
+	efforts := []fantasyanthropic.Effort{
+		fantasyanthropic.EffortMinimal,
+		fantasyanthropic.EffortLow,
+		fantasyanthropic.EffortMedium,
+		fantasyanthropic.EffortHigh,
+		fantasyanthropic.EffortXHigh,
+		fantasyanthropic.EffortMax,
+	}
+	for name, newCall := range calls {
+		for _, effort := range efforts {
+			t.Run(name+"/"+string(effort), func(t *testing.T) {
+				t.Parallel()
+
+				requests := make(chan *chattest.AnthropicRequest, 1)
+				serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+					select {
+					case requests <- req:
+					default:
+					}
+					return chattest.AnthropicResponse{Error: &chattest.ErrorResponse{
+						StatusCode: http.StatusBadRequest,
+						Type:       "invalid_request_error",
+						Message:    "request captured",
+					}}
+				})
+				client, err := fantasyanthropic.New(
+					fantasyanthropic.WithAPIKey("test-key"),
+					fantasyanthropic.WithBaseURL(serverURL),
+				)
+				require.NoError(t, err)
+				model, err := client.LanguageModel(t.Context(), "claude-haiku-4-5")
+				require.NoError(t, err)
+
+				call := newCall(resolvedModelCall{providerOptions: fantasy.ProviderOptions{
+					fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{Effort: &effort},
+				}})
+				call.Prompt = fantasy.Prompt{fantasy.NewUserMessage("fix the login bug")}
+				_, err = generateObject[generatedTitle](t.Context(), model, call)
+				require.Error(t, err)
+
+				req := testutil.RequireReceive(t.Context(), t, requests)
+				require.Empty(t, req.Thinking, "max_tokens %d enabled budget thinking", req.MaxTokens)
+			})
+		}
+	}
 }
 
 func TestGenerateStructuredTitleWithUsage_TruncatesOverlongTitle(t *testing.T) {
