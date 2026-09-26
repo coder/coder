@@ -897,7 +897,42 @@ export const InlineOptionsError: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
-		await body.findByText(/Couldn.t load Status options\./);
+		await body.findByText(/Couldn.t load Status options\./, {
+			ignore: '[role="status"], script, style',
+		});
+	},
+};
+
+// A Retry that has not settled keeps the heading with a loading row.
+export const InlineOptionsRetrying: Story = {
+	render: () => {
+		let failed = false;
+		return (
+			<FilterComboboxHarness
+				initialQuery=""
+				categories={categoriesWithAttributes.map((category) =>
+					category.key === "status"
+						? {
+								...category,
+								getOptions: () => {
+									if (!failed) {
+										failed = true;
+										return Promise.reject(new Error("boom"));
+									}
+									return new Promise<FilterOption[]>(() => {});
+								},
+							}
+						: category,
+				)}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
+		await userEvent.click(await body.findByRole("option", { name: "Retry" }));
+		await body.findByRole("option", { name: "Loading Status options" });
 	},
 };
 
@@ -916,7 +951,9 @@ export const InlineOptionsErrorWithTypedText: Story = {
 			name: "Search and filter…",
 		});
 		await userEvent.click(input);
-		await body.findByText(/Couldn.t load Status options\./);
+		await body.findByText(/Couldn.t load Status options\./, {
+			ignore: '[role="status"], script, style',
+		});
 		await userEvent.type(input, "ru");
 		await body.findByRole("option", { name: /Running/ });
 	},
