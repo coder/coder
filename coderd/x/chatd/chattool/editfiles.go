@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -226,15 +227,15 @@ func (t editFilesTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.
 		Files json.RawMessage `json:"files"`
 	}
 	if err := json.Unmarshal([]byte(call.Input), &retired); err == nil && retired.Files != nil {
-		return fantasy.NewTextErrorResponse(
+		return rejectEditFiles(
 			"Send a flat edits list where every edit has its own path, for example " + editFilesExample +
-				"; the files key is not supported; no files in this batch were applied",
+				"; the files key is not supported",
 		), nil
 	}
 	var args EditFilesArgs
 	if err := json.Unmarshal([]byte(call.Input), &args); err != nil {
-		return fantasy.NewTextErrorResponse(fmt.Sprintf(
-			"Send edits as a JSON array of objects with string path, old_text and new_text and optional boolean replace_all, for example %s; the input did not match (%s); no files in this batch were applied",
+		return rejectEditFiles(fmt.Sprintf(
+			"Send edits as a JSON array of objects with string path, old_text and new_text and optional boolean replace_all, for example %s; the input did not match (%s)",
 			editFilesExample, err,
 		)), nil
 	}
@@ -255,7 +256,7 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 			" any file is written.",
 		func(ctx context.Context, args EditFilesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if len(args.Edits) == 0 {
-				return fantasy.NewTextErrorResponse("Add at least one edit to edits; no files in this batch were applied"), nil
+				return rejectEditFiles("Add at least one edit to edits"), nil
 			}
 			var missingPath []string
 			args.Edits = NormalizeEditPaths(args.Edits)
@@ -265,34 +266,34 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 				}
 			}
 			if len(missingPath) > 0 {
-				return fantasy.NewTextErrorResponse(
+				return rejectEditFiles(
 					"Set path to the absolute path of the file to edit in " + strings.Join(missingPath, ", ") +
-						"; path is required in every edit; no files in this batch were applied",
+						"; path is required in every edit",
 				), nil
 			}
 			var planPath string
 			if options.IsPlanTurn {
 				resolvedPlanPath, err := resolvePlanTurnPath(ctx, options.ResolvePlanPath)
 				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
+					return rejectEditFiles(err.Error()), nil
 				}
 				for _, edit := range args.Edits {
 					if edit.Path != resolvedPlanPath {
-						return fantasy.NewTextErrorResponse("during plan turns, edit_files is restricted to " + resolvedPlanPath), nil
+						return rejectEditFiles("Edit only " + resolvedPlanPath + "; during plan turns, edit_files is restricted to that file"), nil
 					}
 				}
 				planPath = resolvedPlanPath
 			}
 			if options.GetWorkspaceConn == nil {
-				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
+				return rejectEditFiles("workspace connection resolver is not configured"), nil
 			}
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
-				return fantasy.NewTextErrorResponse(err.Error()), nil
+				return rejectEditFiles(err.Error()), nil
 			}
 			if planPath != "" {
 				if err := ensurePlanPathResolvesToItself(ctx, conn, planPath); err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
+					return rejectEditFiles(err.Error()), nil
 				}
 			}
 			return executeEditFilesTool(ctx, conn, args, options.ResolvePlanPath)
@@ -315,8 +316,8 @@ func executeEditFilesTool(
 	for _, edit := range args.Edits {
 		hasPlanFileName := looksLikePlanFileName(edit.Path)
 		if hasPlanFileName && !isAbsolutePath(edit.Path) {
-			return fantasy.NewTextErrorResponse(
-				"plan files must use absolute paths; use the chat-specific absolute plan path; no files in this batch were applied",
+			return rejectEditFiles(
+				"Use the chat-specific absolute plan path; plan files must use absolute paths",
 			), nil
 		}
 		if resolvePlanPath == nil || !hasPlanFileName {
@@ -327,23 +328,104 @@ func executeEditFilesTool(
 			planPathLoaded = true
 		}
 		if resp, rejected := rejectSharedPlanPath(edit.Path, home, chatPath, planPathErr); rejected {
-			return fantasy.NewTextErrorResponse(
-				resp.Content + "; no files in this batch were applied",
-			), nil
+			return rejectEditFiles(resp.Content), nil
 		}
 	}
 
-	resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+	request := workspacesdk.FileEditRequest{
 		Files:       GroupEditsByPath(args.Edits),
 		IncludeDiff: true,
-	})
-	if err != nil {
-		return fantasy.NewTextErrorResponse(agentAPIErrorMessage(err)), nil
 	}
-	return toolResponse(map[string]any{
-		"ok":    true,
-		"files": resp.Files,
-	}), nil
+	resp, err := conn.EditFiles(ctx, request)
+	if err != nil {
+		if agentWroteNothing(err, len(request.Files)) {
+			return fantasy.NewTextErrorResponse(
+				editFilesNoneApplied + " " + agentAPIErrorMessage(err) + "\nFix the failing edit and resend all edits.",
+			), nil
+		}
+		return fantasy.NewTextErrorResponse(
+			"It is unknown whether any files were applied. " + agentAPIErrorMessage(err) + "\nRe-read the files before resending edits.",
+		), nil
+	}
+
+	result := editFilesResult{
+		Status: editFilesStatusApplied,
+		Files:  make([]editFilesFileResult, 0, len(resp.Files)),
+	}
+	for _, file := range resp.Files {
+		result.Files = append(result.Files, editFilesFileResult{
+			Path:   file.Path,
+			Status: editFilesStatusApplied,
+			Diff:   file.Diff,
+		})
+	}
+	// Agents that predate per-file results return none on success,
+	// having written every file in the request.
+	applied := len(resp.Files)
+	if applied == 0 {
+		applied = len(request.Files)
+	}
+	result.Message = fmt.Sprintf("Applied edits to %d %s.", applied, pluralFiles(applied))
+	return marshalToolResponse(result), nil
+}
+
+// editFilesNoneApplied is the statement in every edit_files error
+// result that is known to have written nothing.
+const editFilesNoneApplied = "No files were applied."
+
+const editFilesStatusApplied = "applied"
+
+// editFilesResult is the successful edit_files tool result.
+type editFilesResult struct {
+	Status  string                `json:"status"`
+	Message string                `json:"message"`
+	Files   []editFilesFileResult `json:"files"`
+}
+
+// editFilesFileResult is the outcome for one file in editFilesResult.
+// Path and Diff come from the agent's workspacesdk.FileEditResult.
+type editFilesFileResult struct {
+	Path   string `json:"path"`
+	Status string `json:"status"`
+	Diff   string `json:"diff"`
+}
+
+func pluralFiles(n int) string {
+	if n == 1 {
+		return "file"
+	}
+	return "files"
+}
+
+// rejectEditFiles returns a whole-call rejection decided before any
+// edit request reached the agent, so no file was written. reason
+// leads with what to change when the model can change anything.
+func rejectEditFiles(reason string) fantasy.ToolResponse {
+	return fantasy.NewTextErrorResponse(reason + "\n" + editFilesNoneApplied)
+}
+
+// agentWroteNothing reports whether an EditFiles error proves that the
+// agent wrote no file. Only an agent response is proof: an error
+// without one, such as a dropped connection, may follow a completed
+// write. The agent validates every file before writing any and returns
+// 400 and 404 only from validation. Its write phase can fail with 403
+// or 500 after committing earlier files, but writes each file through
+// a temporary file and rename, so a request for one file leaves it
+// untouched on any error.
+func agentWroteNothing(err error, requestFiles int) bool {
+	sdkErr, ok := codersdk.AsError(err)
+	if !ok {
+		return false
+	}
+	if requestFiles == 1 {
+		return true
+	}
+	switch sdkErr.StatusCode() {
+	case http.StatusBadRequest, http.StatusNotFound:
+		return true
+	default:
+		return false
+	}
 }
 
 // agentAPIErrorMessage preserves the agent's actionable message while

@@ -11,7 +11,7 @@ func planPathVerificationMessage(requestedPath string) string {
 }
 
 func editFilesBatchRejectedMessage(message string) string {
-	return message + "; no files in this batch were applied"
+	return message + "\nNo files were applied."
 }
 
 func relativePlanPathMessage() string {
