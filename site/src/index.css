@@ -356,9 +356,24 @@
 
 @utility mobile-full-width-dropdown-top {
 	@media (max-width: 767px) {
+		/* Span the viewport rather than tracking the composer. */
 		[data-radix-popper-content-wrapper]:has(> &) {
 			bottom: auto !important;
 			top: var(--mobile-dropdown-top, 3.5rem) !important;
+			left: 1rem !important;
+			width: calc(100% - 2rem) !important;
+		}
+	}
+}
+
+@utility mobile-full-width-dropdown-below-chat-top-bar {
+	@media (max-width: 767px) {
+		/* The -top variant, placed under the shorter chat top bar. */
+		[data-radix-popper-content-wrapper]:has(> &) {
+			bottom: auto !important;
+			top: 2.5rem !important;
+			left: 1rem !important;
+			width: calc(100% - 2rem) !important;
 		}
 	}
 }
@@ -368,6 +383,8 @@
 		[data-radix-popper-content-wrapper]:has(> &) {
 			bottom: auto !important;
 			top: 5rem !important;
+			left: 1rem !important;
+			width: calc(100% - 2rem) !important;
 		}
 	}
 }

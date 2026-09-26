@@ -14,6 +14,9 @@ import {
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuSeparator,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
 import {
@@ -21,20 +24,23 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Tooltip, TooltipTrigger } from "#/components/Tooltip/Tooltip";
 import { shortRelativeTime } from "#/utils/time";
 import {
 	ChatActionsMenuItems,
 	canManageChat,
 	chatFamilyAllowsArchive,
 	chatHasMenuActions,
+	type PullRequestSubmenuComponents,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
-import { ChatNodePRIcon, PRListTooltipContent } from "./ChatNodePRIcon";
+import { ChatNodePRIcon } from "./ChatNodePRIcon";
 import { useChatTree } from "./ChatTreeContext";
 import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
@@ -46,6 +52,27 @@ type ChatTreeNodeProps = {
 };
 
 const CHILD_INDENT_PX = 26;
+
+// Mobile placement for the row menus and their PR flyout.
+const rowMenuMobileClassName =
+	"mobile-full-width-dropdown mobile-full-width-dropdown-top-below-header";
+
+const dropdownSubmenu: PullRequestSubmenuComponents = {
+	Sub: DropdownMenuSub,
+	SubTrigger: DropdownMenuSubTrigger,
+	SubContent: DropdownMenuSubContent,
+	contentClassName: rowMenuMobileClassName,
+};
+
+const contextSubmenu: PullRequestSubmenuComponents = {
+	Sub: ContextMenuSub,
+	SubTrigger: ContextMenuSubTrigger,
+	SubContent: ContextMenuSubContent,
+	contentClassName: rowMenuMobileClassName,
+};
+
+// The width cap makes long PR titles truncate.
+const rowMenuContentClassName = `max-w-72 ${rowMenuMobileClassName} [&_[role=menuitem]]:text-[13px]`;
 
 export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	const location = useLocation();
@@ -154,10 +181,13 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	const canManage = canManageChat(chat, currentUserId);
+	const linkedPullRequests = prStatuses.filter((status) => status.url);
 	const hasMenuActions = chatHasMenuActions(chat, {
 		canManage,
 		hasSubagentsToggle: hasChildren,
+		hasPullRequests: linkedPullRequests.length > 0,
 	});
+	const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
 
 	const hoverLayout =
 		"[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
@@ -184,11 +214,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		onOpenRenameDialog: onOpenRenameDialog
 			? () => onOpenRenameDialog(chat)
 			: undefined,
+		pullRequests: linkedPullRequests,
 	};
 
-	// The tooltip lists every tracked PR, so it belongs to the whole
-	// row: link focus opens it for keyboard users, and no focusable
-	// descendant nests inside the anchor.
 	const chatLink = (
 		<NavLink
 			to={{
@@ -303,14 +331,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 								</Button>
 							)}
 						</div>
-						{prStatuses.length > 1 ? (
-							<Tooltip>
-								<TooltipTrigger asChild>{chatLink}</TooltipTrigger>
-								<PRListTooltipContent prStatuses={prStatuses} />
-							</Tooltip>
-						) : (
-							chatLink
-						)}
+						{chatLink}
 						<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
 							<div className="flex h-6 w-7 shrink-0 items-center justify-end">
 								{isArchivingThisChat ? (
@@ -359,7 +380,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 								/>
 							)}
 							{hasMenuActions && !isArchivingThisChat && (
-								<DropdownMenu>
+								<DropdownMenu
+									open={isActionsMenuOpen}
+									onOpenChange={setIsActionsMenuOpen}
+								>
 									<DropdownMenuTrigger asChild>
 										<Button
 											size="icon"
@@ -385,13 +409,25 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 													e.stopPropagation();
 												}
 											}}
+											// The mobile menu can cover this trigger, so open on
+											// click: a pointerdown open would let the release select
+											// the item underneath. Keyboard clicks (detail 0) are
+											// left to Radix.
+											onPointerDown={(e) => {
+												e.preventDefault();
+											}}
+											onClick={(e) => {
+												if (e.detail > 0) {
+													setIsActionsMenuOpen((open) => !open);
+												}
+											}}
 										>
 											<EllipsisVerticalIcon className="size-3.5" />
 										</Button>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent
 										align="end"
-										className="[&_[role=menuitem]]:text-[13px]"
+										className={rowMenuContentClassName}
 										// The dropdown is portaled to the body, but React
 										// portals bubble events through the React tree, so a
 										// right-click inside the menu would still reach the
@@ -403,6 +439,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 									>
 										<ChatActionsMenuItems
 											{...sharedMenuItemProps}
+											submenu={dropdownSubmenu}
 											Item={DropdownMenuItem}
 											Separator={DropdownMenuSeparator}
 										/>
@@ -412,9 +449,19 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 						</div>
 					</div>
 				</ContextMenuTrigger>
-				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
+				<ContextMenuContent
+					className={rowMenuContentClassName}
+					// The mobile menu can open under the pointer; ignore the
+					// right-button release that opened it.
+					onPointerUpCapture={(e) => {
+						if (e.button === 2) {
+							e.stopPropagation();
+						}
+					}}
+				>
 					<ChatActionsMenuItems
 						{...sharedMenuItemProps}
+						submenu={contextSubmenu}
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 					/>

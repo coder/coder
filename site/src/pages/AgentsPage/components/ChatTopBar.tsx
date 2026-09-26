@@ -23,18 +23,24 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
-import { originRepoLabel } from "../utils/originRepoLabel";
+import { limitPRMenuHeight } from "../utils/limitPRMenuHeight";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import {
 	ChatActionsMenuItems,
 	canManageChat,
 	chatFamilyAllowsArchive,
 	chatHasMenuActions,
+	PullRequestMenuList,
+	type PullRequestSubmenuComponents,
+	pullRequestMenuContentClassName,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
@@ -98,6 +104,17 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 // of the PR chips.
 const prNumber = (status: TypesGen.ChatDiffStatus): string | undefined =>
 	status.pr_number?.toString() ?? parsePullRequestUrl(status.url)?.number;
+
+// Mobile placement for the top bar menus.
+const topBarMenuMobileClassName =
+	"mobile-full-width-dropdown mobile-full-width-dropdown-below-chat-top-bar";
+
+const actionsMenuSubmenu: PullRequestSubmenuComponents = {
+	Sub: DropdownMenuSub,
+	SubTrigger: DropdownMenuSubTrigger,
+	SubContent: DropdownMenuSubContent,
+	contentClassName: topBarMenuMobileClassName,
+};
 
 export const ChatTopBar: FC<ChatTopBarProps> = ({
 	chat,
@@ -163,25 +180,23 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			)
 		: false;
 	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
+	const prStatuses = (chat?.diff_statuses ?? []).filter(
+		(status) => prNumber(status) !== undefined,
+	);
+	const linkedPullRequests = prStatuses.filter((status) => status.url);
 	// Suppressed when there is no chat to act on (loading and not-found views)
 	// and when the chat has no menu actions (archived child chats and chats
-	// shared by another user).
+	// shared by another user, unless they link to pull requests).
 	const showActionsMenu =
 		!isEmbedded &&
 		chat !== undefined &&
 		Boolean(chatTitle) &&
-		chatHasMenuActions(chat, { canManage });
+		chatHasMenuActions(chat, {
+			canManage,
+			hasPullRequests: linkedPullRequests.length > 0,
+		});
 
-	const prStatuses = (chat?.diff_statuses ?? []).filter(
-		(status) => prNumber(status) !== undefined,
-	);
 	const hasMultiplePRs = prStatuses.length > 1;
-	// PR numbers are per-repository, so two origins can both carry
-	// the same number. Naming the repository keeps those entries
-	// apart.
-	const hasMultipleOrigins =
-		new Set(prStatuses.map((status) => status.remote_origin).filter(Boolean))
-			.size > 1;
 
 	return (
 		<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
@@ -267,7 +282,10 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent
 							align="start"
-							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+							className={cn(
+								"max-w-72 [&_[role=menuitem]]:text-[13px]",
+								topBarMenuMobileClassName,
+							)}
 						>
 							<ChatActionsMenuItems
 								chat={chat}
@@ -313,6 +331,8 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 										? () => onOpenRenameDialog(chat)
 										: undefined
 								}
+								pullRequests={linkedPullRequests}
+								submenu={actionsMenuSubmenu}
 								Item={DropdownMenuItem}
 								Separator={DropdownMenuSeparator}
 							/>
@@ -337,30 +357,18 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 							<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
 						</button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="min-w-[240px] p-1">
-						{prStatuses.map((status) => {
-							const originPrefix = hasMultipleOrigins
-								? `${originRepoLabel(status.remote_origin)} · `
-								: "";
-							return (
-								<DropdownMenuItem
-									key={`${status.remote_origin}/${status.git_branch}`}
-									asChild
-									className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs"
-								>
-									<a href={status.url} target="_blank" rel="noreferrer">
-										<PrStateIcon
-											state={status.pull_request_state}
-											draft={status.pull_request_draft}
-											className="size-3.5! shrink-0"
-										/>
-										<span className="truncate">
-											{`${originPrefix}PR #${prNumber(status)} ${status.pull_request_title}`}
-										</span>
-									</a>
-								</DropdownMenuItem>
-							);
-						})}
+					<DropdownMenuContent
+						ref={limitPRMenuHeight}
+						align="end"
+						className={cn(
+							pullRequestMenuContentClassName,
+							topBarMenuMobileClassName,
+						)}
+					>
+						<PullRequestMenuList
+							pullRequests={prStatuses}
+							Item={DropdownMenuItem}
+						/>
 					</DropdownMenuContent>
 				</DropdownMenu>
 			) : (
