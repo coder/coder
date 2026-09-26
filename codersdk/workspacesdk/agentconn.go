@@ -116,6 +116,7 @@ type AgentConn interface {
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
 	SignalProcess(ctx context.Context, id string, signal string) error
 	StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error)
+	CancelToolCall(ctx context.Context, id string, req CancelToolCallRequest) (CancelToolCallResponse, error)
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
 	ResolvePath(ctx context.Context, path string) (string, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
@@ -918,6 +919,12 @@ type StartProcessRequest struct {
 type StartProcessResponse struct {
 	ID      string `json:"id"`
 	Started bool   `json:"started"`
+	// RunAge is the time since the agent first ran this tool call's
+	// start, read from CoderToolCallRunAgeMsHeader. It is zero when the
+	// header is absent (an old agent, or a request without tool call
+	// headers) or malformed, which only a broken agent sends; zero
+	// leaves the caller its full timeout.
+	RunAge time.Duration `json:"-"`
 }
 
 // ListProcessesResponse contains information about tracked
@@ -945,6 +952,42 @@ type ProcessOutputResponse struct {
 	Running   bool               `json:"running"`
 	ExitCode  *int               `json:"exit_code,omitempty"`
 	Command   string             `json:"command,omitempty"`
+}
+
+// CancelToolCallRequest is the body of a tool call cancel request.
+type CancelToolCallRequest struct {
+	// StopIfRunAgeBelowMs stops a running process only if its run age is
+	// below this value. 0 never stops.
+	StopIfRunAgeBelowMs int64 `json:"stop_if_run_age_below_ms"`
+}
+
+// CancelToolCallResponse is the final state of a tool call after a
+// cancel request.
+type CancelToolCallResponse struct {
+	// Started is false when the agent never ran the tool call's request.
+	// The agent has recorded it as canceled, so it never will.
+	Started bool `json:"started"`
+	// StatusCode, ContentType, and Body are the recorded response of the
+	// tool call's request when Started. Body round-trips byte for byte.
+	StatusCode  int    `json:"status_code,omitempty"`
+	ContentType string `json:"content_type,omitempty"`
+	Body        []byte `json:"body,omitempty"`
+	// Process is the state of the process the tool call started, if any.
+	Process *ToolCallProcess `json:"process,omitempty"`
+}
+
+// ToolCallProcess is the state of the process a tool call started.
+type ToolCallProcess struct {
+	Running bool `json:"running"`
+	// Canceled is true when a cancel request killed the process;
+	// repeated cancels report it too.
+	Canceled  bool               `json:"canceled"`
+	Output    string             `json:"output,omitempty"`
+	Truncated *ProcessTruncation `json:"truncated,omitempty"`
+	ExitCode  *int               `json:"exit_code,omitempty"`
+	// RunAgeMs is the time since the process started, measured by the
+	// agent.
+	RunAgeMs int64 `json:"run_age_ms"`
 }
 
 // ProcessOutputOptions configures blocking behavior for
@@ -1376,10 +1419,54 @@ func (c *agentConn) StartProcess(ctx context.Context, req StartProcessRequest) (
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return StartProcessResponse{}, codersdk.ReadBodyAsError(res)
+		return StartProcessResponse{}, readToolCallError(res)
 	}
 	var resp StartProcessResponse
+	if err := decodeAgentJSON(res, &resp); err != nil {
+		return StartProcessResponse{}, err
+	}
+	resp.RunAge = runAgeFromHeader(res.Header)
+	return resp, nil
+}
+
+// CancelToolCall cancels the tool call in ctx, set with WithToolCall.
+// id is the tool call UUID.
+func (c *agentConn) CancelToolCall(ctx context.Context, id string, req CancelToolCallRequest) (CancelToolCallResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/tool-calls/"+id+"/cancel", req)
+	if err != nil {
+		return CancelToolCallResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return CancelToolCallResponse{}, readToolCallError(res)
+	}
+	var resp CancelToolCallResponse
 	return resp, decodeAgentJSON(res, &resp)
+}
+
+// readToolCallError returns a *ToolCallError for an HTTP 409 whose body
+// has a known ToolCallErrorCode, and codersdk.ReadBodyAsError(res) for
+// any other response.
+func readToolCallError(res *http.Response) error {
+	if res.StatusCode != http.StatusConflict {
+		return codersdk.ReadBodyAsError(res)
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		// Same error as codersdk.ReadBodyAsError for a failed read.
+		return xerrors.Errorf("read body: %w", err)
+	}
+	var tcErr ToolCallError
+	if json.Unmarshal(body, &tcErr) == nil && tcErr.Code.known() {
+		return &tcErr
+	}
+	res.Body = struct {
+		io.Reader
+		io.Closer
+	}{bytes.NewReader(body), res.Body}
+	return codersdk.ReadBodyAsError(res)
 }
 
 // ListProcesses returns information about tracked processes on the agent.
@@ -1542,6 +1629,9 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 		for _, value := range values {
 			req.Header.Add(key, value)
 		}
+	}
+	if tc, ok := ToolCallFromContext(ctx); ok {
+		tc.SetHeaders(req.Header)
 	}
 
 	return c.apiClient(ctx).Do(req)
