@@ -1127,7 +1127,8 @@ func TestPreToolUseHookRejectsAmbiguousInputOverride(t *testing.T) {
 // edit_files input is flat, but pre_tool_use keeps the grouped files
 // form: hooks receive the edits grouped by path, and an input_override
 // in that form is flattened before it is validated, persisted and
-// executed.
+// executed. A string-encoded edits array is decoded before any of this,
+// with or without hooks.
 func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 	t.Parallel()
 
@@ -1147,9 +1148,16 @@ func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 		}},
 		{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{{OldText: "foo()", NewText: "bar()"}}},
 	}
+	stringEncodedEdits, err := json.Marshal(modelInput[len(`{"edits":`) : len(modelInput)-1])
+	require.NoError(t, err)
+	stringEncodedInput := `{"edits":` + string(stringEncodedEdits) + `}`
 
 	tests := []struct {
-		name     string
+		name string
+		// modelEdits replaces modelInput as the model's tool call.
+		modelEdits string
+		// noHooks runs the turn without a hook consumer.
+		noHooks  bool
 		override string
 		// wantArgs is the persisted tool-call input.
 		wantArgs string
@@ -1160,6 +1168,22 @@ func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 	}{
 		{
 			name:        "NoOverridePersistsModelInput",
+			wantArgs:    modelInput,
+			wantRequest: groupedRequest,
+		},
+		{
+			// chatloop decodes a string-encoded edits array where the
+			// call arrives, so hooks, persistence and execution all
+			// see the array.
+			name:        "StringEncodedEditsDecoded",
+			modelEdits:  stringEncodedInput,
+			wantArgs:    modelInput,
+			wantRequest: groupedRequest,
+		},
+		{
+			name:        "StringEncodedEditsDecodedWithoutHooks",
+			modelEdits:  stringEncodedInput,
+			noHooks:     true,
 			wantArgs:    modelInput,
 			wantRequest: groupedRequest,
 		},
@@ -1214,13 +1238,17 @@ func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			db, ps := dbtestutil.NewDB(t)
+			callInput := modelInput
+			if tt.modelEdits != "" {
+				callInput = tt.modelEdits
+			}
 			var modelCalls atomic.Int32
 			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 				if !req.Stream {
 					return chattest.OpenAINonStreamingResponse("title")
 				}
 				if modelCalls.Add(1) == 1 {
-					chunk := chattest.OpenAIToolCallChunk("edit_files", modelInput)
+					chunk := chattest.OpenAIToolCallChunk("edit_files", callInput)
 					chunk.Choices[0].ToolCalls[0].ID = "call_edit_files"
 					return chattest.OpenAIStreamingResponse(chunk)
 				}
@@ -1257,7 +1285,9 @@ func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-				cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+				if !tt.noHooks {
+					cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+				}
 				cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 					require.Equal(t, dbAgent.ID, agentID)
 					return mockConn, func() {}, nil
@@ -1291,6 +1321,10 @@ func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 
 			hookInputMu.Lock()
 			defer hookInputMu.Unlock()
+			if tt.noHooks {
+				require.Empty(t, hookInputs)
+				return
+			}
 			require.Len(t, hookInputs, 1)
 			require.JSONEq(t, groupedInput, hookInputs[0])
 		})
