@@ -2962,7 +2962,7 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it("opens the Owner flyout when typing shared after highlighting another row", async () => {
+	it("opens the Owner flyout when typing shared after pressing End", async () => {
 		const { user, onChange, input } = setup(
 			[scopedOwnerCategory, statusCategory],
 			{ initialValue: "owner:alice", skipHover: true },
@@ -3000,7 +3000,8 @@ describe("FilterCombobox", () => {
 			if (leaveMenu) {
 				await user.unhover(running);
 			}
-			await user.type(input, "shared");
+			// user.type would click the input, moving the pointer off Running.
+			await user.keyboard("shared");
 			await user.click(
 				await screen.findByRole("switch", {
 					name: "Include workspaces shared with alice",
@@ -3012,6 +3013,53 @@ describe("FilterCombobox", () => {
 			);
 		},
 	);
+
+	it("hides the Owner flyout when typing shared then highlighting another row", async () => {
+		const { user, input } = setup(
+			[
+				{
+					...scopedOwnerCategory,
+					getOptions: async () => [
+						{ label: "alice", value: "alice" },
+						{ label: "sharon", value: "sharon" },
+					],
+				},
+			],
+			{ initialValue: "owner:alice", skipHover: true },
+		);
+
+		await user.click(input);
+		await user.type(input, "sha");
+		await screen.findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
+		await user.keyboard("{ArrowDown}{ArrowDown}");
+
+		expect(
+			await screen.findByRole("option", { name: /sharon/ }),
+		).toHaveAttribute("aria-selected", "true");
+		expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+	});
+
+	it("keeps the Owner flyout from typed shared when the pointer leaves the menu", async () => {
+		const { user, input } = setup([scopedOwnerCategory, statusCategory], {
+			initialValue: "owner:alice",
+		});
+
+		await user.click(input);
+		await user.keyboard("sha");
+		const toggle = await screen.findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
+		await user.hover(toggle);
+		await user.unhover(toggle);
+
+		expect(
+			screen.getByRole("switch", {
+				name: "Include workspaces shared with alice",
+			}),
+		).toBeInTheDocument();
+	});
 
 	it("opens the Owner flyout when typing shared while another flyout is open", async () => {
 		const { user, onChange, input } = setup(

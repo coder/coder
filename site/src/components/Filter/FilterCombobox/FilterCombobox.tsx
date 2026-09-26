@@ -179,11 +179,11 @@ export function FilterCombobox({
 		setFlyout({ categoryKey, openAtReset: open });
 	// Highlighted category row, tracked here instead of the full highlight so
 	// moving through option rows does not re-render the lists. `null` means
-	// another row or a dismissed menu; `undefined` means cmdk's pick was
-	// cleared while typed text turns `autoHighlight` off.
+	// another row is highlighted; `undefined` means none is, as when typed
+	// text turns `autoHighlight` off or the pointer leaves the menu.
 	const [highlightedCategoryKey, setHighlightedCategoryKey] = useState<
 		string | null | undefined
-	>(null);
+	>(undefined);
 	// While typed text narrows the rows, only a scope match shows a flyout,
 	// and only while its row is highlighted or typing leaves no row
 	// highlighted. It never shows on coarse pointers. A flyout the text hides
@@ -277,13 +277,11 @@ export function FilterCombobox({
 		updateFlyoutCategory(isCategoryRow ? highlighted : null);
 	};
 	// Typed text narrows the category rows, so a click enters the category and
-	// drops the text, and only a scope match gets a flyout. Enter on a row
-	// listed only by the scope match applies the text as a search instead.
-	// The flyout renders only on wider viewports.
+	// drops the text. Enter on a row listed only by the scope match applies
+	// the text as a search instead. The flyout renders only on wider
+	// viewports.
 	const flyoutOptions = useFlyoutOptions(
-		activeCategoryKey === null &&
-			!isMobile &&
-			(!categoriesNarrowedByText || shownFlyoutKey === scopeMatchKey)
+		activeCategoryKey === null && !isMobile
 			? listedCategories.find((category) => category.key === shownFlyoutKey)
 			: undefined,
 		unfilteredOptionsByKey,
@@ -597,7 +595,7 @@ export function FilterCombobox({
 							className="relative flex items-start gap-1 overflow-visible"
 							onMouseLeave={() => {
 								updateFlyoutCategory(null);
-								setHighlightedCategoryKey(null);
+								setHighlightedCategoryKey(undefined);
 								actions.setHighlightedValue("");
 							}}
 						>
