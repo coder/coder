@@ -97,7 +97,8 @@ Keep the following behavior in mind:
 - Owners and Organization Admins can always use Coder Agents, whatever the default roles are.
 - Service accounts don't inherit `agents-access` from the default roles.
   Assign the role to a service account directly if it needs Coder Agents.
-- A chat shared with a user stays readable to that user without the role.
+- Members without the role can't use Coder Agents or open chats they created earlier.
+  A chat shared with them stays readable.
 - [Model permissions](./models.md#manage-model-permissions) still apply: users also need read access to at least one model.
 
 ## Optimize your templates
