@@ -192,10 +192,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 					<div
 						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
-							"group relative flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start rounded-md pl-1 pr-1.5 text-content-secondary",
-							// Avatars fill their 20px slot, unlike the 14px status icons,
-							// so they need a wider gap to read as spaced from the title.
-							isSharedWithMe ? "gap-3" : "gap-1.5",
+							"group relative flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+							// Single-line shared rows use a fixed height so their avatars
+							// sit exactly 12px apart.
+							isSharedWithMe ? "min-h-8 items-center" : "items-start",
 							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-data-[state=open]:bg-surface-tertiary",
 							"has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 							hoverLayout,
@@ -204,7 +204,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 					>
 						<div
 							className={cn(
-								"group/icon relative mt-1.5 size-5 shrink-0",
+								"group/icon relative size-5 shrink-0",
+								!isSharedWithMe && "mt-1.5",
 								hasChildren && "cursor-pointer",
 							)}
 							style={
