@@ -487,7 +487,7 @@ export const useFilterCombobox = ({
 	});
 	const isHideableFirstLoad = (category: FilterCategory) =>
 		unfilteredOptions.hideableFirstLoadKeys.has(category.key);
-	const hasOptionsOrChip = (
+	const hasSeveralOptionsOrChip = (
 		category: FilterCategory,
 		options: readonly FilterOption[] | undefined,
 		chips: readonly string[],
@@ -502,7 +502,7 @@ export const useFilterCombobox = ({
 		!category.hideWhenSingleOption ||
 		isHideableFirstLoad(category) ||
 		unfilteredOptions.failedOrRetryingKeys.has(category.key) ||
-		hasOptionsOrChip(
+		hasSeveralOptionsOrChip(
 			category,
 			unfilteredOptions.optionsByKey.get(category.key),
 			chips,
@@ -996,12 +996,39 @@ export const useFilterCombobox = ({
 		returnToCategories();
 	};
 
+	// A hideable submenu category's empty-query options, which decide whether it
+	// stays in the menu. Awaits a pending first load or Retry. A failed load
+	// keeps the category listed, so it resolves to undefined and skips the check.
+	const unfilteredForMenuCheck = (
+		category: FilterCategory,
+	): Promise<readonly FilterOption[] | undefined> | undefined => {
+		if (!category.hideWhenSingleOption || category.inlineOptions) {
+			return undefined;
+		}
+		const options = filterComboboxOptions(
+			category.key,
+			category.getOptions,
+			"",
+			true,
+		);
+		const state = queryClient.getQueryState(options.queryKey);
+		if (
+			state?.status === "error" &&
+			state.data === undefined &&
+			state.fetchStatus === "idle"
+		) {
+			return undefined;
+		}
+		return queryClient.ensureQueryData(options).catch(() => undefined);
+	};
+
 	// True when text matches the name of any category, including one left out
 	// of the menu, or a loaded option or an option getOptions returns within
-	// TYPED_TEXT_LOOKUP_TIMEOUT_MS of an inline category or a category in the
-	// menu once its first load settles. Failed and pending lookups count as no
-	// match. Callers hold such text back from the search so results do not empty
-	// out mid-word.
+	// TYPED_TEXT_LOOKUP_TIMEOUT_MS of an inline category or a category that is
+	// still in the menu once the lookup settles, judged by its settled
+	// empty-query options and the last sent chips. Failed and pending lookups
+	// count as no match. Callers hold such text back from the search so results
+	// do not empty out mid-word.
 	const couldBeFilterSearch = (text: string): Promise<boolean> => {
 		if (text.length === 0) {
 			return Promise.resolve(false);
@@ -1020,18 +1047,16 @@ export const useFilterCombobox = ({
 			return Promise.resolve(true);
 		}
 		const matches = optionLookupCategories.map(async (category) => {
-			const fetchOptions = (query: string) =>
+			const [unfiltered, filtered] = await Promise.all([
+				unfilteredForMenuCheck(category),
 				queryClient.fetchQuery(
-					filterComboboxOptions(category.key, category.getOptions, query, true),
-				);
-			const [unfiltered, options] = await Promise.all([
-				isHideableFirstLoad(category) ? fetchOptions("") : undefined,
-				fetchOptions(text),
+					filterComboboxOptions(category.key, category.getOptions, text, true),
+				),
 			]);
 			// Chips may change while the lookup runs, so read the last sent query.
 			if (
 				unfiltered &&
-				!hasOptionsOrChip(
+				!hasSeveralOptionsOrChip(
 					category,
 					unfiltered,
 					queryToChips(lastEmittedRef.current, chipKeys),
@@ -1039,7 +1064,7 @@ export const useFilterCombobox = ({
 			) {
 				throw new Error("Category leaves the menu");
 			}
-			if (filterOptionsByText(options, text).length === 0) {
+			if (filterOptionsByText(filtered, text).length === 0) {
 				throw new Error("No matching option");
 			}
 			return true;

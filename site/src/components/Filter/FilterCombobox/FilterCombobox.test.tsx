@@ -422,27 +422,48 @@ describe("FilterCombobox", () => {
 		expect(onChange).toHaveBeenLastCalledWith("template:docker");
 	});
 
+	const docker = { label: "Docker", value: "docker" };
+
+	// Each empty-query load, the first and then a Retry, stays pending until
+	// the test settles it.
 	const setupPendingFirstLoad = (
 		initialValue: string,
-		category: Partial<FilterCategory> = {},
-		getFilteredOptions: (query: string) => Promise<FilterOption[]> = () =>
-			Promise.resolve([{ label: "Docker", value: "docker" }]),
+		{
+			category = {},
+			getFilteredOptions = () => Promise.resolve([docker]),
+			skipHover = false,
+		}: {
+			category?: Partial<FilterCategory>;
+			getFilteredOptions?: (query: string) => Promise<FilterOption[]>;
+			skipHover?: boolean;
+		} = {},
 	) => {
-		const firstLoad = Promise.withResolvers<FilterOption[]>();
+		const [firstLoad, retryLoad] = [
+			Promise.withResolvers<FilterOption[]>(),
+			Promise.withResolvers<FilterOption[]>(),
+		];
+		let unfilteredLoads = 0;
 		const rendered = setup(
 			[
 				{
 					key: "template",
 					label: "Template",
 					hideWhenSingleOption: true,
-					getOptions: (query) =>
-						query === "" ? firstLoad.promise : getFilteredOptions(query),
+					getOptions: (query) => {
+						if (query !== "") {
+							return getFilteredOptions(query);
+						}
+						unfilteredLoads += 1;
+						return unfilteredLoads === 1
+							? firstLoad.promise
+							: retryLoad.promise;
+					},
 					...category,
 				},
 			],
-			{ initialValue, fakeTimers: true },
+			{ initialValue, fakeTimers: true, skipHover },
 		);
-		return { ...rendered, firstLoad };
+		return { ...rendered, firstLoad, retryLoad };
 	};
 
 	it("searches text matching a hideable category whose first load settles at one option", async () => {
@@ -450,9 +471,7 @@ describe("FilterCombobox", () => {
 		await user.click(input);
 		await user.type(input, "dock");
 		await settleTypedText();
-		await act(async () =>
-			firstLoad.resolve([{ label: "Docker", value: "docker" }]),
-		);
+		await act(async () => firstLoad.resolve([docker]));
 
 		expect(onChange).toHaveBeenLastCalledWith("dock");
 	});
@@ -463,9 +482,7 @@ describe("FilterCombobox", () => {
 		await user.click(input);
 		await user.type(input, "dock");
 		await settleTypedText();
-		await act(async () =>
-			firstLoad.resolve([{ label: "Docker", value: "docker" }]),
-		);
+		await act(async () => firstLoad.resolve([docker]));
 		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
 
 		expect(onChange).not.toHaveBeenCalledWith("template:docker dock");
@@ -480,24 +497,21 @@ describe("FilterCombobox", () => {
 		await user.click(
 			screen.getByRole("button", { name: "Remove template:docker" }),
 		);
-		await act(async () =>
-			firstLoad.resolve([{ label: "Docker", value: "docker" }]),
-		);
+		await act(async () => firstLoad.resolve([docker]));
 
 		expect(onChange).toHaveBeenLastCalledWith("dock");
 	});
 
-	it("holds back text matching a hideable category when its first load and lookup together fit the timeout", async () => {
+	it("holds back text matching a hideable category when its first load and lookup each fit the timeout but their sum does not", async () => {
 		const loadMs = TYPED_TEXT_LOOKUP_TIMEOUT_MS * 0.8;
 		const lookupMs = TYPED_TEXT_LOOKUP_TIMEOUT_MS * 0.4;
-		const { user, input, onChange, firstLoad } = setupPendingFirstLoad(
-			"",
-			{},
-			() =>
-				new Promise((resolve) =>
-					setTimeout(resolve, lookupMs, [{ label: "Docker", value: "docker" }]),
-				),
-		);
+		const { user, input, onChange, firstLoad } = setupPendingFirstLoad("", {
+			getFilteredOptions: () =>
+				new Promise((resolve) => setTimeout(resolve, lookupMs, [docker])),
+		});
+		// Only advanceTimersByTimeAsync moves this clock, so render time cannot
+		// fire the lookup timeout early.
+		vi.useFakeTimers();
 		await user.click(input);
 		await user.type(input, "dock");
 		await settleTypedText();
@@ -513,16 +527,73 @@ describe("FilterCombobox", () => {
 		expect(onChange).not.toHaveBeenCalledWith("dock");
 	});
 
+	it("holds back text matching a hideable category whose first load fails", async () => {
+		const { user, input, onChange, firstLoad } = setupPendingFirstLoad("");
+		await user.click(input);
+		await user.type(input, "dock");
+		await settleTypedText();
+		await act(async () => firstLoad.reject(new Error("boom")));
+		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
+
+		expect(onChange).not.toHaveBeenCalledWith("dock");
+	});
+
+	it("holds back text matching a hideable category whose first load already failed", async () => {
+		const { user, input, onChange, firstLoad } = setupPendingFirstLoad("");
+		await act(async () => firstLoad.reject(new Error("boom")));
+		await user.click(input);
+		await user.type(input, "dock");
+		await settleTypedText();
+		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
+
+		expect(onChange).not.toHaveBeenCalledWith("dock");
+	});
+
+	it("searches text matching a hideable category whose Retry settles at one option", async () => {
+		const { user, input, filtersButton, onChange, firstLoad, retryLoad } =
+			setupPendingFirstLoad("", { skipHover: true });
+		await act(async () => firstLoad.reject(new Error("boom")));
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Template" }));
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		await user.click(input);
+		await user.type(input, "dock");
+		await settleTypedText();
+		await act(async () => retryLoad.resolve([docker]));
+		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
+
+		expect(onChange).toHaveBeenLastCalledWith("dock");
+	});
+
+	it("searches text matching a settled hideable category whose chip is removed during the lookup", async () => {
+		const kubernetes = Promise.withResolvers<FilterOption[]>();
+		const { user, input, onChange, firstLoad } = setupPendingFirstLoad(
+			"template:docker",
+			{ getFilteredOptions: () => kubernetes.promise },
+		);
+		await act(async () => firstLoad.resolve([docker]));
+		await user.click(input);
+		await user.type(input, "kub");
+		await settleTypedText();
+		await user.click(
+			screen.getByRole("button", { name: "Remove template:docker" }),
+		);
+		await act(async () =>
+			kubernetes.resolve([{ label: "Kubernetes", value: "kubernetes" }]),
+		);
+		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
+
+		expect(onChange).toHaveBeenLastCalledWith("kub");
+	});
+
 	it("holds back text matching an inline category that sets hideWhenSingleOption", async () => {
 		const { user, input, onChange, firstLoad } = setupPendingFirstLoad("", {
-			inlineOptions: true,
+			category: { inlineOptions: true },
 		});
 		await user.click(input);
 		await user.type(input, "dock");
 		await settleTypedText();
-		await act(async () =>
-			firstLoad.resolve([{ label: "Docker", value: "docker" }]),
-		);
+		await act(async () => firstLoad.resolve([docker]));
 		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
 
 		expect(onChange).not.toHaveBeenCalledWith("dock");
