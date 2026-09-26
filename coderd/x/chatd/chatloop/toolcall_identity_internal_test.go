@@ -120,9 +120,11 @@ func TestExecuteLocalToolsToolCallIdentity(t *testing.T) {
 		dbNow := time.Now()
 		clock := quartz.NewMock(t)
 		got := runBatch(t, ExecuteLocalToolsOptions{
-			ChatID:            chatID,
-			ToolCallMessageID: 42,
-			ToolCallAge:       chattool.NewToolCallAge(clock, dbNow, dbNow.Add(-time.Minute)),
+			ToolCallIdentity: chattool.ToolCallIdentity{
+				ChatID:    chatID,
+				MessageID: 42,
+				Age:       chattool.NewToolCallAge(clock, dbNow, dbNow.Add(-time.Minute)),
+			},
 		}, clock)
 
 		// The serial call starts after the clock advanced, and its age

@@ -119,3 +119,65 @@ func TestClassifyAgentError(t *testing.T) {
 		})
 	}
 }
+
+func TestAgentErrorText(t *testing.T) {
+	t.Parallel()
+
+	words := chattool.AgentErrorWords{
+		Action:          "start process",
+		Existing:        "a process for this tool call",
+		Effect:          "the command may have started",
+		Check:           "Check it.",
+		RestartedEffect: "the command may have run before the restart",
+		RestartedCheck:  "Check the workspace.",
+	}
+	refused := func(code workspacesdk.ToolCallErrorCode) error {
+		return xerrors.Errorf("start: %w", &workspacesdk.ToolCallError{Response: codersdk.Response{Message: "refused"}, Code: code})
+	}
+	unreachable := xerrors.Errorf("do request: %w", &url.Error{Op: "Post", URL: "http://agent", Err: io.ErrUnexpectedEOF})
+	unreadable := xerrors.New("decode response: unexpected EOF")
+	restarted := refused(workspacesdk.ToolCallErrorAgentStartedAfterToolCall)
+	mismatch := refused(workspacesdk.ToolCallErrorInputMismatch)
+	tests := []struct {
+		name     string
+		err      error
+		words    chattool.AgentErrorWords
+		wantText string
+		wantOK   bool
+	}{
+		{
+			name: "AgentRestarted", err: restarted, words: words, wantOK: true,
+			wantText: chattool.UnknownOutcome(chattool.AgentRestartedReason, words.RestartedEffect, words.RestartedCheck),
+		},
+		{
+			name: "AgentRestartedDefaultsToEffectAndCheck", err: restarted,
+			words:    chattool.AgentErrorWords{Effect: words.Effect, Check: words.Check},
+			wantText: chattool.UnknownOutcome(chattool.AgentRestartedReason, words.Effect, words.Check), wantOK: true,
+		},
+		{
+			name: "InputMismatch", err: mismatch, words: words, wantOK: true,
+			wantText: "start process: this request changed nothing because a process for this tool call " +
+				"already exists with a different input: " + mismatch.Error(),
+		},
+		{name: "Stale", err: refused(workspacesdk.ToolCallErrorStale), words: words},
+		{name: "Canceled", err: refused(workspacesdk.ToolCallErrorCanceled), words: words},
+		{name: "Response", err: codersdk.NewError(http.StatusNotFound, codersdk.Response{Message: "not found"}), words: words},
+		{
+			name: "Unreachable", err: unreachable, words: words, wantOK: true,
+			wantText: chattool.UnknownOutcome(chattool.AgentUnreachableReason(unreachable), words.Effect, words.Check),
+		},
+		{
+			name: "Unreadable", err: unreadable, words: words, wantOK: true,
+			wantText: chattool.UnknownOutcome(chattool.AgentUnreadableReason(unreadable), words.Effect, words.Check),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			text, ok := chattool.AgentErrorText(tt.err, tt.words)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.wantText, text)
+		})
+	}
+}

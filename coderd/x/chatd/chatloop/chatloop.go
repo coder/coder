@@ -154,13 +154,10 @@ type ExecuteLocalToolsOptions struct {
 	ModelProvider      string
 	ModelName          string
 
-	// ChatID, ToolCallMessageID, and ToolCallAge identify the tool
-	// calls to the tools that run them (chattool.ToolCallIdentity).
-	// ToolCallMessageID is the assistant message containing the calls.
-	// Tools see no identity when ChatID is unset.
-	ChatID            uuid.UUID
-	ToolCallMessageID int64
-	ToolCallAge       chattool.ToolCallAge
+	// ToolCallIdentity identifies the assistant message containing the
+	// tool calls; each call's context carries it with its own
+	// ToolCallID. Tools see no identity when its ChatID is unset.
+	ToolCallIdentity chattool.ToolCallIdentity
 
 	// ContextLimit is the model's context window in tokens. It is used
 	// to derive a per-result byte budget so a single oversized tool
@@ -562,7 +559,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		opts.ToolNameAliases,
 		batchStart,
 		opts.BillingRecorder,
-		toolCallBatch{chatID: opts.ChatID, messageID: opts.ToolCallMessageID, age: opts.ToolCallAge},
+		opts.ToolCallIdentity,
 	)
 	for _, execution := range toolExecutions {
 		tr := execution.content
@@ -1046,26 +1043,15 @@ type toolExecutionResult struct {
 	interval BilledInterval
 }
 
-// toolCallBatch identifies the assistant message whose tool calls a
-// batch runs.
-type toolCallBatch struct {
-	chatID    uuid.UUID
-	messageID int64
-	age       chattool.ToolCallAge
-}
-
-// toolCallContext returns the context for running one tool call of the
-// batch, carrying its chattool.ToolCallIdentity when the batch has one.
-func (b toolCallBatch) toolCallContext(ctx context.Context, toolCallID string) context.Context {
-	if b.chatID == uuid.Nil {
+// toolCallContext returns the context for running the tool call
+// toolCallID of a batch identified by batch, carrying its
+// chattool.ToolCallIdentity when the batch has one.
+func toolCallContext(ctx context.Context, batch chattool.ToolCallIdentity, toolCallID string) context.Context {
+	if batch.ChatID == uuid.Nil {
 		return ctx
 	}
-	return chattool.WithToolCallIdentity(ctx, chattool.ToolCallIdentity{
-		ChatID:     b.chatID,
-		MessageID:  b.messageID,
-		ToolCallID: toolCallID,
-		Age:        b.age,
-	})
+	batch.ToolCallID = toolCallID
+	return chattool.WithToolCallIdentity(ctx, batch)
 }
 
 // executeTools runs non-serial calls concurrently, then SerialToolCalls in
@@ -1088,7 +1074,7 @@ func executeTools(
 	toolNameAliases map[string]string,
 	batchStart time.Time,
 	recorder ToolBillingRecorder,
-	batch toolCallBatch,
+	batch chattool.ToolCallIdentity,
 ) []toolExecutionResult {
 	if len(toolCalls) == 0 {
 		return nil
@@ -1160,7 +1146,7 @@ func executeTools(
 			}
 		}()
 		executions[i].content = executeSingleTool(
-			batch.toolCallContext(ctx, tc.ToolCallID),
+			toolCallContext(ctx, batch, tc.ToolCallID),
 			toolMap,
 			tc,
 			metrics,

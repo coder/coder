@@ -36,9 +36,7 @@ func executeLocalToolBatch(ctx context.Context, t *testing.T, f *taskTestFixture
 	t.Helper()
 	chat, err := f.db.GetChatByID(ctx, batch.chat.ID)
 	require.NoError(t, err)
-	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
-	require.NoError(t, err)
-	decision, err := decideGenerationAction(generationDecisionInput{chat: chat, messages: messages})
+	decision, err := decideGenerationAction(generationDecisionInput{chat: chat, messages: chatMessages(ctx, t, f, chat.ID)})
 	require.NoError(t, err)
 	require.Equal(t, generationActionExecuteLocalTools, decision.kind)
 	activeTools := make([]string, 0, len(tools))
@@ -60,6 +58,25 @@ func executeLocalToolBatch(ctx context.Context, t *testing.T, f *taskTestFixture
 	}, decision)
 }
 
+// chatMessages returns the chat's committed messages.
+func chatMessages(ctx context.Context, t *testing.T, f *taskTestFixture, chatID uuid.UUID) []database.ChatMessage {
+	t.Helper()
+	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chatID})
+	require.NoError(t, err)
+	return messages
+}
+
+// latestAssistantMessage returns the chat's latest message, which must be
+// the assistant message interruptedBatchFixture committed.
+func latestAssistantMessage(ctx context.Context, t *testing.T, f *taskTestFixture, chatID uuid.UUID) database.ChatMessage {
+	t.Helper()
+	messages := chatMessages(ctx, t, f, chatID)
+	require.NotEmpty(t, messages)
+	assistant := messages[len(messages)-1]
+	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
+	return assistant
+}
+
 func TestExecuteLocalTools_ToolCallIdentity(t *testing.T) {
 	t.Parallel()
 
@@ -75,10 +92,7 @@ func TestExecuteLocalTools_ToolCallIdentity(t *testing.T) {
 		`UPDATE chat_messages SET created_at = created_at - interval '1 hour' WHERE chat_id = $1 AND role = 'assistant'`,
 		batch.chat.ID)
 	require.NoError(t, err)
-	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: batch.chat.ID})
-	require.NoError(t, err)
-	assistant := messages[len(messages)-1]
-	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
+	assistant := latestAssistantMessage(ctx, t, f, batch.chat.ID)
 
 	var (
 		identity chattool.ToolCallIdentity
@@ -126,10 +140,7 @@ func TestExecuteLocalTools_ExecuteTaskRetry(t *testing.T) {
 		Args:       json.RawMessage(`{"command":"make test","timeout":"10m"}`),
 	}})
 	ctx := testutil.Context(t, testutil.WaitLong)
-	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: batch.chat.ID})
-	require.NoError(t, err)
-	assistant := messages[len(messages)-1]
-	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
+	assistant := latestAssistantMessage(ctx, t, f, batch.chat.ID)
 	processID := workspacesdk.ToolCallUUID(batch.chat.ID, assistant.ID, callID).String()
 
 	ctrl := gomock.NewController(t)
@@ -181,8 +192,7 @@ func TestExecuteLocalTools_ExecuteTaskRetry(t *testing.T) {
 		},
 	})}
 
-	err = executeLocalToolBatch(firstAttemptCtx, t, f, batch, tools)
-	require.ErrorIs(t, err, context.Canceled)
+	require.ErrorIs(t, executeLocalToolBatch(firstAttemptCtx, t, f, batch, tools), context.Canceled)
 	runLocalToolBatch(t, f, batch, tools)
 
 	require.Len(t, toolCalls, 2)
@@ -192,9 +202,7 @@ func TestExecuteLocalTools_ExecuteTaskRetry(t *testing.T) {
 	assert.Equal(t, toolCalls[0].ID, toolCalls[1].ID)
 	assert.GreaterOrEqual(t, toolCalls[1].Age-toolCalls[0].Age, 7*time.Second)
 
-	messages, err = f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: batch.chat.ID})
-	require.NoError(t, err)
-	parts, err := chatprompt.ParseContent(findToolResultMessage(t, messages, callID))
+	parts, err := chatprompt.ParseContent(findToolResultMessage(t, chatMessages(ctx, t, f, batch.chat.ID), callID))
 	require.NoError(t, err)
 	require.Len(t, parts, 1)
 	var result chattool.ExecuteResult

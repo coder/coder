@@ -1,6 +1,7 @@
 package chattool
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -147,4 +148,47 @@ func AgentUnreadableReason(err error) string {
 // what may have happened, and check how the model can find out.
 func UnknownOutcome(reason, effect, check string) string {
 	return fmt.Sprintf("outcome unknown: %s, so %s. %s", reason, effect, check)
+}
+
+// AgentErrorWords are the words a tool uses in the results AgentErrorText
+// builds.
+type AgentErrorWords struct {
+	// Action names the request, as in "start process".
+	Action string
+	// Existing names what the agent recorded for the tool call, as in
+	// "a process for this tool call".
+	Existing string
+	// Effect says what may have happened when the outcome is unknown, as
+	// in "the command may have started".
+	Effect string
+	// Check tells the model how to find out, as in "Check it with
+	// process_output using process ID <UUID>."
+	Check string
+	// RestartedEffect and RestartedCheck replace Effect and Check after
+	// an agent_started_after_tool_call refusal. Empty means Effect or
+	// Check.
+	RestartedEffect, RestartedCheck string
+}
+
+// AgentErrorText returns the result text for err, returned by a workspace
+// agent request made for a tool call. ok is false when the tool reports
+// err as it does without a tool call identity: an HTTP error answer, or
+// a stale_tool_call or tool_call_canceled refusal, which only reaches an
+// attempt whose result is not committed.
+func AgentErrorText(err error, words AgentErrorWords) (text string, ok bool) {
+	kind, code := ClassifyAgentError(err)
+	switch {
+	case kind == AgentErrorRefused && code == workspacesdk.ToolCallErrorAgentStartedAfterToolCall:
+		return UnknownOutcome(AgentRestartedReason,
+			cmp.Or(words.RestartedEffect, words.Effect), cmp.Or(words.RestartedCheck, words.Check)), true
+	case kind == AgentErrorRefused && code == workspacesdk.ToolCallErrorInputMismatch:
+		return fmt.Sprintf("%s: this request changed nothing because %s already exists with a different input: %v",
+			words.Action, words.Existing, err), true
+	case kind == AgentErrorUnreachable:
+		return UnknownOutcome(AgentUnreachableReason(err), words.Effect, words.Check), true
+	case kind == AgentErrorUnreadable:
+		return UnknownOutcome(AgentUnreadableReason(err), words.Effect, words.Check), true
+	default:
+		return "", false
+	}
 }
