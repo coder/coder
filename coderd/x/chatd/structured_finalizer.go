@@ -20,6 +20,9 @@ import (
 // CheckFinalizerArguments.
 var finalizerPlaceholderArgs = json.RawMessage(`{}`)
 
+// finalizerArgumentMaxBytes is the finalizer envelope byte cap.
+const finalizerArgumentMaxBytes = 80 << 10
+
 // finalizerGate screens tool calls named chatstructured.FinalizerToolName
 // while the chat has an open structured output request. Such a call is
 // persisted with its original arguments only after they passed the envelope
@@ -34,10 +37,14 @@ type finalizerGate struct {
 	requestID uuid.UUID
 	governs   bool
 	err       error
+
+	mu sync.Mutex
+	// streamed counts buffered argument delta bytes per governing call.
+	streamed map[string]int
 }
 
 func newFinalizerGate(load func() (uuid.UUID, bool, error)) *finalizerGate {
-	return &finalizerGate{load: load}
+	return &finalizerGate{load: load, streamed: make(map[string]int)}
 }
 
 // openRequestGate reads the chat's history to decide whether finalizer calls
@@ -107,4 +114,30 @@ func (g *finalizerGate) screen(content []fantasy.Content, finish fantasy.FinishR
 		return nil, nil, nil, xerrors.Errorf("encode structured output rejection: %w", err)
 	}
 	return out, rejected, []codersdk.ChatMessagePart{control}, nil
+}
+
+// forward returns the part to buffer, or false to drop it. Argument deltas
+// of a governing finalizer call stop once their total passes the envelope
+// byte cap, and its complete part then carries the placeholder, so buffer
+// memory and pubsub stay bounded. Completion screening rejects the call as
+// too large. When history cannot be read the cap applies anyway, and
+// screening fails the step.
+func (g *finalizerGate) forward(part codersdk.ChatMessagePart) (codersdk.ChatMessagePart, bool) {
+	if !isFinalizerCallPart(part) {
+		return part, true
+	}
+	if _, governs, err := g.governing(); !governs && err == nil {
+		return part, true
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.streamed[part.ToolCallID] += len(part.ArgsDelta)
+	if g.streamed[part.ToolCallID] <= finalizerArgumentMaxBytes && len(part.Args) <= finalizerArgumentMaxBytes {
+		return part, true
+	}
+	if part.ArgsDelta != "" {
+		return part, false
+	}
+	part.Args = finalizerPlaceholderArgs
+	return part, true
 }

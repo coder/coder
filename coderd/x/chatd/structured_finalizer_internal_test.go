@@ -151,3 +151,80 @@ func TestInterruptPlaceholdersGoverningFinalizerArguments(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, unresolved)
 }
+
+func TestFinalizerStreamCap(t *testing.T) {
+	t.Parallel()
+	for _, governing := range []bool{true, false} {
+		t.Run(map[bool]string{true: "OpenRequest", false: "Ordinary"}[governing], func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			f := newTaskTestFixture(t)
+			initial := taskUserTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID)
+			if governing {
+				initial = structuredUserMessage(t, f, uuid.New())
+			}
+			chat, machine := createStructuredTestChat(t, f, initial)
+			workerID, runnerID := uuid.New(), uuid.New()
+			acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+			starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
+			attempt, err := starter.beginGenerationAttempt(ctx, machine, chatWorkerTaskStartInput{
+				ChatID: chat.ID, WorkerID: workerID, RunnerID: runnerID, HistoryVersion: acquired.HistoryVersion, Status: database.ChatStatusRunning,
+			})
+			require.NoError(t, err)
+			call := func(id, name, delta, args string) codersdk.ChatMessagePart {
+				part := codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: id, ToolName: name, ArgsDelta: delta}
+				if args != "" {
+					part.Args = json.RawMessage(args)
+				}
+				return part
+			}
+			// Three 30 KiB chunks pass the 80 KiB envelope cap on the third.
+			finalizerChunk, otherChunk := strings.Repeat("f", 30<<10), strings.Repeat("e", 30<<10)
+			for _, chunks := range [][2]string{{`{"output":"` + finalizerChunk, `{"output":"` + otherChunk}, {finalizerChunk, otherChunk}, {finalizerChunk, otherChunk}, {`"}`, `"}`}} {
+				attempt.publish(codersdk.ChatMessageRoleAssistant, call("c1", chatstructured.FinalizerToolName, chunks[0], ""))
+				attempt.publish(codersdk.ChatMessageRoleAssistant, call("x1", "execute", chunks[1], ""))
+			}
+			full := `{"output":"` + strings.Repeat(finalizerChunk, 3) + `"}`
+			attempt.publish(codersdk.ChatMessageRoleAssistant, call("c1", chatstructured.FinalizerToolName, "", full))
+
+			current, err := f.db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			buffered, err := starter.opts.MessagePartBuffer.GetParts(messagepartbuffer.Key{ChatID: chat.ID, HistoryVersion: current.HistoryVersion, GenerationAttempt: attempt.number})
+			require.NoError(t, err)
+			streamed := map[string]int{}
+			var final string
+			for _, p := range buffered {
+				streamed[p.MessagePart.ToolCallID] += len(p.MessagePart.ArgsDelta)
+				if p.MessagePart.ToolCallID == "c1" && p.MessagePart.ArgsDelta == "" {
+					final = string(p.MessagePart.Args)
+				}
+			}
+			require.Equal(t, len(full), streamed["x1"])
+			if !governing {
+				require.Equal(t, len(full), streamed["c1"])
+				require.Equal(t, full, final)
+				return
+			}
+			require.LessOrEqual(t, streamed["c1"], 80<<10)
+			require.Equal(t, "{}", final)
+
+			// An interrupt after the cap persists the placeholder only.
+			interrupting := f.forceExecutionState(t, chat.ID, database.ChatStatusInterrupting, false, sql.NullTime{})
+			require.NoError(t, starter.StartInterrupt(ctx, chatWorkerTaskStartInput{
+				ChatID: chat.ID, WorkerID: workerID, RunnerID: runnerID, HistoryVersion: interrupting.HistoryVersion,
+				GenerationAttempt: interrupting.GenerationAttempt, Status: database.ChatStatusInterrupting,
+			}))
+			history, _ := structuredHistory(t, f, chat.ID)
+			for _, msg := range history {
+				require.NotContains(t, string(msg.Content.RawMessage), finalizerChunk[:64])
+			}
+		})
+	}
+
+	// Parts of other tools never read history.
+	loads := 0
+	gate := newFinalizerGate(func() (uuid.UUID, bool, error) { loads++; return uuid.New(), true, nil })
+	_, ok := gate.forward(codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "x", ToolName: "execute", ArgsDelta: strings.Repeat("e", 90<<10)})
+	require.True(t, ok)
+	require.Zero(t, loads)
+}
