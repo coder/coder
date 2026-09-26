@@ -24,3 +24,12 @@ func procSysProcAttr() *syscall.SysProcAttr {
 func signalProcess(p *os.Process, sig syscall.Signal) error {
 	return syscall.Kill(-p.Pid, sig)
 }
+
+// terminatedByKill reports whether the process ended because of SIGKILL.
+func terminatedByKill(state *os.ProcessState) bool {
+	if state == nil {
+		return false
+	}
+	status, ok := state.Sys().(syscall.WaitStatus)
+	return ok && status.Signaled() && status.Signal() == syscall.SIGKILL
+}

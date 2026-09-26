@@ -18,3 +18,10 @@ func procSysProcAttr() *syscall.SysProcAttr {
 func signalProcess(p *os.Process, _ syscall.Signal) error {
 	return p.Kill()
 }
+
+// terminatedByKill reports true because Windows exit status does not
+// record what ended the process, so a successful kill is taken as the
+// cause.
+func terminatedByKill(*os.ProcessState) bool {
+	return true
+}

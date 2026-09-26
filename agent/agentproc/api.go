@@ -17,10 +17,12 @@ import (
 	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agenttoolcall"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -35,14 +37,47 @@ type API struct {
 	logger    slog.Logger
 	manager   *manager
 	pathStore *agentgit.PathStore
+	// toolCalls runs the start route at most once per tool call. Nil
+	// leaves tool call headers unhandled.
+	toolCalls *agenttoolcall.Store
+}
+
+// Option configures an API.
+type Option func(*apiOptions)
+
+type apiOptions struct {
+	clock     quartz.Clock
+	toolCalls *agenttoolcall.Store
+}
+
+// WithClock sets the clock used for process timestamps and run age.
+func WithClock(clock quartz.Clock) Option {
+	return func(o *apiOptions) {
+		o.clock = clock
+	}
+}
+
+// WithToolCallStore runs the start route through store.Middleware, so a
+// start with tool call headers runs at most once and its process ID is the
+// tool call UUID. The store's records also keep exited tool call
+// processes from being reaped while they are current.
+func WithToolCallStore(store *agenttoolcall.Store) Option {
+	return func(o *apiOptions) {
+		o.toolCalls = store
+	}
 }
 
 // NewAPI creates a new process API handler.
-func NewAPI(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, pathStore *agentgit.PathStore, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *API {
+func NewAPI(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, pathStore *agentgit.PathStore, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string, opts ...Option) *API {
+	options := apiOptions{clock: quartz.NewReal()}
+	for _, opt := range opts {
+		opt(&options)
+	}
 	return &API{
 		logger:    logger,
-		manager:   newManager(logger, execer, fs, envInfo, updateEnv, workingDir),
+		manager:   newManager(logger, execer, fs, envInfo, updateEnv, workingDir, options.clock, options.toolCalls),
 		pathStore: pathStore,
+		toolCalls: options.toolCalls,
 	}
 }
 
@@ -55,7 +90,11 @@ func (api *API) Close() error {
 // Routes returns the HTTP handler for process-related routes.
 func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
-	r.Post("/start", api.handleStartProcess)
+	if api.toolCalls != nil {
+		r.With(api.toolCalls.Middleware).Post("/start", api.handleStartProcess)
+	} else {
+		r.Post("/start", api.handleStartProcess)
+	}
 	r.Get("/list", api.handleListProcesses)
 	r.Get("/{id}/output", api.handleProcessOutput)
 	r.Post("/{id}/signal", api.handleSignalProcess)
@@ -87,7 +126,16 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 		chatID = chatContext.ID.String()
 	}
 
-	proc, err := api.manager.start(req, chatID)
+	// Behind the tool call middleware, the process ID is the tool call
+	// UUID, so chatd can address the process without this response.
+	id := uuid.New().String()
+	var key *agenttoolcall.Key
+	if toolCall, ok := agenttoolcall.FromContext(ctx); ok {
+		id = toolCall.UUID.String()
+		key = &toolCall.Key
+	}
+
+	proc, err := api.manager.start(req, chatID, id, key)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to start process.",
@@ -288,4 +336,21 @@ func (api *API) handleSignalProcess(rw http.ResponseWriter, r *http.Request) {
 			"Signal %q sent to process %q.", req.Signal, id,
 		),
 	})
+}
+
+// StopToolCallProcess implements agenttoolcall.ProcessStopper for the
+// cancel route. It kills the process if it is running with a run age below
+// stopIfRunAgeBelow, waits for it to exit, and returns its state. A process
+// at or above that age, such as a foreground command past its execute
+// deadline or a background process, keeps running. found is false when no
+// process has processID.
+func (api *API) StopToolCallProcess(ctx context.Context, processID string, stopIfRunAgeBelow time.Duration) (state workspacesdk.ToolCallProcess, found bool, err error) {
+	proc, ok := api.manager.get(processID)
+	if !ok {
+		return workspacesdk.ToolCallProcess{}, false, nil
+	}
+	if err := api.manager.stop(ctx, proc, stopIfRunAgeBelow); err != nil {
+		return workspacesdk.ToolCallProcess{}, true, err
+	}
+	return api.manager.toolCallProcessState(proc), true, nil
 }
