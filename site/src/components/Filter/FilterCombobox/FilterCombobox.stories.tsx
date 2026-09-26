@@ -996,31 +996,57 @@ export const CategoryOptionsErrorRetry: Story = {
 	},
 };
 
-// An inline category has no flyout, so its failed load shows under its heading.
+// Status fails only its unfiltered load, so typed text still lists its rows.
+const categoriesWithFailedStatus: FilterCategory[] =
+	categoriesWithAttributes.map((category) =>
+		category.key === "status"
+			? {
+					...category,
+					getOptions: async (query) => {
+						if (query === "") {
+							throw new Error("boom");
+						}
+						return filterOptions(statusOptions, query);
+					},
+				}
+			: category,
+	);
+
+// An inline category has no flyout, so its failed load shows under its
+// heading, in category order.
 export const InlineOptionsError: Story = {
 	render: () => (
 		<FilterComboboxHarness
 			initialQuery=""
-			categories={[
-				{
-					key: "status",
-					label: "Status",
-					inlineOptions: true,
-					getOptions: async () => {
-						throw new Error("boom");
-					},
-				},
-			]}
+			categories={categoriesWithFailedStatus}
 		/>
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
-		await waitFor(() =>
-			expect(body.getByText(/Couldn.t load Status options/)).toBeVisible(),
-		);
-		await expect(body.getByText("Status is…")).toBeVisible();
+		await body.findByText(/Couldn.t load Status options\./);
+	},
+};
+
+// Typed text replaces the failed unfiltered rows with the typeahead's rows.
+export const InlineOptionsErrorWithTypedText: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={categoriesWithFailedStatus}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await body.findByText(/Couldn.t load Status options\./);
+		await userEvent.type(input, "ru");
+		await body.findByRole("option", { name: /Running/ });
 	},
 };
 

@@ -1726,26 +1726,58 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it("retries an inline category whose options failed to load", async () => {
-		let failed = false;
-		const getOptions = vi.fn(async (query: string) => {
-			if (!failed) {
-				failed = true;
+	const setupFailedInlineStatus = () => {
+		const retry = Promise.withResolvers<undefined>();
+		let calls = 0;
+		const getOptions = async (query: string) => {
+			calls += 1;
+			if (calls === 1) {
 				throw new Error("boom");
 			}
+			await retry.promise;
 			return statusCategory.getOptions(query);
-		});
-		const { user, onChange, filtersButton } = setup([
-			{ ...statusCategory, getOptions },
-		]);
+		};
+		return { ...setup([{ ...statusCategory, getOptions }]), retry };
+	};
+
+	it("announces a failed inline category and retries it from the keyboard", async () => {
+		const { user, onChange, filtersButton, retry } = setupFailedInlineStatus();
 
 		await user.click(filtersButton);
 		await screen.findByText("Couldn’t load Status options.");
-		await user.click(screen.getByRole("button", { name: "Retry" }));
+		expect(screen.getByRole("status")).toHaveTextContent(
+			"Couldn't load Status options",
+		);
+		await user.keyboard("{End}");
+		expect(screen.getByRole("option", { name: "Retry" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(
+				screen.queryByText("Couldn’t load Status options."),
+			).not.toBeInTheDocument(),
+		);
+		expect(screen.getByText("Status is…")).toBeInTheDocument();
+		await act(async () => retry.resolve(undefined));
 		await user.click(await screen.findByRole("option", { name: "Running" }));
 
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("status:running"),
+		);
+	});
+
+	it("announces a failed inline category after its typed prefix", async () => {
+		const { user, input } = setupFailedInlineStatus();
+
+		await user.click(input);
+		await user.type(input, "status:");
+
+		await screen.findByText("Couldn’t load Status options.");
+		expect(screen.getByRole("status")).toHaveTextContent(
+			"Couldn't load Status options",
 		);
 	});
 
