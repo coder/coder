@@ -196,11 +196,6 @@ type interruptionOutcome struct {
 // and waiting for the agent's answer reports the real outcome.
 const interruptCancelTimeout = time.Minute
 
-// executeDefaultTimeout is how long a foreground execute call waits when
-// the model sets no timeout. Interrupt handling derives execute
-// deadlines from it, so the tool and interrupt handling both use it.
-const executeDefaultTimeout = 10 * time.Second
-
 type taskStarter struct {
 	server                   *Server
 	opts                     chatWorkerOptions
@@ -773,9 +768,12 @@ func (s *taskStarter) interruptExecuteCalls(
 		// execute tool.
 		if !errors.Is(err, chattool.ErrWorkspaceHasNoAgent) && !errors.Is(err, chattool.ErrWorkspaceDeleted) {
 			for i, identity := range identities {
-				if !calls[i].background {
-					results[i], answered[i] = chattool.AgentUnreachableExecuteResult(identity, err), true
+				if calls[i].background {
+					results[i] = chattool.AgentUnreachableBackgroundExecuteResult(identity, err)
+				} else {
+					results[i] = chattool.AgentUnreachableExecuteResult(identity, err)
 				}
+				answered[i] = true
 			}
 		}
 	} else {
@@ -862,7 +860,7 @@ func classifyExecuteCall(call fantasy.ToolCallContent) (interruptedExecuteCall, 
 	if args.RunsInBackground() {
 		return interruptedExecuteCall{toolCallID: call.ToolCallID, background: true}, true
 	}
-	timeout, err := args.EffectiveTimeout(executeDefaultTimeout)
+	timeout, err := args.EffectiveTimeout(chattool.ExecuteDefaultTimeout)
 	if err != nil {
 		return interruptedExecuteCall{}, false
 	}
