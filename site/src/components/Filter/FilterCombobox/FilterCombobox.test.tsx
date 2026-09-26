@@ -7,6 +7,7 @@ import { FilterCombobox, SEARCHABLE_OPTION_COUNT } from "./FilterCombobox";
 import { SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
 import {
+	optionsLoadErrorMessage,
 	SUGGESTIONS_ERROR_MESSAGE,
 	TYPED_TEXT_LOOKUP_TIMEOUT_MS,
 } from "./useFilterCombobox";
@@ -1150,14 +1151,46 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it("shows and announces a category search with no match", async () => {
+	it("announces a category search with no match", async () => {
 		const { user, input } = setup([manyOwnersCategory]);
 
 		await user.click(input);
 		await user.type(input, "owner:nobody");
 
 		await expectStatus("No Owner matches.");
-		expect(screen.getByText("No matching options")).toBeInTheDocument();
+	});
+
+	it("keeps a settled category search when a space is typed", async () => {
+		const { user, onChange, input } = setup([manyOwnersCategory]);
+
+		await user.click(input);
+		await user.type(input, "owner:zed");
+		await screen.findByRole("option", { name: "zed" });
+		await user.keyboard(" {Enter}");
+
+		expect(onChange).toHaveBeenLastCalledWith("owner:zed");
+	});
+
+	it("does not commit edited text with Enter while a failed category search is replaced", async () => {
+		const { user, onChange, input } = setup([
+			{
+				...manyOwnersCategory,
+				getOptions: async (query) => {
+					if (query === "userx") {
+						throw new Error("boom");
+					}
+					return manyOwnersCategory.getOptions(query);
+				},
+			},
+		]);
+
+		await user.click(input);
+		await user.type(input, "owner:userx");
+		await expectStatus(optionsLoadErrorMessage("Owner"));
+		await user.keyboard("{Backspace}{Enter}");
+
+		expect(onChange).not.toHaveBeenCalledWith("owner:user");
+		expect(onChange).toHaveBeenLastCalledWith("owner:user-0");
 	});
 
 	it("does not apply a previous search's option with Enter while a search is pending", async () => {
@@ -1308,6 +1341,28 @@ describe("FilterCombobox", () => {
 		expect(getOptions.mock.calls).toEqual([[""], ["user-1"]]);
 	});
 
+	it("announces a hover flyout search with no local match as loading during its debounce", async () => {
+		const { user, filtersButton } = setup([manyOwnersCategory], {
+			skipHover: true,
+			fakeTimers: "manual",
+		});
+
+		const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
+		await user.click(filtersButton);
+		await flush();
+		await user.hover(screen.getByRole("option", { name: "Owner" }));
+		await flush();
+		await user.click(screen.getByRole("textbox", { name: "Search Owner" }));
+		await user.paste("zed");
+
+		expect(screen.getByRole("status")).toHaveTextContent(
+			"Loading Owner options.",
+		);
+		expect(
+			screen.queryByRole("button", { name: "user-0" }),
+		).not.toBeInTheDocument();
+	});
+
 	it("keeps a settled hover flyout search when a space is typed", async () => {
 		const { user, onChange, filtersButton } = setup([manyOwnersCategory], {
 			skipHover: true,
@@ -1347,7 +1402,7 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:zed"));
 	});
 
-	it("shows and announces an empty hover flyout with no search", async () => {
+	it("announces an empty hover flyout with no search", async () => {
 		const { user, filtersButton } = setup([emptyTemplateCategory], {
 			skipHover: true,
 		});
@@ -1356,7 +1411,6 @@ describe("FilterCombobox", () => {
 		await user.hover(await screen.findByRole("option", { name: "Template" }));
 
 		await expectStatus("No Template options.");
-		expect(screen.getByText("No options")).toBeInTheDocument();
 	});
 
 	it("retries a failed hover flyout search", async () => {

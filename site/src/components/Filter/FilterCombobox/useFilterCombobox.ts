@@ -182,33 +182,34 @@ export const optionsEmptyText = (searched: boolean) =>
 	searched ? "No matching options" : "No options";
 
 /**
- * Rows an options panel shows for typed text. `getOptions` may return only
- * the first page for an empty query, so the unfiltered list is filtered
- * locally until `results` for the current text arrive. A search that is
- * still running with no local match counts as loading.
+ * Rows an options panel shows for trimmed `text`, given the category's
+ * unfiltered options and `results`, which are `getOptions(text)`'s results
+ * or undefined until they arrive. `getOptions` may return only the first page
+ * for an empty query, so until then the unfiltered options are filtered
+ * locally. `loading` is set while there is nothing to show, or while `text`
+ * has no results and no local match, unless `failed` is set.
  */
 export const shownOptions = ({
 	unfiltered,
 	results,
 	text,
-	resultsCurrent,
+	failed,
 }: {
 	unfiltered: readonly FilterOption[] | undefined;
 	results: readonly FilterOption[] | undefined;
 	text: string;
-	resultsCurrent: boolean;
+	failed: boolean;
 }) => {
-	const searched = text.trim().length > 0;
+	const searched = text.length > 0;
 	const options = !searched
-		? (unfiltered ?? (resultsCurrent ? results : undefined))
-		: resultsCurrent && results
-			? results
-			: unfiltered && filterOptionsByText(unfiltered, text);
+		? (unfiltered ?? results)
+		: (results ?? (unfiltered && filterOptionsByText(unfiltered, text)));
 	return {
 		options,
 		loading:
-			options === undefined ||
-			(searched && !resultsCurrent && options.length === 0),
+			!failed &&
+			(options === undefined ||
+				(searched && results === undefined && options.length === 0)),
 	};
 };
 
@@ -484,26 +485,29 @@ export const useFilterCombobox = ({
 		),
 	);
 
+	// The query still holds the previous text while a search is pending, so
+	// its results and failure count only once the text settles. Until then
+	// the panel shows the unfiltered options filtered by the typed text, so
+	// Enter picks only a row that matches it.
 	const activeOptionsError =
-		activeCategoryKey !== null && activeOptionsQuery.isError;
-	// Rows from the previous query stay out while a search is pending, so
-	// Enter never picks one.
+		activeCategoryKey !== null &&
+		!activeOptionsPending &&
+		activeOptionsQuery.isError;
 	const activeShown = shownOptions({
 		unfiltered:
 			activeCategoryKey === null
 				? undefined
 				: unfilteredOptions.optionsByKey.get(activeCategoryKey),
-		results: activeOptionsQuery.data,
+		results: activeOptionsPending ? undefined : activeOptionsQuery.data,
 		text: activeOptionsQuerySource,
-		resultsCurrent:
-			!activeOptionsPending && activeOptionsQuery.data !== undefined,
+		failed: activeOptionsError,
 	});
 	const activeOptions =
 		activeCategoryKey === null || activeOptionsError
 			? undefined
 			: activeShown.options;
 	const activeOptionsLoading =
-		activeCategoryKey !== null && !activeOptionsError && activeShown.loading;
+		activeCategoryKey !== null && activeShown.loading;
 	const retryActiveOptions = () => {
 		void activeOptionsQuery.refetch();
 	};
@@ -567,25 +571,24 @@ export const useFilterCombobox = ({
 		},
 	});
 
-	// Until a category's results for the typed text arrive, its unfiltered
-	// options are filtered locally so matching rows stay visible. A category
-	// whose query failed shows no rows; the retry row replaces them.
-	const typeaheadOptionsByKey = new Map<string, readonly FilterOption[]>(
-		typeaheadQuerySource.length === 0 || typeaheadQueryPending
-			? []
-			: suggestionOptions.optionsByKey,
-	);
+	// A category whose query failed shows no rows; the retry row replaces
+	// them.
+	const typeaheadOptionsByKey = new Map<string, readonly FilterOption[]>();
 	if (typeaheadQuerySource.length > 0) {
-		for (const [key, options] of unfilteredOptions.optionsByKey) {
-			const settled =
-				!typeaheadQueryPending &&
-				(typeaheadOptionsByKey.has(key) ||
-					suggestionOptions.erroredKeys.has(key));
-			if (!settled) {
-				typeaheadOptionsByKey.set(
-					key,
-					filterOptionsByText(options, typeaheadQuerySource),
-				);
+		for (const { key } of categories) {
+			if (!typeaheadQueryPending && suggestionOptions.erroredKeys.has(key)) {
+				continue;
+			}
+			const { options } = shownOptions({
+				unfiltered: unfilteredOptions.optionsByKey.get(key),
+				results: typeaheadQueryPending
+					? undefined
+					: suggestionOptions.optionsByKey.get(key),
+				text: typeaheadQuerySource,
+				failed: false,
+			});
+			if (options) {
+				typeaheadOptionsByKey.set(key, options);
 			}
 		}
 	}
@@ -708,13 +711,14 @@ export const useFilterCombobox = ({
 		!activeOptionsError &&
 		activeOptions !== undefined &&
 		activeOptions.length === 0;
+	const activeOptionsSearched = activeOptionsQuerySource.length > 0;
 
 	const statusMessage = deriveStatusMessage({
 		activeCategoryLabel: activeCategory?.label,
 		activeOptionsLoading,
 		activeOptionsError,
 		activeOptionsEmpty,
-		activeOptionsSearched: activeOptionsQuerySource.trim().length > 0,
+		activeOptionsSearched,
 		typeaheadLoading,
 		typeaheadError,
 		inlineLoadMessages,
@@ -1207,6 +1211,9 @@ export const useFilterCombobox = ({
 		activeOptions,
 		activeOptionsLoading,
 		activeOptionsError,
+		activeOptionsEmptyText: activeOptionsEmpty
+			? optionsEmptyText(activeOptionsSearched)
+			: undefined,
 		statusMessage,
 		listedCategories,
 		categoriesNarrowedByText: categoryQuery.length > 0,
