@@ -806,14 +806,7 @@ func (s *taskStarter) generateAssistant(
 			return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 		}
 	}
-	admitted := content
-	if len(rejected) > 0 {
-		admitted = slices.DeleteFunc(slices.Clone(content), func(block fantasy.Content) bool {
-			call, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
-			return ok && rejected[call.ToolCallID]
-		})
-	}
-	preflight, err := s.admitStepToolCalls(ctx, input, prepared, admitted)
+	preflight, err := s.admitStepToolCalls(ctx, input, prepared, content, rejected)
 	if err != nil {
 		return err
 	}
@@ -854,14 +847,12 @@ func (s *taskStarter) admitStepToolCalls(
 	input chatWorkerTaskStartInput,
 	prepared generationPrepared,
 	content []fantasy.Content,
+	rejected map[string]bool,
 ) (chathooks.PreToolUseExecutionResult, error) {
 	if !s.server.hooks.Enabled() {
 		return chathooks.PreToolUseExecutionResult{}, nil
 	}
 	toolCalls := chathooks.PendingToolCalls(content)
-	if len(toolCalls) == 0 || exclusiveBatchRejected(toolCalls, prepared.ExclusiveToolNames) {
-		return chathooks.PreToolUseExecutionResult{}, nil
-	}
 	// An admission error discards the whole batch before it can be
 	// committed, so its find_tools calls would otherwise never reach
 	// the executeLocalTools counter; count them at each error exit.
@@ -874,6 +865,21 @@ func (s *taskStarter) admitStepToolCalls(
 				s.server.metrics.FindToolsCallsTotal.Inc()
 			}
 		}
+	}
+	// Rejected finalizer calls are resolved in this commit and never
+	// admitted, but they still occupy their IDs in the step: check the
+	// screened batch before dropping them.
+	if len(rejected) > 0 {
+		if err := chathooks.RejectDuplicateToolUseIDs(toolCalls); err != nil {
+			countBatch()
+			return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
+		}
+		toolCalls = slices.DeleteFunc(toolCalls, func(call fantasy.ToolCallContent) bool {
+			return rejected[call.ToolCallID]
+		})
+	}
+	if len(toolCalls) == 0 || exclusiveBatchRejected(toolCalls, prepared.ExclusiveToolNames) {
+		return chathooks.PreToolUseExecutionResult{}, nil
 	}
 	// Check the full batch first: a call removed below still occupies its ID
 	// in the step, so filtering before this would hide the collision.
