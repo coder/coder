@@ -2,14 +2,19 @@ package chattool_test
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
@@ -87,4 +92,30 @@ func TestToolCallIdentityAgentRequests(t *testing.T) {
 	// Each request measures the age when it is built.
 	clock.Advance(3 * time.Second)
 	assert.Equal(t, workspacesdk.ToolCall{MessageID: 42, ID: id.ToolCallID, Age: time.Minute + 3*time.Second}, id.AgentToolCall())
+}
+
+func TestClassifyAgentError(t *testing.T) {
+	t.Parallel()
+
+	refused := &workspacesdk.ToolCallError{Code: workspacesdk.ToolCallErrorInputMismatch}
+	tests := []struct {
+		name     string
+		err      error
+		wantKind chattool.AgentErrorKind
+		wantCode workspacesdk.ToolCallErrorCode
+	}{
+		{name: "Refused", err: xerrors.Errorf("start: %w", refused), wantKind: chattool.AgentErrorRefused, wantCode: workspacesdk.ToolCallErrorInputMismatch},
+		{name: "Response", err: xerrors.Errorf("start: %w", codersdk.NewError(http.StatusNotFound, codersdk.Response{Message: "not found"})), wantKind: chattool.AgentErrorResponse},
+		{name: "Unreachable", err: xerrors.Errorf("do request: %w", &url.Error{Op: "Post", URL: "http://agent/api/v0/processes/start", Err: io.ErrUnexpectedEOF}), wantKind: chattool.AgentErrorUnreachable},
+		{name: "Unreadable", err: xerrors.New("decode response: unexpected EOF"), wantKind: chattool.AgentErrorUnreadable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			kind, code := chattool.ClassifyAgentError(tt.err)
+			assert.Equal(t, tt.wantKind, kind)
+			assert.Equal(t, tt.wantCode, code)
+		})
+	}
 }
