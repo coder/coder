@@ -74,7 +74,8 @@ export const SelectStatusOption: Story = {
 	},
 };
 
-// The default `user:me` renders as an `owner:me` chip with the scope pill, not as free text.
+// The default `user:me` renders as an `owner:me` chip with the scope pill, not
+// as free text.
 export const OrdinaryUserGetsOwnerChip: Story = {
 	args: { initialQuery: "user:me" },
 	parameters: { permissions: MockNoPermissions },
@@ -104,10 +105,9 @@ export const WithFilterError: Story = {
 	},
 };
 
-// Owner and User each offer only the current user, and stay in the menu
-// because they do not set hideWhenSingleOption. Template has one option, so it
-// is hidden.
-export const OrdinaryUserSeesOwnerAndUser: Story = {
+// Owner offers only the current user and stays in the menu because it does not
+// set hideWhenSingleOption. Template has one option, so it is hidden.
+export const OrdinaryUserSeesOwner: Story = {
 	args: { initialQuery: "" },
 	parameters: {
 		permissions: MockNoPermissions,
