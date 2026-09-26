@@ -167,6 +167,7 @@ export const StartingShowsThinkingActivity: Story = {
 	},
 };
 
+/** Response text that is still arriving is its own activity cue. */
 export const ResponseDoesNotRenderActivitySlot: Story = {
 	args: responseStreamState,
 };

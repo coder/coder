@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { PauseIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { Shimmer } from "../ChatElements/Shimmer";
 import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ChatStatusCallout } from "./ChatStatusCallout";
@@ -45,6 +45,32 @@ export const AssistantOutput: FC<AssistantOutputProps> = ({
 		liveStatus?.phase === "retrying" || liveStatus?.phase === "reconnecting"
 			? liveStatus
 			: undefined;
+	const showsActivity =
+		liveStatus !== undefined &&
+		(liveStatus.phase === "interrupting" ||
+			shouldShowGenericThinking({ liveStatus, blocks, tools }));
+
+	// Once the activity row has shown under streaming response text, keep its
+	// height while that response stays last. Removing it when text resumes
+	// shrinks the live row, and the anchored transcript jumps for a frame.
+	const canHoldActivityRow =
+		liveStatus?.phase === "streaming" && blocks.at(-1)?.type === "response";
+	const [holdsActivityRow, setHoldsActivityRow] = useState(false);
+	if (showsActivity && canHoldActivityRow && !holdsActivityRow) {
+		setHoldsActivityRow(true);
+	}
+	if (holdsActivityRow && !canHoldActivityRow) {
+		setHoldsActivityRow(false);
+	}
+
+	let activityRow: ReactNode = null;
+	if (showsActivity) {
+		activityRow = (
+			<LiveActivitySlot interrupting={liveStatus?.phase === "interrupting"} />
+		);
+	} else if (holdsActivityRow) {
+		activityRow = <div aria-hidden className="h-6" />;
+	}
 
 	return (
 		<div
@@ -60,13 +86,7 @@ export const AssistantOutput: FC<AssistantOutputProps> = ({
 		>
 			<BlockList {...blockProps} />
 			{callout && <ChatStatusCallout status={callout} />}
-			{liveStatus &&
-				(liveStatus.phase === "interrupting" ||
-					shouldShowGenericThinking({ liveStatus, blocks, tools })) && (
-					<LiveActivitySlot
-						interrupting={liveStatus.phase === "interrupting"}
-					/>
-				)}
+			{activityRow}
 		</div>
 	);
 };

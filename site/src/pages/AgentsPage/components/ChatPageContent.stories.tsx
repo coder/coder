@@ -33,7 +33,8 @@ import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 // These stories cover transcript rendering, so history paging stays idle.
 const StoryChatPageTimeline: FC<{
 	store: ReturnType<typeof createChatStore>;
-}> = ({ store }) => (
+	recentStreamOutputMs?: number;
+}> = ({ store, recentStreamOutputMs }) => (
 	<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 		<ChatPageTimeline
 			organizationId="organization-id"
@@ -44,6 +45,7 @@ const StoryChatPageTimeline: FC<{
 			isHydratingMessages={false}
 			hasFetchMoreError={false}
 			onFetchMoreMessages={async () => {}}
+			recentStreamOutputMs={recentStreamOutputMs}
 		/>
 	</MessageScroller.Provider>
 );
@@ -322,6 +324,71 @@ export const ErrorClearsStreamingTool: Story = {
 				message: "The chat session ended unexpectedly.",
 			});
 			errorClearsStreamStore.clearStreamState();
+		});
+	},
+};
+
+// Module scope so the play function can stream into the rendered store. The
+// part arrives after mount, so the capture waits out the real quiet window.
+const quietStreamStore = createChatStore();
+export const QuietStreamShowsThinking: Story = {
+	render: () => {
+		quietStreamStore.resetTransientState();
+		quietStreamStore.replaceMessages([
+			buildMessage(1, "user", [
+				{ type: "text", text: "Send the agent a detailed prompt" },
+			]),
+		]);
+		quietStreamStore.setChatStatus("waiting");
+
+		return <StoryChatPageTimeline store={quietStreamStore} />;
+	},
+	play: async ({ canvasElement }) => {
+		// One batch starts the turn with its first part, so the starting phase's
+		// own Thinking row never renders and cannot satisfy the wait early.
+		quietStreamStore.batch(() => {
+			quietStreamStore.setChatStatus("running");
+			quietStreamStore.applyMessagePart({
+				type: "text",
+				text: "Sure, let me write it up.",
+			});
+		});
+		await within(canvasElement).findByTestId("live-activity-slot", undefined, {
+			timeout: 5_000,
+		});
+	},
+};
+
+// A stream already present at mount counts as quiet, so Thinking shows at once.
+// The next part hides it, and the long window keeps Thinking from returning
+// before the capture, which shows the space held where it was.
+const resumedStreamStore = createChatStore();
+export const ResumedStreamKeepsThinkingSpace: Story = {
+	render: () => {
+		resumedStreamStore.resetTransientState();
+		resumedStreamStore.replaceMessages([
+			buildMessage(1, "user", [
+				{ type: "text", text: "Send the agent a detailed prompt" },
+			]),
+		]);
+		resumedStreamStore.setChatStatus("running");
+		resumedStreamStore.applyMessagePart({
+			type: "text",
+			text: "Sure, let me write it up.",
+		});
+
+		return (
+			<StoryChatPageTimeline
+				store={resumedStreamStore}
+				recentStreamOutputMs={60_000}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByTestId("live-activity-slot");
+		resumedStreamStore.applyMessagePart({
+			type: "text",
+			text: " Here is the plan.",
 		});
 	},
 };

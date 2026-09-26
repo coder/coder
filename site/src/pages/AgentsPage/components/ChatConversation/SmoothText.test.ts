@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SmoothTextEngine, STREAM_SMOOTHING } from "./SmoothText";
 
 function makeText(length: number): string {
@@ -63,6 +63,17 @@ describe("SmoothTextEngine", () => {
 		engine.update(makeText(420), true, false);
 
 		expect(420 - engine.visibleLength).toBeLessThanOrEqual(
+			STREAM_SMOOTHING.MAX_VISUAL_LAG_CHARS,
+		);
+
+		// An engine created with text already present starts at the same cap,
+		// so a component that creates it during render paints that prefix.
+		const created = new SmoothTextEngine({
+			fullText: makeText(420),
+			isStreaming: true,
+			bypassSmoothing: false,
+		});
+		expect(420 - created.visibleLength).toBeLessThanOrEqual(
 			STREAM_SMOOTHING.MAX_VISUAL_LAG_CHARS,
 		);
 	});
@@ -148,5 +159,33 @@ describe("SmoothTextEngine", () => {
 		// Over 1 second of wall time, both refresh rates should reveal
 		// approximately the same number of characters.
 		expect(Math.abs(at60Hz - at240Hz)).toBeLessThanOrEqual(2);
+	});
+
+	it("pauses the reveal on stop and resumes it on start", () => {
+		vi.useFakeTimers({
+			toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+		});
+		try {
+			const fullText = "Hello, world.";
+			const engine = new SmoothTextEngine({
+				fullText,
+				isStreaming: true,
+				bypassSmoothing: false,
+			});
+
+			// `update` and `start` can both run before `stop`, so a second start
+			// must not leave a loop running that `stop` cannot cancel.
+			engine.update(fullText, true, false);
+			engine.start();
+			engine.stop();
+			vi.advanceTimersByTime(1_000);
+			expect(engine.visibleLength).toBe(0);
+
+			engine.start();
+			vi.advanceTimersByTime(1_000);
+			expect(engine.visibleLength).toBe(fullText.length);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

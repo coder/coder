@@ -10,6 +10,7 @@ import {
 } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
@@ -68,6 +69,11 @@ import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
+// Pauses shorter than this read as part of one continuous stream. Once output
+// has been quiet this long, streamed text alone no longer shows that the turn
+// is progressing.
+const RECENT_STREAM_OUTPUT_MS = 1_000;
+
 const isChatMessage = (
 	message: TypesGen.ChatMessage | undefined,
 ): message is TypesGen.ChatMessage => Boolean(message);
@@ -121,6 +127,11 @@ type ChatPageTimelineProps = {
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	footer?: ReactNode;
+	/**
+	 * How long a stream part keeps counting as recent output. Stories pass a
+	 * longer window so a capture can hold the state after text resumes.
+	 */
+	recentStreamOutputMs?: number;
 };
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
@@ -141,6 +152,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	urlTransform,
 	mcpServers,
 	footer,
+	recentStreamOutputMs = RECENT_STREAM_OUTPUT_MS,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
@@ -152,6 +164,13 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		selectIsAwaitingFirstStreamChunk,
 	);
 	const streamState = useChatSelector(store, selectStreamState);
+	// The store replaces the stream state object for every part that changes
+	// it, so a debounced copy that still differs means output arrived recently.
+	// A stream already present at mount counts as quiet.
+	const settledStreamState = useDebouncedValue(
+		streamState,
+		recentStreamOutputMs,
+	);
 	const streamError = useChatSelector(store, selectStreamError);
 	const retryState = useChatSelector(store, selectRetryState);
 	const reconnectState = useChatSelector(store, selectReconnectState);
@@ -171,6 +190,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		persistedError: persistedError ?? null,
 		isAwaitingFirstStreamChunk,
 		chatStatus,
+		hasRecentStreamOutput: streamState !== settledStreamState,
 	});
 	const streamTools = buildStreamTools(
 		liveStreamState?.toolCalls,
