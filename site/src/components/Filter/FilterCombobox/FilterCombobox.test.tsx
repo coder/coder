@@ -136,17 +136,15 @@ const setup = (
 		initialValue = "",
 		skipHover = false,
 		fakeTimers = false,
-		shouldAdvanceTime = true,
 	}: {
 		initialValue?: string;
 		skipHover?: boolean;
-		fakeTimers?: boolean;
-		/** Lets real time move the fake clock too. */
-		shouldAdvanceTime?: boolean;
+		/** "manual" keeps the fake clock from following wall time. */
+		fakeTimers?: boolean | "manual";
 	} = {},
 ) => {
 	if (fakeTimers) {
-		vi.useFakeTimers({ shouldAdvanceTime });
+		vi.useFakeTimers({ shouldAdvanceTime: fakeTimers !== "manual" });
 	}
 	// user-event moves the pointer between elements without a related target,
 	// which reads as leaving the whole menu. Tests that click into a hover
@@ -425,6 +423,8 @@ describe("FilterCombobox", () => {
 		await settleTypedText();
 		expect(onChange).toHaveBeenLastCalledWith("dock");
 		expect(getOptions).not.toHaveBeenCalledWith("dock");
+		await user.keyboard("{ArrowDown}{Enter}");
+		expect(onChange).not.toHaveBeenCalledWith("template:docker");
 
 		await user.clear(input);
 		await user.type(input, "templ");
@@ -478,7 +478,11 @@ describe("FilterCombobox", () => {
 					...category,
 				},
 			],
-			{ initialValue, fakeTimers: true, skipHover, shouldAdvanceTime },
+			{
+				initialValue,
+				fakeTimers: shouldAdvanceTime ? true : "manual",
+				skipHover,
+			},
 		);
 		return { ...rendered, firstLoad, retryLoad };
 	};
@@ -1786,7 +1790,7 @@ describe("FilterCombobox", () => {
 		const getOptions = vi.fn(manyOwnersCategory.getOptions);
 		const { user, filtersButton } = setup(
 			[{ ...manyOwnersCategory, getOptions }],
-			{ skipHover: true, fakeTimers: true, shouldAdvanceTime: false },
+			{ skipHover: true, fakeTimers: "manual" },
 		);
 
 		// Nothing advances the clock except these calls, so a keystroke never
@@ -1808,8 +1812,7 @@ describe("FilterCombobox", () => {
 	it("announces a hover flyout search with no local match as loading during its debounce", async () => {
 		const { user, filtersButton } = setup([manyOwnersCategory], {
 			skipHover: true,
-			fakeTimers: true,
-			shouldAdvanceTime: false,
+			fakeTimers: "manual",
 		});
 
 		const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
@@ -2456,9 +2459,8 @@ describe("FilterCombobox", () => {
 			[ownerCategory, statusCategory, attributesCategory],
 			{
 				initialValue: "owner:alice status:running outdated:true dev",
-				fakeTimers: true,
 				// Real time must not end the typed-text debounce before Clear all.
-				shouldAdvanceTime: false,
+				fakeTimers: "manual",
 				skipHover: true,
 			},
 		);

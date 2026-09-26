@@ -777,7 +777,7 @@ export const useFilterCombobox = ({
 	// them.
 	const typeaheadOptionsByKey = new Map<string, readonly FilterOption[]>();
 	if (typeaheadQuerySource.length > 0) {
-		for (const { key } of optionLookupCategories) {
+		for (const { key } of categories) {
 			if (!typeaheadQueryPending && suggestionOptions.erroredKeys.has(key)) {
 				continue;
 			}
