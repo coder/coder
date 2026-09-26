@@ -231,6 +231,163 @@ func TestGenerateAssistant_ProviderResponseID(t *testing.T) {
 	}
 }
 
+type inputDecoderTool struct {
+	fantasy.AgentTool
+	decode func(input string) (string, bool)
+}
+
+func (t inputDecoderTool) DecodeToolInput(input string) (string, bool) { return t.decode(input) }
+
+func TestGenerateAssistant_DecodesToolInput(t *testing.T) {
+	t.Parallel()
+
+	const (
+		rawInput     = `{"edits":"[{\"path\":\"/repo/a.go\"}]"}`
+		decodedInput = `{"edits":[{"path":"/repo/a.go"}]}`
+	)
+	tests := []struct {
+		name             string
+		decoder          bool
+		decodeOK         bool
+		providerExecuted bool
+		callOtherTool    bool
+		wantInput        string
+		wantDecodeCalls  int32
+		wantDecodedTotal float64
+	}{
+		{
+			name:             "decoder returns ok",
+			decoder:          true,
+			decodeOK:         true,
+			wantInput:        decodedInput,
+			wantDecodeCalls:  1,
+			wantDecodedTotal: 1,
+		},
+		{
+			name:            "decoder returns not ok",
+			decoder:         true,
+			wantInput:       rawInput,
+			wantDecodeCalls: 1,
+		},
+		{
+			name:      "tool without decoder",
+			wantInput: rawInput,
+		},
+		{
+			name:          "call names a tool without decoder while another has one",
+			decoder:       true,
+			decodeOK:      true,
+			callOtherTool: true,
+			wantInput:     rawInput,
+		},
+		{
+			name:             "provider executed call",
+			decoder:          true,
+			decodeOK:         true,
+			providerExecuted: true,
+			wantInput:        rawInput,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			const (
+				toolName      = "decoding_tool"
+				otherToolName = "plain_tool"
+				toolCallID    = "call-1"
+			)
+			calledName := toolName
+			if tt.callOtherTool {
+				calledName = otherToolName
+			}
+			otherTool := fantasy.NewAgentTool(
+				otherToolName,
+				"plain tool",
+				func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+					return fantasy.NewTextResponse("ok"), nil
+				},
+			)
+			tool := fantasy.NewAgentTool(
+				toolName,
+				"accepts an encoded argument",
+				func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+					return fantasy.NewTextResponse("ok"), nil
+				},
+			)
+			var decodeCalls atomic.Int32
+			if tt.decoder {
+				tool = inputDecoderTool{
+					AgentTool: tool,
+					decode: func(input string) (string, bool) {
+						decodeCalls.Add(1)
+						assert.Equal(t, rawInput, input)
+						if !tt.decodeOK {
+							return `{"ignored":true}`, false
+						}
+						return decodedInput, true
+					},
+				}
+			}
+			model := &chattest.FakeModel{
+				ProviderName: "fake",
+				ModelName:    "fake-model",
+				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeToolInputStart, ID: toolCallID, ToolCallName: calledName, ProviderExecuted: tt.providerExecuted},
+						{Type: fantasy.StreamPartTypeToolInputDelta, ID: toolCallID, Delta: rawInput, ProviderExecuted: tt.providerExecuted},
+						{Type: fantasy.StreamPartTypeToolInputEnd, ID: toolCallID, ProviderExecuted: tt.providerExecuted},
+						{
+							Type:             fantasy.StreamPartTypeToolCall,
+							ID:               toolCallID,
+							ToolCallName:     calledName,
+							ToolCallInput:    rawInput,
+							ProviderExecuted: tt.providerExecuted,
+						},
+						{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+					}), nil
+				},
+			}
+
+			metrics := NewMetrics(prometheus.NewRegistry())
+			var published []codersdk.ChatMessagePart
+			outcome, err := GenerateAssistant(context.Background(), GenerateAssistantOptions{
+				Model:    model,
+				Messages: []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+				Tools:    []fantasy.AgentTool{tool, otherTool},
+				Metrics:  metrics,
+				PublishMessagePart: func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+					published = append(published, part)
+				},
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, tt.wantDecodeCalls, decodeCalls.Load())
+			require.Equal(t, tt.wantDecodedTotal, promtestutil.ToFloat64(
+				metrics.ToolInputDecodedTotal.WithLabelValues("fake", "fake-model", calledName),
+			))
+
+			var durable []codersdk.ChatMessagePart
+			for _, part := range published {
+				if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ArgsDelta == "" {
+					durable = append(durable, part)
+				}
+			}
+			require.Len(t, durable, 1, "one durable tool-call part is published")
+			require.Equal(t, toolCallID, durable[0].ToolCallID)
+			require.JSONEq(t, tt.wantInput, string(durable[0].Args), "published tool-call args")
+
+			require.Len(t, outcome.Step.Content, 1)
+			content, ok := safeToolCallContent(outcome.Step.Content[0])
+			require.True(t, ok, "step content is a tool call")
+			require.Equal(t, tt.wantInput, content.Input, "step content input")
+
+			require.Len(t, outcome.ToolCalls, 1)
+			require.Equal(t, tt.wantInput, outcome.ToolCalls[0].Input, "outcome tool call input")
+		})
+	}
+}
+
 func TestGenerateAssistant_ErrorProviderOverridesTransportLabel(t *testing.T) {
 	t.Parallel()
 

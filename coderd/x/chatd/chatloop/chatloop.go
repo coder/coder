@@ -352,7 +352,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	}
 	defer attempt.release()
 
-	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
+	decodeToolInput := toolInputDecodeFunc(ctx, opts.Logger, opts.Metrics, provider, modelName, opts.Tools)
+	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart, decodeToolInput)
 	if err := attempt.finish(processErr); err != nil {
 		wrappedErr := wrapProviderStreamError(errorProvider, err)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
@@ -839,11 +840,14 @@ func clockNow(clock quartz.Clock) time.Time {
 
 // processStepStream consumes a fantasy StreamResponse and
 // accumulates all content into a stepResult. Callbacks fire
-// inline and their errors propagate directly.
+// inline and their errors propagate directly. decodeToolInput,
+// when set, replaces each non-provider-executed tool call's input
+// before the call is published or recorded.
 func processStepStream(
 	stream fantasy.StreamResponse,
 	clock quartz.Clock,
 	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
+	decodeToolInput func(toolCallID, toolName, input string) string,
 ) (stepResult, error) {
 	var result stepResult
 
@@ -930,10 +934,14 @@ func processStepStream(
 			// StreamPartTypeToolCall.
 
 		case fantasy.StreamPartTypeToolCall:
+			input := part.ToolCallInput
+			if decodeToolInput != nil && !part.ProviderExecuted {
+				input = decodeToolInput(part.ID, part.ToolCallName, input)
+			}
 			tc := fantasy.ToolCallContent{
 				ToolCallID:       part.ID,
 				ToolName:         part.ToolCallName,
-				Input:            part.ToolCallInput,
+				Input:            input,
 				ProviderExecuted: part.ProviderExecuted,
 				ProviderMetadata: part.ProviderMetadata,
 			}
@@ -1458,6 +1466,53 @@ func isToolActive(name string, activeTools []string) bool {
 // serialToolCaller is implemented by tools whose calls within one step
 // must execute in tool-call order because they claim from shared state.
 type serialToolCaller interface{ SerialToolCalls() bool }
+
+// toolInputDecoder is implemented by tools that accept an alternative
+// encoding of their input, for example an array argument sent as a JSON
+// string. DecodeToolInput returns the input in the shape the tool's
+// schema declares. It returns false when the input needs no change or
+// cannot be decoded; the input is then used unchanged.
+type toolInputDecoder interface {
+	DecodeToolInput(input string) (decoded string, ok bool)
+}
+
+// toolInputDecodeFunc returns the processStepStream callback that
+// decodes tool-call input for the tools implementing toolInputDecoder,
+// or nil when none do. Decoding where the call arrives means clients,
+// hooks, persistence and execution all read the same input.
+func toolInputDecodeFunc(
+	ctx context.Context,
+	logger slog.Logger,
+	metrics *Metrics,
+	provider, model string,
+	tools []fantasy.AgentTool,
+) func(toolCallID, toolName, input string) string {
+	decoders := make(map[string]toolInputDecoder)
+	for _, tool := range tools {
+		if decoder, ok := tool.(toolInputDecoder); ok {
+			decoders[tool.Info().Name] = decoder
+		}
+	}
+	if len(decoders) == 0 {
+		return nil
+	}
+	return func(toolCallID, toolName, input string) string {
+		decoder, ok := decoders[toolName]
+		if !ok {
+			return input
+		}
+		decoded, ok := decoder.DecodeToolInput(input)
+		if !ok {
+			return input
+		}
+		metrics.ToolInputDecodedTotal.WithLabelValues(provider, model, toolName).Inc()
+		logger.Debug(ctx, "decoded tool call input",
+			slog.F("tool_name", toolName),
+			slog.F("tool_call_id", toolCallID),
+		)
+		return decoded
+	}
+}
 
 // stepToolCallObserver is implemented by tools that need to see every
 // tool-call name in the step before any call executes, for example so

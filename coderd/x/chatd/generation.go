@@ -810,8 +810,13 @@ func (s *taskStarter) admitStepToolCalls(
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	unambiguous, _, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
-	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), unambiguous)
+	presented, modelInputs := presentHookToolInputs(prepared, unambiguous)
+	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), presented)
 	if err != nil {
+		countBatch()
+		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
+	}
+	if err := restoreHookToolInputs(prepared, &preflight, modelInputs); err != nil {
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}

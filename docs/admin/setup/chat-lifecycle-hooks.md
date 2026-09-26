@@ -79,7 +79,18 @@ Coder's built-in tools decode that JSON with Go, which matches property names ca
 Coder rejects a built-in tool call whose input repeats a key or spells a schema property with different capitalization, before dispatching `pre_tool_use`.
 This check doesn't cover dynamic and MCP tools, because the client and the workspace agent execute those calls rather than `coderd`.
 A policy that gates them must validate their input itself.
-The chat `edit_files` tool reads `old_text` and `new_text` and, for rollout compatibility, also accepts the deprecated `search` and `replace` keys when the new fields are empty. A policy that gates edit content should inspect `old_text` and `new_text`, and `search`/`replace` while the compatibility window lasts.
+
+`edit_files` input is the exception.
+The model sends a flat `edits` list in which every edit names its own `path`, and Coder presents those edits to `pre_tool_use` grouped by path, keeping each file's edits in their original order:
+
+```json
+{"files":[{"path":"/repo/a.go","edits":[{"old_text":"x := 1","new_text":"x := 2"}]}]}
+```
+
+Each edit carries `old_text` and `new_text`, and `replace_all` only when it's `true`.
+Paths appear as the tool uses them, with surrounding whitespace removed, so edits whose paths differ only by that whitespace appear under one file.
+Coder builds this view from the decoded edits and drops keys the `edits` schema doesn't declare, so a call that uses the retired `files` shape appears as `{"files":[]}`, and the tool rejects it.
+Only input that fails to decode reaches `pre_tool_use` as the model's bytes; the tool rejects that call too, without editing any file.
 
 For `user_prompt_submit`, `prompt` concatenates the original submitted text parts, and `parts` carries the original structured message, including non-text parts such as file references.
 These values are captured before the consumer's override or injected context changes the stored prompt.
@@ -130,6 +141,7 @@ Permission rules depend on the event:
 - For `pre_tool_use`, `allow` requires `input_override` containing the replacement tool input.
   Coder persists the replacement with the tool call and executes the tool with it.
   An override for a built-in tool must not repeat a key or vary the capitalization of a schema property; an ambiguous override fails the dispatch closed because the model can't correct it.
+  An `edit_files` override must use the grouped `files` form that `tool_input` shows, with no other keys; Coder flattens it into the `edits` list before it stores and executes the call, and any other form fails the dispatch closed.
   The stored call is marked as rewritten, and the chat shows a "Modified by policy" badge.
   The marker is client-facing, so return `model_context` if the model also needs an explanation of the rewrite.
 - For either event, `deny` blocks the input and must not include `input_override`.

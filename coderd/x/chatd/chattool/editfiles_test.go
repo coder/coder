@@ -21,83 +21,77 @@ import (
 func TestEditFiles(t *testing.T) {
 	t.Parallel()
 
-	// Verify the generated tool schema exposes old_text/new_text
-	// (not the deprecated search/replace) so the rename is
-	// auditable without running a separate program.
-	t.Run("SchemaUsesOldTextNewText", func(t *testing.T) {
+	// The generated schema is the model-facing contract: a flat edits
+	// list whose items carry their own path. fantasy cannot express
+	// minItems, so "at least one edit" is enforced by validation.
+	t.Run("SchemaIsFlatEditsList", func(t *testing.T) {
 		t.Parallel()
-		tool := chattool.EditFiles(chattool.EditFilesOptions{})
-		info := tool.Info()
+		info := chattool.EditFiles(chattool.EditFilesOptions{}).Info()
 
-		// Dig into: files -> items -> properties -> edits -> items -> properties
-		filesSchema := info.Parameters["files"]
-		require.NotNil(t, filesSchema, "missing files parameter")
-		filesMap, ok := filesSchema.(map[string]any)
-		require.True(t, ok)
-		items, ok := filesMap["items"].(map[string]any)
-		require.True(t, ok)
-		props, ok := items["properties"].(map[string]any)
-		require.True(t, ok)
-		editsSchema, ok := props["edits"].(map[string]any)
-		require.True(t, ok)
-		editItems, ok := editsSchema["items"].(map[string]any)
-		require.True(t, ok)
-		editProps, ok := editItems["properties"].(map[string]any)
-		require.True(t, ok)
-
-		assert.Contains(t, editProps, "old_text", "schema should expose old_text")
-		assert.Contains(t, editProps, "new_text", "schema should expose new_text")
-		assert.Contains(t, editProps, "replace_all", "schema should expose replace_all")
-		assert.NotContains(t, editProps, "search", "schema should not expose deprecated search")
-		assert.NotContains(t, editProps, "replace", "schema should not expose deprecated replace")
-
-		// The model relies on per-field guidance; the descriptions
-		// live on workspacesdk.FileEdit and must survive into the
-		// generated schema.
-		oldTextProps, ok := editProps["old_text"].(map[string]any)
-		require.True(t, ok)
-		assert.Contains(t, oldTextProps["description"], "fuzzy")
-		newTextProps, ok := editProps["new_text"].(map[string]any)
-		require.True(t, ok)
-		assert.Contains(t, newTextProps["description"], "replaces old_text")
-		replaceAllProps, ok := editProps["replace_all"].(map[string]any)
-		require.True(t, ok)
-		assert.Contains(t, replaceAllProps["description"], "every match")
-
-		// Requiredness alone did not stop models from omitting path,
-		// so the schema must also describe it.
-		pathSchema, ok := props["path"].(map[string]any)
-		require.True(t, ok)
-		pathDesc, _ := pathSchema["description"].(string)
-		assert.Contains(t, pathDesc, "absolute path")
-
-		// Verify required fields.
-		editRequired, ok := editItems["required"].([]string)
-		require.True(t, ok)
-		assert.Contains(t, editRequired, "old_text")
-		assert.Contains(t, editRequired, "new_text")
-		assert.NotContains(t, editRequired, "replace_all", "replace_all should be optional")
+		parameters, err := json.Marshal(info.Parameters)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"edits":{"type":"array","items":{
+			"type":"object","required":["path","old_text","new_text"],"properties":{
+				"path":{"type":"string","description":"Absolute path of the file to edit."},
+				"old_text":{"type":"string","description":"Exact text to replace. Must match exactly one location unless replace_all is true. Must differ from new_text."},
+				"new_text":{"type":"string","description":"Replacement text."},
+				"replace_all":{"type":"boolean","description":"Replace every match of old_text."}}}}}`,
+			string(parameters))
+		assert.Equal(t, []string{"edits"}, info.Required)
 	})
 
-	t.Run("MalformedEntriesReturnEntryIndexedErrors", func(t *testing.T) {
+	t.Run("RejectedInputNamesWhatToChange", func(t *testing.T) {
 		t.Parallel()
+		const example = `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"},{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"}]}`
 		cases := []struct {
-			name    string
-			input   string
-			wantErr string
+			name         string
+			input        string
+			wantErr      string
+			wantContains []string
 		}{
 			{
-				name: "MissingPath",
-				input: `{"files":[` +
-					`{"path":"/home/coder/a.txt","edits":[{"old_text":"old","new_text":"new"}]},` +
-					`{"edits":[{"old_text":"old","new_text":"new"}]}` +
+				name: "EveryMissingPathListed",
+				input: `{"edits":[` +
+					`{"path":"/repo/a.go","old_text":"old","new_text":"new"},` +
+					`{"old_text":"old","new_text":"new"},` +
+					`{"path":"  ","old_text":"old","new_text":"new"}` +
 					`]}`,
-				wantErr: "files[1].path is required; provide the absolute path of the file to edit; no files in this batch were applied",
+				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2]; path is required in every edit; no files in this batch were applied",
 			},
 			{
 				name:    "EmptyEdits",
-				input:   `{"files":[{"path":"/home/coder/a.txt","edits":[]}]}`,
-				wantErr: "files[0].edits must contain at least one edit; no files in this batch were applied",
+				input:   `{"edits":[]}`,
+				wantErr: "Add at least one edit to edits; no files in this batch were applied",
+			},
+			{
+				name:    "MissingEdits",
+				input:   `{}`,
+				wantErr: "Add at least one edit to edits; no files in this batch were applied",
+			},
+			{
+				name:    "OldFilesShape",
+				input:   `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+				wantErr: "Send a flat edits list where every edit has its own path, for example " + example + "; the files key is not supported; no files in this batch were applied",
+			},
+			{
+				// fantasy's own decode error names Go types and does
+				// not say that edits must be an array. chatloop decodes
+				// a string holding an array before the tool runs, so
+				// this string holds something else.
+				name:  "EditsNotAnArray",
+				input: `{"edits":"not json"}`,
+				wantContains: []string{
+					"Send edits as a JSON array of objects with string path, old_text and new_text and optional boolean replace_all, for example " + example,
+					"no files in this batch were applied",
+				},
+			},
+			{
+				name:  "InputNotAnObject",
+				input: `[]`,
+				wantContains: []string{
+					"Send edits as a JSON array of objects",
+					"no files in this batch were applied",
+				},
 			},
 		}
 		for _, tc := range cases {
@@ -118,7 +112,82 @@ func TestEditFiles(t *testing.T) {
 				})
 				require.NoError(t, err)
 				assert.True(t, resp.IsError)
-				assert.Equal(t, tc.wantErr, resp.Content)
+				if tc.wantErr != "" {
+					assert.Equal(t, tc.wantErr, resp.Content)
+				}
+				for _, want := range tc.wantContains {
+					assert.Contains(t, resp.Content, want)
+				}
+			})
+		}
+	})
+
+	// Edits are grouped by trimmed path into one all-or-nothing agent
+	// request: files in order of first appearance, each file's edits in
+	// their original order.
+	t.Run("GroupsEditsIntoOneRequest", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name  string
+			input string
+			want  []workspacesdk.FileEdits
+		}{
+			{
+				name:  "SingleFile",
+				input: `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2","replace_all":true}]}`,
+				want: []workspacesdk.FileEdits{
+					{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{OldText: "x := 1", NewText: "x := 2", ReplaceAll: true}}},
+				},
+			},
+			{
+				name: "MultipleFiles",
+				input: `{"edits":[` +
+					`{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"},` +
+					`{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"}` +
+					`]}`,
+				want: []workspacesdk.FileEdits{
+					{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{OldText: "x := 1", NewText: "x := 2"}}},
+					{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{{OldText: "foo()", NewText: "bar()"}}},
+				},
+			},
+			{
+				name: "InterleavedAndUntrimmedPaths",
+				input: `{"edits":[` +
+					`{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"},` +
+					`{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"},` +
+					`{"path":" /repo/a.go\n","old_text":"y := 1","new_text":"y := 2"}` +
+					`]}`,
+				want: []workspacesdk.FileEdits{
+					{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{
+						{OldText: "x := 1", NewText: "x := 2"},
+						{OldText: "y := 1", NewText: "y := 2"},
+					}},
+					{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{{OldText: "foo()", NewText: "bar()"}}},
+				},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctrl := gomock.NewController(t)
+				mockConn := agentconnmock.NewMockAgentConn(ctrl)
+				mockConn.EXPECT().
+					EditFiles(gomock.Any(), workspacesdk.FileEditRequest{Files: tc.want, IncludeDiff: true}).
+					Return(workspacesdk.FileEditResponse{}, nil).
+					Times(1)
+				tool := chattool.EditFiles(chattool.EditFilesOptions{
+					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+						return mockConn, nil
+					},
+				})
+
+				resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+					ID:    "call-1",
+					Name:  "edit_files",
+					Input: tc.input,
+				})
+				require.NoError(t, err)
+				assert.False(t, resp.IsError, resp.Content)
 			})
 		}
 	})
@@ -144,7 +213,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"a.txt","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+			Input: `{"edits":[{"path":"a.txt","old_text":"old","new_text":"new"}]}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
@@ -171,7 +240,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"/home/coder/README.md","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+			Input: `{"edits":[{"path":"/home/coder/README.md","old_text":"old","new_text":"new"}]}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
@@ -199,9 +268,9 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:   "call-1",
 			Name: "edit_files",
-			Input: `{"files":[` +
-				`{"path":"` + planPath + `","edits":[{"old_text":"old","new_text":"new"}]},` +
-				`{"path":"/home/coder/README.md","edits":[{"old_text":"old","new_text":"new"}]}` +
+			Input: `{"edits":[` +
+				`{"path":"` + planPath + `","old_text":"old","new_text":"new"},` +
+				`{"path":"/home/coder/README.md","old_text":"old","new_text":"new"}` +
 				`]}`,
 		})
 		require.NoError(t, err)
@@ -243,7 +312,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + planPath + `","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+			Input: `{"edits":[{"path":"` + planPath + `","old_text":"old","new_text":"new"}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -283,7 +352,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + planPath + `","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+			Input: `{"edits":[{"path":"` + planPath + `","old_text":"old","new_text":"new"}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -308,7 +377,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + planPath + `","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+			Input: `{"edits":[{"path":"` + planPath + `","old_text":"old","new_text":"new"}]}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
@@ -325,14 +394,14 @@ func TestEditFiles(t *testing.T) {
 		}{
 			{
 				name:                 "SingleHomeRootPlanPath",
-				input:                `{"files":[{"path":"/Users/dev/plan.md","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+				input:                `{"edits":[{"path":"/Users/dev/plan.md","old_text":"old","new_text":"new"}]}`,
 				expectedRejectedPath: "/Users/dev/plan.md",
 			},
 			{
 				name: "MultiFileBatchWithHomeRootPlanPath",
-				input: `{"files":[` +
-					`{"path":"/Users/dev/subdir/plan.md","edits":[{"old_text":"old","new_text":"new"}]},` +
-					`{"path":"/Users/dev/plan.md","edits":[{"old_text":"old","new_text":"new"}]}` +
+				input: `{"edits":[` +
+					`{"path":"/Users/dev/subdir/plan.md","old_text":"old","new_text":"new"},` +
+					`{"path":"/Users/dev/plan.md","old_text":"old","new_text":"new"}` +
 					`]}`,
 				expectedRejectedPath: "/Users/dev/plan.md",
 			},
@@ -390,7 +459,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"/home/coder/plan.md","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+			Input: `{"edits":[{"path":"/home/coder/plan.md","old_text":"old","new_text":"new"}]}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
@@ -415,7 +484,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"plan.md","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+			Input: `{"edits":[{"path":"plan.md","old_text":"old","new_text":"new"}]}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
@@ -454,7 +523,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + chatPlanPath + `","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+			Input: `{"edits":[{"path":"` + chatPlanPath + `","old_text":"old","new_text":"new"}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -489,7 +558,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"/home/coder/myproject/plan.md","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+			Input: `{"edits":[{"path":"/home/coder/myproject/plan.md","old_text":"old","new_text":"new"}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -525,7 +594,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"/home/coder/myproject/plan.md","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+			Input: `{"edits":[{"path":"/home/coder/myproject/plan.md","old_text":"old","new_text":"new"}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -562,7 +631,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"/home/dev/my-plan.md","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+			Input: `{"edits":[{"path":"/home/dev/my-plan.md","old_text":"old","new_text":"new"}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -594,7 +663,7 @@ func TestEditFiles(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"files":[{"path":"` + chattool.LegacySharedPlanPath + `","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+			Input: `{"edits":[{"path":"` + chattool.LegacySharedPlanPath + `","old_text":"old","new_text":"new"}]}`,
 		})
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
@@ -630,7 +699,7 @@ func TestEditFiles_MapsOldTextNewTextToSDK(t *testing.T) {
 	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 		ID:    "call-1",
 		Name:  "edit_files",
-		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"old_text":"old content","new_text":"new content"}]}]}`,
+		Input: `{"edits":[{"path":"` + targetPath + `","old_text":"old content","new_text":"new content"}]}`,
 	})
 	require.NoError(t, err)
 	assert.False(t, resp.IsError)
@@ -672,7 +741,7 @@ func TestEditFiles_ToolResponseCarriesFileResults(t *testing.T) {
 	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 		ID:    "call-1",
 		Name:  "edit_files",
-		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+		Input: `{"edits":[{"path":"` + targetPath + `","old_text":"old","new_text":"new"}]}`,
 	})
 	require.NoError(t, err)
 	assert.False(t, resp.IsError)
@@ -686,6 +755,122 @@ func TestEditFiles_ToolResponseCarriesFileResults(t *testing.T) {
 	require.Len(t, decoded.Files, 1)
 	assert.Equal(t, targetPath, decoded.Files[0].Path)
 	assert.Equal(t, expectedFiles[0].Diff, decoded.Files[0].Diff)
+}
+
+func TestEditFiles_DecodeToolInput(t *testing.T) {
+	t.Parallel()
+
+	tool, ok := chattool.EditFiles(chattool.EditFilesOptions{}).(interface {
+		DecodeToolInput(input string) (decoded string, ok bool)
+	})
+	require.True(t, ok, "edit_files must implement DecodeToolInput")
+
+	tests := []struct {
+		name  string
+		input string
+		// want is the decoded input; empty means not ok.
+		want string
+	}{
+		{
+			name:  "StringHoldingArrayOfObjects",
+			input: `{"edits":"[{\"path\":\"/repo/a.go\",\"old_text\":\"x\",\"new_text\":\"y\"}]"}`,
+			want:  `{"edits":[{"path":"/repo/a.go","old_text":"x","new_text":"y"}]}`,
+		},
+		{
+			// The string content is spliced in verbatim so the
+			// ambiguity check sees the model's key spelling, and
+			// other members and whitespace are left untouched.
+			name:  "ContentAndOtherMembersKeptVerbatim",
+			input: `{"x": 1, "edits" : " [ {\"PATH\" : \"/repo/a.go\"} ]", "y":[true]}`,
+			want:  `{"x": 1, "edits" :  [ {"PATH" : "/repo/a.go"} ], "y":[true]}`,
+		},
+		{
+			name:  "StringHoldingEmptyArray",
+			input: `{"edits":"[]"}`,
+			want:  `{"edits":[]}`,
+		},
+		{
+			name:  "StringHoldingInvalidJSON",
+			input: `{"edits":"[{\"path\":"}`,
+		},
+		{
+			name:  "StringHoldingObject",
+			input: `{"edits":"{\"path\":\"/repo/a.go\"}"}`,
+		},
+		{
+			name:  "StringHoldingArrayOfNonObjects",
+			input: `{"edits":"[1,\"a\",null]"}`,
+		},
+		{
+			name:  "StringHoldingNull",
+			input: `{"edits":"null"}`,
+		},
+		{
+			name:  "StringHoldingTrailingData",
+			input: `{"edits":"[] []"}`,
+		},
+		{
+			// Only JSON whitespace may surround the array: the content
+			// is spliced in verbatim and must stay valid JSON.
+			name:  "StringWithLeadingNoBreakSpace",
+			input: `{"edits":"\u00a0[{\"path\":\"/a\"}]"}`,
+		},
+		{
+			name:  "StringWithLeadingVerticalTab",
+			input: `{"edits":"\u000b[{\"path\":\"/a\"}]"}`,
+		},
+		{
+			name:  "StringWithTrailingNextLine",
+			input: `{"edits":"[{\"path\":\"/a\"}]\u0085"}`,
+		},
+		{
+			name:  "StringWithJSONWhitespace",
+			input: `{"edits":" \t\r\n[ {\"path\":\"/a\"} ]\n"}`,
+			want:  "{\"edits\": \t\r\n[ {\"path\":\"/a\"} ]\n}",
+		},
+		{
+			name:  "EditsAlreadyArray",
+			input: `{"edits":[{"path":"/repo/a.go","old_text":"x","new_text":"y"}]}`,
+		},
+		{
+			name:  "NoEdits",
+			input: `{"files":"[]"}`,
+		},
+		{
+			// A repeated key is left for the ambiguity check to
+			// reject.
+			name:  "RepeatedEditsKey",
+			input: `{"edits":"[]","edits":"[]"}`,
+		},
+		{
+			name:  "CaseVariantKey",
+			input: `{"Edits":"[]"}`,
+		},
+		{
+			name:  "InputNotAnObject",
+			input: `"[{\"path\":\"/repo/a.go\"}]"`,
+		},
+		{
+			name:  "InvalidInput",
+			input: `{"edits":"[]"`,
+		},
+		{
+			name:  "TrailingDataAfterObject",
+			input: `{"edits":"[]"} {}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := tool.DecodeToolInput(tt.input)
+			if tt.want == "" {
+				assert.False(t, ok)
+				return
+			}
+			require.True(t, ok)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestEditFiles_Grouping(t *testing.T) {
