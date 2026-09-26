@@ -166,6 +166,7 @@ func RawMessageFieldsAsUnknown(ts *guts.Typescript) {
 		"AgentHookPostToolUseData":      "tool_response",
 		"AgentHookPermission":           "input_override",
 		"ChatStructuredOutput":          "value",
+		"ChatResponseFormatJSONSchema":  "schema",
 	}
 	for typeName, fieldName := range fields {
 		node, ok := ts.Node(typeName)

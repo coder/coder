@@ -3363,7 +3363,7 @@ export interface ChatResponseFormatJSONSchema {
 	/**
 	 * Schema is the JSON Schema object the output must satisfy.
 	 */
-	readonly schema: Record<string, string>;
+	readonly schema: unknown;
 }
 
 // From codersdk/chats.go
