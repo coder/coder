@@ -64,7 +64,7 @@ import {
  * Delay before hovering another category swaps an open flyout, so a diagonal
  * move into the current flyout does not switch panels.
  */
-const CATEGORY_HOVER_DELAY_MS = 300;
+export const CATEGORY_HOVER_DELAY_MS = 300;
 
 const labelOnlyChipClassName =
 	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
@@ -143,13 +143,14 @@ export function FilterCombobox({
 	// Category shown in the pointer flyout. Distinct from `activeCategoryKey`,
 	// which is the committed drill-in state shared with keyboard navigation.
 	// Reset whenever the menu opens or closes so a dismissed flyout does not
-	// reappear next time.
+	// reappear next time, and when its category leaves the menu.
 	const [flyout, setFlyout] = useState<{
 		categoryKey: string | null;
 		openAtReset: boolean;
 	}>({ categoryKey: null, openAtReset: open });
-	// A flyout whose category left the menu, such as one hidden after a
-	// Retry, is closed too. Typed text only hides a row, so its flyout stays.
+	// Reads menuCategories, not listedCategories: typed text removes a row only
+	// from listedCategories, and its flyout must return when the text is
+	// deleted.
 	if (
 		flyout.openAtReset !== open ||
 		(flyout.categoryKey !== null &&

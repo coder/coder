@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { render } from "#/testHelpers/renderHelpers";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
-import { FilterCombobox, SEARCHABLE_OPTION_COUNT } from "./FilterCombobox";
+import {
+	CATEGORY_HOVER_DELAY_MS,
+	FilterCombobox,
+	SEARCHABLE_OPTION_COUNT,
+} from "./FilterCombobox";
 import { SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
 import {
@@ -1803,25 +1807,28 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it("keeps a hover flyout that typed text only hid", async () => {
-		const { user, input } = setup(
-			[{ ...ownerCategory, getOptions: neverResolves }, statusCategory],
-			{ skipHover: true },
-		);
+	it.each(["own", "zzz"])(
+		"keeps a hover flyout that typed %s only hid",
+		async (typed) => {
+			const { user, input } = setup(
+				[{ ...ownerCategory, getOptions: neverResolves }, statusCategory],
+				{ skipHover: true },
+			);
 
-		await user.click(input);
-		await user.hover(await screen.findByRole("option", { name: "Owner" }));
-		await expectStatus("Loading Owner options.");
-		await user.type(input, "own");
-		await waitFor(() =>
-			expect(screen.getByRole("status")).not.toHaveTextContent(
-				"Loading Owner options.",
-			),
-		);
-		await user.clear(input);
+			await user.click(input);
+			await user.hover(await screen.findByRole("option", { name: "Owner" }));
+			await expectStatus("Loading Owner options.");
+			await user.type(input, typed);
+			await waitFor(() =>
+				expect(screen.getByRole("status")).not.toHaveTextContent(
+					"Loading Owner options.",
+				),
+			);
+			await user.clear(input);
 
-		await expectStatus("Loading Owner options.");
-	});
+			await expectStatus("Loading Owner options.");
+		},
+	);
 
 	it("does not open another flyout after a Retry hides the open one", async () => {
 		const retry = Promise.withResolvers<undefined>();
@@ -1850,7 +1857,7 @@ describe("FilterCombobox", () => {
 		await user.hover(await screen.findByRole("option", { name: "Template" }));
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 		await act(async () => retry.resolve(undefined));
-		await act(() => vi.advanceTimersByTimeAsync(1000));
+		await act(() => vi.advanceTimersByTimeAsync(CATEGORY_HOVER_DELAY_MS * 2));
 
 		expect(screen.getByRole("status")).not.toHaveTextContent(
 			"Loading Owner options.",
