@@ -729,8 +729,8 @@ describe("FilterCombobox", () => {
 		await user.click(input);
 		await screen.findByRole("option", { name: "Owner" });
 		await user.type(input, "zed");
-		await settleTypedText();
 		await act(async () => owners.resolve([{ label: "zed", value: "zed" }]));
+		await settleTypedText();
 		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
 
 		expect(onChange).not.toHaveBeenCalledWith("zed");
@@ -1652,6 +1652,29 @@ describe("FilterCombobox", () => {
 
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
+	it("retries an inline category whose options failed to load", async () => {
+		let failed = false;
+		const getOptions = vi.fn(async (query: string) => {
+			if (!failed) {
+				failed = true;
+				throw new Error("boom");
+			}
+			return statusCategory.getOptions(query);
+		});
+		const { user, onChange, filtersButton } = setup([
+			{ ...statusCategory, getOptions },
+		]);
+
+		await user.click(filtersButton);
+		await screen.findByText("Couldn’t load Status options.");
+		await user.click(screen.getByRole("button", { name: "Retry" }));
+		await user.click(await screen.findByRole("option", { name: "Running" }));
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("status:running"),
 		);
 	});
 
