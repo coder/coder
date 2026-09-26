@@ -1752,6 +1752,33 @@ export const ActiveChatKebabPersistent: Story = {
 	},
 };
 
+export const ActiveChatContextMenuFull: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-context-menu",
+				title: "Active context menu chat",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/active-context-menu",
+				pathParams: { agentId: "active-context-menu" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		fireEvent.contextMenu(
+			within(canvasElement).getByTestId("agents-tree-node-active-context-menu"),
+		);
+		await within(document.body).findByText("Pin agent");
+	},
+};
+
 export const WithUnreadChats: Story = {
 	args: {
 		chats: [
