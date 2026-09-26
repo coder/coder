@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	neturl "net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -1519,9 +1520,9 @@ func TestAgent_SCP(t *testing.T) {
 func TestAgent_ToolCalls(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	//nolint:dogsled
 	conn, _, _, fs, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	chatID := uuid.New()
 	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chatID.String()}})
 	toolCall := func(messageID int64, id string) context.Context {
@@ -1537,10 +1538,18 @@ func TestAgent_ToolCalls(t *testing.T) {
 	probeID := workspacesdk.ToolCallUUID(chatID, 1, "probe").String()
 	var probeErr error
 	require.Eventually(t, func() bool {
-		_, probeErr = conn.CancelProcess(toolCall(1, "probe"), probeID)
+		// A probe that gets no answer is retried rather than left to
+		// hold the wait.
+		probeCtx, cancel := context.WithTimeout(ctx, testutil.IntervalSlow)
+		defer cancel()
+		_, probeErr = conn.CancelProcess(workspacesdk.WithToolCall(probeCtx, workspacesdk.ToolCall{MessageID: 1, ID: "probe"}), probeID)
 		var tcErr *workspacesdk.ToolCallError
-		return !errors.As(probeErr, &tcErr) || tcErr.Code != workspacesdk.ToolCallErrorAgentStartedAfterToolCall
-	}, testutil.WaitMedium, testutil.IntervalFast)
+		if errors.As(probeErr, &tcErr) && tcErr.Code == workspacesdk.ToolCallErrorAgentStartedAfterToolCall {
+			return false
+		}
+		var urlErr *neturl.Error
+		return !errors.As(probeErr, &urlErr)
+	}, testutil.WaitMedium, testutil.IntervalMedium)
 	require.NoError(t, probeErr)
 
 	processID := workspacesdk.ToolCallUUID(chatID, 1, "execute").String()
