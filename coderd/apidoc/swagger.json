@@ -18480,6 +18480,10 @@
 					"description": "HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.",
 					"type": "boolean"
 				},
+				"invalid_args": {
+					"description": "InvalidArgs holds the model's raw tool input when it is non-empty\nand not valid JSON; Args is empty in that case. Internal only:\nkept for analysis, never sent back to the model, and stripped\nbefore API responses.",
+					"type": "string"
+				},
 				"is_error": {
 					"type": "boolean"
 				},
