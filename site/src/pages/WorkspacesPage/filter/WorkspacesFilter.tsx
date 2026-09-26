@@ -59,7 +59,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			{
 				key: "owner",
 				label: "Owner",
-				hint: "me",
 				icon: <UserKeyIcon />,
 				getOptions: getUserOptions,
 			},
@@ -67,7 +66,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				// Workspaces the user owns or that are shared with them.
 				key: "user",
 				label: "User",
-				hint: "me",
 				icon: <UserIcon />,
 				getOptions: getUserOptions,
 			},
@@ -75,6 +73,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				key: "status",
 				label: "Status",
 				icon: <CircleDotIcon />,
+				inlineOptions: true,
+				inlineOptionsIcons: true,
 				getOptions: getStatusFilterOptions,
 			},
 			{
@@ -85,6 +85,10 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				// Boolean workspace filters live under their own keys, so the
 				// category owns them for chip parsing.
 				chipKeys: ATTRIBUTE_CHIP_KEYS,
+				inlineOptions: true,
+				inlineOptionsLabel: "Workspace is…",
+				inlineOptionsExclusive: true,
+				chipLabelOnly: true,
 				getOptions: (query) =>
 					getAttributeFilterOptions(query, { canFilterDormant }),
 			},
@@ -113,14 +117,15 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	const showValidationError = hasError(error) && isApiValidationError(error);
 
 	return (
-		<div className="flex flex-col gap-2">
+		<div className="flex min-w-0 flex-col gap-2">
 			<FilterCombobox
 				value={filter.query}
 				onChange={filter.update}
 				categories={categories}
 				placeholder="Search and filter workspaces…"
-				// Starts at a compact width and widens to fit chips before wrapping.
-				className="w-auto min-w-lg max-w-full self-start"
+				// Full width on mobile. From `sm` up it starts at a compact width
+				// and widens to fit chips before wrapping.
+				className="w-full min-w-0 self-start sm:w-auto sm:min-w-lg sm:max-w-full"
 				errorMessage={
 					showValidationError ? getValidationErrorMessage(error) : undefined
 				}

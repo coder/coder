@@ -8,49 +8,13 @@ import type { FilterCategory, FilterOption } from "./types";
 
 export const chipToken = (key: string, value: string) => `${key}:${value}`;
 
+/** Token an option commits under `key`: its explicit token, or `key:value`. */
+export const optionToken = (
+	key: string,
+	option: Pick<FilterOption, "token" | "value">,
+) => option.token ?? chipToken(key, option.value);
+
 type ChipDisplaySource = Pick<FilterCategory, "key" | "chipKeys">;
-
-const PREVIEW_OPTION_LIMIT = 4;
-
-export type CategoryPreview = {
-	/** Labels of the chips currently applied for this category. */
-	selected: string[];
-	/** Comma-separated sample of available options, or the category hint. */
-	hint: string;
-};
-
-/**
- * Right-hand text for a category row: the applied chip labels when the
- * category has a chip, otherwise its fixed hint or a short sample of options.
- */
-export const categoryPreview = (
-	category: Pick<FilterCategory, "key" | "chipKeys" | "hint">,
-	chips: readonly string[],
-	options: readonly FilterOption[] | undefined,
-): CategoryPreview => {
-	const ownedKeys = category.chipKeys ?? [category.key];
-	const optionToken = (option: FilterOption) =>
-		option.token ?? chipToken(category.key, option.value);
-	const selected = chips.flatMap((chip) => {
-		const parsed = parseChipToken(chip, ownedKeys);
-		if (!parsed) {
-			return [];
-		}
-		const option = options?.find((entry) => optionToken(entry) === chip);
-		return [
-			option?.appliedLabel ??
-				option?.label ??
-				chipDisplay(chip, [category]).value,
-		];
-	});
-	const hint =
-		category.hint ??
-		(options ?? [])
-			.slice(0, PREVIEW_OPTION_LIMIT)
-			.map((option) => option.label)
-			.join(", ");
-	return { selected, hint };
-};
 
 /**
  * Key and value to display for a chip token. Tokens owned by a multi-key
@@ -277,7 +241,28 @@ type CategoryValueSuggestion = {
 		value: string;
 		startIcon?: ReactNode;
 	};
+	selected: boolean;
 	token: string;
+};
+
+// `normalized` is trimmed and lowercased.
+const optionMatches = (
+	option: Pick<FilterOption, "label" | "value">,
+	normalized: string,
+) =>
+	option.label.toLowerCase().includes(normalized) ||
+	option.value.toLowerCase().includes(normalized);
+
+/** Options whose label or value contains `text`, ignoring case. */
+export const filterOptionsByText = (
+	options: readonly FilterOption[],
+	text: string,
+): readonly FilterOption[] => {
+	const normalized = text.trim().toLowerCase();
+	if (normalized.length === 0) {
+		return options;
+	}
+	return options.filter((option) => optionMatches(option, normalized));
 };
 
 const DEFAULT_SUGGESTIONS_PER_CATEGORY = 5;
@@ -313,15 +298,9 @@ export const collectValueSuggestions = (
 				break;
 			}
 
-			const token = option.token ?? chipToken(category.key, option.value);
-			if (selected.has(token)) {
-				continue;
-			}
+			const token = optionToken(category.key, option);
 
-			if (
-				!option.label.toLowerCase().includes(normalized) &&
-				!option.value.toLowerCase().includes(normalized)
-			) {
+			if (!optionMatches(option, normalized)) {
 				continue;
 			}
 
@@ -329,6 +308,7 @@ export const collectValueSuggestions = (
 				categoryKey: category.key,
 				categoryLabel: category.label,
 				option,
+				selected: selected.has(token),
 				token,
 			});
 			taken += 1;

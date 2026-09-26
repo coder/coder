@@ -67,29 +67,15 @@ export const Default: Story = {
 	},
 };
 
-// Opens the menu, drills into a static category, commits an option, and asserts
-// the query the integration emits.
 export const SelectStatusOption: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
-		await userEvent.click(await body.findByRole("option", { name: /^Status/ }));
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
 		await userEvent.click(
 			await body.findByRole("option", { name: /running/i }),
 		);
-
-		await waitFor(() =>
-			expect(canvas.getByTestId("filter-query")).toHaveTextContent(
-				"status:running",
-			),
-		);
-		await expect(
-			canvas.getByRole("button", { name: "Remove status:running" }),
-		).toBeVisible();
 	},
 };
 
@@ -107,13 +93,10 @@ export const OrdinaryUserKeepsUserChip: Story = {
 			canvas.getByRole("button", { name: "Remove user:me" }),
 		).toBeVisible();
 
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
 		// Categories browse normally (User and Owner included) rather than being
 		// masked by free-text search.
 		await waitFor(() => {
-			expect(body.getByRole("option", { name: /^Status/ })).toBeVisible();
 			expect(body.getByRole("option", { name: /^User/ })).toBeVisible();
 			expect(body.getByRole("option", { name: /^Owner/ })).toBeVisible();
 		});

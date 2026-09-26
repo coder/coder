@@ -23,8 +23,6 @@ export type FilterCategory = {
 	icon?: ReactNode;
 	/** Extra typed prefixes that enter this category, e.g. `user` for `owner`. */
 	aliases?: readonly string[];
-	/** Fixed text at the end of the category row instead of an options sample. */
-	hint?: string;
 	/**
 	 * Query keys this category owns for chip parsing. Defaults to `[key]`. A
 	 * category that commits several distinct boolean keys (e.g. Attributes
@@ -32,4 +30,14 @@ export type FilterCategory = {
 	 * round-trips them as chips instead of free text.
 	 */
 	chipKeys?: readonly string[];
+	/** Render this category's options as top-level toggle rows instead of a submenu. */
+	inlineOptions?: boolean;
+	/** Heading shown above top-level options. Defaults to `${label} is…`. */
+	inlineOptionsLabel?: string;
+	/** Keep option icons when rendering the category as top-level rows. */
+	inlineOptionsIcons?: boolean;
+	/** Selecting an option replaces another selected option from this category. */
+	inlineOptionsExclusive?: boolean;
+	/** Applied chips show only the option label, without the category prefix. */
+	chipLabelOnly?: boolean;
 };
