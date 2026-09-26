@@ -167,8 +167,20 @@ export const StartingShowsThinkingActivity: Story = {
 	},
 };
 
+/** Response text that is still arriving is its own activity cue. */
 export const ResponseDoesNotRenderActivitySlot: Story = {
 	args: responseStreamState,
+};
+
+/** Response text that stopped arriving hands the cue back to Thinking. */
+export const QuietResponseShowsThinkingActivity: Story = {
+	args: {
+		...responseStreamState,
+		liveStatus: buildLiveStatus({
+			streamState: responseStreamState.streamState,
+			hasRecentStreamOutput: false,
+		}),
+	},
 };
 
 /** Tool-only streams use running tool affordances instead of generic thinking. */

@@ -326,6 +326,37 @@ export const ErrorClearsStreamingTool: Story = {
 	},
 };
 
+// Module scope so the play function can stream into the rendered store. The
+// part arrives after mount, so the capture waits out the real quiet window.
+const quietStreamStore = createChatStore();
+export const QuietStreamShowsThinking: Story = {
+	render: () => {
+		quietStreamStore.resetTransientState();
+		quietStreamStore.replaceMessages([
+			buildMessage(1, "user", [
+				{ type: "text", text: "Send the agent a detailed prompt" },
+			]),
+		]);
+		quietStreamStore.setChatStatus("waiting");
+
+		return <StoryChatPageTimeline store={quietStreamStore} />;
+	},
+	play: async ({ canvasElement }) => {
+		// One batch starts the turn with its first part, so the starting phase's
+		// own Thinking row never renders and cannot satisfy the wait early.
+		quietStreamStore.batch(() => {
+			quietStreamStore.setChatStatus("running");
+			quietStreamStore.applyMessagePart({
+				type: "text",
+				text: "Sure, let me write it up.",
+			});
+		});
+		await within(canvasElement).findByTestId("live-activity-slot", undefined, {
+			timeout: 5_000,
+		});
+	},
+};
+
 export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 	render: () => {
 		const store = createChatStore();
