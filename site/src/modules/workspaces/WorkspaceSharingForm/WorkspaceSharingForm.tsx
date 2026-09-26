@@ -40,11 +40,11 @@ import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { getGroupSubtitle } from "#/modules/groups";
 
-interface RoleSelectProps {
+type RoleSelectProps = {
 	value: WorkspaceRole;
 	disabled?: boolean;
 	onValueChange: (value: WorkspaceRole) => void;
-}
+};
 
 const RoleSelect: FC<RoleSelectProps> = ({
 	value,
@@ -140,7 +140,7 @@ export const RoleSelectField: FC<RoleSelectFieldProps> = ({
 	);
 };
 
-interface WorkspaceSharingFormProps {
+type WorkspaceSharingFormProps = {
 	organizationId: string;
 	workspaceACL: WorkspaceACL | undefined;
 	canUpdatePermissions: boolean;
@@ -154,7 +154,7 @@ interface WorkspaceSharingFormProps {
 	addMemberForm?: ReactNode;
 	isCompact?: boolean;
 	showRestartWarning?: boolean;
-}
+};
 
 export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 	organizationId,

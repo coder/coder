@@ -14,7 +14,7 @@ import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { formatDateTime } from "#/utils/time";
 import { HighlightText } from "./HighlightText";
 
-interface NetworkCallsTableProps {
+type NetworkCallsTableProps = {
 	/**
 	 * Reports the whole session's network call totals. The total can exceed the
 	 * number of rows in `calls`, which is capped server-side.
@@ -29,7 +29,7 @@ interface NetworkCallsTableProps {
 	 * bolds the matched substring in each row.
 	 */
 	search?: { loaded: number; query: string };
-}
+};
 
 export const NetworkCallsTable: FC<NetworkCallsTableProps> = ({
 	summary,
@@ -144,11 +144,11 @@ const NetworkCallsList: FC<{
 	);
 };
 
-interface NetworkCallRowProps {
+type NetworkCallRowProps = {
 	call: AgentFirewallLog;
 	/** The active query, used to bold the matched substring in the URL. */
 	query: string;
-}
+};
 
 const NetworkCallRow: FC<NetworkCallRowProps> = ({ call, query }) => {
 	const timestamp = formatDateTime(new Date(call.created_at));
@@ -242,10 +242,10 @@ const NetworkCallStatusBadge: FC<{ allowed: boolean }> = ({ allowed }) =>
 		</Badge>
 	);
 
-interface NetworkCallDetailRowProps {
+type NetworkCallDetailRowProps = {
 	label: string;
 	children: ReactNode;
-}
+};
 
 const NetworkCallDetailRow: FC<NetworkCallDetailRowProps> = ({
 	label,

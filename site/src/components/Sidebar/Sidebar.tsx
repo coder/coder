@@ -2,10 +2,10 @@ import { cn } from "cn";
 import type { FC, ReactNode } from "react";
 import { NavLink, type To } from "react-router";
 
-interface SidebarProps {
+type SidebarProps = {
 	children?: ReactNode;
 	className?: string;
-}
+};
 
 export const Sidebar: FC<SidebarProps> = ({ className, children }) => {
 	return (
@@ -13,11 +13,11 @@ export const Sidebar: FC<SidebarProps> = ({ className, children }) => {
 	);
 };
 
-interface SettingsSidebarNavItemProps {
+type SettingsSidebarNavItemProps = {
 	children?: ReactNode;
 	href: To;
 	end?: boolean;
-}
+};
 
 export const SettingsSidebarNavItem: FC<SettingsSidebarNavItemProps> = ({
 	children,

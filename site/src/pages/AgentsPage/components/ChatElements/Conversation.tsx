@@ -1,7 +1,7 @@
 import { cn } from "cn";
-import type { ComponentPropsWithRef } from "react";
+import type { ComponentProps } from "react";
 
-type ConversationProps = ComponentPropsWithRef<"div">;
+type ConversationProps = ComponentProps<"div">;
 
 export const Conversation = ({
 	className,
@@ -17,7 +17,7 @@ export const Conversation = ({
 	);
 };
 
-type ConversationItemProps = Omit<ComponentPropsWithRef<"div">, "role"> & {
+type ConversationItemProps = Omit<ComponentProps<"div">, "role"> & {
 	role: "user" | "assistant";
 };
 

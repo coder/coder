@@ -12,14 +12,14 @@ import {
 } from "#/components/Dialog/Dialog";
 import { RoleSelector } from "#/modules/roles/RoleSelector";
 
-interface DefaultRolesDialogProps {
+type DefaultRolesDialogProps = {
 	open: boolean;
 	currentRoles: readonly string[];
 	availableRoles?: AssignableRoles[];
 	onCancel: () => void;
 	onConfirm: (roles: string[]) => Promise<void>;
 	isUpdating: boolean;
-}
+};
 
 export const DefaultRolesDialog: FC<DefaultRolesDialogProps> = ({
 	open,
@@ -44,13 +44,13 @@ export const DefaultRolesDialog: FC<DefaultRolesDialogProps> = ({
 	);
 };
 
-interface ActiveProps {
+type ActiveProps = {
 	currentRoles: readonly string[];
 	availableRoles: AssignableRoles[];
 	onCancel: () => void;
 	onConfirm: (roles: string[]) => Promise<void>;
 	isUpdating: boolean;
-}
+};
 
 const ActiveDefaultRolesDialog: FC<ActiveProps> = ({
 	currentRoles,

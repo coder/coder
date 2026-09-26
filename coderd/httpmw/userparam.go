@@ -31,11 +31,6 @@ func UserParam(r *http.Request) database.User {
 	return user
 }
 
-func UserParamOptional(r *http.Request) (database.User, bool) {
-	user, ok := r.Context().Value(userParamContextKey{}).(database.User)
-	return user, ok
-}
-
 // ExtractUserParam extracts a user from an ID/username in the {user} URL
 // parameter.
 func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
@@ -48,22 +43,6 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 			ctx = context.WithValue(ctx, userParamContextKey{}, user)
-			next.ServeHTTP(rw, r.WithContext(ctx))
-		})
-	}
-}
-
-// ExtractUserParamOptional does not fail if no user is present.
-func ExtractUserParamOptional(db database.Store) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			ctx := r.Context()
-
-			user, ok := ExtractUserContext(ctx, db, &httpapi.NoopResponseWriter{}, r)
-			if ok {
-				ctx = context.WithValue(ctx, userParamContextKey{}, user)
-			}
-
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

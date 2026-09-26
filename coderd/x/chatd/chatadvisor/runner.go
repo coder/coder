@@ -18,8 +18,9 @@ import (
 // RunAdvisorOptions carries optional streaming callbacks for a
 // single RunAdvisor invocation.
 type RunAdvisorOptions struct {
-	OnAdviceDelta func(delta string)
-	OnAdviceReset func()
+	OnAdviceDelta     func(delta string)
+	OnReasoningDelta  func(delta string)
+	OnLiveOutputReset func()
 }
 
 // RunAdvisor executes a single, tool-less nested advisor call.
@@ -52,18 +53,26 @@ func (rt *Runtime) RunAdvisor(
 	resetProviderOptionsForNestedCall(nestedCall.ProviderOptions)
 
 	assistantOpts := chatloop.GenerateAssistantOptions{
-		Model:        rt.cfg.Model,
-		Messages:     BuildAdvisorMessages(question, conversationSnapshot),
-		CallTemplate: nestedCall,
+		Model:                rt.cfg.Model,
+		Messages:             BuildAdvisorMessages(question, conversationSnapshot),
+		CallTemplate:         nestedCall,
+		StreamSilenceTimeout: rt.cfg.StreamSilenceTimeout,
 	}
-	if opts != nil && opts.OnAdviceDelta != nil {
+	if opts != nil && (opts.OnAdviceDelta != nil || opts.OnReasoningDelta != nil) {
 		assistantOpts.PublishMessagePart = func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
-			if role != codersdk.ChatMessageRoleAssistant ||
-				part.Type != codersdk.ChatMessagePartTypeText ||
-				part.Text == "" {
+			if role != codersdk.ChatMessageRoleAssistant || part.Text == "" {
 				return
 			}
-			opts.OnAdviceDelta(part.Text)
+			switch part.Type {
+			case codersdk.ChatMessagePartTypeText:
+				if opts.OnAdviceDelta != nil {
+					opts.OnAdviceDelta(part.Text)
+				}
+			case codersdk.ChatMessagePartTypeReasoning:
+				if opts.OnReasoningDelta != nil {
+					opts.OnReasoningDelta(part.Text)
+				}
+			}
 		}
 	}
 
@@ -73,8 +82,8 @@ func (rt *Runtime) RunAdvisor(
 		outcome, err = chatloop.GenerateAssistant(retryCtx, assistantOpts)
 		return err
 	}, func(int, error, chatretry.ClassifiedError, time.Duration) {
-		if opts != nil && opts.OnAdviceReset != nil {
-			opts.OnAdviceReset()
+		if opts != nil && opts.OnLiveOutputReset != nil {
+			opts.OnLiveOutputReset()
 		}
 	}); err != nil {
 		// Refund the use so a transient provider failure does not

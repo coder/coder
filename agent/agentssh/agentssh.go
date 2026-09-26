@@ -340,13 +340,14 @@ func (s *Server) SessionCounts() map[string]int64 {
 }
 
 func extractAppName(env []string) (appName, rawAppName string, filteredEnv []string) {
+	// Match the full assignment so a longer variable such as
+	// CODER_SSH_SESSION_TYPE_FOO=bar is not mistaken for this one.
+	prefix := AppNameEnvironmentVariable + "="
 	for _, kv := range env {
-		if !strings.HasPrefix(kv, AppNameEnvironmentVariable) {
-			continue
+		if value, ok := strings.CutPrefix(kv, prefix); ok {
+			// The last instance of the variable wins.
+			rawAppName = value
 		}
-
-		rawAppName = strings.TrimPrefix(kv, AppNameEnvironmentVariable+"=")
-		// Keep going, we'll use the last instance of the env.
 	}
 
 	if rawAppName == "" {
@@ -357,7 +358,7 @@ func extractAppName(env []string) (appName, rawAppName string, filteredEnv []str
 	}
 
 	return appName, rawAppName, slices.DeleteFunc(env, func(kv string) bool {
-		return strings.HasPrefix(kv, AppNameEnvironmentVariable+"=")
+		return strings.HasPrefix(kv, prefix)
 	})
 }
 

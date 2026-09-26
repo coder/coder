@@ -10,6 +10,36 @@ import (
 
 // RFC 7591 validation functions for Dynamic Client Registration
 
+const (
+	// OAuth2RedirectURIsMaxCount is the most redirect URIs an app may register.
+	OAuth2RedirectURIsMaxCount = 32
+	// OAuth2RedirectURIMaxBytes is the longest a single redirect URI may be.
+	OAuth2RedirectURIMaxBytes = 2048
+	// OAuth2ScopeListMaxBytes bounds the length of an app's stored scope list.
+	// The full public catalog fits in well under this.
+	OAuth2ScopeListMaxBytes = 4096
+	// OAuth2ScopeListMaxNames bounds how many space-separated names an app's
+	// scope list may hold. The public catalog is about half this size.
+	OAuth2ScopeListMaxNames = 100
+)
+
+// ValidateOAuth2ScopeList bounds the size of a scope list before it is stored
+// as an app's allowlist. Names are not checked against the catalog: an
+// unknown name is rejected at authorization, where the client learns which
+// name to drop. Dynamic client registration is unauthenticated, so without a
+// cap the stored list is bounded only by the request body limit and is read on
+// every app response. The length check runs first so an oversized list is
+// never split.
+func ValidateOAuth2ScopeList(raw string) error {
+	if len(raw) > OAuth2ScopeListMaxBytes {
+		return xerrors.Errorf("must be at most %d bytes", OAuth2ScopeListMaxBytes)
+	}
+	if names := len(strings.Fields(raw)); names > OAuth2ScopeListMaxNames {
+		return xerrors.Errorf("must list at most %d names", OAuth2ScopeListMaxNames)
+	}
+	return nil
+}
+
 func (req *OAuth2ClientRegistrationRequest) Validate() error {
 	// Validate redirect URIs - required for authorization code flow
 	if len(req.RedirectURIs) == 0 {
@@ -84,15 +114,43 @@ func (req *OAuth2ClientRegistrationRequest) Validate() error {
 //
 // Legitimate custom schemes for native apps (e.g. vscode://, jetbrains://)
 // are allowed.
-// ValidateRedirectURIScheme reports whether the callback URL's scheme is
-// safe to use as a redirect target. It returns an error when the scheme
-// is empty, an unsupported URN, or one of the schemes that are dangerous
-// in browser/HTML contexts (javascript, data, file, ftp).
-//
-// Legitimate custom schemes for native apps (e.g. vscode://, jetbrains://)
-// are allowed.
 func ValidateRedirectURIScheme(u *url.URL) error {
 	return validateScheme(u)
+}
+
+// ValidateRedirectURIShape checks that a redirect URI parses, uses an
+// allowed scheme, names a host or a path, and has no fragment. Both the admin
+// and dynamic registration paths run this check, so every stored redirect URI
+// passes it.
+func ValidateRedirectURIShape(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return xerrors.Errorf("is not a valid URL: %w", err)
+	}
+	if err := validateScheme(u); err != nil {
+		return err
+	}
+	return validateParsedRedirectURIShape(raw, u)
+}
+
+// validateParsedRedirectURIShape checks the rules that apply to every
+// client type: no fragment, and a host or a path is present. The caller
+// has already checked the scheme.
+func validateParsedRedirectURIShape(raw string, u *url.URL) error {
+	// Prevent URI fragments (RFC 6749 section 3.1.2).
+	if u.Fragment != "" || strings.Contains(raw, "#") {
+		return xerrors.New("must not contain a fragment component")
+	}
+	if u.Scheme == "urn" {
+		return nil
+	}
+	if (u.Scheme == "http" || u.Scheme == "https") && u.Host == "" {
+		return xerrors.New("http and https URLs must include a host")
+	}
+	if u.Opaque != "" || (u.Host == "" && u.Path == "") {
+		return xerrors.New("must name a host or a path")
+	}
+	return nil
 }
 
 // RedirectURIMatches reports whether a redirect_uri a client presented may be
@@ -117,7 +175,7 @@ func RedirectURIMatches(presented, registered *url.URL) bool {
 
 func validateScheme(u *url.URL) error {
 	if u.Scheme == "" {
-		return xerrors.New("redirect URI must have a scheme")
+		return xerrors.New("must have a scheme")
 	}
 
 	// Handle special URNs (RFC 6749 section 3.1.2.1).
@@ -125,7 +183,7 @@ func validateScheme(u *url.URL) error {
 		if u.String() == "urn:ietf:wg:oauth:2.0:oob" {
 			return nil
 		}
-		return xerrors.New("redirect URI uses unsupported URN scheme")
+		return xerrors.New("uses an unsupported URN scheme")
 	}
 
 	// Block dangerous schemes for security (not allowed by RFCs
@@ -133,7 +191,7 @@ func validateScheme(u *url.URL) error {
 	dangerousSchemes := []string{"javascript", "data", "file", "ftp"}
 	for _, dangerous := range dangerousSchemes {
 		if strings.EqualFold(u.Scheme, dangerous) {
-			return xerrors.Errorf("redirect URI uses dangerous scheme %s which is not allowed", dangerous)
+			return xerrors.Errorf("uses the dangerous scheme %s", dangerous)
 		}
 	}
 
@@ -144,82 +202,97 @@ func validateScheme(u *url.URL) error {
 // clientType selects which rules apply and is derived by DetermineClientType,
 // the single owner of that mapping, so this cannot disagree with the type the
 // app is stored as.
+//
+// Stored URIs are checked again on every update. An app that predates the
+// caps and no longer passes must be deleted and registered again.
 func ValidateRedirectURIs(uris []string, clientType OAuth2ClientType) error {
 	if len(uris) == 0 {
 		return xerrors.New("at least one redirect URI is required")
 	}
+	if len(uris) > OAuth2RedirectURIsMaxCount {
+		return xerrors.Errorf("at most %d redirect URIs are allowed", OAuth2RedirectURIsMaxCount)
+	}
 
 	for i, uriStr := range uris {
-		if uriStr == "" {
-			return xerrors.Errorf("redirect URI at index %d cannot be empty", i)
-		}
-
-		uri, err := url.Parse(uriStr)
-		if err != nil {
-			return xerrors.Errorf("redirect URI at index %d is not a valid URL: %w", i, err)
-		}
-
-		if err := validateScheme(uri); err != nil {
+		if err := ValidateRedirectURI(uriStr, clientType); err != nil {
 			return xerrors.Errorf("redirect URI at index %d: %w", i, err)
-		}
-
-		// The urn:ietf:wg:oauth:2.0:oob scheme passed validation
-		// above but needs no further checks.
-		if uri.Scheme == "urn" {
-			continue
-		}
-
-		isPublicClient := clientType == OAuth2ClientTypePublic
-
-		// Handle different validation for public vs confidential clients
-		if uri.Scheme == "http" || uri.Scheme == "https" {
-			// HTTP/HTTPS validation (RFC 8252 section 7.3)
-			if uri.Scheme == "http" {
-				if isPublicClient {
-					// For public clients, only allow loopback (RFC 8252)
-					if !isLoopbackAddress(uri.Hostname()) {
-						return xerrors.Errorf("redirect URI at index %d: public clients may only use http with loopback addresses (127.0.0.1, ::1, localhost)", i)
-					}
-				} else {
-					// For confidential clients, allow localhost for development
-					if !isLocalhost(uri.Hostname()) {
-						return xerrors.Errorf("redirect URI at index %d must use https scheme for non-localhost URLs", i)
-					}
-				}
-			}
-		} else if isPublicClient {
-			// mailto, tel, and sms hand off to a mail client, dialer, or SMS
-			// app rather than returning control to the application that
-			// started the flow. A public client has no other way to obtain
-			// its authorization code, so registering one of these would
-			// produce a client that can never complete authorization.
-			//
-			// This check runs only for public clients because that is how
-			// custom-scheme validation was scoped before this change, not
-			// because these three schemes are known to be safe for a
-			// confidential client's redirect; confidential clients were
-			// never subject to any scheme-shape check beyond validateScheme
-			// and remain so here.
-			switch uri.Scheme {
-			case "mailto", "tel", "sms":
-				return xerrors.Errorf("redirect URI at index %d: public clients may not use the %s scheme", i, uri.Scheme)
-			}
-		}
-		// Beyond that, custom schemes need no further check: validateScheme
-		// already blocked the ones that are dangerous in a redirect context,
-		// and RFC 8252 §7.1 only recommends reverse-domain notation rather
-		// than requiring it. Rejecting bare schemes such as vscode:// or
-		// jetbrains:// would penalize the native and CLI apps this client
-		// type exists for; PKCE, not the scheme's spelling, is what secures
-		// the redirect.
-
-		// Prevent URI fragments (RFC 6749 section 3.1.2)
-		if uri.Fragment != "" || strings.Contains(uriStr, "#") {
-			return xerrors.Errorf("redirect URI at index %d must not contain a fragment component", i)
 		}
 	}
 
 	return nil
+}
+
+// ValidateRedirectURI checks one redirect URI against the dynamic client
+// registration rules.
+func ValidateRedirectURI(uriStr string, clientType OAuth2ClientType) error {
+	if uriStr == "" {
+		return xerrors.New("cannot be empty")
+	}
+	// Checked before parsing so an oversized value is never parsed.
+	if len(uriStr) > OAuth2RedirectURIMaxBytes {
+		return xerrors.Errorf("must be at most %d bytes", OAuth2RedirectURIMaxBytes)
+	}
+
+	uri, err := url.Parse(uriStr)
+	if err != nil {
+		return xerrors.Errorf("is not a valid URL: %w", err)
+	}
+
+	if err := validateScheme(uri); err != nil {
+		return err
+	}
+
+	// The urn:ietf:wg:oauth:2.0:oob scheme passed validation
+	// above but needs no further checks.
+	if uri.Scheme == "urn" {
+		return nil
+	}
+
+	isPublicClient := clientType == OAuth2ClientTypePublic
+
+	// Handle different validation for public vs confidential clients
+	if uri.Scheme == "http" || uri.Scheme == "https" {
+		// HTTP/HTTPS validation (RFC 8252 section 7.3)
+		if uri.Scheme == "http" {
+			if isPublicClient {
+				// For public clients, only allow loopback (RFC 8252)
+				if !isLoopbackAddress(uri.Hostname()) {
+					return xerrors.New("public clients may only use http with loopback addresses (127.0.0.1, ::1, localhost)")
+				}
+			} else {
+				// For confidential clients, allow localhost for development
+				if !isLocalhost(uri.Hostname()) {
+					return xerrors.New("must use https scheme for non-localhost URLs")
+				}
+			}
+		}
+	} else if isPublicClient {
+		// mailto, tel, and sms hand off to a mail client, dialer, or SMS
+		// app rather than returning control to the application that
+		// started the flow. A public client has no other way to obtain
+		// its authorization code, so registering one of these would
+		// produce a client that can never complete authorization.
+		//
+		// This check runs only for public clients because that is how
+		// custom-scheme validation was scoped before this change, not
+		// because these three schemes are known to be safe for a
+		// confidential client's redirect.
+		switch uri.Scheme {
+		case "mailto", "tel", "sms":
+			return xerrors.Errorf("public clients may not use the %s scheme", uri.Scheme)
+		}
+	}
+	// Beyond that, custom schemes need no further check: validateScheme
+	// already blocked the ones that are dangerous in a redirect context,
+	// and RFC 8252 §7.1 only recommends reverse-domain notation rather
+	// than requiring it. Rejecting bare schemes such as vscode:// or
+	// jetbrains:// would penalize the native and CLI apps this client
+	// type exists for; PKCE, not the scheme's spelling, is what secures
+	// the redirect.
+
+	// The client type checks above report the more specific error, so the
+	// shared shape rules run last.
+	return validateParsedRedirectURIShape(uriStr, uri)
 }
 
 // validateGrantTypes validates OAuth2 grant types

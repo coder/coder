@@ -28,13 +28,16 @@ import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
+	MockUnsetUserChatPersonalModelOverrides,
 } from "#/testHelpers/chatModels";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
+	MockFailedWorkspace,
 	MockOrganization2,
 	MockUserPreferenceSettings,
 	MockWorkspace,
+	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
@@ -42,6 +45,11 @@ import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
+import {
+	debugWorkspaceBuildLogsFileName,
+	debugWorkspaceBuildPrompt,
+	formatWorkspaceBuildLogsForDebug,
+} from "../utils/workspaceBuildDebug";
 import {
 	AgentCreateForm,
 	emptyInputStorageKey,
@@ -206,24 +214,8 @@ const buildRootPersonalModelOverride = (
 const buildPersonalModelOverridesResponse = (
 	root = buildRootPersonalModelOverride({ is_set: false }),
 ): TypesGen.UserChatPersonalModelOverridesResponse => ({
-	enabled: true,
+	...MockUnsetUserChatPersonalModelOverrides,
 	root,
-	general: {
-		context: "general",
-		mode: "deployment_default",
-		model_config_id: "",
-		is_set: false,
-	},
-	explore: {
-		context: "explore",
-		mode: "deployment_default",
-		model_config_id: "",
-		is_set: false,
-	},
-	deployment_defaults: {
-		general: { context: "general", model_config_id: "" },
-		explore: { context: "explore", model_config_id: "" },
-	},
 });
 
 const mock403Error = Object.assign(
@@ -478,25 +470,24 @@ export const RootOverrideMissingFromCatalog: Story = {
 	},
 };
 
-export const LastUsedModelFallbackWithoutRootOverride: Story = {
+export const OrganizationDefaultModelWithoutRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		localStorage.setItem("agents.last-model-config-id", claudeModelConfigID);
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+			canvas.getByRole("combobox", { name: "GPT-4o" }),
 		).toBeInTheDocument();
-		await submitMessage(canvasElement, "create with last used model");
+		await submitMessage(canvasElement, "create with the default model");
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
-		expect(getCreateOptions(args.onCreateChat).model).toBe(claudeModelConfigID);
+		expect(getCreateOptions(args.onCreateChat).model).toBe(modelID);
 	},
 };
 
@@ -1358,7 +1349,7 @@ export const WithOrganizationPicker: Story = {
 	},
 };
 
-export const DelayedAuthorizationPreservesForeignPersistedModel: Story = {
+export const DelayedAuthorizationResolvesPermittedOrganization: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
@@ -1379,10 +1370,6 @@ export const DelayedAuthorizationPreservesForeignPersistedModel: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		localStorage.setItem(
-			"agents.last-model-config-id",
-			organization2ModelConfig.id,
-		);
 		mockPermittedOrganizations(
 			{
 				[MockDefaultOrganization.id]: false,
@@ -2180,6 +2167,29 @@ export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
 		await capturedQueryClient.refetchQueries({
 			queryKey: mcpServerConfigsKey(MockDefaultOrganization.id),
 			exact: true,
+		});
+	},
+};
+
+const workspaceBuildDebugPrefill = {
+	message: debugWorkspaceBuildPrompt(MockFailedWorkspace.latest_build),
+	attachment: {
+		name: debugWorkspaceBuildLogsFileName(MockFailedWorkspace.latest_build),
+		text: formatWorkspaceBuildLogsForDebug(
+			MockFailedWorkspace.latest_build,
+			MockWorkspaceBuildLogs,
+		),
+	},
+};
+
+export const PrefilledWorkspaceBuildDebug: Story = {
+	args: {
+		...defaultArgs,
+		prefill: workspaceBuildDebugPrefill,
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "workspace-build-logs-file",
 		});
 	},
 };

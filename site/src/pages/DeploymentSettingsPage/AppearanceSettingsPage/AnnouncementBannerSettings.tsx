@@ -37,11 +37,11 @@ const NewBannerButton: FC<NewBannerButtonProps> = ({ onClick }) => (
 	</Button>
 );
 
-interface AnnouncementBannersettingsProps {
+type AnnouncementBannersettingsProps = {
 	isEntitled: boolean;
 	announcementBanners: readonly BannerConfig[];
 	onSubmit: (banners: readonly BannerConfig[]) => Promise<void>;
-}
+};
 
 type EditingBanner = {
 	/** `null` means creating a new banner. */

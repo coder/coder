@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 )
 
@@ -22,7 +23,7 @@ type DRPCRecorder struct {
 }
 
 func (t *DRPCRecorder) RecordInterception(ctx context.Context, req *InterceptionRecord) error {
-	_, err := t.client.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+	in := &proto.RecordInterceptionRequest{
 		Id:                          req.ID,
 		ApiKeyId:                    t.apiKeyID,
 		InitiatorId:                 req.InitiatorID,
@@ -39,7 +40,11 @@ func (t *DRPCRecorder) RecordInterception(ctx context.Context, req *Interception
 		CredentialHint:              req.CredentialHint,
 		AgentFirewallSessionId:      req.AgentFirewallSessionID,
 		AgentFirewallSequenceNumber: req.AgentFirewallSequenceNumber,
-	})
+	}
+	if attr, ok := agplaibridge.AttributionFromContext(ctx); ok {
+		in.WorkspaceId = attr.WorkspaceID.String()
+	}
+	_, err := t.client.RecordInterception(ctx, in)
 	return err
 }
 

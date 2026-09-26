@@ -15,9 +15,9 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
-interface ActiveUserChartProps {
+type ActiveUserChartProps = {
 	data: { date: string; amount: number }[];
-}
+};
 
 export const ActiveUserChart: FC<ActiveUserChartProps> = ({ data }) => {
 	return (

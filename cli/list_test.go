@@ -127,21 +127,38 @@ func TestList(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+		// Share orgOwner's workspace with member
+		err := client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
 			UserRoles: map[string]codersdk.WorkspaceRole{
 				member.ID.String(): codersdk.WorkspaceRoleUse,
 			},
 		})
+		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "list", "--shared-with-me", "--output=json")
+		// member should see the workspace with the default filter
+		inv, root := clitest.New(t, "list", "--output=json")
 		clitest.SetupConfig(t, memberClient, root)
 
 		stdout := new(bytes.Buffer)
 		inv.Stdout = stdout
-		err := inv.WithContext(ctx).Run()
+		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
 		var workspaces []codersdk.Workspace
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &workspaces))
+		require.Len(t, workspaces, 1)
+		require.Equal(t, sharedWorkspace.ID, workspaces[0].ID)
+
+		// member should see the workspace when passing `--shared-with-me`
+		inv, root = clitest.New(t, "list", "--shared-with-me", "--output=json")
+		clitest.SetupConfig(t, memberClient, root)
+
+		stdout = new(bytes.Buffer)
+		inv.Stdout = stdout
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		workspaces = nil
 		require.NoError(t, json.Unmarshal(stdout.Bytes(), &workspaces))
 		require.Len(t, workspaces, 1)
 		require.Equal(t, sharedWorkspace.ID, workspaces[0].ID)

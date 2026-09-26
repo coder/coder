@@ -54,11 +54,11 @@ const initialValues: TrialFormValues = {
 	acknowledged: false,
 };
 
-interface TrialRequestFormProps {
+type TrialRequestFormProps = {
 	onSubmit: (request: TypesGen.CreateTrialLicenseRequest) => void;
 	isSubmitting: boolean;
 	error?: unknown;
-}
+};
 
 export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 	onSubmit,

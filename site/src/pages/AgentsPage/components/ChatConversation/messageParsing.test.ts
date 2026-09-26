@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor";
 import {
 	buildSubagentMaps,
@@ -154,6 +155,27 @@ describe("getEditableUserMessagePayload", () => {
 		}
 	});
 
+	it("returns undefined for messages with workspace file references", () => {
+		const message: ChatMessage = {
+			id: 1,
+			chat_id: "chat-1",
+			created_at: "2026-04-21T00:00:00.000Z",
+			role: "user",
+			content: [
+				{ type: "text", text: "Please use this file." },
+				{
+					type: "workspace-file-reference",
+					workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+					workspace_file_name: "data.csv",
+					workspace_file_size: 42,
+					workspace_file_workspace_id: "ws-1",
+				},
+			],
+		};
+
+		expect(getEditableUserMessagePayload(message)).toBeUndefined();
+	});
+
 	it("preserves whitespace-only text parts when concatenating", () => {
 		// The server-side prompt-history cycle joins text parts
 		// verbatim via `string_agg(part->>'text', '' ORDER BY ordinality)`.
@@ -299,6 +321,29 @@ describe("parseMessageContent", () => {
 		expect(result.blocks).toEqual([{ type: "tool", id: "call-1" }]);
 	});
 
+	it("keeps the media flag on matched and orphaned tool results", () => {
+		const result = parseMessageContent([
+			{
+				type: "tool-call",
+				tool_name: "playwright__browser_take_screenshot",
+				tool_call_id: "call-1",
+				args: {},
+			},
+			{
+				type: "tool-result",
+				tool_name: "playwright__browser_take_screenshot",
+				tool_call_id: "call-1",
+				result: { data: "AAAA", mime_type: "image/png", text: "done" },
+				is_media: true,
+			},
+		]);
+		expect(result.toolResults[0].isMedia).toBe(true);
+		const matched = mergeTools(result.toolCalls, result.toolResults);
+		expect(matched[0].isMedia).toBe(true);
+		const orphaned = mergeTools([], result.toolResults);
+		expect(orphaned[0].isMedia).toBe(true);
+	});
+
 	it("handles interleaved text and tool blocks in correct order", () => {
 		const result = parseMessageContent([
 			{ type: "text", text: "Starting..." },
@@ -419,6 +464,33 @@ describe("parseMessageContent", () => {
 			end_line: 2,
 			content: "nit code content",
 		});
+	});
+
+	it("parses workspace file references without changing markdown", () => {
+		const result = parseMessageContent([
+			{ type: "text", text: "Use this file." },
+			{
+				type: "workspace-file-reference",
+				workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+				workspace_file_name: "data.csv",
+				workspace_file_size: 42,
+				workspace_file_workspace_id: "ws-1",
+				workspace_file_media_type: "text/csv",
+			},
+		]);
+
+		expect(result.markdown).toBe("Use this file.");
+		expect(result.blocks).toEqual([
+			{ type: "response", text: "Use this file." },
+			{
+				type: "workspace-file-reference",
+				workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+				workspace_file_name: "data.csv",
+				workspace_file_size: 42,
+				workspace_file_workspace_id: "ws-1",
+				workspace_file_media_type: "text/csv",
+			},
+		]);
 	});
 
 	it("skips provider_executed tool-call parts", () => {
@@ -628,6 +700,143 @@ describe("pending durable tool parsing", () => {
 
 		expect(parsed[1]?.parsed.tools[0]?.status).toBe("completed");
 		expect(parsed[3]?.parsed.tools[0]?.status).toBe("running");
+	});
+});
+
+describe("live tool result overlay", () => {
+	const mockAdvisorArgs = {
+		question: "on or off by default?",
+		model_intent: "Checking the default",
+	};
+	const mockAdvisorCall: ChatMessagePart = {
+		type: "tool-call",
+		tool_call_id: "call-advisor",
+		tool_name: "advisor",
+		args: mockAdvisorArgs,
+	};
+	const messages: ChatMessage[] = [
+		{
+			...MockChatMessage,
+			id: 24,
+			role: "user",
+			content: [{ type: "text", text: "Should this be on by default?" }],
+		},
+		{
+			...MockChatMessage,
+			id: 25,
+			role: "assistant",
+			content: [mockAdvisorCall],
+		},
+	];
+	const pendingToolCallIDs = getPendingToolCallIDs(messages, "running");
+
+	it("streams a live result into the durable call that owns it", () => {
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs,
+			liveToolResults: {
+				"call-advisor": {
+					id: "call-advisor",
+					name: "advisor",
+					result: "Turn it on",
+					reasoning: "Weighing the default",
+					isError: false,
+					isStreaming: true,
+				},
+			},
+		});
+
+		expect(parsed[1]?.parsed.tools).toEqual([
+			expect.objectContaining({
+				id: "call-advisor",
+				status: "running",
+				args: mockAdvisorArgs,
+				modelIntent: "Checking the default",
+				result: "Turn it on",
+				reasoning: "Weighing the default",
+			}),
+		]);
+	});
+
+	it("completes the durable call from a final live result before the durable result lands", () => {
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs,
+			liveToolResults: {
+				"call-advisor": {
+					id: "call-advisor",
+					name: "advisor",
+					result: { type: "advice", advice: "Turn it on" },
+					isError: false,
+				},
+			},
+		});
+
+		expect(parsed[1]?.parsed.tools[0]).toMatchObject({
+			status: "completed",
+			result: { type: "advice", advice: "Turn it on" },
+		});
+		expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
+	});
+
+	it.each([null, { type: "advice", advice: "Durable advice" }])(
+		"prefers the durable result over a stale live result: %j",
+		(durableResult) => {
+			const resolvedMessages: ChatMessage[] = [
+				...messages,
+				{
+					...MockChatMessage,
+					id: 26,
+					role: "tool",
+					content: [
+						{
+							type: "tool-result",
+							tool_call_id: "call-advisor",
+							tool_name: "advisor",
+							result: durableResult,
+						},
+					],
+				},
+			];
+
+			const parsed = parseMessagesWithMergedTools(resolvedMessages, {
+				pendingToolCallIDs: getPendingToolCallIDs(resolvedMessages, "running"),
+				liveToolResults: {
+					"call-advisor": {
+						id: "call-advisor",
+						name: "advisor",
+						result: "Stale partial advice",
+						reasoning: "Stale thinking",
+						isError: false,
+						isStreaming: true,
+					},
+				},
+			});
+
+			expect(parsed[1]?.parsed.tools[0]).toMatchObject({
+				status: "completed",
+				result: durableResult,
+			});
+			expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
+		},
+	);
+
+	it("ignores live results for other tool calls", () => {
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs,
+			liveToolResults: {
+				"call-other": {
+					id: "call-other",
+					name: "advisor",
+					result: "Unrelated",
+					reasoning: "Unrelated thinking",
+					isError: false,
+					isStreaming: true,
+				},
+			},
+		});
+
+		expect(parsed[1]?.parsed.tools[0]).toMatchObject({ status: "running" });
+		expect(parsed[1]?.parsed.tools[0]?.result).toBeUndefined();
+		expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
 	});
 });
 

@@ -16,10 +16,10 @@ import { lastWeeks } from "./utils";
 // 6 months.
 export const numberOfWeeksOptions = [4, 12, 24] as const;
 
-interface WeekPickerProps {
+type WeekPickerProps = {
 	value: DateRangeValue;
 	onChange: (value: DateRangeValue) => void;
-}
+};
 
 export const WeekPicker: FC<WeekPickerProps> = ({ value, onChange }) => {
 	const numberOfWeeks = dayjs(value.endDate).diff(

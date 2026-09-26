@@ -26,7 +26,7 @@ import {
 } from "#/components/Popover/Popover";
 import { Spinner } from "#/components/Spinner/Spinner";
 
-interface AutocompleteProps<TOption> {
+type AutocompleteProps<TOption> = {
 	value: TOption | null;
 	onChange: (value: TOption | null) => void;
 	options: readonly TOption[];
@@ -52,7 +52,7 @@ interface AutocompleteProps<TOption> {
 	triggerAriaDescribedBy?: string;
 	id?: string;
 	"data-testid"?: string;
-}
+};
 
 export function Autocomplete<TOption>({
 	value,

@@ -18,7 +18,7 @@ import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage
 import { createDayString } from "#/utils/createDayString";
 import type { TemplateVersionFiles } from "#/utils/templateVersion";
 
-export interface TemplateVersionPageViewProps {
+export type TemplateVersionPageViewProps = {
 	organizationName: string;
 	templateName: string;
 	versionName: string;
@@ -27,7 +27,7 @@ export interface TemplateVersionPageViewProps {
 	currentVersion: TemplateVersion | undefined;
 	currentFiles: TemplateVersionFiles | undefined;
 	baseFiles: TemplateVersionFiles | undefined;
-}
+};
 
 export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 	organizationName,

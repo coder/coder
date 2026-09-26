@@ -23,10 +23,10 @@ import {
 	WorkspaceUpdateDialogs,
 } from "../WorkspaceUpdateDialogs";
 
-interface WorkspaceOutdatedTooltipProps {
+type WorkspaceOutdatedTooltipProps = {
 	workspace: Workspace;
 	children?: ReactNode;
-}
+};
 
 export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 	workspace,
@@ -34,9 +34,9 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
-	// Stop activation from bubbling to a parent `useClickableTableRow` row,
-	// which navigates on click, Enter (onKeyDown), and Space (onKeyUp). Radix
-	// composes its own click handler, so the popover still opens.
+	// Keep trigger clicks from triggering a parent clickable row's navigation.
+	// Radix composes its own click handler, so the popover still opens. The
+	// span's key handlers only satisfy Biome's lint/a11y/useKeyWithClickEvents.
 	const stopPropagation = (event: React.SyntheticEvent) => {
 		event.stopPropagation();
 	};
@@ -46,7 +46,7 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 			{children ? (
 				<HelpPopoverTrigger asChild>
 					<span
-						className="flex items-center gap-1.5 cursor-help"
+						className="flex items-center gap-1.5"
 						onClick={stopPropagation}
 						onKeyDown={stopPropagation}
 						onKeyUp={stopPropagation}
@@ -60,8 +60,6 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 					size="small"
 					hoverEffect={false}
 					onClick={stopPropagation}
-					onKeyDown={stopPropagation}
-					onKeyUp={stopPropagation}
 				>
 					<CircleAlertIcon className="text-content-secondary" />
 					<span className="sr-only">Outdated info</span>

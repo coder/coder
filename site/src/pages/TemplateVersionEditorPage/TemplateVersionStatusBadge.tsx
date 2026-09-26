@@ -5,9 +5,9 @@ import { Badge, type BadgeProps } from "#/components/Badge/Badge";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { getPendingStatusLabel } from "#/utils/provisionerJob";
 
-interface TemplateVersionStatusBadgeProps {
+type TemplateVersionStatusBadgeProps = {
 	version: TemplateVersion;
-}
+};
 
 export const TemplateVersionStatusBadge: FC<
 	TemplateVersionStatusBadgeProps

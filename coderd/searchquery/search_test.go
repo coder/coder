@@ -357,6 +357,32 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name:  "UserMe",
+			Query: `user:me`,
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+				})
+			},
+			ActorID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+			Expected: database.GetWorkspacesParams{
+				UserID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+			},
+		},
+		{
+			Name:  "UserByName",
+			Query: `user:wibble`,
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID:       uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+					Username: "wibble",
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				UserID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+			},
+		},
+		{
 			Name:  "SharedWithGroupDefaultOrg",
 			Query: "shared_with_group:wibble",
 			Setup: func(t *testing.T, db database.Store) {
@@ -921,6 +947,27 @@ func TestSearchTemplates(t *testing.T) {
 			Query: "foobar",
 			Expected: database.GetTemplatesWithFilterParams{
 				FuzzyDisplayName: "foobar",
+			},
+		},
+		{
+			Name:  "UseClassicParameterFlowTrue",
+			Query: "compatibility_mode:true",
+			Expected: database.GetTemplatesWithFilterParams{
+				UseClassicParameterFlow: sql.NullBool{Bool: true, Valid: true},
+			},
+		},
+		{
+			Name:  "UseClassicParameterFlowFalse",
+			Query: "compatibility_mode:false",
+			Expected: database.GetTemplatesWithFilterParams{
+				UseClassicParameterFlow: sql.NullBool{Bool: false, Valid: true},
+			},
+		},
+		{
+			Name:  "UseClassicParameterFlowMissing",
+			Query: "",
+			Expected: database.GetTemplatesWithFilterParams{
+				UseClassicParameterFlow: sql.NullBool{Bool: false, Valid: false},
 			},
 		},
 		{
@@ -1656,4 +1703,15 @@ func TestSearchGroups(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAIBridgeSessions(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	page := codersdk.Pagination{Limit: 25}
+
+	filter, errs := searchquery.AIBridgeSessions(context.Background(), db, `provider_name:acme-openai`, page, uuid.Nil, "")
+	require.Empty(t, errs)
+	require.Equal(t, "acme-openai", filter.ProviderName)
 }

@@ -53,14 +53,14 @@ const roleSyncValidationSchema = Yup.object({
 		.default({}),
 });
 
-interface IdpRoleSyncFormProps {
+type IdpRoleSyncFormProps = {
 	roleSyncSettings: RoleSyncSettings;
 	claimFieldValues: readonly string[] | undefined;
 	roleMappingCount: number;
 	roles: Role[];
 	onSubmit: (data: RoleSyncSettings) => void;
 	onSyncFieldChange: (value: string) => void;
-}
+};
 
 export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 	roleSyncSettings,
@@ -305,12 +305,12 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 	);
 };
 
-interface RoleRowProps {
+type RoleRowProps = {
 	idpRole: string;
 	exists: boolean | undefined;
 	coderRoles: readonly string[];
 	onDelete: (idpOrg: string) => void;
-}
+};
 
 const RoleRow: FC<RoleRowProps> = ({
 	idpRole,

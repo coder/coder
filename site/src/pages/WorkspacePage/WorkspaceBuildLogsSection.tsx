@@ -4,9 +4,9 @@ import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 
-interface WorkspaceBuildLogsSectionProps {
+type WorkspaceBuildLogsSectionProps = {
 	logs?: ProvisionerJobLog[];
-}
+};
 
 export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 	logs,

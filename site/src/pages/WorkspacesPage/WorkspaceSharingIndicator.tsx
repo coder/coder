@@ -9,10 +9,10 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-interface WorkspaceSharingIndicatorProps {
+type WorkspaceSharingIndicatorProps = {
 	sharedWith: readonly SharedWorkspaceActor[];
 	settingsPath: string;
-}
+};
 
 export const WorkspaceSharingIndicator: FC<WorkspaceSharingIndicatorProps> = ({
 	sharedWith,

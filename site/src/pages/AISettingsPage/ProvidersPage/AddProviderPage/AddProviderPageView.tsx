@@ -13,9 +13,9 @@ import type { AddableProvider } from "../components/addableProviderTypes";
 import { ProviderForm } from "../components/ProviderForm";
 import { providerFormValuesToCreate } from "../components/providerFormApiMap";
 
-interface AddProviderPageViewProps {
+type AddProviderPageViewProps = {
 	provider: AddableProvider;
-}
+};
 
 const indefiniteArticle = (word: string): string =>
 	/^[aeiou]/i.test(word) ? "an" : "a";

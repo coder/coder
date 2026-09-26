@@ -5,12 +5,12 @@ import { GitDeviceAuth } from "#/components/GitDeviceAuth/GitDeviceAuth";
 import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
 import { Welcome } from "#/components/Welcome/Welcome";
 
-interface LoginOAuthDevicePageViewProps {
+type LoginOAuthDevicePageViewProps = {
 	authenticated: boolean;
 	redirectUrl: string;
 	externalAuthDevice?: ExternalAuthDevice;
 	deviceExchangeError?: ApiErrorResponse;
-}
+};
 
 const LoginOAuthDevicePageView: FC<LoginOAuthDevicePageViewProps> = ({
 	authenticated,

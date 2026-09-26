@@ -3,10 +3,10 @@ import type { Theme } from "#/theme";
 
 const ThemeContext = createContext<Theme | undefined>(undefined);
 
-interface ThemeContextProviderProps {
+type ThemeContextProviderProps = {
 	theme: Theme;
 	children: ReactNode;
-}
+};
 
 export const ThemeContextProvider: FC<ThemeContextProviderProps> = ({
 	theme,

@@ -7,7 +7,7 @@ type DrawerDirection = "top" | "bottom" | "left" | "right";
 
 const DrawerDirectionContext = createContext<DrawerDirection>("right");
 
-type DrawerProps = React.ComponentPropsWithRef<typeof DialogPrimitive.Root> & {
+type DrawerProps = React.ComponentProps<typeof DialogPrimitive.Root> & {
 	/** The edge of the screen the drawer slides in from. Defaults to "right". */
 	direction?: DrawerDirection;
 };
@@ -30,7 +30,7 @@ export const DrawerClose = DialogPrimitive.Close;
 const DrawerPortal = DialogPrimitive.Portal;
 
 const DrawerOverlay: React.FC<
-	React.ComponentPropsWithRef<typeof DialogPrimitive.Overlay>
+	React.ComponentProps<typeof DialogPrimitive.Overlay>
 > = ({ className, ...props }) => {
 	return (
 		<DialogPrimitive.Overlay
@@ -80,7 +80,7 @@ const drawerContentVariants = cva(
 );
 
 export const DrawerContent: React.FC<
-	React.ComponentPropsWithRef<typeof DialogPrimitive.Content>
+	React.ComponentProps<typeof DialogPrimitive.Content>
 > = ({ className, children, ...props }) => {
 	const direction = useContext(DrawerDirectionContext);
 
@@ -97,7 +97,7 @@ export const DrawerContent: React.FC<
 	);
 };
 
-export const DrawerHeader: React.FC<React.ComponentPropsWithRef<"div">> = ({
+export const DrawerHeader: React.FC<React.ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {
@@ -109,7 +109,7 @@ export const DrawerHeader: React.FC<React.ComponentPropsWithRef<"div">> = ({
 	);
 };
 
-export const DrawerFooter: React.FC<React.ComponentPropsWithRef<"div">> = ({
+export const DrawerFooter: React.FC<React.ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {
@@ -122,7 +122,7 @@ export const DrawerFooter: React.FC<React.ComponentPropsWithRef<"div">> = ({
 };
 
 export const DrawerTitle: React.FC<
-	React.ComponentPropsWithRef<typeof DialogPrimitive.Title>
+	React.ComponentProps<typeof DialogPrimitive.Title>
 > = ({ className, ...props }) => {
 	return (
 		<DialogPrimitive.Title
@@ -136,7 +136,7 @@ export const DrawerTitle: React.FC<
 };
 
 export const DrawerDescription: React.FC<
-	React.ComponentPropsWithRef<typeof DialogPrimitive.Description>
+	React.ComponentProps<typeof DialogPrimitive.Description>
 > = ({ className, ...props }) => {
 	return (
 		<DialogPrimitive.Description

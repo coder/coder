@@ -10,18 +10,17 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 
-interface ScheduleDialogProps
-	extends Pick<
-		ConfirmDialogProps,
-		| "open"
-		| "onClose"
-		| "onConfirm"
-		| "title"
-		| "cancelText"
-		| "confirmLoading"
-		| "disabled"
-		| "hideCancel"
-	> {
+type ScheduleDialogProps = Pick<
+	ConfirmDialogProps,
+	| "open"
+	| "onClose"
+	| "onConfirm"
+	| "title"
+	| "cancelText"
+	| "confirmLoading"
+	| "disabled"
+	| "hideCancel"
+> & {
 	readonly inactiveWorkspacesToGoDormant: number;
 	readonly inactiveWorkspacesToGoDormantInWeek: number;
 	readonly dormantWorkspacesToBeDeleted: number;
@@ -32,7 +31,7 @@ interface ScheduleDialogProps
 	readonly inactiveWorkspacesChecked: boolean;
 	readonly dormantValueChanged: boolean;
 	readonly deletionValueChanged: boolean;
-}
+};
 
 export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 	cancelText,

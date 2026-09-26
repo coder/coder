@@ -18,7 +18,7 @@ import { docs } from "#/utils/docs";
 
 const CONTENT_PADDING = 36;
 
-export const Header: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const Header: FC<ComponentProps<"header">> = ({
 	className,
 	style,
 	children,
@@ -35,7 +35,7 @@ export const Header: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-export const HeaderTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const HeaderTitle: FC<ComponentProps<"h2">> = ({
 	className,
 	children,
 	...props
@@ -53,10 +53,10 @@ export const HeaderTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-interface HealthIconProps {
+type HealthIconProps = {
 	size: number;
 	severity: HealthSeverity;
-}
+};
 
 export const HealthIcon: FC<HealthIconProps> = ({ size, severity }) => {
 	const Icon = severity === "error" ? CircleAlertIcon : CircleCheckIcon;
@@ -73,9 +73,9 @@ export const HealthIcon: FC<HealthIconProps> = ({ size, severity }) => {
 	);
 };
 
-interface HealthyDotProps {
+type HealthyDotProps = {
 	severity: HealthSeverity;
-}
+};
 
 export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
 	return (
@@ -90,7 +90,7 @@ export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
 	);
 };
 
-export const Main: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const Main: FC<ComponentProps<"div">> = ({
 	className,
 	style,
 	children,
@@ -110,7 +110,7 @@ export const Main: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-export const GridData: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const GridData: FC<ComponentProps<"div">> = ({
 	className,
 	children,
 	...props
@@ -129,7 +129,7 @@ export const GridData: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-export const GridDataLabel: FC<HTMLAttributes<HTMLSpanElement>> = ({
+export const GridDataLabel: FC<ComponentProps<"span">> = ({
 	className,
 	children,
 	...props
@@ -144,7 +144,7 @@ export const GridDataLabel: FC<HTMLAttributes<HTMLSpanElement>> = ({
 	);
 };
 
-export const GridDataValue: FC<HTMLAttributes<HTMLSpanElement>> = ({
+export const GridDataValue: FC<ComponentProps<"span">> = ({
 	className,
 	children,
 	...props
@@ -156,7 +156,7 @@ export const GridDataValue: FC<HTMLAttributes<HTMLSpanElement>> = ({
 	);
 };
 
-export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = ({
+export const SectionLabel: FC<ComponentProps<"h4">> = ({
 	className,
 	children,
 	...props
@@ -171,7 +171,8 @@ export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = ({
 	);
 };
 
-type PillProps = React.ComponentPropsWithRef<"div"> & {
+type PillProps = React.ComponentProps<"div"> & {
+	// oxlint-disable-next-line no-restricted-types
 	icon: ReactElement<HTMLAttributes<HTMLElement>>;
 };
 
@@ -195,9 +196,9 @@ export const Pill: React.FC<PillProps> = ({
 	);
 };
 
-interface StatusIconProps {
+type StatusIconProps = {
 	value: boolean | null;
-}
+};
 
 export const StatusIcon: FC<StatusIconProps> = ({ value }) => {
 	if (value === null) {
@@ -235,7 +236,7 @@ export const BooleanPill: FC<BooleanPillProps> = ({
 	);
 };
 
-type LogsProps = HTMLAttributes<HTMLDivElement> & { lines: readonly string[] };
+type LogsProps = ComponentProps<"div"> & { lines: readonly string[] };
 
 export const Logs: FC<LogsProps> = ({ className, lines, ...divProps }) => {
 	return (
@@ -258,9 +259,9 @@ export const Logs: FC<LogsProps> = ({ className, lines, ...divProps }) => {
 	);
 };
 
-interface HealthMessageDocsLinkProps {
+type HealthMessageDocsLinkProps = {
 	code: HealthCode;
-}
+};
 
 export const HealthMessageDocsLink: FC<HealthMessageDocsLinkProps> = ({
 	code,

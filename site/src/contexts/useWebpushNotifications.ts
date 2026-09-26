@@ -4,14 +4,14 @@ import { API } from "#/api/api";
 import { buildInfo } from "#/api/queries/buildInfo";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 
-interface WebpushNotifications {
+type WebpushNotifications = {
 	readonly enabled: boolean;
 	readonly subscribed: boolean;
 	readonly loading: boolean;
 
 	subscribe(): Promise<void>;
 	unsubscribe(): Promise<void>;
-}
+};
 
 export const useWebpushNotifications = (): WebpushNotifications => {
 	const { metadata } = useEmbeddedMetadata();

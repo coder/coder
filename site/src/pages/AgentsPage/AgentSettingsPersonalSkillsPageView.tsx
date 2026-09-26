@@ -73,7 +73,7 @@ export type PersonalSkillDeleteState = {
 	onClose: () => void;
 };
 
-export interface AgentSettingsPersonalSkillsPageViewProps {
+export type AgentSettingsPersonalSkillsPageViewProps = {
 	skills: readonly UserSkillMetadata[];
 	error: unknown;
 	isLoading: boolean;
@@ -88,7 +88,7 @@ export interface AgentSettingsPersonalSkillsPageViewProps {
 	isExportingAll?: boolean;
 	editorState?: PersonalSkillEditorState;
 	deleteState?: PersonalSkillDeleteState;
-}
+};
 
 const formatUpdatedAt = (value: string) => {
 	const date = new Date(value);

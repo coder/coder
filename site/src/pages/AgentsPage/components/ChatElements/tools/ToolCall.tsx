@@ -6,7 +6,7 @@ import {
 	TriangleAlertIcon,
 } from "lucide-react";
 import {
-	type ComponentPropsWithoutRef,
+	type ComponentProps,
 	createContext,
 	type FC,
 	type ReactNode,
@@ -105,7 +105,7 @@ const useToolCallContext = () => {
  * Standard `div` attributes are forwarded to the wrapper element so
  * callers can attach semantics such as live region roles.
  */
-type ToolCallRootProps = Omit<ComponentPropsWithoutRef<"div">, "children"> & {
+type ToolCallRootProps = Omit<ComponentProps<"div">, "children"> & {
 	children: ReactNode;
 	status: ToolStatus;
 	isError?: boolean;

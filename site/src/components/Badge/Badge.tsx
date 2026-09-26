@@ -74,7 +74,7 @@ const badgeVariants = cva(
 	},
 );
 
-export type BadgeProps = React.ComponentPropsWithRef<"div"> &
+export type BadgeProps = React.ComponentProps<"div"> &
 	VariantProps<typeof badgeVariants> & {
 		asChild?: boolean;
 	};

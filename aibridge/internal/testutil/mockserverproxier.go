@@ -10,15 +10,16 @@ import (
 )
 
 // MockServerProxier is a test [mcp.ServerProxier] that injects a fixed set of
-// tools. When ResolveAnyTool is set, GetTool resolves any unregistered tool to a
-// stub, so callers that only need the tool loop to proceed need not register
-// each tool the fixture might call.
+// tools. When ResolveAnyTool is set, ListTools reports a stub tool and GetTool
+// resolves any unregistered tool to a stub, so callers that only need the tool
+// loop to proceed need not register each tool the fixture might call.
 type MockServerProxier struct {
 	Tools []*mcp.Tool
 	// ResolveAnyTool makes GetTool return a stub tool, backed by a
-	// StubToolCaller, for any id not present in Tools. Use it to exercise
-	// injected-tool agentic loops where the test does not need to validate which
-	// tool was called.
+	// StubToolCaller, for any id not present in Tools, and makes ListTools
+	// report one stub when Tools is empty so the interceptor injects tools.
+	// Use it to exercise injected-tool agentic loops where the test does not
+	// need to validate which tool was called.
 	ResolveAnyTool bool
 }
 
@@ -31,6 +32,9 @@ func (*MockServerProxier) Shutdown(context.Context) error {
 }
 
 func (m *MockServerProxier) ListTools() []*mcp.Tool {
+	if len(m.Tools) == 0 && m.ResolveAnyTool {
+		return []*mcp.Tool{stubTool("stub")}
+	}
 	return m.Tools
 }
 
@@ -41,15 +45,19 @@ func (m *MockServerProxier) GetTool(id string) *mcp.Tool {
 		}
 	}
 	if m.ResolveAnyTool {
-		return &mcp.Tool{
-			Client:     StubToolCaller{},
-			ID:         id,
-			Name:       id,
-			ServerName: "coder",
-			Logger:     slog.Make(),
-		}
+		return stubTool(id)
 	}
 	return nil
+}
+
+func stubTool(id string) *mcp.Tool {
+	return &mcp.Tool{
+		Client:     StubToolCaller{},
+		ID:         id,
+		Name:       id,
+		ServerName: "coder",
+		Logger:     slog.Make(),
+	}
 }
 
 func (*MockServerProxier) CallTool(context.Context, string, any) (*mcpgo.CallToolResult, error) {

@@ -8,10 +8,10 @@ import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { MCPServerIcon } from "./MCPServerIcon";
 import { AUTH_TYPE_LABELS, AVAILABILITY_LABELS } from "./mcpServerFormLogic";
 
-interface MCPServerRowProps {
+type MCPServerRowProps = {
 	server: TypesGen.MCPServerConfig;
 	onClick?: () => void;
-}
+};
 
 export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
 	const clickableProps = useClickableTableRow({

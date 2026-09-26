@@ -647,7 +647,6 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 	t.Cleanup(func() { _ = natsA.Close() })
 
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentNATSPubsub)}
 	_, _ = coderdenttest.New(t, &coderdenttest.Options{
 		EntitlementsUpdateInterval: 25 * time.Millisecond,
 		ReplicaSyncUpdateInterval:  25 * time.Millisecond,

@@ -43,7 +43,7 @@ const BREADCRUMB_SEGMENT_CLASS = cn(
 );
 const BREADCRUMB_TEXT_CLASS = "overflow-x-hidden text-ellipsis";
 
-interface WorkspaceTopbarProps {
+type WorkspaceTopbarProps = {
 	isUpdating: boolean;
 	isRestarting: boolean;
 	workspace: TypesGen.Workspace;
@@ -59,7 +59,7 @@ interface WorkspaceTopbarProps {
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleToggleFavorite: () => void;
-}
+};
 
 export const WorkspaceTopbar: FC<WorkspaceTopbarProps> = ({
 	workspace,

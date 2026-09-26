@@ -1,11 +1,8 @@
 {
-	// oxlint config for the Coder frontend. Biome (see biome.jsonc) remains the
-	// authoritative JS/TS linter; oxlint runs alongside it and enforces only the
-	// rules that already match Biome's behavior. See the migration backlog below.
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "vitest"],
 	// Turn every default-on category off so nothing runs unless explicitly
-	// enabled below. This keeps oxlint to "nothing more" than Biome.
+	// enabled below.
 	"categories": { "correctness": "off" },
 	"rules": {
 		// --- a11y (jsx-a11y) ---
@@ -127,6 +124,7 @@
 		"prefer-literal-enum-member": "error",
 		"prefer-node-protocol": "error",
 		"prefer-const": ["error", { "destructuring": "all" }],
+		"consistent-type-definitions": ["error", "type"],
 
 		// --- style (coder-enabled as error) ---
 		"prefer-as-const": "error",
@@ -135,6 +133,8 @@
 		"prefer-number-properties": ["error", { "checkInfinity": true }],
 		"no-else-return": ["error", { "allowElseIf": false }],
 		"jsx-curly-brace-presence": "error",
+		"no-inferrable-types": "error",
+		"prefer-function-type": "error",
 
 		// --- suspicious ---
 		"no-cond-assign": "error",
@@ -187,6 +187,8 @@
 		"no-explicit-any": "error",
 		"no-irregular-whitespace": "error",
 		"no-redeclare": "error",
+		"no-empty-interface": "error",
+		"no-invalid-void-type": ["error", { "allowInGenericTypeArguments": true }],
 		"no-use-before-define": [
 			"error",
 			{ "functions": false, "classes": false, "variables": false }
@@ -206,12 +208,8 @@
 		// small < medium < large < xl.
 		// ==========================================================
 		"no-autofocus": "off", // a11y/noAutofocus (large)
-		"no-invalid-void-type": "off", // suspicious/noConfusingVoidType (large)
-		"no-inferrable-types": "off", // style/noInferrableTypes (medium, coder error rule)
 		"no-fallthrough": "off", // suspicious/noFallthroughSwitchClause (medium)
 		"click-events-have-key-events": "off", // a11y/useKeyWithClickEvents (small)
-		"prefer-function-type": "off", // style/useShorthandFunctionType (small)
-		"no-empty-interface": "off", // suspicious/noEmptyInterface (small)
 		"no-danger": "off", // security/noDangerouslySetInnerHtml (small: Biome suppression to migrate)
 		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
@@ -236,14 +234,44 @@
 					}
 				]
 			}
+		],
+
+		"no-restricted-types": [
+			"error",
+			{
+				"types": {
+					"ComponentPropsWithRef": {
+						"message": "Use ComponentProps instead. Under React 19 it already includes ref."
+					},
+					"React.ComponentPropsWithRef": {
+						"message": "Use React.ComponentProps instead. Under React 19 it already includes ref."
+					},
+					"ComponentPropsWithoutRef": {
+						"message": "Use ComponentProps instead. Under React 19 it already includes ref."
+					},
+					"React.ComponentPropsWithoutRef": {
+						"message": "Use React.ComponentProps instead. Under React 19 it already includes ref."
+					},
+					"HTMLAttributes": {
+						"message": "Use ComponentProps<\"tag\"> instead, naming the tag the component renders."
+					},
+					"React.HTMLAttributes": {
+						"message": "Use React.ComponentProps<\"tag\"> instead, naming the tag the component renders."
+					}
+				}
+			}
 		]
 	},
 	// typesGenerated.ts is generated, so ignore it entirely rather than
-	// tracking per-rule exceptions for it.
+	// tracking per-rule exceptions for it. src/vendor/ is third-party source
+	// vendored verbatim (minus marked local changes) and must not drift from
+	// upstream to satisfy in-repo lint rules; Biome excludes it for the same
+	// reason (see biome.jsonc).
 	"ignorePatterns": [
 		"e2e/**/*Generated.ts",
 		"scripts/*.mjs",
-		"**/typesGenerated.ts"
+		"**/typesGenerated.ts",
+		"src/vendor/**"
 	],
 	"overrides": [
 		{
@@ -252,6 +280,12 @@
 				"**/DiffViewer/parseDiff.test.ts"
 			],
 			"rules": { "no-restricted-imports": "off" }
+		},
+		{
+			// Ambient declarations (global and module augmentation) must stay
+			// interfaces; type aliases cannot merge with the upstream declaration.
+			"files": ["src/@types/*.d.ts"],
+			"rules": { "consistent-type-definitions": "off" }
 		},
 		{
 			"files": ["src/components/**/*.ts", "src/components/**/*.tsx"],

@@ -33,6 +33,11 @@ OPTIONS:
           creating a token without specifying a duration, such as when
           authenticating the CLI or an IDE plugin.
 
+      --disable-chat-caller-supplied-tools bool, $CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS
+          Disable caller-supplied tools in chats. Chat requests that include
+          unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing
+          chats run without their dynamic tools and inline MCP servers.
+
       --disable-chat-sharing bool, $CODER_DISABLE_CHAT_SHARING
           Disable chat sharing. Chat ACL checking is disabled and only owners
           can access their chats.
@@ -223,13 +228,18 @@ Configure the background chat processing daemon.
           Force chat debug logging on for every chat, bypassing the runtime
           admin and user opt-in settings.
 
+      --chat-stream-silence-timeout duration, $CODER_CHAT_STREAM_SILENCE_TIMEOUT (default: 10m0s)
+          Maximum time to wait for the next streamed part from the chat model
+          before the attempt is canceled and retried. This also bounds the time
+          to first token. Set to 0 to disable. Must be no more than 24h.
+
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 
       --cli-upgrade-message string, $CODER_CLI_UPGRADE_MESSAGE
           The upgrade message to display to users when a client/server mismatch
-          is detected. By default it instructs users to update using 'curl -L
+          is detected. By default it instructs users to update using 'curl -fsSL
           https://coder.com/install.sh | sh'.
 
       --ssh-config-options string-array, $CODER_SSH_CONFIG_OPTIONS

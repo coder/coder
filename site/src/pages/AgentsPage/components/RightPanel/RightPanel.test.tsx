@@ -5,11 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { RIGHT_PANEL_WIDTH_KEY, RightPanel } from "./RightPanel";
 
-interface HarnessProps {
+type HarnessProps = {
 	onOpenChange?: (isOpen: boolean) => void;
 	onExpandedChange?: (isExpanded: boolean) => void;
 	onVisualExpandedChange?: (visualExpanded: boolean | null) => void;
-}
+};
 
 /**
  * Owns the open and expanded state around a RightPanel the way the chat
@@ -44,9 +44,9 @@ const RightPanelHarness: FC<HarnessProps> = ({
 	);
 };
 
-interface SidebarHarnessProps extends HarnessProps {
+type SidebarHarnessProps = HarnessProps & {
 	onSidebarCollapsedChange?: (isCollapsed: boolean) => void;
-}
+};
 
 /**
  * Supplies the outlet context the panel uses to collapse the chats

@@ -11,7 +11,7 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 
-interface WorkspaceErrorDialogProps {
+type WorkspaceErrorDialogProps = {
 	open: boolean;
 	error?: unknown;
 	onClose: () => void;
@@ -20,7 +20,7 @@ interface WorkspaceErrorDialogProps {
 	workspaceName: string;
 	templateVersionId: string;
 	isDeleting: boolean;
-}
+};
 
 export const WorkspaceErrorDialog: FC<WorkspaceErrorDialogProps> = ({
 	open,

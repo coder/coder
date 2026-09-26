@@ -10,11 +10,11 @@ import {
 import { JsonPrettyPrinter } from "./JsonPrettyPrinter";
 import { roundTokenDisplay } from "./utils";
 
-interface TokenBadgesProps {
+type TokenBadgesProps = {
 	inputTokens: number;
 	outputTokens: number;
 	tokenUsageMetadata?: Record<string, unknown>;
-}
+};
 
 export const TokenBadges: FC<TokenBadgesProps> = ({
 	inputTokens,

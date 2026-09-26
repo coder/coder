@@ -1,12 +1,15 @@
 package messages
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +21,8 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
@@ -27,7 +32,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
-	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
+	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -63,7 +68,12 @@ var bedrockSupportedBetaFlags = map[string]bool{
 	"tool-search-tool-2025-10-19": true,
 	// Supported on Claude Opus 4.5.
 	"tool-examples-2025-10-29": true,
+	// Enables the thinking.block_binding body field. Not gated per model:
+	// clients send it only to models that enforce thinking block binding.
+	bedrockBetaThinkingBinding: true,
 }
+
+const bedrockBetaThinkingBinding = "thinking-binding-controls-2026-08-01"
 
 // BedrockRuntime carries everything a Bedrock-backed interception needs: the
 // static Bedrock config plus the AWS credentials provider. The messages
@@ -320,9 +330,12 @@ func isSmallFastModel(model string) bool {
 
 // newMessagesService builds the SDK service used for upstream calls.
 func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...option.RequestOption) (anthropic.MessageService, error) {
+	byok, isBYOK := intercept.AsBYOK(i.cred)
+	bedrockBYOK := isBYOK && i.bedrock != nil
+
 	// Only BYOK sets its credential here. Centralized keys are injected
 	// per-attempt in the failover loop.
-	if byok, ok := intercept.AsBYOK(i.cred); ok {
+	if isBYOK && i.bedrock == nil {
 		i.logger.Debug(ctx, "using byok auth",
 			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
 		)
@@ -342,7 +355,7 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader())
+			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg, aibcontext.ActorFromContext(req.Context()))
 			return next(req)
 		}))
 	}
@@ -357,9 +370,17 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 	const bedrockCredentialResolutionTimeout = 30 * time.Second
 
 	if i.isBedrockInvokeModel() {
-		ctx, cancel := context.WithTimeout(ctx, bedrockCredentialResolutionTimeout)
-		defer cancel()
-		bedrockOpts, err := i.withBedrockInvokeModelOptions(ctx)
+		var (
+			bedrockOpts []option.RequestOption
+			err         error
+		)
+		if bedrockBYOK {
+			bedrockOpts, err = i.withBedrockInvokeModelBYOKOptions(byok.Secret)
+		} else {
+			tctx, cancel := context.WithTimeout(ctx, bedrockCredentialResolutionTimeout)
+			defer cancel()
+			bedrockOpts, err = i.withBedrockInvokeModelOptions(tctx)
+		}
 		if err != nil {
 			return anthropic.MessageService{}, err
 		}
@@ -368,9 +389,17 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 	}
 
 	if i.isBedrockMantle() {
-		ctx, cancel := context.WithTimeout(ctx, bedrockCredentialResolutionTimeout)
-		defer cancel()
-		bedrockOpts, err := i.withBedrockMantleOptions(ctx)
+		var (
+			bedrockOpts []option.RequestOption
+			err         error
+		)
+		if bedrockBYOK {
+			bedrockOpts, err = i.withBedrockMantleBYOKOptions(byok.Secret)
+		} else {
+			tctx, cancel := context.WithTimeout(ctx, bedrockCredentialResolutionTimeout)
+			defer cancel()
+			bedrockOpts, err = i.withBedrockMantleOptions(tctx)
+		}
 		if err != nil {
 			return anthropic.MessageService{}, err
 		}
@@ -416,7 +445,7 @@ func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([
 
 	var out []option.RequestOption
 	out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-		bedrocksig.AppendPRMUserAgent(req)
+		awssig.AppendPRMUserAgent(req)
 		return next(req)
 	}))
 	out = append(out, bedrock.WithConfig(awsCfg))
@@ -429,11 +458,48 @@ func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([
 	return out, nil
 }
 
+// withAWSSignedMessagesOptions returns request options for an AWS-signed
+// endpoint that speaks the native Messages wire format: the upstream base URL,
+// any endpoint-specific headers, and SigV4 signing for the named service.
+//
+// Credentials come from creds, a shared credentials cache, so the per-request
+// Retrieve is served from that cache and does not re-resolve or re-assume on
+// every request. It is called once here to fail fast before signing.
+//
+// Callers own any service-specific attribution such as the Bedrock PRM
+// user-agent; this helper only routes and signs.
+func withAWSSignedMessagesOptions(ctx context.Context, creds aws.CredentialsProvider, baseURL, region, service string, headers map[string]string) ([]option.RequestOption, error) {
+	// Fail fast: ensure credentials can be resolved before signing. Served from
+	// the shared cache on most requests (no network); on the cold or refresh
+	// path this performs the actual STS/IMDS call.
+	if _, err := creds.Retrieve(ctx); err != nil {
+		return nil, xerrors.Errorf("resolve AWS credentials: %w", err)
+	}
+
+	var out []option.RequestOption
+	out = append(out, option.WithBaseURL(baseURL))
+	if len(headers) > 0 {
+		// Set after the client-header rebuild and before signing, so the values
+		// are ours rather than the client's and are covered by the signature.
+		out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+			for name, value := range headers {
+				req.Header.Set(name, value)
+			}
+			return next(req)
+		}))
+	}
+	// Appended last so it runs innermost (right before the HTTP send) and signs
+	// the request after all other headers are set.
+	//nolint:bodyclose // awssig.SignMiddleware reads and closes the request body in order to sign it.
+	out = append(out, option.WithMiddleware(awssig.SignMiddleware(creds, region, service)))
+
+	return out, nil
+}
+
 // withBedrockMantleOptions returns request options for the AWS Bedrock mantle
 // endpoint (bedrock-mantle.{region}.api.aws/anthropic/v1/messages). It speaks
-// the native Messages wire format, so this middleware only SigV4-signs the
-// request (service "bedrock-mantle") and forwards it; the response is plain
-// SSE.
+// the native Messages wire format, so this only SigV4-signs the request
+// (service "bedrock-mantle") and forwards it; the response is plain SSE.
 func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]option.RequestOption, error) {
 	if i.bedrock == nil {
 		return nil, xerrors.New("nil bedrock runtime")
@@ -443,21 +509,128 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 		return nil, xerrors.Errorf("bedrock mantle config: %w", err)
 	}
 
-	// Fail fast: ensure credentials can be resolved before signing. Served from
-	// the shared cache on most requests (no network); on the cold or refresh
-	// path this performs the actual STS/IMDS call.
-	if _, err := i.bedrock.Creds.Retrieve(ctx); err != nil {
-		return nil, xerrors.Errorf("resolve AWS credentials: %w", err)
+	// Bedrock traffic carries Coder's PRM attribution marker. Appended before
+	// the signing options so it runs outside them and sets the header before
+	// the request is signed and sent.
+	out := []option.RequestOption{
+		option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+			awssig.AppendPRMUserAgent(req)
+			return next(req)
+		}),
+	}
+
+	signed, err := withAWSSignedMessagesOptions(ctx, i.bedrock.Creds, cfg.BaseURL, cfg.Region, awssig.ServiceBedrockMantle, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(out, signed...), nil
+}
+
+// withBedrockInvokeModelBYOKOptions authenticates the InvokeModel protocol with
+// a user Bedrock API key (bearer token), resolving no deployment credentials.
+func (i *interceptionBase) withBedrockInvokeModelBYOKOptions(token string) ([]option.RequestOption, error) {
+	if i.bedrock == nil {
+		return nil, xerrors.New("nil bedrock runtime")
+	}
+	cfg := i.bedrock.Cfg
+	if err := cfg.Validate(); err != nil {
+		return nil, xerrors.Errorf("bedrock invoke-model config: %w", err)
+	}
+
+	baseURL := fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com", cfg.Region)
+	if cfg.BaseURL != "" {
+		baseURL = cfg.BaseURL
 	}
 
 	var out []option.RequestOption
-	out = append(out, option.WithBaseURL(cfg.BaseURL))
-	// Appended last so it runs innermost (right before the HTTP send) and signs
-	// the request after all other headers are set.
-	//nolint:bodyclose // bedrocksig.SignMiddleware reads and closes the request body in order to sign it.
-	out = append(out, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrock.Creds, cfg.Region)))
-
+	out = append(out, option.WithBaseURL(baseURL))
+	//nolint:bodyclose // The middleware returns the upstream response for the SDK to close.
+	out = append(out, option.WithMiddleware(bedrockInvokeModelBearerMiddleware(token)))
 	return out, nil
+}
+
+// withBedrockMantleBYOKOptions authenticates the mantle protocol with a user
+// Bedrock API key (bearer token), resolving no deployment credentials.
+func (i *interceptionBase) withBedrockMantleBYOKOptions(token string) ([]option.RequestOption, error) {
+	if i.bedrock == nil {
+		return nil, xerrors.New("nil bedrock runtime")
+	}
+	cfg := i.bedrock.Cfg
+	if err := cfg.Validate(); err != nil {
+		return nil, xerrors.Errorf("bedrock mantle config: %w", err)
+	}
+
+	// Bedrock traffic carries Coder's PRM attribution marker; the bearer token
+	// replaces SigV4 and resolves no deployment credentials.
+	var out []option.RequestOption
+	out = append(out, option.WithBaseURL(cfg.BaseURL))
+	out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+		awssig.AppendPRMUserAgent(req)
+		return next(req)
+	}))
+	//nolint:bodyclose // The middleware returns the upstream response for the SDK to close.
+	out = append(out, option.WithMiddleware(awssig.BearerMiddleware(token)))
+	return out, nil
+}
+
+// bedrockInvokeModelBearerMiddleware authenticates an InvokeModel request with a
+// user Bedrock API key (bearer token) instead of SigV4.
+//
+// It reimplements the SDK bedrock.WithConfig wire transform because that helper
+// couples the transform with SigV4 signing and would resolve deployment AWS
+// credentials, which a BYOK request must not depend on.
+func bedrockInvokeModelBearerMiddleware(token string) func(*http.Request, option.MiddlewareNext) (*http.Response, error) {
+	return func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+		awssig.AppendPRMUserAgent(req)
+
+		if req.Body != nil {
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				return nil, xerrors.Errorf("bedrock byok: read request body: %w", err)
+			}
+			_ = req.Body.Close()
+
+			if !gjson.GetBytes(body, "anthropic_version").Exists() {
+				body, _ = sjson.SetBytes(body, "anthropic_version", bedrock.DefaultVersion)
+			}
+
+			// Bedrock expects beta flags in the body, not the header.
+			if betaHeader := req.Header.Values("anthropic-beta"); len(betaHeader) > 0 {
+				req.Header.Del("anthropic-beta")
+				body, err = sjson.SetBytes(body, "anthropic_beta", betaHeader)
+				if err != nil {
+					return nil, xerrors.Errorf("bedrock byok: set anthropic_beta: %w", err)
+				}
+			}
+
+			if req.Method == http.MethodPost && bedrock.DefaultEndpoints[req.URL.Path] {
+				model := gjson.GetBytes(body, "model").String()
+				stream := gjson.GetBytes(body, "stream").Bool()
+
+				body, _ = sjson.DeleteBytes(body, "model")
+				body, _ = sjson.DeleteBytes(body, "stream")
+
+				method := "invoke"
+				if stream {
+					method = "invoke-with-response-stream"
+				}
+				req.URL.Path = fmt.Sprintf("/model/%s/%s", model, method)
+				req.URL.RawPath = fmt.Sprintf("/model/%s/%s", url.QueryEscape(model), method)
+			}
+
+			reader := bytes.NewReader(body)
+			req.Body = io.NopCloser(reader)
+			req.GetBody = func() (io.ReadCloser, error) {
+				_, err := reader.Seek(0, 0)
+				return io.NopCloser(reader), err
+			}
+			req.ContentLength = int64(len(body))
+		}
+
+		req.Header.Set(intercept.AuthHeaderAuthorization, "Bearer "+token)
+		return next(req)
+	}
 }
 
 // augmentRequestForBedrockInvokeModel changes the model used for the request since AWS Bedrock doesn't support
@@ -524,6 +697,13 @@ func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 	}
 	i.reqPayload = updated
 
+	updated, err = i.reqPayload.convertThinkingBlockBindingForBedrock(i.clientHeaders)
+	if err != nil {
+		i.logger.Warn(context.Background(), "failed to convert thinking block binding for Bedrock", slog.Error(err))
+		return
+	}
+	i.reqPayload = updated
+
 	// Adaptive-only models accept output_config but reject some of its
 	// sub-fields (currently: output_config.format). Strip those after the
 	// top-level pass has decided to keep output_config.
@@ -555,6 +735,7 @@ func bedrockModelSupportsAdaptiveThinking(model string) bool {
 func bedrockModelRequiresAdaptiveThinking(model string) bool {
 	return strings.Contains(model, "anthropic.claude-opus-4-7") ||
 		strings.Contains(model, "anthropic.claude-opus-4-8") ||
+		strings.Contains(model, "anthropic.claude-opus-5-5") ||
 		strings.Contains(model, "anthropic.claude-sonnet-5")
 }
 

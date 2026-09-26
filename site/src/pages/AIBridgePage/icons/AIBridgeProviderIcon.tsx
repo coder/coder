@@ -60,6 +60,13 @@ export const AIBridgeProviderIcon = ({
 					className={cn(iconClassName, className)}
 				/>
 			);
+		case "openrouter":
+			return (
+				<ExternalImage
+					src="/icon/openrouter.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
 		default:
 			return (
 				<CircleQuestionMarkIcon

@@ -16,7 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
-	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
+	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
@@ -70,7 +70,7 @@ func NewBedrock(ctx context.Context, cfg config.Anthropic, bedrockCfg config.AWS
 		return nil, xerrors.Errorf("build bedrock credentials: %w", err)
 	}
 	runtimeCfg := bedrockCfg
-	// resolvedRegion is bedrockCfg.Region if provided; otherwise, it is
+	// awsCfg.Region is bedrockCfg.Region if provided; otherwise, it is
 	// resolved from the environment via awsconfig.LoadDefaultConfig.
 	if runtimeCfg.Region == "" {
 		runtimeCfg.Region = awsCfg.Region
@@ -245,8 +245,8 @@ func (p *Bedrock) createResponsesInterceptor(id uuid.UUID, r *http.Request, trac
 
 // mantleConfig narrows the provider's full Bedrock runtime to the fields the
 // OpenAI-shaped interceptors use.
-func (p *Bedrock) mantleConfig() *bedrocksig.MantleConfig {
-	return &bedrocksig.MantleConfig{
+func (p *Bedrock) mantleConfig() *awssig.MantleConfig {
+	return &awssig.MantleConfig{
 		BaseURL: p.runtime.Cfg.BaseURL,
 		Region:  p.runtime.Cfg.Region,
 		Creds:   p.runtime.Creds,
@@ -255,7 +255,7 @@ func (p *Bedrock) mantleConfig() *bedrocksig.MantleConfig {
 
 // bedrockInterceptConfig builds the per-request intercept.Config for Bedrock
 // mantle OpenAI routes. The effective upstream base URL is resolved per-model
-// inside the interceptor via bedrocksig.BaseURLForModel. cfg.BaseURL remains
+// inside the interceptor via awssig.BaseURLForModel. cfg.BaseURL remains
 // the Bedrock runtime base URL so provider-specific request transforms inspect
 // the actual upstream.
 func (p *Bedrock) bedrockInterceptConfig() intercept.Config {
@@ -279,7 +279,7 @@ func (p *Bedrock) resolveCredential(r *http.Request) (intercept.Credential, erro
 	if token := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization)); token != "" {
 		return intercept.BYOK{Secret: token, Header: intercept.AuthHeaderAuthorization}, nil
 	}
-	return intercept.Bedrock{AccessKey: p.runtime.Cfg.AccessKey}, nil
+	return intercept.AWSSigV4{AccessKey: p.runtime.Cfg.AccessKey}, nil
 }
 
 func (p *Bedrock) BaseURL() string {

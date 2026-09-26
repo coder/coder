@@ -32,7 +32,7 @@ import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
-interface AgentPageHeaderProps {
+type AgentPageHeaderProps = {
 	children?: ReactNode;
 	/** When set, shows a back link on mobile instead of the logo
 	 *  and hides the mobile actions menu. */
@@ -41,7 +41,7 @@ interface AgentPageHeaderProps {
 	onToggleChime?: () => void;
 	webPush?: ReturnType<typeof useWebpushNotifications>;
 	onToggleNotifications?: () => Promise<void> | void;
-}
+};
 
 export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	children,

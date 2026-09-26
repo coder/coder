@@ -4,10 +4,10 @@ import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import { ChatTopBar } from "./components/ChatTopBar";
 
-interface AgentChatPageErrorViewProps {
+type AgentChatPageErrorViewProps = {
 	error: unknown;
 	onRetry: () => void;
-}
+};
 
 export const AgentChatPageErrorView: FC<AgentChatPageErrorViewProps> = ({
 	error,

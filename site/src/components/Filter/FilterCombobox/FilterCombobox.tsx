@@ -1,14 +1,15 @@
-import { ListFilterIcon, SearchIcon } from "lucide-react";
+import { CheckIcon, ListFilterIcon, SearchIcon } from "lucide-react";
 import { type ReactNode, useId } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { ListFilterActiveIcon } from "#/components/Icons/ListFilterActiveIcon";
 import {
 	InputGroupAddon,
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { chipToken } from "./filterQuery";
+import { type CategoryPreview, chipDisplay, chipToken } from "./filterQuery";
 import {
 	FilterComboboxChip,
 	FilterComboboxChips,
@@ -70,6 +71,7 @@ export function FilterCombobox({
 		activeOptionsError,
 		statusMessage,
 		listedCategories,
+		categoryPreviews,
 		valueSuggestions,
 		searchResults,
 		chipValues,
@@ -99,21 +101,31 @@ export function FilterCombobox({
 				label={placeholder}
 			>
 				<FilterComboboxInputGroup className={className}>
-					<InputGroupAddon className="min-h-10 self-start pt-1">
+					<InputGroupAddon className="h-9.5 self-start">
 						<SearchIcon aria-hidden className="size-icon-sm" />
 					</InputGroupAddon>
 					<FilterComboboxChips>
-						{chipValues.map((token) => (
-							<FilterComboboxChip key={token} value={token}>
-								{token}
-							</FilterComboboxChip>
-						))}
+						{chipValues.map((token) => {
+							const display = chipDisplay(token, categories);
+							const displayText = display.key
+								? chipToken(display.key, display.value)
+								: display.value;
+							return (
+								<FilterComboboxChip
+									key={token}
+									value={token}
+									removeLabel={`Remove ${displayText}`}
+								>
+									<ChipLabel prefix={display.key} value={display.value} />
+								</FilterComboboxChip>
+							);
+						})}
 						{activeCategory && committedFreeText.length > 0 && (
 							<Badge
 								variant="outline"
 								size="md"
 								data-slot="combobox-chip-search"
-								className="font-medium"
+								className="px-2 font-medium"
 							>
 								{committedFreeText}
 							</Badge>
@@ -125,16 +137,10 @@ export function FilterCombobox({
 								variant="dashed"
 								size="md"
 								data-slot="combobox-chip-draft"
-								className="font-medium"
+								className="px-2 font-medium"
 								aria-hidden
 							>
-								{/* A single-key category previews its chip prefix
-								    (e.g. `status:`); a multi-key one (Attributes
-								    commits `outdated:true`, etc.) shows its label. */}
-								{activeCategory.chipKeys &&
-								!activeCategory.chipKeys.includes(activeCategory.key)
-									? activeCategory.label
-									: `${activeCategory.key}:`}
+								{`${activeCategory.key}:`}
 							</Badge>
 						)}
 						<FilterComboboxChipsInput
@@ -159,7 +165,7 @@ export function FilterCombobox({
 							aria-label="Toggle filters"
 							aria-expanded={open}
 							aria-haspopup="listbox"
-							className="min-h-10 w-10 min-w-10 shrink-0 rounded-none rounded-r-md px-0 pt-2.5 [&>svg]:p-0"
+							className="h-9.5 w-10 min-w-10 shrink-0 rounded-none rounded-r-md px-0 [&>svg]:p-0"
 							onMouseDown={(event) => {
 								// Prevent the button from taking focus on pointer open.
 								// toggleFilterMenu focuses the combobox input next so
@@ -168,7 +174,17 @@ export function FilterCombobox({
 							}}
 							onClick={actions.toggleMenu}
 						>
-							<ListFilterIcon aria-hidden className="size-icon-sm" />
+							{/* Rendered 2px larger than the plain icon so both read as the
+							    same size; `!` overrides the button's `[&>svg]:size-*` rule. */}
+							{chipValues.length > 0 ? (
+								<ListFilterActiveIcon
+									aria-hidden
+									data-testid="filter-active-icon"
+									className="size-5!"
+								/>
+							) : (
+								<ListFilterIcon aria-hidden className="size-icon-sm" />
+							)}
 						</InputGroupButton>
 					</InputGroupAddon>
 				</FilterComboboxInputGroup>
@@ -178,6 +194,7 @@ export function FilterCombobox({
 					{typeahead.active ? (
 						<TypeaheadList
 							listedCategories={listedCategories}
+							categoryPreviews={categoryPreviews}
 							valueSuggestions={valueSuggestions}
 							searchResults={searchResults}
 							searchResultsLabel={searchResultsLabel}
@@ -216,17 +233,77 @@ export function FilterCombobox({
 	);
 }
 
-const OPTION_ITEM_CLASS = "gap-2 px-2 py-2.5";
+const OPTION_ITEM_CLASS = "min-h-8.5 gap-2 px-2 py-1.25";
+
+// Fixed 24px slot so icons, avatars, and status dots of different sizes align.
+function OptionIcon({ children }: { children: ReactNode }): ReactNode {
+	return (
+		<span
+			aria-hidden
+			className="flex size-6 shrink-0 items-center justify-center"
+		>
+			{children}
+		</span>
+	);
+}
+
+function ChipLabel({
+	prefix,
+	value,
+}: {
+	prefix: string;
+	value: string;
+}): ReactNode {
+	if (prefix.length === 0) {
+		return value;
+	}
+	return (
+		<>
+			<span className="text-content-secondary group-hover/chip:text-content-primary">
+				{prefix}:
+			</span>
+			<span className="text-content-primary">{value}</span>
+		</>
+	);
+}
+
+// Right-aligned tail of a category row: applied values with a check mark, or
+// a muted sample of the options when nothing from the category is applied.
+function CategoryPreviewText({
+	preview,
+}: {
+	preview: CategoryPreview | undefined;
+}): ReactNode {
+	if (!preview) {
+		return null;
+	}
+	if (preview.selected.length > 0) {
+		return (
+			<span className="ml-auto flex min-w-0 items-center gap-2 text-xs lowercase text-content-secondary">
+				<span className="truncate">{preview.selected.join(", ")}</span>
+				<CheckIcon aria-hidden className="shrink-0" />
+			</span>
+		);
+	}
+	if (preview.hint.length === 0) {
+		return null;
+	}
+	return (
+		<span className="ml-auto min-w-0 truncate text-xs lowercase text-content-disabled">
+			{preview.hint}
+		</span>
+	);
+}
 
 function ResultIcon({ result }: { result: SearchResult }): ReactNode {
 	if (result.startIcon) {
-		return <span aria-hidden>{result.startIcon}</span>;
+		return <OptionIcon>{result.startIcon}</OptionIcon>;
 	}
 	if (result.imageUrl !== undefined) {
 		return (
-			<span aria-hidden>
-				<Avatar src={result.imageUrl} fallback={result.label} size="md" />
-			</span>
+			<OptionIcon>
+				<Avatar src={result.imageUrl} fallback={result.label} size="sm" />
+			</OptionIcon>
 		);
 	}
 	return null;
@@ -240,6 +317,7 @@ type ValueSuggestion = {
 
 type TypeaheadListProps = Readonly<{
 	listedCategories: readonly FilterCategory[];
+	categoryPreviews: ReadonlyMap<string, CategoryPreview>;
 	valueSuggestions: readonly ValueSuggestion[];
 	searchResults: readonly SearchResult[];
 	searchResultsLabel: string;
@@ -255,6 +333,7 @@ type TypeaheadListProps = Readonly<{
 
 function TypeaheadList({
 	listedCategories,
+	categoryPreviews,
 	valueSuggestions,
 	searchResults,
 	searchResultsLabel,
@@ -289,7 +368,7 @@ function TypeaheadList({
 	return (
 		<>
 			{isEmpty && <FilterComboboxEmpty>No filters found.</FilterComboboxEmpty>}
-			<FilterComboboxList className="p-3">
+			<FilterComboboxList className="p-2">
 				{listedCategories.map((category) => (
 					<FilterComboboxItem
 						className={OPTION_ITEM_CLASS}
@@ -297,15 +376,9 @@ function TypeaheadList({
 						value={category.key}
 						onSelect={() => onSelectCategory(category.key)}
 					>
-						{category.icon && (
-							<span
-								aria-hidden
-								className="flex size-icon-sm shrink-0 items-center justify-center [&>svg]:size-icon-sm"
-							>
-								{category.icon}
-							</span>
-						)}
-						{category.label}
+						{category.icon && <OptionIcon>{category.icon}</OptionIcon>}
+						<span className="shrink-0">{category.label}</span>
+						<CategoryPreviewText preview={categoryPreviews.get(category.key)} />
 					</FilterComboboxItem>
 				))}
 				{[...valueSuggestionsByCategory.entries()].map(
@@ -320,7 +393,7 @@ function TypeaheadList({
 									onSelect={() => onSelectSuggestion(suggestion.token)}
 								>
 									{suggestion.option.startIcon ? (
-										<span aria-hidden>{suggestion.option.startIcon}</span>
+										<OptionIcon>{suggestion.option.startIcon}</OptionIcon>
 									) : null}
 									{suggestion.option.label}
 								</FilterComboboxItem>
@@ -339,14 +412,7 @@ function TypeaheadList({
 								onSelect={() => onSelectSearchResult(result)}
 							>
 								<ResultIcon result={result} />
-								<span className="flex min-w-0 flex-col">
-									<span className="truncate">{result.label}</span>
-									{result.subtitle && (
-										<span className="truncate text-xs text-content-secondary">
-											{result.subtitle}
-										</span>
-									)}
-								</span>
+								<span className="truncate">{result.label}</span>
 							</FilterComboboxItem>
 						))}
 					</FilterComboboxGroup>
@@ -426,7 +492,7 @@ function CategoryOptionsList({
 					? `No ${activeCategory.label} matches`
 					: "No filters found."}
 			</FilterComboboxEmpty>
-			<FilterComboboxList className="p-3">
+			<FilterComboboxList className="p-2">
 				{activeCategoryKey !== null && (
 					<FilterComboboxGroup>
 						{activeCategory && (
@@ -443,7 +509,7 @@ function CategoryOptionsList({
 									onSelect={() => onSelectOption(item)}
 								>
 									{option.startIcon ? (
-										<span aria-hidden>{option.startIcon}</span>
+										<OptionIcon>{option.startIcon}</OptionIcon>
 									) : null}
 									{option.label}
 								</FilterComboboxItem>

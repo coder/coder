@@ -61,7 +61,7 @@ const FAILURE_CLEANUP_DEFAULT = 7 * MS_DAY_CONVERSION;
 const INACTIVITY_CLEANUP_DEFAULT = 180 * MS_DAY_CONVERSION;
 const DORMANT_AUTODELETION_DEFAULT = 30 * MS_DAY_CONVERSION;
 
-interface TemplateScheduleFormProps {
+type TemplateScheduleFormProps = {
 	template: Template;
 	onSubmit: (data: UpdateTemplateMeta) => void;
 	onCancel: () => void;
@@ -70,7 +70,7 @@ interface TemplateScheduleFormProps {
 	allowAdvancedScheduling: boolean;
 	// Helpful to show field errors on Storybook
 	initialTouched?: FormikTouched<UpdateTemplateMeta>;
-}
+};
 
 export const TemplateScheduleForm: FC<TemplateScheduleFormProps> = ({
 	template,

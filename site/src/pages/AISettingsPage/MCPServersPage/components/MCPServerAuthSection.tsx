@@ -18,15 +18,15 @@ import {
 	SECRET_PLACEHOLDER,
 } from "./mcpServerFormLogic";
 
-interface MCPServerAuthFieldsProps {
+type MCPServerAuthFieldsProps = {
 	form: FormikContextType<MCPServerFormValues>;
 	formId: string;
 	disabled: boolean;
-}
+};
 
-interface MCPServerAuthSectionProps extends MCPServerAuthFieldsProps {
+type MCPServerAuthSectionProps = MCPServerAuthFieldsProps & {
 	canSelectUserOIDC: boolean;
-}
+};
 
 export const MCPServerAuthSection: FC<MCPServerAuthSectionProps> = ({
 	form,
@@ -186,7 +186,7 @@ const APIKeyFields: FC<MCPServerAuthFieldsProps> = ({
 	</div>
 );
 
-const SecretInput: FC<{
+export const SecretInput: FC<{
 	id: string;
 	value: string;
 	touched: boolean;

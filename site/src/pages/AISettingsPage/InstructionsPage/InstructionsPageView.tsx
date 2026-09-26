@@ -18,7 +18,7 @@ import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 
 const TEXTAREA_MAX_ROWS = 9;
 
-export interface InstructionsPageViewProps {
+export type InstructionsPageViewProps = {
 	systemPromptData: TypesGen.ChatSystemPromptResponse | undefined;
 	planModeInstructionsData:
 		| TypesGen.ChatPlanModeInstructionsResponse
@@ -34,7 +34,7 @@ export interface InstructionsPageViewProps {
 	isSaving: boolean;
 	isSaveSystemPromptError: boolean;
 	isSavePlanModeInstructionsError: boolean;
-}
+};
 
 export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 	systemPromptData,
@@ -59,7 +59,7 @@ export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 	);
 };
 
-interface InstructionsFormProps {
+type InstructionsFormProps = {
 	systemPromptData: TypesGen.ChatSystemPromptResponse;
 	planModeInstructionsData: TypesGen.ChatPlanModeInstructionsResponse;
 	onSaveSystemPrompt: (
@@ -73,7 +73,7 @@ interface InstructionsFormProps {
 	isSaving: boolean;
 	isSaveSystemPromptError: boolean;
 	isSavePlanModeInstructionsError: boolean;
-}
+};
 
 const InstructionsForm: FC<InstructionsFormProps> = ({
 	systemPromptData,

@@ -1,7 +1,6 @@
 import { BlocksIcon, HistoryIcon } from "lucide-react";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { SidebarIconButton } from "#/components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
@@ -13,6 +12,7 @@ import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
+import { WorkspaceBuildFailedAlert } from "./WorkspaceBuildFailedAlert";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
 	getActiveTransitionStats,
@@ -21,7 +21,7 @@ import {
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
-interface WorkspaceProps {
+type WorkspaceProps = {
 	workspace: TypesGen.Workspace;
 	template: TypesGen.Template;
 	permissions: WorkspacePermissions;
@@ -40,7 +40,7 @@ interface WorkspaceProps {
 	handleToggleFavorite: () => void;
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-}
+};
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
@@ -190,12 +190,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 							)}
 
 							{workspace.latest_build.job.error && (
-								<Alert severity="error" prominent>
-									<AlertTitle>Workspace build failed</AlertTitle>
-									<AlertDescription>
-										{workspace.latest_build.job.error}
-									</AlertDescription>
-								</Alert>
+								<WorkspaceBuildFailedAlert build={workspace.latest_build} />
 							)}
 
 							{transitionStats !== undefined && (

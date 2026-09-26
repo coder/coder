@@ -22,7 +22,7 @@ import { AuditFilter } from "./AuditFilter";
 import { AuditHelpPopover } from "./AuditHelpPopover";
 import { AuditLogRow } from "./AuditLogRow/AuditLogRow";
 
-interface AuditPageViewProps {
+type AuditPageViewProps = {
 	auditLogs?: readonly AuditLog[];
 	isNonInitialPage: boolean;
 	isAuditLogVisible: boolean;
@@ -31,7 +31,7 @@ interface AuditPageViewProps {
 	auditsQuery: PaginationResult;
 	showOrgDetails: boolean;
 	permissions: Permissions;
-}
+};
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
 	auditLogs,
@@ -103,14 +103,14 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 	);
 };
 
-interface AuditTableBodyProps {
+type AuditTableBodyProps = {
 	auditLogs: readonly AuditLog[] | undefined;
 	error: unknown;
 	isLoading: boolean;
 	isEmpty: boolean;
 	isNonInitialPage: boolean;
 	showOrgDetails: boolean;
-}
+};
 
 const AuditTableBody: FC<AuditTableBodyProps> = ({
 	auditLogs,

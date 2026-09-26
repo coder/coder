@@ -11,7 +11,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-interface ExternalAuthButtonProps {
+type ExternalAuthButtonProps = {
 	auth: TemplateVersionExternalAuth;
 	displayRetry: boolean;
 	isLoading: boolean;
@@ -22,7 +22,7 @@ interface ExternalAuthButtonProps {
 	 * workspace for someone else should just be shown the status.
 	 */
 	canAuthenticate?: boolean;
-}
+};
 
 export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
 	auth,

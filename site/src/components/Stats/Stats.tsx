@@ -1,7 +1,7 @@
 import { cn } from "cn";
-import type { FC, HTMLAttributes, ReactNode } from "react";
+import type { ComponentProps, FC, ReactNode } from "react";
 
-export const Stats: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const Stats: FC<ComponentProps<"div">> = ({
 	children,
 	className,
 	...attrs
@@ -19,10 +19,10 @@ export const Stats: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-interface StatsItemProps extends HTMLAttributes<HTMLDivElement> {
+type StatsItemProps = ComponentProps<"div"> & {
 	label: string;
 	value: ReactNode;
-}
+};
 
 export const StatsItem: FC<StatsItemProps> = ({
 	label,

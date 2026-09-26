@@ -320,6 +320,11 @@ title: Schemas
 
 ```json
 {
+  "attribution": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
   "model": "string",
   "thinking": [
     {
@@ -357,12 +362,29 @@ title: Schemas
 
 ### Properties
 
-| Name          | Type                                                                                   | Required | Restrictions | Description |
-|---------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `model`       | string                                                                                 | false    |              |             |
-| `thinking`    | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |             |
-| `token_usage` | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
-| `tool_calls`  | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |             |
+| Name              | Type                                                                                   | Required | Restrictions | Description                                                                                                         |
+|-------------------|----------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------|
+| `attribution`     | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from this interception. Unknown attribution is serialized as an empty object. |
+| `interception_id` | string                                                                                 | false    |              |                                                                                                                     |
+| `model`           | string                                                                                 | false    |              |                                                                                                                     |
+| `thinking`        | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |                                                                                                                     |
+| `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                     |
+| `tool_calls`      | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |                                                                                                                     |
+
+## codersdk.AIBridgeAttribution
+
+```json
+{
+  "property1": "string",
+  "property2": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+|------------------|--------|----------|--------------|-------------|
+| `[any property]` | string | false    |              |             |
 
 ## codersdk.AIBridgeConfig
 
@@ -473,6 +495,26 @@ title: Schemas
 | Name   | Type   | Required | Restrictions | Description |
 |--------|--------|----------|--------------|-------------|
 | `text` | string | false    |              |             |
+
+## codersdk.AIBridgeProvider
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "type": "openai"
+}
+```
+
+### Properties
+
+| Name           | Type                                               | Required | Restrictions | Description |
+|----------------|----------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                             | false    |              |             |
+| `icon`         | string                                             | false    |              |             |
+| `name`         | string                                             | false    |              |             |
+| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              |             |
 
 ## codersdk.AIBridgeProxyConfig
 
@@ -662,6 +704,11 @@ title: Schemas
       "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
       "agentic_actions": [
         {
+          "attribution": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
           "thinking": [
             {
@@ -696,6 +743,10 @@ title: Schemas
           ]
         }
       ],
+      "attribution": {
+        "property1": "string",
+        "property2": "string"
+      },
       "credential_hint": "string",
       "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",
@@ -807,6 +858,11 @@ title: Schemas
   "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
   "agentic_actions": [
     {
+      "attribution": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
       "model": "string",
       "thinking": [
         {
@@ -841,6 +897,10 @@ title: Schemas
       ]
     }
   ],
+  "attribution": {
+    "property1": "string",
+    "property2": "string"
+  },
   "credential_hint": "string",
   "credential_kind": "string",
   "ended_at": "2019-08-24T14:15:22Z",
@@ -871,6 +931,7 @@ title: Schemas
 | `agent_firewall_sequence_number` | integer                                                                                | false    |              | Agent firewall sequence number is the firewall sequence number from the root interception. Used to determine the position of this LLM request in the firewall event stream. Nil when the request did not pass through the agent firewall. |
 | `agent_firewall_session_id`      | string                                                                                 | false    |              | Agent firewall session ID links this thread to an agent firewall confinement session. Nil when the request did not pass through the agent firewall.                                                                                       |
 | `agentic_actions`                | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |                                                                                                                                                                                                                                           |
+| `attribution`                    | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from the root interception. Unknown attribution is serialized as an empty object.                                                                                                                   |
 | `credential_hint`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `credential_kind`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `ended_at`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
@@ -1006,7 +1067,8 @@ title: Schemas
       "rawQuery": "string",
       "scheme": "string",
       "user": {}
-    }
+    },
+    "stream_silence_timeout": 0
   }
 }
 ```
@@ -1521,6 +1583,20 @@ None
 | Value(s)                            |
 |-------------------------------------|
 | `envbox`, `envbuilder`, `exectrace` |
+
+## codersdk.AppFamilyName
+
+```json
+"vscode"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                            |
+|---------------------------------------------------------------------|
+| `jetbrains`, `reconnecting_pty`, `sftp`, `ssh`, `unknown`, `vscode` |
 
 ## codersdk.AppHostResponse
 
@@ -2203,6 +2279,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "inline_mcp_servers": [
+        {
+          "allow_in_subagents": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "forward_coder_headers": true,
+          "has_custom_headers": true,
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "slug": "string",
+          "tool_allow_list": [
+            "string"
+          ],
+          "tool_deny_list": [
+            "string"
+          ],
+          "updated_at": "2019-08-24T14:15:22Z",
+          "url": "string"
+        }
+      ],
       "labels": {
         "property1": "string",
         "property2": "string"
@@ -2299,6 +2393,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "forward_coder_headers": true,
+      "has_custom_headers": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "updated_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    }
+  ],
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -2353,6 +2465,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
 | `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
 | `id`                    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `inline_mcp_servers`    | array of [codersdk.InlineMCPServer](#codersdkinlinemcpserver)   | false    |              | Inline mcp servers lists the inline MCP servers declared on the chat, without headers. Only the single-chat GET sets it. Experimental.                                                                                                                                     |
 | `labels`                | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | » `[any property]`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `last_error`            | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2495,21 +2608,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "rawQuery": "string",
     "scheme": "string",
     "user": {}
-  }
+  },
+  "stream_silence_timeout": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type                       | Required | Restrictions | Description |
-|-------------------------|----------------------------|----------|--------------|-------------|
-| `acquire_batch_size`    | integer                    | false    |              |             |
-| `debug_logging_enabled` | boolean                    | false    |              |             |
-| `hook_allow_insecure`   | boolean                    | false    |              |             |
-| `hook_enabled`          | boolean                    | false    |              |             |
-| `hook_secret`           | string                     | false    |              |             |
-| `hook_timeout`          | integer                    | false    |              |             |
-| `hook_url`              | [serpent.URL](#serpenturl) | false    |              |             |
+| Name                     | Type                       | Required | Restrictions | Description |
+|--------------------------|----------------------------|----------|--------------|-------------|
+| `acquire_batch_size`     | integer                    | false    |              |             |
+| `debug_logging_enabled`  | boolean                    | false    |              |             |
+| `hook_allow_insecure`    | boolean                    | false    |              |             |
+| `hook_enabled`           | boolean                    | false    |              |             |
+| `hook_secret`            | string                     | false    |              |             |
+| `hook_timeout`           | integer                    | false    |              |             |
+| `hook_url`               | [serpent.URL](#serpenturl) | false    |              |             |
+| `stream_silence_timeout` | integer                    | false    |              |             |
 
 ## codersdk.ChatContext
 
@@ -2903,21 +3018,31 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "file_name": "string",
   "start_line": 0,
   "text": "string",
-  "type": "text"
+  "type": "text",
+  "workspace_file_media_type": "string",
+  "workspace_file_name": "string",
+  "workspace_file_path": "string",
+  "workspace_file_size": 0,
+  "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
 }
 ```
 
 ### Properties
 
-| Name         | Type                                                     | Required | Restrictions | Description                                                                    |
-|--------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------|
-| `content`    | string                                                   | false    |              | The code content from the diff that was commented on.                          |
-| `end_line`   | integer                                                  | false    |              |                                                                                |
-| `file_id`    | string                                                   | false    |              |                                                                                |
-| `file_name`  | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference. |
-| `start_line` | integer                                                  | false    |              |                                                                                |
-| `text`       | string                                                   | false    |              |                                                                                |
-| `type`       | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                |
+| Name                          | Type                                                     | Required | Restrictions | Description                                                                                                                                                    |
+|-------------------------------|----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content`                     | string                                                   | false    |              | The code content from the diff that was commented on.                                                                                                          |
+| `end_line`                    | integer                                                  | false    |              |                                                                                                                                                                |
+| `file_id`                     | string                                                   | false    |              |                                                                                                                                                                |
+| `file_name`                   | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference.                                                                                 |
+| `start_line`                  | integer                                                  | false    |              |                                                                                                                                                                |
+| `text`                        | string                                                   | false    |              |                                                                                                                                                                |
+| `type`                        | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                                                                                                |
+| `workspace_file_media_type`   | string                                                   | false    |              |                                                                                                                                                                |
+| `workspace_file_name`         | string                                                   | false    |              |                                                                                                                                                                |
+| `workspace_file_path`         | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeWorkspaceFileReference.                                                                        |
+| `workspace_file_size`         | integer                                                  | false    |              |                                                                                                                                                                |
+| `workspace_file_workspace_id` | string                                                   | false    |              | Workspace file workspace ID is the workspace the file was uploaded to, as returned by the upload endpoint. It must match the chat's currently bound workspace. |
 
 ## codersdk.ChatInputPartType
 
@@ -2929,9 +3054,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                         |
-|----------------------------------|
-| `file`, `file-reference`, `text` |
+| Value(s)                                                     |
+|--------------------------------------------------------------|
+| `file`, `file-reference`, `text`, `workspace-file-reference` |
 
 ## codersdk.ChatMessage
 
@@ -2975,6 +3100,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "reasoning_delta": "string",
       "result": [
         0
       ],
@@ -2990,13 +3116,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "tool_call_id": "string",
       "tool_name": "string",
       "type": "text",
-      "url": "string"
+      "url": "string",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     }
   ],
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
   "id": 0,
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "queued_message_id": 0,
   "role": "system",
   "usage": {
     "cache_creation_tokens": 0,
@@ -3012,16 +3144,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                          | Required | Restrictions | Description |
-|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `chat_id`         | string                                                        | false    |              |             |
-| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `created_at`      | string                                                        | false    |              |             |
-| `created_by`      | string                                                        | false    |              |             |
-| `id`              | integer                                                       | false    |              |             |
-| `model_config_id` | string                                                        | false    |              |             |
-| `role`            | [codersdk.ChatMessageRole](#codersdkchatmessagerole)          | false    |              |             |
-| `usage`           | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)        | false    |              |             |
+| Name                | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                     |
+|---------------------|---------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id`           | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `content`           | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `created_at`        | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `created_by`        | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `id`                | integer                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `model_config_id`   | string                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `queued_message_id` | integer                                                       | false    |              | Queued message ID is the ID of the queued message this message was promoted from. It matches ChatQueuedMessage.ID in the response that queued the message. It is nil when the message was not promoted from the queue (edits create a new message without it) or when a server version that did not record the link created it. |
+| `role`              | [codersdk.ChatMessageRole](#codersdkchatmessagerole)          | false    |              |                                                                                                                                                                                                                                                                                                                                 |
+| `usage`             | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)        | false    |              |                                                                                                                                                                                                                                                                                                                                 |
 
 ## codersdk.ChatMessagePart
 
@@ -3062,6 +3195,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "provider_metadata": [
     0
   ],
+  "reasoning_delta": "string",
   "result": [
     0
   ],
@@ -3077,7 +3211,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "tool_call_id": "string",
   "tool_name": "string",
   "type": "text",
-  "url": "string"
+  "url": "string",
+  "workspace_file_media_type": "string",
+  "workspace_file_name": "string",
+  "workspace_file_path": "string",
+  "workspace_file_size": 0,
+  "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
 }
 ```
 
@@ -3110,6 +3249,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
 | `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
+| `reasoning_delta`              | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3124,6 +3264,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `tool_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `type`                         | [codersdk.ChatMessagePartType](#codersdkchatmessageparttype) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `url`                          | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `workspace_file_media_type`    | string                                                       | false    |              | Workspace file media type is the best-effort declared MIME type.                                                                                                                                                                                                                                                                                                                                           |
+| `workspace_file_name`          | string                                                       | false    |              | Workspace file name is the sanitized basename of a workspace upload.                                                                                                                                                                                                                                                                                                                                       |
+| `workspace_file_path`          | string                                                       | false    |              | Workspace file path is the absolute path of a workspace upload. The bytes live on the workspace filesystem; only metadata is persisted on the message.                                                                                                                                                                                                                                                     |
+| `workspace_file_size`          | integer                                                      | false    |              | Workspace file size is the byte size of a workspace upload.                                                                                                                                                                                                                                                                                                                                                |
+| `workspace_file_workspace_id`  | string                                                       | false    |              | Workspace file workspace ID identifies the workspace whose filesystem holds the uploaded bytes. References are only readable while the chat stays bound to that workspace.                                                                                                                                                                                                                                 |
 
 ## codersdk.ChatMessagePartType
 
@@ -3135,9 +3280,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                    |
-|---------------------------------------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
+| Value(s)                                                                                                                                                                |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
 
 ## codersdk.ChatMessageRole
 
@@ -3224,6 +3369,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -3239,13 +3385,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -3298,6 +3450,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -3313,7 +3466,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
@@ -3349,6 +3507,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,
@@ -3410,6 +3569,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",
@@ -3633,6 +3793,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "frequency_penalty": 0,
   "max_output_tokens": 0,
   "openai_config": {
+    "reasoning_model": true,
     "use_responses_api": true
   },
   "presence_penalty": 0,
@@ -3694,6 +3855,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "property2": null
       },
       "prompt_cache_key": "string",
+      "reasoning_mode": "string",
       "reasoning_summary": "string",
       "safety_identifier": "string",
       "search_context_size": "string",
@@ -3881,6 +4043,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "reasoning_model": true,
   "use_responses_api": true
 }
 ```
@@ -3889,6 +4052,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                | Type    | Required | Restrictions | Description |
 |---------------------|---------|----------|--------------|-------------|
+| `reasoning_model`   | boolean | false    |              |             |
 | `use_responses_api` | boolean | false    |              |             |
 
 ## codersdk.ChatModelOpenAIProviderOptions
@@ -3919,6 +4083,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "property2": null
   },
   "prompt_cache_key": "string",
+  "reasoning_mode": "string",
   "reasoning_summary": "string",
   "safety_identifier": "string",
   "search_context_size": "string",
@@ -3951,6 +4116,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `prediction`            | object          | false    |              |             |
 | » `[any property]`      | any             | false    |              |             |
 | `prompt_cache_key`      | string          | false    |              |             |
+| `reasoning_mode`        | string          | false    |              |             |
 | `reasoning_summary`     | string          | false    |              |             |
 | `safety_identifier`     | string          | false    |              |             |
 | `search_context_size`   | string          | false    |              |             |
@@ -4203,6 +4369,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "property2": null
     },
     "prompt_cache_key": "string",
+    "reasoning_mode": "string",
     "reasoning_summary": "string",
     "safety_identifier": "string",
     "search_context_size": "string",
@@ -4604,6 +4771,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "reasoning_delta": "string",
       "result": [
         0
       ],
@@ -4619,7 +4787,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "tool_call_id": "string",
       "tool_name": "string",
       "type": "text",
-      "url": "string"
+      "url": "string",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     }
   ],
   "created_at": "2019-08-24T14:15:22Z",
@@ -4761,6 +4934,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -4776,13 +4950,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "queued_message_id": 0,
     "role": "system",
     "usage": {
       "cache_creation_tokens": 0,
@@ -4833,6 +5013,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "reasoning_delta": "string",
       "result": [
         0
       ],
@@ -4848,7 +5029,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "tool_call_id": "string",
       "tool_name": "string",
       "type": "text",
-      "url": "string"
+      "url": "string",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     },
     "role": "system",
     "seq": 0
@@ -4893,6 +5079,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -4908,7 +5095,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
@@ -5002,6 +5194,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "provider_metadata": [
       0
     ],
+    "reasoning_delta": "string",
     "result": [
       0
     ],
@@ -5017,7 +5210,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "tool_call_id": "string",
     "tool_name": "string",
     "type": "text",
-    "url": "string"
+    "url": "string",
+    "workspace_file_media_type": "string",
+    "workspace_file_name": "string",
+    "workspace_file_path": "string",
+    "workspace_file_size": 0,
+    "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
   },
   "role": "system",
   "seq": 0
@@ -5223,6 +5421,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "has_unread": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "inline_mcp_servers": [
+      {
+        "allow_in_subagents": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "forward_coder_headers": true,
+        "has_custom_headers": true,
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "slug": "string",
+        "tool_allow_list": [
+          "string"
+        ],
+        "tool_deny_list": [
+          "string"
+        ],
+        "updated_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      }
+    ],
     "labels": {
       "property1": "string",
       "property2": "string"
@@ -5657,7 +5873,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "file_name": "string",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
+    }
+  ],
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "forward_coder_headers": true,
+      "headers": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "url": "string"
     }
   ],
   "mcp_server_ids": [
@@ -5671,14 +5910,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name               | Type                                                      | Required | Restrictions | Description                                                                                                  |
-|--------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
-| `busy_behavior`    | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)    | false    |              |                                                                                                              |
-| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                              |
-| `mcp_server_ids`   | array of string                                           | false    |              |                                                                                                              |
-| `model_config_id`  | string                                                    | false    |              |                                                                                                              |
-| `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
-| `reasoning_effort` | string                                                    | false    |              |                                                                                                              |
+| Name                 | Type                                                                        | Required | Restrictions | Description                                                                                                  |
+|----------------------|-----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`      | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)                      | false    |              |                                                                                                              |
+| `content`            | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                              |
+| `inline_mcp_servers` | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers replaces the inline MCP servers. nil: no change, empty: remove all.                       |
+| `mcp_server_ids`     | array of string                                                             | false    |              |                                                                                                              |
+| `model_config_id`    | string                                                                      | false    |              |                                                                                                              |
+| `plan_mode`          | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
+| `reasoning_effort`   | string                                                                      | false    |              |                                                                                                              |
 
 #### Enumerated Values
 
@@ -5729,6 +5969,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -5744,13 +5985,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "queued_message_id": 0,
     "role": "system",
     "usage": {
       "cache_creation_tokens": 0,
@@ -5802,6 +6049,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -5817,13 +6065,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -5876,6 +6130,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -5891,7 +6146,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
@@ -5929,6 +6189,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,
@@ -5990,6 +6251,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",
@@ -6107,7 +6369,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "file_name": "string",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
+    }
+  ],
+  "inline_mcp_servers": [
+    {
+      "allow_in_subagents": true,
+      "forward_coder_headers": true,
+      "headers": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "url": "string"
     }
   ],
   "labels": {
@@ -6119,6 +6404,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "plan_mode": "plan",
   "reasoning_effort": "string",
   "system_prompt": "string",
@@ -6137,20 +6423,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                |
-|------------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                            |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                            |
-| `labels`               | object                                                    | false    |              |                                                                                                                                            |
-| » `[any property]`     | string                                                    | false    |              |                                                                                                                                            |
-| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                            |
-| `model_config_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `organization_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                            |
-| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                            |
-| `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
-| `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
+| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                   |
+|------------------------|-----------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)                          | false    |              |                                                                                                                                                                               |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                                                                                               |
+| `inline_mcp_servers`   | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers declares MCP servers by value on this chat, next to the org-configured servers selected by MCPServerIDs. Experimental.                                     |
+| `labels`               | object                                                                      | false    |              |                                                                                                                                                                               |
+| » `[any property]`     | string                                                                      | false    |              |                                                                                                                                                                               |
+| `mcp_server_ids`       | array of string                                                             | false    |              |                                                                                                                                                                               |
+| `model_config_id`      | string                                                                      | false    |              |                                                                                                                                                                               |
+| `organization_id`      | string                                                                      | false    |              |                                                                                                                                                                               |
+| `owner_id`             | string                                                                      | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user. |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              |                                                                                                                                                                               |
+| `reasoning_effort`     | string                                                                      | false    |              |                                                                                                                                                                               |
+| `system_prompt`        | string                                                                      | false    |              |                                                                                                                                                                               |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                    |
+| `workspace_id`         | string                                                                      | false    |              |                                                                                                                                                                               |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -6292,6 +6580,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
   "oauth2_token_url": "string",
+  "signing_secret": "string",
   "slug": "string",
   "tool_allow_list": [
     "string"
@@ -6306,32 +6595,33 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description                                                                                                            |
-|-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
-| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                        |
-| `api_key_header`        | string          | false    |              |                                                                                                                        |
-| `api_key_value`         | string          | false    |              |                                                                                                                        |
-| `auth_type`             | string          | true     |              |                                                                                                                        |
-| `availability`          | string          | true     |              |                                                                                                                        |
-| `custom_headers`        | object          | false    |              |                                                                                                                        |
-| » `[any property]`      | string          | false    |              |                                                                                                                        |
-| `description`           | string          | false    |              |                                                                                                                        |
-| `display_name`          | string          | true     |              |                                                                                                                        |
-| `enabled`               | boolean         | false    |              |                                                                                                                        |
-| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.   |
-| `icon_url`              | string          | false    |              |                                                                                                                        |
-| `model_intent`          | boolean         | false    |              |                                                                                                                        |
-| `oauth2_auth_url`       | string          | false    |              |                                                                                                                        |
-| `oauth2_client_id`      | string          | false    |              |                                                                                                                        |
-| `oauth2_client_secret`  | string          | false    |              |                                                                                                                        |
-| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted. |
-| `oauth2_scopes`         | string          | false    |              |                                                                                                                        |
-| `oauth2_token_url`      | string          | false    |              |                                                                                                                        |
-| `slug`                  | string          | true     |              |                                                                                                                        |
-| `tool_allow_list`       | array of string | false    |              |                                                                                                                        |
-| `tool_deny_list`        | array of string | false    |              |                                                                                                                        |
-| `transport`             | string          | true     |              |                                                                                                                        |
-| `url`                   | string          | true     |              |                                                                                                                        |
+| Name                    | Type            | Required | Restrictions | Description                                                                                                                            |
+|-------------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                                        |
+| `api_key_header`        | string          | false    |              |                                                                                                                                        |
+| `api_key_value`         | string          | false    |              |                                                                                                                                        |
+| `auth_type`             | string          | true     |              |                                                                                                                                        |
+| `availability`          | string          | true     |              |                                                                                                                                        |
+| `custom_headers`        | object          | false    |              |                                                                                                                                        |
+| » `[any property]`      | string          | false    |              |                                                                                                                                        |
+| `description`           | string          | false    |              |                                                                                                                                        |
+| `display_name`          | string          | true     |              |                                                                                                                                        |
+| `enabled`               | boolean         | false    |              |                                                                                                                                        |
+| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.                   |
+| `icon_url`              | string          | false    |              |                                                                                                                                        |
+| `model_intent`          | boolean         | false    |              |                                                                                                                                        |
+| `oauth2_auth_url`       | string          | false    |              |                                                                                                                                        |
+| `oauth2_client_id`      | string          | false    |              |                                                                                                                                        |
+| `oauth2_client_secret`  | string          | false    |              |                                                                                                                                        |
+| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted.                 |
+| `oauth2_scopes`         | string          | false    |              |                                                                                                                                        |
+| `oauth2_token_url`      | string          | false    |              |                                                                                                                                        |
+| `signing_secret`        | string          | false    |              | Signing secret signs forwarded identity headers and request bodies. Configure the same secret on the MCP server. It is never returned. |
+| `slug`                  | string          | true     |              |                                                                                                                                        |
+| `tool_allow_list`       | array of string | false    |              |                                                                                                                                        |
+| `tool_deny_list`        | array of string | false    |              |                                                                                                                                        |
+| `transport`             | string          | true     |              |                                                                                                                                        |
+| `url`                   | string          | true     |              |                                                                                                                                        |
 
 #### Enumerated Values
 
@@ -6630,7 +6920,7 @@ This is required on creation to enable a user-flow of validating a template work
 |-----------|--------|----------|--------------|-------------|
 | `api_key` | string | false    |              |             |
 
-## codersdk.CreateUserRequestWithOrgs
+## codersdk.CreateUserRequest
 
 ```json
 {
@@ -7286,7 +7576,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "rawQuery": "string",
           "scheme": "string",
           "user": {}
-        }
+        },
+        "stream_silence_timeout": 0
       }
     },
     "allow_workspace_renames": true,
@@ -7339,6 +7630,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ]
       }
     },
+    "disable_chat_caller_supplied_tools": true,
     "disable_chat_sharing": true,
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
@@ -7359,6 +7651,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
+    "dynamic_parameters_full_evaluation": true,
     "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
@@ -7771,6 +8064,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "collected_at": "2019-08-24T14:15:22Z",
   "next_update_at": "2019-08-24T14:15:22Z",
   "session_count": {
+    "apps": {
+      "property1": {
+        "count": 0,
+        "display_name": "string",
+        "family": "vscode",
+        "icon": "string"
+      },
+      "property2": {
+        "count": 0,
+        "display_name": "string",
+        "family": "vscode",
+        "icon": "string"
+      }
+    },
     "jetbrains": 0,
     "reconnecting_pty": 0,
     "ssh": 0,
@@ -7896,7 +8203,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "rawQuery": "string",
         "scheme": "string",
         "user": {}
-      }
+      },
+      "stream_silence_timeout": 0
     }
   },
   "allow_workspace_renames": true,
@@ -7949,6 +8257,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ]
     }
   },
+  "disable_chat_caller_supplied_tools": true,
   "disable_chat_sharing": true,
   "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
@@ -7969,6 +8278,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
+  "dynamic_parameters_full_evaluation": true,
   "enable_authz_recording": true,
   "enable_terraform_debug_mode": true,
   "ephemeral_deployment": true,
@@ -8352,6 +8662,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `config_ssh`                                   | [codersdk.SSHConfig](#codersdksshconfig)                                                             | false    |              |                                                                           |
 | `dangerous`                                    | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                 | false    |              |                                                                           |
 | `derp`                                         | [codersdk.DERP](#codersdkderp)                                                                       | false    |              |                                                                           |
+| `disable_chat_caller_supplied_tools`           | boolean                                                                                              | false    |              |                                                                           |
 | `disable_chat_sharing`                         | boolean                                                                                              | false    |              |                                                                           |
 | `disable_owner_workspace_exec`                 | boolean                                                                                              | false    |              |                                                                           |
 | `disable_password_auth`                        | boolean                                                                                              | false    |              |                                                                           |
@@ -8360,6 +8671,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_workspace_agent_context_sync`         | boolean                                                                                              | false    |              |                                                                           |
 | `disable_workspace_sharing`                    | boolean                                                                                              | false    |              |                                                                           |
 | `docs_url`                                     | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                           |
+| `dynamic_parameters_full_evaluation`           | boolean                                                                                              | false    |              |                                                                           |
 | `enable_authz_recording`                       | boolean                                                                                              | false    |              |                                                                           |
 | `enable_terraform_debug_mode`                  | boolean                                                                                              | false    |              |                                                                           |
 | `ephemeral_deployment`                         | boolean                                                                                              | false    |              |                                                                           |
@@ -8594,7 +8906,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "file_name": "string",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     }
   ],
   "mcp_server_ids": [
@@ -8660,6 +8977,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "provider_metadata": [
           0
         ],
+        "reasoning_delta": "string",
         "result": [
           0
         ],
@@ -8675,13 +8993,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "queued_message_id": 0,
     "role": "system",
     "usage": {
       "cache_creation_tokens": 0,
@@ -8733,6 +9057,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "provider_metadata": [
             0
           ],
+          "reasoning_delta": "string",
           "result": [
             0
           ],
@@ -8748,13 +9073,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
       "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "queued_message_id": 0,
       "role": "system",
       "usage": {
         "cache_creation_tokens": 0,
@@ -8866,9 +9197,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                           |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                  |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -9026,7 +9357,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `no_refresh`                       | boolean         | false    |              |                                                                                                                                                                                               |
 | `redirect_url`                     | string          | false    |              | Redirect URL is optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where the OAuth callback domain is different from the ACCESS_URL domain. The path component is ignored. |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
-Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
+Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the control plane to match against the Regex.|
 |`revoke_url`|string|false|||
 |`scopes`|array of string|false|||
 |`token_url`|string|false|||
@@ -9666,6 +9997,76 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `label` | string | false    |              |             |
 | `url`   | string | false    |              |             |
 
+## codersdk.InlineMCPServer
+
+```json
+{
+  "allow_in_subagents": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "forward_coder_headers": true,
+  "has_custom_headers": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "slug": "string",
+  "tool_allow_list": [
+    "string"
+  ],
+  "tool_deny_list": [
+    "string"
+  ],
+  "updated_at": "2019-08-24T14:15:22Z",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type            | Required | Restrictions | Description                                           |
+|-------------------------|-----------------|----------|--------------|-------------------------------------------------------|
+| `allow_in_subagents`    | boolean         | false    |              |                                                       |
+| `created_at`            | string          | false    |              |                                                       |
+| `forward_coder_headers` | boolean         | false    |              |                                                       |
+| `has_custom_headers`    | boolean         | false    |              |                                                       |
+| `id`                    | string          | false    |              |                                                       |
+| `slug`                  | string          | false    |              |                                                       |
+| `tool_allow_list`       | array of string | false    |              |                                                       |
+| `tool_deny_list`        | array of string | false    |              |                                                       |
+| `updated_at`            | string          | false    |              |                                                       |
+| `url`                   | string          | false    |              | URL is empty unless the chat owner makes the request. |
+
+## codersdk.InlineMCPServerRequest
+
+```json
+{
+  "allow_in_subagents": true,
+  "forward_coder_headers": true,
+  "headers": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "slug": "string",
+  "tool_allow_list": [
+    "string"
+  ],
+  "tool_deny_list": [
+    "string"
+  ],
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type            | Required | Restrictions | Description |
+|-------------------------|-----------------|----------|--------------|-------------|
+| `allow_in_subagents`    | boolean         | false    |              |             |
+| `forward_coder_headers` | boolean         | false    |              |             |
+| `headers`               | object          | false    |              |             |
+| » `[any property]`      | string          | false    |              |             |
+| `slug`                  | string          | false    |              |             |
+| `tool_allow_list`       | array of string | false    |              |             |
+| `tool_deny_list`        | array of string | false    |              |             |
+| `url`                   | string          | false    |              |             |
+
 ## codersdk.InsightsReportInterval
 
 ```json
@@ -9956,6 +10357,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "has_api_key": true,
   "has_custom_headers": true,
   "has_oauth2_secret": true,
+  "has_signing_secret": true,
   "icon_url": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model_intent": true,
@@ -9995,6 +10397,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `has_api_key`           | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `has_custom_headers`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `has_oauth2_secret`     | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `has_signing_secret`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `icon_url`              | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `id`                    | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `model_intent`          | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
@@ -10919,6 +11322,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "callback_url": "string",
   "client_type": "confidential",
+  "dynamically_registered": true,
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -10927,20 +11331,27 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
-|----------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `callback_url` | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `client_type`  | [codersdk.OAuth2ClientType](#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
-| `endpoints`    | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
-| `icon`         | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `id`           | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `name`         | string                                                     | false    |              |                                                                                                                                                                                                         |
+| Name                     | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
+|--------------------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`           | string                                                     | false    |              | Deprecated: equal to the first entry of redirect_uris. Read redirect_uris instead.                                                                                                                      |
+| `client_type`            | [codersdk.OAuth2ClientType](#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
+| `dynamically_registered` | boolean                                                    | false    |              | Dynamically registered is true when the app registered itself through Dynamic Client Registration rather than being created by an admin.                                                                |
+| `endpoints`              | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
+| `icon`                   | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `id`                     | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `name`                   | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `redirect_uris`          | array of string                                            | false    |              | Redirect uris are the app's registered redirect URIs, primary first.                                                                                                                                    |
+| `scope`                  | string                                                     | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
 
 ## codersdk.OAuth2ProviderAppSecret
 
@@ -11296,6 +11707,103 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
+## codersdk.OrganizationAISpendReport
+
+```json
+{
+  "count": 0,
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "retention_start": "2019-08-24T14:15:22Z",
+  "totals": {
+    "cost_micros": 0,
+    "unpriced_usage_count": 0
+  },
+  "users": [
+    {
+      "avatar_url": "string",
+      "clients": [
+        "string"
+      ],
+      "cost_micros": 0,
+      "models": [
+        "string"
+      ],
+      "name": "string",
+      "providers": [
+        "string"
+      ],
+      "unpriced_usage_count": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name              | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                             |
+|-------------------|-------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `count`           | integer                                                                       | false    |              | Count is the number of users with token usage matching the filter.                                                                                                                      |
+| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                   |
+| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                 |
+| `retention_start` | string                                                                        | false    |              | Retention start is the oldest instant for which token usage is still retained. An explicit period must not start before it. Omitted when the deployment does not purge AI Gateway data. |
+| `totals`          | [codersdk.OrganizationAISpendTotals](#codersdkorganizationaispendtotals)      | false    |              |                                                                                                                                                                                         |
+| `users`           | array of [codersdk.OrganizationAISpendUser](#codersdkorganizationaispenduser) | false    |              | Users is the requested page, most expensive first.                                                                                                                                      |
+
+## codersdk.OrganizationAISpendTotals
+
+```json
+{
+  "cost_micros": 0,
+  "unpriced_usage_count": 0
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description                                                                                          |
+|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------|
+| `cost_micros`          | integer | false    |              | Cost micros is the priced spend of every matching user.                                              |
+| `unpriced_usage_count` | integer | false    |              | Unpriced usage count is the number of token usage records without a cost across every matching user. |
+
+## codersdk.OrganizationAISpendUser
+
+```json
+{
+  "avatar_url": "string",
+  "clients": [
+    "string"
+  ],
+  "cost_micros": 0,
+  "models": [
+    "string"
+  ],
+  "name": "string",
+  "providers": [
+    "string"
+  ],
+  "unpriced_usage_count": 0,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type            | Required | Restrictions | Description                                                                                                                                       |
+|------------------------|-----------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`           | string          | false    |              |                                                                                                                                                   |
+| `clients`              | array of string | false    |              | Clients are the clients the user spent through, sorted. Usage without a recorded client is reported as Unknown.                                   |
+| `cost_micros`          | integer         | false    |              | Cost micros is the user's priced spend over the period.                                                                                           |
+| `models`               | array of string | false    |              | Models are the models the user spent through, sorted.                                                                                             |
+| `name`                 | string          | false    |              |                                                                                                                                                   |
+| `providers`            | array of string | false    |              | Providers are the provider types the user spent through, sorted.                                                                                  |
+| `unpriced_usage_count` | integer         | false    |              | Unpriced usage count is the number of the user's token usage records that carry no cost because their model had no price when they were recorded. |
+| `user_id`              | string          | false    |              |                                                                                                                                                   |
+| `username`             | string          | false    |              |                                                                                                                                                   |
+
 ## codersdk.OrganizationChatModelsResponse
 
 ```json
@@ -11315,6 +11823,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
         "frequency_penalty": 0,
         "max_output_tokens": 0,
         "openai_config": {
+          "reasoning_model": true,
           "use_responses_api": true
         },
         "presence_penalty": 0,
@@ -11376,6 +11885,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
               "property2": null
             },
             "prompt_cache_key": "string",
+            "reasoning_mode": "string",
             "reasoning_summary": "string",
             "safety_identifier": "string",
             "search_context_size": "string",
@@ -12017,33 +12527,39 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `callback_url` | string | true     |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | true     |              |             |
+| Name            | Type            | Required | Restrictions | Description                                                                                                                                                      |
+|-----------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`  | string          | false    |              | Deprecated: send redirect_uris instead. If both are sent, callback_url must equal the first entry of redirect_uris.                                              |
+| `icon`          | string          | false    |              |                                                                                                                                                                  |
+| `name`          | string          | true     |              |                                                                                                                                                                  |
+| `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry is the primary. Required, unless the deprecated callback_url is sent instead. |
+| `scope`         | string          | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Leave empty, or omit, for unrestricted.                                            |
 
 ## codersdk.PostWorkspaceUsageRequest
 
 ```json
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-  "app_name": "vscode"
+  "app_name": "string"
 }
 ```
 
 ### Properties
 
-| Name       | Type                                           | Required | Restrictions | Description |
-|------------|------------------------------------------------|----------|--------------|-------------|
-| `agent_id` | string                                         | false    |              |             |
-| `app_name` | [codersdk.UsageAppName](#codersdkusageappname) | false    |              |             |
+| Name       | Type   | Required | Restrictions | Description                                                                                                                                                                        |
+|------------|--------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id` | string | false    |              |                                                                                                                                                                                    |
+| `app_name` | string | false    |              | App name is any name for the app reporting usage. The server normalizes it at ingestion, so a new app needs no server change. The UsageAppName constants are the well-known names. |
 
 ## codersdk.PprofConfig
 
@@ -12904,17 +13420,23 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `callback_url` | string | true     |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | true     |              |             |
+| Name            | Type            | Required | Restrictions | Description                                                                                                                                                                                                                                                           |
+|-----------------|-----------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`  | string          | false    |              | Deprecated: send redirect_uris instead. If both are sent, callback_url must equal the first entry of redirect_uris.                                                                                                                                                   |
+| `icon`          | string          | false    |              | Icon replaces the app's stored icon. Omitting it clears the stored icon rather than leaving it unchanged.                                                                                                                                                             |
+| `name`          | string          | true     |              |                                                                                                                                                                                                                                                                       |
+| `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry is the primary. Omit both this and callback_url to keep the stored redirect URIs. Other fields are replaced. Sending an empty list is an error, not a way to keep the stored list. |
+| `scope`         | string          | false    |              | Scope replaces the app's current allowlist. Omit to leave the existing allowlist untouched. Set to an empty string to clear it, making the app unrestricted.                                                                                                          |
 
 ## codersdk.RBACAction
 
@@ -13365,10 +13887,44 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-------------------------|
 | `data`, `error`, `ping` |
 
+## codersdk.SessionCountApp
+
+```json
+{
+  "count": 0,
+  "display_name": "string",
+  "family": "vscode",
+  "icon": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                                             | Required | Restrictions | Description                                                                                      |
+|----------------|--------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------|
+| `count`        | integer                                          | false    |              |                                                                                                  |
+| `display_name` | string                                           | false    |              | Display name is the registry's name for a known app, otherwise the normalized identifier itself. |
+| `family`       | [codersdk.AppFamilyName](#codersdkappfamilyname) | false    |              | Family is the group this app totals under.                                                       |
+| `icon`         | string                                           | false    |              | Icon is a bundled path under /icon/, empty if the app has none.                                  |
+
 ## codersdk.SessionCountDeploymentStats
 
 ```json
 {
+  "apps": {
+    "property1": {
+      "count": 0,
+      "display_name": "string",
+      "family": "vscode",
+      "icon": "string"
+    },
+    "property2": {
+      "count": 0,
+      "display_name": "string",
+      "family": "vscode",
+      "icon": "string"
+    }
+  },
   "jetbrains": 0,
   "reconnecting_pty": 0,
   "ssh": 0,
@@ -13378,12 +13934,14 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-|--------------------|---------|----------|--------------|-------------|
-| `jetbrains`        | integer | false    |              |             |
-| `reconnecting_pty` | integer | false    |              |             |
-| `ssh`              | integer | false    |              |             |
-| `vscode`           | integer | false    |              |             |
+| Name               | Type                                                 | Required | Restrictions | Description                                                                                                                                    |
+|--------------------|------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `apps`             | object                                               | false    |              | Apps holds one entry per reported app name, each carrying the family it totals under. The fields below duplicate those totals for one release. |
+| » `[any property]` | [codersdk.SessionCountApp](#codersdksessioncountapp) | false    |              |                                                                                                                                                |
+| `jetbrains`        | integer                                              | false    |              | Deprecated: total Apps by Family instead.                                                                                                      |
+| `reconnecting_pty` | integer                                              | false    |              | Deprecated: total Apps by Family instead.                                                                                                      |
+| `ssh`              | integer                                              | false    |              | Deprecated: total Apps by Family instead.                                                                                                      |
+| `vscode`           | integer                                              | false    |              | Deprecated: total Apps by Family instead.                                                                                                      |
 
 ## codersdk.SessionLifetime
 
@@ -15324,6 +15882,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,
@@ -15385,6 +15944,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",
@@ -15656,6 +16216,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
   "oauth2_token_url": "string",
+  "signing_secret": "string",
   "slug": "string",
   "tool_allow_list": [
     "string"
@@ -15691,6 +16252,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is validated in the handler because a validate tag would reject the pointer to "" that clears it. |
 | `oauth2_scopes`         | string          | false    |              |                                                                                                                         |
 | `oauth2_token_url`      | string          | false    |              |                                                                                                                         |
+| `signing_secret`        | string          | false    |              | Signing secret replaces the shared signing key. Omit to preserve it; an empty string clears it. It is never returned.   |
 | `slug`                  | string          | false    |              |                                                                                                                         |
 | `tool_allow_list`       | array of string | false    |              |                                                                                                                         |
 | `tool_deny_list`        | array of string | false    |              |                                                                                                                         |
@@ -16206,6 +16768,28 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |------|--------|----------|--------------|-------------|
 | `id` | string | false    |              |             |
 
+## codersdk.UploadChatWorkspaceFileResponse
+
+```json
+{
+  "media_type": "string",
+  "name": "string",
+  "path": "string",
+  "size": 0,
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description                                                                                                             |
+|----------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------|
+| `media_type`   | string  | false    |              | Media type is the client-declared content type for display.                                                             |
+| `name`         | string  | false    |              | Name is the final basename of the uploaded file.                                                                        |
+| `path`         | string  | false    |              | Path is the absolute path of the file on the workspace.                                                                 |
+| `size`         | integer | false    |              | Size is the number of bytes written to the workspace.                                                                   |
+| `workspace_id` | string  | false    |              | Workspace ID is the workspace whose filesystem received the bytes. Message parts referencing this upload must carry it. |
+
 ## codersdk.UploadResponse
 
 ```json
@@ -16299,20 +16883,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |---------------|----------------------------------------------------|
 | `protocol`    | `http`, `https`                                    |
 | `share_level` | `authenticated`, `organization`, `owner`, `public` |
-
-## codersdk.UsageAppName
-
-```json
-"vscode"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                                         |
-|--------------------------------------------------|
-| `jetbrains`, `reconnecting-pty`, `ssh`, `vscode` |
 
 ## codersdk.UsagePeriod
 
@@ -18729,6 +19299,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `reason`     | `autostart`, `autostop`, `initiator`                                                                              |
 | `status`     | `canceled`, `canceling`, `deleted`, `deleting`, `failed`, `pending`, `running`, `starting`, `stopped`, `stopping` |
 | `transition` | `delete`, `start`, `stop`                                                                                         |
+
+## codersdk.WorkspaceBuildDebugEventRequest
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+```
+
+### Properties
+
+| Name | Type   | Required | Restrictions | Description                                                                     |
+|------|--------|----------|--------------|---------------------------------------------------------------------------------|
+| `id` | string | true     |              | ID identifies this click so a later step of the funnel can be attributed to it. |
 
 ## codersdk.WorkspaceBuildParameter
 

@@ -1,6 +1,6 @@
 import type { InteractiveRole, Role } from "./roles";
 
-export interface NewTheme {
+export type NewTheme = {
 	l1: Role; // page background, things which sit at the "root level"
 	l2: InteractiveRole; // sidebars, table headers, navigation
 	pillDefault: {
@@ -8,4 +8,4 @@ export interface NewTheme {
 		outline: string;
 		text: string;
 	};
-}
+};

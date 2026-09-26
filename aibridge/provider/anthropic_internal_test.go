@@ -29,40 +29,6 @@ func newTestAnthropic(t testing.TB, cfg config.Anthropic, bedrockCfg *config.AWS
 	return p
 }
 
-func TestAnthropic_TypeAndName(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		cfg        config.Anthropic
-		expectType string
-		expectName string
-	}{
-		{
-			name:       "defaults",
-			cfg:        config.Anthropic{},
-			expectType: config.ProviderAnthropic,
-			expectName: config.ProviderAnthropic,
-		},
-		{
-			name:       "custom_name",
-			cfg:        config.Anthropic{Name: "anthropic-custom"},
-			expectType: config.ProviderAnthropic,
-			expectName: "anthropic-custom",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			p := newTestAnthropic(t, tc.cfg, nil)
-			assert.Equal(t, tc.expectType, p.Type())
-			assert.Equal(t, tc.expectName, p.Name())
-		})
-	}
-}
-
 func TestNewAnthropic_KeyResolution(t *testing.T) {
 	t.Parallel()
 

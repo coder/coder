@@ -8,10 +8,10 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
-interface ChimeButtonProps {
+type ChimeButtonProps = {
 	enabled?: boolean;
 	onToggle?: () => void;
-}
+};
 
 export const ChimeButton: FC<ChimeButtonProps> = ({ enabled, onToggle }) => {
 	const [internalEnabled, setInternalEnabled] = useState(getChimeEnabled);

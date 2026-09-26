@@ -7,7 +7,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { TemplateSettingsForm } from "./TemplateSettingsForm";
 
-interface TemplateSettingsPageViewProps {
+type TemplateSettingsPageViewProps = {
 	template: Template;
 	onSubmit: (data: UpdateTemplateMeta) => void;
 	onCancel: () => void;
@@ -19,7 +19,7 @@ interface TemplateSettingsPageViewProps {
 	accessControlEnabled: boolean;
 	advancedSchedulingEnabled: boolean;
 	sharedPortControlsEnabled: boolean;
-}
+};
 
 export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 	template,

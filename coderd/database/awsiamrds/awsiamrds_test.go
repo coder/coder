@@ -50,7 +50,7 @@ func TestDriver(t *testing.T) {
 	require.NoError(t, i.Scan(&one))
 	require.Equal(t, 1, one)
 
-	ps, err := pubsub.New(ctx, logger, db, url)
+	ps, err := pubsub.New(ctx, logger, db, url, nil)
 	require.NoError(t, err)
 	defer ps.Close()
 

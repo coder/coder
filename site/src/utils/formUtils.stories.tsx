@@ -5,10 +5,10 @@ import { action } from "storybook/actions";
 import { FormField } from "#/components/FormField/FormField";
 import { getFormHelpers } from "./formUtils";
 
-interface ExampleFormProps {
+type ExampleFormProps = {
 	value?: string;
 	maxLength?: number;
-}
+};
 
 const ExampleForm: FC<ExampleFormProps> = ({ value, maxLength }) => {
 	const form = useFormik({

@@ -5,7 +5,7 @@ import { Button } from "#/components/Button/Button";
 import { useClickable } from "#/hooks/useClickable";
 import { Spinner } from "../Spinner/Spinner";
 
-interface FileUploadProps {
+type FileUploadProps = {
 	isUploading: boolean;
 	onUpload: (file: File) => void;
 	onUnsupportedFile?: (file: File) => void;
@@ -15,7 +15,7 @@ interface FileUploadProps {
 	title: string;
 	description?: ReactNode;
 	extensions?: string[];
-}
+};
 
 export const FileUpload: FC<FileUploadProps> = ({
 	isUploading,

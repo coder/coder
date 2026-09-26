@@ -6,7 +6,7 @@ import { MCPServerForm } from "../components/MCPServerForm";
 import { OrganizationPicker } from "../components/OrganizationPicker";
 import { mcpServersPath } from "../organizationParam";
 
-interface AddMCPServerPageViewProps {
+type AddMCPServerPageViewProps = {
 	isSaving: boolean;
 	canCreate: boolean;
 	canViewServerList: boolean;
@@ -18,7 +18,7 @@ interface AddMCPServerPageViewProps {
 		req: TypesGen.CreateMCPServerConfigRequest,
 	) => Promise<unknown>;
 	onCancel: () => void;
-}
+};
 
 const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 	isSaving,

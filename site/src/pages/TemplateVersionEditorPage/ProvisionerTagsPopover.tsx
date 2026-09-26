@@ -12,10 +12,10 @@ import {
 import { ProvisionerTagsField } from "#/modules/provisioners/ProvisionerTagsField";
 import { docs } from "#/utils/docs";
 
-interface ProvisionerTagsPopoverProps {
+type ProvisionerTagsPopoverProps = {
 	tags: ProvisionerDaemon["tags"];
 	onTagsChange: (values: ProvisionerDaemon["tags"]) => void;
-}
+};
 
 export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 	tags,

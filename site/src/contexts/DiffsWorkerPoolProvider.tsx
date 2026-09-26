@@ -5,9 +5,9 @@ import {
 } from "@pierre/diffs/react";
 import type { FC, ReactNode } from "react";
 
-interface DiffsWorkerPoolProviderProps {
+type DiffsWorkerPoolProviderProps = {
 	children: ReactNode;
-}
+};
 
 const highlighterOptions: WorkerInitializationRenderOptions = {
 	theme: {

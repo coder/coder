@@ -12,7 +12,7 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
-interface VSCodeDevContainerButtonProps {
+type VSCodeDevContainerButtonProps = {
 	userName: string;
 	workspaceName: string;
 	agentName?: string;
@@ -21,7 +21,7 @@ interface VSCodeDevContainerButtonProps {
 	localWorkspaceFolder: string;
 	localConfigFile: string;
 	displayApps: readonly DisplayApp[];
-}
+};
 
 type VSCodeVariant = "vscode" | "vscode-insiders";
 

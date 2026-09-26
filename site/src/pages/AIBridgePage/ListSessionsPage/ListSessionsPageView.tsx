@@ -26,7 +26,7 @@ import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { ListSessionsFilter } from "./ListSessionsFilter";
 import { ListSessionsRow } from "./ListSessionsRow";
 
-interface ListSessionsPageViewProps {
+type ListSessionsPageViewProps = {
 	isLoading: boolean;
 	isFetching: boolean;
 	isAISessionsEntitled: boolean;
@@ -35,7 +35,7 @@ interface ListSessionsPageViewProps {
 	sessionsQuery: PaginationResult;
 	filterProps: ComponentProps<typeof ListSessionsFilter>;
 	onSessionRowClick?: (sessionId: string) => void;
-}
+};
 
 const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
 	<TooltipProvider>

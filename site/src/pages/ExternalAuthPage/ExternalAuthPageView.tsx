@@ -14,7 +14,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { Welcome } from "#/components/Welcome/Welcome";
 
-interface ExternalAuthPageViewProps {
+type ExternalAuthPageViewProps = {
 	externalAuth: ExternalAuth;
 	viewExternalAuthConfig: boolean;
 
@@ -22,7 +22,7 @@ interface ExternalAuthPageViewProps {
 	deviceExchangeError?: ApiErrorResponse;
 
 	onReauthenticate: () => void;
-}
+};
 
 const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 	deviceExchangeError,
