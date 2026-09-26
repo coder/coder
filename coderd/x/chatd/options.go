@@ -158,6 +158,11 @@ type turnExperimentDecisions struct {
 // mcpToolSearchEnabled returns the turn's mcp-tool-search decision, calling
 // evaluate only when the turn has not decided yet.
 func (t *turnExperimentDecisions) mcpToolSearchEnabled(turnKey int64, evaluate func() bool) bool {
+	if turnKey == 0 {
+		// Without a prompt row there is no turn identity to key on, and
+		// caching under 0 would pin one decision across such turns.
+		return evaluate()
+	}
 	t.mu.Lock()
 	if t.decided && t.turnKey == turnKey {
 		enabled := t.mcpToolSearch
