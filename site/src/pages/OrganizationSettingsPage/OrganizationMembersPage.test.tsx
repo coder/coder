@@ -1,8 +1,7 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
-import type { SlimRole } from "#/api/typesGenerated";
-import type * as RoleSelectorDialogModule from "#/modules/roles/RoleSelectorDialog";
+import { HttpResponse, http, type PathParams } from "msw";
+import type { SlimRole, UpdateRoles } from "#/api/typesGenerated";
 import {
 	MockAgentsAccessRole,
 	MockEntitlementsWithMultiOrg,
@@ -21,26 +20,6 @@ import { server } from "#/testHelpers/server";
 import OrganizationMembersPage from "./OrganizationMembersPage";
 
 vi.spyOn(console, "error").mockImplementation(() => {});
-
-const roleSelectorDialogProps = vi.hoisted(() =>
-	vi.fn<
-		(
-			props: Parameters<typeof RoleSelectorDialogModule.RoleSelectorDialog>[0],
-		) => void
-	>(),
-);
-vi.mock("#/modules/roles/RoleSelectorDialog", async (importOriginal) => {
-	const actual = await importOriginal<typeof RoleSelectorDialogModule>();
-	return {
-		...actual,
-		RoleSelectorDialog: (
-			props: Parameters<typeof actual.RoleSelectorDialog>[0],
-		) => {
-			roleSelectorDialogProps(props);
-			return <actual.RoleSelectorDialog {...props} />;
-		},
-	};
-});
 
 beforeEach(() => {
 	server.use(
@@ -147,6 +126,42 @@ describe("OrganizationMembersPage", () => {
 				await updateUserRole(MockOrganizationAuditorRole);
 				await screen.findByText(/TestUser2's roles have been updated\./);
 			});
+
+			it("grants agents-access explicitly to a service account", async () => {
+				let requestedRoles: readonly string[] = [];
+				server.use(
+					http.get("/api/v2/organizations/:organizationId/members/roles", () =>
+						HttpResponse.json([
+							MockOrganizationAuditorRole,
+							MockAgentsAccessRole,
+						]),
+					),
+					http.get(
+						"/api/v2/organizations/:organizationId/paginated-members",
+						() =>
+							HttpResponse.json({
+								members: [
+									MockOrganizationMember,
+									{ ...MockOrganizationMember2, is_service_account: true },
+								],
+								count: 2,
+							}),
+					),
+					http.put<PathParams, UpdateRoles>(
+						`/api/v2/organizations/:organizationId/members/${MockUserMember.id}/roles`,
+						async ({ request }) => {
+							requestedRoles = (await request.json()).roles;
+							return HttpResponse.json(MockOrganizationMember2);
+						},
+					),
+				);
+
+				await renderPage();
+				await updateUserRole(MockAgentsAccessRole);
+				await waitFor(() =>
+					expect(requestedRoles).toEqual([MockAgentsAccessRole.name]),
+				);
+			});
 		});
 
 		describe("when it fails", () => {
@@ -167,54 +182,6 @@ describe("OrganizationMembersPage", () => {
 				await updateUserRole(MockOrganizationAuditorRole);
 				await screen.findByText("Error on updating the user roles.");
 			});
-		});
-	});
-
-	describe("default roles implied in the role editor", () => {
-		const openEditRoles = async (isServiceAccount: boolean) => {
-			server.use(
-				http.get("/api/v2/organizations/:organizationId/members/roles", () =>
-					HttpResponse.json([
-						MockOrganizationAuditorRole,
-						MockAgentsAccessRole,
-					]),
-				),
-				http.get(
-					"/api/v2/organizations/:organizationId/paginated-members",
-					() =>
-						HttpResponse.json({
-							members: [
-								MockOrganizationMember,
-								{
-									...MockOrganizationMember2,
-									is_service_account: isServiceAccount,
-								},
-							],
-							count: 2,
-						}),
-				),
-			);
-			await renderPage();
-
-			const user = userEvent.setup();
-			const users = await screen.findAllByText(/.*@coder.com/);
-			const userRow = users[1].closest("tr");
-			if (!userRow) {
-				throw new Error("Error on get the second user row");
-			}
-			await user.click(within(userRow).getByLabelText("Open menu"));
-			await user.click(await screen.findByText("Edit roles"));
-
-			const lastProps = roleSelectorDialogProps.mock.lastCall?.[0];
-			return (lastProps?.additionalImpliedRoles ?? []).map((role) => role.name);
-		};
-
-		it("implies agents-access for regular members", async () => {
-			expect(await openEditRoles(false)).toEqual([MockAgentsAccessRole.name]);
-		});
-
-		it("does not imply agents-access for service accounts", async () => {
-			expect(await openEditRoles(true)).toEqual([]);
 		});
 	});
 });
