@@ -139,6 +139,11 @@ type ChatPageTimelineProps = {
 	urlTransform: UrlTransform;
 	mcpServers: readonly TypesGen.MCPServerConfig[];
 	footer?: React.ReactNode;
+	/**
+	 * How long a stream part keeps counting as recent output. Stories pass a
+	 * longer window so a capture can hold the state after text resumes.
+	 */
+	recentStreamOutputMs?: number;
 };
 
 export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
@@ -159,6 +164,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	urlTransform,
 	mcpServers,
 	footer,
+	recentStreamOutputMs = RECENT_STREAM_OUTPUT_MS,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
@@ -174,7 +180,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	// A stream already present at mount counts as quiet.
 	const settledStreamState = useDebouncedValue(
 		streamState,
-		RECENT_STREAM_OUTPUT_MS,
+		recentStreamOutputMs,
 	);
 	const streamError = useChatSelector(store, selectStreamError);
 	const retryState = useChatSelector(store, selectRetryState);
