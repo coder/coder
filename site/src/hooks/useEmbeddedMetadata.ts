@@ -69,11 +69,11 @@ type ParseJsonResult<T = unknown> = Readonly<
 	  }
 >;
 
-interface MetadataManagerApi {
+type MetadataManagerApi = {
 	subscribe: (callback: SubscriptionCallback) => () => void;
 	getMetadata: () => RuntimeHtmlMetadata;
 	clearMetadataByKey: (key: MetadataKey) => void;
-}
+};
 
 export class MetadataManager implements MetadataManagerApi {
 	private readonly metadataKey: string;

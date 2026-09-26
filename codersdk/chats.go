@@ -36,6 +36,19 @@ const MaxChatFileIDs = 50
 // attachments.
 const MaxChatFileSizeBytes = 10 * 1024 * 1024
 
+// Inline MCP server declaration caps. Clients can validate before sending.
+const (
+	MaxInlineMCPServers                = 5
+	MaxInlineMCPServersBytes           = 24 * 1024
+	MaxInlineMCPServerSlugBytes        = 32
+	MaxInlineMCPServerURLBytes         = 2048
+	MaxInlineMCPServerHeaders          = 16
+	MaxInlineMCPServerHeaderNameBytes  = 128
+	MaxInlineMCPServerHeaderValueBytes = 8 * 1024
+	MaxInlineMCPServerToolFilters      = 64
+	MaxInlineMCPServerToolNameBytes    = 128
+)
+
 // AnthropicInlineImageCapBytes is Anthropic's documented per-image
 // wire limit; the same cap applies to Bedrock-hosted Claude. Other
 // providers have no documented per-image cap.
@@ -148,6 +161,10 @@ type Chat struct {
 	QueuedForCapacity bool           `json:"queued_for_capacity,omitempty"`
 	Warnings          []string       `json:"warnings,omitempty"`
 	ClientType        ChatClientType `json:"client_type"`
+	// InlineMCPServers lists the inline MCP servers declared on the chat,
+	// without headers. Only the single-chat GET sets it.
+	// Experimental.
+	InlineMCPServers []InlineMCPServer `json:"inline_mcp_servers,omitempty"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
@@ -257,6 +274,12 @@ type ChatMessage struct {
 	Role          ChatMessageRole   `json:"role"`
 	Content       []ChatMessagePart `json:"content,omitempty"`
 	Usage         *ChatMessageUsage `json:"usage,omitempty"`
+	// QueuedMessageID is the ID of the queued message this message was
+	// promoted from. It matches ChatQueuedMessage.ID in the response that
+	// queued the message. It is nil when the message was not promoted from
+	// the queue (edits create a new message without it) or when a server
+	// version that did not record the link created it.
+	QueuedMessageID *int64 `json:"queued_message_id,omitempty"`
 }
 
 // ChatMessageUsage contains token usage information for a chat message.
@@ -285,15 +308,16 @@ const (
 type ChatMessagePartType string
 
 const (
-	ChatMessagePartTypeText          ChatMessagePartType = "text"
-	ChatMessagePartTypeReasoning     ChatMessagePartType = "reasoning"
-	ChatMessagePartTypeToolCall      ChatMessagePartType = "tool-call"
-	ChatMessagePartTypeToolResult    ChatMessagePartType = "tool-result"
-	ChatMessagePartTypeSource        ChatMessagePartType = "source"
-	ChatMessagePartTypeFile          ChatMessagePartType = "file"
-	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
-	ChatMessagePartTypeContextFile   ChatMessagePartType = "context-file"
-	ChatMessagePartTypeSkill         ChatMessagePartType = "skill"
+	ChatMessagePartTypeText                   ChatMessagePartType = "text"
+	ChatMessagePartTypeReasoning              ChatMessagePartType = "reasoning"
+	ChatMessagePartTypeToolCall               ChatMessagePartType = "tool-call"
+	ChatMessagePartTypeToolResult             ChatMessagePartType = "tool-result"
+	ChatMessagePartTypeSource                 ChatMessagePartType = "source"
+	ChatMessagePartTypeFile                   ChatMessagePartType = "file"
+	ChatMessagePartTypeFileReference          ChatMessagePartType = "file-reference"
+	ChatMessagePartTypeContextFile            ChatMessagePartType = "context-file"
+	ChatMessagePartTypeSkill                  ChatMessagePartType = "skill"
+	ChatMessagePartTypeWorkspaceFileReference ChatMessagePartType = "workspace-file-reference"
 	// ChatMessagePartTypeHookContext is model context injected into a user
 	// prompt by a lifecycle hook. It is included in model prompt assembly
 	// and stripped from every client-facing conversion; the server rejects
@@ -317,6 +341,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeFileReference,
 		ChatMessagePartTypeContextFile,
 		ChatMessagePartTypeSkill,
+		ChatMessagePartTypeWorkspaceFileReference,
 		ChatMessagePartTypeHookContext,
 		ChatMessagePartTypeHookNotice,
 	}
@@ -362,6 +387,7 @@ type ChatMessagePart struct {
 	ParsedCommands [][]string      `json:"parsed_commands,omitempty" variants:"tool-call?"`
 	Result         json.RawMessage `json:"result,omitempty" variants:"tool-result?"`
 	ResultDelta    string          `json:"result_delta,omitempty" variants:"tool-result?"`
+	ReasoningDelta string          `json:"reasoning_delta,omitempty" variants:"tool-result?"`
 	ResultReset    bool            `json:"result_reset,omitempty" variants:"tool-result?"`
 	IsError        bool            `json:"is_error,omitempty" variants:"tool-result?"`
 	IsMedia        bool            `json:"is_media,omitempty" variants:"tool-result?"`
@@ -441,16 +467,30 @@ type ChatMessagePart struct {
 	// read_skill tool uses the correct filename even when the
 	// agent configured a non-default value.
 	ContextFileSkillMetaFile string `json:"context_file_skill_meta_file,omitempty" typescript:"-"`
+	// WorkspaceFilePath is the absolute path of a workspace upload.
+	// The bytes live on the workspace filesystem; only metadata is
+	// persisted on the message.
+	WorkspaceFilePath string `json:"workspace_file_path" variants:"workspace-file-reference"`
+	// WorkspaceFileName is the sanitized basename of a workspace upload.
+	WorkspaceFileName string `json:"workspace_file_name" variants:"workspace-file-reference"`
+	// WorkspaceFileSize is the byte size of a workspace upload.
+	WorkspaceFileSize int64 `json:"workspace_file_size" variants:"workspace-file-reference"`
+	// WorkspaceFileMediaType is the best-effort declared MIME type.
+	WorkspaceFileMediaType string `json:"workspace_file_media_type,omitempty" variants:"workspace-file-reference?"`
+	// WorkspaceFileWorkspaceID identifies the workspace whose
+	// filesystem holds the uploaded bytes. References are only
+	// readable while the chat stays bound to that workspace.
+	WorkspaceFileWorkspaceID uuid.UUID `json:"workspace_file_workspace_id" format:"uuid" variants:"workspace-file-reference"`
 }
 
 // StripInternal removes internal-only fields that must not be
 // sent to API clients. Call before publishing via REST or SSE.
 //
-// Note: ArgsDelta, ResultDelta, and ResultReset are intentionally preserved.
-// They are streaming-only fields consumed by the frontend via SSE
-// message_part events. ArgsDelta is produced by processStepStream in
-// chatloop; ResultDelta and ResultReset are produced by the advisor
-// streaming callbacks in chatd.
+// Note: ArgsDelta, ResultDelta, ReasoningDelta, and ResultReset are
+// intentionally preserved. They are streaming-only fields consumed by the
+// frontend via WebSocket message_part events. ArgsDelta is produced by
+// chatloop; ResultDelta, ReasoningDelta, and ResultReset are produced by
+// the advisor streaming callbacks.
 func (p *ChatMessagePart) StripInternal() {
 	p.ProviderMetadata = nil
 	if p.FileID.Valid {
@@ -519,6 +559,20 @@ func ChatMessageFileReference(fileName string, startLine, endLine int, content s
 	}
 }
 
+// ChatMessageWorkspaceFileReference builds a workspace-file-reference
+// chat message part. The bytes live on the filesystem of workspace
+// workspaceID at path; only metadata is persisted on the message.
+func ChatMessageWorkspaceFileReference(workspaceID uuid.UUID, path, name string, size int64, mediaType string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:                     ChatMessagePartTypeWorkspaceFileReference,
+		WorkspaceFilePath:        path,
+		WorkspaceFileName:        name,
+		WorkspaceFileSize:        size,
+		WorkspaceFileMediaType:   mediaType,
+		WorkspaceFileWorkspaceID: workspaceID,
+	}
+}
+
 // ChatMessageSource builds a source chat message part.
 func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
 	return ChatMessagePart{
@@ -533,9 +587,10 @@ func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
 type ChatInputPartType string
 
 const (
-	ChatInputPartTypeText          ChatInputPartType = "text"
-	ChatInputPartTypeFile          ChatInputPartType = "file"
-	ChatInputPartTypeFileReference ChatInputPartType = "file-reference"
+	ChatInputPartTypeText                   ChatInputPartType = "text"
+	ChatInputPartTypeFile                   ChatInputPartType = "file"
+	ChatInputPartTypeFileReference          ChatInputPartType = "file-reference"
+	ChatInputPartTypeWorkspaceFileReference ChatInputPartType = "workspace-file-reference"
 )
 
 // ChatInputPart is a single user input part for creating a chat.
@@ -550,6 +605,16 @@ type ChatInputPart struct {
 	EndLine   int    `json:"end_line,omitempty"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content,omitempty"`
+	// The following fields are only set when Type is
+	// ChatInputPartTypeWorkspaceFileReference.
+	WorkspaceFilePath      string `json:"workspace_file_path,omitempty"`
+	WorkspaceFileName      string `json:"workspace_file_name,omitempty"`
+	WorkspaceFileSize      int64  `json:"workspace_file_size,omitempty"`
+	WorkspaceFileMediaType string `json:"workspace_file_media_type,omitempty"`
+	// WorkspaceFileWorkspaceID is the workspace the file was uploaded
+	// to, as returned by the upload endpoint. It must match the chat's
+	// currently bound workspace.
+	WorkspaceFileWorkspaceID uuid.UUID `json:"workspace_file_workspace_id,omitempty" format:"uuid"`
 }
 
 // SubmitToolResultsRequest is the body for POST /chats/{id}/tool-results.
@@ -566,7 +631,11 @@ type ToolResult struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	OrganizationID  uuid.UUID         `json:"organization_id" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	// OwnerID makes another user the chat owner. It defaults to the
+	// caller. The chat runs with the owner's credentials, so setting it
+	// requires site-wide authority over that user.
+	OwnerID         *uuid.UUID        `json:"owner_id,omitempty" format:"uuid"`
 	Content         []ChatInputPart   `json:"content"`
 	SystemPrompt    string            `json:"system_prompt,omitempty"`
 	WorkspaceID     *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
@@ -577,9 +646,40 @@ type CreateChatRequest struct {
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.
-	UnsafeDynamicTools []DynamicTool  `json:"unsafe_dynamic_tools,omitempty"`
-	PlanMode           ChatPlanMode   `json:"plan_mode,omitempty"`
-	ClientType         ChatClientType `json:"client_type,omitempty"`
+	UnsafeDynamicTools []DynamicTool `json:"unsafe_dynamic_tools,omitempty"`
+	// InlineMCPServers declares MCP servers by value on this chat, next
+	// to the org-configured servers selected by MCPServerIDs. Experimental.
+	InlineMCPServers []InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
+	PlanMode         ChatPlanMode             `json:"plan_mode,omitempty"`
+	ClientType       ChatClientType           `json:"client_type,omitempty"`
+}
+
+// InlineMCPServerRequest declares a streamable HTTP MCP server by value on
+// one chat. Headers are never returned. Header values are encrypted at
+// rest when database encryption is configured.
+type InlineMCPServerRequest struct {
+	Slug                string            `json:"slug"`
+	URL                 string            `json:"url"`
+	Headers             map[string]string `json:"headers,omitempty"`
+	ToolAllowList       []string          `json:"tool_allow_list,omitempty"`
+	ToolDenyList        []string          `json:"tool_deny_list,omitempty"`
+	AllowInSubagents    bool              `json:"allow_in_subagents,omitempty"`
+	ForwardCoderHeaders bool              `json:"forward_coder_headers,omitempty"`
+}
+
+// InlineMCPServer is the redacted view of an inline MCP server.
+type InlineMCPServer struct {
+	ID   uuid.UUID `json:"id" format:"uuid"`
+	Slug string    `json:"slug"`
+	// URL is empty unless the chat owner makes the request.
+	URL                 string    `json:"url"`
+	HasCustomHeaders    bool      `json:"has_custom_headers"`
+	ToolAllowList       []string  `json:"tool_allow_list"`
+	ToolDenyList        []string  `json:"tool_deny_list"`
+	AllowInSubagents    bool      `json:"allow_in_subagents"`
+	ForwardCoderHeaders bool      `json:"forward_coder_headers"`
+	CreatedAt           time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt           time.Time `json:"updated_at" format:"date-time"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -628,10 +728,13 @@ const (
 
 // CreateChatMessageRequest is the request to add a message to a chat.
 type CreateChatMessageRequest struct {
-	Content       []ChatInputPart  `json:"content"`
-	ModelConfigID *uuid.UUID       `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs  *[]uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
-	BusyBehavior  ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	Content       []ChatInputPart `json:"content"`
+	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  *[]uuid.UUID    `json:"mcp_server_ids,omitempty" format:"uuid"`
+	// InlineMCPServers replaces the inline MCP servers.
+	// nil: no change, empty: remove all.
+	InlineMCPServers *[]InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
+	BusyBehavior     ChatBusyBehavior          `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`
@@ -691,6 +794,22 @@ type ChatFileDownloadURLResponse struct {
 	SizeBytes int64     `json:"size_bytes"`
 	Name      string    `json:"name"`
 	MimeType  string    `json:"mime_type"`
+}
+
+// UploadChatWorkspaceFileResponse describes a file uploaded to a
+// chat's workspace filesystem.
+type UploadChatWorkspaceFileResponse struct {
+	// Path is the absolute path of the file on the workspace.
+	Path string `json:"path"`
+	// Name is the final basename of the uploaded file.
+	Name string `json:"name"`
+	// Size is the number of bytes written to the workspace.
+	Size int64 `json:"size"`
+	// MediaType is the client-declared content type for display.
+	MediaType string `json:"media_type"`
+	// WorkspaceID is the workspace whose filesystem received the
+	// bytes. Message parts referencing this upload must carry it.
+	WorkspaceID uuid.UUID `json:"workspace_id" format:"uuid"`
 }
 
 // ChatMessagesResponse contains the messages and queued messages for a chat.
@@ -1227,31 +1346,6 @@ type ChatProviderConfig struct {
 	UpdatedAt                  time.Time                `json:"updated_at,omitempty" format:"date-time"`
 }
 
-// CreateChatProviderConfigRequest creates a chat provider config.
-type CreateChatProviderConfigRequest struct {
-	Provider                   string `json:"provider"`
-	DisplayName                string `json:"display_name,omitempty"`
-	Icon                       string `json:"icon,omitempty"`
-	APIKey                     string `json:"api_key,omitempty"`
-	BaseURL                    string `json:"base_url,omitempty"`
-	Enabled                    *bool  `json:"enabled,omitempty"`
-	CentralAPIKeyEnabled       *bool  `json:"central_api_key_enabled,omitempty"`
-	AllowUserAPIKey            *bool  `json:"allow_user_api_key,omitempty"`
-	AllowCentralAPIKeyFallback *bool  `json:"allow_central_api_key_fallback,omitempty"`
-}
-
-// UpdateChatProviderConfigRequest updates a chat provider config.
-type UpdateChatProviderConfigRequest struct {
-	DisplayName                string  `json:"display_name,omitempty"`
-	Icon                       string  `json:"icon,omitempty"`
-	APIKey                     *string `json:"api_key,omitempty"`
-	BaseURL                    *string `json:"base_url,omitempty"`
-	Enabled                    *bool   `json:"enabled,omitempty"`
-	CentralAPIKeyEnabled       *bool   `json:"central_api_key_enabled,omitempty"`
-	AllowUserAPIKey            *bool   `json:"allow_user_api_key,omitempty"`
-	AllowCentralAPIKeyFallback *bool   `json:"allow_central_api_key_fallback,omitempty"`
-}
-
 // AIProviderSummary is provider metadata embedded in other API responses.
 type AIProviderSummary struct {
 	ID          uuid.UUID      `json:"id" format:"uuid"`
@@ -1363,6 +1457,7 @@ type ChatModelOpenAIProviderOptions struct {
 	Metadata            map[string]any   `json:"metadata,omitempty" description:"Arbitrary metadata to attach to the request" hidden:"true"`
 	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty" description:"Key for enabling cross-request prompt caching"`
 	SafetyIdentifier    *string          `json:"safety_identifier,omitempty" description:"Developer-specific safety identifier for the request" hidden:"true"`
+	ReasoningMode       *string          `json:"reasoning_mode,omitempty" providers:"openai" description:"Supported from the GPT-5.6 Sol generation of OpenAI models. Requests fail when Pro is set on a model that does not support it. Pro increases model work, latency, and token usage." enum:"pro"`
 	ServiceTier         *string          `json:"service_tier,omitempty" description:"Latency tier to use for processing the request" enum:"auto,default,flex,scale,priority"`
 	StructuredOutputs   *bool            `json:"structured_outputs,omitempty" description:"Whether to enable structured JSON output mode" hidden:"true"`
 	StrictJSONSchema    *bool            `json:"strict_json_schema,omitempty" description:"Whether to enforce strict adherence to the JSON schema" hidden:"true"`
@@ -2027,64 +2122,6 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 	return chats, ReadBodyAsJSON(res, &chats)
 }
 
-// ListChatProviders returns admin-managed chat provider configs.
-func (c *ExperimentalClient) ListChatProviders(ctx context.Context) ([]ChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/providers", nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-
-	var providers []ChatProviderConfig
-	return providers, ReadBodyAsJSON(res, &providers)
-}
-
-// CreateChatProvider creates an admin-managed chat provider config.
-func (c *ExperimentalClient) CreateChatProvider(ctx context.Context, req CreateChatProviderConfigRequest) (ChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/providers", req)
-	if err != nil {
-		return ChatProviderConfig{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return ChatProviderConfig{}, ReadBodyAsError(res)
-	}
-
-	var provider ChatProviderConfig
-	return provider, ReadBodyAsJSON(res, &provider)
-}
-
-// UpdateChatProvider updates an admin-managed chat provider config.
-func (c *ExperimentalClient) UpdateChatProvider(ctx context.Context, providerID uuid.UUID, req UpdateChatProviderConfigRequest) (ChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/providers/%s", providerID), req)
-	if err != nil {
-		return ChatProviderConfig{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatProviderConfig{}, ReadBodyAsError(res)
-	}
-
-	var provider ChatProviderConfig
-	return provider, ReadBodyAsJSON(res, &provider)
-}
-
-// DeleteChatProvider deletes an admin-managed chat provider config.
-func (c *ExperimentalClient) DeleteChatProvider(ctx context.Context, providerID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/providers/%s", providerID), nil)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
 // ListUserAIProviderKeyConfigs returns user-scoped AI provider key configs.
 func (c *Client) ListUserAIProviderKeyConfigs(ctx context.Context, user string) ([]UserAIProviderKeyConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, userAIProviderKeysPath(user), nil)
@@ -2128,47 +2165,6 @@ func (c *Client) DeleteUserAIProviderKey(ctx context.Context, user string, provi
 
 func userAIProviderKeysPath(user string) string {
 	return fmt.Sprintf("/api/v2/users/%s/ai-provider-keys", url.PathEscape(user))
-}
-
-// ListUserChatProviderConfigs returns user-scoped chat provider configs.
-func (c *ExperimentalClient) ListUserChatProviderConfigs(ctx context.Context) ([]UserChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/user-provider-configs", nil)
-	if err != nil {
-		return nil, xerrors.Errorf("list user chat provider configs: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var configs []UserChatProviderConfig
-	return configs, ReadBodyAsJSON(res, &configs)
-}
-
-// UpsertUserChatProviderKey creates or replaces a user API key for a provider.
-func (c *ExperimentalClient) UpsertUserChatProviderKey(ctx context.Context, providerID uuid.UUID, req CreateUserChatProviderKeyRequest) (UserChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/user-provider-configs/%s", providerID), req)
-	if err != nil {
-		return UserChatProviderConfig{}, xerrors.Errorf("upsert user chat provider key: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return UserChatProviderConfig{}, ReadBodyAsError(res)
-	}
-	var config UserChatProviderConfig
-	return config, ReadBodyAsJSON(res, &config)
-}
-
-// DeleteUserChatProviderKey deletes a user API key for a provider.
-func (c *ExperimentalClient) DeleteUserChatProviderKey(ctx context.Context, providerID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/user-provider-configs/%s", providerID), nil)
-	if err != nil {
-		return xerrors.Errorf("delete user chat provider key: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
 }
 
 // ChatModels returns the chat model configs the caller can read in one
@@ -3287,6 +3283,34 @@ func (c *Client) ChatFileDownloadURL(ctx context.Context, fileID uuid.UUID) (Cha
 		return ChatFileDownloadURLResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatFileDownloadURLResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UploadChatWorkspaceFile streams a file to the chat's workspace
+// filesystem via the workspace agent. There is no server-imposed size
+// cap; canceling ctx aborts the stream and no partial target file is
+// left behind (the agent removes the target when the write fails).
+func (c *Client) UploadChatWorkspaceFile(ctx context.Context, chatID uuid.UUID, contentType, filename string, rd io.Reader) (UploadChatWorkspaceFileResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/workspace-files", chatID), rd, func(r *http.Request) {
+		if contentType != "" {
+			r.Header.Set("Content-Type", contentType)
+		} else {
+			// Drop the SDK's default application/json so the server
+			// can sniff-default an undeclared type.
+			r.Header.Del("Content-Type")
+		}
+		if filename != "" {
+			r.Header.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
+		}
+	})
+	if err != nil {
+		return UploadChatWorkspaceFileResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return UploadChatWorkspaceFileResponse{}, ReadBodyAsError(res)
+	}
+	var resp UploadChatWorkspaceFileResponse
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 

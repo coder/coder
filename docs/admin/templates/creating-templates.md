@@ -63,7 +63,7 @@ standard Terraform HCL that you can edit later through the dashboard or CLI.
 > The template builder requires outbound access to `registry.coder.com` so
 > that `terraform init` can resolve module sources. For air-gapped or
 > restricted-egress deployments, visit
-> [Air-gapped deployments](../../install/airgap.md#template-builder).
+> [Air-gapped deployments](../../install/prepare/airgap.md#template-builder).
 
 If you select modules that are known to conflict with each other, the builder
 displays a warning. Module conflicts do not block template creation, but you
@@ -134,7 +134,7 @@ coder templates push
 
 If `templates push` fails, it is likely that Coder is not authorized to deploy
 infrastructure in the given location. Learn how to configure
-[provisioner authentication](../provisioners/index.md).
+[provisioner authentication](../../install/operate/provisioners/index.md).
 
 You can edit the metadata of the template such as the display name with the
 [`templates edit`](../../reference/cli/templates_edit.md) command:

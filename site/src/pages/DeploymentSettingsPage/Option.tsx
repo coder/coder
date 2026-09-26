@@ -15,9 +15,9 @@ export const OptionDescription: FC<PropsWithChildren> = ({ children }) => {
 	return <span className="text-sm font-normal">{children}</span>;
 };
 
-interface OptionValueProps {
+type OptionValueProps = {
 	children?: boolean | number | string | string[] | Record<string, boolean>;
-}
+};
 
 export const OptionValue: FC<OptionValueProps> = (props) => {
 	const { children: value } = props;

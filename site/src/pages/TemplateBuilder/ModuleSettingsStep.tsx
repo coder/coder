@@ -15,7 +15,7 @@ import { defaultPlaceholder } from "./defaultPlaceholder";
 import { ModuleConfiguration } from "./ModuleConfiguration";
 import { getModuleFieldPlaceholder } from "./moduleFieldPlaceholders";
 
-interface ModuleSettingsStepProps {
+type ModuleSettingsStepProps = {
 	baseId: string;
 	selectedModuleIds: string[];
 	moduleVariables: Record<string, Record<string, string>>;
@@ -26,7 +26,7 @@ interface ModuleSettingsStepProps {
 	onRemoveModule: (moduleId: string) => void;
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
 	showErrors?: boolean;
-}
+};
 
 function variableToField(
 	moduleId: string,

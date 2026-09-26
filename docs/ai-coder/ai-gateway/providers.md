@@ -151,7 +151,15 @@ curl "${CODER_URL}/api/v2/ai-gateway/${PROVIDER_NAME}/v1/messages" \
 
 #### AWS credentials
 
-Do not attach API keys to a Bedrock provider.
+Do not attach API keys to a Bedrock provider. The provider itself always
+authenticates with AWS credentials.
+
+When [BYOK](auth.md#bring-your-own-key-byok) is enabled, a user can save a
+personal Amazon Bedrock API key under their
+[Agents API keys](../agents/models.md#user-api-keys-byok). AI Gateway then
+sends that key as a bearer token for the user's requests instead of signing
+them with the deployment's AWS credentials. Requests from users without a
+personal key continue to use the credentials below.
 
 AI Gateway resolves AWS credentials one of three ways:
 
@@ -391,7 +399,7 @@ and how to enable or disable it.
 
 ## Failure modes
 
-| Symptom                                       | Likely cause                                    | Corrective action                   |
-|-----------------------------------------------|-------------------------------------------------|-------------------------------------|
-| Provider returns errors with no upstream call | The provider is `disabled` or in `error` status | Consult the server logs for details |
-| Configuration changes not taking effect       | Reloads are firing but failing to apply         | Consult the server logs for details |
+| Symptom                                       | Likely cause                                    | Corrective action                     |
+|-----------------------------------------------|-------------------------------------------------|---------------------------------------|
+| Provider returns errors with no upstream call | The provider is `disabled` or in `error` status | Consult the `coderd` logs for details |
+| Configuration changes not taking effect       | Reloads are firing but failing to apply         | Consult the `coderd` logs for details |

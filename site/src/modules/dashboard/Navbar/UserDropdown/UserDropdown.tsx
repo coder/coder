@@ -33,14 +33,14 @@ const severityIndicators: Partial<
 	},
 };
 
-interface UserDropdownProps {
+type UserDropdownProps = {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
 	codernautsEnabled?: boolean;
 	onSignOut: () => void;
 	canViewLicenses: boolean;
-}
+};
 
 export const UserDropdown: FC<UserDropdownProps> = ({
 	buildInfo,

@@ -25,7 +25,7 @@ const MCPServerFormBackLink: FC<{ to: string }> = ({ to }) => {
 	);
 };
 
-interface MCPServerFormHeaderProps {
+type MCPServerFormHeaderProps = {
 	server?: TypesGen.MCPServerConfig;
 	title: string;
 	iconUrl: string;
@@ -35,7 +35,7 @@ interface MCPServerFormHeaderProps {
 	onRequestDelete?: () => void;
 	onShareServer?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
-}
+};
 
 export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	server,

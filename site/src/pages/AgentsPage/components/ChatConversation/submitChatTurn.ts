@@ -29,9 +29,6 @@ import {
 } from "./chatQueueReconciliation";
 import type { ChatStore } from "./chatStore";
 
-/** @internal Exported for testing. */
-export const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-
 export type SubmitChatTurnParams = {
 	message: string;
 	attachments?: readonly PendingAttachment[];
@@ -111,10 +108,6 @@ export const resolveEditModelConfigID = ({
 		return pickerModelConfigID;
 	}
 	return undefined;
-};
-
-const persistLastModelConfigID = (modelConfigID: string): void => {
-	localStorage.setItem(lastModelConfigIDStorageKey, modelConfigID);
 };
 
 const findBuiltInChatCommand = (
@@ -368,9 +361,6 @@ export async function submitChatTurn(
 			},
 		});
 		scrollToEnd({ behavior: "smooth" });
-		if (editSelectedModelConfigID) {
-			persistLastModelConfigID(editSelectedModelConfigID);
-		}
 		return;
 	}
 
@@ -438,11 +428,6 @@ export async function submitChatTurn(
 				fetchQueueConvergence,
 			});
 		}
-	}
-	if (selectedModelConfigID) {
-		persistLastModelConfigID(selectedModelConfigID);
-	} else {
-		localStorage.removeItem(lastModelConfigIDStorageKey);
 	}
 	if (clearPlanMode) {
 		setCachedChatPlanMode(agentId, undefined);

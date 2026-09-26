@@ -16,9 +16,9 @@ import {
 import { connectionTypeIsWeb } from "#/utils/connection";
 import { ConnectionLogDescription } from "./ConnectionLogDescription/ConnectionLogDescription";
 
-interface ConnectionLogRowProps {
+type ConnectionLogRowProps = {
 	connectionLog: ConnectionLog;
-}
+};
 
 export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 	connectionLog,

@@ -61,10 +61,10 @@ const estimateFinish = (
 	return [p50percent, `Up to ${highGuess} seconds remaining...`];
 };
 
-interface WorkspaceBuildProgressProps {
+type WorkspaceBuildProgressProps = {
 	workspace: Workspace;
 	transitionStats: TransitionStats;
-}
+};
 
 export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	workspace,

@@ -28,11 +28,11 @@ import {
 	debugExportFilename,
 } from "./debugExport";
 
-interface DebugPanelProps {
+type DebugPanelProps = {
 	chatId: string;
 	isVisible?: boolean;
 	download?: DownloadDebugFile;
-}
+};
 
 const DEBUG_RUN_EXPORT_FETCH_CONCURRENCY = 5;
 
@@ -50,10 +50,10 @@ const chatDebugRunExportQuery = (chatId: string, run: ChatDebugRunSummary) => ({
 	staleTime: isTerminalDebugRun(run) ? Number.POSITIVE_INFINITY : 0,
 });
 
-interface DebugRunExportFetchResult {
+type DebugRunExportFetchResult = {
 	runDetails: ChatDebugRun[];
 	failedRuns: ChatDebugRunFetchFailure[];
-}
+};
 
 const fetchDebugRunDetailsForExport = async (
 	queryClient: QueryClient,
@@ -198,11 +198,11 @@ export const DebugPanel: FC<DebugPanelProps> = ({
 	);
 };
 
-interface ExportAllDebugRunsButtonProps {
+type ExportAllDebugRunsButtonProps = {
 	chatId: string;
 	runs: readonly ChatDebugRunSummary[];
 	download: DownloadDebugFile;
-}
+};
 
 const ExportAllDebugRunsButton: FC<ExportAllDebugRunsButtonProps> = ({
 	chatId,

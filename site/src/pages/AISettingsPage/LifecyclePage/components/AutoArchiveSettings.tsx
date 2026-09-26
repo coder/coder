@@ -7,12 +7,12 @@ import { useTemporarySavedState } from "#/components/TemporarySavedState/Tempora
 import { docs } from "#/utils/docs";
 import { DaysField, LifecycleSettingLayout } from "./LifecycleSettingLayout";
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
-interface AutoArchiveSettingsProps {
+type AutoArchiveSettingsProps = {
 	autoArchiveDaysData: TypesGen.ChatAutoArchiveDaysResponse | undefined;
 	isAutoArchiveDaysLoading: boolean;
 	isAutoArchiveDaysLoadError: boolean;
@@ -22,7 +22,7 @@ interface AutoArchiveSettingsProps {
 	) => void;
 	isSavingAutoArchiveDays: boolean;
 	isSaveAutoArchiveDaysError: boolean;
-}
+};
 
 // Keep in sync with autoArchiveDaysMaximum in coderd/exp_chats.go.
 const DAYS_MIN = 1;

@@ -44,10 +44,10 @@ const validationSchema = Yup.object({
 	),
 });
 
-interface CreateOrganizationPageViewProps {
+type CreateOrganizationPageViewProps = {
 	isEntitled: boolean;
 	permissions: Permissions;
-}
+};
 
 export const CreateOrganizationPageView: FC<
 	CreateOrganizationPageViewProps

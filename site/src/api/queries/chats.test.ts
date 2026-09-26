@@ -347,30 +347,60 @@ describe("chat model query factories", () => {
 
 	it("scopes update variables and invalidation to the organization", async () => {
 		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(organizationChatModelsKey(organizationId), {});
+		const mockPreviousDefaultModel: TypesGen.ChatModel = {
+			...MockChatModel,
+			id: "previous-default",
+			is_default: true,
+		};
+		const mockCatalog: TypesGen.OrganizationChatModelsResponse = {
+			models: [mockPreviousDefaultModel, MockChatModel],
+			providers: [],
+			unsupported_providers: [],
+		};
+		queryClient.setQueryData(
+			organizationChatModelsKey(organizationId),
+			mockCatalog,
+		);
 		queryClient.setQueryData(
 			organizationChatModelsKey(otherOrganizationId),
-			{},
+			mockCatalog,
 		);
+		const mockPromotedModel: TypesGen.ChatModel = {
+			...MockChatModel,
+			is_default: true,
+		};
 		vi.mocked(API.experimental.updateChatModel).mockResolvedValue(
-			MockChatModel,
+			mockPromotedModel,
 		);
 		const variables = {
 			organizationId,
 			modelId,
-			req: { enabled: true },
+			req: { is_default: true },
 		};
 		const mutation = updateChatModel(queryClient);
 
 		await expect(mutation.mutationFn(variables)).resolves.toEqual(
-			MockChatModel,
+			mockPromotedModel,
 		);
 		expect(API.experimental.updateChatModel).toHaveBeenCalledWith(
 			organizationId,
 			modelId,
 			variables.req,
 		);
-		await mutation.onSuccess(MockChatModel, variables);
+		await mutation.onSuccess(mockPromotedModel, variables);
+		expect(
+			queryClient
+				.getQueryData<TypesGen.OrganizationChatModelsResponse>(
+					organizationChatModelsKey(organizationId),
+				)
+				?.models.map((model) => [model.id, model.is_default]),
+		).toEqual([
+			[mockPreviousDefaultModel.id, false],
+			[modelId, true],
+		]);
+		expect(
+			queryClient.getQueryData(organizationChatModelsKey(otherOrganizationId)),
+		).toBe(mockCatalog);
 		expect(
 			queryClient.getQueryState(organizationChatModelsKey(organizationId))
 				?.isInvalidated,

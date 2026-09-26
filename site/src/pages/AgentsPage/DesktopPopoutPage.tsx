@@ -70,7 +70,7 @@ export default function DesktopPopoutPage() {
 	);
 }
 
-export interface DesktopPopoutPageViewProps {
+export type DesktopPopoutPageViewProps = {
 	status: DesktopConnectionStatus;
 	reconnect: () => void;
 	attach: (container: HTMLElement) => void;
@@ -79,7 +79,7 @@ export interface DesktopPopoutPageViewProps {
 	isControlling: boolean;
 	onTakeControl: () => void;
 	onReleaseControl: () => void;
-}
+};
 
 export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
 	status,

@@ -30,19 +30,25 @@ func normalizedSessionCounts(st *agentproto.Stats) map[string]int64 {
 	}
 	counts := make(map[string]int64, len(reported))
 	for app, count := range reported {
-		if count > 0 {
-			counts[codersdk.NormalizeAppName(app)] += count
+		if count <= 0 {
+			continue
 		}
+		name := codersdk.NormalizeAppName(app)
+		// Reserved for capSessionCounts.
+		if name == codersdk.AppNameOverflow {
+			name = string(codersdk.AppFamilyUnknown)
+		}
+		counts[name] += count
 	}
 	return counts
 }
 
 // maxSessionCountEntries bounds distinct app names per stats report. Overflow
-// aggregates under AppFamilyUnknown.
+// aggregates under codersdk.AppNameOverflow.
 const maxSessionCountEntries = 64
 
 // capSessionCounts keeps the busiest maxSessionCountEntries normalized names,
-// preferring known apps, and sums the rest into AppFamilyUnknown, so the
+// preferring known apps, and sums the rest into codersdk.AppNameOverflow, so the
 // result can hold one name past the cap. The second return counts the names
 // summed away.
 func capSessionCounts(counts map[string]int64) (map[string]int64, int) {
@@ -71,7 +77,7 @@ func capSessionCounts(counts map[string]int64) (map[string]int64, int) {
 	}
 	overflow := ranked[maxSessionCountEntries:]
 	for _, name := range overflow {
-		capped[string(codersdk.AppFamilyUnknown)] += counts[name]
+		capped[codersdk.AppNameOverflow] += counts[name]
 	}
 	return capped, len(overflow)
 }

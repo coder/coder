@@ -25,9 +25,9 @@ export const SidebarLink: FC<LinkProps> = ({ className, ...props }) => {
 	);
 };
 
-interface SidebarItemProps extends ComponentProps<"button"> {
+type SidebarItemProps = ComponentProps<"button"> & {
 	isActive?: boolean;
-}
+};
 
 export const SidebarItem: FC<SidebarItemProps> = ({
 	isActive,
@@ -55,10 +55,9 @@ export const SidebarCaption: FC<ComponentProps<"span">> = (props) => {
 	);
 };
 
-interface SidebarIconButtonProps
-	extends ComponentProps<typeof TopbarIconButton> {
+type SidebarIconButtonProps = {
 	isActive: boolean;
-}
+} & ComponentProps<typeof TopbarIconButton>;
 
 export const SidebarIconButton: FC<SidebarIconButtonProps> = ({
 	isActive,

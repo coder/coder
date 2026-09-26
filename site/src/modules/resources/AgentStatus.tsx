@@ -31,13 +31,13 @@ const statusDotConnectingClassName =
 // connected:ready, connected:shutting_down, connected:shutdown_timeout,
 // connected:shutdown_error, connected:off.
 
-interface AgentWarningTooltipProps {
+type AgentWarningTooltipProps = {
 	ariaLabel: string;
 	title: string;
 	detail: string;
 	troubleshootingURL?: string;
 	variant?: "warning" | "error";
-}
+};
 
 /**
  * Shared tooltip for agent warning/error states. Renders an alert
@@ -116,19 +116,19 @@ const StartingLifecycle: FC = () => {
 	);
 };
 
-interface AgentStatusProps {
+type AgentStatusProps = {
 	agent: WorkspaceAgent;
-}
+};
 
-interface SubAgentStatusProps {
+type SubAgentStatusProps = {
 	agent?: WorkspaceAgent;
-}
+};
 
-interface DevcontainerStatusProps {
+type DevcontainerStatusProps = {
 	devcontainer: WorkspaceAgentDevcontainer;
 	parentAgent: WorkspaceAgent;
 	agent?: WorkspaceAgent;
-}
+};
 
 const ShuttingDownLifecycle: FC = () => {
 	return (

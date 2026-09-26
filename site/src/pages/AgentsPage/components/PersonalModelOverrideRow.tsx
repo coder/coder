@@ -17,23 +17,23 @@ type PersonalOverride = TypesGen.ChatPersonalModelOverride;
 type UpdatePersonalOverrideRequest =
 	TypesGen.UpdateUserChatPersonalModelOverrideRequest;
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
 export type SavePersonalOverride = (
 	req: UpdatePersonalOverrideRequest,
 	options?: MutationCallbacks,
 ) => void;
 
-interface PersonalOverrideFormValues {
+type PersonalOverrideFormValues = {
 	mode: PersonalOverrideMode;
 	model_config_id: string;
 	reasoning_effort: string;
-}
+};
 
-interface PersonalModelOverrideRowProps {
+type PersonalModelOverrideRowProps = {
 	context: PersonalOverrideContext;
 	title: string;
 	description: string;
@@ -48,7 +48,7 @@ interface PersonalModelOverrideRowProps {
 	isSaveError: boolean;
 	saveErrorMessage: string;
 	disabled: boolean;
-}
+};
 
 const getDefaultMode = (
 	context: PersonalOverrideContext,

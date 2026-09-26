@@ -2,7 +2,7 @@ import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { chatModels, createChatModel } from "#/api/queries/chats";
 import {
 	canManageProviderModels,
@@ -89,7 +89,9 @@ const AddModelPage: FC = () => {
 							);
 							await navigate(organizationModelPath(organization, created.id));
 						} catch (error) {
-							toast.error(getErrorMessage(error, "Failed to add model."));
+							toast.error(getErrorMessage(error, "Failed to add model."), {
+								description: getErrorDetail(error),
+							});
 						}
 					}}
 				/>

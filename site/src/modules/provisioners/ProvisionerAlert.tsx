@@ -18,13 +18,13 @@ export enum AlertVariant {
 	Inline = "Inline",
 }
 
-interface ProvisionerAlertProps {
+type ProvisionerAlertProps = {
 	title: string;
 	detail: string;
 	severity: AlertColor;
 	tags: Record<string, string>;
 	variant?: AlertVariant;
-}
+};
 
 const severityBorderColors: Record<AlertColor, string> = {
 	info: "border-l-highlight-sky",

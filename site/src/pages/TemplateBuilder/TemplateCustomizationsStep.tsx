@@ -51,11 +51,11 @@ const validationSchema = Yup.object({
 	organization_id: Yup.string().required("Select an organization to continue."),
 });
 
-interface TemplateCustomizationsStepProps {
+type TemplateCustomizationsStepProps = {
 	state: TemplateBuilderWizardState;
 	onCreate: (values: CustomizationsFormValues) => void;
 	onProvisionerStatusChange: (hasProvisioners: boolean | undefined) => void;
-}
+};
 
 export const TemplateCustomizationsStep: FC<
 	TemplateCustomizationsStepProps

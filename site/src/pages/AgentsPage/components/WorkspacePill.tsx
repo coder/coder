@@ -49,7 +49,7 @@ import { belowMdViewportMediaQuery } from "#/utils/mobile";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
 import { MobilePortsPanel, PortsMenuItem } from "./WorkspacePillPorts";
 
-interface WorkspacePillProps {
+type WorkspacePillProps = {
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	chatId: string;
@@ -60,7 +60,7 @@ interface WorkspacePillProps {
 	// tooltip and makes the menu non-modal so one outside click
 	// dismisses both layers.
 	inOverflowPopover?: boolean;
-}
+};
 
 export const WorkspacePill: FC<WorkspacePillProps> = ({
 	workspace,

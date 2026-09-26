@@ -13,11 +13,11 @@ import {
 	NetworkNoActivity,
 } from "./NetworkRequestStates";
 
-interface NetworkCallBadgesProps {
+type NetworkCallBadgesProps = {
 	// summary is undefined when network request monitoring was not active for
 	// the session, which renders as "Disabled".
 	summary: AIBridgeSessionNetworkCallSummary | undefined;
-}
+};
 
 export const NetworkCallBadges: FC<NetworkCallBadgesProps> = ({ summary }) => {
 	if (!summary) {

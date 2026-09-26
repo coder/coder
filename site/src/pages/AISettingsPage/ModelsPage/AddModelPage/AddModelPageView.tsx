@@ -14,7 +14,7 @@ import {
 	useOrganizationModels,
 } from "../organizationModels";
 
-interface AddModelPageViewProps {
+type AddModelPageViewProps = {
 	isLoading: boolean;
 	loadError: unknown;
 	refetchError: unknown;
@@ -25,7 +25,7 @@ interface AddModelPageViewProps {
 	isSaving: boolean;
 	onProviderChange: (providerKey: string) => void;
 	onCreateModel: (req: TypesGen.CreateChatModelRequest) => Promise<unknown>;
-}
+};
 
 const AddModelPageView: FC<AddModelPageViewProps> = ({
 	isLoading,

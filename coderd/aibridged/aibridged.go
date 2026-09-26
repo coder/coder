@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
@@ -325,7 +326,7 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 		current.pool.ReplaceProviders(providers)
 		return nil
 	}
-	router, err := aibridge.NewProxyRouter(providers, s.logger)
+	router, err := proxy.NewRouter(providers, s.logger)
 	if err != nil {
 		return xerrors.Errorf("create proxy router: %w", err)
 	}

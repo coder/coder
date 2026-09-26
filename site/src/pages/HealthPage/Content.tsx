@@ -53,10 +53,10 @@ export const HeaderTitle: FC<ComponentProps<"h2">> = ({
 	);
 };
 
-interface HealthIconProps {
+type HealthIconProps = {
 	size: number;
 	severity: HealthSeverity;
-}
+};
 
 export const HealthIcon: FC<HealthIconProps> = ({ size, severity }) => {
 	const Icon = severity === "error" ? CircleAlertIcon : CircleCheckIcon;
@@ -73,9 +73,9 @@ export const HealthIcon: FC<HealthIconProps> = ({ size, severity }) => {
 	);
 };
 
-interface HealthyDotProps {
+type HealthyDotProps = {
 	severity: HealthSeverity;
-}
+};
 
 export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
 	return (
@@ -196,9 +196,9 @@ export const Pill: React.FC<PillProps> = ({
 	);
 };
 
-interface StatusIconProps {
+type StatusIconProps = {
 	value: boolean | null;
-}
+};
 
 export const StatusIcon: FC<StatusIconProps> = ({ value }) => {
 	if (value === null) {
@@ -259,9 +259,9 @@ export const Logs: FC<LogsProps> = ({ className, lines, ...divProps }) => {
 	);
 };
 
-interface HealthMessageDocsLinkProps {
+type HealthMessageDocsLinkProps = {
 	code: HealthCode;
-}
+};
 
 export const HealthMessageDocsLink: FC<HealthMessageDocsLinkProps> = ({
 	code,

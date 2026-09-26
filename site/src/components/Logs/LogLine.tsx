@@ -4,13 +4,13 @@ import type { LogLevel } from "#/api/typesGenerated";
 
 const DEFAULT_LOG_LINE_SIDE_PADDING = 24;
 
-export interface Line {
+export type Line = {
 	id: number;
 	time: string;
 	output: string;
 	level: LogLevel;
 	sourceId: string;
-}
+};
 
 type LogLineProps = {
 	level: LogLevel;

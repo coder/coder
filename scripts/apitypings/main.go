@@ -136,6 +136,10 @@ func TypeMappings(gen *guts.GoParser) error {
 		"github.com/coder/serpent.URL":            "string",
 		"github.com/coder/serpent.HostPort":       "string",
 		"encoding/json.RawMessage":                "map[string]string",
+		// wsrelated.Config is a client-side selection tree that the Go client
+		// marshals to the include_related query string via Config.QueryParam.
+		// Its wire representation is that comma-separated string.
+		"github.com/coder/coder/v2/codersdk/wsrelated.Config": "string",
 		// decimal.Decimal preserves exact pricing precision (e.g. $3.50 per
 		// million tokens) and serializes as a JSON string to avoid
 		// floating-point loss in transit.

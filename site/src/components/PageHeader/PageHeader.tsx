@@ -2,11 +2,11 @@ import { cn } from "cn";
 import type React from "react";
 import type { FC, ReactNode } from "react";
 
-interface PageHeaderProps {
+type PageHeaderProps = {
 	actions?: ReactNode;
 	className?: string;
 	children?: ReactNode;
-}
+};
 
 export const PageHeader: FC<PageHeaderProps> = ({
 	children,

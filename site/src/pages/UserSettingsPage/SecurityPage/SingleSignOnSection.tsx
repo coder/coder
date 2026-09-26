@@ -214,9 +214,9 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 	);
 };
 
-interface OIDCIconProps {
+type OIDCIconProps = {
 	oidcAuth: OIDCAuthMethod;
-}
+};
 
 const OIDCIcon: FC<OIDCIconProps> = ({ oidcAuth }) => {
 	if (!oidcAuth.iconUrl) {
@@ -236,13 +236,13 @@ const getOIDCLabel = (oidcAuth: OIDCAuthMethod) => {
 	return oidcAuth.signInText || "OpenID Connect";
 };
 
-interface ConfirmLoginTypeChangeModalProps {
+type ConfirmLoginTypeChangeModalProps = {
 	open: boolean;
 	loading: boolean;
 	error: unknown;
 	onClose: () => void;
 	onConfirm: (password: string) => void;
-}
+};
 
 const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 	open,

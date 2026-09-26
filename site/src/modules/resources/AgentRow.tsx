@@ -86,7 +86,7 @@ import { canShowPortForwarding } from "./usePortsData";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { WildcardHostnameWarning } from "./WildcardHostnameWarning";
 
-interface AgentRowProps {
+type AgentRowProps = {
 	agent: WorkspaceAgent;
 	subAgents?: WorkspaceAgent[];
 	workspace: Workspace;
@@ -94,7 +94,7 @@ interface AgentRowProps {
 	initialMetadata?: WorkspaceAgentMetadata[];
 	agentScriptTimings?: readonly AgentScriptTiming[];
 	onUpdateAgent: () => void;
-}
+};
 
 const statusBorderClassByStatus: Partial<
 	Record<WorkspaceAgent["status"], string>

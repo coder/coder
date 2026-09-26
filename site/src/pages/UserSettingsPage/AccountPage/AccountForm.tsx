@@ -18,7 +18,7 @@ const validationSchema = Yup.object({
 	name: Yup.string(),
 });
 
-interface AccountFormProps {
+type AccountFormProps = {
 	editable: boolean;
 	email: string;
 	isLoading: boolean;
@@ -27,7 +27,7 @@ interface AccountFormProps {
 	updateProfileError?: unknown;
 	// initialTouched is only used for testing the error state of the form.
 	initialTouched?: FormikTouched<UpdateUserProfileRequest>;
-}
+};
 
 export const AccountForm: FC<AccountFormProps> = ({
 	editable,

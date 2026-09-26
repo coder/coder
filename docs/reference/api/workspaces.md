@@ -1374,10 +1374,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description                                                 |
-|-------------------|-------|--------------|----------|-------------------------------------------------------------|
-| `workspace`       | path  | string(uuid) | true     | Workspace ID                                                |
-| `include_deleted` | query | boolean      | false    | Return data instead of HTTP 404 if the workspace is deleted |
+| Name              | In    | Type         | Required | Description                                                                                                                    |
+|-------------------|-------|--------------|----------|--------------------------------------------------------------------------------------------------------------------------------|
+| `workspace`       | path  | string(uuid) | true     | Workspace ID                                                                                                                   |
+| `include_deleted` | query | boolean      | false    | Return data instead of HTTP 404 if the workspace is deleted                                                                    |
+| `include_related` | query | string       | false    | Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything. |
 
 ### Example responses
 

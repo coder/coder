@@ -7,9 +7,9 @@ import {
 	systemBuildReasons,
 } from "#/utils/workspace";
 
-interface BuildAuditDescriptionProps {
+type BuildAuditDescriptionProps = {
 	auditLog: AuditLog;
-}
+};
 
 export const BuildAuditDescription: FC<BuildAuditDescriptionProps> = ({
 	auditLog,

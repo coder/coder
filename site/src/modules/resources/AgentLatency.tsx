@@ -29,9 +29,9 @@ const getDisplayLatency = (agent: WorkspaceAgent) => {
 	};
 };
 
-interface AgentLatencyProps {
+type AgentLatencyProps = {
 	agent: WorkspaceAgent;
-}
+};
 
 export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 	const latency = getDisplayLatency(agent);

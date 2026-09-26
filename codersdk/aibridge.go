@@ -20,6 +20,9 @@ import (
 // $1,000,000 per member per budget period.
 const MaxAISpendLimitMicros int64 = 1_000_000_000_000
 
+// MaxAISpendPeriodDays bounds explicit AI spend reporting windows.
+const MaxAISpendPeriodDays = 31
+
 // AIBudgetLimitSource identifies which tier produced the user's
 // effective budget limit.
 type AIBudgetLimitSource string
@@ -417,6 +420,36 @@ func (c *Client) AIBridgeGetSessionThreads(ctx context.Context, sessionID string
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
+// AIBridgeListModelsFilter narrows the distinct models visible to the caller.
+// @typescript-ignore AIBridgeListModelsFilter
+type AIBridgeListModelsFilter struct {
+	// Limit defaults to 100, max is 1000.
+	Pagination Pagination
+	// Model keeps only identifiers starting with this literal prefix.
+	Model string
+}
+
+// AIBridgeListModels returns the distinct AI models visible to the caller.
+func (c *Client) AIBridgeListModels(ctx context.Context, filter AIBridgeListModelsFilter) ([]string, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/models", nil, filter.Pagination.asRequestOption(), func(r *http.Request) {
+		if filter.Model == "" {
+			return
+		}
+		q := r.URL.Query()
+		q.Set("model", filter.Model)
+		r.URL.RawQuery = q.Encode()
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var models []string
+	return models, ReadBodyAsJSON(res, &models)
+}
+
 // AIBridgeListClients returns the distinct AI clients visible to the caller.
 func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/clients", nil)
@@ -635,9 +668,9 @@ func (p OrganizationAISpendPage) asRequestOption() RequestOption {
 // OrganizationAISpendUsers returns one page of per-user AI spend for the
 // organization matching the filter. It accounts for the same token usage as
 // ExportOrganizationAISpend over the same period.
-func (c *Client) OrganizationAISpendUsers(ctx context.Context, organization uuid.UUID, filter OrganizationAISpendFilter, page OrganizationAISpendPage) (OrganizationAISpendReport, error) {
+func (c *ExperimentalClient) OrganizationAISpendUsers(ctx context.Context, organization uuid.UUID, filter OrganizationAISpendFilter, page OrganizationAISpendPage) (OrganizationAISpendReport, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/organizations/%s/ai/spend/users", organization.String()),
+		fmt.Sprintf("/api/experimental/organizations/%s/ai/spend/users", organization.String()),
 		nil,
 		filter.asRequestOption(),
 		page.asRequestOption(),

@@ -19,10 +19,10 @@ export const Stats: FC<ComponentProps<"div">> = ({
 	);
 };
 
-interface StatsItemProps extends ComponentProps<"div"> {
+type StatsItemProps = ComponentProps<"div"> & {
 	label: string;
 	value: ReactNode;
-}
+};
 
 export const StatsItem: FC<StatsItemProps> = ({
 	label,

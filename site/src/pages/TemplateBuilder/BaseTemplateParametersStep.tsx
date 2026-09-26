@@ -15,12 +15,12 @@ import type { ConfigurationFieldDefinition } from "./ConfigurationField";
 import { defaultPlaceholder } from "./defaultPlaceholder";
 import { TemplateConfiguration } from "./TemplateConfiguration";
 
-interface BaseTemplateParametersStepProps {
+type BaseTemplateParametersStepProps = {
 	baseId: string;
 	values: Record<string, string>;
 	onChangeValues: (values: Record<string, string>) => void;
 	showErrors?: boolean;
-}
+};
 
 function detailsUrl(baseId: string): string {
 	return `https://registry.coder.com/templates/${baseId}`;

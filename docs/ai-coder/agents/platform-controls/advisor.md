@@ -50,4 +50,4 @@ Failed advisor invocations refund the per-turn budget.
 The same configuration is available through the API: runtime limits at
 `GET`/`PUT` `/api/experimental/chats/config/advisor`, and the advisor
 model override at
-`PUT /api/experimental/organizations/{organization}/chats/model-overrides/advisor`.
+`PUT /api/v2/organizations/{organization}/chats/model-overrides/advisor`.

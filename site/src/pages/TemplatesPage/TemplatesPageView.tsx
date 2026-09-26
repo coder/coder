@@ -119,11 +119,11 @@ const TemplateHelpPopover: FC = () => {
 	);
 };
 
-interface TemplateActionsProps {
+type TemplateActionsProps = {
 	template: Template;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 	templatePageLink: string;
-}
+};
 
 const TemplateActions: FC<TemplateActionsProps> = ({
 	template,
@@ -163,12 +163,12 @@ const TemplateActions: FC<TemplateActionsProps> = ({
 	);
 };
 
-interface TemplateRowProps {
+type TemplateRowProps = {
 	canUpdateTemplate: boolean;
 	showOrganizations: boolean;
 	template: Template;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
-}
+};
 
 const TemplateRow: FC<TemplateRowProps> = ({
 	canUpdateTemplate,
@@ -257,7 +257,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	);
 };
 
-interface TemplatesPageViewProps {
+type TemplatesPageViewProps = {
 	error?: unknown;
 	filterState: TemplateFilterState;
 	showOrganizations: boolean;
@@ -267,7 +267,7 @@ interface TemplatesPageViewProps {
 	templates: Template[] | undefined;
 	templateUpdatePermissions: AuthorizationResponse;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
-}
+};
 
 export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	error,

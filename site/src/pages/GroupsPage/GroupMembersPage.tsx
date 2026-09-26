@@ -221,14 +221,14 @@ const GroupMembersPage: FC = () => {
 	);
 };
 
-interface GroupMemberRowProps {
+type GroupMemberRowProps = {
 	member: MemberWithSpend;
 	group: Group;
 	canUpdate: boolean;
 	showAIBudget: boolean;
 	onManageAIBudget: () => void;
 	onRemove: () => void;
-}
+};
 
 const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	member,

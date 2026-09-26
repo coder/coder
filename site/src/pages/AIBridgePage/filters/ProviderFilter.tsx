@@ -47,10 +47,10 @@ export const useProviderFilterMenu = ({
 
 export type ProviderFilterMenu = ReturnType<typeof useProviderFilterMenu>;
 
-interface ProviderFilterProps {
+type ProviderFilterProps = {
 	menu: ProviderFilterMenu;
 	width?: number;
-}
+};
 
 export const ProviderFilter: FC<ProviderFilterProps> = ({ menu, width }) => {
 	return (

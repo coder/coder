@@ -36,12 +36,12 @@ export type WorkspaceSettingsFormValues = {
 	automatic_updates: AutomaticUpdates;
 };
 
-interface WorkspaceSettingsFormProps {
+type WorkspaceSettingsFormProps = {
 	workspace: Workspace;
 	error: unknown;
 	onCancel: () => void;
 	onSubmit: (values: WorkspaceSettingsFormValues) => Promise<void>;
-}
+};
 
 export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 	onCancel,

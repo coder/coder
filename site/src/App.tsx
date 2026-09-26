@@ -28,10 +28,10 @@ const defaultQueryClient = new QueryClient({
 	},
 });
 
-interface AppProvidersProps {
+type AppProvidersProps = {
 	children: ReactNode;
 	queryClient?: QueryClient;
-}
+};
 
 export const AppProviders: FC<AppProvidersProps> = ({
 	children,

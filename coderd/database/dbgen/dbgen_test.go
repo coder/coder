@@ -433,12 +433,14 @@ func TestGenerator(t *testing.T) {
 			Slug:            "custom-mcp",
 			Url:             "https://custom.example.com",
 			AuthType:        "oauth2",
+			SigningSecret:   "signing-secret",
 			AllowInPlanMode: true,
 		})
 		require.Equal(t, "Custom MCP", cfg2.DisplayName)
 		require.Equal(t, "custom-mcp", cfg2.Slug)
 		require.Equal(t, "https://custom.example.com", cfg2.Url)
 		require.Equal(t, "oauth2", cfg2.AuthType)
+		require.Equal(t, "signing-secret", cfg2.SigningSecret)
 		require.True(t, cfg2.AllowInPlanMode)
 	})
 }

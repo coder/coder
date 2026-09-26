@@ -34,11 +34,11 @@ import {
 	StatusIcon,
 } from "./Content";
 
-interface NodeCheckRow {
+type NodeCheckRow = {
 	label: string;
 	description: string;
 	value: boolean | null;
-}
+};
 
 const DERPRegionPage: FC = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();

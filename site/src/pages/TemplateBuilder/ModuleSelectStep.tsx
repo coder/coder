@@ -24,14 +24,14 @@ import {
 	type SelectedModuleMeta,
 } from "./wizardState";
 
-interface ModuleSelectStepProps {
+type ModuleSelectStepProps = {
 	baseId: string;
 	selectedModuleIds: string[];
 	onChangeModules: (
 		modules: TemplateBuilderComposeModule[],
 		meta: SelectedModuleMeta[],
 	) => void;
-}
+};
 
 function toMeta(m: TemplateBuilderModule): SelectedModuleMeta {
 	return {
@@ -47,10 +47,10 @@ function moduleDetailsUrl(moduleId: string): string {
 	return `https://registry.coder.com/modules/${moduleId}`;
 }
 
-interface ModuleConflict {
+type ModuleConflict = {
 	moduleA: TemplateBuilderModule;
 	moduleB: TemplateBuilderModule;
-}
+};
 
 const ModuleName: FC<PropsWithChildren> = ({ children }) => {
 	return (

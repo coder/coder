@@ -34,13 +34,13 @@ const HIDDEN_PROVISIONER_KEYS = [
 	ProvisionerKeyIDPSK,
 ];
 
-interface OrganizationProvisionerKeysPageViewProps {
+type OrganizationProvisionerKeysPageViewProps = {
 	showPaywall: boolean | undefined;
 	provisionerKeyDaemons: ProvisionerKeyDaemons[] | undefined;
 	error: unknown;
 	permissions: Permissions;
 	onRetry: () => void;
-}
+};
 
 export const OrganizationProvisionerKeysPageView: FC<
 	OrganizationProvisionerKeysPageViewProps

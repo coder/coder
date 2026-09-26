@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import type { ComponentProps, FC, ReactNode } from "react";
 
-export interface EmptyStateProps extends ComponentProps<"div"> {
+export type EmptyStateProps = ComponentProps<"div"> & {
 	/** Text Message to display, placed inside Typography component */
 	message: string;
 	/** Longer optional description to display below the message */
@@ -9,7 +9,7 @@ export interface EmptyStateProps extends ComponentProps<"div"> {
 	cta?: ReactNode;
 	image?: ReactNode;
 	isCompact?: boolean;
-}
+};
 
 /**
  * Component to place on screens or in lists that have no content. Optionally

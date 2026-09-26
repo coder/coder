@@ -11,14 +11,14 @@ import {
 import { Switch } from "#/components/Switch/Switch";
 import { TableCell, TableRow } from "#/components/Table/Table";
 
-interface AnnouncementBannerItemProps {
+type AnnouncementBannerItemProps = {
 	enabled: boolean;
 	backgroundColor?: string;
 	message?: string;
 	onUpdate: (banner: Partial<BannerConfig>) => Promise<void>;
 	onEdit: () => void;
 	onDelete: () => void;
-}
+};
 
 export const AnnouncementBannerItem: FC<AnnouncementBannerItemProps> = ({
 	enabled,

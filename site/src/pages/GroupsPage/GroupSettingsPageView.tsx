@@ -59,12 +59,12 @@ const BudgetDocsLink: FC = () => (
 	</Link>
 );
 
-interface AIBudgetFeedbackProps {
+type AIBudgetFeedbackProps = {
 	error: boolean;
 	helperText?: ReactNode;
 	monthlyBudgetPerMember: string;
 	memberCount: number;
-}
+};
 
 const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 	error,
@@ -132,7 +132,7 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 	return null;
 };
 
-interface UpdateGroupFormProps {
+type UpdateGroupFormProps = {
 	group: Group;
 	/** Whether the AI budget settings are shown (gated by the aibridge feature). */
 	showAISettings: boolean;
@@ -141,7 +141,7 @@ interface UpdateGroupFormProps {
 	errors: unknown;
 	onSubmit: (data: FormData) => void;
 	isLoading: boolean;
-}
+};
 
 const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 	group,

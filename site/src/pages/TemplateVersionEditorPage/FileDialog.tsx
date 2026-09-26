@@ -3,13 +3,13 @@ import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { FormField } from "#/components/FormField/FormField";
 import { type FileTree, isFolder, validatePath } from "#/utils/filetree";
 
-interface CreateFileDialogProps {
+type CreateFileDialogProps = {
 	onClose: () => void;
 	checkExists: (path: string) => boolean;
 	onConfirm: (path: string) => void;
 	open: boolean;
 	fileTree: FileTree;
-}
+};
 
 export const CreateFileDialog: FC<CreateFileDialogProps> = ({
 	checkExists,
@@ -89,12 +89,12 @@ export const CreateFileDialog: FC<CreateFileDialogProps> = ({
 	);
 };
 
-interface DeleteFileDialogProps {
+type DeleteFileDialogProps = {
 	onClose: () => void;
 	onConfirm: () => void;
 	open: boolean;
 	filename: string;
-}
+};
 
 export const DeleteFileDialog: FC<DeleteFileDialogProps> = ({
 	onClose,
@@ -119,14 +119,14 @@ export const DeleteFileDialog: FC<DeleteFileDialogProps> = ({
 	);
 };
 
-interface RenameFileDialogProps {
+type RenameFileDialogProps = {
 	onClose: () => void;
 	onConfirm: (filename: string) => void;
 	checkExists: (path: string) => boolean;
 	open: boolean;
 	filename: string;
 	fileTree: FileTree;
-}
+};
 
 export const RenameFileDialog: FC<RenameFileDialogProps> = ({
 	checkExists,

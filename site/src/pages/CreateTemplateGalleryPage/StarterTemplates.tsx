@@ -46,10 +46,10 @@ const sortVisibleTemplates = (templates: TemplateExample[]) => {
 	return [...featuredTemplates, ...nonFeaturedTemplates];
 };
 
-interface StarterTemplatesProps {
+type StarterTemplatesProps = {
 	starterTemplatesByTag?: StarterTemplatesByTag;
 	templateBuilderEnabled: boolean;
-}
+};
 
 export const StarterTemplates: FC<StarterTemplatesProps> = ({
 	starterTemplatesByTag,

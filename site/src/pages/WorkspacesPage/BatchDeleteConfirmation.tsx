@@ -106,9 +106,9 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 	);
 };
 
-interface StageProps {
+type StageProps = {
 	workspaces: readonly Workspace[];
-}
+};
 
 const Consequences: FC = () => {
 	return (

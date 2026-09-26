@@ -42,7 +42,7 @@ const PRESET_FILTERS = [
 	},
 ];
 
-interface AuditFilterProps {
+type AuditFilterProps = {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
 	menus: {
@@ -52,7 +52,7 @@ interface AuditFilterProps {
 		// The organization menu is only provided in a multi-org setup.
 		organization?: OrganizationsFilterMenu;
 	};
-}
+};
 
 export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 	const width = menus.organization ? DEFAULT_USER_FILTER_WIDTH : undefined;
@@ -114,10 +114,10 @@ export const useActionFilterMenu = ({
 
 type ActionFilterMenu = ReturnType<typeof useActionFilterMenu>;
 
-interface ActionMenuProps {
+type ActionMenuProps = {
 	menu: ActionFilterMenu;
 	width?: number;
-}
+};
 
 const ActionMenu: FC<ActionMenuProps> = ({ menu, width }) => {
 	return (
@@ -180,10 +180,10 @@ export const useResourceTypeFilterMenu = ({
 
 type ResourceTypeFilterMenu = ReturnType<typeof useResourceTypeFilterMenu>;
 
-interface ResourceTypeMenuProps {
+type ResourceTypeMenuProps = {
 	menu: ResourceTypeFilterMenu;
 	width?: number;
-}
+};
 
 const ResourceTypeMenu: FC<ResourceTypeMenuProps> = ({ menu, width }) => {
 	return (

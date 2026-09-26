@@ -6,10 +6,10 @@ import { asRecord, asString, isValid } from "../runtimeTypeUtils";
 
 export type ToolStatus = "completed" | "error" | "running";
 
-export interface EditFilesFileEntry {
+export type EditFilesFileEntry = {
 	path: string;
 	edits: Array<{ search: string; replace: string }>;
-}
+};
 
 // Validates that the edit has at least the shape of an object with
 // string-typed text fields. Accepts both current field names
@@ -621,10 +621,10 @@ const snippetLineCount = (snippet: string): number =>
  * the caller-supplied path (pre-symlink resolution). `diff` is a
  * unified-diff string, possibly empty for no-op edits.
  */
-interface ServerEditResult {
+type ServerEditResult = {
 	path: string;
 	diff: string;
-}
+};
 
 /**
  * Parses the structured `files` array from an edit_files tool

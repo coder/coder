@@ -7,9 +7,9 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { isUUID } from "#/utils/uuid";
 
-interface PillListProps {
+type PillListProps = {
 	roles: readonly string[];
-}
+};
 
 export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 	return (
@@ -30,9 +30,9 @@ export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 	);
 };
 
-interface OverflowPillProps {
+type OverflowPillProps = {
 	roles: string[];
-}
+};
 
 const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
 	return (

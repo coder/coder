@@ -3,6 +3,7 @@ package tailnet
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"slices"
 	"sync"
 
@@ -100,6 +101,17 @@ func (c *connIO) recvLoop() {
 		}
 	}()
 	defer c.Close()
+	// This must be deferred after Close so it runs first: Enqueue needs the
+	// response channel open to deliver CloseErrInternal to the peer.
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			c.logger.Error(c.peerCtx, "panic handling peer request (recovered)",
+				slog.F("panic", recovered),
+				slog.F("stack", string(debug.Stack())),
+			)
+			_ = c.Enqueue(&proto.CoordinateResponse{Error: agpl.CloseErrInternal})
+		}
+	}()
 	for {
 		select {
 		case <-c.coordCtx.Done():
@@ -128,6 +140,10 @@ var errDisconnect = xerrors.New("graceful disconnect")
 
 func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 	c.logger.Debug(c.peerCtx, "got request")
+	if err := agpl.ValidateCoordinateRequest(req); err != nil {
+		c.logger.Warn(c.peerCtx, "invalid coordinate request", slog.Error(err))
+		return err
+	}
 	err := c.auth.Authorize(c.peerCtx, req)
 	if err != nil {
 		c.logger.Warn(c.peerCtx, "unauthorized request", slog.Error(err))

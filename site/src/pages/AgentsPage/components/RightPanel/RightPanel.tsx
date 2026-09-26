@@ -58,7 +58,7 @@ function loadPersistedWidth(): number {
 	return parsed;
 }
 
-interface RightPanelProps {
+type RightPanelProps = {
 	isOpen: boolean;
 	isExpanded: boolean;
 	onToggleExpanded: () => void;
@@ -68,7 +68,7 @@ interface RightPanelProps {
 	 * committed isExpanded prop. */
 	onVisualExpandedChange?: (visualExpanded: boolean | null) => void;
 	children: ReactNode;
-}
+};
 
 /**
  * Encapsulates all drag/resize logic for the right panel:

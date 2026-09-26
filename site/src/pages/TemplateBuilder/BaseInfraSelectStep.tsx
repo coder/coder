@@ -11,10 +11,10 @@ import { sortByPriority } from "./sortByPriority";
 import { TemplateCard } from "./TemplateCard";
 import { type SelectedBaseMeta, toSelectedBaseMeta } from "./wizardState";
 
-interface BaseInfraSelectStepProps {
+type BaseInfraSelectStepProps = {
 	selectedBaseId: string | null;
 	onSelectBase: (base: SelectedBaseMeta) => void;
-}
+};
 
 function detailsUrl(baseId: string): string {
 	return `https://registry.coder.com/templates/${baseId}`;

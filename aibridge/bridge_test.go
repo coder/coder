@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -530,7 +531,7 @@ func TestDisabledProviderHandler(t *testing.T) {
 			bridge.ServeHTTP(resp, req)
 
 			assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
-			assert.Contains(t, resp.Body.String(), aibridge.ErrorCodeProviderDisabled)
+			assert.Contains(t, resp.Body.String(), routing.ErrorCodeProviderDisabled)
 			assert.Contains(t, resp.Body.String(), "disabled-openai")
 		})
 	}

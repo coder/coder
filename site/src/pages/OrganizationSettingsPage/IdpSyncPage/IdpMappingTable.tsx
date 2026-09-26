@@ -10,11 +10,11 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { docs } from "#/utils/docs";
 
-interface IdpMappingTableProps {
+type IdpMappingTableProps = {
 	type: "Role" | "Group";
 	rowCount: number;
 	children: React.ReactNode;
-}
+};
 
 export const IdpMappingTable: FC<IdpMappingTableProps> = ({
 	type,

@@ -35,7 +35,7 @@ import { createDayString } from "#/utils/createDayString";
 import { docs } from "#/utils/docs";
 import { formatTemplateActiveDevelopersLabel } from "#/utils/templates";
 
-interface TemplatesPageViewProps {
+type TemplatesPageViewProps = {
 	filterState: TemplateFilterState;
 	templates: TypesGen.Template[] | undefined;
 	isLoading: boolean;
@@ -46,16 +46,16 @@ interface TemplatesPageViewProps {
 		agentsAllowed: boolean,
 	) => void;
 	pendingTemplateIDs: ReadonlySet<string>;
-}
+};
 
-interface TemplateRowProps {
+type TemplateRowProps = {
 	template: TypesGen.Template;
 	isPending: boolean;
 	onToggleAgentsAllowed: (
 		template: TypesGen.Template,
 		agentsAllowed: boolean,
 	) => void;
-}
+};
 
 const TemplateRow: FC<TemplateRowProps> = ({
 	template,

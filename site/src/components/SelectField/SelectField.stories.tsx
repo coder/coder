@@ -7,7 +7,7 @@ import { SelectField } from "./SelectField";
 
 const regions = ["us-east-1", "us-west-2", "eu-central-1"];
 
-interface ExampleSelectFieldProps {
+type ExampleSelectFieldProps = {
 	id?: string;
 	label: string;
 	description?: string;
@@ -16,7 +16,7 @@ interface ExampleSelectFieldProps {
 	error?: string;
 	value?: string;
 	disabled?: boolean;
-}
+};
 
 const ExampleSelectField: FC<ExampleSelectFieldProps> = ({
 	id,

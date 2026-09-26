@@ -321,7 +321,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			app:  apps.Default,
 			preAuth: func(valid *oauth2.Config) {
 				newURL := must(url.Parse(valid.RedirectURL))
-				newURL.Scheme = "https"
+				newURL.Scheme = "http"
 				valid.RedirectURL = newURL.String()
 			},
 			authError: "Invalid query params:",
@@ -591,7 +591,7 @@ func TestOAuth2ProviderTokenExchangeCodeBelongsToDifferentApp(t *testing.T) {
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	const sharedCallback = "http://localhost1:8080/foo/bar"
+	const sharedCallback = "https://localhost1:8080/foo/bar"
 	createApp := func(name string) (codersdk.OAuth2ProviderApp, codersdk.OAuth2ProviderAppSecretFull) {
 		//nolint:gocritic // OAauth2 app management requires owner permission.
 		app, err := ownerClient.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
@@ -1342,6 +1342,15 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 		require.True(t, works(), "a refused revocation must not end the session")
 	}
 
+	requireInvalidRequest := func(t *testing.T, status int, oauthErr codersdk.OAuth2Error, wantDescription string, works func() bool) {
+		t.Helper()
+
+		require.Equal(t, http.StatusBadRequest, status)
+		require.Equal(t, codersdk.OAuth2ErrorCodeInvalidRequest, oauthErr.Error)
+		require.Contains(t, oauthErr.ErrorDescription, wantDescription)
+		require.True(t, works(), "a refused revocation must not end the session")
+	}
+
 	t.Run("MissingSecret", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1438,10 +1447,89 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 		status, _, oauthErr := postRevoke(ctx, t, userClient, form, func(r *http.Request) {
 			r.SetBasicAuth(apps.Default.ID.String(), secret.ClientSecretFull)
 		})
-		require.Equal(t, http.StatusBadRequest, status)
-		require.Equal(t, codersdk.OAuth2ErrorCodeInvalidRequest, oauthErr.Error)
-		require.Contains(t, oauthErr.ErrorDescription, "Conflicting client credentials")
-		require.True(t, works(), "a refused revocation must not end the session")
+		requireInvalidRequest(t, status, oauthErr, "Conflicting client credentials", works)
+	})
+
+	t.Run("SecretInQueryString", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		form := url.Values{}
+		form.Set("token", refreshToken)
+		form.Set("client_id", apps.Default.ID.String())
+		status, _, oauthErr := postRevoke(ctx, t, userClient, form, func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("client_secret", secret.ClientSecretFull)
+			r.URL.RawQuery = q.Encode()
+		})
+		requireInvalidRequest(t, status, oauthErr, "URL query string", works)
+	})
+
+	t.Run("SecretInQueryStringAndBody", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		form := url.Values{}
+		form.Set("token", refreshToken)
+		form.Set("client_id", apps.Default.ID.String())
+		form.Set("client_secret", secret.ClientSecretFull)
+		status, _, oauthErr := postRevoke(ctx, t, userClient, form, func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("client_secret", secret.ClientSecretFull)
+			r.URL.RawQuery = q.Encode()
+		})
+		requireInvalidRequest(t, status, oauthErr, "URL query string", works)
+	})
+
+	t.Run("EmptySecretInQueryString", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		form := url.Values{}
+		form.Set("token", refreshToken)
+		form.Set("client_id", apps.Default.ID.String())
+		form.Set("client_secret", secret.ClientSecretFull)
+		status, _, _ := postRevoke(ctx, t, userClient, form, func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("client_secret", "")
+			r.URL.RawQuery = q.Encode()
+		})
+		require.Equal(t, http.StatusOK, status)
+		require.False(t, works(), "the revocation must end the session")
+	})
+
+	t.Run("MalformedQueryDescriptionIsSanitized", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		form := url.Values{}
+		form.Set("token", refreshToken)
+		form.Set("client_secret", secret.ClientSecretFull)
+		status, _, oauthErr := postRevoke(ctx, t, userClient, form, func(r *http.Request) {
+			r.URL.RawQuery = "client_id=" + apps.Default.ID.String() + "&%zz=1"
+		})
+		requireInvalidRequest(t, status, oauthErr, "invalid URL escape", works)
+		require.NotContains(t, oauthErr.ErrorDescription, `"`)
+	})
+
+	t.Run("EmptyAndRealSecretInQueryString", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		form := url.Values{}
+		form.Set("token", refreshToken)
+		form.Set("client_id", apps.Default.ID.String())
+		status, _, oauthErr := postRevoke(ctx, t, userClient, form, func(r *http.Request) {
+			q := r.URL.Query()
+			q["client_secret"] = []string{"", secret.ClientSecretFull}
+			r.URL.RawQuery = q.Encode()
+		})
+		requireInvalidRequest(t, status, oauthErr, "URL query string", works)
 	})
 }
 
@@ -1601,8 +1689,8 @@ func generateApps(ctx context.Context, t *testing.T, client *codersdk.Client, su
 	}
 
 	return provisionedApps{
-		Default:   create("app-a", "http://localhost1:8080/foo/bar"),
-		NoPort:    create("app-b", "http://localhost2"),
+		Default:   create("app-a", "https://localhost1:8080/foo/bar"),
+		NoPort:    create("app-b", "https://localhost2"),
 		Subdomain: create("app-z", "http://30.localhost:3000"),
 		Extra: []codersdk.OAuth2ProviderApp{
 			create("app-x", "http://20.localhost:3000"),

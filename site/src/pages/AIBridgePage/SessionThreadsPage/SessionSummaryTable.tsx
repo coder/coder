@@ -19,7 +19,7 @@ import { getProviderDisplayName } from "../utils";
 
 const Separator = () => <div className="border-0 border-t border-solid my-1" />;
 
-interface SessionSummaryTableProps {
+type SessionSummaryTableProps = {
 	sessionId: string;
 	startTime: Date;
 	endTime?: Date;
@@ -41,7 +41,7 @@ interface SessionSummaryTableProps {
 		readonly topDomain: AIBridgeSessionNetworkDomain;
 		readonly totalCount: number;
 	};
-}
+};
 
 export const SessionSummaryTable = ({
 	sessionId,

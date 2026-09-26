@@ -1664,7 +1664,7 @@ func defaultUpgradeMessage(version string) string {
 	if runtime.GOOS == "windows" {
 		return fmt.Sprintf("download the server version from: https://github.com/coder/coder/releases/v%s", version)
 	}
-	return fmt.Sprintf("download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'", version)
+	return fmt.Sprintf("download the server version with: 'curl -fsSL https://coder.com/install.sh | sh -s -- --version %s'", version)
 }
 
 // serverVersionMessage returns a warning message if the server version

@@ -11,8 +11,8 @@ import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator
 import { variantByStatusType } from "#/modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 
-// Owner suggestions are capped; the picker is a prefix search, not a full list.
-const OWNER_SUGGESTIONS_LIMIT = 25;
+// User suggestions are capped; the picker is a prefix search, not a full list.
+const USER_SUGGESTIONS_LIMIT = 25;
 
 /** The slice of `QueryClient` the option loaders depend on. */
 export type OptionsQueryClient = Pick<QueryClient, "fetchQuery">;
@@ -34,12 +34,10 @@ export const getStatusFilterOptions = async (
 			label: display.text,
 			value: status,
 			startIcon: (
-				<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
-					<StatusIndicatorDot
-						variant={variantByStatusType[display.type]}
-						size="md"
-					/>
-				</span>
+				<StatusIndicatorDot
+					variant={variantByStatusType[display.type]}
+					size="md"
+				/>
 			),
 		} satisfies FilterOption;
 	});
@@ -77,7 +75,7 @@ export const getTemplateFilterOptions = async (
 		value: template.name,
 		startIcon: (
 			<Avatar
-				size="md"
+				size="sm"
 				variant="icon"
 				src={template.icon}
 				fallback={template.display_name || template.name}
@@ -86,25 +84,26 @@ export const getTemplateFilterOptions = async (
 	}));
 };
 
-type OwnerIdentity = Readonly<{ username: string; avatar_url?: string }>;
+type UserIdentity = Readonly<{ username: string; avatar_url?: string }>;
 
-// The current user's own option. Commits the backend's per-session `owner:me`
-// sentinel, matching the page's `owner:me` fallback, rather than a static
-// `owner:<username>`.
-const selfOwnerOption = (me: OwnerIdentity): FilterOption => ({
+// The current user's own option. Commits the backend's per-session `me`
+// sentinel (`user:me` / `owner:me`), matching the page's fallback filter,
+// rather than a static `<username>`.
+const selfUserOption = (me: UserIdentity): FilterOption => ({
 	label: `${me.username} (you)`,
+	appliedLabel: "me",
 	value: "me",
-	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="md" />,
+	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="sm" />,
 });
 
-// Users who cannot list other users still filter by themselves, so the Owner
-// category stays available (and `owner` stays a recognized chip key) with just
-// the "you" option.
-export const getSelfOwnerFilterOptions = async (
+// Users who cannot list other users still filter by themselves, so the User
+// and Owner categories stay available (and their keys stay recognized chip
+// keys) with just the "you" option.
+export const getSelfUserFilterOptions = async (
 	query: string,
-	me: OwnerIdentity,
+	me: UserIdentity,
 ): Promise<FilterOption[]> => {
-	const option = selfOwnerOption(me);
+	const option = selfUserOption(me);
 	const normalized = query.trim().toLowerCase();
 	if (
 		normalized.length === 0 ||
@@ -116,13 +115,14 @@ export const getSelfOwnerFilterOptions = async (
 	return [];
 };
 
-export const getOwnerFilterOptions = async (
+// Shared by the User and Owner categories: both take a username value.
+export const getUserFilterOptions = async (
 	query: string,
-	me: OwnerIdentity,
+	me: UserIdentity,
 	queryClient: OptionsQueryClient,
 ): Promise<FilterOption[]> => {
 	const usersRes = await queryClient.fetchQuery(
-		users({ q: query, limit: OWNER_SUGGESTIONS_LIMIT }),
+		users({ q: query, limit: USER_SUGGESTIONS_LIMIT }),
 	);
 	const options = usersRes.users
 		.filter((user) => user.username !== me.username)
@@ -130,11 +130,11 @@ export const getOwnerFilterOptions = async (
 			label: user.username,
 			value: user.username,
 			startIcon: (
-				<Avatar fallback={user.username} src={user.avatar_url} size="md" />
+				<Avatar fallback={user.username} src={user.avatar_url} size="sm" />
 			),
 		}));
 
-	return [selfOwnerOption(me), ...options];
+	return [selfUserOption(me), ...options];
 };
 
 type AttributeDefinition = {
@@ -145,29 +145,23 @@ type AttributeDefinition = {
 	requiresDormantEntitlement: boolean;
 };
 
-const attributeIcon = (icon: ReactNode): ReactNode => (
-	<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
-		{icon}
-	</span>
-);
-
 const ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
 	{
 		label: "Outdated",
 		value: "outdated",
-		icon: <RefreshCwOffIcon className="size-icon-sm" />,
+		icon: <RefreshCwOffIcon />,
 		requiresDormantEntitlement: false,
 	},
 	{
 		label: "Dormant",
 		value: "dormant",
-		icon: <MoonIcon className="size-icon-sm" />,
+		icon: <MoonIcon />,
 		requiresDormantEntitlement: true,
 	},
 	{
 		label: "Shared",
 		value: "shared",
-		icon: <Share2Icon className="size-icon-sm" />,
+		icon: <Share2Icon />,
 		requiresDormantEntitlement: false,
 	},
 ];
@@ -183,7 +177,7 @@ export const ATTRIBUTE_CHIP_KEYS: readonly string[] = ATTRIBUTE_DEFINITIONS.map(
 /**
  * Boolean workspace attributes exposed as a single "Attributes" category. Each
  * option commits its own `key:true` chip (e.g. `outdated:true`) rather than a
- * shared `attributes:` key, matching the backend workspace search filters.
+ * shared `attribute:` key, matching the backend workspace search filters.
  */
 export const getAttributeFilterOptions = async (
 	query: string,
@@ -205,7 +199,7 @@ export const getAttributeFilterOptions = async (
 			label: attribute.label,
 			value: attribute.value,
 			token: `${attribute.value}:true`,
-			startIcon: attributeIcon(attribute.icon),
+			startIcon: attribute.icon,
 		}));
 };
 
@@ -234,7 +228,7 @@ export const getOrganizationFilterOptions = async (
 		startIcon: (
 			<Avatar
 				key={organization.id}
-				size="md"
+				size="sm"
 				fallback={organization.display_name || organization.name}
 				src={organization.icon}
 			/>

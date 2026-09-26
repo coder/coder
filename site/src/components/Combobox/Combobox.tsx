@@ -35,10 +35,10 @@ function useCombobox() {
 	return context;
 }
 
-interface ComboboxProps extends React.ComponentProps<typeof Popover> {
+type ComboboxProps = {
 	value?: string;
 	onValueChange?: (value: string | undefined) => void;
-}
+} & React.ComponentProps<typeof Popover>;
 
 export const Combobox = ({
 	children,
@@ -65,11 +65,11 @@ export const Combobox = ({
 
 export const ComboboxTrigger = PopoverTrigger;
 
-interface ComboboxButtonProps extends React.ComponentProps<"button"> {
+type ComboboxButtonProps = React.ComponentProps<"button"> & {
 	width?: number;
 	selectedOption?: SelectFilterOption;
 	placeholder?: string;
-}
+};
 
 export const ComboboxButton = ({
 	children,

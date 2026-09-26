@@ -35,11 +35,11 @@ import {
 import { pageTitle } from "#/utils/page";
 import { Workspace } from "./Workspace";
 
-interface WorkspaceReadyPageProps {
+type WorkspaceReadyPageProps = {
 	template: TypesGen.Template;
 	workspace: TypesGen.Workspace;
 	permissions: WorkspacePermissions;
-}
+};
 
 export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	workspace,

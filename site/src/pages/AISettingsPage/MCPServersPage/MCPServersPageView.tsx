@@ -30,7 +30,7 @@ import { MCPServerRow } from "./components/MCPServerRow";
 import { OrganizationPicker } from "./components/OrganizationPicker";
 import { addMCPServerPath, updateMCPServerPath } from "./organizationParam";
 
-interface MCPServersPageViewProps {
+type MCPServersPageViewProps = {
 	isLoading: boolean;
 	error: unknown;
 	servers: readonly TypesGen.MCPServerConfig[];
@@ -40,7 +40,7 @@ interface MCPServersPageViewProps {
 	addOrganizations: readonly TypesGen.Organization[];
 	canOpenServer: boolean;
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
-}
+};
 
 const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 	isLoading,
