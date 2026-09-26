@@ -174,8 +174,8 @@ type CategoryMatchSource = {
 	key: string;
 	label: string;
 	aliases?: readonly string[];
-	/** Query key options commit under when it differs from `key`. */
-	chipKey?: string;
+	/** Token an option commits, when it differs from `key:value`. */
+	optionToken?: (option: FilterOption) => string;
 };
 
 export const parseTypedCategoryPrefix = (
@@ -322,7 +322,8 @@ export const collectValueSuggestions = (
 				break;
 			}
 
-			const token = optionToken(category.chipKey ?? category.key, option);
+			const token =
+				category.optionToken?.(option) ?? optionToken(category.key, option);
 
 			if (!optionMatches(option, normalized)) {
 				continue;

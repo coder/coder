@@ -390,21 +390,28 @@ export const useFilterCombobox = ({
 		category.scopeToggle && isScopeWidened(category)
 			? category.scopeToggle.widenedKey
 			: category.key;
-	// With a chip under each key, an option whose value one of them holds maps
-	// to that chip, so its row shows as selected and a click removes it.
-	const categoryOptionToken = (
+	// With a chip under each key and no typed prefix, an option whose value
+	// one of them holds maps to that chip, so its row shows as selected and a
+	// click removes it.
+	const appliedScopeChipFor = (
 		category: FilterCategory,
-		option: FilterOption,
+		option: Pick<FilterOption, "value">,
 	) => {
 		const scopeChips = scopeChipsOf(category);
-		const appliedChip =
-			scopeChips.length > 1
-				? scopeChips.find(
-						(chip) => parseChipToken(chip, chipKeys)?.value === option.value,
-					)
-				: undefined;
-		return appliedChip ?? optionToken(optionChipKey(category), option);
+		const typedPrefixActive =
+			activeCategoryKey === category.key && typedScopeWidened !== null;
+		return scopeChips.length > 1 && !typedPrefixActive
+			? scopeChips.find(
+					(chip) => parseChipToken(chip, chipKeys)?.value === option.value,
+				)
+			: undefined;
 	};
+	const optionTokenFor = (
+		category: FilterCategory,
+		option: Pick<FilterOption, "token" | "value">,
+	) =>
+		appliedScopeChipFor(category, option) ??
+		optionToken(optionChipKey(category), option);
 	const categoryForChip = (token: string) => {
 		const key = parseChipToken(token, chipKeys)?.key;
 		return key === undefined
@@ -691,7 +698,8 @@ export const useFilterCombobox = ({
 					inputValue,
 					menuCategories.map((category) => ({
 						...category,
-						chipKey: optionChipKey(category),
+						optionToken: (option: FilterOption) =>
+							optionTokenFor(category, option),
 					})),
 					typeaheadOptionsByKey,
 					chipValues,
@@ -1263,12 +1271,17 @@ export const useFilterCombobox = ({
 			inputValue.trim().length > 0
 		) {
 			const highlighted = getHighlightedValue();
-			const candidate = chipToken(
-				optionChipKey(activeCategory),
-				inputValue.trim(),
-			);
+			// A typed owner commits under the category key unless `user:` was
+			// typed, since the backend rejects `user:` for users the requester
+			// cannot read.
+			const typedOption = { value: inputValue.trim() };
+			const candidate =
+				activeCategory.scopeToggle && typedScopeWidened !== true
+					? (appliedScopeChipFor(activeCategory, typedOption) ??
+						chipToken(activeCategory.key, typedOption.value))
+					: optionTokenFor(activeCategory, typedOption);
 			const hasHighlightedOption = activeOptions?.some(
-				(option) => categoryOptionToken(activeCategory, option) === highlighted,
+				(option) => optionTokenFor(activeCategory, option) === highlighted,
 			);
 			if (
 				!activeOptionsLoading &&
@@ -1423,7 +1436,7 @@ export const useFilterCombobox = ({
 		optionTokenFor: (categoryKey: string, option: FilterOption) => {
 			const category = categories.find((entry) => entry.key === categoryKey);
 			return category
-				? categoryOptionToken(category, option)
+				? optionTokenFor(category, option)
 				: optionToken(categoryKey, option);
 		},
 		typeaheadError,

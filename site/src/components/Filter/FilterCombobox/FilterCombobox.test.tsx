@@ -1,4 +1,10 @@
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	screen,
+	waitFor,
+	waitForElementToBeRemoved,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { render } from "#/testHelpers/renderHelpers";
@@ -29,6 +35,14 @@ const scopedOwnerCategory: FilterCategory = {
 		pillRemoveLabel: (owner) => `Hide workspaces shared with ${owner}`,
 		searchPhrase: "shared with owner",
 	},
+};
+
+const scopedOwnersCategory: FilterCategory = {
+	...scopedOwnerCategory,
+	getOptions: async (query) =>
+		["me", "carol", "alice"]
+			.filter((name) => name.includes(query))
+			.map((name) => ({ label: name, value: name })),
 };
 
 const OWNER_NAMES = Array.from(
@@ -1920,19 +1934,9 @@ describe("FilterCombobox", () => {
 	});
 
 	it("removes the chip whose owner is clicked while both Owner keys are applied", async () => {
-		const { user, onChange, filtersButton } = setup(
-			[
-				{
-					...scopedOwnerCategory,
-					getOptions: async () =>
-						["me", "carol", "alice"].map((name) => ({
-							label: name,
-							value: name,
-						})),
-				},
-			],
-			{ initialValue: "user:me owner:carol" },
-		);
+		const { user, onChange, filtersButton } = setup([scopedOwnersCategory], {
+			initialValue: "user:me owner:carol",
+		});
 
 		await user.click(filtersButton);
 		await user.keyboard("{ArrowRight}");
@@ -1940,6 +1944,94 @@ describe("FilterCombobox", () => {
 
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("user:me"));
 	});
+
+	it("removes the chip whose owner is clicked in the flyout while both Owner keys are applied", async () => {
+		const { user, onChange, filtersButton } = setup([scopedOwnersCategory], {
+			initialValue: "user:me owner:carol",
+			skipHover: true,
+		});
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		await user.click(await screen.findByRole("button", { name: "carol" }));
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("user:me"));
+	});
+
+	it("removes the chip whose owner is typed and highlighted while both Owner keys are applied", async () => {
+		const { user, onChange, filtersButton } = setup([scopedOwnersCategory], {
+			initialValue: "user:me owner:carol",
+		});
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowRight}");
+		await user.keyboard("carol");
+		await waitForElementToBeRemoved(() =>
+			screen.queryByRole("option", { name: "me" }),
+		);
+		await user.keyboard("{ArrowDown}");
+		expect(screen.getByRole("option", { name: "carol" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+		await user.keyboard("{Enter}");
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("user:me"));
+	});
+
+	it("removes an applied owner picked from the suggestions while both Owner keys are applied", async () => {
+		const { user, onChange, input } = setup([scopedOwnersCategory], {
+			initialValue: "owner:me user:alice",
+		});
+
+		await user.click(input);
+		await user.type(input, "ali");
+		await user.click(await screen.findByRole("option", { name: /alice/ }));
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:me"));
+	});
+
+	it.each([
+		["owner:bob user:carol", "owner:", "owner:carol user:carol"],
+		["user:me owner:carol", "user:", "user:carol owner:carol"],
+	])(
+		"commits a typed-prefix pick of an applied owner from %s after %s under the typed key",
+		async (initialValue, typed, expected) => {
+			const { user, onChange, input } = setup([scopedOwnersCategory], {
+				initialValue,
+			});
+
+			await user.click(input);
+			await user.type(input, typed);
+			await user.click(await screen.findByRole("option", { name: "carol" }));
+
+			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expected));
+		},
+	);
+
+	it.each([
+		["", "owner:bob"],
+		["user:me", "owner:bob"],
+	])(
+		"commits a typed owner missing from the options under the Owner key from %j",
+		async (initialValue, expected) => {
+			const { user, onChange, filtersButton } = setup([scopedOwnersCategory], {
+				initialValue,
+			});
+
+			await user.click(filtersButton);
+			await user.keyboard("{ArrowRight}");
+			await user.keyboard("bob");
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"No Owner matches",
+				),
+			);
+			await user.keyboard("{Enter}");
+
+			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expected));
+		},
+	);
 
 	it("keeps a second Owner token when another chip is removed", async () => {
 		const { user, onChange } = setup([scopedOwnerCategory, statusCategory], {

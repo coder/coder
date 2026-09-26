@@ -61,8 +61,8 @@ export type FilterCategory = {
 	 * disabled and both chips show their own query keys. A typed prefix sets
 	 * the key for that entry's pick: `widenedKey` commits under `widenedKey`;
 	 * the category key or an alias commits under the category key.
-	 * While it is on, a pill after the chip reads `pillPrefix` and the chip's
-	 * value, and removing the pill turns the switch off. Applies only to
+	 * While it is on and enabled, a pill after the chip reads `pillPrefix` and
+	 * the chip's value, and removing the pill turns the switch off. Applies only to
 	 * submenu categories, not inline ones.
 	 */
 	scopeToggle?: {
