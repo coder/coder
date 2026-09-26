@@ -34,7 +34,7 @@ describe("getUserFilterOptions", () => {
 		expect(options.map((option) => option.value)).toEqual(["me", "bob"]);
 	});
 
-	it("lists the current user only when the query matches it", async () => {
+	it("matches the current user by its label when the users API does not return it", async () => {
 		const queryClient = fakeQueryClient({ users: [] });
 
 		expect(await getUserFilterOptions("ali", me, queryClient)).toHaveLength(1);
