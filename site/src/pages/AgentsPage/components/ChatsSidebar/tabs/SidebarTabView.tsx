@@ -14,11 +14,18 @@ import {
 	useEffect,
 	useEffectEvent,
 	useId,
+	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
 import { useOutletContext } from "react-router";
 import { Button } from "#/components/Button/Button";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "#/components/Tabs/Tabs";
 import type { AgentsPageOutletContext } from "../../../AgentsPageLayout";
 
 /** A single tab definition for the sidebar panel. */
@@ -158,7 +165,10 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 }) => {
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
-	const tabIdPrefix = useId();
+	const closeTabDescriptionId = useId();
+	const tabRefs = useRef(new Map<string, HTMLButtonElement>());
+	const emptyPanelRef = useRef<HTMLDivElement>(null);
+	const restoreTabFocus = useRef(false);
 	const {
 		ref: tabScrollRef,
 		canScrollLeft,
@@ -167,6 +177,23 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 		scrollRight: scrollTabsRight,
 	} = useTabScroll();
 
+	useLayoutEffect(() => {
+		if (!restoreTabFocus.current) {
+			return;
+		}
+		restoreTabFocus.current = false;
+		const target = effectiveTabId
+			? tabRefs.current.get(effectiveTabId)
+			: emptyPanelRef.current;
+		target?.focus();
+	});
+
+	const handleCloseTab = (tab: SidebarTab) => {
+		// The parent resolves the surviving selection when it removes a tab.
+		restoreTabFocus.current = true;
+		tab.onClose?.();
+	};
+
 	const allPanels: { id: string; content: ReactNode }[] = tabs.map((t) => ({
 		id: t.id,
 		content: t.content,
@@ -174,11 +201,14 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 
 	if (tabs.length === 0) {
 		return (
-			<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
-				<div
-					role="tablist"
-					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
-				>
+			<div
+				ref={emptyPanelRef}
+				role="region"
+				aria-label="Panel"
+				tabIndex={-1}
+				className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary"
+			>
+				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1">
 					{onClose && (
 						<Button
 							variant="subtle"
@@ -216,11 +246,12 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	}
 
 	return (
-		<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
-			<div
-				role="tablist"
-				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
-			>
+		<Tabs
+			value={effectiveTabId ?? ""}
+			onValueChange={onActiveTabChange}
+			className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary"
+		>
+			<div className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1">
 				{onClose && (
 					<Button
 						variant="subtle"
@@ -255,71 +286,94 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						ref={tabScrollRef}
 						className="flex w-full min-w-0 items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden"
 					>
-						{tabs.map((tab) => {
-							const isActive = effectiveTabId === tab.id;
-							const onClose = tab.onClose;
-							const isCloseable = onClose !== undefined;
-							const tabButton = (
-								<Button
-									id={`${tabIdPrefix}-tab-${tab.id}`}
-									role="tab"
-									aria-selected={isActive}
-									onClick={() => onActiveTabChange(tab.id)}
-									variant="outline"
-									size="lg"
-									className={cn(
-										"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
-										isActive &&
-											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
-										tab.badge && "pr-0",
-										isCloseable && "rounded-r-none border-r-0 pr-2.5",
-									)}
-								>
-									{tab.icon}
-									{tab.label}
-									{tab.badge && (
-										<span
+						<TabsList
+							aria-label="Panel tabs"
+							variant={null}
+							className="shrink-0 flex-nowrap gap-1"
+						>
+							{tabs.map((tab) => {
+								const isActive = effectiveTabId === tab.id;
+								const isCloseable = tab.onClose !== undefined;
+								const tabButton = (
+									<TabsTrigger
+										value={tab.id}
+										aria-keyshortcuts={isCloseable ? "Delete" : undefined}
+										aria-describedby={
+											isCloseable ? closeTabDescriptionId : undefined
+										}
+										asChild
+										className=""
+										ref={(element) => {
+											if (element) {
+												tabRefs.current.set(tab.id, element);
+											} else {
+												tabRefs.current.delete(tab.id);
+											}
+										}}
+										onKeyDown={(event) => {
+											if (event.key === "Delete" && isCloseable) {
+												event.preventDefault();
+												handleCloseTab(tab);
+											}
+										}}
+									>
+										<Button
+											tabIndex={isActive ? 0 : -1}
+											variant="outline"
+											size="lg"
 											className={cn(
-												"flex -my-px items-center self-stretch transition-opacity",
-												!isActive && "opacity-50",
+												"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
+												isActive &&
+													"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
+												tab.badge && "pr-0",
+												isCloseable && "rounded-r-none border-r-0 pr-2.5",
 											)}
 										>
-											{tab.badge}
-										</span>
-									)}
-								</Button>
-							);
+											{tab.icon}
+											{tab.label}
+											{tab.badge && (
+												<span
+													className={cn(
+														"flex -my-px items-center self-stretch transition-opacity",
+														!isActive && "opacity-50",
+													)}
+												>
+													{tab.badge}
+												</span>
+											)}
+										</Button>
+									</TabsTrigger>
+								);
 
-							if (!isCloseable) {
+								if (!isCloseable) {
+									return (
+										<div key={tab.id} className="flex shrink-0 items-center">
+											{tabButton}
+										</div>
+									);
+								}
+
 								return (
 									<div key={tab.id} className="flex shrink-0 items-center">
 										{tabButton}
+										<Button
+											variant="outline"
+											size="icon"
+											tabIndex={-1}
+											onClick={() => handleCloseTab(tab)}
+											aria-label={`Close ${tab.label} tab`}
+											className={cn(
+												"size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
+												isActive &&
+													"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
+											)}
+										>
+											<XIcon />
+										</Button>
 									</div>
 								);
-							}
-
-							return (
-								<div key={tab.id} className="flex shrink-0 items-center">
-									{tabButton}
-									<Button
-										variant="outline"
-										size="icon"
-										onClick={(event) => {
-											event.stopPropagation();
-											onClose();
-										}}
-										aria-label={`Close ${tab.label} tab`}
-										className={cn(
-											"size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
-											isActive &&
-												"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
-										)}
-									>
-										<XIcon />
-									</Button>
-								</div>
-							);
-						})}
+							})}
+						</TabsList>
 						{addTabControl}
 					</div>
 					{canScrollRight && (
@@ -347,14 +401,19 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>
 			</div>
+			<span id={closeTabDescriptionId} className="sr-only">
+				Press Delete to close this tab.
+			</span>
 			<div className="relative flex min-h-0 flex-1 flex-col">
 				{allPanels.map((panel) => {
 					const isActive = effectiveTabId === panel.id;
 					return (
-						<div
+						<TabsContent
 							key={panel.id}
-							role="tabpanel"
-							aria-labelledby={`${tabIdPrefix}-tab-${panel.id}`}
+							value={panel.id}
+							forceMount
+							aria-hidden={!isActive}
+							tabIndex={isActive ? 0 : -1}
 							className={cn(
 								"min-h-0 flex-1",
 								// Keep inactive panels in the tree but invisible: a canvas xterm
@@ -364,10 +423,10 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 							inert={!isActive}
 						>
 							{panel.content}
-						</div>
+						</TabsContent>
 					);
 				})}
 			</div>
-		</div>
+		</Tabs>
 	);
 };

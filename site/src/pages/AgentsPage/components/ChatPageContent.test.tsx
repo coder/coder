@@ -14,7 +14,8 @@ const renderChatPageInput = (
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
 			store={store}
-			models={[]}
+			contextUsage={null}
+			onOpenDetails={vi.fn()}
 			onSend={vi.fn()}
 			onDeleteQueuedMessage={vi.fn()}
 			onPromoteQueuedMessage={vi.fn()}

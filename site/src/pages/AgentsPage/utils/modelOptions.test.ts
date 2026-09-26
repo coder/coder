@@ -1208,6 +1208,48 @@ describe("resolveCompactionThreshold", () => {
 		);
 	});
 
+	it("does not guess a threshold before user settings or models are available", () => {
+		expect(
+			resolveCompactionThreshold("config-1", undefined, models),
+		).toBeUndefined();
+		expect(
+			resolveCompactionThreshold("config-1", [], undefined),
+		).toBeUndefined();
+	});
+
+	it.each([0, 100])(
+		"preserves the explicit %i%% user override",
+		(threshold) => {
+			expect(
+				resolveCompactionThreshold(
+					"config-1",
+					[{ model_config_id: "config-1", threshold_percent: threshold }],
+					models,
+				),
+			).toBe(threshold);
+		},
+	);
+
+	it.each([-1, 101])(
+		"normalizes out-of-range threshold %i to the backend default",
+		(threshold) => {
+			expect(
+				resolveCompactionThreshold(
+					"config-1",
+					[{ model_config_id: "config-1", threshold_percent: threshold }],
+					models,
+				),
+			).toBe(70);
+			expect(
+				resolveCompactionThreshold(
+					"config-1",
+					[],
+					[{ ...models[0], compression_threshold: threshold }],
+				),
+			).toBe(70);
+		},
+	);
+
 	it("returns undefined when the model is not in the catalog", () => {
 		expect(resolveCompactionThreshold("missing", [], models)).toBe(undefined);
 	});
@@ -1270,6 +1312,33 @@ describe("resolveCompactionContextLimit", () => {
 		).toBe(100);
 	});
 
+	it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+		"ignores invalid window %j and uses the other positive window",
+		(limit) => {
+			expect(
+				resolveCompactionContextLimit(
+					{ ...chatModel, context_limit: limit },
+					models,
+					new Map([[testOrganizationID, "small"]]),
+				),
+			).toBe(100);
+			expect(
+				resolveCompactionContextLimit(
+					chatModel,
+					[{ ...smallSummarizer, context_limit: limit }],
+					new Map([[testOrganizationID, "small"]]),
+				),
+			).toBe(1000);
+			expect(
+				resolveCompactionContextLimit(
+					{ ...chatModel, context_limit: limit },
+					[],
+					new Map(),
+				),
+			).toBe(0);
+		},
+	);
+
 	it("ignores overrides for other organizations and unknown models", () => {
 		expect(
 			resolveCompactionContextLimit(
@@ -1292,7 +1361,41 @@ describe("compactionTriggerTokens", () => {
 
 	it("returns undefined when the window is unknown", () => {
 		expect(compactionTriggerTokens(0, 80)).toBe(undefined);
+		expect(compactionTriggerTokens(undefined, 80)).toBeUndefined();
 	});
+
+	it("rounds up to the first integer token count that reaches the threshold", () => {
+		expect(compactionTriggerTokens(101, 70)).toBe(71);
+		expect(compactionTriggerTokens(3, 70)).toBe(3);
+	});
+
+	it("matches the backend percentage comparison at floating-point boundaries", () => {
+		expect((37120 / 128000) * 100).toBeLessThan(29);
+		expect((37121 / 128000) * 100).toBeGreaterThanOrEqual(29);
+		expect(compactionTriggerTokens(128000, 29)).toBe(37121);
+	});
+
+	it("requires positive usage even at a zero threshold", () => {
+		expect(compactionTriggerTokens(128000, 0)).toBe(1);
+	});
+
+	it.each([undefined, Number.NaN, Number.POSITIVE_INFINITY])(
+		"does not invent a trigger for unknown threshold %j",
+		(threshold) => {
+			expect(compactionTriggerTokens(1000, threshold)).toBeUndefined();
+		},
+	);
+
+	it.each([-1, 101])("normalizes out-of-range threshold %i", (threshold) => {
+		expect(compactionTriggerTokens(1000, threshold)).toBe(700);
+	});
+
+	it.each([-1, Number.NaN, Number.POSITIVE_INFINITY])(
+		"rejects invalid window %j",
+		(limit) => {
+			expect(compactionTriggerTokens(limit, 70)).toBeUndefined();
+		},
+	);
 
 	it("returns undefined at 100% because compaction never triggers", () => {
 		expect(compactionTriggerTokens(128_000, 100)).toBe(undefined);

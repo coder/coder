@@ -1694,7 +1694,7 @@ export const NarrowViewportShowsChatOverOpenPanel: Story = {
 
 		// Explicitly toggling the panel while narrow clears the suppression.
 		await user.click(canvas.getByRole("button", { name: "Toggle panel" }));
-		await canvas.findByRole("tab", { name: "Summary" });
+		await canvas.findByRole("tab", { name: "Details" });
 	},
 };
 
@@ -1730,7 +1730,7 @@ export const NarrowingSuppressesExpandedPanel: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
-		await canvas.findByRole("tab", { name: "Summary" });
+		await canvas.findByRole("tab", { name: "Details" });
 
 		await user.click(canvas.getByRole("button", { name: "Expand panel" }));
 

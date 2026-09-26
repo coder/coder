@@ -6,6 +6,7 @@ import {
 	MockChatMessage,
 } from "#/testHelpers/chatEntities";
 import {
+	contextTokensFromUsage,
 	extractContextUsageFromMessage,
 	getLatestContextUsage,
 	getParentChatID,
@@ -94,6 +95,58 @@ describe("extractContextUsageFromMessage", () => {
 // getLatestContextUsage
 // ---------------------------------------------------------------------------
 
+describe("contextTokensFromUsage", () => {
+	it("counts positive input and cache tokens without output or reasoning", () => {
+		expect(
+			contextTokensFromUsage({
+				input_tokens: 100,
+				cache_read_tokens: 20,
+				cache_creation_tokens: 30,
+				output_tokens: 500,
+				reasoning_tokens: 800,
+				total_tokens: 1450,
+			}),
+		).toBe(150);
+	});
+
+	it("ignores negative and non-finite granular counts", () => {
+		expect(
+			contextTokensFromUsage({
+				input_tokens: -10,
+				cache_read_tokens: 20,
+				cache_creation_tokens: Number.NaN,
+				total_tokens: 500,
+			}),
+		).toBe(20);
+	});
+
+	it.each([
+		{},
+		{ input_tokens: 0 },
+		{ input_tokens: -1 },
+		{ cache_read_tokens: 0, cache_creation_tokens: 0 },
+	])(
+		"falls back to total tokens when granular counts are not positive: %j",
+		(usage) => {
+			expect(contextTokensFromUsage({ ...usage, total_tokens: 400 })).toBe(400);
+		},
+	);
+
+	it("distinguishes measured zero from missing context counts", () => {
+		expect(contextTokensFromUsage({ input_tokens: 0, total_tokens: 0 })).toBe(
+			0,
+		);
+		expect(
+			contextTokensFromUsage({ output_tokens: 50, reasoning_tokens: 30 }),
+		).toBeUndefined();
+		expect(contextTokensFromUsage({ context_limit: 100000 })).toBeUndefined();
+		expect(
+			contextTokensFromUsage({ total_tokens: Number.POSITIVE_INFINITY }),
+		).toBeUndefined();
+		expect(contextTokensFromUsage(undefined)).toBeUndefined();
+	});
+});
+
 describe("getLatestContextUsage", () => {
 	const compactionSummaryMessage: TypesGen.ChatMessage = {
 		...MockChatMessage,
@@ -132,7 +185,7 @@ describe("getLatestContextUsage", () => {
 			100000,
 		);
 		expect(result?.usedTokens).toBe(15000);
-		expect(result?.contextLimitTokens).toBe(200000);
+		expect(result?.contextLimitTokens).toBe(100000);
 		expect(result?.estimated).toBeUndefined();
 	});
 
@@ -187,6 +240,25 @@ describe("getLatestContextUsage", () => {
 
 	it("has no usage for an empty chat", () => {
 		expect(getLatestContextUsage([], 200000)).toBeNull();
+	});
+
+	it("uses context-only tokens with the effective window rather than the response total", () => {
+		const message = {
+			...MockChatMessage,
+			usage: {
+				input_tokens: 100,
+				cache_read_tokens: 20,
+				cache_creation_tokens: 10,
+				output_tokens: 50,
+				reasoning_tokens: 30,
+				context_limit: 200000,
+			},
+		};
+		expect(getLatestContextUsage([message], 100000)).toMatchObject({
+			usedTokens: 130,
+			contextLimitTokens: 100000,
+		});
+		expect(extractContextUsageFromMessage(message)?.usedTokens).toBe(210);
 	});
 
 	it("returns usage from the newest usage-bearing message", () => {

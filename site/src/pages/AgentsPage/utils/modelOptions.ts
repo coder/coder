@@ -346,12 +346,22 @@ export const getProviderForModelOption = (
 
 export { formatProviderLabel } from "#/utils/aiProviders";
 
+/** Match chatloop normalization without inventing a value for missing settings. */
+function normalizeCompactionThreshold(
+	threshold: number | undefined,
+): number | undefined {
+	if (threshold === undefined || !Number.isFinite(threshold)) {
+		return undefined;
+	}
+	return threshold < 0 || threshold > 100 ? 70 : threshold;
+}
+
 export function resolveCompactionThreshold(
 	modelID: string | undefined,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
 	models: readonly TypesGen.ChatModel[] | null | undefined,
 ): number | undefined {
-	if (!modelID || !Array.isArray(models)) {
+	if (!modelID || !Array.isArray(models) || !userThresholds) {
 		return undefined;
 	}
 	const model = models.find((model) => model.id === modelID);
@@ -361,10 +371,9 @@ export function resolveCompactionThreshold(
 	const userOverride = userThresholds?.find(
 		(threshold) => threshold.model_config_id === modelID,
 	);
-	if (userOverride) {
-		return userOverride.threshold_percent;
-	}
-	return model.compression_threshold;
+	return normalizeCompactionThreshold(
+		userOverride?.threshold_percent ?? model.compression_threshold,
+	);
 }
 
 /**
@@ -378,11 +387,18 @@ export function resolveCompactionContextLimit(
 	models: readonly TypesGen.ChatModel[],
 	compactionModelIDByOrganization: ReadonlyMap<string, string>,
 ): number {
-	const chatLimit = model.context_limit > 0 ? model.context_limit : 0;
+	const chatLimit =
+		Number.isFinite(model.context_limit) && model.context_limit > 0
+			? model.context_limit
+			: 0;
 	const overrideID = compactionModelIDByOrganization.get(model.organization_id);
 	const overrideLimit =
 		models.find((candidate) => candidate.id === overrideID)?.context_limit ?? 0;
-	if (overrideLimit > 0 && (chatLimit <= 0 || overrideLimit < chatLimit)) {
+	if (
+		Number.isFinite(overrideLimit) &&
+		overrideLimit > 0 &&
+		(chatLimit <= 0 || overrideLimit < chatLimit)
+	) {
 		return overrideLimit;
 	}
 	return chatLimit;
@@ -394,13 +410,25 @@ export function resolveCompactionContextLimit(
  * disabled (100%).
  */
 export function compactionTriggerTokens(
-	contextLimit: number,
-	thresholdPercent: number,
+	contextLimit: number | undefined,
+	thresholdPercent: number | undefined,
 ): number | undefined {
-	if (contextLimit <= 0 || thresholdPercent >= 100) {
+	const threshold = normalizeCompactionThreshold(thresholdPercent);
+	if (
+		contextLimit === undefined ||
+		!Number.isFinite(contextLimit) ||
+		contextLimit <= 0 ||
+		threshold === undefined ||
+		threshold === 100
+	) {
 		return undefined;
 	}
-	return Math.round((contextLimit * thresholdPercent) / 100);
+	// The backend skips zero usage and compares (tokens / window) * 100.
+	// Preserve that operation order at floating-point integer boundaries.
+	const candidate = Math.max(1, Math.ceil((contextLimit * threshold) / 100));
+	return (candidate / contextLimit) * 100 >= threshold
+		? candidate
+		: candidate + 1;
 }
 
 export const getModelSelectorPlaceholder = (

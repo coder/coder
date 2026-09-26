@@ -44,6 +44,38 @@ export const extractContextUsageFromMessage = (
 	};
 };
 
+/** Context counted by automatic compaction, not the response token total. */
+export const contextTokensFromUsage = (
+	usage: TypesGen.ChatMessage["usage"],
+): number | undefined => {
+	if (!usage) {
+		return undefined;
+	}
+	const counts = [
+		usage.input_tokens,
+		usage.cache_read_tokens,
+		usage.cache_creation_tokens,
+	];
+	const positiveCounts = counts.filter(
+		(count): count is number =>
+			typeof count === "number" && Number.isFinite(count) && count > 0,
+	);
+	if (positiveCounts.length > 0) {
+		return positiveCounts.reduce((sum, count) => sum + count, 0);
+	}
+	if (
+		typeof usage.total_tokens === "number" &&
+		Number.isFinite(usage.total_tokens) &&
+		usage.total_tokens > 0
+	) {
+		return usage.total_tokens;
+	}
+	// An omitted count is unknown, not measured zero.
+	return [...counts, usage.total_tokens].some((count) => count === 0)
+		? 0
+		: undefined;
+};
+
 export const getLatestContextUsage = (
 	messages: readonly TypesGen.ChatMessage[],
 	activeContextLimit?: number,
@@ -82,7 +114,11 @@ export const getLatestContextUsage = (
 
 		const usage = extractContextUsageFromMessage(message);
 		if (usage) {
-			return usage;
+			return {
+				...usage,
+				usedTokens: contextTokensFromUsage(message.usage),
+				contextLimitTokens: activeContextLimit ?? usage.contextLimitTokens,
+			};
 		}
 	}
 	return null;
