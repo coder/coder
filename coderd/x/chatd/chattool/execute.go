@@ -176,9 +176,10 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
 				// An earlier attempt of this tool call may have started
-				// the command, unless the workspace has no agent: its
-				// processes died with the agent.
-				if id, ok := ToolCallIdentityFromContext(ctx); ok && ctx.Err() == nil && !errors.Is(err, ErrWorkspaceHasNoAgent) {
+				// the command, unless the workspace has no agent or was
+				// deleted: its processes died with the agent.
+				if id, ok := ToolCallIdentityFromContext(ctx); ok && ctx.Err() == nil &&
+					!errors.Is(err, ErrWorkspaceHasNoAgent) && !errors.Is(err, ErrWorkspaceDeleted) {
 					return fantasy.NewTextErrorResponse(UnknownOutcome(AgentUnreachableReason(err),
 						"an earlier attempt may have started the command", checkProcessText(id))), nil
 				}

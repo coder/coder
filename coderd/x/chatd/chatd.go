@@ -121,7 +121,7 @@ const (
 
 var (
 	errChatHasNoWorkspaceAgent = chattool.ErrWorkspaceHasNoAgent
-	errChatWorkspaceDeleted    = xerrors.New("the chat's workspace was deleted (for example by dormancy cleanup) and cannot execute tools. Use the create_workspace tool to create a new one")
+	errChatWorkspaceDeleted    = chattool.ErrWorkspaceDeleted
 	errChatAgentDisconnected   = xerrors.New(
 		"workspace agent has been disconnected for at least 90 seconds " +
 			"and cannot execute tools. To recover, call stop_workspace " +

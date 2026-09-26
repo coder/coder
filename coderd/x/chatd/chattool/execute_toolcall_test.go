@@ -438,12 +438,22 @@ func TestExecuteToolCallNoConnection(t *testing.T) {
 		},
 		{
 			// Processes do not outlive the workspace agent, so a
-			// workspace without one settles the outcome.
+			// workspace without one, or a deleted workspace, settles
+			// the outcome.
 			name:    "IdentityNoAgent",
 			connErr: xerrors.Errorf("get workspace connection: %w", chattool.ErrWorkspaceHasNoAgent),
 			check: func(t *testing.T, resp fantasy.ToolResponse, _ string) {
 				assert.True(t, resp.IsError)
 				assert.Contains(t, resp.Content, chattool.ErrWorkspaceHasNoAgent.Error())
+				assert.NotContains(t, resp.Content, "outcome unknown")
+			},
+		},
+		{
+			name:    "IdentityWorkspaceDeleted",
+			connErr: xerrors.Errorf("get workspace connection: %w", chattool.ErrWorkspaceDeleted),
+			check: func(t *testing.T, resp fantasy.ToolResponse, _ string) {
+				assert.True(t, resp.IsError)
+				assert.Contains(t, resp.Content, chattool.ErrWorkspaceDeleted.Error())
 				assert.NotContains(t, resp.Content, "outcome unknown")
 			},
 		},
