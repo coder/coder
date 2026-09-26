@@ -186,8 +186,7 @@ export function FilterCombobox({
 		string | null | undefined
 	>(undefined);
 	// While typed text narrows the rows, only a scope match shows a flyout,
-	// and only while its row is highlighted or typing leaves no row
-	// highlighted. It never shows on coarse pointers. A flyout the text hides
+	// and only while its row is highlighted or no row is highlighted. It never shows on coarse pointers. A flyout the text hides
 	// returns when the text is deleted.
 	const scopeMatchShown =
 		!isCoarsePointer &&
@@ -277,10 +276,7 @@ export function FilterCombobox({
 		}
 		updateFlyoutCategory(isCategoryRow ? highlighted : null);
 	};
-	// Typed text narrows the category rows, so a click enters the category and
-	// drops the text. Enter on a row listed only by the scope match applies
-	// the text as a search instead. The flyout renders only on wider
-	// viewports.
+	// The flyout renders only on wider viewports.
 	const flyoutOptions = useFlyoutOptions(
 		activeCategoryKey === null && !isMobile
 			? listedCategories.find((category) => category.key === shownFlyoutKey)
@@ -289,14 +285,14 @@ export function FilterCombobox({
 		unfilteredOptionsErroredKeys,
 		actions.retryUnfilteredOptions,
 	);
-	// The hook announces its own states; the flyout is view state, so its
-	// state joins the announcement here.
 	// Toggling clears text typed to find the category, so the flyout is pinned
 	// open explicitly rather than through the scope match.
 	const toggleFlyoutScope = (categoryKey: string) => {
 		setFlyoutCategoryKey(categoryKey);
 		actions.toggleScope(categoryKey, { clearCategorySearch: true });
 	};
+	// The hook announces its own states; the flyout is view state, so its
+	// state joins the announcement here.
 	const liveRegionMessage = [flyoutOptions?.statusMessage, statusMessage]
 		.filter(Boolean)
 		.join(" ");
@@ -603,6 +599,8 @@ export function FilterCombobox({
 						>
 							{!mainPanelEmpty && (
 								<MainPanel
+									// Typed text narrows the category rows, so a click enters
+									// the category and drops the text.
 									drillIn={
 										isCoarsePointer ||
 										activeCategoryKey !== null ||

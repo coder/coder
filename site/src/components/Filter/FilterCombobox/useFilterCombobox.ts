@@ -504,8 +504,8 @@ export const useFilterCombobox = ({
 			? category.scopeToggle.widenedKey
 			: category.key;
 	// The applied chip holding a value, ignoring letter case, unless a typed
-	// prefix sets the key. An option maps to it, so its row shows as selected
-	// and selecting it removes it; typed Enter with no option highlighted
+	// prefix sets the key. An option maps to it, so its row shows as applied
+	// and choosing it removes it; typed Enter with no option highlighted
 	// commits it, which keeps it.
 	const scopeChipHolding = (category: FilterCategory, value: string) => {
 		if (activeCategoryKey === category.key && typedScopeWidened !== null) {
@@ -1582,6 +1582,8 @@ export const useFilterCombobox = ({
 		const highlighted =
 			renderedHighlightedValue ||
 			(event.key === "Tab" && typingFreeText ? (rowValues[0] ?? "") : "");
+		// Completing a row listed only because the text matched its scope
+		// phrase applies the text as a search instead of entering the category.
 		if (
 			isComplete &&
 			listedOnlyByScopeMatch &&

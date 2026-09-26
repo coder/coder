@@ -2701,10 +2701,12 @@ describe("FilterCombobox", () => {
 			await user.click(filtersButton);
 			await user.keyboard("{ArrowRight}");
 			await user.keyboard(typed);
-			await screen.findByRole("option", { name: "alice" });
-			expect(
-				screen.queryByRole("option", { name: "me" }),
-			).not.toBeInTheDocument();
+			const alice = await screen.findByRole("option", { name: "alice" });
+			// Leaving the menu clears the first-match highlight, so Enter commits
+			// the typed text rather than a row.
+			await user.hover(alice);
+			await user.unhover(alice);
+			expect(alice).toHaveAttribute("aria-selected", "false");
 			await user.keyboard("{Enter}");
 
 			await waitFor(() =>
@@ -3075,7 +3077,7 @@ describe("FilterCombobox", () => {
 		},
 	);
 
-	it("hides the Owner flyout when typing shared then highlighting another row", async () => {
+	it("hides the Owner flyout opened by typing sha when another row is highlighted", async () => {
 		const { user, input } = setup(
 			[
 				{
@@ -3102,7 +3104,7 @@ describe("FilterCombobox", () => {
 		expect(screen.queryByRole("switch")).not.toBeInTheDocument();
 	});
 
-	it("keeps the Owner flyout from typed shared when the pointer leaves the menu", async () => {
+	it("keeps the Owner flyout opened by typing sha when the pointer leaves the menu", async () => {
 		const { user, input } = setup([scopedOwnerCategory, statusCategory], {
 			initialValue: "owner:alice",
 		});
