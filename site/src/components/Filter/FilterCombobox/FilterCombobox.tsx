@@ -54,9 +54,9 @@ import {
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
 import {
-	noOptionMatchesMessage,
 	optionsLoadErrorMessage,
 	optionsLoadingMessage,
+	optionsStatusMessage,
 	SUGGESTIONS_ERROR_MESSAGE,
 	useFilterCombobox,
 } from "./useFilterCombobox";
@@ -122,6 +122,7 @@ export function FilterCombobox({
 		activeOptions,
 		activeOptionsError,
 		statusMessage,
+		menuCategories,
 		listedCategories,
 		categoriesNarrowedByText,
 		categoryPlaceholderCount,
@@ -154,7 +155,13 @@ export function FilterCombobox({
 		categoryKey: string | null;
 		openAtReset: boolean;
 	}>({ categoryKey: null, openAtReset: open });
-	if (flyout.openAtReset !== open) {
+	// A flyout whose category left the menu, such as one hidden after a
+	// Retry, is closed too. Typed text only hides a row, so its flyout stays.
+	if (
+		flyout.openAtReset !== open ||
+		(flyout.categoryKey !== null &&
+			!menuCategories.some((category) => category.key === flyout.categoryKey))
+	) {
 		setFlyout({ categoryKey: null, openAtReset: open });
 	}
 	const flyoutCategoryKey = flyout.categoryKey;
@@ -220,13 +227,11 @@ export function FilterCombobox({
 		previous: string,
 	) => {
 		actions.onHighlightedValueChange(highlighted, previous);
-		// A flyout whose row was hidden is closed, and a cleared highlight
-		// leaves the open flyout as it is.
-		const flyoutOpen = listedCategories.some(
-			(category) => category.key === flyoutCategoryKey,
-		);
+		// While typed text turns `autoHighlight` off, cmdk's pick arrives as "".
+		// It must not close a flyout the text only hides, such as Owner's while
+		// `own` is typed, so the flyout returns when the text is deleted.
 		if (
-			!flyoutOpen ||
+			flyoutCategoryKey === null ||
 			highlighted === "" ||
 			highlighted === flyoutCategoryKey
 		) {
@@ -250,15 +255,15 @@ export function FilterCombobox({
 	);
 	// The hook announces its own states; the flyout is view state, so its load
 	// state joins the announcement here.
-	const flyoutLoadMessage = !flyoutOptions
-		? undefined
-		: flyoutOptions.loading
-			? optionsLoadingMessage(flyoutOptions.category.label)
-			: flyoutOptions.failed
-				? optionsLoadErrorMessage(flyoutOptions.category.label)
-				: flyoutOptions.emptyMessage
-					? noOptionMatchesMessage(flyoutOptions.category.label)
-					: undefined;
+	const flyoutLoadMessage =
+		flyoutOptions &&
+		optionsStatusMessage({
+			label: flyoutOptions.category.label,
+			loading: flyoutOptions.loading,
+			failed: flyoutOptions.failed,
+			empty: flyoutOptions.emptyMessage !== undefined,
+			searched: flyoutOptions.searched,
+		});
 	const liveRegionMessage = [flyoutLoadMessage, statusMessage]
 		.filter(Boolean)
 		.join(" ");
@@ -969,14 +974,15 @@ const useFlyoutOptions = (
 	const trimmedQuery = query.trim();
 	// `getOptions` may return only the first page for an empty query, so a
 	// typed search calls `getOptions(query)` after the debounce. Until those
-	// results arrive, the unfiltered list is filtered locally. The search runs
-	// only once the debounced state is the current one, so text debounced for
-	// one flyout never reaches another flyout's loader.
-	const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
-	const debouncedQuery =
-		debouncedSearch === search && search.categoryKey === categoryKey
-			? trimmedQuery
+	// results arrive, the unfiltered list is filtered locally. The debounced
+	// text is tagged with its flyout, so it never reaches another flyout's
+	// loader.
+	const searchKey =
+		categoryKey !== undefined && trimmedQuery.length > 0
+			? `${categoryKey}\n${trimmedQuery}`
 			: "";
+	const debouncedSearchKey = useDebouncedValue(searchKey, SEARCH_DEBOUNCE_MS);
+	const debouncedQuery = debouncedSearchKey === searchKey ? trimmedQuery : "";
 	const searchResults = useQuery(
 		filterComboboxOptions(
 			categoryKey ?? "",
@@ -1002,12 +1008,18 @@ const useFlyoutOptions = (
 				: searchSettled && searchResults.data
 					? searchResults.data
 					: filterOptionsByText(options, normalized);
-	const loading = options === undefined && !optionsError;
 	const failed = optionsError || searchFailed;
+	// A search still running counts as loading until something matches.
+	const searching =
+		normalized.length > 0 && (!searchSettled || searchResults.isFetching);
+	const loading =
+		(options === undefined && !optionsError) ||
+		(searching && !failed && filteredOptions.length === 0);
 	return {
 		category,
 		query,
 		setQuery,
+		searched: normalized.length > 0,
 		filteredOptions,
 		searchable: (options?.length ?? 0) > SEARCHABLE_OPTION_COUNT,
 		loading,
