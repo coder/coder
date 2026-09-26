@@ -67,6 +67,7 @@ type chatWorkerTaskStartInput struct {
 	DebugTurn                *runnerDebugTurn
 	SessionStart             *sessionStartTracker
 	StopNudges               *stopNudgeTracker
+	TurnExperiments          *turnExperimentDecisions
 }
 
 func (i chatWorkerTaskStartInput) hookTurnID() *uuid.UUID {
@@ -139,6 +140,44 @@ func (t *stopNudgeTracker) reset() {
 	t.claimed = false
 	t.pending = false
 	t.mu.Unlock()
+}
+
+// turnExperimentDecisions keeps user-scoped experiment decisions for
+// one turn, so every step of the turn uses the decision made when the
+// turn first prepared and a rule change applies from the next turn.
+// Steps run as separate tasks, so the decisions live on the runner and
+// are keyed by the turn's prompt row like stopNudgeTracker. A runner
+// restart evaluates again.
+type turnExperimentDecisions struct {
+	mu            sync.Mutex
+	turnKey       int64
+	decided       bool
+	mcpToolSearch bool
+}
+
+// mcpToolSearchEnabled returns the turn's mcp-tool-search decision, calling
+// evaluate only when the turn has not decided yet.
+func (t *turnExperimentDecisions) mcpToolSearchEnabled(turnKey int64, evaluate func() bool) bool {
+	t.mu.Lock()
+	if t.decided && t.turnKey == turnKey {
+		enabled := t.mcpToolSearch
+		t.mu.Unlock()
+		return enabled
+	}
+	t.mu.Unlock()
+
+	// Evaluate outside the lock because it reads the database. If
+	// another task of the same turn decided meanwhile, its decision wins.
+	enabled := evaluate()
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.decided && t.turnKey == turnKey {
+		return t.mcpToolSearch
+	}
+	t.turnKey = turnKey
+	t.decided = true
+	t.mcpToolSearch = enabled
+	return enabled
 }
 
 type sessionStartTracker struct {
