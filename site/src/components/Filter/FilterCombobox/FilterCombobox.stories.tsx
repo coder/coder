@@ -205,11 +205,14 @@ export const SearchableHoverFlyout: Story = {
 					key: "owner",
 					label: "Owner",
 					icon: <UserIcon />,
-					getOptions: async () =>
-						Array.from({ length: 12 }, (_, index) => ({
-							label: `user-${index + 1}`,
-							value: `user-${index + 1}`,
-						})),
+					getOptions: async (query) =>
+						filterOptions(
+							Array.from({ length: 12 }, (_, index) => ({
+								label: `user-${index + 1}`,
+								value: `user-${index + 1}`,
+							})),
+							query,
+						),
 				},
 			]}
 		/>
@@ -1068,34 +1071,6 @@ export const CategorySearchNoMatches: Story = {
 	},
 };
 
-// A flyout whose category has no options shows the unsearched empty text.
-export const HoverFlyoutEmpty: Story = {
-	render: () => (
-		<FilterComboboxHarness
-			initialQuery=""
-			categories={[
-				{
-					key: "template",
-					label: "Template",
-					icon: <LayoutGridIcon />,
-					getOptions: async () => [],
-				},
-			]}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(
-			within(canvasElement).getByRole("combobox", {
-				name: "Search and filter…",
-			}),
-		);
-		await userEvent.hover(
-			await body.findByRole("option", { name: "Template" }),
-		);
-	},
-};
-
 // A category whose options resolve empty announces a category-aware empty state
 // rather than the browsing "No filters found." copy.
 export const CategoryEmptyState: Story = {
@@ -1119,6 +1094,22 @@ export const CategoryEmptyState: Story = {
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "template:");
+	},
+};
+
+// A flyout whose category has no options shows the unsearched empty text.
+export const HoverFlyoutEmpty: Story = {
+	...CategoryEmptyState,
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: "Search and filter…",
+			}),
+		);
+		await userEvent.hover(
+			await body.findByRole("option", { name: "Template" }),
+		);
 	},
 };
 
